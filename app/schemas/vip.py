@@ -146,11 +146,59 @@ class AutoRepairIngredient(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+_AUTO_REPAIR_BASELINE_FIELDS = (
+    "kcal",
+    "protein_g",
+    "fat_g",
+    "carbs_g",
+    "fiber_g",
+    *_AUTO_REPAIR_TARGET_FIELDS,
+)
+
+
+class AutoRepairMealNutrients(BaseModel):
+    """Complete explicit per-meal evidence required by bounded repair."""
+
+    kcal: float
+    protein_g: float
+    fat_g: float
+    carbs_g: float
+    fiber_g: float
+    iron_mg: float
+    calcium_mg: float
+    magnesium_mg: float
+    zinc_mg: float
+    potassium_mg: float
+    iodine_ug: float
+    selenium_ug: float
+    folate_ug: float
+    b12_ug: float
+    vitamin_d_iu: float
+    vitamin_a_ug: float
+    vitamin_c_mg: float
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_complete_baseline(cls, values: Any) -> Any:
+        if not isinstance(values, Mapping):
+            return values
+        for field_name in _AUTO_REPAIR_BASELINE_FIELDS:
+            raw_value = values.get(field_name)
+            if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+                raise ValueError(f"{field_name} must be a real number")
+            value = float(raw_value)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{field_name} must be finite and nonnegative")
+        return values
+
+    model_config = ConfigDict(extra="allow")
+
+
 class AutoRepairMeal(BaseModel):
     """One meal with explicit nutrient evidence for safe bounded repair."""
 
     ingredients: List[AutoRepairIngredient] = Field(..., min_length=1)
-    nutrients: dict[str, float]
+    nutrients: AutoRepairMealNutrients
 
     @model_validator(mode="before")
     @classmethod
@@ -230,13 +278,175 @@ class AutoRepairTargetRanges(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AutoRepairProfile(BaseModel):
+    """Explicit profile used as NutritionTargets.calculated_for authority."""
+
+    sex: Literal["female", "male"]
+    age: int = Field(..., ge=1, le=120)
+    height_cm: float = Field(..., gt=0, le=300)
+    weight_kg: float = Field(..., gt=0, le=500)
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"]
+    goal: Literal["loss", "maintain", "gain"]
+    deficit_pct: Optional[float] = Field(..., ge=5, le=25)
+    surplus_pct: Optional[float] = Field(..., ge=5, le=20)
+    bodyfat: Optional[float] = Field(..., gt=0, le=100)
+    region: str = Field(..., min_length=1)
+    timezone: str = Field(..., min_length=1)
+    diet_flags: Set[str]
+    life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
+    medical_conditions: Set[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_ambiguous_profile_numbers(cls, values: Any) -> Any:
+        if not isinstance(values, Mapping):
+            return values
+        for field_name in (
+            "age",
+            "height_cm",
+            "weight_kg",
+            "deficit_pct",
+            "surplus_pct",
+            "bodyfat",
+        ):
+            raw_value = values.get(field_name)
+            if raw_value is None and field_name in {"deficit_pct", "surplus_pct", "bodyfat"}:
+                continue
+            if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+                raise ValueError(f"{field_name} must be a real number")
+            value = float(raw_value)
+            if not math.isfinite(value):
+                raise ValueError(f"{field_name} must be finite")
+        return values
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AutoRepairMacroTargets(BaseModel):
+    """Explicit daily macro targets using canonical 4/4/9 arithmetic."""
+
+    protein_g: int = Field(..., gt=0, le=1000)
+    fat_g: int = Field(..., gt=0, le=1000)
+    carbs_g: int = Field(..., gt=0, le=2000)
+    fiber_g: int = Field(..., gt=0, le=500)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_boolean_macros(cls, values: Any) -> Any:
+        if isinstance(values, Mapping) and any(
+            isinstance(values.get(field_name), bool)
+            for field_name in ("protein_g", "fat_g", "carbs_g", "fiber_g")
+        ):
+            raise ValueError("Macro targets must be non-boolean integers")
+        return values
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AutoRepairActivityTargets(BaseModel):
+    """Explicit bounded weekly activity targets."""
+
+    moderate_aerobic_min: int = Field(..., gt=0, le=10080)
+    vigorous_aerobic_min: int = Field(..., gt=0, le=10080)
+    strength_sessions: int = Field(..., gt=0, le=21)
+    steps_daily: int = Field(..., gt=0, le=100000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_boolean_activity(cls, values: Any) -> Any:
+        if isinstance(values, Mapping) and any(
+            isinstance(values.get(field_name), bool)
+            for field_name in (
+                "moderate_aerobic_min",
+                "vigorous_aerobic_min",
+                "strength_sessions",
+                "steps_daily",
+            )
+        ):
+            raise ValueError("Activity targets must be non-boolean integers")
+        return values
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AutoRepairDailyTargets(BaseModel):
+    """Explicit shared daily targets used by every admitted day."""
+
+    kcal_daily: int = Field(..., gt=0, le=10000)
+    macros: AutoRepairMacroTargets
+    water_ml_daily: int = Field(..., gt=0, le=10000)
+    activity: AutoRepairActivityTargets
+    calculation_date: str = Field(..., min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_boolean_daily_targets(cls, values: Any) -> Any:
+        if isinstance(values, Mapping) and any(
+            isinstance(values.get(field_name), bool)
+            for field_name in ("kcal_daily", "water_ml_daily")
+        ):
+            raise ValueError("Daily targets must be non-boolean integers")
+        return values
+
+    @model_validator(mode="after")
+    def validate_macro_calories(self) -> "AutoRepairDailyTargets":
+        macro_calories = self.macros.protein_g * 4 + self.macros.carbs_g * 4 + self.macros.fat_g * 9
+        if macro_calories != self.kcal_daily:
+            raise ValueError("Daily kcal must equal canonical macro calories")
+        return self
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AutoRepairWeeklyRequest(BaseModel):
     """Typed public request validated explicitly after VIP authorization."""
 
     week_plan: AutoRepairWeekPlan
     targets: AutoRepairTargetRanges
+    profile: AutoRepairProfile
+    daily_targets: AutoRepairDailyTargets
     strategy: Literal["conservative", "balanced", "aggressive"] = "balanced"
     user_preferences: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WeeklyRecipeMeal(BaseModel):
+    """One non-empty meal admitted by weekly recipe synthesis."""
+
+    ingredients: List[AutoRepairIngredient] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WeeklyRecipeDay(BaseModel):
+    """One non-empty recipe-synthesis day."""
+
+    meals: List[WeeklyRecipeMeal] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WeeklyRecipePlan(BaseModel):
+    """Non-empty weekly recipe plan."""
+
+    days: List[WeeklyRecipeDay] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class WeeklyRecipesRequest(BaseModel):
+    """Typed weekly recipe request validated after VIP authorization."""
+
+    week_plan: WeeklyRecipePlan
+    recipes_per_day: int = Field(default=1, gt=0, le=20)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_boolean_recipe_count(cls, values: Any) -> Any:
+        if isinstance(values, Mapping) and isinstance(values.get("recipes_per_day", 1), bool):
+            raise ValueError("recipes_per_day must be a non-boolean positive integer")
+        return values
 
     model_config = ConfigDict(extra="allow")
 

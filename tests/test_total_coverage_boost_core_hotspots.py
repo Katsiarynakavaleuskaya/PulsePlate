@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Mapping
 import pytest
 
 if TYPE_CHECKING:
-    from core.targets import MicronutrientTargets
+    from core.targets import MicronutrientTargets, NutritionTargets
 
 
 def test_adherence_service_raises_if_store_returns_none() -> None:
@@ -56,77 +56,45 @@ def test_adherence_service_raises_if_store_returns_none() -> None:
         svc.record_event(user_id=1, event_type="meal_logged", weight=1.0)
 
 
-def test_auto_repair_progress_path_hits_continue(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover the 'progress exists -> continue' branch in AutoRepairEngine."""
-    from core.auto_repair import AutoRepairEngine, RepairIteration, RepairStrategy
+def test_auto_repair_empty_plan_fails_closed() -> None:
+    """An exported empty plan is invalid and never becomes semantic success."""
+    from core.auto_repair import AutoRepairEngine
 
-    engine = AutoRepairEngine(max_iterations=2)
-
-    # Drive the control-flow without relying on real plan analysis/repair.
-    gap_sequences = [
-        {"iron_mg": 10.0, "vitamin_c_mg": 5.0},  # initial_gaps (non-empty)
-        {"iron_mg": 10.0, "vitamin_c_mg": 5.0},  # current_gaps (iteration 1)
-        {"iron_mg": 10.0},  # new_gaps (after "repair") -> smaller => triggers `continue`
-        {},  # current_gaps (iteration 2) -> success exit
-    ]
-
-    def _fake_analyze(_plan: dict, _targets: object) -> dict[str, float]:
-        return gap_sequences.pop(0)
-
-    def _fake_attempt(
-        _plan: dict, _targets: object, _strategy: object, _iteration: int
-    ) -> RepairIteration:
-        return RepairIteration(
-            iteration_number=_iteration,
-            strategy=RepairStrategy.BALANCED,
-            gaps_before={"iron_mg": 10.0},
-            gaps_after={"iron_mg": 1.0},
-            changes_applied=[{"repaired_plan": _plan}],
-            success=True,
+    with pytest.raises(ValueError, match="non-empty list"):
+        AutoRepairEngine().auto_repair_week_plan(
+            week_plan={"days": []},
+            targets=_make_targets(),
+            nutrition_targets=_make_nutrition_targets(),
         )
 
-    monkeypatch.setattr(engine, "_analyze_nutrient_gaps", _fake_analyze)
-    monkeypatch.setattr(engine, "_attempt_repair", _fake_attempt)
 
-    # Use a minimal, structurally valid week_plan to avoid accidental KeyErrors.
-    result = engine.auto_repair_week_plan(week_plan={"days": []}, targets=_make_targets())
-    assert result.status.name == "SUCCESS"
+def test_auto_repair_complete_evidence_returns_exact_success() -> None:
+    """Complete exact daily evidence returns unchanged SUCCESS with zero iterations."""
+    from core.auto_repair import AutoRepairEngine, RepairStatus
 
-
-def test_auto_repair_partial_result_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover the PARTIAL result branch at the end of AutoRepairEngine loop."""
-    from core.auto_repair import AutoRepairEngine, RepairIteration, RepairStrategy, RepairStatus
-
-    engine = AutoRepairEngine(max_iterations=1)
-
-    # initial_gaps: 2 deficits; final_gaps: 1 deficit -> PARTIAL branch.
-    gap_sequences = [
-        {"iron_mg": 10.0, "vitamin_c_mg": 5.0},  # initial_gaps
-        {"iron_mg": 10.0, "vitamin_c_mg": 5.0},  # current_gaps
-        {"iron_mg": 10.0},  # final_gaps (after loop)
-    ]
-
-    def _fake_analyze(_plan: dict, _targets: object) -> dict[str, float]:
-        return gap_sequences.pop(0)
-
-    def _fake_attempt(
-        _plan: dict, _targets: object, _strategy: object, _iteration: int
-    ) -> RepairIteration:
-        return RepairIteration(
-            iteration_number=_iteration,
-            strategy=RepairStrategy.BALANCED,
-            gaps_before={"iron_mg": 10.0, "vitamin_c_mg": 5.0},
-            gaps_after={"iron_mg": 10.0, "vitamin_c_mg": 5.0},
-            changes_applied=[{"repaired_plan": _plan}],
-            success=False,
-        )
-
-    monkeypatch.setattr(engine, "_analyze_nutrient_gaps", _fake_analyze)
-    monkeypatch.setattr(engine, "_attempt_repair", _fake_attempt)
-
-    result = engine.auto_repair_week_plan(week_plan={"days": []}, targets=_make_targets())
-    assert result.status == RepairStatus.PARTIAL
-    assert "Частичный ремонт" in result.message
+    nutrition_targets = _make_nutrition_targets()
+    micros = nutrition_targets.micros
+    nutrients = {
+        "kcal": float(nutrition_targets.kcal_daily),
+        "protein_g": float(nutrition_targets.macros.protein_g),
+        "fat_g": float(nutrition_targets.macros.fat_g),
+        "carbs_g": float(nutrition_targets.macros.carbs_g),
+        "fiber_g": float(nutrition_targets.macros.fiber_g),
+        **{
+            field_name: float(getattr(micros, field_name))
+            for field_name in _make_targets().priority_nutrients
+        },
+    }
+    result = AutoRepairEngine().auto_repair_week_plan(
+        week_plan={
+            "days": [{"meals": [{"ingredients": [{"name": "complete"}], "nutrients": nutrients}]}]
+        },
+        targets=_make_targets(),
+        nutrition_targets=nutrition_targets,
+    )
+    assert result.status == RepairStatus.SUCCESS
+    assert result.iterations == 0
+    assert result.changes_made == []
 
 
 def test_core_db_build_engine_url_absolute_path_branch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -310,23 +278,67 @@ async def test_update_manager_load_backup_schema_validation(tmp_path: Path) -> N
 
 
 def _make_targets() -> "MicronutrientTargets":
-    """Build a minimal MicronutrientTargets instance for control-flow tests."""
+    """Build positive micronutrient ranges aligned with explicit daily targets."""
     from core.targets import MicronutrientTargets
 
-    z = (0.0, 0.0, 0.0)
     return MicronutrientTargets(
-        iron_mg=z,
-        calcium_mg=z,
-        magnesium_mg=z,
-        zinc_mg=z,
-        potassium_mg=z,
-        iodine_ug=z,
-        selenium_ug=z,
-        folate_ug=z,
-        b12_ug=z,
-        vitamin_d_iu=z,
-        vitamin_a_ug=z,
-        vitamin_c_mg=z,
+        iron_mg=(6.0, 8.0, 45.0),
+        calcium_mg=(800.0, 1000.0, 2500.0),
+        magnesium_mg=(300.0, 400.0, 700.0),
+        zinc_mg=(8.0, 11.0, 40.0),
+        potassium_mg=(3500.0, 4700.0, 5000.0),
+        iodine_ug=(130.0, 150.0, 1100.0),
+        selenium_ug=(45.0, 55.0, 400.0),
+        folate_ug=(320.0, 400.0, 1000.0),
+        b12_ug=(2.0, 2.4, 100.0),
+        vitamin_d_iu=(400.0, 600.0, 4000.0),
+        vitamin_a_ug=(600.0, 900.0, 3000.0),
+        vitamin_c_mg=(75.0, 90.0, 2000.0),
+    )
+
+
+def _make_nutrition_targets() -> "NutritionTargets":
+    from core.targets import (
+        ActivityTargets,
+        MacroTargets,
+        MicroTargets,
+        NutritionTargets,
+        UserProfile,
+    )
+
+    return NutritionTargets(
+        kcal_daily=1800,
+        macros=MacroTargets(protein_g=100, fat_g=60, carbs_g=215, fiber_g=30),
+        water_ml_daily=2000,
+        micros=MicroTargets(
+            iron_mg=8.0,
+            calcium_mg=1000.0,
+            magnesium_mg=400.0,
+            zinc_mg=11.0,
+            potassium_mg=4700.0,
+            iodine_ug=150.0,
+            selenium_ug=55.0,
+            folate_ug=400.0,
+            b12_ug=2.4,
+            vitamin_d_iu=600.0,
+            vitamin_a_ug=900.0,
+            vitamin_c_mg=90.0,
+        ),
+        activity=ActivityTargets(
+            moderate_aerobic_min=150,
+            vigorous_aerobic_min=75,
+            strength_sessions=2,
+            steps_daily=8000,
+        ),
+        calculated_for=UserProfile(
+            sex="male",
+            age=30,
+            height_cm=175.0,
+            weight_kg=70.0,
+            activity="moderate",
+            goal="maintain",
+        ),
+        calculation_date="2026-08-22",
     )
 
 

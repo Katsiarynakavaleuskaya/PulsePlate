@@ -2,7 +2,7 @@
 Расширенные интеграционные тесты для VIP endpoints для достижения 97% покрытия
 """
 
-import math
+from copy import deepcopy
 from typing import Any
 from unittest.mock import Mock
 
@@ -15,10 +15,50 @@ from core.menu_engine import FoodItem
 from tests._helpers.vip_contracts import assert_json_response_payload
 
 
+def _complete_nutrient_evidence(
+    overrides: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """Build complete explicit per-meal baseline evidence."""
+    values = {
+        "kcal": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        "iron_mg": 0.0,
+        "calcium_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "potassium_mg": 0.0,
+        "iodine_ug": 0.0,
+        "selenium_ug": 0.0,
+        "folate_ug": 0.0,
+        "b12_ug": 0.0,
+        "vitamin_d_iu": 0.0,
+        "vitamin_a_ug": 0.0,
+        "vitamin_c_mg": 0.0,
+    }
+    if overrides:
+        values.update(overrides)
+    return values
+
+
 def _auto_repair_payload(week_plan: dict[str, Any]) -> dict[str, Any]:
     """Build the canonical deterministic VIP auto-repair request."""
+    canonical_plan = deepcopy(week_plan)
+    days = canonical_plan.get("days", [])
+    for day in days if isinstance(days, list) else []:
+        if not isinstance(day, dict):
+            continue
+        for meal in day.get("meals", []):
+            if not isinstance(meal, dict):
+                continue
+            nutrients = meal.get("nutrients")
+            meal["nutrients"] = _complete_nutrient_evidence(
+                nutrients if isinstance(nutrients, dict) else None
+            )
     return {
-        "week_plan": week_plan,
+        "week_plan": canonical_plan,
         "targets": {
             "iron_mg": [6.0, 8.0, 45.0],
             "calcium_mg": [800.0, 1000.0, 2500.0],
@@ -35,6 +75,39 @@ def _auto_repair_payload(week_plan: dict[str, Any]) -> dict[str, Any]:
         },
         "strategy": "balanced",
         "user_preferences": {},
+        "profile": {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "deficit_pct": None,
+            "surplus_pct": None,
+            "bodyfat": None,
+            "region": "BY",
+            "timezone": "UTC",
+            "diet_flags": [],
+            "life_stage": "adult",
+            "medical_conditions": [],
+        },
+        "daily_targets": {
+            "kcal_daily": 1800,
+            "macros": {
+                "protein_g": 100,
+                "fat_g": 60,
+                "carbs_g": 215,
+                "fiber_g": 30,
+            },
+            "water_ml_daily": 2000,
+            "activity": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+            "calculation_date": "2026-08-22",
+        },
     }
 
 
@@ -70,7 +143,13 @@ def canonical_auto_repair_food_db() -> dict[str, FoodItem]:
     return {
         "iron_booster": FoodItem(
             name="Iron Booster",
-            nutrients_per_100g={"iron_mg": 10.0},
+            nutrients_per_100g={
+                "iron_mg": 10.0,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+                "fiber_g": 0.0,
+            },
             cost_per_100g=1.0,
             tags=[],
             availability_regions=[],
@@ -369,6 +448,29 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid weekly recipes request payload"
         }
 
+        for invalid_count in (0, True, 10**310):
+            response = client.post(
+                "/api/v1/vip/recipes/weekly",
+                json={
+                    "week_plan": payload_simple["week_plan"],
+                    "recipes_per_day": invalid_count,
+                },
+                headers=vip_headers,
+            )
+            assert response.status_code == 422
+            assert assert_json_response_payload(response) == {
+                "detail": "Invalid weekly recipes request payload"
+            }
+
+        response = client.post(
+            "/api/v1/vip/recipes/weekly",
+            json=[],
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        standard_validation = assert_json_response_payload(response)
+        assert isinstance(standard_validation["detail"], list)
+
     def test_vip_auto_repair_integration_extended_scenarios(
         self,
         canonical_auto_repair_food_db: dict[str, FoodItem],
@@ -380,8 +482,8 @@ class TestVIPIntegration97Extended:
         """Расширенные интеграционные тесты VIP auto repair endpoint"""
         monkeypatch.setattr(
             menu_engine,
-            "_get_default_food_db",
-            lambda **_kwargs: canonical_auto_repair_food_db,
+            "get_cached_common_foods_snapshot",
+            lambda: canonical_auto_repair_food_db,
         )
         payload_problems = _auto_repair_payload(
             {
@@ -469,6 +571,97 @@ class TestVIPIntegration97Extended:
             assert data["echo"] == payload
             assert data["message"] == "Auto-repair completed with status: partial"
 
+        stale_summary_payload = _auto_repair_payload(payload_simple_problems["week_plan"])
+        stale_summary_payload["week_plan"].update(
+            {
+                "weekly_coverage": {"overflow": 10**310},
+                "shopping_list": "invalid",
+                "total_cost": 10**310,
+                "adherence_score": {"invalid": True},
+            }
+        )
+        stale_day = stale_summary_payload["week_plan"]["days"][0]
+        stale_day.update(
+            {
+                "coverage": {"overflow": 10**310},
+                "recommendations": "invalid",
+                "estimated_cost": {"invalid": True},
+            }
+        )
+        cached_only = Mock(return_value=canonical_auto_repair_food_db)
+        with monkeypatch.context() as stale_guard:
+            stale_guard.setattr(
+                menu_engine,
+                "get_cached_common_foods_snapshot",
+                cached_only,
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=stale_summary_payload,
+                headers=vip_headers,
+            )
+        assert response.status_code == 200
+        stale_data = assert_json_response_payload(response)
+        assert stale_data["status"] == "success"
+        repaired_stale_plan = stale_data["repair_result"]["repaired_plan"]
+        for stale_field in (
+            "weekly_coverage",
+            "shopping_list",
+            "total_cost",
+            "adherence_score",
+        ):
+            assert stale_field not in repaired_stale_plan
+        for stale_field in ("coverage", "recommendations", "estimated_cost"):
+            assert stale_field not in repaired_stale_plan["days"][0]
+        cached_only.assert_called()
+
+        complete_payload = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "ingredients": [{"name": "complete"}],
+                                "nutrients": _complete_nutrient_evidence(
+                                    {
+                                        "kcal": 1800.0,
+                                        "protein_g": 100.0,
+                                        "fat_g": 60.0,
+                                        "carbs_g": 215.0,
+                                        "fiber_g": 30.0,
+                                        "iron_mg": 8.0,
+                                        "calcium_mg": 1000.0,
+                                        "magnesium_mg": 400.0,
+                                        "zinc_mg": 11.0,
+                                        "potassium_mg": 4700.0,
+                                        "iodine_ug": 150.0,
+                                        "selenium_ug": 55.0,
+                                        "folate_ug": 400.0,
+                                        "b12_ug": 2.4,
+                                        "vitamin_d_iu": 600.0,
+                                        "vitamin_a_ug": 900.0,
+                                        "vitamin_c_mg": 90.0,
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=complete_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        complete_data = assert_json_response_payload(response)
+        assert complete_data["status"] == "success"
+        assert complete_data["repair_result"]["status"] == "success"
+        assert complete_data["repair_result"]["iterations"] == 0
+        assert complete_data["repair_result"]["changes_made"] == []
+
         known_deficits_payload = _auto_repair_payload(
             {
                 "plan_id": "route-plan",
@@ -479,7 +672,22 @@ class TestVIPIntegration97Extended:
                         "meals": [
                             {
                                 "ingredients": [{"name": "rice"}],
-                                "nutrients": {"iron_mg": 0.0, "vitamin_c_mg": 0.0},
+                                "nutrients": _complete_nutrient_evidence(
+                                    {
+                                        "iron_mg": 0.0,
+                                        "calcium_mg": 1000.0,
+                                        "magnesium_mg": 400.0,
+                                        "zinc_mg": 11.0,
+                                        "potassium_mg": 4700.0,
+                                        "iodine_ug": 150.0,
+                                        "selenium_ug": 55.0,
+                                        "folate_ug": 400.0,
+                                        "b12_ug": 2.4,
+                                        "vitamin_d_iu": 600.0,
+                                        "vitamin_a_ug": 900.0,
+                                        "vitamin_c_mg": 0.0,
+                                    }
+                                ),
                             }
                         ],
                     }
@@ -505,8 +713,8 @@ class TestVIPIntegration97Extended:
         with monkeypatch.context() as unavailable_real_food_db:
             unavailable_real_food_db.setattr(
                 menu_engine,
-                "_get_default_food_db",
-                lambda **_kwargs: {},
+                "get_cached_common_foods_snapshot",
+                lambda: {},
             )
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
@@ -530,7 +738,7 @@ class TestVIPIntegration97Extended:
                             {
                                 "meal_type": "breakfast",
                                 "ingredients": [{"name": "rice", "amount": 100, "unit": "g"}],
-                                "nutrients": {},
+                                "nutrients": {"iron_mg": 45.0},
                             }
                         ],
                     }
@@ -576,16 +784,8 @@ class TestVIPIntegration97Extended:
         assert response.status_code == 200
         overflow_data = assert_json_response_payload(response)
         assert overflow_data["status"] == "error"
-        assert overflow_data["code"] == "auto_repair_failed"
-        overflow_result = overflow_data["repair_result"]
-        assert overflow_result["status"] == "failed"
-        assert overflow_result["changes_made"] == []
-        assert overflow_result["repaired_plan"] == overflow_result["original_plan"]
-        assert all(
-            math.isfinite(value)
-            for meal in overflow_result["repaired_plan"]["days"][0]["meals"]
-            for value in meal["nutrients"].values()
-        )
+        assert overflow_data["code"] == "internal_error"
+        assert overflow_data["repair_result"] == {}
         assert "Infinity" not in response.text
         assert "NaN" not in response.text
 
@@ -599,6 +799,35 @@ class TestVIPIntegration97Extended:
         assert assert_json_response_payload(response) == {
             "detail": "Invalid auto-repair request payload"
         }
+
+        overflow_admission = _auto_repair_payload(payload_no_problems["week_plan"])
+        overflow_admission["week_plan"]["days"][0]["meals"][0]["nutrients"]["kcal"] = 10**310
+        cached_reader = Mock(side_effect=AssertionError("core cache must not be called"))
+        with monkeypatch.context() as overflow_guard:
+            overflow_guard.setattr(
+                menu_engine,
+                "get_cached_common_foods_snapshot",
+                cached_reader,
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=overflow_admission,
+                headers=vip_headers,
+            )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+        cached_reader.assert_not_called()
+
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=[],
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        standard_auto_validation = assert_json_response_payload(response)
+        assert isinstance(standard_auto_validation["detail"], list)
 
         for forbidden_target_field, forbidden_value in (
             ("priority_nutrients", {"iron_mg": 5}),
@@ -1008,8 +1237,8 @@ class TestVIPIntegration97Extended:
         """Расширенные интеграционные тесты полного workflow VIP функций"""
         monkeypatch.setattr(
             menu_engine,
-            "_get_default_food_db",
-            lambda **_kwargs: canonical_auto_repair_food_db,
+            "get_cached_common_foods_snapshot",
+            lambda: canonical_auto_repair_food_db,
         )
         menu_payload = {
             "sex": "male",

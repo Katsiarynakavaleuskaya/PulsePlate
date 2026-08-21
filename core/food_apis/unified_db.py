@@ -11,9 +11,11 @@ This module provides a single interface to access multiple food databases
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import importlib
 import json
 import logging
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
@@ -514,6 +516,88 @@ class UnifiedFoodDatabase:
 
 # Global instance for easy access
 _unified_db_instance: Optional[UnifiedFoodDatabase] = None
+
+
+def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
+    """Read a validated common-food cache from the already configured instance only."""
+    instance = _unified_db_instance
+    if instance is None:
+        return {}
+    cache_file = instance.cache_dir / "common_foods.json"
+    if not cache_file.is_file():
+        return {}
+    try:
+        raw_payload = json.loads(cache_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw_payload, dict):
+        return {}
+
+    validated: Dict[str, UnifiedFoodItem] = {}
+    try:
+        for key, raw_item in raw_payload.items():
+            if not isinstance(key, str) or not key or not isinstance(raw_item, dict):
+                return {}
+            item = UnifiedFoodItem(**deepcopy(raw_item))
+            if not item.name or not item.source or not item.source_id:
+                return {}
+            if not isinstance(item.nutrients_per_100g, dict):
+                return {}
+            for nutrient, raw_value in item.nutrients_per_100g.items():
+                if not isinstance(nutrient, str) or not nutrient:
+                    return {}
+                if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+                    return {}
+                value = float(raw_value)
+                if not math.isfinite(value) or value < 0:
+                    return {}
+            if (
+                isinstance(item.cost_per_100g, bool)
+                or not isinstance(item.cost_per_100g, (int, float))
+                or not math.isfinite(float(item.cost_per_100g))
+                or float(item.cost_per_100g) < 0
+            ):
+                return {}
+            if not isinstance(item.tags, list) or not all(
+                isinstance(tag, str) for tag in item.tags
+            ):
+                return {}
+            if not isinstance(item.availability_regions, list) or not all(
+                isinstance(region, str) for region in item.availability_regions
+            ):
+                return {}
+            if item.category is not None and not isinstance(item.category, str):
+                return {}
+            if not isinstance(item.nutrition_inputs, list) or not all(
+                isinstance(value, dict) for value in item.nutrition_inputs
+            ):
+                return {}
+            if not isinstance(item.nutrition_provenance, dict) or not all(
+                isinstance(name, str) and isinstance(value, str)
+                for name, value in item.nutrition_provenance.items()
+            ):
+                return {}
+            if not isinstance(item.nutrition_nutrient_confidence, dict):
+                return {}
+            for name, raw_confidence in item.nutrition_nutrient_confidence.items():
+                if not isinstance(name, str) or isinstance(raw_confidence, bool):
+                    return {}
+                if not isinstance(raw_confidence, (int, float)):
+                    return {}
+                confidence = float(raw_confidence)
+                if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+                    return {}
+            if (
+                isinstance(item.nutrition_confidence, bool)
+                or not isinstance(item.nutrition_confidence, (int, float))
+                or not math.isfinite(float(item.nutrition_confidence))
+                or not 0 <= float(item.nutrition_confidence) <= 1
+            ):
+                return {}
+            validated[key] = deepcopy(item)
+    except (TypeError, ValueError, OverflowError):
+        return {}
+    return validated
 
 
 async def get_unified_food_db() -> UnifiedFoodDatabase:

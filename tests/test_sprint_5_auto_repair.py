@@ -22,7 +22,8 @@ from core.auto_repair import (
     suggest_manual_fixes,
 )
 from core.menu_engine import WeekMenu
-from core.targets import MicronutrientTargets
+from core.recommendations import build_nutrition_targets
+from core.targets import MicronutrientTargets, NutritionTargets, UserProfile
 
 
 def _changed_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
@@ -44,6 +45,19 @@ def default_targets() -> MicronutrientTargets:
         vitamin_d_iu=(20.0, 20.0, 20.0),
         vitamin_a_ug=(900.0, 900.0, 900.0),
         vitamin_c_mg=(90.0, 90.0, 90.0),
+    )
+
+
+def default_nutrition_targets() -> NutritionTargets:
+    return build_nutrition_targets(
+        UserProfile(
+            sex="male",
+            age=30,
+            height_cm=175.0,
+            weight_kg=70.0,
+            activity="moderate",
+            goal="maintain",
+        )
     )
 
 
@@ -279,7 +293,13 @@ class TestAutoRepairEngine:
         mock_repair.side_effect = _changed_week_menu
         targets = default_targets()
 
-        iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
+        iteration = engine._attempt_repair(
+            week_plan,
+            targets,
+            RepairStrategy.BALANCED,
+            1,
+            default_nutrition_targets(),
+        )
 
         assert isinstance(iteration, RepairIteration)
         assert iteration.iteration_number == 1
@@ -297,7 +317,13 @@ class TestAutoRepairEngine:
         targets = default_targets()
 
         with pytest.raises(RuntimeError, match="Repair failed"):
-            engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
+            engine._attempt_repair(
+                week_plan,
+                targets,
+                RepairStrategy.BALANCED,
+                1,
+                default_nutrition_targets(),
+            )
 
     def test_auto_repair_week_plan_no_gaps(self):
         """Тест авто-ремонта - нет дефицитов"""
@@ -323,7 +349,11 @@ class TestAutoRepairEngine:
 
         # Мокаем анализ дефицитов, чтобы вернуть пустой словарь
         with patch.object(engine, "_analyze_nutrient_gaps", return_value={}):
-            result = engine.auto_repair_week_plan(week_plan, targets)
+            result = engine.auto_repair_week_plan(
+                week_plan,
+                targets,
+                nutrition_targets=default_nutrition_targets(),
+            )
 
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.FAILED
@@ -352,7 +382,11 @@ class TestAutoRepairEngine:
                     success=True,
                 )
 
-                result = engine.auto_repair_week_plan(week_plan, targets)
+                result = engine.auto_repair_week_plan(
+                    week_plan,
+                    targets,
+                    nutrition_targets=default_nutrition_targets(),
+                )
 
         assert isinstance(result, RepairResult)
         assert result.iterations > 0
@@ -492,7 +526,11 @@ class TestIntegration:
                     success=True,
                 )
 
-                result = engine.auto_repair_week_plan(week_plan, targets)
+                result = engine.auto_repair_week_plan(
+                    week_plan,
+                    targets,
+                    nutrition_targets=default_nutrition_targets(),
+                )
 
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.PARTIAL
@@ -522,7 +560,11 @@ class TestIntegration:
                     success=False,
                 )
 
-                result = engine.auto_repair_week_plan(week_plan, targets)
+                result = engine.auto_repair_week_plan(
+                    week_plan,
+                    targets,
+                    nutrition_targets=default_nutrition_targets(),
+                )
 
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.FAILED

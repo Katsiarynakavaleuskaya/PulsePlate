@@ -9738,6 +9738,261 @@
                 "additionalProperties": true,
                 "description": "Typed public request validated explicitly after VIP authorization.",
                 "properties": {
+                  "daily_targets": {
+                    "additionalProperties": false,
+                    "description": "Explicit shared daily targets used by every admitted day.",
+                    "properties": {
+                      "activity": {
+                        "additionalProperties": false,
+                        "description": "Explicit bounded weekly activity targets.",
+                        "properties": {
+                          "moderate_aerobic_min": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10080.0,
+                            "title": "Moderate Aerobic Min",
+                            "type": "integer"
+                          },
+                          "steps_daily": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 100000.0,
+                            "title": "Steps Daily",
+                            "type": "integer"
+                          },
+                          "strength_sessions": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 21.0,
+                            "title": "Strength Sessions",
+                            "type": "integer"
+                          },
+                          "vigorous_aerobic_min": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 10080.0,
+                            "title": "Vigorous Aerobic Min",
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "moderate_aerobic_min",
+                          "vigorous_aerobic_min",
+                          "strength_sessions",
+                          "steps_daily"
+                        ],
+                        "title": "AutoRepairActivityTargets",
+                        "type": "object"
+                      },
+                      "calculation_date": {
+                        "minLength": 1,
+                        "title": "Calculation Date",
+                        "type": "string"
+                      },
+                      "kcal_daily": {
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 10000.0,
+                        "title": "Kcal Daily",
+                        "type": "integer"
+                      },
+                      "macros": {
+                        "additionalProperties": false,
+                        "description": "Explicit daily macro targets using canonical 4/4/9 arithmetic.",
+                        "properties": {
+                          "carbs_g": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 2000.0,
+                            "title": "Carbs G",
+                            "type": "integer"
+                          },
+                          "fat_g": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 1000.0,
+                            "title": "Fat G",
+                            "type": "integer"
+                          },
+                          "fiber_g": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 500.0,
+                            "title": "Fiber G",
+                            "type": "integer"
+                          },
+                          "protein_g": {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 1000.0,
+                            "title": "Protein G",
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "protein_g",
+                          "fat_g",
+                          "carbs_g",
+                          "fiber_g"
+                        ],
+                        "title": "AutoRepairMacroTargets",
+                        "type": "object"
+                      },
+                      "water_ml_daily": {
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 10000.0,
+                        "title": "Water Ml Daily",
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "kcal_daily",
+                      "macros",
+                      "water_ml_daily",
+                      "activity",
+                      "calculation_date"
+                    ],
+                    "title": "AutoRepairDailyTargets",
+                    "type": "object"
+                  },
+                  "profile": {
+                    "additionalProperties": false,
+                    "description": "Explicit profile used as NutritionTargets.calculated_for authority.",
+                    "properties": {
+                      "activity": {
+                        "enum": [
+                          "sedentary",
+                          "light",
+                          "moderate",
+                          "active",
+                          "very_active"
+                        ],
+                        "title": "Activity",
+                        "type": "string"
+                      },
+                      "age": {
+                        "maximum": 120.0,
+                        "minimum": 1.0,
+                        "title": "Age",
+                        "type": "integer"
+                      },
+                      "bodyfat": {
+                        "anyOf": [
+                          {
+                            "exclusiveMinimum": 0.0,
+                            "maximum": 100.0,
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Bodyfat"
+                      },
+                      "deficit_pct": {
+                        "anyOf": [
+                          {
+                            "maximum": 25.0,
+                            "minimum": 5.0,
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Deficit Pct"
+                      },
+                      "diet_flags": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "title": "Diet Flags",
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "goal": {
+                        "enum": [
+                          "loss",
+                          "maintain",
+                          "gain"
+                        ],
+                        "title": "Goal",
+                        "type": "string"
+                      },
+                      "height_cm": {
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 300.0,
+                        "title": "Height Cm",
+                        "type": "number"
+                      },
+                      "life_stage": {
+                        "enum": [
+                          "child",
+                          "teen",
+                          "adult",
+                          "pregnant",
+                          "lactating",
+                          "elderly"
+                        ],
+                        "title": "Life Stage",
+                        "type": "string"
+                      },
+                      "medical_conditions": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "title": "Medical Conditions",
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "region": {
+                        "minLength": 1,
+                        "title": "Region",
+                        "type": "string"
+                      },
+                      "sex": {
+                        "enum": [
+                          "female",
+                          "male"
+                        ],
+                        "title": "Sex",
+                        "type": "string"
+                      },
+                      "surplus_pct": {
+                        "anyOf": [
+                          {
+                            "maximum": 20.0,
+                            "minimum": 5.0,
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "title": "Surplus Pct"
+                      },
+                      "timezone": {
+                        "minLength": 1,
+                        "title": "Timezone",
+                        "type": "string"
+                      },
+                      "weight_kg": {
+                        "exclusiveMinimum": 0.0,
+                        "maximum": 500.0,
+                        "title": "Weight Kg",
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "sex",
+                      "age",
+                      "height_cm",
+                      "weight_kg",
+                      "activity",
+                      "goal",
+                      "deficit_pct",
+                      "surplus_pct",
+                      "bodyfat",
+                      "region",
+                      "timezone",
+                      "diet_flags",
+                      "life_stage",
+                      "medical_conditions"
+                    ],
+                    "title": "AutoRepairProfile",
+                    "type": "object"
+                  },
                   "strategy": {
                     "default": "balanced",
                     "enum": [
@@ -10051,10 +10306,98 @@
                                     "type": "array"
                                   },
                                   "nutrients": {
-                                    "additionalProperties": {
-                                      "type": "number"
+                                    "additionalProperties": true,
+                                    "description": "Complete explicit per-meal evidence required by bounded repair.",
+                                    "properties": {
+                                      "b12_ug": {
+                                        "title": "B12 Ug",
+                                        "type": "number"
+                                      },
+                                      "calcium_mg": {
+                                        "title": "Calcium Mg",
+                                        "type": "number"
+                                      },
+                                      "carbs_g": {
+                                        "title": "Carbs G",
+                                        "type": "number"
+                                      },
+                                      "fat_g": {
+                                        "title": "Fat G",
+                                        "type": "number"
+                                      },
+                                      "fiber_g": {
+                                        "title": "Fiber G",
+                                        "type": "number"
+                                      },
+                                      "folate_ug": {
+                                        "title": "Folate Ug",
+                                        "type": "number"
+                                      },
+                                      "iodine_ug": {
+                                        "title": "Iodine Ug",
+                                        "type": "number"
+                                      },
+                                      "iron_mg": {
+                                        "title": "Iron Mg",
+                                        "type": "number"
+                                      },
+                                      "kcal": {
+                                        "title": "Kcal",
+                                        "type": "number"
+                                      },
+                                      "magnesium_mg": {
+                                        "title": "Magnesium Mg",
+                                        "type": "number"
+                                      },
+                                      "potassium_mg": {
+                                        "title": "Potassium Mg",
+                                        "type": "number"
+                                      },
+                                      "protein_g": {
+                                        "title": "Protein G",
+                                        "type": "number"
+                                      },
+                                      "selenium_ug": {
+                                        "title": "Selenium Ug",
+                                        "type": "number"
+                                      },
+                                      "vitamin_a_ug": {
+                                        "title": "Vitamin A Ug",
+                                        "type": "number"
+                                      },
+                                      "vitamin_c_mg": {
+                                        "title": "Vitamin C Mg",
+                                        "type": "number"
+                                      },
+                                      "vitamin_d_iu": {
+                                        "title": "Vitamin D Iu",
+                                        "type": "number"
+                                      },
+                                      "zinc_mg": {
+                                        "title": "Zinc Mg",
+                                        "type": "number"
+                                      }
                                     },
-                                    "title": "Nutrients",
+                                    "required": [
+                                      "kcal",
+                                      "protein_g",
+                                      "fat_g",
+                                      "carbs_g",
+                                      "fiber_g",
+                                      "iron_mg",
+                                      "calcium_mg",
+                                      "magnesium_mg",
+                                      "zinc_mg",
+                                      "potassium_mg",
+                                      "iodine_ug",
+                                      "selenium_ug",
+                                      "folate_ug",
+                                      "b12_ug",
+                                      "vitamin_d_iu",
+                                      "vitamin_a_ug",
+                                      "vitamin_c_mg"
+                                    ],
+                                    "title": "AutoRepairMealNutrients",
                                     "type": "object"
                                   }
                                 },
@@ -10090,7 +10433,9 @@
                 },
                 "required": [
                   "week_plan",
-                  "targets"
+                  "targets",
+                  "profile",
+                  "daily_targets"
                 ],
                 "title": "AutoRepairWeeklyRequest",
                 "type": "object"
@@ -10116,11 +10461,66 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detail"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "items": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "loc": {
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "integer"
+                                    }
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "msg": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "loc",
+                              "msg",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "detail"
+                      ],
+                      "type": "object"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Invalid request payload"
           }
         },
         "security": [
@@ -10575,7 +10975,84 @@
             "application/json": {
               "schema": {
                 "additionalProperties": true,
-                "title": "Request",
+                "description": "Typed weekly recipe request validated after VIP authorization.",
+                "properties": {
+                  "recipes_per_day": {
+                    "default": 1,
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 20.0,
+                    "title": "Recipes Per Day",
+                    "type": "integer"
+                  },
+                  "week_plan": {
+                    "additionalProperties": true,
+                    "description": "Non-empty weekly recipe plan.",
+                    "properties": {
+                      "days": {
+                        "items": {
+                          "additionalProperties": true,
+                          "description": "One non-empty recipe-synthesis day.",
+                          "properties": {
+                            "meals": {
+                              "items": {
+                                "additionalProperties": true,
+                                "description": "One non-empty meal admitted by weekly recipe synthesis.",
+                                "properties": {
+                                  "ingredients": {
+                                    "items": {
+                                      "additionalProperties": true,
+                                      "description": "One ingredient admitted by the weekly auto-repair wire contract.",
+                                      "properties": {
+                                        "name": {
+                                          "minLength": 1,
+                                          "title": "Name",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "name"
+                                      ],
+                                      "title": "AutoRepairIngredient",
+                                      "type": "object"
+                                    },
+                                    "minItems": 1,
+                                    "title": "Ingredients",
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "ingredients"
+                                ],
+                                "title": "WeeklyRecipeMeal",
+                                "type": "object"
+                              },
+                              "minItems": 1,
+                              "title": "Meals",
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "meals"
+                          ],
+                          "title": "WeeklyRecipeDay",
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "title": "Days",
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "days"
+                    ],
+                    "title": "WeeklyRecipePlan",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "week_plan"
+                ],
+                "title": "WeeklyRecipesRequest",
                 "type": "object"
               }
             }
@@ -10599,11 +11076,66 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "detail"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detail": {
+                          "items": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "loc": {
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "integer"
+                                    }
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "msg": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "loc",
+                              "msg",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "detail"
+                      ],
+                      "type": "object"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Invalid request payload"
           }
         },
         "security": [

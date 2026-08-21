@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from numbers import Real
 from typing import Any, Dict, List, Optional
 
-from .food_apis.unified_db import get_unified_food_db
+from .food_apis.unified_db import get_cached_common_foods_snapshot, get_unified_food_db
 from .plate import make_plate
 from .recommendations import (
     build_nutrition_targets,
@@ -645,9 +645,20 @@ def repair_week_plan(
     if strategy != "boosters_first":
         return repaired_plan
 
-    resolved_food_db = (
-        _get_default_food_db(allow_mock_fallback=False) if food_db is None else food_db
-    )
+    if food_db is None:
+        cached_foods = get_cached_common_foods_snapshot()
+        resolved_food_db = {
+            key: FoodItem(
+                name=item.name,
+                nutrients_per_100g=dict(item.nutrients_per_100g),
+                cost_per_100g=float(item.cost_per_100g),
+                tags=list(item.tags),
+                availability_regions=list(item.availability_regions),
+            )
+            for key, item in cached_foods.items()
+        }
+    else:
+        resolved_food_db = food_db
     _ = recipe_db
     for day_menu in repaired_plan.daily_menus:
         _apply_one_safe_booster(day_menu, targets, resolved_food_db)
@@ -676,6 +687,14 @@ def _day_nutrient_evidence(day_menu: DayMenu, nutrient: str) -> Optional[float]:
     return total if math.isfinite(total) else None
 
 
+def _day_omits_nutrient(day_menu: DayMenu, nutrient: str) -> bool:
+    """Return true only when every meal consistently omits one nutrient key."""
+    return bool(day_menu.meals) and all(
+        isinstance(meal.get("nutrients"), dict) and nutrient not in meal["nutrients"]
+        for meal in day_menu.meals
+    )
+
+
 def calculate_known_nutrient_gaps(
     plan: WeekMenu,
     targets: MicronutrientTargets,
@@ -685,18 +704,45 @@ def calculate_known_nutrient_gaps(
         return {}
     gaps: Dict[str, float] = {}
     for nutrient in sorted(targets.priority_nutrients):
-        current_total = 0.0
+        gap_total = 0.0
         for day_menu in plan.daily_menus:
             day_total = _day_nutrient_evidence(day_menu, nutrient)
             if day_total is None:
                 break
-            current_total += day_total
+            gap_total += max(0.0, targets.get_target(nutrient) - day_total)
         else:
-            target_total = targets.get_target(nutrient) * len(plan.daily_menus)
-            gap = target_total - current_total
-            if math.isfinite(gap) and gap > 0:
-                gaps[nutrient] = gap
+            if math.isfinite(gap_total) and gap_total > 0:
+                gaps[nutrient] = gap_total
     return gaps
+
+
+def has_complete_nutrition_evidence(
+    plan: WeekMenu,
+    targets: MicronutrientTargets,
+) -> bool:
+    """Return true only when every explicit day exactly satisfies all target bounds."""
+    if not plan.daily_menus:
+        return False
+    for day_menu in plan.daily_menus:
+        daily_targets = day_menu.targets
+        exact_targets = {
+            "kcal": float(daily_targets.kcal_daily),
+            "protein_g": float(daily_targets.macros.protein_g),
+            "fat_g": float(daily_targets.macros.fat_g),
+            "carbs_g": float(daily_targets.macros.carbs_g),
+            "fiber_g": float(daily_targets.macros.fiber_g),
+        }
+        for nutrient, expected in exact_targets.items():
+            actual = _day_nutrient_evidence(day_menu, nutrient)
+            if actual is None or actual != expected:
+                return False
+        for nutrient in targets.priority_nutrients:
+            actual = _day_nutrient_evidence(day_menu, nutrient)
+            if actual is None:
+                return False
+            if actual < targets.get_target(nutrient) or actual > targets.get_maximum(nutrient):
+                return False
+    return True
 
 
 def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
@@ -709,6 +755,13 @@ def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
         if density is None:
             return None
         nutrients[nutrient] = density
+    for macro in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
+        if macro not in nutrients:
+            return None
+    kcal = nutrients["protein_g"] * 4 + nutrients["carbs_g"] * 4 + nutrients["fat_g"] * 9
+    if not math.isfinite(kcal) or kcal < 0:
+        return None
+    nutrients["kcal"] = kcal
     return nutrients
 
 
@@ -730,14 +783,26 @@ def _safe_booster_amount(
         return None
 
     amount_caps = [100.0, (primary_gap / primary_density) * 100.0]
-    governed_nutrients = set(targets.priority_nutrients)
+    macro_maxima = {
+        "kcal": float(day_menu.targets.kcal_daily),
+        "protein_g": float(day_menu.targets.macros.protein_g),
+        "fat_g": float(day_menu.targets.macros.fat_g),
+        "carbs_g": float(day_menu.targets.macros.carbs_g),
+        "fiber_g": float(day_menu.targets.macros.fiber_g),
+    }
+    governed_nutrients = set(targets.priority_nutrients) | set(macro_maxima)
     for nutrient, density in food_nutrients.items():
         if nutrient not in governed_nutrients or density <= 0:
             continue
         current = _day_nutrient_evidence(day_menu, nutrient)
         if current is None:
+            if nutrient in macro_maxima and _day_omits_nutrient(day_menu, nutrient):
+                continue
             return None
-        maximum_room = targets.get_maximum(nutrient) - current
+        maximum = (
+            macro_maxima[nutrient] if nutrient in macro_maxima else targets.get_maximum(nutrient)
+        )
+        maximum_room = maximum - current
         if maximum_room <= 0:
             return None
         amount_caps.append((maximum_room / density) * 100.0)

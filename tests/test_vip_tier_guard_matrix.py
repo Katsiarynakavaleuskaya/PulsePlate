@@ -35,6 +35,89 @@ class VipCase:
     params: dict[str, str] | None = None
 
 
+def _auto_repair_guard_payload() -> dict[str, Any]:
+    nutrient_names = (
+        "iron_mg",
+        "calcium_mg",
+        "magnesium_mg",
+        "zinc_mg",
+        "potassium_mg",
+        "iodine_ug",
+        "selenium_ug",
+        "folate_ug",
+        "b12_ug",
+        "vitamin_d_iu",
+        "vitamin_a_ug",
+        "vitamin_c_mg",
+    )
+    return {
+        "week_plan": {
+            "days": [
+                {
+                    "day": "Monday",
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "rice", "amount": 200, "unit": "g"}],
+                            "nutrients": {
+                                "kcal": 0.0,
+                                "protein_g": 0.0,
+                                "fat_g": 0.0,
+                                "carbs_g": 0.0,
+                                "fiber_g": 0.0,
+                                **{name: 0.0 for name in nutrient_names},
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+        "targets": {
+            "iron_mg": [6.0, 8.0, 45.0],
+            "calcium_mg": [800.0, 1000.0, 2500.0],
+            "magnesium_mg": [300.0, 400.0, 700.0],
+            "zinc_mg": [8.0, 11.0, 40.0],
+            "potassium_mg": [3500.0, 4700.0, 5000.0],
+            "iodine_ug": [130.0, 150.0, 1100.0],
+            "selenium_ug": [45.0, 55.0, 400.0],
+            "folate_ug": [320.0, 400.0, 1000.0],
+            "b12_ug": [2.0, 2.4, 100.0],
+            "vitamin_d_iu": [400.0, 600.0, 4000.0],
+            "vitamin_a_ug": [600.0, 900.0, 3000.0],
+            "vitamin_c_mg": [75.0, 90.0, 2000.0],
+        },
+        "strategy": "balanced",
+        "user_preferences": {},
+        "profile": {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "deficit_pct": None,
+            "surplus_pct": None,
+            "bodyfat": None,
+            "region": "BY",
+            "timezone": "UTC",
+            "diet_flags": [],
+            "life_stage": "adult",
+            "medical_conditions": [],
+        },
+        "daily_targets": {
+            "kcal_daily": 1800,
+            "macros": {"protein_g": 100, "fat_g": 60, "carbs_g": 215, "fiber_g": 30},
+            "water_ml_daily": 2000,
+            "activity": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+            "calculation_date": "2026-08-22",
+        },
+    }
+
+
 # Canonical list of all 17 VIP endpoints
 VIP_CASES: tuple[VipCase, ...] = (
     # GET endpoints (9)
@@ -145,36 +228,7 @@ VIP_CASES: tuple[VipCase, ...] = (
     VipCase(
         "POST",
         "/api/v1/vip/auto-repair/weekly",
-        payload={
-            "week_plan": {
-                "days": [
-                    {
-                        "day": "Monday",
-                        "meals": [
-                            {
-                                "ingredients": [{"name": "rice", "amount": 200, "unit": "g"}],
-                                "nutrients": {},
-                            }
-                        ],
-                    },
-                ],
-            },
-            "targets": {
-                "iron_mg": [6.0, 8.0, 45.0],
-                "calcium_mg": [800.0, 1000.0, 2500.0],
-                "magnesium_mg": [300.0, 400.0, 700.0],
-                "zinc_mg": [8.0, 11.0, 40.0],
-                "potassium_mg": [3500.0, 4700.0, 5000.0],
-                "iodine_ug": [130.0, 150.0, 1100.0],
-                "selenium_ug": [45.0, 55.0, 400.0],
-                "folate_ug": [320.0, 400.0, 1000.0],
-                "b12_ug": [2.0, 2.4, 100.0],
-                "vitamin_d_iu": [400.0, 600.0, 4000.0],
-                "vitamin_a_ug": [600.0, 900.0, 3000.0],
-                "vitamin_c_mg": [75.0, 90.0, 2000.0],
-            },
-            "strategy": "balanced",
-        },
+        payload=_auto_repair_guard_payload(),
     ),
     VipCase(
         "POST",

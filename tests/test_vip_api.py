@@ -777,7 +777,7 @@ def test_vip_auto_repair_weekly_fails_without_nutrient_evidence(
     client: TestClient,
     vip_headers: dict[str, str],
 ) -> None:
-    """Empty meal nutrients exhaust repair attempts and return the pinned failure envelope."""
+    """Incomplete meal evidence is rejected before core repair execution."""
     payload = {
         "week_plan": {
             "days": [
@@ -811,15 +811,10 @@ def test_vip_auto_repair_weekly_fails_without_nutrient_evidence(
     }
 
     r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
-    assert r.status_code == 200
+    assert r.status_code == 422
     assert r.headers["content-type"].startswith("application/json")
     data = r.json()
-    assert data["status"] == "error"
-    assert data["code"] == "auto_repair_failed"
-    assert "repair_result" in data
-    assert data["repair_result"] is not None
-    assert data["repair_result"]["status"] == "failed"
-    assert data["repair_result"]["iterations"] == 3
+    assert data == {"detail": "Invalid auto-repair request payload"}
 
 
 def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
@@ -832,7 +827,12 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         "content"
     ]["application/json"]["schema"]
 
-    assert set(request_schema["required"]) == {"week_plan", "targets"}
+    assert set(request_schema["required"]) == {
+        "week_plan",
+        "targets",
+        "profile",
+        "daily_targets",
+    }
     assert "$defs" not in request_schema
     target_schema = request_schema["properties"]["targets"]
     assert target_schema["additionalProperties"] is False
@@ -848,13 +848,45 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         "balanced",
         "aggressive",
     ]
+    meal_schema = request_schema["properties"]["week_plan"]["properties"]["days"]["items"][
+        "properties"
+    ]["meals"]["items"]
+    nutrient_schema = meal_schema["properties"]["nutrients"]
+    assert len(nutrient_schema["required"]) == 17
+
+    recipe_operation = schema["paths"]["/api/v1/vip/recipes/weekly"]["post"]
+    recipe_schema = recipe_operation["requestBody"]["content"]["application/json"]["schema"]
+    assert set(recipe_schema["required"]) == {"week_plan"}
+    assert recipe_schema["properties"]["recipes_per_day"]["exclusiveMinimum"] == 0
+
+    for path in (
+        "/api/v1/vip/auto-repair/weekly",
+        "/api/v1/vip/recipes/weekly",
+    ):
+        validation_schema = schema["paths"][path]["post"]["responses"]["422"]["content"][
+            "application/json"
+        ]["schema"]
+        assert len(validation_schema["oneOf"]) == 2
+        detail_shapes = {
+            branch["properties"]["detail"]["type"] for branch in validation_schema["oneOf"]
+        }
+        assert detail_shapes == {"string", "array"}
 
 
 def test_vip_auto_repair_schema_rejects_ambiguous_values() -> None:
     """Cover the typed schema's fail-closed pre-coercion branches."""
     from pydantic import ValidationError
 
-    from app.schemas.vip import AutoRepairIngredient, AutoRepairMeal, AutoRepairTargetRanges
+    from app.schemas.vip import (
+        AutoRepairActivityTargets,
+        AutoRepairDailyTargets,
+        AutoRepairIngredient,
+        AutoRepairMacroTargets,
+        AutoRepairMeal,
+        AutoRepairMealNutrients,
+        AutoRepairProfile,
+        AutoRepairTargetRanges,
+    )
 
     with pytest.raises(ValidationError):
         AutoRepairIngredient.model_validate({"name": " "})
@@ -889,6 +921,72 @@ def test_vip_auto_repair_schema_rejects_ambiguous_values() -> None:
         AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [6.0, 8.0]})
     with pytest.raises(ValidationError):
         AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [True, 8.0, 45.0]})
+
+    complete_nutrients = {
+        "kcal": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        **{field_name: 0.0 for field_name in valid_targets},
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairMealNutrients.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairMealNutrients.model_validate({**complete_nutrients, "kcal": -1.0})
+
+    valid_profile = {
+        "sex": "male",
+        "age": 30,
+        "height_cm": 175.0,
+        "weight_kg": 70.0,
+        "activity": "moderate",
+        "goal": "maintain",
+        "deficit_pct": None,
+        "surplus_pct": None,
+        "bodyfat": None,
+        "region": "BY",
+        "timezone": "UTC",
+        "diet_flags": [],
+        "life_stage": "adult",
+        "medical_conditions": [],
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate({**valid_profile, "age": True})
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate({**valid_profile, "height_cm": float("inf")})
+
+    with pytest.raises(ValidationError):
+        AutoRepairMacroTargets.model_validate(
+            {"protein_g": True, "fat_g": 60, "carbs_g": 215, "fiber_g": 30}
+        )
+    with pytest.raises(ValidationError):
+        AutoRepairActivityTargets.model_validate(
+            {
+                "moderate_aerobic_min": True,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            }
+        )
+    valid_daily_targets = {
+        "kcal_daily": 1800,
+        "macros": {"protein_g": 100, "fat_g": 60, "carbs_g": 215, "fiber_g": 30},
+        "water_ml_daily": 2000,
+        "activity": {
+            "moderate_aerobic_min": 150,
+            "vigorous_aerobic_min": 75,
+            "strength_sessions": 2,
+            "steps_daily": 8000,
+        },
+        "calculation_date": "2026-08-22",
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairDailyTargets.model_validate({**valid_daily_targets, "kcal_daily": True})
+    with pytest.raises(ValidationError):
+        AutoRepairDailyTargets.model_validate({**valid_daily_targets, "kcal_daily": 1801})
 
 
 def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:

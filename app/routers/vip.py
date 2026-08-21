@@ -28,6 +28,7 @@ from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnv
 from app.schemas.vip import (
     AutoRepairWeeklyRequest,
     ErrorResponse,
+    WeeklyRecipesRequest,
     WeeklyPlanRequest,
     WeeklyPlanResponse,
 )
@@ -48,7 +49,7 @@ from settings import (
 )
 
 if TYPE_CHECKING:
-    from core.targets import UserProfile
+    from core.targets import NutritionTargets, UserProfile
 
 # -*- coding: utf-8 -*-
 """
@@ -177,6 +178,61 @@ _AUTO_REPAIR_WEEKLY_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
     },
 }
 
+_WEEKLY_RECIPES_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": _inline_openapi_local_refs(WeeklyRecipesRequest.model_json_schema()),
+        }
+    },
+}
+
+_VALIDATION_422_RESPONSE: Dict[str, Any] = {
+    "description": "Invalid request payload",
+    "content": {
+        "application/json": {
+            "schema": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "required": ["detail"],
+                        "properties": {"detail": {"type": "string"}},
+                        "additionalProperties": False,
+                    },
+                    {
+                        "type": "object",
+                        "required": ["detail"],
+                        "properties": {
+                            "detail": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["loc", "msg", "type"],
+                                    "properties": {
+                                        "loc": {
+                                            "type": "array",
+                                            "items": {
+                                                "anyOf": [
+                                                    {"type": "string"},
+                                                    {"type": "integer"},
+                                                ]
+                                            },
+                                        },
+                                        "msg": {"type": "string"},
+                                        "type": {"type": "string"},
+                                    },
+                                    "additionalProperties": True,
+                                },
+                            }
+                        },
+                        "additionalProperties": False,
+                    },
+                ]
+            }
+        }
+    },
+}
+
 
 def _validate_vip_week_plan(week_plan: object) -> Dict[str, Any]:
     """Validate the non-empty public week-plan container before core invocation."""
@@ -231,7 +287,7 @@ def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
         raise ValueError("Auto-repair result change data is invalid")
     if not isinstance(strategy_used, str) or not strategy_used:
         raise ValueError("Auto-repair result strategy is invalid")
-    minimum_iterations = 0 if status_value == "needs_manual" else 1
+    minimum_iterations = 0 if status_value in {"needs_manual", "success"} else 1
     if (
         isinstance(iterations, bool)
         or not isinstance(iterations, int)
@@ -254,6 +310,41 @@ def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
         "message": message,
         "suggestions": list(suggestions),
     }
+
+
+def _build_auto_repair_nutrition_targets(
+    request_obj: AutoRepairWeeklyRequest,
+) -> "NutritionTargets":
+    """Construct canonical targets exclusively from explicit validated request fields."""
+    from core.targets import (
+        ActivityTargets,
+        MacroTargets,
+        MicroTargets,
+        NutritionTargets,
+        UserProfile,
+    )
+
+    profile = UserProfile(**request_obj.profile.model_dump(mode="python"))
+    macros = MacroTargets(**request_obj.daily_targets.macros.model_dump(mode="python"))
+    activity = ActivityTargets(**request_obj.daily_targets.activity.model_dump(mode="python"))
+    target_ranges = request_obj.targets.model_dump(mode="python")
+    micros = MicroTargets(
+        **{field_name: float(target_ranges[field_name][1]) for field_name in target_ranges}
+    )
+    nutrition_targets = NutritionTargets(
+        kcal_daily=request_obj.daily_targets.kcal_daily,
+        macros=macros,
+        water_ml_daily=request_obj.daily_targets.water_ml_daily,
+        micros=micros,
+        activity=activity,
+        calculated_for=profile,
+        calculation_date=request_obj.daily_targets.calculation_date,
+    )
+    if macros.total_calories() != nutrition_targets.kcal_daily:
+        raise ValueError("Daily kcal must equal canonical macro calories")
+    if not nutrition_targets.validate_consistency():
+        raise ValueError("Nutrition targets are inconsistent")
+    return nutrition_targets
 
 
 # VIP shoplist preview (offline/deterministic)
@@ -1304,7 +1395,12 @@ def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     }
 
 
-@router.post("/recipes/weekly", dependencies=[Depends(require_vip_tier)])
+@router.post(
+    "/recipes/weekly",
+    dependencies=[Depends(require_vip_tier)],
+    openapi_extra={"requestBody": _WEEKLY_RECIPES_REQUEST_BODY_OPENAPI},
+    responses={422: _VALIDATION_422_RESPONSE},
+)
 def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепты для недельного плана
@@ -1317,15 +1413,11 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
         Рецепты для недели
     """
     try:
-        week_plan = _validate_vip_week_plan(request.get("week_plan"))
-        recipes_per_day = request.get("recipes_per_day", 1)
-        if (
-            isinstance(recipes_per_day, bool)
-            or not isinstance(recipes_per_day, int)
-            or recipes_per_day <= 0
-        ):
-            raise ValueError("recipes_per_day must be a positive integer")
-    except (TypeError, ValueError) as exc:
+        request_obj: WeeklyRecipesRequest = WeeklyRecipesRequest.model_validate(request)
+        request_data = request_obj.model_dump(mode="python")
+        week_plan = cast(Dict[str, Any], request_data["week_plan"])
+        recipes_per_day = cast(int, request_data["recipes_per_day"])
+    except (TypeError, ValueError, OverflowError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid weekly recipes request payload",
@@ -1500,6 +1592,7 @@ async def get_recipe_templates(
     "/auto-repair/weekly",
     dependencies=[Depends(require_vip_tier)],
     openapi_extra={"requestBody": _AUTO_REPAIR_WEEKLY_REQUEST_BODY_OPENAPI},
+    responses={422: _VALIDATION_422_RESPONSE},
 )
 def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -1530,8 +1623,9 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         normalized_preferences = cast(Dict[str, Any], request_data["user_preferences"])
         targets = MicronutrientTargets(**targets_data)
         targets.validate_positive_ranges()
+        nutrition_targets = _build_auto_repair_nutrition_targets(request_obj)
         strategy = RepairStrategy(strategy_name)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid auto-repair request payload",
@@ -1541,11 +1635,19 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         engine = get_auto_repair_engine() if callable(get_auto_repair_engine) else None
         if engine and hasattr(engine, "auto_repair_week_plan"):
             repair_result = engine.auto_repair_week_plan(
-                week_plan, targets, strategy, normalized_preferences
+                week_plan,
+                targets,
+                strategy,
+                normalized_preferences,
+                nutrition_targets,
             )
         else:
             repair_result = auto_repair_week_plan(
-                week_plan, targets, strategy, normalized_preferences
+                week_plan,
+                targets,
+                strategy,
+                normalized_preferences,
+                nutrition_targets,
             )
 
         if isinstance(repair_result, dict):
@@ -1587,6 +1689,26 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
                 echo=request,
             )
             return failure_response
+        if result_status == "success":
+            if (
+                result_data["iterations"] != 0
+                or result_data["repaired_plan"] != result_data["original_plan"]
+                or result_data["changes_made"]
+                or result_data["remaining_gaps"]
+            ):
+                invalid_success_response: dict[str, Any] = vip_error(
+                    code="internal_error",
+                    message="Error during auto-repair",
+                    repair_result={},
+                    echo=request,
+                )
+                return invalid_success_response
+            complete_success_response: dict[str, Any] = vip_success(
+                repair_result=result_data,
+                message="Auto-repair completed with status: success",
+                echo=request,
+            )
+            return complete_success_response
         if (
             result_status != "partial"
             or result_data["repaired_plan"] == result_data["original_plan"]
