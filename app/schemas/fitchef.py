@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
+from core.judgment import ClaimType, EvidenceMode, SupportStatus
 
 FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
@@ -25,6 +26,42 @@ FitChefWeeklyReflectionResponseState = Literal[
     "generated",
     "clarification_required",
 ]
+FitChefDistortionFieldPath = Literal[
+    "distortion_labels",
+    "why_it_matches",
+    "evidence_for",
+    "evidence_against",
+    "balanced_reframe",
+    "next_small_action",
+]
+FitChefFieldAssuranceState = Literal[
+    "not_evidence_bearing",
+    "request_context_only",
+    "candidate_linked_unverified",
+    "evidence_link_missing",
+    "source_snapshot_mismatch",
+    "assessment_unavailable",
+]
+FitChefFieldAssuranceReasonCode = Literal[
+    "request_context_not_source_evidence",
+    "candidate_sources_present_unverified",
+    "candidate_sources_missing",
+    "not_evidence_bearing",
+    "source_snapshot_mismatch",
+    "duplicate_source_identity",
+    "snapshot_fingerprint_unavailable",
+    "assessment_unavailable",
+]
+
+_FITCHEF_DISTORTION_FIELD_ORDER: tuple[FitChefDistortionFieldPath, ...] = (
+    "distortion_labels",
+    "why_it_matches",
+    "evidence_for",
+    "evidence_against",
+    "balanced_reframe",
+    "next_small_action",
+)
+_OPAQUE_SHA256_PREFIX = "sha256:"
 
 
 class FitChefCoachInsightInput(BaseModel):
@@ -174,6 +211,216 @@ class FitChefClarificationV1(BaseModel):
     question_count: Literal[1] = 1
 
 
+class FitChefFieldAssuranceRecordV1(BaseModel):
+    """Negative-only field assurance for one Distortion Simulator output field."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    field_path: FitChefDistortionFieldPath
+    claim_type: ClaimType
+    evidence_mode: EvidenceMode
+    adjudicated_support_status: SupportStatus | None = None
+    assurance_state: FitChefFieldAssuranceState
+    candidate_source_refs: tuple[str, ...] = ()
+    conflict_adjudicated: Literal[False] = False
+    reason_codes: tuple[FitChefFieldAssuranceReasonCode, ...]
+
+    @field_validator("adjudicated_support_status", mode="before")
+    @classmethod
+    def _require_null_support_status(cls, value: object) -> object:
+        if value is not None:
+            raise ValueError("adjudicated_support_status is null-only in v1")
+        return value
+
+    @field_validator("conflict_adjudicated", mode="before")
+    @classmethod
+    def _require_exact_false_conflict(cls, value: object) -> object:
+        if value is not False:
+            raise ValueError("conflict_adjudicated must be exactly false in v1")
+        return value
+
+    @field_validator("candidate_source_refs")
+    @classmethod
+    def _validate_candidate_source_refs(cls, refs: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(refs)) != len(refs):
+            raise ValueError("candidate_source_refs must be unique occurrence refs")
+        for ref in refs:
+            if (
+                not ref.startswith(_OPAQUE_SHA256_PREFIX)
+                or len(ref) != len(_OPAQUE_SHA256_PREFIX) + 64
+                or any(char not in "0123456789abcdef" for char in ref[7:])
+            ):
+                raise ValueError("candidate_source_refs must be opaque sha256 fingerprints")
+        return refs
+
+    @model_validator(mode="after")
+    def _validate_surface_policy(self) -> "FitChefFieldAssuranceRecordV1":
+        if self.field_path in _FITCHEF_DISTORTION_FIELD_ORDER[:4]:
+            if self.claim_type != "inference" or self.evidence_mode != "heuristic":
+                raise ValueError("request-context fields require inference/heuristic metadata")
+            allowed_states = {"request_context_only", "assessment_unavailable"}
+        elif self.field_path == "balanced_reframe":
+            if self.claim_type != "recommendation" or self.evidence_mode != "none":
+                raise ValueError("balanced_reframe requires recommendation/none metadata")
+            allowed_states = {
+                "candidate_linked_unverified",
+                "evidence_link_missing",
+                "source_snapshot_mismatch",
+                "assessment_unavailable",
+            }
+        else:
+            if self.claim_type != "recommendation" or self.evidence_mode != "none":
+                raise ValueError("next_small_action requires recommendation/none metadata")
+            allowed_states = {"not_evidence_bearing", "assessment_unavailable"}
+        if self.assurance_state not in allowed_states:
+            raise ValueError("assurance_state is not allowed for this field")
+
+        expected_reasons: dict[FitChefFieldAssuranceState, tuple[tuple[str, ...], ...]] = {
+            "request_context_only": (("request_context_not_source_evidence",),),
+            "candidate_linked_unverified": (("candidate_sources_present_unverified",),),
+            "evidence_link_missing": (("candidate_sources_missing",),),
+            "not_evidence_bearing": (("not_evidence_bearing",),),
+            "source_snapshot_mismatch": (
+                ("source_snapshot_mismatch",),
+                ("duplicate_source_identity",),
+            ),
+            "assessment_unavailable": (
+                ("snapshot_fingerprint_unavailable",),
+                ("assessment_unavailable",),
+            ),
+        }
+        if self.reason_codes not in expected_reasons[self.assurance_state]:
+            raise ValueError("reason_codes must match the exact assurance state")
+        if self.candidate_source_refs:
+            if self.field_path != "balanced_reframe":
+                raise ValueError("only balanced_reframe may carry candidate_source_refs")
+            if self.assurance_state != "candidate_linked_unverified":
+                raise ValueError("candidate_source_refs require candidate_linked_unverified")
+        elif self.assurance_state == "candidate_linked_unverified":
+            raise ValueError("candidate_linked_unverified requires candidate_source_refs")
+        return self
+
+
+class FitChefDistortionFieldAssuranceAssessmentV1(BaseModel):
+    """Internal negative-only six-field assurance for the Distortion Simulator."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal["fitchef_distortion_field_assurance.v1"] = (
+        "fitchef_distortion_field_assurance.v1"
+    )
+    surface: Literal["distortion_simulator"] = "distortion_simulator"
+    field_policy_version: Literal["distortion_fields.v1"] = "distortion_fields.v1"
+    source_snapshot_fingerprint: str | None
+    records: tuple[FitChefFieldAssuranceRecordV1, ...]
+    assessed_field_count: Literal[6]
+    request_context_only_count: int = Field(..., ge=0, le=6)
+    evidence_sensitive_field_count: Literal[1]
+    candidate_linked_unverified_count: int = Field(..., ge=0, le=1)
+    evidence_link_missing_count: int = Field(..., ge=0, le=1)
+    source_snapshot_mismatch_count: int = Field(..., ge=0, le=1)
+    assessment_unavailable_count: int = Field(..., ge=0, le=6)
+    support_claimed_count: Literal[0] = 0
+    public_response_authority: Literal[False] = False
+    provider_retry_authority: Literal[False] = False
+    cache_admission_authority: Literal[False] = False
+    knowledge_promotion_authority: Literal[False] = False
+    plan_mutation_authority: Literal[False] = False
+
+    @field_validator("source_snapshot_fingerprint")
+    @classmethod
+    def _validate_snapshot_fingerprint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if (
+            not value.startswith(_OPAQUE_SHA256_PREFIX)
+            or len(value) != len(_OPAQUE_SHA256_PREFIX) + 64
+            or any(char not in "0123456789abcdef" for char in value[7:])
+        ):
+            raise ValueError("source_snapshot_fingerprint must be an opaque sha256 fingerprint")
+        return value
+
+    @field_validator(
+        "assessed_field_count",
+        "request_context_only_count",
+        "evidence_sensitive_field_count",
+        "candidate_linked_unverified_count",
+        "evidence_link_missing_count",
+        "source_snapshot_mismatch_count",
+        "assessment_unavailable_count",
+        "support_claimed_count",
+        mode="before",
+    )
+    @classmethod
+    def _require_builtin_counts(cls, value: object) -> object:
+        if type(value) is not int:
+            raise ValueError("assurance counts must be built-in integers")
+        return value
+
+    @field_validator(
+        "public_response_authority",
+        "provider_retry_authority",
+        "cache_admission_authority",
+        "knowledge_promotion_authority",
+        "plan_mutation_authority",
+        mode="before",
+    )
+    @classmethod
+    def _require_exact_false_authority(cls, value: object) -> object:
+        if value is not False:
+            raise ValueError("v1 authority flags must be exactly false")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_exact_records_and_counts(
+        self,
+    ) -> "FitChefDistortionFieldAssuranceAssessmentV1":
+        if tuple(record.field_path for record in self.records) != _FITCHEF_DISTORTION_FIELD_ORDER:
+            raise ValueError("records must contain the exact six-field order")
+        if self.assessed_field_count != len(self.records):
+            raise ValueError("assessed_field_count must equal the exact record count")
+        if self.evidence_sensitive_field_count != 1:
+            raise ValueError("evidence_sensitive_field_count must remain exactly one")
+
+        expected_counts = {
+            "request_context_only_count": sum(
+                record.assurance_state == "request_context_only" for record in self.records
+            ),
+            "candidate_linked_unverified_count": sum(
+                record.assurance_state == "candidate_linked_unverified" for record in self.records
+            ),
+            "evidence_link_missing_count": sum(
+                record.assurance_state == "evidence_link_missing" for record in self.records
+            ),
+            "source_snapshot_mismatch_count": sum(
+                record.assurance_state == "source_snapshot_mismatch" for record in self.records
+            ),
+            "assessment_unavailable_count": sum(
+                record.assurance_state == "assessment_unavailable" for record in self.records
+            ),
+        }
+        for field_name, expected_count in expected_counts.items():
+            if getattr(self, field_name) != expected_count:
+                raise ValueError(f"{field_name} must equal the exact state count")
+        if self.support_claimed_count != 0:
+            raise ValueError("support_claimed_count must remain zero")
+        if any(record.adjudicated_support_status is not None for record in self.records):
+            raise ValueError("v1 records must not adjudicate support")
+        if any(record.conflict_adjudicated is not False for record in self.records):
+            raise ValueError("v1 records must not adjudicate conflicts")
+
+        if self.assessment_unavailable_count not in {0, len(self.records)}:
+            raise ValueError("assessment_unavailable must apply to all six records or none")
+        unavailable = self.assessment_unavailable_count == len(self.records)
+        if unavailable and len({record.reason_codes for record in self.records}) != 1:
+            raise ValueError("all unavailable records must use one exact shared reason")
+        if unavailable != (self.source_snapshot_fingerprint is None):
+            raise ValueError(
+                "only a fully unavailable assessment may omit the snapshot fingerprint"
+            )
+        return self
+
+
 class FitChefCoachInsightResult(BaseModel):
     """Internal coach-insight result. / Внутренний результат coach-insight."""
 
@@ -200,6 +447,7 @@ class FitChefDistortionSimulatorResult(BaseModel):
     evidence_against: list[str]
     balanced_reframe: str
     next_small_action: str
+    claim_evidence_assessment: FitChefDistortionFieldAssuranceAssessmentV1 = Field(exclude=True)
     sources: list[FitChefSourceItem]
     confidence: float
     warnings: list[str]

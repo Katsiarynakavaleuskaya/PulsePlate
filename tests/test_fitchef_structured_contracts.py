@@ -26,6 +26,9 @@ from app.schemas.fitchef_coaching import (
     FitChefVipCoachingErrorResponse,
     FitChefWeeklyReflectionResponse,
 )
+from app.services.fitchef_claim_evidence_assurance import (
+    build_distortion_field_assurance_unavailable,
+)
 
 
 def test_weekly_reflection_clarification_contract_is_fixed_and_immutable() -> None:
@@ -131,6 +134,9 @@ def test_structured_fitchef_internal_results_roundtrip() -> None:
         evidence_against=["One dessert does not define the whole day."],
         balanced_reframe="This was one moment, not the whole pattern.",
         next_small_action="Choose one balanced next meal.",
+        claim_evidence_assessment=build_distortion_field_assurance_unavailable(
+            reason_code="assessment_unavailable"
+        ),
         sources=[source],
         confidence=0.42,
         warnings=["structured_parse_fallback"],
@@ -160,6 +166,9 @@ def test_structured_fitchef_internal_results_roundtrip() -> None:
 
     assert distortion_result.scenario == "distortion_simulator"
     assert distortion_result.model_dump()["sources"][0]["file"] == source.file
+    assert "claim_evidence_assessment" not in distortion_result.model_dump()
+    assert distortion_result.claim_evidence_assessment.assessed_field_count == 6
+    assert FitChefDistortionSimulatorResult.model_fields["claim_evidence_assessment"].is_required()
     assert identity_result.scenario == "identity_loop_mapper"
     assert identity_result.model_dump()["identity_loop"]["belief"].startswith("If I slip once")
 
