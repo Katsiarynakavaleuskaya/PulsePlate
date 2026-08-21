@@ -44,7 +44,7 @@ class TestSimpleCoverageBoost:
             vitamin_c_mg=(75, 90, 2000),
             calcium_mg=(800, 1000, 2500),
             iron_mg=(6, 8, 45),
-            magnesium_mg=(300, 400, 350),
+            magnesium_mg=(300, 400, 700),
             zinc_mg=(8, 11, 40),
             potassium_mg=(3500, 4700, 5000),
             iodine_ug=(130, 150, 1100),

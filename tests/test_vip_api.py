@@ -785,18 +785,18 @@ def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str])
             ]
         },
         "targets": {
-            "iron_mg": 18.0,
-            "calcium_mg": 1000.0,
-            "magnesium_mg": 400.0,
-            "zinc_mg": 11.0,
-            "potassium_mg": 3500.0,
-            "iodine_ug": 150.0,
-            "selenium_ug": 55.0,
-            "folate_ug": 400.0,
-            "b12_ug": 2.4,
-            "vitamin_d_iu": 20.0,
-            "vitamin_a_ug": 900.0,
-            "vitamin_c_mg": 90.0,
+            "iron_mg": [6.0, 8.0, 45.0],
+            "calcium_mg": [800.0, 1000.0, 2500.0],
+            "magnesium_mg": [300.0, 400.0, 700.0],
+            "zinc_mg": [8.0, 11.0, 40.0],
+            "potassium_mg": [3500.0, 4700.0, 5000.0],
+            "iodine_ug": [130.0, 150.0, 1100.0],
+            "selenium_ug": [45.0, 55.0, 400.0],
+            "folate_ug": [320.0, 400.0, 1000.0],
+            "b12_ug": [2.0, 2.4, 100.0],
+            "vitamin_d_iu": [400.0, 600.0, 4000.0],
+            "vitamin_a_ug": [600.0, 900.0, 3000.0],
+            "vitamin_c_mg": [75.0, 90.0, 2000.0],
         },
         "strategy": "balanced",
         "user_preferences": {},
@@ -805,11 +805,12 @@ def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str])
     r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
-    assert data["status"] == "success"
+    assert data["status"] == "error"
+    assert data["code"] == "auto_repair_failed"
     assert "repair_result" in data
     assert data["repair_result"] is not None
-    assert "status" in data["repair_result"]
-    assert "iterations" in data["repair_result"]
+    assert data["repair_result"]["status"] == "failed"
+    assert data["repair_result"]["iterations"] == 1
 
 
 def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:

@@ -6,7 +6,10 @@ RU: Тесты для функциональности авто-ремонта �
 EN: Tests for auto-repair functionality with UX loop
 """
 
+from dataclasses import replace
 from unittest.mock import patch
+
+import pytest
 
 from core.auto_repair import (
     AutoRepairEngine,
@@ -18,7 +21,13 @@ from core.auto_repair import (
     get_auto_repair_engine,
     suggest_manual_fixes,
 )
+from core.menu_engine import WeekMenu
 from core.targets import MicronutrientTargets
+
+
+def _changed_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
+    """Return one canonical material change for the adapter success test."""
+    return replace(plan, adherence_score=plan.adherence_score + 1.0)
 
 
 def default_targets() -> MicronutrientTargets:
@@ -264,10 +273,10 @@ class TestAutoRepairEngine:
         """Тест попытки ремонта - успех"""
         engine = AutoRepairEngine()
 
-        # Мокаем успешный ремонт
-        mock_repair.return_value = {"days": [], "repaired": True}
-
-        week_plan = {"days": []}
+        week_plan = {
+            "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
+        }
+        mock_repair.side_effect = _changed_week_menu
         targets = default_targets()
 
         iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
@@ -281,18 +290,14 @@ class TestAutoRepairEngine:
         """Тест попытки ремонта - неудача"""
         engine = AutoRepairEngine()
 
-        # Мокаем неудачный ремонт
-        mock_repair.side_effect = Exception("Repair failed")
-
-        week_plan = {"days": []}
+        mock_repair.side_effect = RuntimeError("Repair failed")
+        week_plan = {
+            "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
+        }
         targets = default_targets()
 
-        iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
-
-        assert isinstance(iteration, RepairIteration)
-        assert iteration.iteration_number == 1
-        assert iteration.strategy == RepairStrategy.BALANCED
-        assert iteration.success is False
+        with pytest.raises(RuntimeError, match="Repair failed"):
+            engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
 
     def test_auto_repair_week_plan_no_gaps(self):
         """Тест авто-ремонта - нет дефицитов"""
@@ -321,9 +326,9 @@ class TestAutoRepairEngine:
             result = engine.auto_repair_week_plan(week_plan, targets)
 
         assert isinstance(result, RepairResult)
-        assert result.status == RepairStatus.SUCCESS
-        assert result.iterations == 0
-        assert "уже соответствует" in result.message
+        assert result.status == RepairStatus.FAILED
+        assert result.iterations == 1
+        assert result.message == "Canonical repair made no changes"
 
     def test_auto_repair_week_plan_with_gaps(self):
         """Тест авто-ремонта - есть дефициты"""
@@ -387,18 +392,18 @@ class TestConvenienceFunctions:
 
         week_plan = {"days": []}
         targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
+            iron_mg=(18.0, 18.0, 18.0),
+            calcium_mg=(1000.0, 1000.0, 1000.0),
+            magnesium_mg=(400.0, 400.0, 400.0),
+            zinc_mg=(11.0, 11.0, 11.0),
+            potassium_mg=(3500.0, 3500.0, 3500.0),
+            iodine_ug=(150.0, 150.0, 150.0),
+            selenium_ug=(55.0, 55.0, 55.0),
+            folate_ug=(400.0, 400.0, 400.0),
+            b12_ug=(2.4, 2.4, 2.4),
+            vitamin_d_iu=(20.0, 20.0, 20.0),
+            vitamin_a_ug=(900.0, 900.0, 900.0),
+            vitamin_c_mg=(90.0, 90.0, 90.0),
         )
 
         result = auto_repair_week_plan(week_plan, targets)
@@ -419,18 +424,18 @@ class TestConvenienceFunctions:
 
         week_plan = {"days": []}
         targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
+            iron_mg=(18.0, 18.0, 18.0),
+            calcium_mg=(1000.0, 1000.0, 1000.0),
+            magnesium_mg=(400.0, 400.0, 400.0),
+            zinc_mg=(11.0, 11.0, 11.0),
+            potassium_mg=(3500.0, 3500.0, 3500.0),
+            iodine_ug=(150.0, 150.0, 150.0),
+            selenium_ug=(55.0, 55.0, 55.0),
+            folate_ug=(400.0, 400.0, 400.0),
+            b12_ug=(2.4, 2.4, 2.4),
+            vitamin_d_iu=(20.0, 20.0, 20.0),
+            vitamin_a_ug=(900.0, 900.0, 900.0),
+            vitamin_c_mg=(90.0, 90.0, 90.0),
         )
 
         suggestions = suggest_manual_fixes(week_plan, targets)
@@ -452,18 +457,18 @@ class TestIntegration:
         }
 
         targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
+            iron_mg=(18.0, 18.0, 18.0),
+            calcium_mg=(1000.0, 1000.0, 1000.0),
+            magnesium_mg=(400.0, 400.0, 400.0),
+            zinc_mg=(11.0, 11.0, 11.0),
+            potassium_mg=(3500.0, 3500.0, 3500.0),
+            iodine_ug=(150.0, 150.0, 150.0),
+            selenium_ug=(55.0, 55.0, 55.0),
+            folate_ug=(400.0, 400.0, 400.0),
+            b12_ug=(2.4, 2.4, 2.4),
+            vitamin_d_iu=(20.0, 20.0, 20.0),
+            vitamin_a_ug=(900.0, 900.0, 900.0),
+            vitamin_c_mg=(90.0, 90.0, 90.0),
         )
 
         # Мокаем анализ дефицитов - сначала есть дефициты, потом нет
@@ -490,10 +495,9 @@ class TestIntegration:
                 result = engine.auto_repair_week_plan(week_plan, targets)
 
         assert isinstance(result, RepairResult)
-        assert result.status == RepairStatus.SUCCESS
+        assert result.status == RepairStatus.PARTIAL
         assert result.iterations == 1
-        # changes_made может быть пустым если нет дефицитов с самого начала
-        assert len(result.suggestions) > 0
+        assert result.suggestions == []
 
     def test_auto_repair_max_iterations_reached(self):
         """Тест авто-ремонта - достигнуто максимальное количество итераций"""
@@ -523,4 +527,4 @@ class TestIntegration:
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.FAILED
         assert result.iterations == 1
-        assert "Не удалось устранить" in result.message
+        assert result.message == "Canonical repair made no changes"

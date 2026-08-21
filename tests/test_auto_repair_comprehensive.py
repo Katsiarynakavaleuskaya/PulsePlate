@@ -2,7 +2,11 @@
 Comprehensive tests for core/auto_repair.py module to boost coverage to 97%.
 """
 
+from dataclasses import replace
+from typing import cast
 from unittest.mock import patch
+
+import pytest
 
 from core.auto_repair import (
     AutoRepairEngine,
@@ -13,14 +17,26 @@ from core.auto_repair import (
     auto_repair_week_plan,
     get_auto_repair_engine,
     suggest_manual_fixes,
+    validate_week_plan,
 )
+from core.menu_engine import WeekMenu
 from core.targets import MicronutrientTargets
+
+
+def _same_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
+    """Return the canonical input unchanged to represent legitimate no-progress."""
+    return plan
+
+
+def _changed_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
+    """Return one canonical material change without inventing nutrition data."""
+    return replace(plan, adherence_score=plan.adherence_score + 1.0)
 
 
 class TestAutoRepairComprehensive:
     """Comprehensive tests for auto_repair module."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures."""
         # Create a sample micronutrient targets
         self.targets = MicronutrientTargets(
@@ -28,7 +44,7 @@ class TestAutoRepairComprehensive:
             vitamin_c_mg=(75, 90, 2000),
             calcium_mg=(800, 1000, 2500),
             iron_mg=(6, 8, 45),
-            magnesium_mg=(300, 400, 350),
+            magnesium_mg=(300, 400, 700),
             zinc_mg=(8, 11, 40),
             potassium_mg=(3500, 4700, 5000),
             iodine_ug=(130, 150, 1100),
@@ -112,90 +128,57 @@ class TestAutoRepairComprehensive:
         assert engine1 is engine2
         assert isinstance(engine1, AutoRepairEngine)
 
-    def test_auto_repair_week_plan_success(self):
-        """Test successful auto repair of week plan."""
+    def test_auto_repair_week_plan_success(self) -> None:
+        """A changed canonical WeekMenu result is represented as truthful partial repair."""
         engine = AutoRepairEngine()
-
-        # Mock the repair_week_plan function to return a successful result
-        with patch("core.auto_repair.repair_week_plan") as mock_repair:
-            mock_repair.return_value = {
-                "days": [
-                    {
-                        "name": "Monday",
-                        "meals": [
-                            {
-                                "name": "Breakfast",
-                                "ingredients": [
-                                    {"name": "oatmeal", "amount": 100},
-                                    {"name": "banana", "amount": 50},
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            }
-
-            # Create a plan with gaps that will be fixed
-            week_plan = {
-                "days": [
-                    {
-                        "name": "Monday",
-                        "meals": [
-                            {
-                                "name": "Breakfast",
-                                "ingredients": [
-                                    {"name": "bread", "amount": 100},
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            }
-
-            result = engine.auto_repair_week_plan(week_plan, self.targets)
-
-            assert isinstance(result, RepairResult)
-            assert result.status in [
-                RepairStatus.SUCCESS,
-                RepairStatus.PARTIAL,
-                RepairStatus.FAILED,
-            ]
-            assert isinstance(result.repaired_plan, dict)
-            assert isinstance(result.original_plan, dict)
-            assert isinstance(result.message, str)
-
-    def test_auto_repair_week_plan_no_gaps(self):
-        """Test auto repair when no gaps exist."""
-        engine = AutoRepairEngine()
-
-        # Create a plan with no gaps
         week_plan = {
             "days": [
                 {
                     "name": "Monday",
+                    "estimated_cost": 5,
+                    "total_nutrients": {"iron_mg": 1},
+                    "coverage": {"iron_mg": {"status": "deficient"}},
+                    "recommendations": ["review"],
                     "meals": [
                         {
                             "name": "Breakfast",
-                            "ingredients": [
-                                {"name": "spinach", "amount": 100},
-                                {"name": "chicken", "amount": 150},
-                                {"name": "bell peppers", "amount": 100},
-                            ],
+                            "ingredients": [{"name": "bread", "amount": 100}],
                         }
                     ],
                 }
             ]
         }
 
-        # Mock _analyze_nutrient_gaps to return empty dict (no gaps)
+        with patch("core.auto_repair.repair_week_plan", side_effect=_changed_week_menu):
+            result = engine.auto_repair_week_plan(week_plan, self.targets)
+
+        assert result.status == RepairStatus.PARTIAL
+        assert result.iterations == 1
+        assert result.changes_made
+        assert result.repaired_plan["adherence_score"] == 1.0
+        assert result.repaired_plan["days"][0]["estimated_cost"] == 5.0
+        assert result.repaired_plan["days"][0]["total_nutrients"] == {"iron_mg": 1.0}
+        assert result.repaired_plan["days"][0]["recommendations"] == ["review"]
+        assert result.repaired_plan["days"][0]["meals"][0]["ingredients"] == [
+            {"name": "bread", "amount": 100}
+        ]
+        assert week_plan["days"][0]["meals"][0]["ingredients"] == [{"name": "bread", "amount": 100}]
+
+    def test_auto_repair_week_plan_no_gaps(self) -> None:
+        """Test auto repair when no gaps exist."""
+        engine = AutoRepairEngine()
+
+        week_plan = {"days": []}
+
         with patch.object(engine, "_analyze_nutrient_gaps", return_value={}):
             result = engine.auto_repair_week_plan(week_plan, self.targets)
 
-            assert isinstance(result, RepairResult)
-            assert result.status == RepairStatus.SUCCESS
-            assert result.iterations == 0
-            assert result.message == "План уже соответствует целям"
-            assert result.repaired_plan == week_plan
+        assert isinstance(result, RepairResult)
+        assert result.status == RepairStatus.SUCCESS
+        assert result.iterations == 0
+        assert result.message == "План уже соответствует целям"
+        assert result.repaired_plan == week_plan
+        assert result.repaired_plan is not week_plan
 
     def test_auto_repair_week_plan_with_strategies(self):
         """Test auto repair with different strategies."""
@@ -217,7 +200,7 @@ class TestAutoRepairComprehensive:
 
         # Test with conservative strategy
         with patch("core.auto_repair.repair_week_plan") as mock_repair:
-            mock_repair.return_value = week_plan.copy()
+            mock_repair.side_effect = _same_week_menu
             result = engine.auto_repair_week_plan(
                 week_plan, self.targets, RepairStrategy.CONSERVATIVE
             )
@@ -225,21 +208,31 @@ class TestAutoRepairComprehensive:
 
         # Test with balanced strategy
         with patch("core.auto_repair.repair_week_plan") as mock_repair:
-            mock_repair.return_value = week_plan.copy()
+            mock_repair.side_effect = _same_week_menu
             result = engine.auto_repair_week_plan(week_plan, self.targets, RepairStrategy.BALANCED)
             assert isinstance(result, RepairResult)
 
         # Test with aggressive strategy
         with patch("core.auto_repair.repair_week_plan") as mock_repair:
-            mock_repair.return_value = week_plan.copy()
+            mock_repair.side_effect = _same_week_menu
             result = engine.auto_repair_week_plan(
                 week_plan, self.targets, RepairStrategy.AGGRESSIVE
             )
             assert isinstance(result, RepairResult)
 
-    def test_auto_repair_week_plan_max_iterations(self):
+    def test_auto_repair_week_plan_max_iterations(self) -> None:
         """Test auto repair reaching maximum iterations."""
         engine = AutoRepairEngine(max_iterations=2)
+        engine.repair_history = [
+            RepairIteration(
+                iteration_number=99,
+                strategy=RepairStrategy.AGGRESSIVE,
+                gaps_before={},
+                gaps_after={},
+                changes_applied=[{"stale": True}],
+                success=True,
+            )
+        ]
 
         week_plan = {
             "days": [
@@ -255,19 +248,123 @@ class TestAutoRepairComprehensive:
             ]
         }
 
-        # Mock to always fail (no progress)
-        with (
-            patch("core.auto_repair.repair_week_plan") as mock_repair,
-            patch.object(engine, "_analyze_nutrient_gaps") as mock_analyze,
-        ):
-            mock_repair.return_value = week_plan.copy()
-            mock_analyze.return_value = {"iron": 20.0}  # Always return same gaps
-
+        with patch("core.auto_repair.repair_week_plan", side_effect=_same_week_menu):
             result = engine.auto_repair_week_plan(week_plan, self.targets)
 
             assert isinstance(result, RepairResult)
-            assert result.iterations == 2  # Should reach max iterations
-            assert result.status in [RepairStatus.FAILED, RepairStatus.PARTIAL]
+            assert result.iterations == 1
+            assert result.status == RepairStatus.FAILED
+            assert result.changes_made == []
+            assert engine.repair_history[0].changes_applied == []
+
+    def test_unsupported_controls_fail_closed(self) -> None:
+        """Preferences and disabled execution never become semantic success."""
+        week_plan = {
+            "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
+        }
+
+        preference_result = AutoRepairEngine().auto_repair_week_plan(
+            week_plan,
+            self.targets,
+            user_preferences={"exclude": ["bread"]},
+        )
+        disabled_result = AutoRepairEngine(max_iterations=0).auto_repair_week_plan(
+            week_plan,
+            self.targets,
+        )
+
+        assert preference_result.status == RepairStatus.NEEDS_MANUAL
+        assert preference_result.changes_made == []
+        assert disabled_result.status == RepairStatus.FAILED
+        assert disabled_result.iterations == 0
+
+    def test_empty_plan_compat_records_local_success_history(self) -> None:
+        """Internal empty-plan compatibility keeps response history invocation-local."""
+        engine = AutoRepairEngine(max_iterations=1)
+        week_plan = {"days": []}
+        repair_iteration = RepairIteration(
+            iteration_number=1,
+            strategy=RepairStrategy.BALANCED,
+            gaps_before={"iron": 1.0},
+            gaps_after={},
+            changes_applied=[{"repaired_plan": week_plan}],
+            success=True,
+        )
+
+        with (
+            patch.object(
+                engine,
+                "_analyze_nutrient_gaps",
+                side_effect=[{"iron": 1.0}, {"iron": 1.0}, {}],
+            ),
+            patch.object(engine, "_attempt_repair", return_value=repair_iteration),
+        ):
+            result = engine.auto_repair_week_plan(week_plan, self.targets)
+
+        assert result.status == RepairStatus.SUCCESS
+        assert result.changes_made == [{"repaired_plan": week_plan}]
+        assert engine.get_repair_history() == [repair_iteration]
+
+    @pytest.mark.parametrize(
+        "invalid_range",
+        [
+            (1.0, 2.0),
+            (True, 2.0, 3.0),
+            ("1", 2.0, 3.0),
+            (float("nan"), 2.0, 3.0),
+            (1.0, float("inf"), 3.0),
+            (-1.0, 2.0, 3.0),
+            (3.0, 2.0, 4.0),
+            (1.0, 4.0, 3.0),
+        ],
+    )
+    def test_micronutrient_ranges_fail_closed(self, invalid_range: object) -> None:
+        """Malformed target ranges fail at their canonical domain boundary."""
+        target_data = dict(self.targets.__dict__)
+        target_data["iron_mg"] = invalid_range
+
+        with pytest.raises(ValueError):
+            MicronutrientTargets(**target_data)
+
+    def test_public_target_ranges_require_positive_values(self) -> None:
+        """Zero-valued internal controls fail only at the public admission method."""
+        target_data = dict(self.targets.__dict__)
+        target_data["iron_mg"] = (0.0, 0.0, 0.0)
+        targets = MicronutrientTargets(**target_data)
+
+        with pytest.raises(ValueError, match="iron_mg values must be positive"):
+            targets.validate_positive_ranges()
+
+    @pytest.mark.parametrize(
+        "invalid_plan",
+        [
+            None,
+            {},
+            {"days": "not-a-list"},
+            {"days": [None]},
+            {"days": [{}]},
+            {"days": [{"meals": [None]}]},
+            {"days": [{"meals": [{}]}]},
+            {"days": [{"meals": [{"ingredients": [None]}]}]},
+            {"days": [{"meals": [{"ingredients": [{"name": ""}]}]}]},
+        ],
+    )
+    def test_week_plan_validation_fails_closed(self, invalid_plan: object) -> None:
+        """Every malformed nested container stops before repair execution."""
+        with pytest.raises(ValueError):
+            validate_week_plan(invalid_plan)
+
+    def test_repair_strategies_fail_closed(self) -> None:
+        """Unknown strategy values are never treated as balanced defaults."""
+        week_plan = {
+            "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
+        }
+        with pytest.raises(ValueError, match="Unknown repair strategy"):
+            AutoRepairEngine().auto_repair_week_plan(
+                week_plan,
+                self.targets,
+                cast(RepairStrategy, "balanced"),
+            )
 
     def test_get_next_strategy(self):
         """Test _get_next_strategy method."""
@@ -464,34 +561,7 @@ class TestAutoRepairComprehensive:
             ]
         }
 
-        # Mock successful repair
-        with (
-            patch("core.auto_repair.repair_week_plan") as mock_repair,
-            patch.object(engine, "_analyze_nutrient_gaps") as mock_analyze,
-        ):
-            mock_repair.return_value = {
-                "days": [
-                    {
-                        "name": "Monday",
-                        "meals": [
-                            {
-                                "name": "Breakfast",
-                                "ingredients": [
-                                    {"name": "bread", "amount": 100},
-                                    {"name": "spinach", "amount": 50},
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            }
-
-            # Mock gaps_before (more gaps) and gaps_after (fewer gaps)
-            mock_analyze.side_effect = [
-                {"vitamin_c": 50.0, "folate": 30.0, "iron": 40.0, "protein": 20.0},  # gaps_before
-                {"vitamin_c": 50.0, "folate": 30.0},  # gaps_after (fewer gaps = success)
-            ]
-
+        with patch("core.auto_repair.repair_week_plan", side_effect=_changed_week_menu):
             iteration = engine._attempt_repair(week_plan, self.targets, RepairStrategy.BALANCED, 1)
 
             assert isinstance(iteration, RepairIteration)
@@ -499,8 +569,8 @@ class TestAutoRepairComprehensive:
             assert iteration.strategy == RepairStrategy.BALANCED
             assert iteration.success is True
 
-    def test_attempt_repair_failure(self):
-        """Test _attempt_repair method with failed repair."""
+    def test_attempt_repair_failure(self) -> None:
+        """Structural repair exceptions are not converted into no-progress results."""
         engine = AutoRepairEngine()
 
         week_plan = {
@@ -517,14 +587,20 @@ class TestAutoRepairComprehensive:
             ]
         }
 
-        # Mock repair function to raise an exception
-        with patch("core.auto_repair.repair_week_plan", side_effect=Exception("Repair failed")):
-            iteration = engine._attempt_repair(week_plan, self.targets, RepairStrategy.BALANCED, 1)
+        with (
+            patch(
+                "core.auto_repair.repair_week_plan",
+                side_effect=RuntimeError("structural repair failure"),
+            ),
+            pytest.raises(RuntimeError, match="structural repair failure"),
+        ):
+            engine._attempt_repair(week_plan, self.targets, RepairStrategy.BALANCED, 1)
 
-            assert isinstance(iteration, RepairIteration)
-            assert iteration.iteration_number == 1
-            assert iteration.strategy == RepairStrategy.BALANCED
-            assert iteration.success is False
+        with (
+            patch("core.auto_repair.repair_week_plan", return_value={}),
+            pytest.raises(TypeError, match="Canonical repair returned an invalid result"),
+        ):
+            engine._attempt_repair(week_plan, self.targets, RepairStrategy.BALANCED, 1)
 
     def test_convenience_functions(self):
         """Test convenience functions."""
@@ -544,7 +620,7 @@ class TestAutoRepairComprehensive:
 
         # Test auto_repair_week_plan convenience function
         with patch("core.auto_repair.repair_week_plan") as mock_repair:
-            mock_repair.return_value = week_plan.copy()
+            mock_repair.side_effect = _same_week_menu
             result = auto_repair_week_plan(week_plan, self.targets)
             assert isinstance(result, RepairResult)
 

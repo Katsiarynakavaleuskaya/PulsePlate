@@ -2831,9 +2831,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
   - Progress:
     - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
-    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py` without runtime, shared-fixture, guard, dependency, or OpenAPI changes
+    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts without changing shared fixtures, auth guards, dependencies, or OpenAPI
     - Residual boundary: the post-TC2-08 coarse AST census remained non-zero at 415 construction sites across 99 test files; the TC2-09 branch reduces that census by exactly eight, so a fresh post-merge census must select TC2-09B and TC2-10 remains blocked until canonical callers reach zero
-    - Blocking prerequisite: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract`
+    - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
   - DoD:
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
     - Closeable test resources have deterministic teardown
@@ -2843,11 +2843,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Repair the VIP auto-repair request-to-domain contract before TC2-09 closeout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-VIP-AUTO-REPAIR-REQUEST-CONTRACT (blocking prerequisite for PR #2312)
-  - Status: ⛔ Blocked — dedicated runtime carrier requires operator routing
+  - Target PR: PR #2312 (combined TC2-09 correctness work-package)
+  - Status: 🟡 In progress — folded into PR #2312; no separate prerequisite PR
   - Area: backend / VIP / auto-repair / request validation
   - Finding Type: runtime type-contract mismatch and false-success envelope
-  - Reason (EN): PR #2312 proved that the authenticated VIP route passes a wire `dict` into a repair path whose menu engine requires `WeekMenu`; the structural exception is converted into three failed iterations with zero changes and then wrapped by the route's outer success envelope. The same request boundary accepts client-authored micronutrient triplets without finite, positive, cardinality, or monotonic validation.
+  - Reason (EN): PR #2312 proved that the authenticated VIP route passed a wire `dict` into a repair path whose menu engine requires `WeekMenu`; the structural exception was converted into three failed iterations with zero changes and then wrapped by the route's outer success envelope. The same request boundary accepted client-authored micronutrient triplets without finite, positive, cardinality, or monotonic validation. The operator selected one bounded PR #2312 work-package to repair these directly coupled contracts instead of creating a prerequisite PR.
   - Links:
     - `app/routers/vip.py`
     - `core/auto_repair.py`
@@ -2856,11 +2856,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_vip_integration_97_extended.py`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3828799711`
   - DoD:
-    - One canonical adapter or validated domain seam converts the public weekly-plan payload before the repair engine; route code does not acquire nutrition-domain calculation authority
+    - One validated wire-dict-to-`WeekMenu` adapter delegates repair execution to the canonical menu engine; route code and `core/auto_repair.py` do not create a second nutrition-repair authority
     - Structural type or dependency failures return the existing sanitized error envelope and are not collapsed into an ordinary no-progress repair result
     - Malformed, non-finite, non-positive, wrong-cardinality, and non-monotonic micronutrient triplets fail deterministically with HTTP `422`
     - Deterministic route/core tests cover valid conversion, legitimate no-progress, malformed plan input, malformed target ranges, and structural dependency failure
-    - After the prerequisite merges, PR #2312 synchronizes to current `main` and tightens its auto-repair scenarios to prove meaningful outcomes instead of accepting the currently deterministic failed result
+    - PR #2312 integration scenarios prove truthful canonical no-progress, `needs_manual`, changed-partial, recipe capability, and ordinary managed-client VIP auth outcomes without accepting failed, malformed, or echo-only results as success
 
 <a id="ledger-p1-test-hygiene-env-isolation"></a>
 - [ ] P1: `os.environ` isolation and `setup_method` teardown migration

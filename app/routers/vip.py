@@ -29,7 +29,7 @@ from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from app.services import fitchef_runtime
 from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
-from core.recipe_synth import RecipeSynthesizer
+from core.recipe_synth import RecipeModel, RecipeSynthesizer
 
 from app.utils.feature_flags import is_vip_module_enabled
 from app.routers.vip_shoplist import router as vip_shoplist_router
@@ -127,6 +127,83 @@ _WEEKLY_PLAN_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
         }
     },
 }
+
+
+def _validate_vip_week_plan(week_plan: object) -> Dict[str, Any]:
+    """Validate the non-empty public week-plan container before core invocation."""
+    if not isinstance(week_plan, Mapping):
+        raise ValueError("week_plan must be an object")
+    days = week_plan.get("days")
+    if not isinstance(days, list) or not days:
+        raise ValueError("week_plan.days must be a non-empty list")
+    for day in days:
+        if not isinstance(day, Mapping):
+            raise ValueError("each week_plan day must be an object")
+        meals = day.get("meals")
+        if not isinstance(meals, list) or not meals:
+            raise ValueError("each week_plan day must contain meals")
+        for meal in meals:
+            if not isinstance(meal, Mapping):
+                raise ValueError("each meal must be an object")
+            ingredients = meal.get("ingredients")
+            if not isinstance(ingredients, list) or not ingredients:
+                raise ValueError("each meal must contain ingredients")
+            for ingredient in ingredients:
+                if not isinstance(ingredient, Mapping):
+                    raise ValueError("each ingredient must be an object")
+                name = ingredient.get("name")
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError("each ingredient must contain a non-empty name")
+    return dict(week_plan)
+
+
+def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
+    """Validate the complete serialized auto-repair result before envelope selection."""
+    if not isinstance(result_data, Mapping):
+        raise ValueError("Auto-repair result must be an object")
+
+    status_value = result_data.get("status")
+    repaired_plan = result_data.get("repaired_plan")
+    original_plan = result_data.get("original_plan")
+    changes_made = result_data.get("changes_made")
+    remaining_gaps = result_data.get("remaining_gaps")
+    strategy_used = result_data.get("strategy_used")
+    iterations = result_data.get("iterations")
+    message = result_data.get("message")
+    suggestions = result_data.get("suggestions")
+
+    if not isinstance(status_value, str) or not status_value:
+        raise ValueError("Auto-repair result status is invalid")
+    if not isinstance(repaired_plan, Mapping) or not isinstance(original_plan, Mapping):
+        raise ValueError("Auto-repair result plans are invalid")
+    if not isinstance(changes_made, list) or not isinstance(remaining_gaps, Mapping):
+        raise ValueError("Auto-repair result change data is invalid")
+    if not isinstance(strategy_used, str) or not strategy_used:
+        raise ValueError("Auto-repair result strategy is invalid")
+    minimum_iterations = 0 if status_value == "needs_manual" else 1
+    if (
+        isinstance(iterations, bool)
+        or not isinstance(iterations, int)
+        or iterations < minimum_iterations
+    ):
+        raise ValueError("Auto-repair result iterations are invalid")
+    if not isinstance(message, str) or not message:
+        raise ValueError("Auto-repair result message is invalid")
+    if not isinstance(suggestions, list):
+        raise ValueError("Auto-repair result suggestions are invalid")
+
+    return {
+        "status": status_value,
+        "repaired_plan": dict(repaired_plan),
+        "original_plan": dict(original_plan),
+        "changes_made": list(changes_made),
+        "remaining_gaps": dict(remaining_gaps),
+        "strategy_used": strategy_used,
+        "iterations": iterations,
+        "message": message,
+        "suggestions": list(suggestions),
+    }
+
 
 # VIP shoplist preview (offline/deterministic)
 router.include_router(vip_shoplist_router)
@@ -1188,21 +1265,32 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Рецепты для недели
     """
+    try:
+        week_plan = _validate_vip_week_plan(request.get("week_plan"))
+        recipes_per_day = request.get("recipes_per_day", 1)
+        if (
+            isinstance(recipes_per_day, bool)
+            or not isinstance(recipes_per_day, int)
+            or recipes_per_day <= 0
+        ):
+            raise ValueError("recipes_per_day must be a positive integer")
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly recipes request payload",
+        ) from exc
+
     if synthesize_recipes_for_week is None:
-        # Log the module unavailability for observability
         logging.error("Recipe synthesis module not available - synthesize_recipes_for_week is None")
-        # Return echo-mode response for consistency with other endpoints
         return {
-            "status": "success",
+            "status": "error",
             "weekly_recipes": {},
             "total_recipes": 0,
             "echo": request,
-            "message": "Weekly recipes synthesized (echo mode)",
+            "message": "Recipe synthesis is unavailable",
         }
 
     try:
-        week_plan = request.get("week_plan", {})
-        recipes_per_day = request.get("recipes_per_day", 1)
         weekly_recipes = _safe_call_with_adapter(
             "synthesize_recipes_for_week", week_plan, recipes_per_day
         )
@@ -1212,6 +1300,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
                 "status": "error",
                 "message": weekly_recipes.get("message", "Recipe synthesis failed"),
                 "weekly_recipes": {},
+                "total_recipes": 0,
                 "echo": request,
             }
         if not isinstance(weekly_recipes, dict):
@@ -1219,39 +1308,38 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
                 "status": "error",
                 "message": "Recipe synthesis failed: invalid result",
                 "weekly_recipes": {},
+                "total_recipes": 0,
                 "echo": request,
             }
 
         # Helper function for recipe serialization
 
-        def serialize_recipe(recipe: object) -> Union[Dict[str, Any], str]:
-            """Serialize a recipe for JSON response.
-
-            Returns:
-                Union[Dict[str, Any], str]:
-                    - recipe unchanged if it's a dict
-                    - recipe.__dict__ if it has __dict__
-                    - str(recipe) otherwise
-            """
-            if isinstance(recipe, dict):
-                return recipe
-            elif hasattr(recipe, "__dict__"):
-                return recipe.__dict__
-            else:
-                return str(recipe)
+        def serialize_recipe(recipe: object) -> Dict[str, Any]:
+            """Validate and serialize one canonical recipe result."""
+            validated_recipe: RecipeModel = RecipeModel.model_validate(
+                recipe,
+                from_attributes=True,
+            )
+            return validated_recipe.model_dump(mode="json")
 
         # Сериализация рецептов для возврата
-        serialized = {}
+        serialized: Dict[str, list[Dict[str, Any]]] = {}
         for day, recipes in weekly_recipes.items():
             # recipes может быть списком или одним рецептом
             if isinstance(recipes, list):
-                serialized[day] = [serialize_recipe(r) for r in recipes]
+                serialized[str(day)] = [serialize_recipe(r) for r in recipes]
             else:
-                serialized[day] = [serialize_recipe(recipes)]
+                serialized[str(day)] = [serialize_recipe(recipes)]
         # Calculate total recipes count
-        total_recipes = sum(
-            len(recipes) if isinstance(recipes, list) else 1 for recipes in serialized.values()
-        )
+        total_recipes = sum(len(recipes) for recipes in serialized.values())
+        if total_recipes == 0:
+            return {
+                "status": "error",
+                "message": "Recipe synthesis returned no recipes",
+                "weekly_recipes": {},
+                "total_recipes": 0,
+                "echo": request,
+            }
 
         return {
             "status": "success",
@@ -1368,7 +1456,7 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Результат авто-ремонта с историей итераций
     """
-    if auto_repair_week_plan is None:
+    if auto_repair_week_plan is None or RepairStrategy is None:
         error_res: dict[str, Any] = vip_error(
             code="auto_repair_unavailable",
             message="Auto-repair module not available",
@@ -1376,24 +1464,35 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         )
         return error_res
     try:
-        week_plan = request.get("week_plan", {})
+        from core.targets import MicronutrientTargets
+
+        week_plan = _validate_vip_week_plan(request.get("week_plan"))
         targets_data = request.get("targets", {})
         strategy_name = request.get("strategy", "balanced")
         user_preferences = request.get("user_preferences", {})
-        from core.targets import MicronutrientTargets
+        if not isinstance(targets_data, Mapping) or not isinstance(user_preferences, Mapping):
+            raise ValueError("Invalid auto-repair request payload")
+        targets = MicronutrientTargets(**dict(targets_data))
+        targets.validate_positive_ranges()
+        strategy = RepairStrategy(strategy_name)
+        normalized_preferences = dict(user_preferences)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid auto-repair request payload",
+        ) from exc
 
-        targets = MicronutrientTargets(**targets_data)
-        strategy = RepairStrategy(strategy_name) if RepairStrategy is not None else None
+    try:
         engine = get_auto_repair_engine() if callable(get_auto_repair_engine) else None
-        if engine and hasattr(engine, "auto_repair_week_plan") and strategy is not None:
+        if engine and hasattr(engine, "auto_repair_week_plan"):
             repair_result = engine.auto_repair_week_plan(
-                week_plan, targets, strategy, user_preferences
+                week_plan, targets, strategy, normalized_preferences
             )
-        elif strategy is not None:
-            repair_result = auto_repair_week_plan(week_plan, targets, strategy, user_preferences)
         else:
-            repair_result = {}
-        # Always return required fields
+            repair_result = auto_repair_week_plan(
+                week_plan, targets, strategy, normalized_preferences
+            )
+
         if isinstance(repair_result, dict):
             result_data = repair_result
         else:
@@ -1401,28 +1500,57 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
                 "status": (
                     repair_result.status.value
                     if hasattr(repair_result.status, "value")
-                    else str(getattr(repair_result, "status", "success"))
+                    else str(getattr(repair_result, "status", "unknown"))
                 ),
                 "repaired_plan": getattr(repair_result, "repaired_plan", {}),
                 "original_plan": getattr(repair_result, "original_plan", {}),
                 "changes_made": getattr(repair_result, "changes_made", []),
-                "remaining_gaps": getattr(repair_result, "remaining_gaps", []),
+                "remaining_gaps": getattr(repair_result, "remaining_gaps", {}),
                 "strategy_used": (
                     getattr(repair_result, "strategy_used", "balanced")
                     if not hasattr(repair_result, "strategy_used")
                     or not hasattr(repair_result.strategy_used, "value")
                     else repair_result.strategy_used.value
                 ),
-                "iterations": getattr(repair_result, "iterations", 1),
+                "iterations": getattr(repair_result, "iterations", 0),
                 "message": getattr(repair_result, "message", "Auto-repair completed"),
                 "suggestions": getattr(repair_result, "suggestions", []),
             }
+
+        result_data = _validate_auto_repair_result_data(result_data)
+        result_status = result_data["status"]
+        if result_status in {"failed", "needs_manual"}:
+            stable_failure_message = "Auto-repair could not complete the requested repair"
+            stable_failure_result = {
+                **result_data,
+                "message": stable_failure_message,
+            }
+            return vip_error(
+                code="auto_repair_failed",
+                message=stable_failure_message,
+                repair_result=stable_failure_result,
+                echo=request,
+            )
+        if (
+            result_status != "partial"
+            or result_data["repaired_plan"] == result_data["original_plan"]
+            or not result_data["changes_made"]
+        ):
+            return vip_error(
+                code="internal_error",
+                message="Error during auto-repair",
+                repair_result={},
+                echo=request,
+            )
+
         success_res: dict[str, Any] = vip_success(
             repair_result=result_data,
-            message=f"Auto-repair completed with status: {result_data.get('status', 'repaired')}",
+            message=f"Auto-repair completed with status: {result_status}",
             echo=request,
         )
         return success_res
+    except HTTPException:
+        raise
     except Exception:
         logging.exception("Error during auto-repair")
         # Do not include exception details in responses (CodeQL: info exposure).

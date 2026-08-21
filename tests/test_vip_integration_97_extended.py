@@ -3,11 +3,12 @@
 """
 
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tests._client import open_test_client
+import app.routers.vip as vip_router
 from tests._helpers.vip_contracts import assert_json_response_payload
 
 
@@ -171,6 +172,7 @@ class TestVIPIntegration97Extended:
         self,
         client: TestClient,
         test_environment: None,
+        monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         """Расширенные интеграционные тесты VIP recipes endpoint"""
@@ -275,14 +277,86 @@ class TestVIPIntegration97Extended:
             assert response.status_code == 200
             data = assert_json_response_payload(response)
             assert data["status"] == "success"
-            assert "weekly_recipes" in data
-            assert "total_recipes" in data
+            assert data["weekly_recipes"]
+            assert data["total_recipes"] > 0
             assert data["echo"] == payload
+
+        with monkeypatch.context() as missing_capability:
+            missing_capability.setattr(vip_router, "synthesize_recipes_for_week", None)
+            response = client.post(
+                "/api/v1/vip/recipes/weekly",
+                json=payload_simple,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            assert assert_json_response_payload(response) == {
+                "status": "error",
+                "weekly_recipes": {},
+                "total_recipes": 0,
+                "echo": payload_simple,
+                "message": "Recipe synthesis is unavailable",
+            }
+
+        with monkeypatch.context() as empty_capability:
+            empty_capability.setattr(
+                vip_router,
+                "_adapter_synthesize_recipes_for_week",
+                lambda *_args, **_kwargs: {},
+            )
+            response = client.post(
+                "/api/v1/vip/recipes/weekly",
+                json=payload_simple,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            assert assert_json_response_payload(response) == {
+                "status": "error",
+                "message": "Recipe synthesis returned no recipes",
+                "weekly_recipes": {},
+                "total_recipes": 0,
+                "echo": payload_simple,
+            }
+
+        malformed_recipe_results = (
+            {"monday": [{"status": "error"}]},
+            {"monday": [{"unexpected": "shape"}]},
+        )
+        for malformed_result in malformed_recipe_results:
+            with monkeypatch.context() as malformed_capability:
+                malformed_capability.setattr(
+                    vip_router,
+                    "_adapter_synthesize_recipes_for_week",
+                    Mock(return_value=malformed_result),
+                )
+                response = client.post(
+                    "/api/v1/vip/recipes/weekly",
+                    json=payload_simple,
+                    headers=vip_headers,
+                )
+                assert response.status_code == 200
+                assert assert_json_response_payload(response) == {
+                    "status": "error",
+                    "message": "An internal error occurred during recipe synthesis",
+                    "weekly_recipes": {},
+                    "total_recipes": 0,
+                    "echo": payload_simple,
+                }
+
+        response = client.post(
+            "/api/v1/vip/recipes/weekly",
+            json={"week_plan": {"days": "not-a-list"}},
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid weekly recipes request payload"
+        }
 
     def test_vip_auto_repair_integration_extended_scenarios(
         self,
         client: TestClient,
         test_environment: None,
+        monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         """Расширенные интеграционные тесты VIP auto repair endpoint"""
@@ -335,6 +409,7 @@ class TestVIPIntegration97Extended:
                                     {"name": "chicken", "amount": 100, "unit": "g"},
                                     {"name": "rice", "amount": 150, "unit": "g"},
                                     {"name": "broccoli", "amount": 100, "unit": "g"},
+                                    {"name": "spinach", "amount": 100, "unit": "g"},
                                 ],
                             }
                         ],
@@ -351,16 +426,211 @@ class TestVIPIntegration97Extended:
             )
             assert response.status_code == 200
             data = assert_json_response_payload(response)
-            assert data["status"] == "success"
+            assert data["status"] == "error"
+            assert data["code"] == "auto_repair_failed"
             repair_result = data["repair_result"]
             assert isinstance(repair_result, dict)
-            assert "status" in repair_result
-            assert repair_result["status"] in {"success", "partial", "failed"}
-            assert "iterations" in repair_result
+            assert repair_result["status"] == "failed"
+            assert repair_result["iterations"] == 1
+            assert repair_result["changes_made"] == []
             assert data["echo"] == payload
-            assert data["message"] == (
-                f"Auto-repair completed with status: {repair_result['status']}"
+            assert data["message"] == "Auto-repair could not complete the requested repair"
+
+        malformed_plan = _auto_repair_payload({"days": "not-a-list"})
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=malformed_plan,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
+        stable_failure_message = "Auto-repair could not complete the requested repair"
+        preferences_payload = _auto_repair_payload(payload_no_problems["week_plan"])
+        preferences_payload["user_preferences"] = {"exclude": ["bread"]}
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=preferences_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        data = assert_json_response_payload(response)
+        assert data["status"] == "error"
+        assert data["code"] == "auto_repair_failed"
+        assert data["message"] == stable_failure_message
+        assert data["detail"] == stable_failure_message
+        assert data["repair_result"]["status"] == "needs_manual"
+        assert data["repair_result"]["iterations"] == 0
+        assert data["repair_result"]["message"] == stable_failure_message
+        assert "Canonical auto-repair does not support these preferences" not in str(data)
+
+        zero_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        zero_interval["targets"]["iron_mg"] = [0.0, 0.0, 0.0]
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=zero_interval,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
+        malformed_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        malformed_interval["targets"]["iron_mg"] = [8.0, 6.0, 45.0]
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=malformed_interval,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
+        partial_result = {
+            "status": "partial",
+            "repaired_plan": {
+                **payload_simple_problems["week_plan"],
+                "canonical_repair_applied": True,
+            },
+            "original_plan": payload_simple_problems["week_plan"],
+            "changes_made": [{"type": "canonical_repair"}],
+            "remaining_gaps": {},
+            "strategy_used": "balanced",
+            "iterations": 1,
+            "message": "Canonical repair produced a changed plan",
+            "suggestions": [],
+            "private_debug": "secret-token",
+        }
+        with monkeypatch.context() as partial_success:
+            partial_success.setattr(vip_router, "get_auto_repair_engine", None)
+            partial_success.setattr(
+                vip_router,
+                "auto_repair_week_plan",
+                Mock(return_value=partial_result),
             )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=payload_simple_problems,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            data = assert_json_response_payload(response)
+            assert data["status"] == "success"
+            expected_partial_result = {
+                key: value for key, value in partial_result.items() if key != "private_debug"
+            }
+            assert data["repair_result"] == expected_partial_result
+            assert data["message"] == "Auto-repair completed with status: partial"
+            assert "private_debug" not in data["repair_result"]
+            assert "secret-token" not in str(data)
+
+        malformed_results = (
+            {"status": "success"},
+            {**partial_result, "status": ""},
+            {**partial_result, "original_plan": []},
+            {**partial_result, "changes_made": {}},
+            {**partial_result, "remaining_gaps": []},
+            {**partial_result, "strategy_used": ""},
+            {**partial_result, "iterations": True},
+            {**partial_result, "iterations": 0},
+            {**partial_result, "message": ""},
+            {**partial_result, "suggestions": {}},
+            {**partial_result, "status": "success"},
+            {
+                **partial_result,
+                "repaired_plan": payload_simple_problems["week_plan"],
+            },
+            {**partial_result, "changes_made": []},
+        )
+        for malformed_result in malformed_results:
+            with monkeypatch.context() as malformed_success:
+                malformed_success.setattr(vip_router, "get_auto_repair_engine", None)
+                malformed_success.setattr(
+                    vip_router,
+                    "auto_repair_week_plan",
+                    Mock(return_value=malformed_result),
+                )
+                response = client.post(
+                    "/api/v1/vip/auto-repair/weekly",
+                    json=payload_simple_problems,
+                    headers=vip_headers,
+                )
+                assert response.status_code == 200
+                data = assert_json_response_payload(response)
+                assert data == {
+                    "status": "error",
+                    "code": "internal_error",
+                    "message": "Error during auto-repair",
+                    "detail": "Error during auto-repair",
+                    "error": "internal_error",
+                    "repair_result": {},
+                    "echo": payload_simple_problems,
+                }
+
+        failed_result = {
+            "status": "failed",
+            "repaired_plan": payload_simple_problems["week_plan"],
+            "original_plan": payload_simple_problems["week_plan"],
+            "changes_made": [],
+            "remaining_gaps": {"vitamin_c": 50.0},
+            "strategy_used": "balanced",
+            "iterations": 3,
+            "message": "/private/db/path",
+            "suggestions": [],
+        }
+        with monkeypatch.context() as no_progress:
+            no_progress.setattr(vip_router, "get_auto_repair_engine", None)
+            no_progress.setattr(
+                vip_router,
+                "auto_repair_week_plan",
+                Mock(return_value=failed_result),
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=payload_simple_problems,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            data = assert_json_response_payload(response)
+            assert data["status"] == "error"
+            assert data["code"] == "auto_repair_failed"
+            assert data["message"] == stable_failure_message
+            assert data["detail"] == stable_failure_message
+            assert data["repair_result"] == {
+                **failed_result,
+                "message": stable_failure_message,
+            }
+            assert data["repair_result"]["message"] == stable_failure_message
+            assert "/private/db/path" not in str(data)
+
+        with monkeypatch.context() as structural_failure:
+            structural_failure.setattr(vip_router, "get_auto_repair_engine", None)
+            structural_failure.setattr(
+                vip_router,
+                "auto_repair_week_plan",
+                Mock(side_effect=RuntimeError("private structural detail")),
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=payload_simple_problems,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            data = assert_json_response_payload(response)
+            assert data == {
+                "status": "error",
+                "code": "internal_error",
+                "message": "Error during auto-repair",
+                "detail": "Error during auto-repair",
+                "error": "internal_error",
+                "repair_result": {},
+                "echo": payload_simple_problems,
+            }
+            assert "private structural detail" not in str(data)
 
     def test_vip_shoplist_integration_extended_scenarios(
         self,
@@ -454,11 +724,11 @@ class TestVIPIntegration97Extended:
 
     def test_vip_api_key_validation_integration_extended_scenarios(
         self,
+        client: TestClient,
         test_environment: None,
-        monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        """Test request-time production auth after test-safe app startup."""
+        """Verify ordinary managed-client VIP tier authentication."""
         payload = {
             "sex": "male",
             "age": 30,
@@ -471,40 +741,30 @@ class TestVIPIntegration97Extended:
             "API key does not have VIP tier access. Upgrade to VIP to access this feature."
         )
 
-        with open_test_client() as client:
-            with monkeypatch.context() as request_env:
-                request_env.setenv("APP_ENV", "production")
-                request_env.setenv("DEBUG", "false")
-                request_env.setenv("ALLOW_DEV_API_KEY", "false")
-                request_env.setenv("VIP_MODULE_ENABLED", "true")
-                request_env.setenv("VIP_API_KEYS", vip_headers["X-API-Key"])
-                request_env.delenv("ENVIRONMENT", raising=False)
-                request_env.delenv("ALLOW_ANONYMOUS_API_KEYS", raising=False)
+        response = client.post(
+            "/api/v1/vip/menu/weekly/plan",
+            json=payload,
+        )
+        assert response.status_code == 403
+        assert assert_json_response_payload(response) == {"detail": "VIP access required"}
 
-                response = client.post(
-                    "/api/v1/vip/menu/weekly/plan",
-                    json=payload,
-                )
-                assert response.status_code == 403
-                assert assert_json_response_payload(response) == {"detail": "VIP access required"}
+        for key in ("invalid-key", "wrong-key", "test-key", "dev-key"):
+            response = client.post(
+                "/api/v1/vip/menu/weekly/plan",
+                json=payload,
+                headers={"X-API-Key": key},
+            )
+            assert response.status_code == 403
+            assert assert_json_response_payload(response) == {"detail": invalid_key_detail}
 
-                for key in ("invalid-key", "wrong-key", "test-key", "dev-key"):
-                    response = client.post(
-                        "/api/v1/vip/menu/weekly/plan",
-                        json=payload,
-                        headers={"X-API-Key": key},
-                    )
-                    assert response.status_code == 403
-                    assert assert_json_response_payload(response) == {"detail": invalid_key_detail}
-
-                response = client.post(
-                    "/api/v1/vip/menu/weekly/plan",
-                    json=payload,
-                    headers=vip_headers,
-                )
-                assert response.status_code == 200
-                data = assert_json_response_payload(response)
-                assert data["status"] == "success"
+        response = client.post(
+            "/api/v1/vip/menu/weekly/plan",
+            json=payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        data = assert_json_response_payload(response)
+        assert data["status"] == "success"
 
     def test_vip_weekly_menu_succeeds_in_test_environment(
         self,
@@ -553,7 +813,20 @@ class TestVIPIntegration97Extended:
         menu_data = assert_json_response_payload(menu_response)
         assert menu_data["status"] == "success"
 
-        recipes_payload = {"week_plan": menu_data["menu"]}
+        workflow_week_plan = {
+            "days": [
+                {
+                    "day": "monday",
+                    "meals": [
+                        {
+                            "meal_type": "breakfast",
+                            "ingredients": [{"name": "bread", "amount": 100, "unit": "g"}],
+                        }
+                    ],
+                }
+            ]
+        }
+        recipes_payload = {"week_plan": workflow_week_plan}
         recipes_response = client.post(
             "/api/v1/vip/recipes/weekly",
             json=recipes_payload,
@@ -562,8 +835,10 @@ class TestVIPIntegration97Extended:
         assert recipes_response.status_code == 200
         recipes_data = assert_json_response_payload(recipes_response)
         assert recipes_data["status"] == "success"
+        assert recipes_data["weekly_recipes"]
+        assert recipes_data["total_recipes"] > 0
 
-        repair_payload = _auto_repair_payload(menu_data["menu"])
+        repair_payload = _auto_repair_payload(workflow_week_plan)
         repair_response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=repair_payload,
@@ -571,7 +846,10 @@ class TestVIPIntegration97Extended:
         )
         assert repair_response.status_code == 200
         repair_data = assert_json_response_payload(repair_response)
-        assert repair_data["status"] == "success"
+        assert repair_data["status"] == "error"
+        assert repair_data["code"] == "auto_repair_failed"
+        assert repair_data["repair_result"]["status"] == "failed"
+        assert repair_data["repair_result"]["changes_made"] == []
 
         shoplist_payload = {"days": [_shoplist_day("chicken", quantity="1200", pack_size="500")]}
         shoplist_response = client.post(
