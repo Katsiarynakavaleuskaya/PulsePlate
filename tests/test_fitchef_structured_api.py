@@ -1747,11 +1747,18 @@ class TestFitChefStructuredRuntimeCoverage:
             _track_quota,
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        def _fail_if_distortion_assurance_runs(
+            *_args: object,
+            **_kwargs: object,
+        ) -> None:
+            """Fail if the Distortion-only assessor crosses into Identity Loop."""
+
+            pytest.fail("distortion assurance must not run for identity-loop tasks")
+
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.build_distortion_field_assurance_assessment",
-            lambda *_args, **_kwargs: pytest.fail(
-                "distortion assurance must not run for identity-loop tasks"
-            ),
+            _fail_if_distortion_assurance_runs,
         )
 
         result = asyncio.run(fitchef_runtime.run_identity_loop_mapper_task(self._identity_task()))
