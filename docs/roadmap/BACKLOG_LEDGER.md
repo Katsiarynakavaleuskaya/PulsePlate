@@ -2818,8 +2818,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TEST-HYGIENE-CLIENT-LIFECYCLE
-  - Status: 📋 Planned
+  - Target PR: PR #2312 (TC2-09 current slice); terminal TC2-10 remains TBD
+  - Status: 🟡 In progress — TC2-09 active; tracker remains open
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
   - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
@@ -2829,6 +2829,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_no_direct_testclient.py`
     - `tests/conftest.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - Progress:
+    - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
+    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py` without runtime, shared-fixture, guard, dependency, or OpenAPI changes
+    - Residual boundary: the post-TC2-08 coarse AST census remained non-zero at 415 construction sites across 99 test files; the TC2-09 branch reduces that census by exactly eight, so a fresh post-merge census must select TC2-09B and TC2-10 remains blocked until canonical callers reach zero
   - DoD:
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
     - Closeable test resources have deterministic teardown
