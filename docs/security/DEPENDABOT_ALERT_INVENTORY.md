@@ -58,6 +58,29 @@ The batch owner is
 version remediation, final scanner observations, and provider alert refresh are
 three separate propositions.
 
+## Closed alert reconciliation
+
+The complete open census intentionally excludes historical pip alert `#225`
+for `msgpack` / `GHSA-6v7p-g79w-8964`. A separate authenticated exact-alert
+lookup on 2026-08-21 returned:
+
+```text
+alert_number=225
+ecosystem=pip
+package=msgpack
+advisory=GHSA-6v7p-g79w-8964
+state=fixed
+fixed_at=2026-06-22T22:34:21Z
+dismissed_at=null
+auto_dismissed_at=null
+manifest=requirements-ci-lite.txt
+```
+
+The corresponding historical recheck item is now closed at
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-msgpack-ci-lite-alert-recheck`.
+Provider-state reconciliation only: no pip dependency material is changed by
+this npm PR, and the historical alert evidence remains retained.
+
 ## Separate Ruby `json` lane
 
 Alert `#239` remains open for RubyGems `json` in iOS/Fastlane release tooling.

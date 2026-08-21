@@ -1175,14 +1175,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       remains post-merge external evidence.
 
 <a id="ledger-p1-msgpack-ci-lite-alert-recheck"></a>
-- [ ] P1: Recheck msgpack Dependabot alert #225 after dev/full-lock remediation
+- [x] P1: Recheck msgpack Dependabot alert #225 after dev/full-lock remediation
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain / dependency-graph reconciliation)
-  - Target PR: PR-TBD after PR #2008 current-head dependency graph refresh
+  - Target PR: PR #2311 ledger reconciliation after PR #2008 dependency graph refresh
+  - Status: ✅ Completed. Authenticated Dependabot state reports alert `#225`
+    as `fixed` at `2026-06-22T22:34:21Z`; it was not dismissed or auto-dismissed.
+  - Authenticated provider-state tuple:
+
+    ```text
+    alert_number=225
+    ecosystem=pip
+    package=msgpack
+    advisory=GHSA-6v7p-g79w-8964
+    state=fixed
+    fixed_at=2026-06-22T22:34:21Z
+    dismissed_at=null
+    auto_dismissed_at=null
+    manifest=requirements-ci-lite.txt
+    ```
+
   - Area: security / CI / dependencies
-  - Reason (EN): Live Dependabot alert `#225` reports `msgpack`
+  - Reason (EN): Historical Dependabot alert `#225` reported `msgpack`
     `GHSA-6v7p-g79w-8964` against `requirements-ci-lite.txt` as a transitive
-    runtime dependency, but current repo manifests show no direct
+    runtime dependency. GitHub now records the alert as fixed, while current
+    repo manifests still show no direct
     `cachecontrol` or `msgpack` entry in `requirements-ci-lite.in` or
     `requirements-ci-lite.txt`. PR #2008 remediates the repo-owned vulnerable
     pins in `requirements-dev.txt` and `requirements-lock.txt` and deliberately
@@ -1195,13 +1212,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `requirements-dev.txt`
     - `requirements-lock.txt`
   - DoD:
-    - Recheck Dependabot alert `#225` after PR #2008 merges and GitHub refreshes
-      dependency graph state.
-    - If the alert closes, record the closure evidence and mark this item
-      complete.
-    - If the alert remains open, prove the actual repo-owned `ci-lite`
-      dependency path before editing `requirements-ci-lite.in` or
-      `requirements-ci-lite.txt`.
+    - [x] Recheck Dependabot alert `#225` after PR #2008 merges and GitHub
+      refreshes dependency graph state.
+    - [x] Record authenticated closure evidence: `state=fixed`,
+      `fixed_at=2026-06-22T22:34:21Z`, no dismissal fields.
+    - [x] Preserve `requirements-ci-lite.in` and `requirements-ci-lite.txt`
+      unchanged because no repo-owned vulnerable dependency path was reproduced.
 
 <a id="ledger-p1-python-dependency-surface-contract"></a>
 - [ ] P1: Add Python dependency surface contract and retire stale requirements guidance
