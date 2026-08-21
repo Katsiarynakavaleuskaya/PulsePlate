@@ -237,9 +237,24 @@ def test_paid_bmi_registration_mirrors_remain_retired() -> None:
     assert "_legacy_module" not in main_content
     assert "_mirror_paid_tier_registration_attrs" not in main_content
     assert "_mirror_bmi_registration_attrs" not in main_content
-    assert main_content.count("register_vip_routes(target_app)") == 1
-    assert main_content.count("register_pro_routes(target_app)") == 1
-    assert main_content.count("register_bmi_routes(target_app)") == 1
+    registrar_names = {
+        "register_vip_routes",
+        "register_pro_routes",
+        "register_bmi_routes",
+    }
+    for registrar_name in registrar_names:
+        calls = [
+            node
+            for node in ast.walk(main_tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == registrar_name
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "target_app"
+            and not node.keywords
+        ]
+        assert len(calls) == 1, f"Expected one exact {registrar_name}(target_app) call"
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:
