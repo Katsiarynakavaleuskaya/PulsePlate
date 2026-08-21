@@ -6896,6 +6896,124 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * Strategy
+                     * @default balanced
+                     * @enum {string}
+                     */
+                    strategy?: "conservative" | "balanced" | "aggressive";
+                    /**
+                     * AutoRepairTargetRanges
+                     * @description Exact twelve positive monotonic micronutrient triplets.
+                     */
+                    targets: {
+                        /** B12 Ug */
+                        b12_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Calcium Mg */
+                        calcium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Folate Ug */
+                        folate_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Iodine Ug */
+                        iodine_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Iron Mg */
+                        iron_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Magnesium Mg */
+                        magnesium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Potassium Mg */
+                        potassium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Selenium Ug */
+                        selenium_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin A Ug */
+                        vitamin_a_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin C Mg */
+                        vitamin_c_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin D Iu */
+                        vitamin_d_iu: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Zinc Mg */
+                        zinc_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                    };
+                    /** User Preferences */
+                    user_preferences?: {
+                        [key: string]: unknown;
+                    };
+                    /**
+                     * AutoRepairWeekPlan
+                     * @description Non-empty weekly plan admitted by the public auto-repair route.
+                     */
+                    week_plan: {
+                        /** Days */
+                        days: ({
+                            /** Meals */
+                            meals: ({
+                                /** Ingredients */
+                                ingredients: ({
+                                    /** Name */
+                                    name: string;
+                                } & {
+                                    [key: string]: unknown;
+                                })[];
+                                /** Nutrients */
+                                nutrients: {
+                                    [key: string]: number;
+                                };
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                } & {
                     [key: string]: unknown;
                 };
             };

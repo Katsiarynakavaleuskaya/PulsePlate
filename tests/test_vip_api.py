@@ -780,7 +780,12 @@ def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str])
             "days": [
                 {
                     "day": "Monday",
-                    "meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}],
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "rice", "amount": 200, "unit": "g"}],
+                            "nutrients": {},
+                        }
+                    ],
                 }
             ]
         },
@@ -804,13 +809,79 @@ def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str])
 
     r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
     data = r.json()
     assert data["status"] == "error"
     assert data["code"] == "auto_repair_failed"
     assert "repair_result" in data
     assert data["repair_result"] is not None
     assert data["repair_result"]["status"] == "failed"
-    assert data["repair_result"]["iterations"] == 1
+    assert data["repair_result"]["iterations"] == 3
+
+
+def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
+    """Expose the typed auto-repair request while preserving manual route validation."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    schema = response.json()
+    request_schema = schema["paths"]["/api/v1/vip/auto-repair/weekly"]["post"]["requestBody"][
+        "content"
+    ]["application/json"]["schema"]
+
+    assert set(request_schema["required"]) == {"week_plan", "targets"}
+    assert "$defs" not in request_schema
+    target_schema = request_schema["properties"]["targets"]
+    assert target_schema["additionalProperties"] is False
+    assert len(target_schema["required"]) == 12
+    assert target_schema["properties"]["iron_mg"]["minItems"] == 3
+    assert target_schema["properties"]["iron_mg"]["maxItems"] == 3
+    assert request_schema["properties"]["strategy"]["enum"] == [
+        "conservative",
+        "balanced",
+        "aggressive",
+    ]
+
+
+def test_vip_auto_repair_schema_rejects_ambiguous_values() -> None:
+    """Cover the typed schema's fail-closed pre-coercion branches."""
+    from pydantic import ValidationError
+
+    from app.schemas.vip import AutoRepairIngredient, AutoRepairMeal, AutoRepairTargetRanges
+
+    with pytest.raises(ValidationError):
+        AutoRepairIngredient.model_validate({"name": " "})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate({"ingredients": [{"name": "rice"}], "nutrients": []})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate({"ingredients": [{"name": "rice"}], "nutrients": {"": 1.0}})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate(
+            {"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": True}}
+        )
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate("not-an-object")
+
+    valid_targets = {
+        "iron_mg": [6.0, 8.0, 45.0],
+        "calcium_mg": [800.0, 1000.0, 2500.0],
+        "magnesium_mg": [300.0, 400.0, 700.0],
+        "zinc_mg": [8.0, 11.0, 40.0],
+        "potassium_mg": [3500.0, 4700.0, 5000.0],
+        "iodine_ug": [130.0, 150.0, 1100.0],
+        "selenium_ug": [45.0, 55.0, 400.0],
+        "folate_ug": [320.0, 400.0, 1000.0],
+        "b12_ug": [2.0, 2.4, 100.0],
+        "vitamin_d_iu": [400.0, 600.0, 4000.0],
+        "vitamin_a_ug": [600.0, 900.0, 3000.0],
+        "vitamin_c_mg": [75.0, 90.0, 2000.0],
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [6.0, 8.0]})
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [True, 8.0, 45.0]})
 
 
 def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:

@@ -25,7 +25,12 @@ from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImport
 
 import app.middleware.api_tiers as api_tiers_mod
 from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnvelope
-from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
+from app.schemas.vip import (
+    AutoRepairWeeklyRequest,
+    ErrorResponse,
+    WeeklyPlanRequest,
+    WeeklyPlanResponse,
+)
 from app.services import fitchef_runtime
 from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
@@ -129,6 +134,50 @@ _WEEKLY_PLAN_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
 }
 
 
+def _inline_openapi_local_refs(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Inline Pydantic-local ``$defs`` before embedding a schema under a path."""
+    definitions = schema.get("$defs", {})
+    if not isinstance(definitions, Mapping):
+        raise ValueError("OpenAPI schema definitions must be a mapping")
+
+    def resolve(node: object) -> object:
+        if isinstance(node, list):
+            return [resolve(item) for item in node]
+        if not isinstance(node, Mapping):
+            return node
+
+        reference = node.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            definition_name = reference.removeprefix("#/$defs/")
+            definition = definitions.get(definition_name)
+            if not isinstance(definition, Mapping):
+                raise ValueError(f"Unknown OpenAPI schema definition: {definition_name}")
+            resolved_definition = resolve(definition)
+            if not isinstance(resolved_definition, dict):
+                raise ValueError("OpenAPI schema definition must resolve to an object")
+            siblings = {
+                key: resolve(value) for key, value in node.items() if key not in {"$ref", "$defs"}
+            }
+            return {**resolved_definition, **siblings}
+
+        return {key: resolve(value) for key, value in node.items() if key != "$defs"}
+
+    resolved_schema = resolve(schema)
+    if not isinstance(resolved_schema, dict):
+        raise ValueError("OpenAPI request schema must resolve to an object")
+    return resolved_schema
+
+
+_AUTO_REPAIR_WEEKLY_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": _inline_openapi_local_refs(AutoRepairWeeklyRequest.model_json_schema()),
+        }
+    },
+}
+
+
 def _validate_vip_week_plan(week_plan: object) -> Dict[str, Any]:
     """Validate the non-empty public week-plan container before core invocation."""
     if not isinstance(week_plan, Mapping):
@@ -176,6 +225,8 @@ def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
         raise ValueError("Auto-repair result status is invalid")
     if not isinstance(repaired_plan, Mapping) or not isinstance(original_plan, Mapping):
         raise ValueError("Auto-repair result plans are invalid")
+    validated_repaired_plan = _validate_vip_week_plan(repaired_plan)
+    validated_original_plan = _validate_vip_week_plan(original_plan)
     if not isinstance(changes_made, list) or not isinstance(remaining_gaps, Mapping):
         raise ValueError("Auto-repair result change data is invalid")
     if not isinstance(strategy_used, str) or not strategy_used:
@@ -194,8 +245,8 @@ def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
 
     return {
         "status": status_value,
-        "repaired_plan": dict(repaired_plan),
-        "original_plan": dict(original_plan),
+        "repaired_plan": validated_repaired_plan,
+        "original_plan": validated_original_plan,
         "changes_made": list(changes_made),
         "remaining_gaps": dict(remaining_gaps),
         "strategy_used": strategy_used,
@@ -1445,7 +1496,11 @@ async def get_recipe_templates(
         return payload
 
 
-@router.post("/auto-repair/weekly", dependencies=[Depends(require_vip_tier)])
+@router.post(
+    "/auto-repair/weekly",
+    dependencies=[Depends(require_vip_tier)],
+    openapi_extra={"requestBody": _AUTO_REPAIR_WEEKLY_REQUEST_BODY_OPENAPI},
+)
 def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного плана с UX-петлей
@@ -1467,16 +1522,15 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     try:
         from core.targets import MicronutrientTargets
 
-        week_plan = _validate_vip_week_plan(request.get("week_plan"))
-        targets_data = request.get("targets", {})
-        strategy_name = request.get("strategy", "balanced")
-        user_preferences = request.get("user_preferences", {})
-        if not isinstance(targets_data, Mapping) or not isinstance(user_preferences, Mapping):
-            raise ValueError("Invalid auto-repair request payload")
-        targets = MicronutrientTargets(**dict(targets_data))
+        request_obj: AutoRepairWeeklyRequest = AutoRepairWeeklyRequest.model_validate(request)
+        request_data = request_obj.model_dump(mode="python")
+        week_plan = cast(Dict[str, Any], request_data["week_plan"])
+        targets_data = cast(Dict[str, Any], request_data["targets"])
+        strategy_name = cast(str, request_data["strategy"])
+        normalized_preferences = cast(Dict[str, Any], request_data["user_preferences"])
+        targets = MicronutrientTargets(**targets_data)
         targets.validate_positive_ranges()
         strategy = RepairStrategy(strategy_name)
-        normalized_preferences = dict(user_preferences)
     except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

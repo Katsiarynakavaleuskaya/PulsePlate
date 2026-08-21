@@ -12,8 +12,11 @@ considering dietary preferences, budget constraints, and food availability.
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import logging
+import math
 from dataclasses import dataclass
+from numbers import Real
 from typing import Any, Dict, List, Optional
 
 from .food_apis.unified_db import get_unified_food_db
@@ -634,24 +637,155 @@ def repair_week_plan(
     Returns:
         Repaired weekly menu with improved micronutrient coverage
     """
-    if food_db is None:
-        # For now, use empty food database for testing
-        # In production, this would await get_unified_food_db()
-        food_db = {}
+    repaired_plan = deepcopy(plan)
+    repaired_plan.daily_menus = [deepcopy(day_menu) for day_menu in plan.daily_menus]
+    if strategy != "boosters_first":
+        return repaired_plan
 
-    # Step A: Calculate micronutrient gaps
-    daily_gaps = _calculate_daily_micronutrient_gaps(plan, targets)
-    weekly_gaps = _aggregate_weekly_gaps(daily_gaps)
-
-    # Step B: Find booster foods for deficient nutrients
-    booster_foods = _find_booster_foods(weekly_gaps, targets, food_db)
-
-    # Step C: Apply repair strategy
-    repaired_plan = _apply_repair_strategy(
-        plan, daily_gaps, booster_foods, strategy, food_db, recipe_db
-    )
-
+    resolved_food_db = _get_default_food_db() if food_db is None else food_db
+    _ = recipe_db
+    for day_menu in repaired_plan.daily_menus:
+        _apply_one_safe_booster(day_menu, targets, resolved_food_db)
     return repaired_plan
+
+
+def _finite_nonnegative_number(value: object) -> Optional[float]:
+    """Return one finite nonnegative real number, otherwise no evidence."""
+    if isinstance(value, bool) or not isinstance(value, Real):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _day_nutrient_evidence(day_menu: DayMenu, nutrient: str) -> Optional[float]:
+    """Sum explicit per-meal evidence; any missing or invalid value is ambiguous."""
+    total = 0.0
+    for meal in day_menu.meals:
+        nutrients = meal.get("nutrients")
+        if not isinstance(nutrients, dict) or nutrient not in nutrients:
+            return None
+        value = _finite_nonnegative_number(nutrients[nutrient])
+        if value is None:
+            return None
+        total += value
+    return total if math.isfinite(total) else None
+
+
+def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
+    """Validate that every contribution comes from one coherent FoodItem record."""
+    nutrients: Dict[str, float] = {}
+    for nutrient, raw_density in food.nutrients_per_100g.items():
+        if not isinstance(nutrient, str) or not nutrient:
+            return None
+        density = _finite_nonnegative_number(raw_density)
+        if density is None:
+            return None
+        nutrients[nutrient] = density
+    return nutrients
+
+
+def _safe_booster_amount(
+    day_menu: DayMenu,
+    targets: MicronutrientTargets,
+    food_nutrients: Dict[str, float],
+    primary_nutrient: str,
+) -> Optional[float]:
+    """Bound a booster by 100 g, primary gap fill, and every target maximum."""
+    primary_density = food_nutrients.get(primary_nutrient, 0.0)
+    if primary_density <= 0:
+        return None
+    primary_current = _day_nutrient_evidence(day_menu, primary_nutrient)
+    if primary_current is None:
+        return None
+    primary_gap = targets.get_target(primary_nutrient) - primary_current
+    if primary_gap <= 0:
+        return None
+
+    amount_caps = [100.0, (primary_gap / primary_density) * 100.0]
+    governed_nutrients = set(targets.priority_nutrients)
+    for nutrient, density in food_nutrients.items():
+        if nutrient not in governed_nutrients or density <= 0:
+            continue
+        current = _day_nutrient_evidence(day_menu, nutrient)
+        if current is None:
+            return None
+        maximum_room = targets.get_maximum(nutrient) - current
+        if maximum_room <= 0:
+            return None
+        amount_caps.append((maximum_room / density) * 100.0)
+
+    amount = min(amount_caps)
+    return amount if math.isfinite(amount) and amount > 0 else None
+
+
+def _apply_one_safe_booster(
+    day_menu: DayMenu,
+    targets: MicronutrientTargets,
+    food_db: Dict[str, FoodItem],
+) -> bool:
+    """Add at most one deterministic safe booster to the first existing meal."""
+    if not day_menu.meals:
+        return False
+    target_meal = day_menu.meals[0]
+    ingredients = target_meal.get("ingredients")
+    meal_nutrients = target_meal.get("nutrients")
+    if not isinstance(ingredients, list) or not isinstance(meal_nutrients, dict):
+        return False
+
+    primary_nutrients = sorted(
+        targets.priority_nutrients,
+        key=lambda nutrient: (-targets.priority_nutrients[nutrient], nutrient),
+    )
+    for primary_nutrient in primary_nutrients:
+        candidates: list[tuple[float, str, str, FoodItem, Dict[str, float]]] = []
+        for food_key, food in food_db.items():
+            food_nutrients = _food_nutrient_evidence(food)
+            if food_nutrients is None:
+                continue
+            density = food_nutrients.get(primary_nutrient, 0.0)
+            if density > 0:
+                candidates.append((-density, food.name.casefold(), food_key, food, food_nutrients))
+        candidates.sort(key=lambda candidate: candidate[:3])
+
+        for _, _, _, food, food_nutrients in candidates:
+            amount = _safe_booster_amount(
+                day_menu,
+                targets,
+                food_nutrients,
+                primary_nutrient,
+            )
+            if amount is None:
+                continue
+            updated_nutrients: Dict[str, float] = {}
+            for nutrient, density in food_nutrients.items():
+                contribution = density * amount / 100.0
+                existing = _finite_nonnegative_number(meal_nutrients.get(nutrient, 0.0))
+                if existing is None:
+                    return False
+                updated_value = existing + contribution
+                if (
+                    not math.isfinite(contribution)
+                    or contribution < 0
+                    or not math.isfinite(updated_value)
+                    or updated_value < 0
+                ):
+                    return False
+                updated_nutrients[nutrient] = updated_value
+
+            prospective_day = deepcopy(day_menu)
+            prospective_meal = prospective_day.meals[0]
+            prospective_nutrients = prospective_meal["nutrients"]
+            prospective_nutrients.update(updated_nutrients)
+            try:
+                prospective_total_nutrients = _calculate_day_nutrients(prospective_day)
+            except ValueError:
+                return False
+
+            ingredients.append({"name": food.name, "amount": amount, "unit": "g"})
+            meal_nutrients.update(updated_nutrients)
+            day_menu.total_nutrients = prospective_total_nutrients
+            return True
+    return False
 
 
 def _calculate_daily_micronutrient_gaps(
@@ -745,8 +879,7 @@ def _apply_repair_strategy(
     elif strategy == "add_snacks":
         return _apply_snacks_strategy(plan, daily_gaps, booster_foods)
     else:
-        # Default to boosters strategy
-        return _apply_boosters_strategy(plan, daily_gaps, booster_foods)
+        return plan
 
 
 def _apply_boosters_strategy(
@@ -801,8 +934,16 @@ def _calculate_day_nutrients(day_menu: DayMenu) -> Dict[str, float]:
 
     for meal in day_menu.meals:
         meal_nutrients = meal.get("nutrients", {})
+        if not isinstance(meal_nutrients, dict):
+            raise ValueError("Meal nutrients must be a mapping")
         for nutrient, amount in meal_nutrients.items():
-            day_nutrients[nutrient] = day_nutrients.get(nutrient, 0.0) + amount
+            value = _finite_nonnegative_number(amount)
+            if value is None:
+                raise ValueError("Meal nutrient evidence must be finite and nonnegative")
+            accumulated = day_nutrients.get(nutrient, 0.0) + value
+            if not math.isfinite(accumulated) or accumulated < 0:
+                raise ValueError("Day nutrient evidence overflowed")
+            day_nutrients[nutrient] = accumulated
 
     return day_nutrients
 

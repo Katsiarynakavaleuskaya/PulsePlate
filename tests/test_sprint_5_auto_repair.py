@@ -327,7 +327,7 @@ class TestAutoRepairEngine:
 
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.FAILED
-        assert result.iterations == 1
+        assert result.iterations == 3
         assert result.message == "Canonical repair made no changes"
 
     def test_auto_repair_week_plan_with_gaps(self):

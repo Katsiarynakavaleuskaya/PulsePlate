@@ -37,6 +37,13 @@ class RepairStatus(Enum):
     NEEDS_MANUAL = "needs_manual"
 
 
+_CANONICAL_STRATEGY_BY_REPAIR_STRATEGY = {
+    RepairStrategy.BALANCED: "boosters_first",
+    RepairStrategy.CONSERVATIVE: "replace_ingredients",
+    RepairStrategy.AGGRESSIVE: "add_snacks",
+}
+
+
 def _ingredient_name(ingredient: Mapping[str, object]) -> str:
     """Return one normalized ingredient name without coercing malformed values."""
     name = ingredient.get("name")
@@ -266,43 +273,47 @@ class AutoRepairEngine:
             )
 
         invocation_history: List[RepairIteration] = []
-        repair_iteration = self._attempt_repair(
-            validated_plan,
-            targets,
-            initial_strategy,
-            1,
-        )
-        invocation_history.append(repair_iteration)
+        current_plan = deepcopy(validated_plan)
+        current_strategy = initial_strategy
+        for iteration in range(1, self.max_iterations + 1):
+            repair_iteration = self._attempt_repair(
+                current_plan,
+                targets,
+                current_strategy,
+                iteration,
+            )
+            invocation_history.append(repair_iteration)
+            if repair_iteration.success:
+                repaired_plan = repair_iteration.changes_applied[0].get(
+                    "repaired_plan",
+                    current_plan,
+                )
+                self._store_completed_history(invocation_history)
+                return RepairResult(
+                    status=RepairStatus.PARTIAL,
+                    repaired_plan=repaired_plan,
+                    original_plan=original_plan,
+                    changes_made=_changes_from_history(invocation_history),
+                    remaining_gaps={},
+                    strategy_used=current_strategy,
+                    iterations=iteration,
+                    message=(
+                        "Canonical repair produced a changed plan; nutritional completeness "
+                        "is not asserted"
+                    ),
+                    suggestions=[],
+                )
+            current_strategy = self._get_next_strategy(current_strategy)
+
         self._store_completed_history(invocation_history)
-
-        if repair_iteration.success:
-            repaired_plan = repair_iteration.changes_applied[0].get(
-                "repaired_plan",
-                validated_plan,
-            )
-            return RepairResult(
-                status=RepairStatus.PARTIAL,
-                repaired_plan=repaired_plan,
-                original_plan=original_plan,
-                changes_made=_changes_from_history(invocation_history),
-                remaining_gaps={},
-                strategy_used=initial_strategy,
-                iterations=1,
-                message=(
-                    "Canonical repair produced a changed plan; nutritional completeness "
-                    "is not asserted"
-                ),
-                suggestions=[],
-            )
-
         return RepairResult(
             status=RepairStatus.FAILED,
-            repaired_plan=deepcopy(validated_plan),
+            repaired_plan=current_plan,
             original_plan=original_plan,
             changes_made=[],
             remaining_gaps={},
-            strategy_used=initial_strategy,
-            iterations=1,
+            strategy_used=invocation_history[-1].strategy,
+            iterations=self.max_iterations,
             message="Canonical repair made no changes",
             suggestions=self._generate_manual_suggestions({}),
         )
@@ -455,8 +466,12 @@ class AutoRepairEngine:
         iteration: int,
     ) -> RepairIteration:
         """Delegate one adapted plan to the canonical menu-engine repair function."""
+        try:
+            canonical_strategy = _CANONICAL_STRATEGY_BY_REPAIR_STRATEGY[strategy]
+        except KeyError as exc:
+            raise ValueError("Unknown repair strategy") from exc
         canonical_plan = _week_menu_from_wire(validate_week_plan(week_plan))
-        repaired_canonical_plan = repair_week_plan(canonical_plan, targets, strategy.value)
+        repaired_canonical_plan = repair_week_plan(canonical_plan, targets, canonical_strategy)
         if not isinstance(repaired_canonical_plan, WeekMenu):
             raise TypeError("Canonical repair returned an invalid result")
 

@@ -2831,7 +2831,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
   - Progress:
     - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
-    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts without changing shared fixtures, auth guards, dependencies, or OpenAPI
+    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts plus publishes the typed auto-repair request schema and generated client artifacts without changing shared fixtures, auth guards, or dependencies
     - Residual boundary: the post-TC2-08 coarse AST census remained non-zero at 415 construction sites across 99 test files; the TC2-09 branch reduces that census by exactly eight, so a fresh post-merge census must select TC2-09B and TC2-10 remains blocked until canonical callers reach zero
     - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
   - DoD:
@@ -2857,6 +2857,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3828799711`
   - DoD:
     - One validated wire-dict-to-`WeekMenu` adapter delegates repair execution to the canonical menu engine; route code and `core/auto_repair.py` do not create a second nutrition-repair authority
+    - Canonical `boosters_first` applies at most one deterministic FoodItem-backed booster per day, bounded by explicit meal evidence, the primary gap, 100 g, and every applicable target maximum; other strategies remain no-op
     - Structural type or dependency failures return the existing sanitized error envelope and are not collapsed into an ordinary no-progress repair result
     - Malformed, non-finite, non-positive, wrong-cardinality, and non-monotonic micronutrient triplets fail deterministically with HTTP `422`
     - Deterministic route/core tests cover valid conversion, legitimate no-progress, malformed plan input, malformed target ranges, and structural dependency failure

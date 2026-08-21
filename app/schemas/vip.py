@@ -8,9 +8,11 @@ EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settin
 
 from collections.abc import Mapping
 from enum import Enum
+import math
+from numbers import Real
 from typing import Any, List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class MicronutrientType(str, Enum):
@@ -111,6 +113,132 @@ class AutoRepairConfig(BaseModel):
         default_factory=set, description="Dietary flags to preserve (VEG, GF, etc.)"
     )
     prefer_local_products: bool = Field(default=True, description="Prefer local/regional products")
+
+
+_AUTO_REPAIR_TARGET_FIELDS = (
+    "iron_mg",
+    "calcium_mg",
+    "magnesium_mg",
+    "zinc_mg",
+    "potassium_mg",
+    "iodine_ug",
+    "selenium_ug",
+    "folate_ug",
+    "b12_ug",
+    "vitamin_d_iu",
+    "vitamin_a_ug",
+    "vitamin_c_mg",
+)
+
+
+class AutoRepairIngredient(BaseModel):
+    """One ingredient admitted by the weekly auto-repair wire contract."""
+
+    name: str = Field(..., min_length=1)
+
+    @field_validator("name")
+    @classmethod
+    def validate_nonempty_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Ingredient name must be non-empty")
+        return value
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AutoRepairMeal(BaseModel):
+    """One meal with explicit nutrient evidence for safe bounded repair."""
+
+    ingredients: List[AutoRepairIngredient] = Field(..., min_length=1)
+    nutrients: dict[str, float]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_nutrient_evidence(cls, values: Any) -> Any:
+        if not isinstance(values, Mapping):
+            return values
+        nutrients = values.get("nutrients")
+        if not isinstance(nutrients, Mapping):
+            raise ValueError("Meal nutrients must be a mapping")
+        for nutrient, raw_value in nutrients.items():
+            if not isinstance(nutrient, str) or not nutrient:
+                raise ValueError("Meal nutrient names must be non-empty strings")
+            if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+                raise ValueError("Meal nutrient values must be real numbers")
+            value = float(raw_value)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError("Meal nutrient values must be finite and nonnegative")
+        return values
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AutoRepairDay(BaseModel):
+    """One non-empty day in the weekly auto-repair request."""
+
+    meals: List[AutoRepairMeal] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AutoRepairWeekPlan(BaseModel):
+    """Non-empty weekly plan admitted by the public auto-repair route."""
+
+    days: List[AutoRepairDay] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AutoRepairTargetRanges(BaseModel):
+    """Exact twelve positive monotonic micronutrient triplets."""
+
+    iron_mg: tuple[float, float, float]
+    calcium_mg: tuple[float, float, float]
+    magnesium_mg: tuple[float, float, float]
+    zinc_mg: tuple[float, float, float]
+    potassium_mg: tuple[float, float, float]
+    iodine_ug: tuple[float, float, float]
+    selenium_ug: tuple[float, float, float]
+    folate_ug: tuple[float, float, float]
+    b12_ug: tuple[float, float, float]
+    vitamin_d_iu: tuple[float, float, float]
+    vitamin_a_ug: tuple[float, float, float]
+    vitamin_c_mg: tuple[float, float, float]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_target_triplets(cls, values: Any) -> Any:
+        if not isinstance(values, Mapping):
+            return values
+        for field_name in _AUTO_REPAIR_TARGET_FIELDS:
+            raw_range = values.get(field_name)
+            if not isinstance(raw_range, (list, tuple)) or len(raw_range) != 3:
+                raise ValueError(f"{field_name} must contain exactly three values")
+            normalized: list[float] = []
+            for raw_value in raw_range:
+                if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+                    raise ValueError(f"{field_name} values must be real numbers")
+                value = float(raw_value)
+                if not math.isfinite(value) or value <= 0:
+                    raise ValueError(f"{field_name} values must be finite and positive")
+                normalized.append(value)
+            minimum, target, maximum = normalized
+            if not minimum <= target <= maximum:
+                raise ValueError(f"{field_name} must satisfy minimum <= target <= maximum")
+        return values
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AutoRepairWeeklyRequest(BaseModel):
+    """Typed public request validated explicitly after VIP authorization."""
+
+    week_plan: AutoRepairWeekPlan
+    targets: AutoRepairTargetRanges
+    strategy: Literal["conservative", "balanced", "aggressive"] = "balanced"
+    user_preferences: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(extra="allow")
 
 
 class RegionalConfig(BaseModel):

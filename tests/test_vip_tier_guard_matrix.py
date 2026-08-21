@@ -150,7 +150,12 @@ VIP_CASES: tuple[VipCase, ...] = (
                 "days": [
                     {
                         "day": "Monday",
-                        "meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}],
+                        "meals": [
+                            {
+                                "ingredients": [{"name": "rice", "amount": 200, "unit": "g"}],
+                                "nutrients": {},
+                            }
+                        ],
                     },
                 ],
             },

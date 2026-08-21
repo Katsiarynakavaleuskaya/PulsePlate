@@ -2,8 +2,10 @@
 Comprehensive tests for core/auto_repair.py module to boost coverage to 97%.
 """
 
+from copy import deepcopy
 from dataclasses import replace
-from typing import cast
+import math
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -19,8 +21,15 @@ from core.auto_repair import (
     suggest_manual_fixes,
     validate_week_plan,
 )
-from core.menu_engine import WeekMenu
-from core.targets import MicronutrientTargets
+from core.menu_engine import (
+    DayMenu,
+    FoodItem,
+    WeekMenu,
+    _calculate_day_nutrients,
+    _safe_booster_amount,
+    repair_week_plan as repair_canonical_week_plan,
+)
+from core.targets import MicronutrientTargets, NutritionTargets
 
 
 def _same_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
@@ -31,6 +40,38 @@ def _same_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
 def _changed_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
     """Return one canonical material change without inventing nutrition data."""
     return replace(plan, adherence_score=plan.adherence_score + 1.0)
+
+
+def _changed_on_boosters(
+    plan: WeekMenu,
+    _targets: MicronutrientTargets,
+    strategy: str,
+) -> WeekMenu:
+    """Change only the explicitly mapped canonical boosters strategy."""
+    return replace(plan, adherence_score=1.0) if strategy == "boosters_first" else plan
+
+
+def _canonical_plan(*days: list[dict[str, Any]]) -> WeekMenu:
+    """Build a deterministic canonical plan from explicit meal evidence."""
+    return WeekMenu(
+        week_start="week",
+        daily_menus=[
+            DayMenu(
+                date=f"day_{index}",
+                meals=deepcopy(meals),
+                total_nutrients={},
+                targets=cast(NutritionTargets, None),
+                coverage={},
+                recommendations=[],
+                estimated_cost=0.0,
+            )
+            for index, meals in enumerate(days, start=1)
+        ],
+        weekly_coverage={},
+        shopping_list={},
+        total_cost=0.0,
+        adherence_score=0.0,
+    )
 
 
 class TestAutoRepairComprehensive:
@@ -252,10 +293,447 @@ class TestAutoRepairComprehensive:
             result = engine.auto_repair_week_plan(week_plan, self.targets)
 
             assert isinstance(result, RepairResult)
-            assert result.iterations == 1
+            assert result.iterations == 2
             assert result.status == RepairStatus.FAILED
             assert result.changes_made == []
             assert engine.repair_history[0].changes_applied == []
+            assert [item.strategy for item in engine.repair_history] == [
+                RepairStrategy.BALANCED,
+                RepairStrategy.AGGRESSIVE,
+            ]
+
+    def test_conservative_strategy_rotates_to_balanced_boosters(self) -> None:
+        """One attempt fails conservatively; the second reaches mapped boosters."""
+        week_plan = {
+            "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
+        }
+
+        with patch("core.auto_repair.repair_week_plan", side_effect=_changed_on_boosters) as mock:
+            one_attempt = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                week_plan,
+                self.targets,
+                RepairStrategy.CONSERVATIVE,
+            )
+        assert one_attempt.status == RepairStatus.FAILED
+        assert one_attempt.iterations == 1
+        assert [call.args[2] for call in mock.call_args_list] == ["replace_ingredients"]
+
+        with patch("core.auto_repair.repair_week_plan", side_effect=_changed_on_boosters) as mock:
+            two_attempts = AutoRepairEngine(max_iterations=2).auto_repair_week_plan(
+                week_plan,
+                self.targets,
+                RepairStrategy.CONSERVATIVE,
+            )
+        assert two_attempts.status == RepairStatus.PARTIAL
+        assert two_attempts.iterations == 2
+        assert two_attempts.strategy_used == RepairStrategy.BALANCED
+        assert [call.args[2] for call in mock.call_args_list] == [
+            "replace_ingredients",
+            "boosters_first",
+        ]
+
+    def test_canonical_booster_gap_fill_and_input_immutability(self) -> None:
+        """Use one FoodItem for name, density, contribution, and exact gap amount."""
+        plan = _canonical_plan(
+            [
+                {
+                    "ingredients": [{"name": "rice", "amount": 100, "unit": "g"}],
+                    "nutrients": {"iron_mg": 0.0},
+                }
+            ]
+        )
+        original = deepcopy(plan)
+        food_db = {
+            "iron": FoodItem(
+                name="Iron Food",
+                nutrients_per_100g={"iron_mg": 10.0, "protein_g": 0.0},
+                cost_per_100g=1.0,
+                tags=[],
+                availability_regions=[],
+            )
+        }
+
+        repaired = repair_canonical_week_plan(
+            plan,
+            self.targets,
+            strategy="boosters_first",
+            food_db=food_db,
+        )
+
+        repaired_meal = repaired.daily_menus[0].meals[0]
+        assert repaired_meal["ingredients"][-1] == {
+            "name": "Iron Food",
+            "amount": 80.0,
+            "unit": "g",
+        }
+        assert repaired_meal["nutrients"]["iron_mg"] == 8.0
+        assert repaired.daily_menus[0].total_nutrients["iron_mg"] == 8.0
+        assert plan == original
+        assert repaired is not plan
+
+        conservative = repair_canonical_week_plan(
+            plan,
+            self.targets,
+            strategy="replace_ingredients",
+            food_db=food_db,
+        )
+        aggressive = repair_canonical_week_plan(
+            plan,
+            self.targets,
+            strategy="add_snacks",
+            food_db=food_db,
+        )
+        assert conservative == plan and conservative is not plan
+        assert aggressive == plan and aggressive is not plan
+
+    def test_canonical_booster_amount_caps(self) -> None:
+        """Bound amounts by 100 g and by another governed nutrient maximum."""
+        hundred_gram_plan = _canonical_plan(
+            [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+        )
+        hundred_gram_food = {
+            "low_density": FoodItem(
+                name="Low Density Iron",
+                nutrients_per_100g={"iron_mg": 1.0},
+                cost_per_100g=1.0,
+                tags=[],
+                availability_regions=[],
+            )
+        }
+        hundred_gram_result = repair_canonical_week_plan(
+            hundred_gram_plan,
+            self.targets,
+            food_db=hundred_gram_food,
+        )
+        assert hundred_gram_result.daily_menus[0].meals[0]["ingredients"][-1]["amount"] == 100.0
+
+        cross_cap_plan = _canonical_plan(
+            [
+                {
+                    "ingredients": [{"name": "rice"}],
+                    "nutrients": {"iron_mg": 0.0, "vitamin_c_mg": 1990.0},
+                }
+            ]
+        )
+        cross_cap_food = {
+            "cross_cap": FoodItem(
+                name="Cross Cap Food",
+                nutrients_per_100g={"iron_mg": 10.0, "vitamin_c_mg": 1000.0},
+                cost_per_100g=1.0,
+                tags=[],
+                availability_regions=[],
+            )
+        }
+        cross_cap_result = repair_canonical_week_plan(
+            cross_cap_plan,
+            self.targets,
+            food_db=cross_cap_food,
+        )
+        cross_cap_meal = cross_cap_result.daily_menus[0].meals[0]
+        assert cross_cap_meal["ingredients"][-1]["amount"] == 1.0
+        assert cross_cap_meal["nutrients"]["iron_mg"] == 0.1
+        assert cross_cap_meal["nutrients"]["vitamin_c_mg"] == 2000.0
+
+    def test_canonical_booster_one_per_day_and_stable_tie_break(self) -> None:
+        """Choose by density/name deterministically and add at most one booster per day."""
+        meals = [
+            {"ingredients": [{"name": "breakfast"}], "nutrients": {"iron_mg": 0.0}},
+            {"ingredients": [{"name": "lunch"}], "nutrients": {"iron_mg": 0.0}},
+        ]
+        plan = _canonical_plan(meals, meals)
+        original = deepcopy(plan)
+        tied_foods = {
+            "zeta": FoodItem("Zeta", {"iron_mg": 10.0}, 1.0, [], []),
+            "alpha": FoodItem("Alpha", {"iron_mg": 10.0}, 1.0, [], []),
+        }
+
+        repaired = repair_canonical_week_plan(
+            plan,
+            self.targets,
+            food_db=tied_foods,
+        )
+
+        for day in repaired.daily_menus:
+            assert day.meals[0]["ingredients"][-1]["name"] == "Alpha"
+            assert len(day.meals[0]["ingredients"]) == 2
+            assert len(day.meals[1]["ingredients"]) == 1
+        assert plan == original
+
+    def test_canonical_booster_rejects_missing_ambiguous_and_nonfinite_evidence(self) -> None:
+        """Never treat absent or invalid current intake as zero evidence."""
+        valid_food = {
+            "iron": FoodItem("Iron", {"iron_mg": 10.0}, 1.0, [], []),
+        }
+        cases = (
+            (_canonical_plan([{"ingredients": [{"name": "rice"}], "nutrients": {}}]), valid_food),
+            (
+                _canonical_plan(
+                    [
+                        {
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {"iron_mg": math.nan},
+                        }
+                    ]
+                ),
+                valid_food,
+            ),
+            (
+                _canonical_plan(
+                    [
+                        {"ingredients": [{"name": "one"}], "nutrients": {"iron_mg": 0.0}},
+                        {"ingredients": [{"name": "two"}], "nutrients": {}},
+                    ]
+                ),
+                valid_food,
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+                ),
+                {"bad": FoodItem("Bad", {"iron_mg": math.inf}, 1.0, [], [])},
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+                ),
+                {"bad": FoodItem("Bad", {"iron_mg": "invalid"}, 1.0, [], [])},
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+                ),
+                {"bad": FoodItem("Bad", {"": 1.0}, 1.0, [], [])},
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 8.0}}]
+                ),
+                valid_food,
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+                ),
+                {
+                    "missing_cross": FoodItem(
+                        "Missing Cross",
+                        {"iron_mg": 10.0, "vitamin_c_mg": 10.0},
+                        1.0,
+                        [],
+                        [],
+                    )
+                },
+            ),
+            (
+                _canonical_plan(
+                    [
+                        {
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {"iron_mg": 0.0, "vitamin_c_mg": 2000.0},
+                        }
+                    ]
+                ),
+                {
+                    "maxed_cross": FoodItem(
+                        "Maxed Cross",
+                        {"iron_mg": 10.0, "vitamin_c_mg": 10.0},
+                        1.0,
+                        [],
+                        [],
+                    )
+                },
+            ),
+            (
+                _canonical_plan(
+                    [
+                        {
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {"iron_mg": 0.0, "protein_g": "invalid"},
+                        }
+                    ]
+                ),
+                {
+                    "bad_existing": FoodItem(
+                        "Bad Existing",
+                        {"iron_mg": 10.0, "protein_g": 1.0},
+                        1.0,
+                        [],
+                        [],
+                    )
+                },
+            ),
+            (
+                _canonical_plan(
+                    [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+                ),
+                {},
+            ),
+        )
+
+        for plan, food_db in cases:
+            before_lengths = [
+                [len(meal["ingredients"]) for meal in day.meals] for day in plan.daily_menus
+            ]
+            repaired = repair_canonical_week_plan(
+                plan,
+                self.targets,
+                food_db=food_db,
+            )
+            after_lengths = [
+                [len(meal["ingredients"]) for meal in day.meals] for day in repaired.daily_menus
+            ]
+            assert after_lengths == before_lengths
+
+        overflow_plan = _canonical_plan(
+            [
+                {
+                    "ingredients": [{"name": "rice"}],
+                    "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                }
+            ]
+        )
+        overflow_original = deepcopy(overflow_plan)
+        overflow_food_db = {
+            "overflow": FoodItem(
+                "Overflow",
+                {"iron_mg": 10.0, "protein_g": 1e308},
+                1.0,
+                [],
+                [],
+            )
+        }
+        overflow_repaired = repair_canonical_week_plan(
+            overflow_plan,
+            self.targets,
+            food_db=overflow_food_db,
+        )
+        assert overflow_repaired == overflow_original
+        assert overflow_plan == overflow_original
+        assert all(
+            math.isfinite(value)
+            for value in overflow_repaired.daily_menus[0].meals[0]["nutrients"].values()
+        )
+
+        overflow_wire_plan = {
+            "days": [
+                {
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                        }
+                    ]
+                }
+            ]
+        }
+        with patch("core.menu_engine._get_default_food_db", return_value=overflow_food_db):
+            overflow_result = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                overflow_wire_plan,
+                self.targets,
+            )
+        assert overflow_result.status == RepairStatus.FAILED
+        assert overflow_result.changes_made == []
+        assert overflow_result.repaired_plan == overflow_result.original_plan
+
+        day_sum_overflow_plan = _canonical_plan(
+            [
+                {
+                    "ingredients": [{"name": "one"}],
+                    "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                },
+                {
+                    "ingredients": [{"name": "two"}],
+                    "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                },
+            ]
+        )
+        day_sum_original = deepcopy(day_sum_overflow_plan)
+        iron_only_food_db = {
+            "iron": FoodItem("Iron", {"iron_mg": 10.0}, 1.0, [], []),
+        }
+        day_sum_repaired = repair_canonical_week_plan(
+            day_sum_overflow_plan,
+            self.targets,
+            food_db=iron_only_food_db,
+        )
+        assert day_sum_repaired == day_sum_original
+        assert day_sum_overflow_plan == day_sum_original
+        assert all(
+            math.isfinite(value)
+            for meal in day_sum_repaired.daily_menus[0].meals
+            for value in meal["nutrients"].values()
+        )
+
+        day_sum_wire_plan = {
+            "days": [
+                {
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "one"}],
+                            "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                        },
+                        {
+                            "ingredients": [{"name": "two"}],
+                            "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                        },
+                    ]
+                }
+            ]
+        }
+        with patch("core.menu_engine._get_default_food_db", return_value=iron_only_food_db):
+            day_sum_result = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                day_sum_wire_plan,
+                self.targets,
+            )
+        assert day_sum_result.status == RepairStatus.FAILED
+        assert day_sum_result.changes_made == []
+        assert day_sum_result.repaired_plan == day_sum_result.original_plan
+
+        invalid_mapping_day = _canonical_plan(
+            [{"ingredients": [{"name": "rice"}], "nutrients": []}]
+        ).daily_menus[0]
+        with pytest.raises(ValueError, match="Meal nutrients must be a mapping"):
+            _calculate_day_nutrients(invalid_mapping_day)
+
+        invalid_value_day = _canonical_plan(
+            [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": True}}]
+        ).daily_menus[0]
+        with pytest.raises(
+            ValueError,
+            match="Meal nutrient evidence must be finite and nonnegative",
+        ):
+            _calculate_day_nutrients(invalid_value_day)
+
+        empty_day = _canonical_plan([])
+        assert (
+            repair_canonical_week_plan(
+                empty_day,
+                self.targets,
+                food_db=valid_food,
+            )
+            == empty_day
+        )
+
+        direct_day = _canonical_plan(
+            [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+        ).daily_menus[0]
+        assert (
+            _safe_booster_amount(
+                direct_day,
+                self.targets,
+                {"iron_mg": 0.0},
+                "iron_mg",
+            )
+            is None
+        )
+
+        unknown = repair_canonical_week_plan(
+            cases[-1][0],
+            self.targets,
+            strategy="unknown",
+            food_db=valid_food,
+        )
+        assert unknown == cases[-1][0]
 
     def test_unsupported_controls_fail_closed(self) -> None:
         """Preferences and disabled execution never become semantic success."""
@@ -364,6 +842,13 @@ class TestAutoRepairComprehensive:
                 week_plan,
                 self.targets,
                 cast(RepairStrategy, "balanced"),
+            )
+        with pytest.raises(ValueError, match="Unknown repair strategy"):
+            AutoRepairEngine()._attempt_repair(
+                week_plan,
+                self.targets,
+                cast(RepairStrategy, object()),
+                1,
             )
 
     def test_get_next_strategy(self):

@@ -2,6 +2,7 @@
 Расширенные интеграционные тесты для VIP endpoints для достижения 97% покрытия
 """
 
+import math
 from typing import Any
 from unittest.mock import Mock
 
@@ -9,6 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.routers.vip as vip_router
+import core.menu_engine as menu_engine
+from core.menu_engine import FoodItem
 from tests._helpers.vip_contracts import assert_json_response_payload
 
 
@@ -58,6 +61,20 @@ def _shoplist_day(
                 "min_packs": 1,
             }
         ],
+    }
+
+
+@pytest.fixture
+def canonical_auto_repair_food_db() -> dict[str, FoodItem]:
+    """Provide one deterministic canonical booster record for route integration."""
+    return {
+        "iron_booster": FoodItem(
+            name="Iron Booster",
+            nutrients_per_100g={"iron_mg": 10.0},
+            cost_per_100g=1.0,
+            tags=[],
+            availability_regions=[],
+        )
     }
 
 
@@ -354,12 +371,18 @@ class TestVIPIntegration97Extended:
 
     def test_vip_auto_repair_integration_extended_scenarios(
         self,
+        canonical_auto_repair_food_db: dict[str, FoodItem],
         client: TestClient,
         test_environment: None,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         """Расширенные интеграционные тесты VIP auto repair endpoint"""
+        monkeypatch.setattr(
+            menu_engine,
+            "_get_default_food_db",
+            lambda: canonical_auto_repair_food_db,
+        )
         payload_problems = _auto_repair_payload(
             {
                 "days": [
@@ -369,11 +392,13 @@ class TestVIPIntegration97Extended:
                             {
                                 "meal_type": "breakfast",
                                 "ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}],
+                                "nutrients": {"iron_mg": 0.0},
                                 "nutrition_gaps": ["protein", "vitamin_c", "fiber"],
                             },
                             {
                                 "meal_type": "lunch",
                                 "ingredients": [{"name": "rice", "amount": 150, "unit": "g"}],
+                                "nutrients": {"iron_mg": 0.0},
                                 "nutrition_gaps": ["vitamin_a", "calcium"],
                             },
                         ],
@@ -390,6 +415,7 @@ class TestVIPIntegration97Extended:
                             {
                                 "meal_type": "breakfast",
                                 "ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}],
+                                "nutrients": {"iron_mg": 0.0},
                                 "nutrition_gaps": ["protein"],
                             }
                         ],
@@ -411,6 +437,7 @@ class TestVIPIntegration97Extended:
                                     {"name": "broccoli", "amount": 100, "unit": "g"},
                                     {"name": "spinach", "amount": 100, "unit": "g"},
                                 ],
+                                "nutrients": {"iron_mg": 0.0},
                             }
                         ],
                     }
@@ -426,20 +453,135 @@ class TestVIPIntegration97Extended:
             )
             assert response.status_code == 200
             data = assert_json_response_payload(response)
-            assert data["status"] == "error"
-            assert data["code"] == "auto_repair_failed"
+            assert data["status"] == "success"
             repair_result = data["repair_result"]
             assert isinstance(repair_result, dict)
-            assert repair_result["status"] == "failed"
+            assert repair_result["status"] == "partial"
             assert repair_result["iterations"] == 1
-            assert repair_result["changes_made"] == []
+            assert repair_result["changes_made"]
+            repaired_meal = repair_result["repaired_plan"]["days"][0]["meals"][0]
+            assert repaired_meal["ingredients"][-1] == {
+                "name": "Iron Booster",
+                "amount": 80.0,
+                "unit": "g",
+            }
+            assert repaired_meal["nutrients"]["iron_mg"] == 8.0
             assert data["echo"] == payload
-            assert data["message"] == "Auto-repair could not complete the requested repair"
+            assert data["message"] == "Auto-repair completed with status: partial"
+
+        payload_no_candidate = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "meal_type": "breakfast",
+                                "ingredients": [{"name": "rice", "amount": 100, "unit": "g"}],
+                                "nutrients": {},
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=payload_no_candidate,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        data = assert_json_response_payload(response)
+        assert data["status"] == "error"
+        assert data["code"] == "auto_repair_failed"
+        assert data["repair_result"]["status"] == "failed"
+        assert data["repair_result"]["iterations"] == 3
+
+        overflow_payload = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "ingredients": [{"name": "one"}],
+                                "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                            },
+                            {
+                                "ingredients": [{"name": "two"}],
+                                "nutrients": {"iron_mg": 0.0, "protein_g": 1e308},
+                            },
+                        ],
+                    }
+                ]
+            }
+        )
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=overflow_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        overflow_data = assert_json_response_payload(response)
+        assert overflow_data["status"] == "error"
+        assert overflow_data["code"] == "auto_repair_failed"
+        overflow_result = overflow_data["repair_result"]
+        assert overflow_result["status"] == "failed"
+        assert overflow_result["changes_made"] == []
+        assert overflow_result["repaired_plan"] == overflow_result["original_plan"]
+        assert all(
+            math.isfinite(value)
+            for meal in overflow_result["repaired_plan"]["days"][0]["meals"]
+            for value in meal["nutrients"].values()
+        )
+        assert "Infinity" not in response.text
+        assert "NaN" not in response.text
 
         malformed_plan = _auto_repair_payload({"days": "not-a-list"})
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=malformed_plan,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
+        for forbidden_target_field, forbidden_value in (
+            ("priority_nutrients", {"iron_mg": 5}),
+            ("deficiency_threshold", 0.8),
+        ):
+            payload_with_extra_target = _auto_repair_payload(payload_no_problems["week_plan"])
+            payload_with_extra_target["targets"][forbidden_target_field] = forbidden_value
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=payload_with_extra_target,
+                headers=vip_headers,
+            )
+            assert response.status_code == 422
+            assert assert_json_response_payload(response) == {
+                "detail": "Invalid auto-repair request payload"
+            }
+
+        invalid_nutrients = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "ingredients": [{"name": "rice", "amount": 100, "unit": "g"}],
+                                "nutrients": {"iron_mg": -1.0},
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=invalid_nutrients,
             headers=vip_headers,
         )
         assert response.status_code == 422
@@ -532,6 +674,8 @@ class TestVIPIntegration97Extended:
             {"status": "success"},
             {**partial_result, "status": ""},
             {**partial_result, "original_plan": []},
+            {**partial_result, "repaired_plan": {"days": []}},
+            {**partial_result, "original_plan": {"days": [{"meals": []}]}},
             {**partial_result, "changes_made": {}},
             {**partial_result, "remaining_gaps": []},
             {**partial_result, "strategy_used": ""},
@@ -791,11 +935,18 @@ class TestVIPIntegration97Extended:
 
     def test_vip_comprehensive_workflow_integration_extended_scenarios(
         self,
+        canonical_auto_repair_food_db: dict[str, FoodItem],
         client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
         test_environment: None,
         vip_headers: dict[str, str],
     ) -> None:
         """Расширенные интеграционные тесты полного workflow VIP функций"""
+        monkeypatch.setattr(
+            menu_engine,
+            "_get_default_food_db",
+            lambda: canonical_auto_repair_food_db,
+        )
         menu_payload = {
             "sex": "male",
             "age": 30,
@@ -821,6 +972,7 @@ class TestVIPIntegration97Extended:
                         {
                             "meal_type": "breakfast",
                             "ingredients": [{"name": "bread", "amount": 100, "unit": "g"}],
+                            "nutrients": {"iron_mg": 0.0},
                         }
                     ],
                 }
@@ -846,10 +998,9 @@ class TestVIPIntegration97Extended:
         )
         assert repair_response.status_code == 200
         repair_data = assert_json_response_payload(repair_response)
-        assert repair_data["status"] == "error"
-        assert repair_data["code"] == "auto_repair_failed"
-        assert repair_data["repair_result"]["status"] == "failed"
-        assert repair_data["repair_result"]["changes_made"] == []
+        assert repair_data["status"] == "success"
+        assert repair_data["repair_result"]["status"] == "partial"
+        assert repair_data["repair_result"]["changes_made"]
 
         shoplist_payload = {"days": [_shoplist_day("chicken", quantity="1200", pack_size="500")]}
         shoplist_response = client.post(
