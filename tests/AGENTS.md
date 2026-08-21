@@ -32,7 +32,7 @@
 - Canonical lifespan tests must use `TestClient` as a context manager or call
   `_application_lifespan_with_hooks(...)` through synchronous `asyncio.run(...)`
   tests. Inject `LifespanHooks`; do not patch `lifespan.__wrapped__.__globals__`
-  or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
+  or fan one scheduler mock across package or legacy facades.
 - Shared client fixtures (`client`, `test_client`, `app_client`,
   `isolated_test_client`, and `client_with_vip_access`) live only in
   `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
@@ -42,8 +42,10 @@
   compatibility bridge. Do not add another patch owner or new callers of raw
   `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
   modules.
-- Direct alias patching remains allowed only in focused compatibility tests for
-  the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
+- Legacy synchronous scheduler wrappers, their helper module, and the
+  `app_module` module-table alias are retired. Scheduler lifecycle tests inject
+  canonical `LifespanHooks`; they must not recreate the removed compatibility
+  rail through facade patching or module-table mutation.
 - Admin scheduler tests must patch only the consumer binding
   `app.services.admin_operations.get_update_scheduler`. Do not patch scheduler
   access through `app`, `legacy_app`, core singleton state, private override

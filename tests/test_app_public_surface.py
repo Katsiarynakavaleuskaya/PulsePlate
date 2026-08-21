@@ -40,7 +40,7 @@ def test_app_public_surface_smoke() -> None:
     assert hasattr(app, "metrics"), "app.metrics must be exported (for patch('app.metrics'))"
 
 
-def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
+def test_canonical_lifespan_preserves_application_owned_app_identity() -> None:
     import app
     import app.main as app_main
     import legacy_app
@@ -48,7 +48,7 @@ def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
 
     assert app.lifespan is application_lifespan
     assert legacy_app.lifespan is application_lifespan
-    assert app.app is legacy_app.app
+    assert app.app is app_main.app
     assert app_main.app is legacy_app.app
     assert legacy_app.app.router.lifespan_context is not None
 
@@ -114,8 +114,7 @@ def test_no_dynamic_exec_module_in_app_package() -> None:
         "spec_from_file_location" not in app_init
     ), "app/__init__.py must not use spec_from_file_location"
 
-    # __getattr__ is allowed for PEP 562 forwarding to legacy_app
-    # (standard pattern for backward-compatible module aliasing)
+    # __getattr__ is allowed for finite lazy exports and canonical app access.
 
 
 def test_dockerfile_uses_legacy_app_not_app_py() -> None:

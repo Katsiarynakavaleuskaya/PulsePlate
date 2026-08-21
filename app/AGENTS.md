@@ -480,9 +480,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
 - `import app` is a finite PEP 562 facade: in normal runtime `app.app`,
   `legacy_app.app`, `app.main.app`, and the bootstrap singleton are identical.
-  A deliberate test-only `legacy_app.app` replacement may be returned by the
-  package facade, but cannot rebind canonical or `app.main` authority. Only the
-  explicit compatibility exports below may resolve via `__getattr__`. Ordinary package globals and Python-created submodule
+  The package facade always resolves `app.app` from `app.main.app`; a test-only
+  reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
+  `app.main` authority. Plain `import app`, `dir(app)`, and unknown-name lookup
+  must not import `legacy_app`, and the retired `app_module` alias must never be
+  installed in `sys.modules`. Only the explicit compatibility exports below may
+  resolve via `__getattr__`. Ordinary package globals and Python-created submodule
   bindings are not compatibility exports. Names that are neither existing
   package attributes nor explicit compatibility exports must raise a
   facade-owned `AttributeError`; unknown-name lookup and `dir(app)` must not

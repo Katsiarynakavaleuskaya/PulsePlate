@@ -5610,6 +5610,77 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `docs/security/CVE-2026-53615-util-linux.md` (or mark as resolved)
     - Trivy Code Scanning alerts #623-#630 remain closed on `main`
 
+<a id="ledger-p1-remove-trivy-suppression-util-linux-cve-2026-53613"></a>
+- [ ] P1: Remove Trivy suppression for util-linux CVE-2026-53613
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: PR-TBD-REMOVE-CVE-2026-53613-SUPPRESSION
+  - Status: Open; review Debian bookworm status by 2026-09-19 and remove no later
+    than the shared 2026-10-07 policy expiry unless a separately reviewed security
+    PR establishes a new bounded disposition
+  - Area: security / base-image / code-scanning
+  - Finding Type: temporary distro CVE risk acceptance
+  - Reason: Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
+    CVE-2026-53613 findings for the Debian bookworm util-linux package family in
+    image digest
+    `sha256:5d147c66b4999210345f4e1895c6f0129f6b9e90dd25500f712c8e82f42577da`.
+    Debian marks bookworm `2.38.1-5+deb12u3` and ordinary trixie `2.41-5` as
+    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The current
+    suppression accepts bounded residual risk; it is not remediation.
+  - Links:
+    - `docs/security/CVE-2026-53613-util-linux.md`
+    - `trivy/ignore-policy.rego`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+    - <https://security-tracker.debian.org/tracker/CVE-2026-53613>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32355502655/job/96383696240>
+  - DoD:
+    - Debian bookworm publishes a fixed `util-linux` package, the production base
+      image moves to a fixed release, or the affected package family is removed
+    - Remove only the exact CVE-2026-53613 Rego rule and its header/document links
+    - Rebuild and scan the exact production image with no CVE-2026-53613 finding
+    - Keep deterministic negative tests proving that no broader package/version/CVE
+      suppression replaces the removed rule
+    - Close this item only after terminal exact-main CD image-scan evidence
+
+<a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456"></a>
+- [ ] P1: Remove Trivy scanner disposition for OpenSSL CVE-2026-14456
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: PR-TBD-REMOVE-CVE-2026-14456-SUPPRESSION
+  - Status: Open; review upstream, Debian, and Trivy metadata by 2026-09-19 and
+    remove no later than the shared 2026-10-07 policy expiry unless a separately
+    reviewed security PR establishes a new bounded disposition
+  - Area: security / base-image / code-scanning
+  - Finding Type: temporary scanner false-positive disposition
+  - Reason: Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
+    and Push run `32368859126`, job `96424915657`, report two HIGH
+    CVE-2026-14456 findings for `libssl3` and `openssl` at
+    `3.0.20-1~deb12u2` in image digest
+    `sha256:bb92cf07ffbdb41bb3ec05dc5014dd5280798cf2a3c01f5119847277a8611298`.
+    The upstream OpenSSL advisory assigns Low severity and marks OpenSSL 3.0
+    unaffected because the vulnerable QUIC server implementation begins in 3.5,
+    while Debian still marks the Bookworm source-package line vulnerable with no
+    fixed package. The exact-tuple scanner disposition records that conflict; it
+    is not remediation or an OpenSSL upgrade.
+  - Links:
+    - `docs/security/CVE-2026-14456-openssl.md`
+    - `trivy/ignore-policy.rego`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+    - <https://openssl-library.org/news/secadv/20260813.txt>
+    - <https://security-tracker.debian.org/tracker/CVE-2026-14456>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32368859081/job/96424514194>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32368859126/job/96424915657>
+  - DoD:
+    - Trivy or Debian corrects the affected-branch metadata, either installed
+      package tuple changes, the finding disappears, the packages leave the image,
+      or upstream evidence expands the affected set to include OpenSSL 3.0
+    - Remove only the exact CVE-2026-14456 Rego rule and delete its active security
+      document/header links
+    - Rebuild and scan the exact production image with no CVE-2026-14456 finding
+    - Keep deterministic negative tests proving that no broader CVE/package/version/
+      PkgID suppression replaces the removed rule
+    - Close this item only after terminal exact-main CD and Docker image-scan evidence
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
@@ -7013,21 +7084,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (maintainability)
-  - Target PR: TBD (post PR-628/629)
-  - Status: 📋 Ready to start
-  - Reason: `app/__init__.py` sets `sys.modules.setdefault("app_module", legacy_app)` for backward compatibility. This is intentional but must be tightly bounded to avoid “magic layer” imports/patches.
+  - Target PR: [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`)
+  - Status: 🛠 In progress; keep unchecked until the implementation PR merges
+  - Reason: The implicit module-table alias and legacy synchronous scheduler
+    resolver rail create patch-order ambiguity after canonical app and lifespan
+    ownership have already landed. This lane removes those compatibility paths
+    instead of documenting or extending them.
   - Evidence:
-    - `app/__init__.py:44-56` (sys.modules mapping)
+    - `app/__init__.py:57-68` (finite facade resolves canonical `app.main.app`)
+    - `tests/test_application_instance_ownership.py:92-144` (fresh-process retirement contract)
   - Risk:
     - Hard-to-debug patch behavior, hidden aliasing, accidental reliance by new code/tests.
   - Blocked-by:
     - None (small focused PR), but recommended after PR-628/629 to keep scopes clean
   - Exit criteria:
-    - Mapping is either removed OR explicitly documented + guarded (no new uses)
+    - `import app_module` fails in a fresh process and `app.app` remains the
+      exact canonical `app.main.app`
+    - Legacy synchronous scheduler wrappers and `app.scheduler_helpers` are absent
   - DoD:
-    - Add a short evidence-driven doc note describing why the mapping exists and what may rely on it
-    - Add a small guard test preventing expansion (no overwrites / no new module injection patterns)
-    - Define removal plan (conditions under which it can be deleted)
+    - Fresh-process import-order tests preserve app, route, middleware, lifespan,
+      scheduler-access, and OpenAPI identity
+    - The local narrow bundle and canonical current-head CI pass before merge
+    - A docs-only closeout PR checks this item only after the implementation PR merges
 
 
 - [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
@@ -7129,18 +7207,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR-TBD-APP-FACTORY (current bounded inversion) -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`, current bounded compatibility retirement) -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
     canonical. PR #2170 merged at `8b30b82f47c818dec5eb8aec5824e4627fc5d084`,
     completing direct-core Plate ownership. PR #2209 merged at
     `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
-    schema, adapter, and application-service ownership. The bounded successor moves
-    both hidden Insight routes off the legacy facade and onto the canonical adapter
-    seam. `PR-TBD-APP-FACTORY` is the current bounded construction-ownership
-    inversion. Product Owner sequencing keeps BMI/PRO/VIP alias retirement and
-    final legacy deletion as separate later lanes.
+    schema, adapter, and application-service ownership. PR #2294 merged canonical
+    FastAPI construction ownership. The current bounded successor removes the
+    `app_module` alias and legacy synchronous scheduler resolver rail without
+    changing canonical lifespan or scheduler behavior. Product Owner sequencing
+    keeps BMI/PRO/VIP alias retirement, retained paid/BMI mirrors, and final
+    legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -11573,13 +11652,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1` -> terminal Evidence Eval projection `#2284` -> lifecycle transition analytics `codex/creative-lifecycle-transition-analytics-v1`
-  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope and PR `#2284` three-row Evidence Eval normalization projection are merged continuations after `pr_open`. The active next slice is deterministic lifecycle transition analytics over an exact mixed v2 telemetry snapshot; it remains aggregate-only and has no product code, GitHub/provider/runtime, routing/learning, or merge authority.
-  - Carryover: PR `#2284` merged the sibling terminal Evidence Eval projection, but this ledger still described `three-event projection` as absent. This lane reconciles that stale description while preserving the triplet as one indivisible evidence bundle outside lifecycle transition counts.
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1` -> terminal Evidence Eval projection `#2284` -> lifecycle transition analytics `#2290` -> shadow Bayesian lifecycle v1 `codex/creative-lifecycle-bayesian-shadow-v1`
+  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope, PR `#2284` Evidence Eval normalization, and PR `#2290` deterministic lifecycle transition analytics are merged continuations. The active bounded capability slice is prospective shadow forecast/start/outcome scoring for one exact PR-2 target, followed only after merge by one genuine heterogeneous bounded Pilot. The umbrella remains open; neither slice adds product code, GitHub/provider/runtime, routing/learning, prediction-quality, or merge authority.
+  - Resolved carryover: PR `#2284` merged the sibling terminal Evidence Eval projection, and PR `#2290` preserved that triplet as one indivisible evidence bundle outside lifecycle transition counts.
   - Deterministic creative-code lifecycle transition analytics v1:
     - Priority: P1
     - Owner: @katsiaryna_kavaleuskaya
-    - Target PR: `codex/creative-lifecycle-transition-analytics-v1`
+    - Target PR: merged PR `#2290`
     - Reason (EN): Existing v1/v2 telemetry has typed candidate and promotion lineage but no deterministic aggregate view of observed adjacent lifecycle transitions or explicitly unobserved neighbors. The slice must add that descriptive view without turning Evidence Eval rows, order, timestamps, paths, or missing artifacts into lifecycle truth.
     - Links:
       - `scripts/orchestration/creative_code_lifecycle_transition_analytics_contract.py`
@@ -11587,6 +11666,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       - `docs/orchestration/contracts/creative_code_lifecycle_transition_analytics.v1.schema.json`
       - `tests/test_creative_code_lifecycle_transition_analytics.py`
     - DoD: one exact validated mixed v2 snapshot deterministically yields aggregate adjacent-transition counts, complete/incomplete terminal-lineage accounting, and fixed cycle histograms; ambiguous/incompatible/stale input fails closed; output retains no raw lineage; mode-`0600` atomic no-replace publication, byte-identical replay, read-only validation, focused tests, and normal PR governance pass; no backfill or runtime/routing/learning/merge authority is added.
+  - Shadow Bayesian lifecycle forecast/scoring v1 and one prospective Pilot:
+    - Priority: P1
+    - Owner: @katsiaryna_kavaleuskaya
+    - Target PR: `codex/creative-lifecycle-bayesian-shadow-v1`; after its merge, one separately governed heterogeneous bounded Pilot from synchronized `main`
+    - Reason (EN): Merged aggregate analytics proves a deterministic descriptive capability but the real corpus is empty. The next bounded step must first add immutable local `forecast -> start -> outcome -> score` contracts and a mechanical pre-generation start hook, then exercise that rail prospectively for exactly one real target without selecting, routing, promoting, opening, or merging on forecast values.
+    - Links:
+      - `scripts/orchestration/creative_code_lifecycle_bayesian_shadow_contract.py`
+      - `scripts/orchestration/creative_code_lifecycle_bayesian_shadow.py`
+      - `docs/orchestration/contracts/CREATIVE_CODE_LIFECYCLE_BAYESIAN_SHADOW_CONTRACT.md`
+      - `tests/test_creative_code_lifecycle_bayesian_shadow.py`
+    - DoD: the capability PR adds the closed three-family fixed-prior contract, exact validated baseline/outcome lineage, stable fixed-root forecast/start/score slots, strict no-replace publication, and paired optional `generate-candidate` binding without changing legacy PR-2 schemas or authority. After merge, enroll exactly one genuine next Pilot only if it naturally reaches a clean accepted PR-2 gate; otherwise record `not_enrolled` and do not substitute another Pilot. Publish one immutable score at canonical terminal stop or the fixed 14-day cutoff, including honest `valid_but_unscored` or `measurement_invalid` state where applicable. Any `5000 bps` / `250000 ppm` result demonstrates measurement feasibility only; calibration, reliability, predictive skill, causal effectiveness, and product value remain `not_assessed`.
   - Carryover: PR `#2224` (`codex/creative-budget-promotion-fixture`; follow-up to PR `#2218`) restores changed-line parity only in `tests/test_creative_code_pr_promotion.py` and `tests/test_creative_code_artifact_inventory.py`; no production, schema, workflow, provider, OCW, R3, or product-behavior change.
   - Carryover remediation:
     - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)

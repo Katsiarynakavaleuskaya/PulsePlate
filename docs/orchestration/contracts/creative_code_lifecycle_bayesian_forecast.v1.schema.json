@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_lifecycle_bayesian_forecast.v1.schema.json",
+  "title": "CreativeCodeLifecycleBayesianForecastV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "policy_version", "registry_version",
+    "forecast_id", "idempotency_key", "produced_at", "observation_cutoff_at",
+    "baseline", "target", "families", "calibration_state", "chronology_claim",
+    "authority", "caveats", "sanitized"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "creative_code_lifecycle_bayesian_forecast"},
+    "policy_version": {"const": "creative-code-lifecycle-bayesian-shadow-v1"},
+    "registry_version": {"const": "creative-code-lifecycle-binary-families-v1"},
+    "forecast_id": {"$ref": "#/$defs/asset_id"},
+    "idempotency_key": {"$ref": "#/$defs/idempotency"},
+    "produced_at": {"$ref": "#/$defs/rfc3339_utc"},
+    "observation_cutoff_at": {"$ref": "#/$defs/rfc3339_utc"},
+    "baseline": {"$ref": "#/$defs/baseline"},
+    "target": {"$ref": "#/$defs/target"},
+    "families": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"$ref": "#/$defs/patch_family"},
+        {"$ref": "#/$defs/open_family"},
+        {"$ref": "#/$defs/terminal_family"}
+      ],
+      "items": false
+    },
+    "calibration_state": {"const": "not_assessed"},
+    "chronology_claim": {"const": "local_dependency_order_only"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "caveats": {"$ref": "#/$defs/caveats"},
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "asset_id": {"type": "string", "pattern": "^evidence:[A-Za-z0-9_.:-]+:control_plane:1\\.0:[a-f0-9]{24}$"},
+    "safe_id": {"type": "string", "minLength": 1, "maxLength": 192, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$"},
+    "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "idempotency": {"type": "string", "pattern": "^idem:[a-f0-9]{64}$"},
+    "json_file_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?=.*\\.json$)(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "directory_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "rfc3339_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"},
+    "count": {"type": "integer", "minimum": 0, "maximum": 1000000000000},
+    "posterior_parameter": {"type": "integer", "minimum": 1, "maximum": 1000000000001},
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["analytics_id", "analytics_fingerprint", "analytics_ref", "telemetry_dir_ref", "events_fingerprint", "rollup_fingerprint", "event_count"],
+      "properties": {
+        "analytics_id": {"$ref": "#/$defs/asset_id"},
+        "analytics_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "analytics_ref": {"$ref": "#/$defs/json_file_ref"},
+        "telemetry_dir_ref": {"$ref": "#/$defs/directory_ref"},
+        "events_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "rollup_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "event_count": {"$ref": "#/$defs/count"}
+      }
+    },
+    "target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_fingerprint", "generation_gate_id", "generation_gate_fingerprint", "generation_gate_ref", "admission_id", "admission_fingerprint", "admission_ref", "request_id", "request_fingerprint", "request_ref", "source_bundle_id", "source_bundle_fingerprint", "source_bundle_ref", "selected_variant_id", "selected_variant_fingerprint", "base_commit_sha", "run_id", "state_fingerprint"],
+      "properties": {
+        "target_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "generation_gate_id": {"$ref": "#/$defs/asset_id"},
+        "generation_gate_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "generation_gate_ref": {"$ref": "#/$defs/json_file_ref"},
+        "admission_id": {"$ref": "#/$defs/safe_id"},
+        "admission_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "admission_ref": {"$ref": "#/$defs/json_file_ref"},
+        "request_id": {"$ref": "#/$defs/safe_id"},
+        "request_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "request_ref": {"$ref": "#/$defs/json_file_ref"},
+        "source_bundle_id": {"$ref": "#/$defs/safe_id"},
+        "source_bundle_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "source_bundle_ref": {"$ref": "#/$defs/json_file_ref"},
+        "selected_variant_id": {"$ref": "#/$defs/safe_id"},
+        "selected_variant_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "base_commit_sha": {"$ref": "#/$defs/sha"},
+        "run_id": {"$ref": "#/$defs/safe_id"},
+        "state_fingerprint": {"$ref": "#/$defs/fingerprint"}
+      }
+    },
+    "family_base": {
+      "type": "object", "additionalProperties": false,
+      "required": ["family_id", "eligibility", "positive_outcome", "negative_outcome", "positive_outcome_count", "negative_outcome_count", "effective_observation_count", "censored_eligible_count", "unmatched_destination_count", "posterior_alpha", "posterior_beta", "posterior_predictive_bps", "observation_state"],
+      "properties": {
+        "family_id": {"type": "string"}, "eligibility": {"type": "string"},
+        "positive_outcome": {"type": "string"}, "negative_outcome": {"type": "string"},
+        "positive_outcome_count": {"$ref": "#/$defs/count"},
+        "negative_outcome_count": {"$ref": "#/$defs/count"},
+        "effective_observation_count": {"$ref": "#/$defs/count"},
+        "censored_eligible_count": {"$ref": "#/$defs/count"},
+        "unmatched_destination_count": {"$ref": "#/$defs/count"},
+        "posterior_alpha": {"$ref": "#/$defs/posterior_parameter"},
+        "posterior_beta": {"$ref": "#/$defs/posterior_parameter"},
+        "posterior_predictive_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "observation_state": {"enum": ["prior_only", "observed"]}
+      }
+    },
+    "patch_family": {"allOf": [{"$ref": "#/$defs/family_base"}, {"properties": {"family_id": {"const": "patch_evaluation_acceptance_v1"}, "eligibility": {"const": "exact_generation_gate_target"}, "positive_outcome": {"const": "accepted"}, "negative_outcome": {"const": "rejected"}}}]},
+    "open_family": {"allOf": [{"$ref": "#/$defs/family_base"}, {"properties": {"family_id": {"const": "pr_opening_v1"}, "eligibility": {"const": "promotion_approval_accepted"}, "positive_outcome": {"const": "opened"}, "negative_outcome": {"const": "blocked"}}}]},
+    "terminal_family": {"allOf": [{"$ref": "#/$defs/family_base"}, {"properties": {"family_id": {"const": "pr_terminal_merge_v1"}, "eligibility": {"const": "pr_open_opened"}, "positive_outcome": {"const": "merged"}, "negative_outcome": {"const": "closed_unmerged"}}}]},
+    "authority": {"const": {"calls_network": false, "calls_product_runtime": false, "calls_provider": false, "changes_retry_budget": false, "changes_review_roles": false, "changes_routing": false, "claims_candidate_correctness": false, "claims_merge_readiness": false, "decision_authority": false, "merges_pr": false, "opens_pr": false, "shadow_only": true, "writes_local_artifacts": true, "writes_repo_tracked_state": false}},
+    "caveats": {"const": ["fixed_reference_prior_not_empirical_probability", "historical_transition_attempts_not_iid_pilots", "local_dependency_order_not_external_preregistration", "calibration_reliability_and_effectiveness_not_assessed", "no_routing_promotion_review_or_merge_authority"]}
+  }
+}

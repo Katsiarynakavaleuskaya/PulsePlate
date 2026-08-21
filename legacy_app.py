@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import importlib
 import logging
-import os
 import sys
-import inspect
 from contextlib import suppress
 from types import ModuleType
 from typing import (
@@ -122,13 +119,6 @@ from core.nutrition_utils import (
     ensure_priority_micros as _ensure_priority_micros,
 )
 from core.targets import FIBER_MIN_G
-from app.scheduler_helpers import (
-    resolve_scheduler_starter,
-    resolve_stop_callable,
-    handle_sync_test_mode,
-    execute_async_starter,
-    safe_stop_with_cleanup,
-)
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
 
@@ -201,20 +191,6 @@ bmi_router: Optional[APIRouter] = None
 bmi_pro_router: Optional[APIRouter] = None
 bmi_pro_legacy_alias_router: Optional[APIRouter] = None
 
-try:
-    from core.food_apis.scheduler import (
-        start_background_updates as _scheduler_start_background_updates,
-        stop_background_updates as _scheduler_stop_background_updates,
-    )
-except ImportError:  # pragma: no cover - scheduler not available outside backend runtime
-
-    async def _scheduler_start_background_updates(update_interval_hours: int = 24) -> None:
-        logger.warning("Scheduler module unavailable; background updates not started.")
-
-    async def _scheduler_stop_background_updates() -> None:
-        logger.warning("Scheduler module unavailable; background updates not stopped (noop).")
-
-
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
 else:
@@ -248,135 +224,6 @@ if VIP_MODULE_ENABLED:
         vip_router = getattr(_vip_mod, "router", None)
     except ImportError:
         vip_router = None
-
-
-def start_background_updates(update_interval_hours: int = 24) -> None:
-    """Start background updates in the current or a new event loop (sync wrapper).
-
-    Resolves the scheduler starter from the module hierarchy and executes it
-    either in the current event loop (if one exists) or in a new loop.
-
-    In pytest sync mode (PYTEST_CURRENT_TEST set), uses special handling to
-    manage awaitables and track calls in the caller's 'called' list.
-
-    Returns:
-        None (synchronous fire-and-forget wrapper for the async scheduler starter)
-    """
-    import sys as _sys
-
-    pkg = _sys.modules.get("app") or _APP_PACKAGE_REF
-    if pkg is not None and not getattr(pkg, "__path__", None) and _APP_PACKAGE_REF is not None:
-        # Prefer the package wrapper when sys.modules['app'] points to app_module
-        pkg = _APP_PACKAGE_REF
-    alias_pkg = _sys.modules.get("app_module")
-
-    _asyncio = getattr(pkg, "asyncio", None) or getattr(alias_pkg, "asyncio", None) or asyncio
-    force_sync = os.getenv("PYTEST_CURRENT_TEST") is not None
-
-    if force_sync:
-        # Pytest sync mode: resolve candidates and call with special handling
-        caller_called: list[Any] | None = None
-        frame = inspect.currentframe()
-        if frame is not None and frame.f_back is not None:
-            maybe_called = frame.f_back.f_locals.get("called")
-            if isinstance(maybe_called, list):
-                caller_called = maybe_called
-
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        pkg_attr = pkg.__dict__.get("_scheduler_start_background_updates") if pkg else None
-        candidates = [
-            (
-                pkg_attr
-                if pkg_attr is not None
-                else getattr(pkg, "_scheduler_start_background_updates", None)
-            ),
-            (
-                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
-                if pkg_appmod
-                else None
-            ),
-            globals().get("_scheduler_start_background_updates", None),
-        ]
-        for target in candidates:
-            if not callable(target):
-                continue
-            handle_sync_test_mode(target, update_interval_hours, caller_called)
-            break
-        return None
-
-    # Normal mode: resolve starter and execute
-    starter = resolve_scheduler_starter(
-        pkg, alias_pkg, globals(), _scheduler_start_background_updates
-    )
-    execute_async_starter(starter, update_interval_hours, _asyncio)
-    return None
-
-
-def stop_background_updates() -> None:
-    """Stop background updates in the current or a new event loop (sync wrapper).
-
-    Resolves the stop callable from the module hierarchy and executes it
-    either in the current event loop (if one exists) or in a new loop with
-    proper cleanup and error suppression.
-
-    In pytest sync mode (PYTEST_CURRENT_TEST set), uses special handling to
-    manage awaitables and track calls in the caller's 'called' list.
-    """
-    import sys as _sys
-
-    pkg = _sys.modules.get("app") or _APP_PACKAGE_REF
-    if pkg is not None and not getattr(pkg, "__path__", None) and _APP_PACKAGE_REF is not None:
-        pkg = _APP_PACKAGE_REF
-    alias_pkg = _sys.modules.get("app_module")
-
-    _asyncio = getattr(pkg, "asyncio", None) or getattr(alias_pkg, "asyncio", None) or asyncio
-    force_sync = os.getenv("PYTEST_CURRENT_TEST") is not None
-
-    if force_sync:
-        # Pytest sync mode: resolve candidates and call with special handling
-        caller_called: list[Any] | None = None
-        frame = inspect.currentframe()
-        if frame is not None and frame.f_back is not None:
-            maybe_called = frame.f_back.f_locals.get("called")
-            if isinstance(maybe_called, list):
-                caller_called = maybe_called
-
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        pkg_attr = pkg.__dict__.get("_scheduler_stop_background_updates") if pkg else None
-        candidates = [
-            (
-                pkg_attr
-                if pkg_attr is not None
-                else getattr(pkg, "_scheduler_stop_background_updates", None)
-            ),
-            getattr(pkg_appmod, "_scheduler_stop_background_updates", None) if pkg_appmod else None,
-            globals().get("_scheduler_stop_background_updates", None),
-        ]
-        for target in candidates:
-            if not callable(target):
-                continue
-            handle_sync_test_mode(target, None, caller_called)
-            break
-        return None
-
-    # Normal mode: resolve stopper and execute
-    stopper = resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
-
-    # Detect running loop
-    event_loop: Optional[asyncio.AbstractEventLoop] = None
-    try:
-        event_loop = _asyncio.get_running_loop()
-    except RuntimeError:
-        pass
-
-    if event_loop is None:
-        # No running loop: run in new loop with cleanup
-        safe_stop_with_cleanup(stopper)
-    else:
-        # Running loop exists: schedule as task
-        event_loop.create_task(stopper())
-    return None
-
 
 # Canonical application bootstrap owns environment resolution, dotenv loading,
 # root logging configuration, metadata construction, and the FastAPI instance.
