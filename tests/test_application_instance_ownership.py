@@ -16,7 +16,16 @@ from app.bootstrap.lifespan import application_lifespan
 from app.effective_routes import route_endpoint_for_path_method
 import legacy_app
 
-_MIRRORS = "VIP_MODULE_ENABLED vip_router pro_router premium_week_router FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router".split()
+_RETIRED_REGISTRATION_MIRRORS = (
+    "VIP_MODULE_ENABLED",
+    "vip_router",
+    "pro_router",
+    "premium_week_router",
+    "FEATURE_BMI_PRO_ENABLED",
+    "bmi_router",
+    "bmi_pro_router",
+    "bmi_pro_legacy_alias_router",
+)
 _IMPORT_SCENARIOS = """import app as package; import app.main as main; import legacy_app; from app.bootstrap import application as canonical
 import app.main as main; import app as package; import legacy_app; from app.bootstrap import application as canonical
 import legacy_app; import app.main as main; import app as package; from app.bootstrap import application as canonical""".splitlines()
@@ -74,8 +83,8 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
             import hashlib, json; {imports}
             from app.bootstrap.http_stack import _owned_middleware_projection; from app.bootstrap.lifespan import application_lifespan; from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
             def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
-            def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest(), {{name: (value if value is None or isinstance(value, (bool, int, str)) else routes(value)) for name in {list(_MIRRORS)!r} for value in [getattr(main, name)]}}]
-            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert "app_module" not in __import__("sys").modules; assert not hasattr(legacy_app, "start_background_updates"); assert not hasattr(legacy_app, "stop_background_updates"); assert canonical.app.router.lifespan_context is application_lifespan; assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
+            def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest()]
+            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert "app_module" not in __import__("sys").modules; assert not hasattr(legacy_app, "start_background_updates"); assert not hasattr(legacy_app, "stop_background_updates"); assert canonical.app.router.lifespan_context is application_lifespan; assert all(not hasattr(module, name) for module in (package, main, legacy_app) for name in {_RETIRED_REGISTRATION_MIRRORS!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
         """)
         env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
         for name in _OPTIONAL_ENV:
@@ -89,7 +98,7 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
     assert results[1:] == results[:1] * (len(results) - 1)
 
 
-def test_fresh_package_facade_retires_legacy_module_alias_and_scheduler_wrappers() -> None:
+def test_fresh_package_facade_and_canonical_main_do_not_load_legacy_app() -> None:
     scenario = textwrap.dedent("""
         import importlib
         import sys
@@ -119,7 +128,10 @@ def test_fresh_package_facade_retires_legacy_module_alias_and_scheduler_wrappers
                 raise AssertionError(f"retired module still importable: {module_name}")
 
         canonical = app.app
+        assert "app.main" in sys.modules
+        assert "legacy_app" not in sys.modules
         import app.main as main
+        assert "legacy_app" not in sys.modules
         import legacy_app
 
         assert canonical is main.app is legacy_app.app
@@ -131,6 +143,40 @@ def test_fresh_package_facade_retires_legacy_module_alias_and_scheduler_wrappers
             "_scheduler_stop_background_updates",
         ):
             assert not hasattr(legacy_app, name), name
+
+        retired = (
+            "VIP_MODULE_ENABLED",
+            "vip_router",
+            "pro_router",
+            "premium_week_router",
+            "FEATURE_BMI_PRO_ENABLED",
+            "bmi_router",
+            "bmi_pro_router",
+            "bmi_pro_legacy_alias_router",
+        )
+        assert all(
+            not hasattr(module, name)
+            for module in (app, main, legacy_app)
+            for name in retired
+        )
+        """)
+    env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
+    completed = subprocess.run(
+        [sys.executable, "-c", scenario],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_fresh_direct_main_import_does_not_load_legacy_app() -> None:
+    scenario = textwrap.dedent("""
+        import sys
+        import app.main as main
+
+        assert main.app is not None
+        assert "legacy_app" not in sys.modules
         """)
     env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
     completed = subprocess.run(
@@ -209,7 +255,7 @@ def test_websocket_owner_states_fail_closed(s: str, monkeypatch: pytest.MonkeyPa
 
 def test_test_owned_app_does_not_rebind_canonical(monkeypatch: pytest.MonkeyPatch) -> None:
     test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
-    monkeypatch.setattr(main.realtime_ws, "router", main.APIRouter())
+    monkeypatch.setattr(main.realtime_ws, "router", APIRouter())
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     composed = (tuple(test_owned.routes), tuple(test_owned.user_middleware))
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
