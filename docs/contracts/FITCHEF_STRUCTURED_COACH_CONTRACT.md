@@ -173,6 +173,45 @@ The generic envelope direction below is for later unimplemented structured-coach
 follow-ups that do not already have a frozen response schema. It must not
 override landed OpenAPI schemas or schema-frozen follow-up lanes.
 
+### Internal Distortion Simulator field-assurance boundary
+
+The E1-04 field-assurance record is internal and negative-only. It binds the
+six existing Distortion Simulator fields to one request-local, sanitized and
+PII-redacted source snapshot without adding a public response key or changing
+the public OpenAPI/client contract. Only `balanced_reframe` may carry opaque
+candidate occurrence references.
+
+A candidate reference proves only that the identified occurrence was present in
+the frozen, sanitized, PII-redacted prompt snapshot available when provider
+generation was attempted.
+It does **not** prove that the final field originated from that occurrence:
+deterministic normalization or wellness fallback may replace provider text. It
+also does not prove semantic support, truth, entailment, contradiction review,
+or source quality. Therefore v1 keeps `adjudicated_support_status=null`,
+`conflict_adjudicated=false`, and `support_claimed_count=0`. Duplicate source
+identities, snapshot drift, missing links, and local fingerprint failure degrade
+to explicit negative states with no candidate references.
+
+This assurance has no public-response, provider-retry, cache-admission,
+knowledge-promotion, or plan-mutation authority. It does not invoke an NLI or
+provider judge, reuse canonical adjudication helpers, write evidence/cache/DB
+state, or make the retrieved corpus canonical truth. A future positive semantic
+support verifier requires the separate backlog gate and a terminal human
+decision before implementation.
+
+E1-04 is in-process contract groundwork observed only by bounded local
+prospective evaluation. It supplies no continuous deployed-health signal and
+must not be used as evidence of production traffic health or terminal rollout
+success. The internal assessment therefore remains absent from public responses,
+telemetry, and privileged audit records.
+
+Implementation anchors:
+
+- `app.schemas.fitchef.FitChefDistortionFieldAssuranceAssessmentV1`
+- `app.services.fitchef_claim_evidence_assurance`
+- `app.services.fitchef_runtime.run_distortion_simulator_task`
+- `tests.test_fitchef_claim_evidence_assurance`
+
 ### CBT Coaching Wave framework
 
 Future bounded coaching surfaces should align to the default framework:

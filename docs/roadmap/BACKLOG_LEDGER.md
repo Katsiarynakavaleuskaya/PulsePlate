@@ -4651,6 +4651,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover auth, quota, rate limit, OpenAPI exposure, and structured response contract
 
 
+<a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>
+- [ ] P1: FitChef positive semantic support verifier after E1-04 decision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (evidence correctness / trust)
+  - Target PR: PR-TBD after the E1-04 terminal human decision
+  - Status: 📋 Planned; blocked until the E1-04 terminal human decision explicitly authorizes or rejects this lane.
+  - Reason (EN): E1-04 intentionally records only negative field assurance and opaque candidate linkage. Citation presence is not semantic support, and the current runtime must not infer `supported`, `partially_supported`, `unsupported`, or `contradicted` from retrieval alone. Any positive verifier needs its own bounded authority, evaluation, privacy, cost, and failure contract rather than an NLI/provider judge added inside E1-04.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` (internal field-assurance boundary)
+    - `docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md`
+    - `app/services/fitchef_claim_evidence_assurance.py`
+    - `tests/test_fitchef_claim_evidence_assurance.py`
+  - DoD:
+    - A terminal human GO/NO-GO decision is recorded before implementation starts
+    - A separate contract freezes the verifier's finite corpus/surface, semantic claim, false-positive and false-negative metrics, stop conditions, and rollback
+    - Offline deterministic fixtures prove positive, partial, unsupported, contradicted, duplicate-source, missing-source, and source-drift behavior before any runtime activation
+    - Any future NLI/provider-backed proposal receives explicit privacy, quota, timeout, degraded-mode, and no-retry authority review; no provider judge is added by E1-04
+    - Public DTO/OpenAPI exposure, cache admission, knowledge promotion, and plan mutation remain closed unless separately authorized and tested
+
+
 <a id="ledger-p1-identity-loop-mapper-wave"></a>
 - [x] P1: Identity Loop Mapper reflective coaching lane
   - Owner: @katsiaryna_kavaleuskaya

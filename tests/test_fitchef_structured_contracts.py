@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-import pytest
+from dataclasses import replace
 
+import pytest
+from pydantic import ValidationError
+
+import app.services.fitchef_claim_evidence_assurance as assurance_service
 from app.schemas.fitchef import (
     FitChefClarificationV1,
+    FitChefDistortionFieldAssuranceAssessmentV1,
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorResult,
     FitChefDistortionSimulatorTaskEnvelope,
+    FitChefFieldAssuranceRecordV1,
     FitChefIdentityLoopMapperInput,
     FitChefIdentityLoopMapperResult,
     FitChefIdentityLoopMapperTaskEnvelope,
@@ -26,6 +32,15 @@ from app.schemas.fitchef_coaching import (
     FitChefVipCoachingErrorResponse,
     FitChefWeeklyReflectionResponse,
 )
+from app.services.fitchef_claim_evidence_assurance import (
+    FitChefSourceOccurrenceV1,
+    FitChefSourceSnapshotV1,
+    build_distortion_field_assurance_assessment,
+    build_distortion_field_assurance_unavailable,
+    build_fitchef_source_items,
+    freeze_fitchef_source_snapshot,
+)
+from core.evidence.fingerprints import JsonValue
 
 
 def test_weekly_reflection_clarification_contract_is_fixed_and_immutable() -> None:
@@ -131,6 +146,9 @@ def test_structured_fitchef_internal_results_roundtrip() -> None:
         evidence_against=["One dessert does not define the whole day."],
         balanced_reframe="This was one moment, not the whole pattern.",
         next_small_action="Choose one balanced next meal.",
+        claim_evidence_assessment=build_distortion_field_assurance_unavailable(
+            reason_code="assessment_unavailable"
+        ),
         sources=[source],
         confidence=0.42,
         warnings=["structured_parse_fallback"],
@@ -160,6 +178,9 @@ def test_structured_fitchef_internal_results_roundtrip() -> None:
 
     assert distortion_result.scenario == "distortion_simulator"
     assert distortion_result.model_dump()["sources"][0]["file"] == source.file
+    assert "claim_evidence_assessment" not in distortion_result.model_dump()
+    assert distortion_result.claim_evidence_assessment.assessed_field_count == 6
+    assert FitChefDistortionSimulatorResult.model_fields["claim_evidence_assessment"].is_required()
     assert identity_result.scenario == "identity_loop_mapper"
     assert identity_result.model_dump()["identity_loop"]["belief"].startswith("If I slip once")
 
@@ -355,3 +376,183 @@ def test_vip_error_response_enforces_frozen_aliases() -> None:
             detail="Rate limit exceeded",
             error="different_code",
         )
+
+
+def _field_assurance_snapshot() -> FitChefSourceSnapshotV1:
+    return freeze_fitchef_source_snapshot(
+        (
+            FitChefSourceOccurrenceV1(
+                ordinal=0,
+                chunk_id="contract-source",
+                file="docs/cbt/contract.md",
+                content="Sanitized contract context.",
+                preview="Contract preview",
+                score=0.88,
+            ),
+        )
+    )
+
+
+def _field_assurance_assessment() -> FitChefDistortionFieldAssuranceAssessmentV1:
+    snapshot = _field_assurance_snapshot()
+    return build_distortion_field_assurance_assessment(
+        snapshot,
+        result_sources=build_fitchef_source_items(snapshot),
+    )
+
+
+def test_field_assurance_records_reject_every_semantic_widening() -> None:
+    """The CI-selected contract suite executes every negative record boundary."""
+
+    assessment = _field_assurance_assessment()
+    request_record = assessment.records[0].model_dump(mode="python")
+    balanced_record = assessment.records[4].model_dump(mode="python")
+    action_record = assessment.records[5].model_dump(mode="python")
+    candidate_ref = assessment.records[4].candidate_source_refs[0]
+    invalid_records = (
+        {**request_record, "adjudicated_support_status": "supported"},
+        {**request_record, "conflict_adjudicated": True},
+        {**balanced_record, "candidate_source_refs": (candidate_ref, candidate_ref)},
+        {**balanced_record, "candidate_source_refs": ("sha256:" + "g" * 64,)},
+        {**request_record, "claim_type": "recommendation"},
+        {**balanced_record, "claim_type": "inference"},
+        {**action_record, "claim_type": "inference"},
+        {
+            **request_record,
+            "assurance_state": "not_evidence_bearing",
+            "reason_codes": ("not_evidence_bearing",),
+        },
+        {**request_record, "reason_codes": ("candidate_sources_missing",)},
+        {**request_record, "candidate_source_refs": (candidate_ref,)},
+        {
+            **balanced_record,
+            "assurance_state": "evidence_link_missing",
+            "reason_codes": ("candidate_sources_missing",),
+        },
+        {**balanced_record, "candidate_source_refs": ()},
+    )
+
+    for payload in invalid_records:
+        with pytest.raises(ValidationError):
+            FitChefFieldAssuranceRecordV1.model_validate(payload)
+
+
+def test_field_assurance_assessment_rejects_aggregate_and_availability_drift() -> None:
+    """The CI-selected contract suite exercises aggregate and availability invariants."""
+
+    assessment = _field_assurance_assessment()
+    payload = assessment.model_dump(mode="python")
+    invalid_aggregates = (
+        {**payload, "source_snapshot_fingerprint": "sha256:" + "g" * 64},
+        {**payload, "request_context_only_count": True},
+        {**payload, "public_response_authority": True},
+        {**payload, "records": tuple(reversed(assessment.records))},
+        {**payload, "request_context_only_count": 3},
+        {**payload, "assessed_field_count": 5},
+        {**payload, "evidence_sensitive_field_count": 0},
+        {**payload, "support_claimed_count": 1},
+    )
+    for invalid_payload in invalid_aggregates:
+        with pytest.raises(ValidationError):
+            FitChefDistortionFieldAssuranceAssessmentV1.model_validate(invalid_payload)
+
+    unavailable = build_distortion_field_assurance_unavailable(reason_code="assessment_unavailable")
+    unavailable_payload = unavailable.model_dump(mode="python")
+    partial_payload = {
+        **unavailable_payload,
+        "records": (assessment.records[0], *unavailable.records[1:]),
+        "request_context_only_count": 1,
+        "assessment_unavailable_count": 5,
+    }
+    with pytest.raises(ValidationError):
+        FitChefDistortionFieldAssuranceAssessmentV1.model_validate(partial_payload)
+
+    alternate_reason = FitChefFieldAssuranceRecordV1.model_validate(
+        {
+            **unavailable.records[0].model_dump(mode="python"),
+            "reason_codes": ("snapshot_fingerprint_unavailable",),
+        }
+    )
+    mixed_reason_payload = {
+        **unavailable_payload,
+        "records": (alternate_reason, *unavailable.records[1:]),
+    }
+    with pytest.raises(ValidationError):
+        FitChefDistortionFieldAssuranceAssessmentV1.model_validate(mixed_reason_payload)
+
+    fingerprint_parity_payload = {
+        **unavailable_payload,
+        "source_snapshot_fingerprint": assessment.source_snapshot_fingerprint,
+    }
+    with pytest.raises(ValidationError):
+        FitChefDistortionFieldAssuranceAssessmentV1.model_validate(fingerprint_parity_payload)
+
+
+def test_field_assurance_builder_fails_closed_for_every_integrity_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CI-selected suite covers ordinal, projection, result, and digest failures."""
+
+    with pytest.raises(ValueError, match="contiguous and zero-based"):
+        freeze_fitchef_source_snapshot(
+            (
+                FitChefSourceOccurrenceV1(
+                    ordinal=1,
+                    chunk_id="invalid-ordinal",
+                    file="docs/cbt/invalid.md",
+                    content="Sanitized invalid context.",
+                    preview="Invalid preview",
+                    score=0.5,
+                ),
+            )
+        )
+
+    snapshot = _field_assurance_snapshot()
+    sources = build_fitchef_source_items(snapshot)
+    drifted_snapshot = replace(snapshot, projection=())
+    projection_mismatch = build_distortion_field_assurance_assessment(
+        drifted_snapshot,
+        result_sources=sources,
+    )
+    result_mismatch = build_distortion_field_assurance_assessment(
+        snapshot,
+        result_sources=[sources[0].model_copy(update={"preview": "Drifted preview"})],
+    )
+    for mismatch in (projection_mismatch, result_mismatch):
+        assert mismatch.records[4].assurance_state == "source_snapshot_mismatch"
+        assert mismatch.records[4].candidate_source_refs == ()
+
+    real_fingerprint_payload = assurance_service.fingerprint_payload
+
+    def _raise_fingerprint_error(_payload: JsonValue) -> str:
+        raise RuntimeError("deterministic fingerprint failure")
+
+    monkeypatch.setattr(
+        assurance_service,
+        "fingerprint_payload",
+        _raise_fingerprint_error,
+    )
+    recomputation_unavailable = build_distortion_field_assurance_assessment(
+        snapshot,
+        result_sources=sources,
+    )
+    assert recomputation_unavailable.assessment_unavailable_count == 6
+
+    def _fail_occurrence_ref(payload: JsonValue) -> str:
+        if (
+            isinstance(payload, dict)
+            and payload.get("schema_version") == "fitchef_source_occurrence_ref.v1"
+        ):
+            raise RuntimeError("deterministic occurrence-ref failure")
+        return real_fingerprint_payload(payload)
+
+    monkeypatch.setattr(
+        assurance_service,
+        "fingerprint_payload",
+        _fail_occurrence_ref,
+    )
+    occurrence_ref_unavailable = build_distortion_field_assurance_assessment(
+        snapshot,
+        result_sources=sources,
+    )
+    assert occurrence_ref_unavailable.assessment_unavailable_count == 6
