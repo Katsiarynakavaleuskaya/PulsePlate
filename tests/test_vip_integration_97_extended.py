@@ -381,7 +381,7 @@ class TestVIPIntegration97Extended:
         monkeypatch.setattr(
             menu_engine,
             "_get_default_food_db",
-            lambda: canonical_auto_repair_food_db,
+            lambda **_kwargs: canonical_auto_repair_food_db,
         )
         payload_problems = _auto_repair_payload(
             {
@@ -468,6 +468,58 @@ class TestVIPIntegration97Extended:
             assert repaired_meal["nutrients"]["iron_mg"] == 8.0
             assert data["echo"] == payload
             assert data["message"] == "Auto-repair completed with status: partial"
+
+        known_deficits_payload = _auto_repair_payload(
+            {
+                "plan_id": "route-plan",
+                "days": [
+                    {
+                        "day": "monday",
+                        "day_id": "route-day",
+                        "meals": [
+                            {
+                                "ingredients": [{"name": "rice"}],
+                                "nutrients": {"iron_mg": 0.0, "vitamin_c_mg": 0.0},
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=known_deficits_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        known_deficits_data = assert_json_response_payload(response)
+        assert known_deficits_data["status"] == "success"
+        assert known_deficits_data["repair_result"]["status"] == "partial"
+        assert known_deficits_data["repair_result"]["remaining_gaps"] == {"vitamin_c_mg": 90.0}
+        assert known_deficits_data["repair_result"]["repaired_plan"]["plan_id"] == "route-plan"
+        assert (
+            known_deficits_data["repair_result"]["repaired_plan"]["days"][0]["day_id"]
+            == "route-day"
+        )
+
+        with monkeypatch.context() as unavailable_real_food_db:
+            unavailable_real_food_db.setattr(
+                menu_engine,
+                "_get_default_food_db",
+                lambda **_kwargs: {},
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=payload_simple_problems,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            unavailable_data = assert_json_response_payload(response)
+            assert unavailable_data["status"] == "error"
+            assert unavailable_data["code"] == "auto_repair_failed"
+            assert unavailable_data["repair_result"]["changes_made"] == []
+            assert "Chicken Breast (Mock)" not in str(unavailable_data)
+            assert "Lentils (Mock)" not in str(unavailable_data)
 
         payload_no_candidate = _auto_repair_payload(
             {
@@ -945,7 +997,7 @@ class TestVIPIntegration97Extended:
         monkeypatch.setattr(
             menu_engine,
             "_get_default_food_db",
-            lambda: canonical_auto_repair_food_db,
+            lambda **_kwargs: canonical_auto_repair_food_db,
         )
         menu_payload = {
             "sex": "male",

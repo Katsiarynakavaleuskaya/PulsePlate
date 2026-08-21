@@ -16,6 +16,7 @@ from core.auto_repair import (
     RepairResult,
     RepairStatus,
     RepairStrategy,
+    _known_nutrient_contributions,
     auto_repair_week_plan,
     get_auto_repair_engine,
     suggest_manual_fixes,
@@ -25,8 +26,11 @@ from core.menu_engine import (
     DayMenu,
     FoodItem,
     WeekMenu,
+    _apply_repair_strategy,
     _calculate_day_nutrients,
+    _get_default_food_db,
     _safe_booster_amount,
+    calculate_known_nutrient_gaps,
     repair_week_plan as repair_canonical_week_plan,
 )
 from core.targets import MicronutrientTargets, NutritionTargets
@@ -385,6 +389,139 @@ class TestAutoRepairComprehensive:
         )
         assert conservative == plan and conservative is not plan
         assert aggressive == plan and aggressive is not plan
+
+    def test_paid_repair_real_db_failure_is_unchanged(self) -> None:
+        """Paid repair never consumes the mock fallback when real loading fails."""
+        with patch("core.menu_engine.get_unified_food_db", side_effect=RuntimeError("offline")):
+            assert _get_default_food_db(allow_mock_fallback=False) == {}
+            mock_fallback = _get_default_food_db()
+        assert {food.name for food in mock_fallback.values()} == {
+            "Chicken Breast (Mock)",
+            "Lentils (Mock)",
+        }
+
+        wire_plan = {
+            "days": [
+                {
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {"iron_mg": 0.0},
+                        }
+                    ]
+                }
+            ]
+        }
+        with patch("core.menu_engine._get_default_food_db", return_value={}) as resolver:
+            result = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                wire_plan,
+                self.targets,
+            )
+
+        resolver.assert_called_once_with(allow_mock_fallback=False)
+        assert result.status == RepairStatus.FAILED
+        assert result.repaired_plan == result.original_plan
+        assert result.changes_made == []
+        assert "Mock" not in str(result.repaired_plan)
+
+    def test_known_remaining_gaps_and_wire_metadata_are_preserved(self) -> None:
+        """Report only known gaps and do not publish absent FoodItem macro nutrients."""
+        lentils = FoodItem(
+            name="Lentils",
+            nutrients_per_100g={
+                "iron_mg": 3.3,
+                "folate_ug": 180.0,
+                "magnesium_mg": 36.0,
+                "protein_g": 9.0,
+                "fat_g": 0.4,
+                "carbs_g": 20.0,
+            },
+            cost_per_100g=1.0,
+            tags=[],
+            availability_regions=[],
+        )
+        wire_plan = {
+            "plan_id": "plan-123",
+            "client_metadata": {"trace": "trace-456"},
+            "days": [
+                {
+                    "date": "monday",
+                    "day_id": "day-1",
+                    "label": "Stable label",
+                    "meals": [
+                        {
+                            "meal_id": "meal-1",
+                            "ingredients": [{"name": "rice"}],
+                            "nutrients": {
+                                "iron_mg": 0.0,
+                                "folate_ug": 0.0,
+                                "magnesium_mg": 0.0,
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        with patch(
+            "core.menu_engine._get_default_food_db",
+            return_value={"lentils": lentils},
+        ):
+            result = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                wire_plan,
+                self.targets,
+            )
+
+        assert result.status == RepairStatus.PARTIAL
+        assert result.remaining_gaps == {
+            "folate_ug": 220.0,
+            "iron_mg": 4.7,
+            "magnesium_mg": 364.0,
+        }
+        repaired_plan = result.repaired_plan
+        repaired_meal = repaired_plan["days"][0]["meals"][0]
+        assert set(repaired_meal["nutrients"]) == {
+            "iron_mg",
+            "folate_ug",
+            "magnesium_mg",
+        }
+        assert "protein_g" not in repaired_meal["nutrients"]
+        assert "fat_g" not in repaired_meal["nutrients"]
+        assert "carbs_g" not in repaired_meal["nutrients"]
+        assert set(result.changes_made[0]["nutrient_contributions"]) == {
+            "iron_mg",
+            "folate_ug",
+            "magnesium_mg",
+        }
+        assert repaired_plan["plan_id"] == "plan-123"
+        assert repaired_plan["client_metadata"] == {"trace": "trace-456"}
+        assert repaired_plan["days"][0]["day_id"] == "day-1"
+        assert repaired_plan["days"][0]["label"] == "Stable label"
+        assert repaired_meal["meal_id"] == "meal-1"
+
+        invalid_before = _canonical_plan(
+            [{"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": 0.0}}]
+        )
+        invalid_after = deepcopy(invalid_before)
+        invalid_after.daily_menus[0].meals[0]["nutrients"]["iron_mg"] = True
+        assert _known_nutrient_contributions(invalid_before, invalid_after) == {}
+        assert (
+            calculate_known_nutrient_gaps(
+                _canonical_plan(),
+                self.targets,
+            )
+            == {}
+        )
+        assert (
+            _apply_repair_strategy(
+                invalid_before,
+                {},
+                {},
+                "replace_ingredients",
+                {},
+                None,
+            )
+            is invalid_before
+        )
 
     def test_canonical_booster_amount_caps(self) -> None:
         """Bound amounts by 100 g and by another governed nutrient maximum."""
@@ -782,6 +919,31 @@ class TestAutoRepairComprehensive:
         assert result.status == RepairStatus.SUCCESS
         assert result.changes_made == [{"repaired_plan": week_plan}]
         assert engine.get_repair_history() == [repair_iteration]
+
+        no_progress_engine = AutoRepairEngine(max_iterations=1)
+        with (
+            patch.object(
+                no_progress_engine,
+                "_analyze_nutrient_gaps",
+                side_effect=[
+                    {"iron": 1.0},
+                    {"iron": 1.0},
+                    {"iron": 1.0},
+                    {"iron": 1.0},
+                ],
+            ),
+            patch.object(
+                no_progress_engine,
+                "_attempt_repair",
+                return_value=repair_iteration,
+            ),
+        ):
+            no_progress = no_progress_engine.auto_repair_week_plan(
+                week_plan,
+                self.targets,
+            )
+        assert no_progress.status == RepairStatus.FAILED
+        assert no_progress.iterations == 1
 
     @pytest.mark.parametrize(
         "invalid_range",

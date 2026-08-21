@@ -10,10 +10,16 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
+import math
 from numbers import Real
 from typing import Any, Dict, List, Optional, cast
 
-from core.menu_engine import DayMenu, WeekMenu, repair_week_plan
+from core.menu_engine import (
+    DayMenu,
+    WeekMenu,
+    calculate_known_nutrient_gaps,
+    repair_week_plan,
+)
 from core.targets import MicronutrientTargets, NutritionTargets
 
 _VEGETABLE_TERMS = ("vegetable",)
@@ -151,26 +157,62 @@ def _week_menu_from_wire(week_plan: dict[str, object]) -> WeekMenu:
     )
 
 
-def _week_menu_to_wire(plan: WeekMenu) -> dict[str, object]:
-    """Represent a materially changed canonical plan without inventing foods or targets."""
-    return {
-        "week_start": plan.week_start,
-        "days": [
-            {
-                "day": day.date,
-                "meals": deepcopy(day.meals),
-                "total_nutrients": deepcopy(day.total_nutrients),
-                "coverage": deepcopy(day.coverage),
-                "recommendations": list(day.recommendations),
-                "estimated_cost": day.estimated_cost,
-            }
-            for day in plan.daily_menus
-        ],
-        "weekly_coverage": deepcopy(plan.weekly_coverage),
-        "shopping_list": deepcopy(plan.shopping_list),
-        "total_cost": plan.total_cost,
-        "adherence_score": plan.adherence_score,
-    }
+def _week_menu_to_wire(
+    plan: WeekMenu,
+    original_wire_plan: Dict,
+) -> dict[str, object]:
+    """Project canonical changes onto a deep-copied wire template, preserving metadata."""
+    repaired_wire_plan = deepcopy(original_wire_plan)
+    original_days = repaired_wire_plan.get("days")
+    day_templates = original_days if isinstance(original_days, list) else []
+    repaired_days: list[dict[str, object]] = []
+    for index, day in enumerate(plan.daily_menus):
+        template = day_templates[index] if index < len(day_templates) else {}
+        repaired_day = deepcopy(template) if isinstance(template, dict) else {}
+        if "date" in repaired_day:
+            repaired_day["date"] = day.date
+        elif "name" in repaired_day:
+            repaired_day["name"] = day.date
+        else:
+            repaired_day["day"] = day.date
+        repaired_day["meals"] = deepcopy(day.meals)
+        repaired_day["total_nutrients"] = deepcopy(day.total_nutrients)
+        repaired_day["coverage"] = deepcopy(day.coverage)
+        repaired_day["recommendations"] = list(day.recommendations)
+        repaired_day["estimated_cost"] = day.estimated_cost
+        repaired_days.append(repaired_day)
+
+    repaired_wire_plan["week_start"] = plan.week_start
+    repaired_wire_plan["days"] = repaired_days
+    repaired_wire_plan["weekly_coverage"] = deepcopy(plan.weekly_coverage)
+    repaired_wire_plan["shopping_list"] = deepcopy(plan.shopping_list)
+    repaired_wire_plan["total_cost"] = plan.total_cost
+    repaired_wire_plan["adherence_score"] = plan.adherence_score
+    return repaired_wire_plan
+
+
+def _known_nutrient_contributions(before: WeekMenu, after: WeekMenu) -> Dict[str, float]:
+    """Report positive deltas only for nutrient keys explicitly present before repair."""
+    contributions: Dict[str, float] = {}
+    for before_day, after_day in zip(before.daily_menus, after.daily_menus):
+        for before_meal, after_meal in zip(before_day.meals, after_day.meals):
+            before_nutrients = before_meal.get("nutrients")
+            after_nutrients = after_meal.get("nutrients")
+            if not isinstance(before_nutrients, dict) or not isinstance(after_nutrients, dict):
+                continue
+            for nutrient, raw_before in before_nutrients.items():
+                raw_after = after_nutrients.get(nutrient)
+                if (
+                    isinstance(raw_before, bool)
+                    or not isinstance(raw_before, Real)
+                    or isinstance(raw_after, bool)
+                    or not isinstance(raw_after, Real)
+                ):
+                    continue
+                delta = float(raw_after) - float(raw_before)
+                if math.isfinite(delta) and delta > 0:
+                    contributions[nutrient] = contributions.get(nutrient, 0.0) + delta
+    return contributions
 
 
 def _changes_from_history(history: List["RepairIteration"]) -> List[Dict]:
@@ -284,17 +326,19 @@ class AutoRepairEngine:
             )
             invocation_history.append(repair_iteration)
             if repair_iteration.success:
-                repaired_plan = repair_iteration.changes_applied[0].get(
+                material_change = repair_iteration.changes_applied[0]
+                repaired_plan = material_change.get(
                     "repaired_plan",
                     current_plan,
                 )
+                remaining_gaps = material_change.get("remaining_gaps", {})
                 self._store_completed_history(invocation_history)
                 return RepairResult(
                     status=RepairStatus.PARTIAL,
                     repaired_plan=repaired_plan,
                     original_plan=original_plan,
                     changes_made=_changes_from_history(invocation_history),
-                    remaining_gaps={},
+                    remaining_gaps=cast(Dict[str, float], remaining_gaps),
                     strategy_used=current_strategy,
                     iterations=iteration,
                     message=(
@@ -477,7 +521,9 @@ class AutoRepairEngine:
 
         changed = repaired_canonical_plan != canonical_plan
         repaired_plan = (
-            _week_menu_to_wire(repaired_canonical_plan) if changed else deepcopy(week_plan)
+            _week_menu_to_wire(repaired_canonical_plan, week_plan)
+            if changed
+            else deepcopy(week_plan)
         )
 
         changes: List[Dict] = []
@@ -488,6 +534,14 @@ class AutoRepairEngine:
                     "strategy": strategy.value,
                     "iteration": iteration,
                     "repaired_plan": repaired_plan,
+                    "remaining_gaps": calculate_known_nutrient_gaps(
+                        repaired_canonical_plan,
+                        targets,
+                    ),
+                    "nutrient_contributions": _known_nutrient_contributions(
+                        canonical_plan,
+                        repaired_canonical_plan,
+                    ),
                 }
             )
 

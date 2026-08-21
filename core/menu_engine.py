@@ -226,7 +226,7 @@ def make_weekly_menu(
     )
 
 
-def _get_default_food_db() -> Dict[str, FoodItem]:
+def _get_default_food_db(*, allow_mock_fallback: bool = True) -> Dict[str, FoodItem]:
     """
     RU: Получает реальную базу данных продуктов из USDA.
     EN: Gets real food database from USDA.
@@ -270,6 +270,9 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
     except Exception as e:
         # Fall back to basic mock data if API fails or loop is running
         _logger.warning("Could not load USDA data, using fallback: %s", e)
+
+    if not allow_mock_fallback:
+        return {}
 
     # Fallback mock data (reduced set)
     return {
@@ -642,7 +645,9 @@ def repair_week_plan(
     if strategy != "boosters_first":
         return repaired_plan
 
-    resolved_food_db = _get_default_food_db() if food_db is None else food_db
+    resolved_food_db = (
+        _get_default_food_db(allow_mock_fallback=False) if food_db is None else food_db
+    )
     _ = recipe_db
     for day_menu in repaired_plan.daily_menus:
         _apply_one_safe_booster(day_menu, targets, resolved_food_db)
@@ -669,6 +674,29 @@ def _day_nutrient_evidence(day_menu: DayMenu, nutrient: str) -> Optional[float]:
             return None
         total += value
     return total if math.isfinite(total) else None
+
+
+def calculate_known_nutrient_gaps(
+    plan: WeekMenu,
+    targets: MicronutrientTargets,
+) -> Dict[str, float]:
+    """Report positive gaps only where every meal supplies explicit baseline evidence."""
+    if not plan.daily_menus:
+        return {}
+    gaps: Dict[str, float] = {}
+    for nutrient in sorted(targets.priority_nutrients):
+        current_total = 0.0
+        for day_menu in plan.daily_menus:
+            day_total = _day_nutrient_evidence(day_menu, nutrient)
+            if day_total is None:
+                break
+            current_total += day_total
+        else:
+            target_total = targets.get_target(nutrient) * len(plan.daily_menus)
+            gap = target_total - current_total
+            if math.isfinite(gap) and gap > 0:
+                gaps[nutrient] = gap
+    return gaps
 
 
 def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
@@ -758,6 +786,8 @@ def _apply_one_safe_booster(
                 continue
             updated_nutrients: Dict[str, float] = {}
             for nutrient, density in food_nutrients.items():
+                if nutrient not in meal_nutrients:
+                    continue
                 contribution = density * amount / 100.0
                 existing = _finite_nonnegative_number(meal_nutrients.get(nutrient, 0.0))
                 if existing is None:

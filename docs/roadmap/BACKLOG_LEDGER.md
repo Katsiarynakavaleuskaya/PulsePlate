@@ -2832,7 +2832,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Progress:
     - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
     - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts plus publishes the typed auto-repair request schema and generated client artifacts without changing shared fixtures, auth guards, or dependencies
-    - Residual boundary: the post-TC2-08 coarse AST census remained non-zero at 415 construction sites across 99 test files; the TC2-09 branch reduces that census by exactly eight, so a fresh post-merge census must select TC2-09B and TC2-10 remains blocked until canonical callers reach zero
+    - Residual boundary: the historical post-TC2-08 coarse AST census was 415 construction sites across 99 test files; after synchronizing `origin/main@f561d37b2`, the exact base census is 412 sites / 98 files (411 / 97 outside `tests/_client.py`) and the TC2-09 head census is 404 / 97 (403 / 96 outside the helper), with the target file reduced from eight sites to zero; therefore `TC2-09B REQUIRED`, while TC2-10 remains blocked until canonical callers reach zero
     - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
   - DoD:
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
