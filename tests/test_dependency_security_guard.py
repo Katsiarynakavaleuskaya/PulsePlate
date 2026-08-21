@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime
 import hashlib
 import json
 from fnmatch import fnmatch
@@ -179,6 +180,10 @@ def _parse_msgpack_alert_tuple(section: str, *, projection: str) -> dict[str, st
         r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
         timestamp,
     ), f"{projection}: fixed_at must be exact UTC YYYY-MM-DDTHH:MM:SSZ"
+    try:
+        datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise AssertionError(f"{projection}: fixed_at must be a valid UTC timestamp") from error
     return parsed
 
 
@@ -194,9 +199,8 @@ def _assert_msgpack_alert_225_inventory_ledger_parity(
         projection="inventory",
     )
     assert not re.search(
-        r"^\|\s*`#225`\s*\|",
+        r"#225(?![0-9A-Za-z_])",
         open_section,
-        flags=re.MULTILINE,
     ), "inventory: fixed alert 225 must not remain in the open-alert table"
     closed_section = _extract_unique_markdown_section(
         inventory_document,
@@ -295,7 +299,10 @@ def test_msgpack_alert_225_parity_allows_field_order_and_unrelated_text() -> Non
     """Named fields remain semantic while unrelated regions stay outside the owner."""
 
     reordered = dict(reversed(tuple(MSGPACK_ALERT_TUPLE.items())))
-    inventory = "unrelated prefix\n" + _msgpack_inventory_fixture(fields=reordered)
+    inventory = "unrelated prefix\n" + _msgpack_inventory_fixture(fields=reordered).replace(
+        "| `#999` | `other` |",
+        "| `#224` | `other` |\n| `#2250` | `other` |\n| `#1225` | `other` |",
+    )
     ledger = "unrelated ledger prefix\n" + _msgpack_ledger_fixture(fields=reordered)
 
     _assert_msgpack_alert_225_inventory_ledger_parity(inventory, ledger)
@@ -312,6 +319,10 @@ def test_msgpack_alert_225_parity_allows_field_order_and_unrelated_text() -> Non
         "missing_ledger_anchor",
         "duplicate_ledger_anchor",
         "fixed_alert_in_open_table",
+        "fixed_alert_open_unformatted",
+        "fixed_alert_open_linked",
+        "fixed_alert_open_embedded_cell",
+        "fixed_alert_open_prose",
         "inventory_state_open",
         "inventory_state_dismissed",
         "inventory_state_unknown",
@@ -319,6 +330,7 @@ def test_msgpack_alert_225_parity_allows_field_order_and_unrelated_text() -> Non
         "fixed_at_one_second_drift",
         "fixed_at_missing",
         "fixed_at_malformed",
+        "fixed_at_invalid_calendar",
         "dismissed_at_mismatch",
         "dismissed_at_missing",
         "auto_dismissed_at_mismatch",
@@ -366,6 +378,23 @@ def test_msgpack_alert_225_parity_fails_closed(case: str) -> None:
             "| `#999` | `other` |",
             "| `#225` | `msgpack` |",
         )
+    elif case == "fixed_alert_open_unformatted":
+        inventory = inventory.replace("| `#999` | `other` |", "| #225 | msgpack |")
+    elif case == "fixed_alert_open_linked":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| [#225](dependabot/alerts/225) | msgpack |",
+        )
+    elif case == "fixed_alert_open_embedded_cell":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| Active alert `#225` | msgpack |",
+        )
+    elif case == "fixed_alert_open_prose":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| `#999` | `other` |\n\nAlert #225 remains open.",
+        )
     elif case in {"inventory_state_open", "inventory_state_dismissed", "inventory_state_unknown"}:
         state = case.removeprefix("inventory_state_")
         inventory_fields["state"] = state
@@ -381,6 +410,9 @@ def test_msgpack_alert_225_parity_fails_closed(case: str) -> None:
         inventory = _msgpack_inventory_fixture(fields=inventory_fields)
     elif case == "fixed_at_malformed":
         inventory_fields["fixed_at"] = "2026-06-22 22:34:21"
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "fixed_at_invalid_calendar":
+        inventory_fields["fixed_at"] = "2026-02-30T22:34:21Z"
         inventory = _msgpack_inventory_fixture(fields=inventory_fields)
     elif case == "dismissed_at_mismatch":
         ledger_fields["dismissed_at"] = "2026-06-22T22:34:21Z"
