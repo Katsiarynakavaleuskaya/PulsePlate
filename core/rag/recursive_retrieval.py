@@ -400,8 +400,8 @@ def _retrieve_vector_for_recursive_hop(
     )
     if optimization_stats is not None:
         _increment_stat(optimization_stats, "hop_vector_retrieve_calls")
-    stored_snap = hop_vector_cache.put(key, ctx)
-    return _copy_rag_context_snapshot(stored_snap)
+    hop_vector_cache.put(key, ctx)
+    return ctx
 
 
 def retrieve_recursive_context_structured(
