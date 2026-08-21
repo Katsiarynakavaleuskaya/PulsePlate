@@ -181,8 +181,9 @@ PII-redacted source snapshot without adding a public response key or changing
 the public OpenAPI/client contract. Only `balanced_reframe` may carry opaque
 candidate occurrence references.
 
-A candidate reference proves only that the exact retrieved occurrence was
-present in the prompt snapshot available when provider generation was attempted.
+A candidate reference proves only that the identified occurrence was present in
+the frozen, sanitized, PII-redacted prompt snapshot available when provider
+generation was attempted.
 It does **not** prove that the final field originated from that occurrence:
 deterministic normalization or wellness fallback may replace provider text. It
 also does not prove semantic support, truth, entailment, contradiction review,

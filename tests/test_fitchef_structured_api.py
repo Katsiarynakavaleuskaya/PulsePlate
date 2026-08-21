@@ -1233,12 +1233,15 @@ class TestFitChefStructuredRuntimeCoverage:
                 raise ValueError("deterministic snapshot freeze failure")
             return real_freeze(occurrences)
 
-        self.monkeypatch.setattr(
-            "core.rag.vector_rag.retrieve_context_structured",
-            lambda *args, **kwargs: _make_rag_context(
+        def _retrieve_context(*_args: object, **_kwargs: object) -> "RAGContext":
+            return _make_rag_context(
                 chunks=[candidate_chunk],
                 confidence=0.9,
-            ),
+            )
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _retrieve_context,
         )
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.freeze_fitchef_source_snapshot",
@@ -1747,9 +1750,11 @@ class TestFitChefStructuredRuntimeCoverage:
             events.append("assessment")
             return real_assessor(snapshot, result_sources=result_sources)
 
-        self.monkeypatch.setattr(
-            "core.rag.vector_rag.retrieve_context_structured",
-            lambda *args, **kwargs: _make_rag_context(
+        def _retrieve_fallback_context(
+            *_args: object,
+            **_kwargs: object,
+        ) -> "RAGContext":
+            return _make_rag_context(
                 chunks=[
                     RAGChunk(
                         chunk_id="fallback-prompt-source",
@@ -1759,7 +1764,11 @@ class TestFitChefStructuredRuntimeCoverage:
                     )
                 ],
                 confidence=0.8,
-            ),
+            )
+
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _retrieve_fallback_context,
         )
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
