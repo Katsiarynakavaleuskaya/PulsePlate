@@ -2904,6 +2904,36 @@ def test_prepare_mascot_draft_keeps_case_and_punctuation_distinct() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("raw_text", "marker_candidate"),
+    [
+        (
+            "* Choose one simple breakfast.\n* Add fruit to it.",
+            "* Choose one simple breakfast.",
+        ),
+        (
+            "1) Choose one simple breakfast.\n2) Add fruit to it.",
+            "1) Choose one simple breakfast.",
+        ),
+    ],
+)
+def test_prepare_mascot_draft_keeps_supported_marker_variants_distinct(
+    raw_text: str,
+    marker_candidate: str,
+) -> None:
+    """Pass-specific marker cleanup must not widen exact-string equality."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(raw_text, query="Need breakfast help")
+
+    assert draft.action_items == [
+        "Choose one simple breakfast.",
+        "Add fruit to it.",
+        marker_candidate,
+    ]
+
+
 def test_prepare_weekly_reflection_draft_preserves_bulleted_action_items() -> None:
     """Weekly reflection should preserve bulleted action-item structure."""
 
