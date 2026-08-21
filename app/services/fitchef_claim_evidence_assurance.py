@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from app.schemas.fitchef import (
     FitChefDistortionFieldAssuranceAssessmentV1,
@@ -113,7 +113,7 @@ def _snapshot_fingerprint(
         "schema_version": _SNAPSHOT_SCHEMA_VERSION,
         "occurrences": manifest,
     }
-    return fingerprint_payload(snapshot_payload)
+    return cast(str, fingerprint_payload(snapshot_payload))
 
 
 def _try_snapshot_fingerprint(
