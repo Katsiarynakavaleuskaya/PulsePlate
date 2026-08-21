@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import scripts.orchestration.task_bootstrap as task_bootstrap
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.render_codex_start_prompt import (
     main,
     render_packet_prompt,
@@ -41,6 +42,72 @@ def _packet() -> dict[str, object]:
             ],
         },
     }
+
+
+def _synthesis_packet() -> dict[str, object]:
+    revision_fingerprint = "sha256:" + ("2" * 64)
+    workspace_id = "workspace:synthesis-prompt"
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["README.md"],
+        requested_agents=["agent-coordinator"],
+    )
+    transport = packet["native_subagent_bridge"]["transport"]
+    assert isinstance(transport, str)
+    bridge = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=[],
+        reviewer="agent-coordinator",
+        advisory_agents=[],
+        transport=transport,
+    )
+    packet.update(
+        {
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": [],
+            "reviewer": "agent-coordinator",
+            "requested_agents": ["agent-coordinator"],
+            "requested_agent_disposition": [],
+            "native_subagent_bridge": bridge,
+            "creative_pilot_context": {
+                "schema_version": "creative_pilot_context.v2",
+                "workspace_id": workspace_id,
+                "workspace_intent_fingerprint": "sha256:" + ("1" * 64),
+                "workspace_revision_fingerprint": revision_fingerprint,
+                "phase": "synthesis",
+                "dispatch_input_fingerprint": revision_fingerprint,
+                "assignments": [
+                    {
+                        "assignment_id": "synthesis:agent-coordinator",
+                        "role": "agent-coordinator",
+                        "phase": "synthesis",
+                        "review_mode": "specification_planning",
+                        "diff_expected": False,
+                        "review_question": (
+                            "Synthesize only validated role results using deterministic hard gates."
+                        ),
+                        "input_fingerprint": revision_fingerprint,
+                        "input_refs": [workspace_id, revision_fingerprint],
+                    }
+                ],
+                "authority": {
+                    "read_structured_inputs": True,
+                    "generate_patch": False,
+                    "write_repository": False,
+                    "call_provider": False,
+                },
+            },
+        }
+    )
+    automation_flags = packet["automation_flags"]
+    assert isinstance(automation_flags, dict)
+    automation_flags["creative_pilot_enabled"] = True
+    packet["role_agent_dispatch_contract"] = task_bootstrap.build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase=str(packet["pr_phase"]),
+    )
+    return packet
 
 
 def test_packet_prompt_forces_agent_coordinator_first_when_packet_primary_differs() -> None:
@@ -81,6 +148,18 @@ def test_packet_prompt_fallback_role_order_without_bridge() -> None:
         "Role order: agent-coordinator, backend-engineer, architecture-specialist, security-auditor"
         in prompt
     )
+
+
+def test_packet_prompt_renders_synthesis_aliases_as_one_coordinator_dispatch() -> None:
+    prompt = render_packet_prompt(
+        _synthesis_packet(),
+        packet_path="artifacts/orchestration/task_packets/synthesis.json",
+    )
+
+    assert "Role order: agent-coordinator" in prompt
+    assert "Role order: agent-coordinator, agent-coordinator" not in prompt
+    assert "Executable required custom-role passes: <none>" in prompt
+    assert "independent review" not in prompt.lower()
 
 
 def test_packet_prompt_fallback_role_order_without_secondary_agents() -> None:

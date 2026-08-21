@@ -60,6 +60,72 @@ REQUIRED_ENTRY_KEYS = {
 }
 
 
+def _single_coordinator_synthesis_packet() -> dict[str, object]:
+    revision_fingerprint = "sha256:" + ("2" * 64)
+    workspace_id = "workspace:synthesis-test"
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["README.md"],
+        requested_agents=["agent-coordinator"],
+    )
+    transport = packet["native_subagent_bridge"]["transport"]
+    assert isinstance(transport, str)
+    bridge = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=[],
+        reviewer="agent-coordinator",
+        advisory_agents=[],
+        transport=transport,
+    )
+    packet.update(
+        {
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": [],
+            "reviewer": "agent-coordinator",
+            "requested_agents": ["agent-coordinator"],
+            "requested_agent_disposition": [],
+            "native_subagent_bridge": bridge,
+            "creative_pilot_context": {
+                "schema_version": "creative_pilot_context.v2",
+                "workspace_id": workspace_id,
+                "workspace_intent_fingerprint": "sha256:" + ("1" * 64),
+                "workspace_revision_fingerprint": revision_fingerprint,
+                "phase": "synthesis",
+                "dispatch_input_fingerprint": revision_fingerprint,
+                "assignments": [
+                    {
+                        "assignment_id": "synthesis:agent-coordinator",
+                        "role": "agent-coordinator",
+                        "phase": "synthesis",
+                        "review_mode": "specification_planning",
+                        "diff_expected": False,
+                        "review_question": (
+                            "Synthesize only validated role results using deterministic hard gates."
+                        ),
+                        "input_fingerprint": revision_fingerprint,
+                        "input_refs": [workspace_id, revision_fingerprint],
+                    }
+                ],
+                "authority": {
+                    "read_structured_inputs": True,
+                    "generate_patch": False,
+                    "write_repository": False,
+                    "call_provider": False,
+                },
+            },
+        }
+    )
+    automation_flags = packet["automation_flags"]
+    assert isinstance(automation_flags, dict)
+    automation_flags["creative_pilot_enabled"] = True
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase=cast(str, packet["pr_phase"]),
+    )
+    return cast(dict[str, object], packet)
+
+
 def test_role_dispatch_bridge_exports_compatibility_main() -> None:
     """The neutral CLI keeps the historical qoder bridge implementation."""
     assert role_dispatch_bridge.main is qoder_dispatch_bridge.main
@@ -94,6 +160,156 @@ def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixtu
     assert "usage: role_dispatch_bridge" in captured.out
     assert "Generate a JSON role dispatch manifest" in captured.out
     assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
+
+
+def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
+    packet = _single_coordinator_synthesis_packet()
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "extra_secondary",
+        "extra_advisory",
+        "altered_primary_alias",
+        "altered_reviewer_alias",
+        "empty_assignments",
+        "multiple_assignments",
+        "non_coordinator_assignment",
+        "tampered_assignment",
+        "wrong_phase",
+        "writable_authority",
+        "provider_authority",
+        "generate_patch_authority",
+        "structured_input_authority",
+        "implementation_owner_flags",
+        "dispatch_role_order",
+        "required_invariant_review",
+        "malformed_bridge_contract",
+        "malformed_dispatch_contract",
+        "task_packet_schema_drift",
+        "bridge_protocol_drift",
+        "requested_agents_empty",
+        "requested_agents_extra",
+        "nonempty_requested_disposition",
+        "post_open_phase",
+        "merge_ready_phase",
+        "creative_flag_false",
+        "creative_flag_missing",
+    ),
+)
+def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = packet["creative_pilot_context"]
+    bridge = packet["native_subagent_bridge"]
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(context, dict)
+    assert isinstance(bridge, dict)
+    assert isinstance(dispatch_contract, dict)
+    assignments = context["assignments"]
+    assert isinstance(assignments, list)
+    assignment = assignments[0]
+    assert isinstance(assignment, dict)
+
+    if mutation == "extra_secondary":
+        bridge["secondary"].append(bridge["primary"])
+    elif mutation == "extra_advisory":
+        bridge["advisory"].append(bridge["primary"])
+    elif mutation == "altered_primary_alias":
+        packet["primary_agent"] = "architecture-specialist"
+    elif mutation == "altered_reviewer_alias":
+        packet["reviewer"] = "architecture-specialist"
+    elif mutation == "empty_assignments":
+        assignments.clear()
+    elif mutation == "multiple_assignments":
+        assignments.append(dict(assignment))
+    elif mutation == "non_coordinator_assignment":
+        assignment["role"] = "architecture-specialist"
+    elif mutation == "tampered_assignment":
+        assignment["input_refs"] = [context["workspace_id"]]
+    elif mutation == "wrong_phase":
+        context["phase"] = "independent"
+    elif mutation == "writable_authority":
+        context["authority"]["write_repository"] = True
+    elif mutation == "provider_authority":
+        context["authority"]["call_provider"] = True
+    elif mutation == "generate_patch_authority":
+        context["authority"]["generate_patch"] = True
+    elif mutation == "structured_input_authority":
+        context["authority"]["read_structured_inputs"] = False
+    elif mutation == "implementation_owner_flags":
+        dispatch_contract["runtime_implementation_owner_flags_required"] = True
+        dispatch_contract["runtime_implementation_owners"] = ["security-auditor"]
+    elif mutation == "dispatch_role_order":
+        dispatch_contract["dispatch_role_order"] = ["agent-coordinator"]
+    elif mutation == "required_invariant_review":
+        packet["invariant_review"]["state"] = "required_pending"
+    elif mutation == "malformed_bridge_contract":
+        bridge["primary"]["dispatch_contract"] = "spawn"
+    elif mutation == "malformed_dispatch_contract":
+        dispatch_contract.pop("dispatch_manifest_entrypoint")
+    elif mutation == "task_packet_schema_drift":
+        packet["schema_version"] = "3.0"
+    elif mutation == "bridge_protocol_drift":
+        bridge["protocol_version"] = "2.0"
+    elif mutation == "requested_agents_empty":
+        packet["requested_agents"] = []
+    elif mutation == "requested_agents_extra":
+        packet["requested_agents"] = ["agent-coordinator", "architecture-specialist"]
+    elif mutation == "nonempty_requested_disposition":
+        packet["requested_agent_disposition"] = [
+            {
+                "agent": "agent-coordinator",
+                "status": "honored_primary",
+                "reason": "Compatibility metadata must still fail closed for synthesis.",
+            }
+        ]
+    elif mutation in {"post_open_phase", "merge_ready_phase"}:
+        packet["pr_phase"] = "post_open_review" if mutation == "post_open_phase" else "merge_ready"
+        packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+            native_subagent_bridge=bridge,
+            pr_phase=packet["pr_phase"],
+        )
+    elif mutation == "creative_flag_false":
+        packet["automation_flags"]["creative_pilot_enabled"] = False
+    else:
+        packet["automation_flags"].pop("creative_pilot_enabled")
+
+    expected_error = (
+        "creative pilot synthesis packet metadata"
+        if mutation
+        in {
+            "requested_agents_empty",
+            "requested_agents_extra",
+            "nonempty_requested_disposition",
+            "post_open_phase",
+            "merge_ready_phase",
+            "creative_flag_false",
+            "creative_flag_missing",
+        }
+        else None
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_single_coordinator_synthesis_cli_rejects_missing_coordinator_definition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_path = tmp_path / "task_packet.json"
+    packet_path.write_text(json.dumps(_single_coordinator_synthesis_packet()), encoding="utf-8")
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = role_dispatch_bridge.main(
+        ["--packet", str(packet_path), "--mode", "runtime", "--pretty"]
+    )
+
+    assert result == 1
+    assert "Agent definitions not found for: agent-coordinator" in capsys.readouterr().err
 
 
 def _v2_source_artifact(*, repeated: bool = True) -> dict[str, object]:

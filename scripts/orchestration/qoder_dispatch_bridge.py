@@ -1108,14 +1108,14 @@ def _validated_dispatch_role_order(
 def _validate_current_native_subagent_bridge(
     payload: Dict[str, Any],
     bridge: Any,
-) -> None:
+) -> bool:
     """Reject lossy bridge projections for current invariant packet contracts."""
 
     if (
         payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
         and "invariant_review" not in payload
     ):
-        return
+        return False
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
 
@@ -1168,9 +1168,36 @@ def _validate_current_native_subagent_bridge(
         *binding_slugs["advisory"],
         reviewer_slug,
     ]
-    if len(assigned_roles) != len(set(assigned_roles)):
+    creative_context = payload.get("creative_pilot_context")
+    synthesis_coordinator_aliases = False
+    if (
+        isinstance(creative_context, dict)
+        and creative_context.get("schema_version") == "creative_pilot_context.v2"
+        and creative_context.get("phase") == "synthesis"
+    ):
+        try:
+            validated_creative_context = validate_task_pilot_context(creative_context)
+        except CreativePilotContractError as exc:
+            raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
+        synthesis_coordinator_aliases = True
+    if synthesis_coordinator_aliases:
+        if payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION:
+            raise ValueError("creative pilot synthesis requires task packet schema 3.1")
+        if (
+            assigned_primary != "agent-coordinator"
+            or assigned_reviewer != "agent-coordinator"
+            or assigned_secondaries != []
+            or primary_slug != "agent-coordinator"
+            or reviewer_slug != "agent-coordinator"
+            or binding_slugs["secondary"] != []
+            or binding_slugs["advisory"] != []
+        ):
+            raise ValueError(
+                "creative pilot synthesis requires exact coordinator compatibility aliases"
+            )
+    elif len(assigned_roles) != len(set(assigned_roles)):
         raise ValueError("current invariant packet assigned roles must be unique")
-    if len(bridge_roles) != len(set(bridge_roles)):
+    if not synthesis_coordinator_aliases and len(bridge_roles) != len(set(bridge_roles)):
         raise ValueError("current native_subagent_bridge roles must be unique")
     if (
         primary_slug != assigned_primary
@@ -1232,6 +1259,7 @@ def _validate_current_native_subagent_bridge(
     )
     if canonical_bridge != canonical_expected_bridge:
         raise ValueError(canonical_error)
+    return synthesis_coordinator_aliases
 
 
 def _validate_current_role_dispatch_contract(
@@ -1283,10 +1311,37 @@ def _validate_current_role_dispatch_contract(
         raise ValueError(canonical_error)
 
 
+def _validate_single_coordinator_synthesis_packet_metadata(
+    payload: Dict[str, Any],
+    *,
+    synthesis_coordinator_aliases: bool,
+) -> None:
+    """Bind the synthesis-only alias projection to exact producer metadata."""
+
+    if not synthesis_coordinator_aliases:
+        return
+    if payload.get("requested_agents") != ["agent-coordinator"]:
+        raise ValueError("creative pilot synthesis packet metadata requires only agent-coordinator")
+    if payload.get("requested_agent_disposition") != []:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires empty requested disposition"
+        )
+    if payload.get("pr_phase") not in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}:
+        raise ValueError("creative pilot synthesis packet metadata requires an opening PR phase")
+    automation_flags = payload.get("automation_flags")
+    if (
+        not isinstance(automation_flags, dict)
+        or automation_flags.get("creative_pilot_enabled") is not True
+    ):
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        )
+
+
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
-    _validate_current_native_subagent_bridge(payload, bridge)
+    synthesis_coordinator_aliases = _validate_current_native_subagent_bridge(payload, bridge)
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -1325,7 +1380,8 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
             if isinstance(advisory_items, list):
                 for item in advisory_items:
                     add_slug(item, default_when_unspecified=False)
-            add_slug(bridge.get("reviewer"))
+            if not synthesis_coordinator_aliases:
+                add_slug(bridge.get("reviewer"))
     dispatch_role_order = _validated_dispatch_role_order(
         payload,
         spawnable_roles=ordered,
@@ -1334,6 +1390,10 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         payload,
         bridge,
         dispatch_role_order,
+    )
+    _validate_single_coordinator_synthesis_packet_metadata(
+        payload,
+        synthesis_coordinator_aliases=synthesis_coordinator_aliases,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order
@@ -1409,10 +1469,7 @@ def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
     """Load one JSON object while rejecting duplicate keys."""
 
     try:
-        return cast(
-            Dict[str, Any],
-            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
-        )
+        return load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
         raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
@@ -2079,7 +2136,7 @@ def _load_creative_pilot_context(
             "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
         )
     try:
-        return cast(Dict[str, Any], validate_task_pilot_context(context))
+        return validate_task_pilot_context(context)
     except CreativePilotContractError as exc:
         raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
 

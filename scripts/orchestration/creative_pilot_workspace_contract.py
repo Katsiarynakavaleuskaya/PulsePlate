@@ -2963,6 +2963,26 @@ def validate_task_pilot_context(payload: Mapping[str, Any]) -> dict[str, Any]:
             row["input_refs"], "creative_pilot_context.input_refs", min_items=1, max_items=32
         )
         normalized.append(dict(row))
+    if phase == "synthesis":
+        expected_assignment = {
+            "assignment_id": "synthesis:agent-coordinator",
+            "role": "agent-coordinator",
+            "phase": "synthesis",
+            "review_mode": "specification_planning",
+            "diff_expected": False,
+            "review_question": (
+                "Synthesize only validated role results using deterministic hard gates."
+            ),
+            "input_fingerprint": payload["workspace_revision_fingerprint"],
+            "input_refs": [
+                payload["workspace_id"],
+                payload["workspace_revision_fingerprint"],
+            ],
+        }
+        if normalized != [expected_assignment]:
+            raise CreativePilotContractError(
+                "creative pilot synthesis requires exactly one canonical coordinator assignment"
+            )
     expected_dispatch = (
         payload["workspace_revision_fingerprint"]
         if phase == "synthesis"

@@ -21,6 +21,7 @@ from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fi
 from scripts.orchestration import creative_code_artifact_inventory as inventory
 from scripts.orchestration import context_pack_compression
 from scripts.orchestration import creative_code_spec_pipeline
+from scripts.orchestration import role_dispatch_bridge
 from scripts.orchestration import creative_specification_skeptic_review as skeptic_review_cli
 from scripts.orchestration import creative_pilot_workspace as pilot_cli
 from scripts.orchestration import creative_pilot_workspace_contract as pilot_contract
@@ -2847,6 +2848,57 @@ def test_task_bootstrap_binds_explicit_pilot_phase(
     assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == [
         row["role"] for row in pilot["creative_pilot_context"]["assignments"]
     ]
+
+
+@pytest.mark.parametrize(
+    "native_bridge_transport",
+    ("codex-native-subagents", "kimi-native-subagents"),
+)
+def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
+    native_bridge_transport: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    synthesis_ready, _synthesis, _workspace_after_synthesis = _synthesis_case("approve")
+    root = tmp_path / "adaptive_pilots"
+    workspace_path = root / "pilot-synthesis" / "workspace.json"
+    workspace_path.parent.mkdir(parents=True)
+    workspace_path.write_text(json.dumps(synthesis_ready), encoding="utf-8")
+    monkeypatch.setattr(task_bootstrap, "CREATIVE_PILOT_ROOT", root)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+        native_bridge_transport=native_bridge_transport,
+    )
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-synthesis-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert (
+            role_dispatch_bridge.main(
+                ["--packet", str(packet_path), "--mode", "runtime", "--pretty"]
+            )
+            == 0
+        )
+        manifest = json.loads(capsys.readouterr().out)
+
+    assert packet["schema_version"] == "3.1"
+    assert packet["native_subagent_bridge"]["protocol_version"] == "1.0"
+    assert packet["native_subagent_bridge"]["transport"] == native_bridge_transport
+    assert packet["primary_agent"] == "agent-coordinator"
+    assert packet["secondary_agents"] == []
+    assert packet["reviewer"] == "agent-coordinator"
+    assert [row["role"] for row in packet["creative_pilot_context"]["assignments"]] == [
+        "agent-coordinator"
+    ]
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
+    assert manifest["dispatch_sequence"][0]["readonly"] is True
+    assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
 
 
 def test_terminal_and_wrong_phase_workspace_cannot_dispatch(
