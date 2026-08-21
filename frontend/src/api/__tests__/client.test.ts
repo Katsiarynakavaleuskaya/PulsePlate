@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from 'vitest';
+import bmrFixture from '../../../public/mock/bmr.json';
 import type { BmrApiResponse, BmrRequest } from '../premium/bmr';
 
 // Mock auth storage functions
@@ -164,13 +165,19 @@ describe('API Client Auth', () => {
 
     it('uses a fixture only when request forceMock is explicit', async () => {
       const { api } = await import('../client');
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse({ mock: true }, { ok: true, status: 200 })
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(bmrFixture, { ok: true, status: 200 }));
 
-      const result = await api('/api/v1/pro/nutrition/bmr', { forceMock: true });
+      const result = await api<BmrApiResponse>('/api/v1/pro/nutrition/bmr', {
+        forceMock: true,
+      });
 
-      expect(result).toEqual({ mock: true });
+      expect(result).toEqual(bmrFixture);
+      expect(result.recommended_intake).toEqual({
+        maintenance: 2278,
+        weight_loss: 1822.4,
+        weight_gain: 2733.6,
+      });
+      expect(result.formulas_used).toEqual(['mifflin', 'harris']);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const input = fetchMock.mock.calls[0]?.[0];
       const requestUrl =
