@@ -329,9 +329,18 @@ result = {
     "live_count": len(live_rows),
     "source_digest": rows_digest(source_rows),
     "live_digest": rows_digest(live_rows),
+    "source_rows": source_rows,
+    "live_rows": live_rows,
 }
 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
 """
+
+_REGISTRATION_MANIFEST_SUMMARY_FIELDS = (
+    "source_count",
+    "live_count",
+    "source_digest",
+    "live_digest",
+)
 
 # --- Hard rules (policy) ---
 FORBIDDEN_DYNAMIC_IMPORT_TOKENS = (
@@ -801,6 +810,15 @@ def test_registration_authority_recognizer_rejects_unknown_carriers(source: str)
 
 
 def _registration_live_manifest(state: str, mutation: str = "none") -> dict[str, object]:
+    """Return exact route rows plus their summary for one fresh feature state.
+
+    To inspect or intentionally regenerate a changed snapshot, run this test
+    with ``pytest -vv -k registration_authority_live_manifest``. The failing
+    assertion prints deterministic ``source_rows`` and ``live_rows``; review
+    that row-level diff before updating the manifest counts, digests, and its
+    content fingerprint together.
+    """
+
     manifest_json = json.dumps(
         _REGISTRATION_AUTHORITY_MANIFEST,
         sort_keys=True,
@@ -840,13 +858,25 @@ def _registration_live_manifest(state: str, mutation: str = "none") -> dict[str,
     return json.loads(completed.stdout)
 
 
-def test_registration_authority_live_manifest_matches_all_feature_states() -> None:
-    for state, expected in _REGISTRATION_AUTHORITY_MANIFEST["feature_states"].items():
-        actual = _registration_live_manifest(state)
-        assert actual == expected, (
-            f"Registration route manifest drift for state {state}: "
-            f"expected {expected}, got {actual}"
-        )
+def _registration_manifest_summary(actual: dict[str, object]) -> dict[str, object]:
+    return {field: actual[field] for field in _REGISTRATION_MANIFEST_SUMMARY_FIELDS}
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    sorted(_REGISTRATION_AUTHORITY_MANIFEST["feature_states"].items()),
+)
+def test_registration_authority_live_manifest_matches_feature_state(
+    state: str,
+    expected: dict[str, object],
+) -> None:
+    actual = _registration_live_manifest(state)
+    actual_summary = _registration_manifest_summary(actual)
+    assert actual_summary == expected, (
+        f"Registration route manifest drift for state {state}: "
+        f"expected {expected}, got {actual_summary}; "
+        f"source_rows={actual['source_rows']}; live_rows={actual['live_rows']}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -862,7 +892,8 @@ def test_registration_authority_live_manifest_matches_all_feature_states() -> No
 def test_registration_authority_live_manifest_rejects_drift(mutation: str) -> None:
     state = "100"
     expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
-    assert _registration_live_manifest(state, mutation) != expected
+    actual = _registration_live_manifest(state, mutation)
+    assert _registration_manifest_summary(actual) != expected
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:
