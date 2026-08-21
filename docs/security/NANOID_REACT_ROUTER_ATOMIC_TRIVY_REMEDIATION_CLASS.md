@@ -274,3 +274,26 @@ permanent exact-base test that would block future authorized npm changes. The
 anchors prove deterministic guard coverage of the stable postconditions. They
 do not substitute for a terminal exact-head Trivy run or the repository's
 separate merge-readiness gates.
+
+## 2026-08-21 NanoID successor note
+
+The immutable scanner snapshot, three-identity cardinality, historical
+`F_cutoff`, base/head hashes, and resolver partition above remain unchanged.
+They are not rewritten to incorporate later advisory metadata.
+
+At exact base `e2be23492a5266116109f4908f5ee33bd05711e0`, the refreshed
+`GHSA-2v37-7h3g-55p8` / `CVE-2026-67213` record affects the frontend
+`nanoid@3.3.17` occurrence and identifies `3.3.18` as the current patched 3.x
+boundary. The root `package-lock.json` occurrence remains independently safe at
+`5.1.16`. The successor transition belongs to
+`docs/security/FRONTEND_NPM_SECURITY_BATCH_REMEDIATION_CLASS.md` and uses the
+existing exact temporary npm seed/unseed action so `frontend/package.json`
+remains without a NanoID carrier while `frontend/package-lock.json:8102`
+resolves `3.3.18`.
+
+The permanent guard now rejects 3.x versions below `3.3.18`, preserves the
+separate `>=4,<5.1.16` family, and continues to validate every tracked npm
+surface, canonical registry provenance, integrity, stable SemVer, aliases, and
+false-green controls. This note is current repository projection only; it does
+not mutate the older evidence receipt or claim whole-repository security,
+exploitability absence, deployment, or provider refresh.
