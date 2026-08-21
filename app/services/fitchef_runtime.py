@@ -53,6 +53,15 @@ from app.security.agent_control_plane import (
 )
 from app.security.llm_monthly_quota import attempt_consume_llm_monthly_quota
 from app.security.server_salt import require_server_salt
+from app.services.fitchef_claim_evidence_assurance import (
+    FitChefSourceOccurrenceV1,
+    FitChefSourceSnapshotV1,
+    build_distortion_field_assurance_assessment,
+    build_distortion_field_assurance_unavailable,
+    build_fitchef_source_items,
+    build_fitchef_source_prompt_context,
+    freeze_fitchef_source_snapshot,
+)
 from app.telemetry.genai import finalize_llm_span, llm_span, retrieval_span, set_attributes
 from core.compliance import get_transparency_registry, sanitize_chunk_preview
 from core.data_sanitizer import sanitize_rag_markdown
@@ -466,6 +475,7 @@ class _FitChefStructuredTaskOutput(Generic[StructuredDraftT]):
     """Shared output for structured FitChef coaching flows."""
 
     draft: StructuredDraftT
+    source_snapshot: FitChefSourceSnapshotV1
     sources: list[FitChefSourceItem]
     confidence: float
     warnings: list[str]
@@ -685,32 +695,45 @@ async def _run_fitchef_structured_task(
             subject_id=derive_subject_id_from_api_key(config.api_key),
         )
 
+        candidate_occurrences: list[FitChefSourceOccurrenceV1] = []
+        candidate_redaction_applied = False
+        candidate_sanitization_applied = False
         if rag_ctx.chunks:
-            context_parts: list[str] = []
             for chunk in rag_ctx.chunks:
+                if len(candidate_occurrences) >= 5:
+                    break
                 sanitized_chunk = sanitize_rag_markdown(chunk.content)
                 if sanitized_chunk != chunk.content:
-                    sanitization_applied = True
+                    candidate_sanitization_applied = True
                 sanitized_content = redact_pii_from_text(sanitized_chunk) or ""
                 if sanitized_content != sanitized_chunk:
-                    redaction_applied = True
+                    candidate_redaction_applied = True
                 if not sanitized_content.strip():
                     continue
-                context_parts.append(f"[{chunk.file}]\n{sanitized_content}")
-                sources.append(
-                    FitChefSourceItem(
+                candidate_occurrences.append(
+                    FitChefSourceOccurrenceV1(
+                        ordinal=len(candidate_occurrences),
                         chunk_id=chunk.chunk_id,
                         file=chunk.file,
+                        content=sanitized_content,
                         preview=sanitize_chunk_preview(sanitized_content) or "",
                         score=chunk.score,
                     )
                 )
-            if context_parts:
-                rag_context_str = "\n\n".join(context_parts)
-                confidence = rag_ctx.confidence
+        candidate_snapshot = freeze_fitchef_source_snapshot(tuple(candidate_occurrences))
+        candidate_context = build_fitchef_source_prompt_context(candidate_snapshot)
+        candidate_sources = build_fitchef_source_items(candidate_snapshot)
+
+        source_snapshot = candidate_snapshot
+        rag_context_str = candidate_context
+        sources = candidate_sources
+        confidence = rag_ctx.confidence if candidate_occurrences else 0.0
+        sanitization_applied = candidate_sanitization_applied
+        redaction_applied = candidate_redaction_applied
     except Exception:
-        logger.warning("%s RAG retrieval failed", config.log_label, exc_info=True)
+        logger.warning("%s RAG retrieval failed", config.log_label)
         warnings.append("rag_retrieval_failed")
+        source_snapshot = freeze_fitchef_source_snapshot(())
 
     if sanitization_applied:
         warnings.append("source_content_sanitized")
@@ -796,6 +819,7 @@ async def _run_fitchef_structured_task(
 
     return _FitChefStructuredTaskOutput(
         draft=draft,
+        source_snapshot=source_snapshot,
         sources=sources,
         confidence=min(max(confidence, 0.0), 1.0),
         warnings=[*warnings, *draft.warnings],
@@ -1050,6 +1074,15 @@ async def run_distortion_simulator_task(
     )
 
     draft = shared_result.draft
+    try:
+        claim_evidence_assessment = build_distortion_field_assurance_assessment(
+            shared_result.source_snapshot,
+            result_sources=shared_result.sources,
+        )
+    except Exception:
+        claim_evidence_assessment = build_distortion_field_assurance_unavailable(
+            reason_code="assessment_unavailable"
+        )
     return FitChefDistortionSimulatorResult(
         distortion_labels=draft.distortion_labels,
         why_it_matches=draft.why_it_matches,
@@ -1057,6 +1090,7 @@ async def run_distortion_simulator_task(
         evidence_against=draft.evidence_against,
         balanced_reframe=draft.balanced_reframe,
         next_small_action=draft.next_small_action,
+        claim_evidence_assessment=claim_evidence_assessment,
         sources=shared_result.sources,
         confidence=shared_result.confidence,
         warnings=shared_result.warnings,
