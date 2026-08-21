@@ -328,15 +328,16 @@ editing carries no remediation authority.
 
 ## Postcondition `P` and executable guard
 
-For every candidate in all of `F_cutoff`, every installed occurrence on every
-current tracked surface must be parseable and outside every affected range, or
-the current graph must prove executable absence. The immutable evidence derives
-`A` from exact base witnesses and records the four non-applicable dispositions.
-The permanent guard independently checks every currently discovered manifest
-carrier and lock version against all six candidates, validates registry
-provenance and manifest/lock consistency, and rejects malformed or hidden
-aliases. It does not require the historical `2.1.3`/`5.0.8` pair to remain
-installed forever.
+For every candidate in the immutable historical six-record `F_cutoff`, every
+installed occurrence in that transition had to be parseable and outside every
+affected range, or the graph had to prove executable absence. The immutable
+evidence derives historical `A` from exact base witnesses and records the four
+non-applicable dispositions. The current permanent guard independently checks
+every currently discovered manifest carrier and lock version against seven
+advisories: those six historical candidates plus `GHSA-rgw5-rvv9-x895`. It also
+validates registry provenance and manifest/lock consistency and rejects
+malformed or hidden aliases. It does not require the historical
+`2.1.3`/`5.0.8` pair to remain installed forever.
 
 Candidate discovery is deliberately separate from provenance validity. Within
 the finite tracked manifest's dependency, dev-dependency, optional-dependency,
