@@ -45,10 +45,13 @@ The immutable all-severity Trivy snapshot also reports:
 - `nanoid@3.3.17` for `GHSA-2v37-7h3g-55p8` /
   `CVE-2026-67213`.
 
-Those identities are also present in npm audit and the GitHub Advisory
-Database, but no open repository Dependabot alert represented them in this
-authenticated census. They remain members of the exact frozen scanner batch;
-provider lag cannot remove them or manufacture a provider-closure claim.
+Those identities are also present in the successful separately timestamped
+exact-base npm-audit replay and the GitHub Advisory Database, but no open
+repository Dependabot alert represented them in this authenticated census. The
+first npm-audit attempt failed with a registry `socket hang up` and remains
+preserved as failed transport evidence; it is not used as inventory proof. The
+identities remain members of the exact frozen scanner batch, and provider lag
+cannot remove them or manufacture a provider-closure claim.
 
 The batch owner is
 `docs/security/FRONTEND_NPM_SECURITY_BATCH_REMEDIATION_CLASS.md`. Repository

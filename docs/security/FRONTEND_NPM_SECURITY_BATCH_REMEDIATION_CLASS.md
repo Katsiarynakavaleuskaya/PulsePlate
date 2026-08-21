@@ -74,8 +74,11 @@ trivy fs frontend \
 ```
 
 The normalized sorted projection contains package identity, installed version,
-scanner vulnerability ID, fixed-version text, and severity for every row.
-Its SHA-256 is
+scanner vulnerability ID, fixed-version text, and severity for every row. The
+canonical compact JSON bytes before the presentation newline have SHA-256
+`3216f2a800134446e5781d4f58d9c8e81a35ada0038e827a2cbcc9fb0b356527`.
+The persisted `trivy.normalized.json` file includes one final newline and has
+file-byte SHA-256
 `ead66dea10631006f0ed8ddc97f6eb5285da5106b27c873af0954613f01ce53f`.
 The result is exactly seven identities, eight distinct affected installed lock
 records, 15 `(installed occurrence × advisory)` finding rows, and 14 unique
@@ -93,6 +96,20 @@ It returned 13 open alerts: 12 npm alerts for five batch identities and one
 RubyGems `json` alert. `brace-expansion` and `nanoid` are absent from that
 provider census but present in Trivy, npm audit, and the GitHub Advisory
 Database. That is recorded provider lag, not an identity omission.
+
+The first exact-base `npm audit --json` attempt at `2026-08-21T06:49:57Z`
+failed before inventory production with a registry `socket hang up`; that raw
+failure receipt and exit `1` remain preserved and were not overwritten. A
+separate replay at `2026-08-21T07:25:54Z` used exact
+`e2be23492a5266116109f4908f5ee33bd05711e0` with the same admitted base manifest
+and lock hashes. It returned a valid audit inventory with expected exit `1`,
+13 vulnerability keys, and explicit `brace-expansion` and `nanoid` keys. The
+successful replay raw JSON SHA-256 is
+`5ed8784da3aa1e3c6beec172a6dc77b852e7bc7b7e3c0ec6cc44813c455c0baa`;
+its normalized summary SHA-256 is
+`91979632197b2943e058769689828dc9762a5a738c39b748ab0765a723357b3d`.
+Exit `1` here records an affected base graph, not a transport failure or a
+clean-audit claim.
 
 ## Exact tracked surface universe
 
