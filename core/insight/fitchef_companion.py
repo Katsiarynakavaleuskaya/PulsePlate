@@ -724,6 +724,7 @@ def _extract_action_items(text: str, *, action_keywords: tuple[str, ...]) -> lis
     """Extract up to three concrete action items from model output."""
 
     items: list[str] = []
+    seen: set[str] = set()
     for line in text.splitlines():
         match = _BULLET_LINE_RE.match(line)
         if not match:
@@ -731,6 +732,9 @@ def _extract_action_items(text: str, *, action_keywords: tuple[str, ...]) -> lis
         candidate = match.group(1).strip()
         if len(candidate) < _MIN_ACTION_ITEM_LENGTH:
             continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
         items.append(candidate)
         if len(items) >= _ACTION_ITEM_LIMIT:
             return items
@@ -741,6 +745,9 @@ def _extract_action_items(text: str, *, action_keywords: tuple[str, ...]) -> lis
             continue
         if not any(keyword in candidate.lower() for keyword in action_keywords):
             continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
         items.append(candidate)
         if len(items) >= _ACTION_ITEM_LIMIT:
             break
