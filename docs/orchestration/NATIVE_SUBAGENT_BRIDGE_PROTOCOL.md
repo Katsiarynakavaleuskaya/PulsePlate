@@ -104,6 +104,22 @@ Reviewer rule:
 - reviewer bindings must use a read-only transport (`explorer`) even when the
   base repo role is normally implemented via a write-capable transport.
 
+Creative-pilot synthesis has one narrow compatibility projection. An exact
+validated `creative_pilot_context.v2` with `phase: synthesis` contains exactly
+one canonical `synthesis:agent-coordinator` assignment. Its non-null
+`primary_agent` and `reviewer` fields both remain `agent-coordinator` only as
+legacy packet-shape aliases; they do not represent two dispatches or an
+independent-review claim. The runtime-neutral bridge emits one read-only
+`agent-coordinator` dispatch with `implementation_owner_override: false`.
+
+This projection fails closed if the context has another phase or assignment,
+if either alias changes, if secondary or advisory roles are present, if
+authority permits repository writes or provider calls, or if the packet adds
+implementation-owner flags, `dispatch_role_order`, required invariant-review
+composition, or non-canonical bridge/dispatch contracts. It does not change
+task packet schema `3.1`, bridge protocol `1.0`, ordinary reviewer separation,
+or any other creative-pilot phase.
+
 ---
 
 ## 5. Scope boundary
