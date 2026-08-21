@@ -71,7 +71,7 @@ class TestAppInitCoverage:
         assert result.returncode == 0, result.stdout + result.stderr
 
     def test_finite_facade_exports_exact_canonical_objects(self) -> None:
-        """The complete 20-name facade surface resolves to canonical owners."""
+        """The complete 16-name facade surface resolves to canonical owners."""
         import bmi_visualization
         import app
         import app.main as app_main
@@ -99,10 +99,6 @@ class TestAppInitCoverage:
             "api_key_header": api_key_header,
             "get_api_key": get_api_key,
             "_get_api_key_dynamic": _get_api_key_dynamic,
-            "FEATURE_BMI_PRO_ENABLED": app_main.FEATURE_BMI_PRO_ENABLED,
-            "bmi_router": app_main.bmi_router,
-            "bmi_pro_router": app_main.bmi_pro_router,
-            "bmi_pro_legacy_alias_router": app_main.bmi_pro_legacy_alias_router,
             "get_bodyfat_router": get_router,
             "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
             "generate_bmi_visualization": bmi_visualization.generate_bmi_visualization,
@@ -117,7 +113,7 @@ class TestAppInitCoverage:
             "generate_bmi_visualization",
         }
         assert set(expected) == facade_names
-        assert len(facade_names) == 20
+        assert len(facade_names) == 16
         for name, canonical_object in expected.items():
             assert getattr(app, name) is canonical_object
         assert app.app is app_main.app is legacy_app.app
@@ -129,10 +125,6 @@ class TestAppInitCoverage:
             "resolve_attr",
             "make_weekly_menu",
             "build_nutrition_targets",
-            "FEATURE_BMI_PRO_ENABLED",
-            "bmi_router",
-            "bmi_pro_router",
-            "bmi_pro_legacy_alias_router",
             "get_bodyfat_router",
             "MATPLOTLIB_AVAILABLE",
             "generate_bmi_visualization",

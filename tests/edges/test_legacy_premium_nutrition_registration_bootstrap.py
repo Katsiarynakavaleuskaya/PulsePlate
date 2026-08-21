@@ -22,6 +22,14 @@ from app.effective_routes import (
     route_path,
 )
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.schemas.premium_contracts import (
+    NutrientGapsRequest,
+    NutrientGapsResponse,
+    PlateRequest,
+    PlateResponse,
+    WHOTargetsRequest,
+    WHOTargetsResponse,
+)
 from tests.helpers.module_resolve import resolve_legacy_app
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
@@ -39,12 +47,12 @@ _EXPECTED_ENDPOINTS = {
     ("/api/v1/premium/gaps", "POST"): "api_nutrient_gaps",
 }
 _RESPONSE_MODELS = {
-    ("/api/v1/premium/plate", "POST"): app_main._legacy_module.PlateResponse,
-    ("/api/v1/premium/bmr", "POST"): app_main._legacy_module.BMRResponse,
-    ("/premium_bmr", "POST"): app_main._legacy_module.BMRResponse,
-    ("/api/v1/premium/targets", "POST"): app_main._legacy_module.WHOTargetsResponse,
-    ("/premium_targets", "POST"): app_main._legacy_module.WHOTargetsResponse,
-    ("/api/v1/premium/gaps", "POST"): app_main._legacy_module.NutrientGapsResponse,
+    ("/api/v1/premium/plate", "POST"): PlateResponse,
+    ("/api/v1/premium/bmr", "POST"): BMRResponse,
+    ("/premium_bmr", "POST"): BMRResponse,
+    ("/api/v1/premium/targets", "POST"): WHOTargetsResponse,
+    ("/premium_targets", "POST"): WHOTargetsResponse,
+    ("/api/v1/premium/gaps", "POST"): NutrientGapsResponse,
 }
 _DEPRECATED_ROUTES = {
     ("/api/v1/premium/plate", "POST"),
@@ -196,7 +204,7 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
             assert member.required_dependencies == (app_main._get_api_key_dynamic,)
 
 
-def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
+def _who_targets_response() -> WHOTargetsResponse:
     legacy_module = resolve_legacy_app()
     return legacy_module.WHOTargetsResponse(
         kcal_daily=1900,
@@ -232,8 +240,8 @@ def test_legacy_premium_plate_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     async def _fake_service(
-        received: app_main._legacy_module.PlateRequest,
-    ) -> app_main._legacy_module.PlateResponse:
+        received: PlateRequest,
+    ) -> PlateResponse:
         captured["request"] = received
         return expected
 
@@ -379,10 +387,10 @@ def test_legacy_premium_targets_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.WHOTargetsRequest,
+        received: WHOTargetsRequest,
         *,
         allow_backend_fallback: bool,
-    ) -> app_main._legacy_module.WHOTargetsResponse:
+    ) -> WHOTargetsResponse:
         captured["request"] = received
         captured["allow_backend_fallback"] = allow_backend_fallback
         return expected
@@ -414,8 +422,8 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.WHOTargetsRequest,
-    ) -> app_main._legacy_module.WHOTargetsResponse:
+        received: WHOTargetsRequest,
+    ) -> WHOTargetsResponse:
         captured["request"] = received
         return expected
 
@@ -428,7 +436,7 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_canonical_service(
     response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
 
     assert response is expected
-    assert captured["request"] == app_main._legacy_module.WHOTargetsRequest.model_validate(payload)
+    assert captured["request"] == WHOTargetsRequest.model_validate(payload)
 
 
 def test_legacy_premium_gaps_wrapper_delegates_to_canonical_service(
@@ -453,8 +461,8 @@ def test_legacy_premium_gaps_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.NutrientGapsRequest,
-    ) -> app_main._legacy_module.NutrientGapsResponse:
+        received: NutrientGapsRequest,
+    ) -> NutrientGapsResponse:
         captured["request"] = received
         return expected
 
