@@ -178,29 +178,56 @@ def _fully_decode_url_path(path: str) -> str:
     raise AssertionError("URL path percent-decoding did not converge")
 
 
+def _canonical_registry_tarball_identity(value: object) -> tuple[str, str] | None:
+    """Return exact package identity/version for one canonical npm tarball URL."""
+    if not isinstance(value, str) or not value.isascii():
+        return None
+    candidate = value.strip()
+    if (
+        not candidate
+        or candidate != value
+        or any(ord(character) <= 0x20 or ord(character) == 0x7F for character in candidate)
+        or "\\" in candidate
+        or "%" in candidate
+    ):
+        return None
+    parsed = urlparse(candidate)
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "registry.npmjs.org"
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    path_parts = parsed.path.split("/")
+    if len(path_parts) == 4 and path_parts[0] == "":
+        package_name, separator, filename = path_parts[1:]
+        if not package_name or package_name.startswith("@"):
+            return None
+        identity = package_name
+        basename = package_name
+    elif len(path_parts) == 5 and path_parts[0] == "":
+        scope, package_name, separator, filename = path_parts[1:]
+        if not scope.startswith("@") or len(scope) == 1 or not package_name:
+            return None
+        identity = f"{scope}/{package_name}"
+        basename = package_name
+    else:
+        return None
+    if separator != "-" or not filename.startswith(f"{basename}-") or not filename.endswith(".tgz"):
+        return None
+    raw_version = filename[len(basename) + 1 : -len(".tgz")]
+    parsed_version = _parse_exact_npm_semver(raw_version)
+    if parsed_version is None:
+        return None
+    return identity, raw_version
+
+
 def _tarball_identity_matches(value: object, *, target: str) -> bool:
-    """Discover a target-shaped tarball independently of its provenance."""
-    if not isinstance(value, str):
-        return False
-    normalized_carrier = value.strip().replace("\\", "/")
-    parsed = urlparse(normalized_carrier)
-    decoded_path = _fully_decode_url_path(parsed.path)
-    normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
-    path_parts = PurePosixPath(normalized_path).parts
-    target_parts = PurePosixPath(target).parts
-    package_basename = target.rsplit("/", maxsplit=1)[-1]
-    suffix_width = len(target_parts) + 2
-    if len(path_parts) < suffix_width:
-        return False
-    target_start = len(path_parts) - suffix_width
-    if len(target_parts) == 1 and target_start > 0 and path_parts[target_start - 1].startswith("@"):
-        return False
-    return (
-        tuple(path_parts[-suffix_width:-2]) == target_parts
-        and path_parts[-2] == "-"
-        and path_parts[-1].startswith(f"{package_basename}-")
-        and path_parts[-1].endswith(".tgz")
-    )
+    """Match a target only through exact canonical npm-registry identity."""
+    parsed_identity = _canonical_registry_tarball_identity(value)
+    return parsed_identity is not None and parsed_identity[0] == target
 
 
 def _normalized_npm_registry_spec(value: object) -> str | None:
@@ -531,14 +558,10 @@ def _assert_manifest_occurrences_outside_ranges(
 
 
 def _resolved_registry_version(value: object, *, target: str) -> str | None:
-    if not isinstance(value, str):
+    parsed_identity = _canonical_registry_tarball_identity(value)
+    if parsed_identity is None or parsed_identity[0] != target:
         return None
-    prefix = f"https://registry.npmjs.org/{target}/-/{target}-"
-    suffix = ".tgz"
-    if not value.startswith(prefix) or not value.endswith(suffix):
-        return None
-    version = value[len(prefix) : -len(suffix)]
-    return version or None
+    return parsed_identity[1]
 
 
 def _lock_path_package_identity(raw_path: str) -> str | None:
@@ -570,7 +593,7 @@ def _lock_path_package_identity(raw_path: str) -> str | None:
 
 
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
-    """Find installed target entries by path, name, or origin-neutral tarball identity."""
+    """Find installed target entries by path, name, or canonical tarball identity."""
     lockfile_version = document.get("lockfileVersion")
     assert (
         isinstance(lockfile_version, int)
@@ -590,6 +613,54 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
         if path_matches or name_matches or resolved_matches:
             occurrences[raw_path] = cast(dict[str, Any], raw_entry)
     return occurrences
+
+
+def _assert_lock_surface_canonical_provenance(*, surface: str, document: dict[str, Any]) -> None:
+    """Require canonical provenance for every non-root package in one npm lock."""
+    lockfile_version = document.get("lockfileVersion")
+    assert (
+        isinstance(lockfile_version, int)
+        and not isinstance(lockfile_version, bool)
+        and lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS
+    ), f"{surface}: lockfileVersion must be supported JSON lock version 2 or 3"
+    packages = _require_dict_field(document, "packages", ctx=surface)
+    for raw_path, raw_entry in packages.items():
+        assert isinstance(raw_path, str), f"{surface}: package path must be text"
+        if raw_path == "":
+            continue
+        assert isinstance(raw_entry, dict), f"{surface}:{raw_path}: package entry must be an object"
+        path_identity = _lock_path_package_identity(raw_path)
+        assert (
+            path_identity is not None
+        ), f"{surface}:{raw_path}: package path identity is malformed"
+        raw_version = raw_entry.get("version")
+        assert isinstance(raw_version, str), f"{surface}:{raw_path}: version must be text"
+        parsed_version = _parse_exact_npm_semver(raw_version)
+        assert parsed_version is not None, f"{surface}:{raw_path}: version must be exact npm SemVer"
+        tarball_identity = _canonical_registry_tarball_identity(raw_entry.get("resolved"))
+        assert (
+            tarball_identity is not None
+        ), f"{surface}:{raw_path}: resolved must be an exact canonical npm registry tarball"
+        resolved_identity, resolved_version = tarball_identity
+        assert (
+            resolved_version == raw_version
+        ), f"{surface}:{raw_path}: resolved tarball version must equal package version"
+        explicit_name = raw_entry.get("name")
+        if explicit_name is None:
+            assert (
+                resolved_identity == path_identity
+            ), f"{surface}:{raw_path}: resolved identity must equal package path identity"
+        else:
+            assert (
+                isinstance(explicit_name, str) and explicit_name
+            ), f"{surface}:{raw_path}: package name must be non-empty text"
+            assert (
+                resolved_identity == explicit_name
+            ), f"{surface}:{raw_path}: resolved identity must equal explicit package name"
+        integrity = raw_entry.get("integrity")
+        assert (
+            isinstance(integrity, str) and integrity.strip()
+        ), f"{surface}:{raw_path}: integrity must be non-empty"
 
 
 def _assert_occurrences_outside_ranges(
@@ -793,6 +864,15 @@ def test_tracked_npm_manifests_reject_opaque_dependency_sources() -> None:
         ), f"{relative}: opaque dependency source requires separate provenance"
 
 
+def test_tracked_npm_locks_require_canonical_registry_provenance() -> None:
+    """Every tracked lock package has one exact canonical provenance owner."""
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+
+
 def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
     """The retired pptxgenjs/image-size executable graph cannot silently return."""
     surfaces = _load_tracked_npm_surfaces()
@@ -911,36 +991,6 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             "renamed-pptx-tarball",
             "https://registry.npmjs.org/pptxgenjs/-/pptxgenjs-4.0.1.tgz",
             "pptxgenjs",
-        ),
-        (
-            "peerDependencies",
-            "foreign-image-tarball",
-            "https://example.invalid/image-size/-/image-size-1.2.1.tgz",
-            "image-size",
-        ),
-        (
-            "optionalDependencies",
-            "renamed-scoped-tarball",
-            "https://registry.npmjs.org/@scope%2fpkg/-/pkg-2.0.0.tgz",
-            "@scope/pkg",
-        ),
-        (
-            "dependencies",
-            "renamed-local-image-tarball",
-            "file:../cache/%2569mage-size/-/image-size-1.2.1.tgz?x=1#y",
-            "image-size",
-        ),
-        (
-            "overrides",
-            "renamed-local-pptx-tarball",
-            "../cache/other/../pptxgenjs/-/pptxgenjs-4.0.1.tgz",
-            "pptxgenjs",
-        ),
-        (
-            "peerDependencies",
-            "renamed-local-scoped-tarball",
-            "file:../cache/@scope%2fpkg/-/pkg-2.0.0.tgz",
-            "@scope/pkg",
         ),
         ("dependencies", "nanoid", "3.3.17", "nanoid"),
     ),
@@ -1198,6 +1248,16 @@ def test_current_npm_registry_classifier_rejects_untrusted_relative_toolchain(
     (
         {"dependencies": {"renamed-image": "git+file:///tmp/image-size"}},
         {"devDependencies": {"renamed-image": "https://example.invalid/pkg.tgz"}},
+        {
+            "optionalDependencies": {
+                "renamed-scoped": "https://registry.npmjs.org/@scope%2fpkg/-/pkg-2.0.0.tgz"
+            }
+        },
+        {
+            "peerDependencies": {
+                "renamed-local": "file:../cache/%2569mage-size/-/image-size-1.2.1.tgz"
+            }
+        },
         {"optionalDependencies": {"renamed-image": "gist:101a11beef#main"}},
         {"peerDependencies": {"renamed-image": "acme/repo#v1"}},
         {"overrides": {"carrier": {"renamed-image": "sourcehut:~acme/repo"}}},
@@ -1263,8 +1323,8 @@ def test_retired_graph_guard_rejects_repository_relative_target_tarball(
         },
     )
 
-    with pytest.raises(AssertionError, match="retired image-size declaration"):
-        test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces()
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
 
 
 @pytest.mark.parametrize(
@@ -1373,6 +1433,175 @@ def test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename(
     test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
     assert not _find_lock_occurrences(lock, target="nanoid")
     assert set(_find_lock_occurrences(lock, target="@acme/nanoid")) == {"node_modules/@acme/nanoid"}
+
+
+def test_opaque_scoped_path_tarball_fails_generic_provenance() -> None:
+    """An opaque scoped-looking path is rejected without inventing identity."""
+    resolved = "https://evil.example/@carrier/image-size/-/image-size-1.2.1.tgz"
+    manifest = {"dependencies": {"renamed-carrier": resolved}}
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/renamed-carrier": {
+                "version": "1.2.1",
+                "resolved": resolved,
+                "integrity": "sha512-test",
+            }
+        },
+    }
+
+    assert _find_opaque_npm_dependency_source_occurrences(manifest)
+    assert not _find_lock_occurrences(lock, target="image-size")
+    with pytest.raises(AssertionError, match="exact canonical npm registry tarball"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=lock)
+
+
+@pytest.mark.parametrize(
+    ("package_path", "entry"),
+    (
+        (
+            "node_modules/nanoid",
+            {
+                "version": "3.3.17",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "integrity": "sha512-test",
+            },
+        ),
+        (
+            "node_modules/gensync",
+            {
+                "version": "1.0.0-beta.2",
+                "resolved": "https://registry.npmjs.org/gensync/-/gensync-1.0.0-beta.2.tgz",
+                "integrity": "sha512-test",
+            },
+        ),
+        (
+            "node_modules/@acme/pkg",
+            {
+                "version": "1.2.3",
+                "resolved": "https://registry.npmjs.org/@acme/pkg/-/pkg-1.2.3.tgz",
+                "integrity": "sha512-test",
+            },
+        ),
+        (
+            "node_modules/renamed-pkg",
+            {
+                "name": "@acme/pkg",
+                "version": "1.2.3",
+                "resolved": "https://registry.npmjs.org/@acme/pkg/-/pkg-1.2.3.tgz",
+                "integrity": "sha512-test",
+            },
+        ),
+    ),
+)
+def test_generic_lock_provenance_accepts_exact_canonical_records(
+    package_path: str, entry: dict[str, str]
+) -> None:
+    """Canonical unscoped, scoped, alias, and prerelease records remain valid."""
+    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
+
+    _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize(
+    "resolved",
+    (
+        "https://evil.example/nanoid/-/nanoid-3.3.17.tgz",
+        "http://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org:443/nanoid/-/nanoid-3.3.17.tgz",
+        "https://user@registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz?download=1",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz#fragment",
+        "https://registry.npmjs.org/%6eanoid/-/nanoid-3.3.17.tgz",
+        r"https://registry.npmjs.org\nanoid\-\nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/other/../nanoid/-/nanoid-3.3.17.tgz",
+        " https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz ",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz\n",
+        "\thttps://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/na\nnoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/na\rnoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/na\tnoid/-/nanoid-3.3.17.tgz",
+        "https://registry.npmjs.org/na\u0000noid/-/nanoid-3.3.17.tgz",
+        "",
+    ),
+)
+def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> None:
+    """No alternate authority or path spelling gains canonical provenance."""
+    document = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/nanoid": {
+                "version": "3.3.17",
+                "resolved": resolved,
+                "integrity": "sha512-test",
+            }
+        },
+    }
+
+    with pytest.raises(AssertionError, match="exact canonical npm registry tarball"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize(
+    ("package_path", "entry", "message"),
+    (
+        (
+            "node_modules/renamed-pkg",
+            {
+                "version": "3.3.17",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "integrity": "sha512-test",
+            },
+            "resolved identity must equal package path identity",
+        ),
+        (
+            "node_modules/renamed-pkg",
+            {
+                "name": "other",
+                "version": "3.3.17",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "integrity": "sha512-test",
+            },
+            "resolved identity must equal explicit package name",
+        ),
+        (
+            "node_modules/nanoid",
+            {
+                "version": "3.3.17",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
+                "integrity": "sha512-test",
+            },
+            "resolved tarball version must equal package version",
+        ),
+        (
+            "node_modules/nanoid",
+            {
+                "version": "3.3.17",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "integrity": "",
+            },
+            "integrity must be non-empty",
+        ),
+        (
+            "node_modules/nanoid",
+            {
+                "version": "latest",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-latest.tgz",
+                "integrity": "sha512-test",
+            },
+            "version must be exact npm SemVer",
+        ),
+    ),
+)
+def test_generic_lock_provenance_rejects_identity_version_and_integrity_drift(
+    package_path: str, entry: dict[str, str], message: str
+) -> None:
+    """Every canonical record keeps identity, version, and integrity aligned."""
+    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
+
+    with pytest.raises(AssertionError, match=message):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))
@@ -1521,13 +1750,13 @@ def test_retired_graph_lock_discovery_rejects_path_name_and_resolution_aliases(
     ),
 )
 @pytest.mark.parametrize("encoded", (False, True))
-def test_lock_discovery_finds_foreign_target_tarballs_before_provenance_validation(
+def test_generic_provenance_rejects_foreign_target_shaped_tarballs(
     target: str,
     version: str,
     encoded_target: str,
     encoded: bool,
 ) -> None:
-    """Renamed lock entries cannot hide target identity behind a mirror URL."""
+    """A mirror URL is rejected without becoming package-identity authority."""
     path_target = encoded_target if encoded else target
     entry = {
         "version": version,
@@ -1537,7 +1766,9 @@ def test_lock_discovery_finds_foreign_target_tarballs_before_provenance_validati
     package_path = "node_modules/renamed-carrier"
     document = {"lockfileVersion": 3, "packages": {package_path: entry}}
 
-    assert _find_lock_occurrences(document, target=target) == {package_path: entry}
+    assert not _find_lock_occurrences(document, target=target)
+    with pytest.raises(AssertionError, match="exact canonical npm registry tarball"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize(
@@ -1558,12 +1789,12 @@ def test_lock_discovery_finds_foreign_target_tarballs_before_provenance_validati
         r"https://registry.npmjs.org\{target}\-\{target}-{version}.tgz",
     ),
 )
-def test_lock_discovery_normalizes_whatwg_backslash_tarball_paths(
+def test_generic_provenance_rejects_whatwg_backslash_tarball_paths(
     target: str,
     version: str,
     carrier_template: str,
 ) -> None:
-    """WHATWG-style special-scheme separators cannot hide a lock identity."""
+    """WHATWG-style separators cannot gain canonical provenance."""
     entry = {
         "version": version,
         "resolved": carrier_template.format(target=target, version=version),
@@ -1572,22 +1803,23 @@ def test_lock_discovery_normalizes_whatwg_backslash_tarball_paths(
     package_path = "node_modules/renamed-carrier"
     document = {"lockfileVersion": 3, "packages": {package_path: entry}}
 
-    assert _find_lock_occurrences(document, target=target) == {package_path: entry}
+    assert not _find_lock_occurrences(document, target=target)
+    with pytest.raises(AssertionError, match="exact canonical npm registry tarball"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize(
-    ("target", "version", "affected_ranges"),
+    ("target", "version"),
     (
-        ("nanoid", "5.1.7", NANOID_AFFECTED_RANGES),
-        ("react-router", "7.18.1", REACT_ROUTER_AFFECTED_RANGES),
+        ("nanoid", "5.1.7"),
+        ("react-router", "7.18.1"),
     ),
 )
-def test_target_postcondition_rejects_foreign_tarball_after_identity_discovery(
+def test_generic_provenance_rejects_foreign_tarball_before_target_postcondition(
     target: str,
     version: str,
-    affected_ranges: tuple[SpecifierSet, ...],
 ) -> None:
-    """Origin-neutral discovery remains separate from canonical provenance."""
+    """Universal provenance rejects a foreign source before target policy."""
     package_path = "node_modules/renamed-carrier"
     document = {
         "lockfileVersion": 3,
@@ -1601,15 +1833,9 @@ def test_target_postcondition_rejects_foreign_tarball_after_identity_discovery(
             }
         },
     }
-    occurrences = _find_lock_occurrences(document, target=target)
-
-    with pytest.raises(AssertionError, match="resolved must be the canonical"):
-        _assert_occurrences_outside_ranges(
-            surface="package-lock.json",
-            target=target,
-            occurrences=occurrences,
-            affected_ranges=affected_ranges,
-        )
+    assert not _find_lock_occurrences(document, target=target)
+    with pytest.raises(AssertionError, match="exact canonical npm registry tarball"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize(
@@ -1891,7 +2117,7 @@ def test_manifest_and_lock_reject_raw_overlength_direct_version() -> None:
     "carrier",
     (
         "npm:react-router-dom@{version}",
-        "https://example.invalid/react-router-dom/-/react-router-dom-{version}.tgz",
+        "https://registry.npmjs.org/react-router-dom/-/react-router-dom-{version}.tgz",
     ),
 )
 def test_manifest_alias_and_tarball_bound_the_extracted_version_token(carrier: str) -> None:
@@ -2144,7 +2370,7 @@ def test_react_router_guard_rejects_affected_alias_in_any_tracked_manifest(
         (
             "peerDependencies",
             "router-carrier",
-            "https://example.invalid/react-router-dom/-/react-router-dom-7.18.1.tgz",
+            "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.18.1.tgz",
             "lack lockfile provenance and integrity",
         ),
     ),
@@ -2169,18 +2395,11 @@ def test_react_router_guard_rejects_affected_carrier_in_any_tracked_manifest(
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
-@pytest.mark.parametrize(
-    "url",
-    (
-        "https://attacker.invalid/react-router-dom/-/react-router-dom-7.18.2.tgz",
-        "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.18.2.tgz",
-    ),
-)
 def test_react_router_guard_rejects_manifest_tarball_without_lock_provenance(
     monkeypatch: pytest.MonkeyPatch,
-    url: str,
 ) -> None:
     """A safe-looking manifest archive cannot substitute for lock integrity."""
+    url = "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.18.2.tgz"
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
@@ -2191,6 +2410,23 @@ def test_react_router_guard_rejects_manifest_tarball_without_lock_provenance(
 
     with pytest.raises(AssertionError, match="lack lockfile provenance and integrity"):
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_manifest_foreign_tarball_is_rejected_by_opaque_source_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A foreign archive fails the generic manifest provenance boundary."""
+    url = "https://attacker.invalid/react-router-dom/-/react-router-dom-7.18.2.tgz"
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {"dependencies": {"react-router-dom": url}}
+        },
+    )
+
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
 
 
 @pytest.mark.parametrize(
@@ -2497,7 +2733,7 @@ def test_react_router_guard_rejects_node_semver_bound_carrier_shape(
         {
             "optionalDependencies": {
                 "router-carrier": (
-                    "https://example.invalid/react-router-dom/-/" "react-router-dom-7.18.2-0.tgz"
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-7.18.2-0.tgz"
                 )
             }
         },
