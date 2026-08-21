@@ -1320,7 +1320,8 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
                 recipe,
                 from_attributes=True,
             )
-            return validated_recipe.model_dump(mode="json")
+            serialized_recipe: Dict[str, Any] = validated_recipe.model_dump(mode="json")
+            return serialized_recipe
 
         # Сериализация рецептов для возврата
         serialized: Dict[str, list[Dict[str, Any]]] = {}
@@ -1521,27 +1522,29 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         result_status = result_data["status"]
         if result_status in {"failed", "needs_manual"}:
             stable_failure_message = "Auto-repair could not complete the requested repair"
-            stable_failure_result = {
+            stable_failure_result: dict[str, Any] = {
                 **result_data,
                 "message": stable_failure_message,
             }
-            return vip_error(
+            failure_response: dict[str, Any] = vip_error(
                 code="auto_repair_failed",
                 message=stable_failure_message,
                 repair_result=stable_failure_result,
                 echo=request,
             )
+            return failure_response
         if (
             result_status != "partial"
             or result_data["repaired_plan"] == result_data["original_plan"]
             or not result_data["changes_made"]
         ):
-            return vip_error(
+            internal_error_response: dict[str, Any] = vip_error(
                 code="internal_error",
                 message="Error during auto-repair",
                 repair_result={},
                 echo=request,
             )
+            return internal_error_response
 
         success_res: dict[str, Any] = vip_success(
             repair_result=result_data,

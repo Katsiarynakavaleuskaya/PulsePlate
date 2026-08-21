@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from numbers import Real
-from typing import Any, Dict, List, Literal, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set, cast
 
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]
@@ -553,7 +553,8 @@ def calculate_bmr(age: int, gender: str, weight: float, height: float) -> Option
     sex: Literal["female", "male"] = "male" if gender_normalized in {"m", "male"} else "female"
 
     try:
-        return bmr_mifflin(weight, height, age, sex)
+        result: float = bmr_mifflin(weight, height, age, sex)
+        return result
     except (ValueError, TypeError):
         return None
 
@@ -582,9 +583,11 @@ def calculate_tdee(bmr: float, activity: str) -> Optional[float]:
     activity_lower = str(activity).lower().strip()
     if activity_lower not in valid_activities:
         return None
+    activity_value = cast(Activity, activity_lower)
 
     try:
-        return tdee(bmr, activity_lower)  # type: ignore[arg-type]
+        result: float = tdee(bmr, activity_value)
+        return result
     except (ValueError, TypeError, KeyError):
         return None
 
