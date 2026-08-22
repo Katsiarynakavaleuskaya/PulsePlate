@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,8 @@ CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 GUARD_ACTIONS = REPO_ROOT / "scripts" / "ci" / "guard_actions_pin.py"
 GUARD_NPM = REPO_ROOT / "scripts" / "ci" / "guard_npm_install_scripts.py"
 GUARD_VSCODE = REPO_ROOT / "scripts" / "ci" / "guard_vscode_extensions.py"
-PIN_GUARD_OK = "OK: all recognized external GitHub action refs use full commit SHA pins"
+PIN_GUARD_OK = "OK: all recognized GitHub action refs satisfy family-specific immutable pins"
+DOCKER_PIN_ERROR = "Docker action reference must match 'docker://<image>@sha256:<64-lowercase-hex>'"
 
 
 def _run(script_path: Path, root: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
@@ -134,7 +136,7 @@ def test_actions_pin_guard_rejects_tags_in_nested_composite_metadata(
 
     assert result.returncode == 1
     assert result.stdout.splitlines() == [
-        "ERROR: found unpinned GitHub Actions:",
+        "ERROR: found GitHub Action references without required immutable pins:",
         ".github/actions/nested/alpha/action.yml:4: action 'actions/checkout@v4' must pin a 40-char commit SHA",
         ".github/actions/nested/beta/action.yaml:4: action 'actions/setup-python@v6' must pin a 40-char commit SHA",
     ]
@@ -176,11 +178,104 @@ def test_actions_pin_guard_allows_local_composite_action(tmp_path: Path) -> None
     assert PIN_GUARD_OK in result.stdout
 
 
-def test_actions_pin_guard_excludes_docker_references(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "docker_ref",
+    [
+        "docker://alpine:latest",
+        "docker://alpine:3.22",
+        "docker://alpine",
+        f"docker://alpine@sha256:{'a' * 63}",
+        f"docker://alpine@sha256:{'a' * 65}",
+        f"docker://alpine@sha256:{'A' * 64}",
+        f"docker://alpine@sha512:{'a' * 64}",
+        f"docker://alpine@sha256:{'g' * 64}",
+        f"docker://alpine@@sha256:{'a' * 64}",
+        f"docker://alpine@sha256:{'a' * 64}suffix",
+    ],
+)
+def test_actions_pin_guard_rejects_malformed_docker_references_in_workflows(
+    tmp_path: Path,
+    docker_ref: str,
+) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yml").write_text(
+        f"jobs:\n  test:\n    steps:\n      - uses: {docker_ref}\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert f".github/workflows/test.yml:4: {DOCKER_PIN_ERROR}" in result.stdout
+    assert docker_ref not in result.stdout
+
+
+def test_actions_pin_guard_rejects_mutable_docker_reference_in_composite_metadata(
+    tmp_path: Path,
+) -> None:
     action_dir = tmp_path / ".github" / "actions" / "nested" / "container"
     action_dir.mkdir(parents=True)
     (action_dir / "action.yaml").write_text(
-        "runs:\n  using: composite\n  steps:\n    - uses: docker://alpine:3.20\n",
+        "runs:\n  using: composite\n  steps:\n    - uses: docker://busybox:latest\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert result.stdout.splitlines() == [
+        "ERROR: found GitHub Action references without required immutable pins:",
+        f".github/actions/nested/container/action.yaml:4: {DOCKER_PIN_ERROR}",
+    ]
+    assert "docker://busybox:latest" not in result.stdout
+
+
+def test_actions_pin_guard_accepts_docker_digest_in_workflow(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yaml").write_text(
+        f"jobs:\n  test:\n    steps:\n      - uses: docker://alpine@sha256:{'a' * 64}\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_accepts_registry_port_tag_and_digest_in_composite_metadata(
+    tmp_path: Path,
+) -> None:
+    action_dir = tmp_path / ".github" / "actions" / "nested" / "container"
+    action_dir.mkdir(parents=True)
+    (action_dir / "action.yml").write_text(
+        (
+            "runs:\n"
+            "  using: composite\n"
+            "  steps:\n"
+            f"    - uses: docker://registry:5000/image:tag@sha256:{'b' * 64}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_does_not_claim_native_runs_image_coverage(tmp_path: Path) -> None:
+    """Keep native runs.image outside USES_RE pending its dedicated closed recognizer.
+
+    Ledger: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-native-docker-action-image-pin-guard
+    """
+
+    action_dir = tmp_path / ".github" / "actions" / "native-container"
+    action_dir.mkdir(parents=True)
+    (action_dir / "action.yml").write_text(
+        "runs:\n  using: docker\n  image: docker://alpine:latest\n",
         encoding="utf-8",
     )
 
