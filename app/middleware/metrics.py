@@ -33,6 +33,13 @@ from app.effective_routes import (
 
 logger = logging.getLogger(__name__)
 
+PREMIUM_ALIAS_ZERO_SERIES: tuple[tuple[str, str, str], ...] = (
+    ("POST", "/api/v1/premium/bmr", "200"),
+    ("POST", "/api/v1/premium/targets", "200"),
+    ("POST", "/api/v1/premium/plate", "200"),
+    ("POST", "/api/v1/premium/gaps", "200"),
+)
+
 # Always defined (even if Prometheus is unavailable)
 EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
 
@@ -123,6 +130,13 @@ def _import_prometheus(importer: _Importer = import_module) -> tuple[Any, Any]:
     return prometheus_client.Counter, prometheus_client.Histogram
 
 
+def _seed_premium_alias_zero_series(requests_total: _Counter) -> None:
+    """Materialize the closed legacy-alias census as numeric zero series."""
+
+    for method, route, status in PREMIUM_ALIAS_ZERO_SERIES:
+        requests_total.labels(method=method, route=route, status=status).inc(0)
+
+
 def _build_metrics() -> _Metrics | None:
     """Initialize metrics objects.
 
@@ -149,6 +163,7 @@ def _build_metrics() -> _Metrics | None:
                 labelnames=("method", "route", "status"),
             ),
         )
+        _seed_premium_alias_zero_series(requests_total)
 
         request_duration_seconds: _Histogram = cast(
             _Histogram,

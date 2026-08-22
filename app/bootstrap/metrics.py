@@ -21,6 +21,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.middleware.metrics import metrics_middleware
 from app.routers.api_key import api_key_header, validate_app_api_key
+from app.security.production_invariants import (
+    METRICS_SCRAPE_KEY_AUTH_MARKER,
+    recognize_metrics_scrape_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +71,9 @@ def _metrics_api_key_guard(raw_api_key: str | None = Security(api_key_header)) -
             "%s ignored outside explicit pytest test env",
             _METRICS_TEST_BYPASS_ENV,
         )
+
+    if recognize_metrics_scrape_key().matches(raw_api_key):
+        return METRICS_SCRAPE_KEY_AUTH_MARKER
 
     validated_api_key = validate_app_api_key(raw_api_key)
     return validated_api_key

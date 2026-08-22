@@ -52,6 +52,10 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 **Metrics collected:**
 - `http_requests_total{method, route, status}`: Total HTTP request count
 - `http_request_duration_seconds{method, route, status}`: Request latency histogram
+- `http_requests_total` materializes numeric `0` children for exactly the four
+  versioned `POST /api/v1/premium/{bmr,targets,plate,gaps}` aliases at
+  `status="200"`; absence is never interpreted as zero. Root aliases and
+  canonical `/api/v1/pro/nutrition/*` routes are not seeded.
 
 **Response format:**
 - **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
@@ -109,6 +113,26 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Observability security policy:**
 - `/metrics` MUST enforce application-level authentication via the shared API key guard.
+- `/metrics` additionally accepts the metrics-only credential from the regular,
+  non-symlink file selected by `METRICS_SCRAPE_KEY_FILE` (default
+  `/run/secrets/pulseplate_metrics_scrape_key`). The file contains exactly one
+  32..256-byte printable non-whitespace ASCII token. Default-file absence keeps
+  shared-key compatibility; explicit invalid configuration grants no dedicated
+  access and fails production-like startup. The dedicated token must differ
+  from `API_KEY` in production/staging and has no authority on other routes.
+- Premium-alias evidence must derive release/image/config/volume/topology and
+  retention from the live Compose containers through the absolute Docker
+  executable; CLI assertions are not evidence. The expected scrape target count
+  is the frozen literal `1`. Hash only the container-visible Prometheus config
+  from one bounded `docker cp <id>:/etc/prometheus/prometheus.yml -` tar with
+  exactly one safe regular member; host `Mounts.Source` bytes are not evidence.
+  Bind both the local image ID and the bounded digest-pinned `Config.Image`
+  reference. Derive `observed_at`/`T1` from one
+  live Prometheus `time()` anchor, pass that exact value through `--time=` to
+  every later query, bind promtool to the pre-census container ID, and require an
+  exact post-query container/process/runtime census match. Docker output must be
+  streamed under the bounded verifier limit; output overflow, timeout, JSON
+  depth exhaustion, or any runtime replacement is `HOLD`.
 - Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
@@ -124,6 +148,20 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Only assert prefix: `text/plain` for Prometheus; `application/json` for fallback.
 - JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
 - This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
+- Zero-series tests must use an isolated Prometheus registry and distinguish
+  `None` (absent labelset) from numeric `0.0`; auth tests must prove the
+  metrics-only token cannot authenticate an ordinary protected endpoint.
+- Every premium-alias evidence JSON is an asset with `asset_type`, ordered
+  fingerprint-only `upstream_assets`, `policy_version`, `idempotency_key`, and
+  explicit replay/admission behavior. Its deterministic `fingerprint` hashes the
+  canonical JSON projection excluding only the `fingerprint` field. First write
+  is new-only `0600` + `fsync`; an identical same-idempotency replay is verified
+  without a write, while malformed, different-idempotency, or divergent existing
+  output fails closed.
+- Before publication or replay, validate the exact evidence schema and top-level
+  field set, mode/decision/reason vocabulary, static-false authority, and every
+  checks/identity/topology/retention/target/alias/window type and finite value;
+  recomputing a fingerprint never legitimizes an unknown or widened shape.
 
 **Metrics fallback contract (testability):**
 - `/metrics` happy-path returns Prometheus exposition (`text/plain*`).
