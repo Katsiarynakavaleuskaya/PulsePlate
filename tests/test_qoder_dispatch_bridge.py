@@ -542,6 +542,65 @@ def test_single_coordinator_synthesis_judgment_near_misses_fail_closed(
     )
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "decision_missing_key",
+        "decision_extra_key",
+        "decision_non_object",
+        "budget_missing_key",
+        "budget_extra_key",
+        "budget_non_object",
+        "adjudication_missing_key",
+        "adjudication_extra_key",
+        "adjudication_non_object",
+        "goal_non_string",
+        "task_class_non_string",
+        "candidate_paths_non_list",
+        "candidate_path_non_string",
+    ),
+)
+def test_single_coordinator_synthesis_judgment_structure_fails_closed(
+    mutation: str,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    if mutation == "decision_missing_key":
+        packet["decision_contract"].pop("flow")
+    elif mutation == "decision_extra_key":
+        packet["decision_contract"]["extra"] = []
+    elif mutation == "decision_non_object":
+        packet["decision_contract"] = []
+    elif mutation == "budget_missing_key":
+        packet["judgment_budget"].pop("verifier_pass_required")
+    elif mutation == "budget_extra_key":
+        packet["judgment_budget"]["extra"] = False
+    elif mutation == "budget_non_object":
+        packet["judgment_budget"] = []
+    elif mutation == "adjudication_missing_key":
+        packet["result_adjudication"].pop("promotion_labels")
+    elif mutation == "adjudication_extra_key":
+        packet["result_adjudication"]["extra"] = []
+    elif mutation == "adjudication_non_object":
+        packet["result_adjudication"] = []
+    elif mutation == "goal_non_string":
+        packet["goal"] = 1
+    elif mutation == "task_class_non_string":
+        packet["task_class"] = 1
+    elif mutation == "candidate_paths_non_list":
+        packet["candidate_paths"] = "README.md"
+    else:
+        packet["candidate_paths"] = [1]
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    expected_error = (
+        "invariant_review requires candidate_paths as a string list"
+        if mutation in {"candidate_paths_non_list", "candidate_path_non_string"}
+        else "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+    assert str(exc_info.value) == expected_error
+
+
 @pytest.mark.parametrize("rebind_context", (False, True))
 def test_synthesis_judgment_error_precedes_packet_identity(
     rebind_context: bool,
