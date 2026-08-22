@@ -2850,16 +2850,10 @@ def test_task_bootstrap_binds_explicit_pilot_phase(
     ]
 
 
-@pytest.mark.parametrize(
-    "native_bridge_transport",
-    ("codex-native-subagents", "kimi-native-subagents"),
-)
-def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
-    native_bridge_transport: str,
+def _synthesis_ready_workspace_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+) -> Path:
     local_head_sha = subprocess.check_output(
         [GIT, "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
@@ -2875,6 +2869,20 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     workspace_path.parent.mkdir(parents=True)
     workspace_path.write_text(json.dumps(synthesis_ready), encoding="utf-8")
     monkeypatch.setattr(task_bootstrap, "CREATIVE_PILOT_ROOT", root)
+    return workspace_path
+
+
+@pytest.mark.parametrize(
+    "native_bridge_transport",
+    ("codex-native-subagents", "kimi-native-subagents"),
+)
+def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
+    native_bridge_transport: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
     packet = task_bootstrap.build_task_packet(
         goal="synthesize validated creative pilot results",
         task_class="orchestration",
@@ -2902,6 +2910,8 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert packet["primary_agent"] == "agent-coordinator"
     assert packet["secondary_agents"] == []
     assert packet["reviewer"] == "agent-coordinator"
+    assert packet["automation_flags"]["security_review_required"] is False
+    assert packet["automation_flags"]["invariant_class_review_required"] is False
     assert [row["role"] for row in packet["creative_pilot_context"]["assignments"]] == [
         "agent-coordinator"
     ]
@@ -2911,6 +2921,57 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert manifest["parallel_execution_allowed"] is False
     assert manifest["dispatch_sequence"][0]["readonly"] is True
     assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
+
+
+def test_synthesis_task_packet_with_security_review_requirement_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["AGENTS.md"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    assert packet["automation_flags"]["security_review_required"] is True
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="pilot-synthesis-security-test-", dir=artifact_root
+    ) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 1
+
+    assert (
+        capsys.readouterr().err.strip()
+        == "FAIL: creative pilot synthesis packet metadata requires security_review_required=false"
+    )
+
+
+def test_synthesis_task_packet_rejects_explicit_invariant_change_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError) as exc_info:
+        task_bootstrap.build_task_packet(
+            goal="synthesize validated creative pilot results",
+            task_class="orchestration",
+            candidate_paths=["core/rag/orchestration.py"],
+            invariant_change_classes=["parser"],
+            creative_pilot_workspace_path=workspace_path,
+            creative_pilot_phase="synthesis",
+        )
+    assert str(exc_info.value) == (
+        "creative pilot dispatch cannot include a parser, validator, guard, "
+        "or authority mechanism change; create a separate ordinary pre-open "
+        "invariant-review packet without --creative-pilot-workspace"
+    )
 
 
 def test_terminal_and_wrong_phase_workspace_cannot_dispatch(

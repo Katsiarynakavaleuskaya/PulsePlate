@@ -184,6 +184,10 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
         "provider_authority",
         "generate_patch_authority",
         "structured_input_authority",
+        "numeric_structured_input_authority",
+        "numeric_generate_patch_authority",
+        "numeric_write_authority",
+        "numeric_provider_authority",
         "implementation_owner_flags",
         "dispatch_role_order",
         "required_invariant_review",
@@ -198,6 +202,10 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
         "merge_ready_phase",
         "creative_flag_false",
         "creative_flag_missing",
+        "security_review_required",
+        "numeric_security_review_flag",
+        "invariant_review_required_flag",
+        "numeric_invariant_review_flag",
         "legacy_schema_without_invariant",
         "missing_schema_without_invariant",
         "legacy_non_object_context",
@@ -244,6 +252,14 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         context["authority"]["generate_patch"] = True
     elif mutation == "structured_input_authority":
         context["authority"]["read_structured_inputs"] = False
+    elif mutation == "numeric_structured_input_authority":
+        context["authority"]["read_structured_inputs"] = 1
+    elif mutation == "numeric_generate_patch_authority":
+        context["authority"]["generate_patch"] = 0
+    elif mutation == "numeric_write_authority":
+        context["authority"]["write_repository"] = 0
+    elif mutation == "numeric_provider_authority":
+        context["authority"]["call_provider"] = 0
     elif mutation == "implementation_owner_flags":
         dispatch_contract["runtime_implementation_owner_flags_required"] = True
         dispatch_contract["runtime_implementation_owners"] = ["security-auditor"]
@@ -279,6 +295,14 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         )
     elif mutation == "creative_flag_false":
         packet["automation_flags"]["creative_pilot_enabled"] = False
+    elif mutation == "security_review_required":
+        packet["automation_flags"]["security_review_required"] = True
+    elif mutation == "numeric_security_review_flag":
+        packet["automation_flags"]["security_review_required"] = 0
+    elif mutation == "invariant_review_required_flag":
+        packet["automation_flags"]["invariant_class_review_required"] = True
+    elif mutation == "numeric_invariant_review_flag":
+        packet["automation_flags"]["invariant_class_review_required"] = 0
     elif mutation in {"legacy_schema_without_invariant", "missing_schema_without_invariant"}:
         if mutation == "legacy_schema_without_invariant":
             packet["schema_version"] = "3.0"
@@ -324,6 +348,30 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         ),
         "creative_flag_missing": (
             "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        ),
+        "numeric_structured_input_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_generate_patch_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_write_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_provider_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "security_review_required": (
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        ),
+        "numeric_security_review_flag": (
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        ),
+        "invariant_review_required_flag": (
+            "creative pilot synthesis packet metadata requires no invariant review pass"
+        ),
+        "numeric_invariant_review_flag": (
+            "creative pilot synthesis packet metadata requires no invariant review pass"
         ),
         "legacy_schema_without_invariant": (
             "creative pilot synthesis requires task packet schema 3.1"

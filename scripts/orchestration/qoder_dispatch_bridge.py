@@ -1344,6 +1344,19 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         raise ValueError(
             "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
         )
+    if automation_flags.get("security_review_required") is not False:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        )
+    invariant_review = payload.get("invariant_review")
+    if (
+        automation_flags.get("invariant_class_review_required") is not False
+        or not isinstance(invariant_review, dict)
+        or invariant_review.get("state") != "not_required"
+    ):
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires no invariant review pass"
+        )
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:

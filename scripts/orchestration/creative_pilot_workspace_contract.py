@@ -2924,7 +2924,12 @@ def validate_task_pilot_context(payload: Mapping[str, Any]) -> dict[str, Any]:
         "write_repository": False,
         "call_provider": False,
     }
-    if payload["authority"] != expected_authority:
+    authority = payload["authority"]
+    if (
+        not isinstance(authority, Mapping)
+        or set(authority) != set(expected_authority)
+        or any(authority[key] is not value for key, value in expected_authority.items())
+    ):
         raise CreativePilotContractError("creative pilot task context authority is invalid")
     assignments = payload["assignments"]
     if not isinstance(assignments, list) or not assignments:
