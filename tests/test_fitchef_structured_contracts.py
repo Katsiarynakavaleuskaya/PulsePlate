@@ -313,11 +313,44 @@ def test_support_handoff_contract_and_service_are_exact(
     assert explicit_response.execution_authority is False
     assert explicit_response.plan_mutation_authority is False
     assert explicit_response.used_llm is False
+    assert explicit_response.model_dump(mode="json") == response.model_dump(mode="json")
 
     with pytest.raises(ValidationError):
         request.support_need = "weekly_structure"
     with pytest.raises(ValidationError):
         response.action.target_surface = "pro_daily_plate"
+
+
+@pytest.mark.parametrize(
+    ("support_need", "target_surface", "is_valid"),
+    (
+        ("daily_structure", "pro_daily_plate", True),
+        ("daily_structure", "pro_weekly_plan", False),
+        ("weekly_structure", "pro_daily_plate", False),
+        ("weekly_structure", "pro_weekly_plan", True),
+    ),
+)
+def test_support_handoff_pair_truth_table(
+    support_need: FitChefSupportNeed,
+    target_surface: str,
+    is_valid: bool,
+) -> None:
+    """The four possible need/surface pairs have one fixed compatibility truth table."""
+
+    payload = _complete_support_handoff_payload(
+        support_need=support_need,
+        target_surface=target_surface,
+    )
+    if not is_valid:
+        with pytest.raises(
+            ValidationError,
+            match=(r"support_need and action\.target_surface must form a compatible handoff pair"),
+        ):
+            FitChefSupportHandoffResponse.model_validate(payload)
+        return
+
+    response = FitChefSupportHandoffResponse.model_validate(payload)
+    assert response.model_dump(mode="json") == payload
 
 
 def test_support_handoff_models_reject_extras_and_impossible_values() -> None:

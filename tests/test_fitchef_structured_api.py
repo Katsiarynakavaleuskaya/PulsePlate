@@ -1328,6 +1328,7 @@ class TestFitChefSupportHandoffRoute:
             "schemas",
             "FitChefSupportHandoffResponse",
         )
+        assert response_component["additionalProperties"] is False
         assert response_component["required"] == [
             "schema_version",
             "scenario",
@@ -1339,6 +1340,57 @@ class TestFitChefSupportHandoffRoute:
             "used_llm",
             "wellness_boundary",
         ]
+        one_of = response_component["oneOf"]
+        assert isinstance(one_of, list)
+        assert one_of == [
+            {
+                "required": ["support_need", "action"],
+                "properties": {
+                    "support_need": {"const": "daily_structure"},
+                    "action": {
+                        "type": "object",
+                        "required": ["target_surface"],
+                        "properties": {
+                            "target_surface": {"const": "pro_daily_plate"},
+                        },
+                    },
+                },
+            },
+            {
+                "required": ["support_need", "action"],
+                "properties": {
+                    "support_need": {"const": "weekly_structure"},
+                    "action": {
+                        "type": "object",
+                        "required": ["target_surface"],
+                        "properties": {
+                            "target_surface": {"const": "pro_weekly_plan"},
+                        },
+                    },
+                },
+            },
+        ]
+        observed_pairs: list[tuple[object, object]] = []
+        for branch in one_of:
+            branch_object = cast(dict[str, object], branch)
+            branch_properties = _nested_object(branch_object, "properties")
+            branch_need = _nested_object(branch_properties, "support_need")["const"]
+            branch_action = _nested_object(branch_properties, "action")
+            branch_target = _nested_object(
+                branch_action,
+                "properties",
+                "target_surface",
+            )["const"]
+            observed_pairs.append((branch_need, branch_target))
+        assert [
+            sum(pair == candidate for pair in observed_pairs)
+            for candidate in (
+                ("daily_structure", "pro_daily_plate"),
+                ("daily_structure", "pro_weekly_plan"),
+                ("weekly_structure", "pro_daily_plate"),
+                ("weekly_structure", "pro_weekly_plan"),
+            )
+        ] == [1, 0, 0, 1]
         response_properties = _nested_object(response_component, "properties")
         assert set(response_properties) == {
             "schema_version",
@@ -1398,6 +1450,12 @@ class TestFitChefSupportHandoffRoute:
             wellness_schema,
         ):
             assert "default" not in field_schema
+
+        components = _nested_object(schema, "components", "schemas")
+        assert {name for name in components if name.startswith("FitChefSupportHandoff")} == {
+            "FitChefSupportHandoffActionV1",
+            "FitChefSupportHandoffResponse",
+        }
 
 
 class TestFitChefIdentityLoopMapperRoute:

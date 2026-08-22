@@ -2575,6 +2575,52 @@
       "FitChefSupportHandoffResponse": {
         "additionalProperties": false,
         "description": "Frozen non-executing response for the FitChef support handoff.",
+        "oneOf": [
+          {
+            "properties": {
+              "action": {
+                "properties": {
+                  "target_surface": {
+                    "const": "pro_daily_plate"
+                  }
+                },
+                "required": [
+                  "target_surface"
+                ],
+                "type": "object"
+              },
+              "support_need": {
+                "const": "daily_structure"
+              }
+            },
+            "required": [
+              "support_need",
+              "action"
+            ]
+          },
+          {
+            "properties": {
+              "action": {
+                "properties": {
+                  "target_surface": {
+                    "const": "pro_weekly_plan"
+                  }
+                },
+                "required": [
+                  "target_surface"
+                ],
+                "type": "object"
+              },
+              "support_need": {
+                "const": "weekly_structure"
+              }
+            },
+            "required": [
+              "support_need",
+              "action"
+            ]
+          }
+        ],
         "properties": {
           "action": {
             "$ref": "#/components/schemas/FitChefSupportHandoffActionV1"

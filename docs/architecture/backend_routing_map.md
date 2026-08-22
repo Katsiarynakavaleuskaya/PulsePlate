@@ -39,6 +39,51 @@ Evidence: `app/main.py -> _include_restaurants_router_if_needed(app)`
 - Users CRUD is no longer legacy-owned; see
   [Canonical users router](#canonical-users-router-canonical-bootstrap-owned).
 
+### Canonical FitChef support handoff (PR #2320 merge-bound)
+
+PR #2320 implements `POST /api/v1/pro/fitchef/recommend` as a merge-bound
+backend candidate. It is not public-main or deployed runtime truth and carries
+no product-value claim until merge and post-merge verification complete.
+
+Stable ownership and registration evidence:
+
+- `app/routers/fitchef_structured.py:98` — `support_handoff_router` is the
+  dedicated one-route source owner.
+- `app/routers/fitchef_structured.py:270-301` — `fitchef_support_handoff` owns
+  the full path, exact public responses, and sole immediate
+  `require_pro_tier` dependency.
+- `app/main.py:597-621` —
+  `_include_fitchef_support_handoff_router_if_needed` uses the existing
+  `RouteMemberContract` / `ensure_route_family_registered(...)` helper inside a
+  private exact source/live/postvalidation recognizer.
+
+Request flow and contract evidence:
+
+1. `require_pro_tier` authenticates before the handler
+   (`app/routers/fitchef_structured.py:272`).
+2. `FEATURE_FITCHEF_STRUCTURED_COACH` is checked before body work
+   (`app/routers/fitchef_structured.py:53,117,294-298`).
+3. `_parse_fitchef_support_handoff_request` enforces the exact JSON media type,
+   decodes JSON, and validates the closed DTO
+   (`app/routers/fitchef_structured.py:170-198`).
+4. `build_fitchef_support_handoff` performs the pure two-value descriptor map
+   (`app/services/fitchef_support_handoff.py:13-40`).
+5. `FitChefSupportHandoffResponse` enforces the required fields, compatible
+   need/surface pair, and closed public schema
+   (`app/schemas/fitchef_coaching.py:39-104`).
+
+Runtime contract:
+
+- Responses are exactly `200`, `401`, `403`, `422`, and `503`.
+- Public OpenAPI requires an `application/json` body, forbids extra request,
+  action, and response properties, retains literal constants, and constrains
+  the two valid need/surface pairs on the existing response component.
+- The route is descriptor-only: no execution, mutation, provider, RAG, rate
+  limiter, persistence, planner, analytics, target invocation, or client
+  navigation is owned by this path.
+- The existing `/api/v1/insight/fitchef*` mascot canon and future VIP
+  `chat`/`week-repair` lanes remain separate.
+
 ### Canonical public restaurants router (canonical bootstrap-owned)
 
 Anchor (stable): `app/main.py -> _include_restaurants_router_if_needed(app)`

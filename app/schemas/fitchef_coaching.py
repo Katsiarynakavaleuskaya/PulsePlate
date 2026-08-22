@@ -39,7 +39,40 @@ class FitChefSupportHandoffActionV1(BaseModel):
 class FitChefSupportHandoffResponse(BaseModel):
     """Frozen non-executing response for the FitChef support handoff."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={
+            "oneOf": [
+                {
+                    "required": ["support_need", "action"],
+                    "properties": {
+                        "support_need": {"const": "daily_structure"},
+                        "action": {
+                            "type": "object",
+                            "required": ["target_surface"],
+                            "properties": {
+                                "target_surface": {"const": "pro_daily_plate"},
+                            },
+                        },
+                    },
+                },
+                {
+                    "required": ["support_need", "action"],
+                    "properties": {
+                        "support_need": {"const": "weekly_structure"},
+                        "action": {
+                            "type": "object",
+                            "required": ["target_surface"],
+                            "properties": {
+                                "target_surface": {"const": "pro_weekly_plan"},
+                            },
+                        },
+                    },
+                },
+            ]
+        },
+    )
 
     schema_version: Literal["fitchef_support_handoff.v1"]
     scenario: Literal["support_handoff"]
@@ -50,6 +83,20 @@ class FitChefSupportHandoffResponse(BaseModel):
     plan_mutation_authority: Literal[False]
     used_llm: Literal[False]
     wellness_boundary: Literal["wellness_planning_only"]
+
+    @model_validator(mode="after")
+    def validate_compatible_handoff_pair(self) -> "FitChefSupportHandoffResponse":
+        """Require each explicit need to select its frozen product surface."""
+
+        pair = (self.support_need, self.action.target_surface)
+        if pair not in {
+            ("daily_structure", "pro_daily_plate"),
+            ("weekly_structure", "pro_weekly_plan"),
+        }:
+            raise ValueError(
+                "support_need and action.target_surface must form a compatible handoff pair"
+            )
+        return self
 
     @field_validator("user_confirmation_required", mode="before")
     @classmethod

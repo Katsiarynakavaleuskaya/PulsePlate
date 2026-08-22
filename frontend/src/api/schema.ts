@@ -2937,7 +2937,21 @@ export interface components {
              * @constant
              */
             wellness_boundary: "wellness_planning_only";
-        };
+        } & ({
+            action: {
+                /** @constant */
+                target_surface: "pro_daily_plate";
+            };
+            /** @constant */
+            support_need: "daily_structure";
+        } | {
+            action: {
+                /** @constant */
+                target_surface: "pro_weekly_plan";
+            };
+            /** @constant */
+            support_need: "weekly_structure";
+        });
         /**
          * FitChefVipCoachingErrorResponse
          * @description VIP FitChef error envelope preserving frozen VIP aliases.
