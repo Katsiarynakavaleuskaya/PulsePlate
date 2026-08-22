@@ -239,6 +239,30 @@ def test_synthesis_security_requirement_cannot_be_hidden_by_flag() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "candidate_paths",
+    (
+        [str((REPO_ROOT / "deploy/example.yaml").resolve())],
+        ["./deploy/example.yaml"],
+        ["deploy/example.yaml", "deploy/example.yaml"],
+    ),
+)
+def test_synthesis_candidate_paths_must_use_canonical_spelling(
+    candidate_paths: list[str],
+) -> None:
+    packet = _single_coordinator_synthesis_packet(candidate_paths=["deploy/example.yaml"])
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["security_review_required"] is True
+    automation_flags["security_review_required"] = False
+    packet["candidate_paths"] = candidate_paths
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires canonical candidate_paths"
+    )
+
+
 def test_synthesis_judgment_requirement_cannot_be_hidden_by_projection() -> None:
     packet = _single_coordinator_synthesis_packet(
         goal="synthesize validated creative pilot adjudication results"

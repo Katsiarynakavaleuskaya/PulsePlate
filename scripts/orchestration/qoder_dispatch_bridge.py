@@ -1395,10 +1395,34 @@ def _validate_current_role_dispatch_contract(
         raise ValueError(canonical_error)
 
 
+def _canonical_synthesis_candidate_paths(payload: Dict[str, Any]) -> List[str]:
+    """Require the exact repo-relative path spelling used by packet identity."""
+
+    path_error = "creative pilot synthesis packet metadata requires canonical candidate_paths"
+    candidate_paths = payload.get("candidate_paths")
+    if not isinstance(candidate_paths, list) or any(
+        not isinstance(path, str) for path in candidate_paths
+    ):
+        raise ValueError(path_error)
+    try:
+        identity_paths = repo_relative_paths(candidate_paths)
+        canonical_paths = [
+            normalized
+            for path in identity_paths
+            if (normalized := _normalize_invariant_review_path(path))
+        ]
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(path_error) from exc
+    if candidate_paths != canonical_paths:
+        raise ValueError(path_error)
+    return canonical_paths
+
+
 def _validate_inactive_synthesis_judgment_metadata(
     payload: Dict[str, Any],
     *,
     automation_flags: Dict[str, Any],
+    candidate_paths: List[str],
 ) -> None:
     """Reject synthesis packets that retain judgment-only required passes."""
 
@@ -1408,13 +1432,7 @@ def _validate_inactive_synthesis_judgment_metadata(
     result_adjudication = payload.get("result_adjudication")
     goal = payload.get("goal")
     task_class = payload.get("task_class")
-    candidate_paths = payload.get("candidate_paths")
-    if (
-        not isinstance(goal, str)
-        or not isinstance(task_class, str)
-        or not isinstance(candidate_paths, list)
-        or any(not isinstance(path, str) for path in candidate_paths)
-    ):
+    if not isinstance(goal, str) or not isinstance(task_class, str):
         raise ValueError(judgment_error)
     try:
         judgment_required = _judgment_lane_enabled(
@@ -1500,16 +1518,12 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         raise ValueError(
             "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
         )
+    candidate_paths = _canonical_synthesis_candidate_paths(payload)
     if automation_flags.get("security_review_required") is not False:
         raise ValueError(
             "creative pilot synthesis packet metadata requires security_review_required=false"
         )
-    candidate_paths = payload.get("candidate_paths")
-    if (
-        not isinstance(candidate_paths, list)
-        or any(not isinstance(path, str) for path in candidate_paths)
-        or requires_security_review(candidate_paths)
-    ):
+    if requires_security_review(candidate_paths):
         raise ValueError(
             "creative pilot synthesis packet metadata requires security_review_required=false"
         )
@@ -1525,6 +1539,7 @@ def _validate_single_coordinator_synthesis_packet_metadata(
     _validate_inactive_synthesis_judgment_metadata(
         payload,
         automation_flags=automation_flags,
+        candidate_paths=candidate_paths,
     )
     _validate_single_coordinator_synthesis_task_packet_id(
         payload,
