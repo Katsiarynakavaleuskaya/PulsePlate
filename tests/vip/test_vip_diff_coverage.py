@@ -68,7 +68,10 @@ from core.menu_engine import (
     WeekMenu,
     _apply_one_safe_booster,
     _calculate_day_nutrients,
+    _day_has_complete_governed_evidence,
     _day_is_within_governed_ceilings,
+    _day_nutrient_evidence,
+    _finite_nonnegative_number,
     _food_nutrient_evidence,
     _get_default_food_db,
     _governed_nutrient_names,
@@ -2624,6 +2627,94 @@ class TestTC209VIPDiffCoverage:
             over_micro_maximum,
             targets,
         )
+
+    def test_changed_defensive_domain_branches_are_executable(self) -> None:
+        """Cover changed fail-closed branches selected by canonical Tier-1 CI."""
+
+        targets = _micronutrient_targets()
+        governed = _governed_nutrient_names(targets)
+
+        assert _finite_nonnegative_number(10**400) is None
+
+        invalid_day = _canonical_plan(
+            cast(dict[str, float], _complete_evidence({"iron_mg": True}))
+        ).daily_menus[0]
+        assert _day_nutrient_evidence(invalid_day, "iron_mg") is None
+
+        overflow_day = _canonical_plan(_complete_evidence({"protein_g": 1e308})).daily_menus[0]
+        overflow_day.meals.append(
+            {
+                "ingredients": [{"name": "second"}],
+                "nutrients": _complete_evidence({"protein_g": 1e308}),
+            }
+        )
+        assert _day_nutrient_evidence(overflow_day, "protein_g") is None
+
+        malformed_day = _canonical_plan(_complete_evidence()).daily_menus[0]
+        malformed_day.meals[0]["nutrients"] = []
+        assert not _day_has_complete_governed_evidence(malformed_day, governed)
+
+        ordinary_day = _canonical_plan(_complete_evidence()).daily_menus[0]
+        assert not _day_is_within_governed_ceilings(
+            ordinary_day,
+            cast(MicronutrientTargets, object()),
+        )
+
+        class _TrustedMalformedTargets(NutritionTargets):
+            def validate_consistency(self) -> bool:
+                return True
+
+        daily_targets = _nutrition_targets()
+        malformed_targets = _TrustedMalformedTargets(
+            kcal_daily=daily_targets.kcal_daily,
+            macros=daily_targets.macros,
+            water_ml_daily=daily_targets.water_ml_daily,
+            micros=daily_targets.micros,
+            activity=daily_targets.activity,
+            calculated_for=daily_targets.calculated_for,
+            calculation_date=daily_targets.calculation_date,
+        )
+        object.__setattr__(malformed_targets, "kcal_daily", object())
+        ordinary_day.targets = malformed_targets
+        assert not _day_is_within_governed_ceilings(ordinary_day, targets)
+        object.__setattr__(malformed_targets, "kcal_daily", 0)
+        assert not _day_is_within_governed_ceilings(ordinary_day, targets)
+
+        zero_room_day = _canonical_plan(
+            _complete_evidence({"iron_mg": 0.0, "calcium_mg": 2500.0})
+        ).daily_menus[0]
+        zero_room_candidate = _food_nutrient_evidence(
+            _food_item("Iron", {"iron_mg": 10.0, "calcium_mg": 1.0}),
+            governed,
+        )
+        assert zero_room_candidate is not None
+        assert (
+            _safe_booster_amount(
+                zero_room_day,
+                targets,
+                zero_room_candidate,
+                "iron_mg",
+            )
+            is None
+        )
+
+        invalid_ranges: dict[str, Any] = {
+            name: tuple(values) for name, values in _TARGET_RANGES.items()
+        }
+        invalid_ranges["iron_mg"] = (6.0, 8.0)
+        with pytest.raises(ValueError, match="exactly three values"):
+            MicronutrientTargets(**invalid_ranges)
+        invalid_ranges["iron_mg"] = (6.0, "8", 45.0)
+        with pytest.raises(ValueError, match="real numbers"):
+            MicronutrientTargets(**invalid_ranges)
+        invalid_ranges["iron_mg"] = (6.0, -1.0, 45.0)
+        with pytest.raises(ValueError, match="finite and nonnegative"):
+            MicronutrientTargets(**invalid_ranges)
+
+        acquisition_signals = unified_db_module._UnifiedFoodSignalAccumulator()
+        acquisition_signals.add_ordinary("acquisition_foreign")
+        with pytest.raises(RuntimeError, match="not lifecycle-managed"):
+            acquisition_signals.raise_if_any()
 
     def test_routes_publish_exact_custom_envelopes_and_tolerance(
         self,
