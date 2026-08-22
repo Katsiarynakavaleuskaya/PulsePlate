@@ -16,6 +16,7 @@ import asyncio
 from copy import deepcopy
 from dataclasses import asdict, replace
 import json
+import math
 from pathlib import Path
 import sys
 from types import MappingProxyType, SimpleNamespace
@@ -67,9 +68,11 @@ from core.menu_engine import (
     WeekMenu,
     _apply_one_safe_booster,
     _calculate_day_nutrients,
+    _day_is_within_governed_ceilings,
     _food_nutrient_evidence,
     _get_default_food_db,
     _governed_nutrient_names,
+    _plan_has_complete_governed_evidence,
     _safe_booster_amount,
     calculate_known_nutrient_gaps,
     has_complete_nutrition_evidence,
@@ -2467,6 +2470,160 @@ class TestTC209VIPDiffCoverage:
             == candidate_snapshot
         )
         assert candidate_control == candidate_snapshot
+
+    def test_governed_ceiling_predicate_gates_repair_and_mutation(self) -> None:
+        targets = _micronutrient_targets()
+        daily_targets = _nutrition_targets()
+        fixed_ceilings = {
+            "kcal": float(daily_targets.kcal_daily),
+            "protein_g": float(daily_targets.macros.protein_g),
+            "fat_g": float(daily_targets.macros.fat_g),
+            "carbs_g": float(daily_targets.macros.carbs_g),
+            "fiber_g": float(daily_targets.macros.fiber_g),
+        }
+
+        for nutrient, ceiling in fixed_ceilings.items():
+            for actual, expected in (
+                (math.nextafter(ceiling, -math.inf), True),
+                (ceiling, True),
+                (math.nextafter(ceiling, math.inf), False),
+            ):
+                plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0, nutrient: actual}))
+                assert (
+                    _day_is_within_governed_ceilings(
+                        plan.daily_menus[0],
+                        targets,
+                    )
+                    is expected
+                )
+
+        calcium_maximum = targets.get_maximum("calcium_mg")
+        for actual, expected in (
+            (math.nextafter(calcium_maximum, -math.inf), True),
+            (calcium_maximum, True),
+            (math.nextafter(calcium_maximum, math.inf), False),
+        ):
+            plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0, "calcium_mg": actual}))
+            assert (
+                _day_is_within_governed_ceilings(
+                    plan.daily_menus[0],
+                    targets,
+                )
+                is expected
+            )
+
+        excessive_cases = {
+            **{
+                nutrient: math.nextafter(ceiling, math.inf)
+                for nutrient, ceiling in fixed_ceilings.items()
+            },
+            "calcium_mg": math.nextafter(calcium_maximum, math.inf),
+        }
+        for nutrient, excessive_value in excessive_cases.items():
+            excessive_plan = _canonical_plan(
+                _complete_evidence({"iron_mg": 0.0, nutrient: excessive_value})
+            )
+            excessive_snapshot = deepcopy(excessive_plan)
+            candidate = _food_item(
+                "Iron",
+                {"iron_mg": 10.0, nutrient: 0.0},
+            )
+            candidate_evidence = _food_nutrient_evidence(
+                candidate,
+                _governed_nutrient_names(targets),
+            )
+            assert candidate_evidence is not None
+            assert (
+                _safe_booster_amount(
+                    excessive_plan.daily_menus[0],
+                    targets,
+                    candidate_evidence,
+                    "iron_mg",
+                )
+                is None
+            )
+            assert not _apply_one_safe_booster(
+                excessive_plan.daily_menus[0],
+                targets,
+                {"iron": candidate},
+            )
+            with patch(
+                "core.menu_engine.get_cached_common_foods_snapshot",
+                side_effect=AssertionError("catalog must not run for excessive day evidence"),
+            ) as catalog:
+                result = repair_canonical_week_plan(excessive_plan, targets)
+            assert result == excessive_snapshot
+            assert excessive_plan == excessive_snapshot
+            catalog.assert_not_called()
+            assert nutrient not in calculate_known_nutrient_gaps(excessive_plan, targets)
+
+        invalid_target_day = _canonical_plan(_complete_evidence()).daily_menus[0]
+        invalid_target_day.targets = cast(NutritionTargets, object())
+        assert not _day_is_within_governed_ceilings(invalid_target_day, targets)
+
+        inconsistent_targets = replace(daily_targets, kcal_daily=1000)
+        zero_kcal_targets = replace(daily_targets, kcal_daily=0)
+        zero_fiber_targets = replace(
+            daily_targets,
+            macros=replace(daily_targets.macros, fiber_g=0),
+        )
+        for invalid_targets in (inconsistent_targets, zero_kcal_targets):
+            day = _canonical_plan(_complete_evidence()).daily_menus[0]
+            day.targets = invalid_targets
+            assert not _day_is_within_governed_ceilings(day, targets)
+
+        zero_fiber_day = _canonical_plan(_complete_evidence({"fiber_g": 0.0})).daily_menus[0]
+        zero_fiber_day.targets = zero_fiber_targets
+        assert _day_is_within_governed_ceilings(zero_fiber_day, targets)
+        zero_fiber_day.meals[0]["nutrients"]["fiber_g"] = math.nextafter(0.0, math.inf)
+        assert not _day_is_within_governed_ceilings(zero_fiber_day, targets)
+
+        late_excessive = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+        second_day = deepcopy(late_excessive.daily_menus[0])
+        second_day.date = "Tuesday"
+        second_day.meals.append(deepcopy(second_day.meals[0]))
+        second_day.meals[-1]["nutrients"]["fiber_g"] = math.nextafter(
+            float(daily_targets.macros.fiber_g),
+            math.inf,
+        )
+        late_excessive.daily_menus.append(second_day)
+        late_snapshot = deepcopy(late_excessive)
+        assert not _plan_has_complete_governed_evidence(late_excessive, targets)
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            side_effect=AssertionError("catalog must not run for a late excessive meal"),
+        ) as catalog:
+            late_result = repair_canonical_week_plan(late_excessive, targets)
+        assert late_result == late_snapshot
+        assert late_excessive == late_snapshot
+        catalog.assert_not_called()
+
+        control = _canonical_plan(
+            _complete_evidence({"iron_mg": 0.0, "opaque_client_metric": 1e308})
+        )
+        control_snapshot = deepcopy(control)
+        repaired = repair_canonical_week_plan(
+            control,
+            targets,
+            food_db={"iron": _food_item("Iron", {"iron_mg": 10.0})},
+        )
+        assert repaired != control
+        assert _day_is_within_governed_ceilings(repaired.daily_menus[0], targets)
+        assert repaired.daily_menus[0].meals[0]["nutrients"]["opaque_client_metric"] == 1e308
+        assert control == control_snapshot
+
+        complete = _canonical_plan(_complete_evidence())
+        assert has_complete_nutrition_evidence(complete, targets)
+        at_micro_maximum = _canonical_plan(_complete_evidence({"calcium_mg": calcium_maximum}))
+        assert has_complete_nutrition_evidence(at_micro_maximum, targets)
+        over_micro_maximum = _canonical_plan(
+            _complete_evidence({"calcium_mg": math.nextafter(calcium_maximum, math.inf)})
+        )
+        assert not has_complete_nutrition_evidence(over_micro_maximum, targets)
+        assert "calcium_mg" not in calculate_known_nutrient_gaps(
+            over_micro_maximum,
+            targets,
+        )
 
     def test_routes_publish_exact_custom_envelopes_and_tolerance(
         self,

@@ -647,8 +647,7 @@ def repair_week_plan(
     repaired_plan.daily_menus = [deepcopy(day_menu) for day_menu in plan.daily_menus]
     if strategy != "boosters_first":
         return repaired_plan
-    governed_nutrients = _governed_nutrient_names(targets)
-    if not _plan_has_complete_governed_evidence(repaired_plan, governed_nutrients):
+    if not _plan_has_complete_governed_evidence(repaired_plan, targets):
         return repaired_plan
 
     if food_db is None:
@@ -745,23 +744,11 @@ def has_complete_nutrition_evidence(
     if not plan.daily_menus:
         return False
     for day_menu in plan.daily_menus:
-        daily_targets = day_menu.targets
-        daily_ceilings = {
-            "kcal": float(daily_targets.kcal_daily),
-            "protein_g": float(daily_targets.macros.protein_g),
-            "fat_g": float(daily_targets.macros.fat_g),
-            "carbs_g": float(daily_targets.macros.carbs_g),
-            "fiber_g": float(daily_targets.macros.fiber_g),
-        }
-        for nutrient, ceiling in daily_ceilings.items():
-            actual = _day_nutrient_evidence(day_menu, nutrient)
-            if actual is None or actual > ceiling:
-                return False
+        if not _day_is_within_governed_ceilings(day_menu, targets):
+            return False
         for nutrient in targets.priority_nutrients:
             actual = _day_nutrient_evidence(day_menu, nutrient)
-            if actual is None:
-                return False
-            if actual < targets.get_target(nutrient) or actual > targets.get_maximum(nutrient):
+            if actual is None or actual < targets.get_target(nutrient):
                 return False
     return True
 
@@ -801,15 +788,57 @@ def _day_has_complete_governed_evidence(
     return True
 
 
+def _day_is_within_governed_ceilings(
+    day_menu: DayMenu,
+    targets: MicronutrientTargets,
+) -> bool:
+    """Require canonical targets and exact whole-day governed upper bounds."""
+
+    if not isinstance(targets, MicronutrientTargets):
+        return False
+    try:
+        governed_nutrients = _governed_nutrient_names(targets)
+        if not _day_has_complete_governed_evidence(day_menu, governed_nutrients):
+            return False
+        daily_targets = day_menu.targets
+        if not isinstance(daily_targets, NutritionTargets):
+            return False
+        if not daily_targets.validate_consistency():
+            return False
+        fixed_ceilings = {
+            "kcal": daily_targets.kcal_daily,
+            "protein_g": daily_targets.macros.protein_g,
+            "fat_g": daily_targets.macros.fat_g,
+            "carbs_g": daily_targets.macros.carbs_g,
+            "fiber_g": daily_targets.macros.fiber_g,
+        }
+        for nutrient, raw_ceiling in fixed_ceilings.items():
+            ceiling = _finite_nonnegative_number(raw_ceiling)
+            actual = _day_nutrient_evidence(day_menu, nutrient)
+            if ceiling is None or actual is None:
+                return False
+            if nutrient == "kcal" and ceiling <= 0:
+                return False
+            if actual > ceiling:
+                return False
+        for nutrient in targets.priority_nutrients:
+            maximum = _finite_nonnegative_number(targets.get_maximum(nutrient))
+            actual = _day_nutrient_evidence(day_menu, nutrient)
+            if maximum is None or maximum <= 0 or actual is None or actual > maximum:
+                return False
+    except (AttributeError, OverflowError, TypeError, ValueError, ZeroDivisionError):
+        return False
+    return True
+
+
 def _plan_has_complete_governed_evidence(
     plan: WeekMenu,
-    governed_nutrients: frozenset[str],
+    targets: MicronutrientTargets,
 ) -> bool:
-    """Require nonempty days and complete governed evidence throughout the plan."""
+    """Require nonempty days within all governed ceilings throughout the plan."""
 
     return bool(plan.daily_menus) and all(
-        _day_has_complete_governed_evidence(day_menu, governed_nutrients)
-        for day_menu in plan.daily_menus
+        _day_is_within_governed_ceilings(day_menu, targets) for day_menu in plan.daily_menus
     )
 
 
@@ -871,9 +900,9 @@ def _safe_booster_amount(
     primary_nutrient: str,
 ) -> Optional[float]:
     """Bound a booster by 100 g, primary gap fill, and every target maximum."""
-    governed_nutrients = _governed_nutrient_names(targets)
-    if not _day_has_complete_governed_evidence(day_menu, governed_nutrients):
+    if not _day_is_within_governed_ceilings(day_menu, targets):
         return None
+    governed_nutrients = _governed_nutrient_names(targets)
     primary_density = food_nutrients.get(primary_nutrient, 0.0)
     if primary_density <= 0:
         return None
@@ -916,6 +945,9 @@ def _apply_one_safe_booster(
     food_db: Dict[str, FoodItem],
 ) -> bool:
     """Add at most one deterministic safe booster to the first existing meal."""
+    if not _day_is_within_governed_ceilings(day_menu, targets):
+        return False
+    governed_nutrients = _governed_nutrient_names(targets)
     if not day_menu.meals:
         return False
     target_meal = day_menu.meals[0]
@@ -928,7 +960,6 @@ def _apply_one_safe_booster(
     requested_region = _normalized_region(day_menu.targets.calculated_for.region)
     if requested_region is None:
         return False
-    governed_nutrients = _governed_nutrient_names(targets)
 
     primary_nutrients = sorted(
         targets.priority_nutrients,
@@ -980,6 +1011,8 @@ def _apply_one_safe_booster(
             prospective_meal = prospective_day.meals[0]
             prospective_nutrients = prospective_meal["nutrients"]
             prospective_nutrients.update(updated_nutrients)
+            if not _day_is_within_governed_ceilings(prospective_day, targets):
+                return False
             try:
                 prospective_total_nutrients = _calculate_day_nutrients(
                     prospective_day,
