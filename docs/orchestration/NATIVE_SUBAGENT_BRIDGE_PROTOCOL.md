@@ -128,6 +128,14 @@ validated packet context exactly. Missing, stale, malformed, out-of-root,
 symlinked, wrong-phase, or differently revised sources fail closed. A validated
 byte-identical copy under the admitted workspace root remains equivalent because
 authority is bound to workspace content and revision, not to a literal pathname.
+The packet's canonical candidate-path set must equal the workspace target-file
+set, and its required context must equal the producer-owned context pack derived
+from that bound set and canonical route. The validated packet context is then
+projected into each synthesis dispatch entry so scoped agent instructions cannot
+be omitted or replaced by unrelated context.
+The consumer also rederives the packet domain from the bound goal, task class,
+and canonical candidate paths, then requires the declared domain and cluster to
+match the canonical routing graph before packet identity is accepted.
 
 Task-packet `candidate_paths` have one shared lexical authority:
 `context_pack.canonical_task_candidate_paths`. Producer mode accepts only exact
@@ -136,6 +144,11 @@ for a non-root path, and lexical absolute paths inside the repository. Strict
 wire mode accepts only an exact built-in list already equal to the sorted,
 unique canonical projection. The exact token `.` is the sole repository-root
 sentinel; after every raw element validates, it absorbs valid sibling paths.
+Ordinary U+0020 spaces are preserved as identity-bearing characters only inside
+nonempty path components; they are never stripped or collapsed. Component-edge
+U+0020 and every other whitespace character are rejected. Producer relative,
+leading-`./`, and lexical in-repository absolute spellings converge to the same
+canonical path, while strict wire accepts only that exact relative fixed point.
 Root scope conservatively requires security review and all bounded invariant
 classes, remains distinct in packet identity, and does not by itself activate
 the judgment lane. Consumers must use the shared result before identity,
