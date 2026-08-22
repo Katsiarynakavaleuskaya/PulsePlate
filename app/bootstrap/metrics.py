@@ -75,7 +75,7 @@ def _metrics_api_key_guard(raw_api_key: str | None = Security(api_key_header)) -
     if recognize_metrics_scrape_key().matches(raw_api_key):
         return METRICS_SCRAPE_KEY_AUTH_MARKER
 
-    validated_api_key = validate_app_api_key(raw_api_key)
+    validated_api_key: str = validate_app_api_key(raw_api_key)
     return validated_api_key
 
 
