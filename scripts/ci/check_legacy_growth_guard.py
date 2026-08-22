@@ -10185,7 +10185,9 @@ def _assigned_names(tree: ast.Module) -> set[str]:
                 self.visit(type_param)
 
         def visit_Lambda(self, node: ast.Lambda) -> None:
-            return
+            for default in (*node.args.defaults, *node.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
 
         def visit_ListComp(self, node: ast.ListComp) -> None:
             self._visit_comprehension(node.generators)
@@ -11127,7 +11129,7 @@ def validate_repo(repo_root: Path) -> list[str]:
         errors.extend(
             validate_retired_legacy_python_bindings(
                 legacy_source,
-                filename=_display(legacy_path, repo_root),
+                filename=LEGACY_APP,
             )
         )
     if doc_text is not None:

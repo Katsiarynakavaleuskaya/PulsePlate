@@ -89,6 +89,20 @@ def test_legacy_growth_guard_rejects_module_level_getattr() -> None:
     ]
 
 
+def test_retired_binding_guard_rejects_lambda_default_module_binding() -> None:
+    source = "holder = lambda value=(admin_status := canonical): value\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
+    ]
+
+
+def test_retired_binding_guard_ignores_named_expression_in_lambda_body() -> None:
+    source = "holder = lambda: (admin_status := canonical)\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
 def test_legacy_growth_guard_allows_out_of_scope_binding_shapes() -> None:
     source = textwrap.dedent("""
         "admin_status is retired only as a legacy_app module binding"
@@ -11743,6 +11757,20 @@ def test_legacy_repo_validation_fails_closed_when_legacy_source_is_unreadable(
     errors = legacy_guard.validate_repo(tmp_path)
 
     assert "legacy_app.py: unable to read: IsADirectoryError" in errors
+
+
+def test_legacy_repo_validation_preserves_logical_legacy_path_for_symlink(
+    tmp_path: Path,
+) -> None:
+    target_path = tmp_path / "legacy-target.py"
+    target_path.write_text("admin_status = canonical\n", encoding="utf-8")
+    (tmp_path / "legacy_app.py").symlink_to(target_path.name)
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert (
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status" in errors
+    )
 
 
 def test_legacy_growth_guard_cli_reports_global_loop_budget_without_traceback(
