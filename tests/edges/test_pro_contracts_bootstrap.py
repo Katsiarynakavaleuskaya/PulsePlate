@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
+from starlette.routing import Match, Mount, Route
+from starlette.types import Scope
 
+import app.bootstrap.pro_contracts as pro_contracts_bootstrap
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
@@ -194,6 +196,59 @@ def test_register_pro_contract_routes_rejects_counterfeit_pro_dependency_identit
         register_pro_contract_routes(target_app)
 
 
+def test_register_pro_contract_routes_accepts_original_route_response_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_app = _exact_destination_app()
+    bmr_route = _pro_family_routes(target_app)[2]
+    original_bmr_route = _pro_family_routes(_exact_destination_app())[2]
+    monkeypatch.setattr(bmr_route, "response_model", None)
+    monkeypatch.setattr(
+        bmr_route,
+        "original_route",
+        original_bmr_route,
+        raising=False,
+    )
+
+    register_pro_contract_routes(target_app)
+
+
+def test_register_pro_contract_routes_ignores_non_route_carriers() -> None:
+    target_app = _exact_destination_app()
+    sentinel = object()
+    target_app.router.routes.insert(0, sentinel)
+
+    register_pro_contract_routes(target_app)
+
+    assert sentinel in target_app.router.routes
+
+
+def test_first_full_match_owner_returns_raw_route_without_matching_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _RawFullMatchRoute:
+        def matches(self, scope: Scope) -> tuple[Match, Scope]:
+            return Match.FULL, scope
+
+    raw_route = _RawFullMatchRoute()
+    target_app = FastAPI()
+    target_app.router.routes.clear()
+    target_app.router.routes.append(raw_route)
+
+    def _candidate_without_matcher(_routes: object) -> tuple[object, ...]:
+        return (object(),)
+
+    monkeypatch.setattr(
+        pro_contracts_bootstrap,
+        "iter_effective_route_candidates",
+        _candidate_without_matcher,
+    )
+
+    assert (
+        pro_contracts_bootstrap._first_full_match_owner(target_app, _EXPECTED_PATHS[0]) is raw_route
+    )
+
+
 @pytest.mark.parametrize("path", _EXPECTED_PATHS)
 def test_register_pro_contract_routes_rejects_plain_starlette_shadow_without_mutation(
     path: str,
@@ -265,6 +320,36 @@ def test_register_pro_contract_routes_rejects_dynamic_post_catchall_before_mutat
         is_api_route_candidate(route) and route_path(route) in _EXPECTED_PATHS
         for route in target_app.routes
     )
+
+
+def test_register_pro_contract_routes_rejects_dynamic_api_route_shadow() -> None:
+    target_app = FastAPI()
+
+    async def _shadow(rest: str) -> dict[str, str]:
+        return {"status": rest}
+
+    target_app.add_api_route(
+        "/api/v1/pro/nutrition/{rest:path}",
+        _shadow,
+        methods=["POST"],
+        dependencies=[Depends(require_pro_tier)],
+        response_model=dict[str, str],
+    )
+
+    with pytest.raises(RuntimeError, match="not the exact PRO contract path owner"):
+        register_pro_contract_routes(target_app)
+
+
+def test_register_pro_contract_routes_rejects_trailing_non_api_duplicate() -> None:
+    target_app = _exact_destination_app()
+
+    async def _shadow(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "trailing-shadow"})
+
+    target_app.router.routes.append(Route(_EXPECTED_PATHS[2], _shadow, methods=["POST"]))
+
+    with pytest.raises(RuntimeError, match="Non-API route shadows expected PRO contract path"):
+        register_pro_contract_routes(target_app)
 
 
 @pytest.mark.parametrize(
@@ -352,6 +437,93 @@ def test_register_pro_contract_routes_rejects_source_missing_extra_and_duplicate
 
     monkeypatch.setattr(router, "routes", [*original_routes, original_routes[0]])
     with pytest.raises(RuntimeError, match="expected route family"):
+        register_pro_contract_routes(FastAPI())
+
+
+def test_register_pro_contract_routes_rejects_source_endpoint_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.pro_nutrition_contracts import router
+
+    monkeypatch.setattr(router.routes[2], "endpoint", object())
+
+    with pytest.raises(RuntimeError, match="expected route family"):
+        register_pro_contract_routes(FastAPI())
+
+
+def test_register_pro_contract_routes_rejects_source_order_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.pro_nutrition_contracts import router
+
+    original_routes = list(router.routes)
+    monkeypatch.setattr(
+        router,
+        "routes",
+        [original_routes[1], original_routes[0], *original_routes[2:]],
+    )
+
+    with pytest.raises(RuntimeError, match="expected route family"):
+        register_pro_contract_routes(FastAPI())
+
+
+def test_register_pro_contract_routes_rejects_partial_existing_first_match_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_app = _exact_destination_app()
+
+    def _partial_owners(_app: FastAPI, _specs: tuple[object, ...]) -> tuple[bool, ...]:
+        return (True, True, False, True)
+
+    monkeypatch.setattr(
+        pro_contracts_bootstrap,
+        "_validate_first_full_match_owners",
+        _partial_owners,
+    )
+
+    with pytest.raises(RuntimeError, match="Partial PRO contract first-match ownership"):
+        register_pro_contract_routes(target_app)
+
+
+def test_register_pro_contract_routes_rejects_first_match_without_family_census(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _partial_owners(_app: FastAPI, _specs: tuple[object, ...]) -> tuple[bool, ...]:
+        return (True, False, False, False)
+
+    monkeypatch.setattr(
+        pro_contracts_bootstrap,
+        "_validate_first_full_match_owners",
+        _partial_owners,
+    )
+
+    with pytest.raises(RuntimeError, match="Partial PRO contract first-match ownership"):
+        register_pro_contract_routes(FastAPI())
+
+
+def test_register_pro_contract_routes_rejects_partial_ownership_after_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_results = iter(
+        (
+            (False, False, False, False),
+            (True, True, True, False),
+        )
+    )
+
+    def _owners(_app: FastAPI, _specs: tuple[object, ...]) -> tuple[bool, ...]:
+        return next(owner_results)
+
+    monkeypatch.setattr(
+        pro_contracts_bootstrap,
+        "_validate_first_full_match_owners",
+        _owners,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Partial PRO contract first-match ownership detected after registration",
+    ):
         register_pro_contract_routes(FastAPI())
 
 
