@@ -827,6 +827,7 @@ class TestTC209VIPDiffCoverage:
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
@@ -853,11 +854,32 @@ class TestTC209VIPDiffCoverage:
             "nutrition_confidence": 0.9,
         }
         cache_file.write_text(json.dumps({"lentils": valid_row}), encoding="utf-8")
+        caplog.clear()
         first = unified_db_module.get_cached_common_foods_snapshot()
         first["lentils"].nutrients_per_100g["iron_mg"] = 999.0
         second = unified_db_module.get_cached_common_foods_snapshot()
         assert second["lentils"].nutrients_per_100g["iron_mg"] == 3.3
         assert first["lentils"] is not second["lentils"]
+        assert caplog.records == []
+
+        cache_file.write_text("{}", encoding="utf-8")
+        caplog.clear()
+        assert unified_db_module.get_cached_common_foods_snapshot() == {}
+        assert caplog.records == []
+
+        cache_file.write_text(json.dumps({"lentils": valid_row}), encoding="utf-8")
+
+        def _raise_unreadable(
+            _path: Path,
+            *args: object,
+            **kwargs: object,
+        ) -> str:
+            del args, kwargs
+            raise OSError("secret-exception-value")
+
+        with monkeypatch.context() as unreadable_cache:
+            unreadable_cache.setattr(Path, "read_text", _raise_unreadable)
+            assert unified_db_module.get_cached_common_foods_snapshot() == {}
 
         invalid_rows: list[object] = [
             ["not-an-object"],
@@ -895,7 +917,30 @@ class TestTC209VIPDiffCoverage:
         monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
         assert unified_db_module.get_cached_common_foods_snapshot() == {}
 
-    def test_booster_is_deterministic_capped_and_input_immutable(self) -> None:
+        reason_codes = {
+            record.getMessage().partition("reason=")[2]
+            for record in caplog.records
+            if record.name == "core.food_apis.unified_db" and "reason=" in record.getMessage()
+        }
+        assert {
+            "instance_unconfigured",
+            "cache_file_missing",
+            "cache_unreadable_or_invalid_json",
+            "payload_not_object",
+            "entry_identity_or_shape_invalid",
+            "item_identity_invalid",
+        } <= reason_codes
+        diagnostic_text = caplog.text
+        assert str(cache_file) not in diagnostic_text
+        assert "lentils" not in diagnostic_text.lower()
+        assert "not-json" not in diagnostic_text
+        assert "missing required fields" not in diagnostic_text
+        assert "secret-exception-value" not in diagnostic_text
+
+    def test_booster_is_deterministic_capped_and_input_immutable(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         targets = _micronutrient_targets()
         deficient = _complete_evidence({"iron_mg": 0.0, "vitamin_c_mg": 1990.0})
         original = _canonical_plan(deficient)
@@ -934,6 +979,22 @@ class TestTC209VIPDiffCoverage:
             )
             == over_ceiling
         )
+
+        no_candidate_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+        caplog.clear()
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            return_value={},
+        ):
+            no_candidate_result = repair_canonical_week_plan(
+                no_candidate_plan,
+                targets,
+            )
+        assert no_candidate_result == no_candidate_plan
+        menu_warnings = [
+            record.getMessage() for record in caplog.records if record.name == "core.menu_engine"
+        ]
+        assert menu_warnings == ["Auto-repair has no cached booster candidates"]
 
     def test_menu_engine_fail_closed_evidence_branches(self) -> None:
         targets = _micronutrient_targets()

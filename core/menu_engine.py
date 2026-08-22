@@ -657,6 +657,8 @@ def repair_week_plan(
             )
             for key, item in cached_foods.items()
         }
+        if not resolved_food_db:
+            _logger.warning("Auto-repair has no cached booster candidates")
     else:
         resolved_food_db = food_db
     _ = recipe_db

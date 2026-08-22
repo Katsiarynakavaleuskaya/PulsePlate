@@ -524,85 +524,92 @@ class UnifiedFoodDatabase:
 _unified_db_instance: Optional[UnifiedFoodDatabase] = None
 
 
+def _reject_cached_common_foods(reason_code: str) -> Dict[str, UnifiedFoodItem]:
+    """Return an empty snapshot with one stable, non-sensitive diagnostic reason."""
+
+    logger.warning("Cached common-food snapshot rejected: reason=%s", reason_code)
+    return {}
+
+
 def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
     """Read a validated common-food cache from the already configured instance only."""
     instance = _unified_db_instance
     if instance is None:
-        return {}
+        return _reject_cached_common_foods("instance_unconfigured")
     cache_file = instance.cache_dir / "common_foods.json"
     if not cache_file.is_file():
-        return {}
+        return _reject_cached_common_foods("cache_file_missing")
     try:
         raw_payload = json.loads(cache_file.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return {}
+        return _reject_cached_common_foods("cache_unreadable_or_invalid_json")
     if not isinstance(raw_payload, dict):
-        return {}
+        return _reject_cached_common_foods("payload_not_object")
 
     validated: Dict[str, UnifiedFoodItem] = {}
     try:
         for key, raw_item in raw_payload.items():
             if not isinstance(key, str) or not key or not isinstance(raw_item, dict):
-                return {}
+                return _reject_cached_common_foods("entry_identity_or_shape_invalid")
             item = UnifiedFoodItem(**deepcopy(raw_item))
             if not item.name or not item.source or not item.source_id:
-                return {}
+                return _reject_cached_common_foods("item_identity_invalid")
             if not isinstance(item.nutrients_per_100g, dict):
-                return {}
+                return _reject_cached_common_foods("nutrients_shape_invalid")
             for nutrient, raw_value in item.nutrients_per_100g.items():
                 if not isinstance(nutrient, str) or not nutrient:
-                    return {}
+                    return _reject_cached_common_foods("nutrient_identity_invalid")
                 if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
-                    return {}
+                    return _reject_cached_common_foods("nutrient_value_type_invalid")
                 value = float(raw_value)
                 if not math.isfinite(value) or value < 0:
-                    return {}
+                    return _reject_cached_common_foods("nutrient_value_range_invalid")
             if (
                 isinstance(item.cost_per_100g, bool)
                 or not isinstance(item.cost_per_100g, (int, float))
                 or not math.isfinite(float(item.cost_per_100g))
                 or float(item.cost_per_100g) < 0
             ):
-                return {}
+                return _reject_cached_common_foods("cost_invalid")
             if not isinstance(item.tags, list) or not all(
                 isinstance(tag, str) for tag in item.tags
             ):
-                return {}
+                return _reject_cached_common_foods("tags_invalid")
             if not isinstance(item.availability_regions, list) or not all(
                 isinstance(region, str) for region in item.availability_regions
             ):
-                return {}
+                return _reject_cached_common_foods("availability_regions_invalid")
             if item.category is not None and not isinstance(item.category, str):
-                return {}
+                return _reject_cached_common_foods("category_invalid")
             if not isinstance(item.nutrition_inputs, list) or not all(
                 isinstance(value, dict) for value in item.nutrition_inputs
             ):
-                return {}
+                return _reject_cached_common_foods("nutrition_inputs_invalid")
             if not isinstance(item.nutrition_provenance, dict) or not all(
                 isinstance(name, str) and isinstance(value, str)
                 for name, value in item.nutrition_provenance.items()
             ):
-                return {}
+                return _reject_cached_common_foods("nutrition_provenance_invalid")
             if not isinstance(item.nutrition_nutrient_confidence, dict):
-                return {}
+                return _reject_cached_common_foods("nutrient_confidence_shape_invalid")
             for name, raw_confidence in item.nutrition_nutrient_confidence.items():
                 if not isinstance(name, str) or isinstance(raw_confidence, bool):
-                    return {}
+                    return _reject_cached_common_foods("nutrient_confidence_identity_invalid")
                 if not isinstance(raw_confidence, (int, float)):
-                    return {}
+                    return _reject_cached_common_foods("nutrient_confidence_type_invalid")
                 confidence = float(raw_confidence)
                 if not math.isfinite(confidence) or not 0 <= confidence <= 1:
-                    return {}
+                    return _reject_cached_common_foods("nutrient_confidence_range_invalid")
             if (
                 isinstance(item.nutrition_confidence, bool)
                 or not isinstance(item.nutrition_confidence, (int, float))
                 or not math.isfinite(float(item.nutrition_confidence))
                 or not 0 <= float(item.nutrition_confidence) <= 1
             ):
-                return {}
+                return _reject_cached_common_foods("overall_confidence_invalid")
             validated[key] = deepcopy(item)
     except (TypeError, ValueError, OverflowError):
-        return {}
+        return _reject_cached_common_foods("entry_model_invalid")
     return validated
 
 
