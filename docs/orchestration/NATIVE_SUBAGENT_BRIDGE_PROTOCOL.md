@@ -120,6 +120,21 @@ composition, or non-canonical bridge/dispatch contracts. It does not change
 task packet schema `3.1`, bridge protocol `1.0`, ordinary reviewer separation,
 or any other creative-pilot phase.
 
+Task-packet `candidate_paths` have one shared lexical authority:
+`context_pack.canonical_task_candidate_paths`. Producer mode accepts only exact
+built-in lists or tuples, canonical relative POSIX paths, a leading `./` alias
+for a non-root path, and lexical absolute paths inside the repository. Strict
+wire mode accepts only an exact built-in list already equal to the sorted,
+unique canonical projection. The exact token `.` is the sole repository-root
+sentinel; after every raw element validates, it absorbs valid sibling paths.
+Root scope conservatively requires security review and all bounded invariant
+classes, remains distinct in packet identity, and does not by itself activate
+the judgment lane. Consumers must use the shared result before identity,
+security, invariant, judgment, or dispatch comparison; they must not strip,
+deduplicate, resolve, enumerate, or otherwise reinterpret raw packet paths.
+This grammar is metadata-only and makes no existence, symlink, access, touched
+file, implementation-authority, or merge-authority claim.
+
 ---
 
 ## 5. Scope boundary
