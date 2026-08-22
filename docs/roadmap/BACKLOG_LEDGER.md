@@ -2777,6 +2777,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
     - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
 
+<a id="ledger-p1-depsec2-multi-ecosystem-dependency-closure"></a>
+- [ ] P1: DEPSEC-2 multi-ecosystem dependency coverage and compatibility closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: DS-1 `codex/docker-action-digest-pin-guard-current-main`; DS-2, DS-3, and reproduction-gated DS-4 remain separate PRs
+  - Status: 🟡 In progress via DS-1 immutable Docker action digest guard
+  - Area: dependency security / CI governance / runtime compatibility
+  - Finding Type: multi-ecosystem automation and architecture-drift closure
+  - Reason (EN): Dependency maintenance needs a finite current-main train with explicit ecosystem ownership, native resolvers, immutable lock or digest evidence, focused verification, rollback, and post-merge alert reconciliation. Configuration-authority PRs must not carry package updates; cross-ecosystem mega-updates and auto-merge are forbidden.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-governance-pr-series`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `.github/dependabot.yml`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
+  - Execution slices:
+    - DS-1: require immutable digests for recognized `docker://` action references
+    - DS-2: add bounded scheduled update ownership for non-Python ecosystems without updating packages
+    - DS-3: reconcile fresh test-quality dependency and pre-commit hook parity without runtime dependency changes
+    - DS-4: fix FastAPI lifespan/test compatibility only after a preserved red reproduction identifies the owning defect class
+  - DoD:
+    - Every slice runs the mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` chain and lands as its own scoped PR
+    - `pip`, `npm`, `bundler`, and `github-actions` have explicit update ownership; Docker and SwiftPM are either bounded automation or explicit manual ownership
+    - Current manifests, locks, CI images, and toolchain files have fresh census evidence, with zero untriaged alerts and no stale branch, historical lock, or stale CI used as current authority
+    - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
+
+<a id="ledger-p1-native-docker-action-image-pin-guard"></a>
+- [ ] P1: Native Docker action `runs.image` immutable pin guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-NATIVE-DOCKER-ACTION-IMAGE-PIN-GUARD
+  - Status: 📋 Deferred from DS-1 pending separate invariant admission
+  - Area: dependency security / GitHub Action metadata / CI governance
+  - Finding Type: uncovered context-dependent executable carrier
+  - Reason (EN): Native container actions declare images through `runs: using: docker` plus `runs.image`, not a `uses:` line. This is a second materially novel carrier outside DS-1's bounded lexical recognizer and requires a separately admitted context-aware closed recognizer instead of another free-form line regex.
+  - Links:
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `scripts/ci/guard_actions_pin.py`
+    - `tests/test_tooling_surface_guards.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
+  - DoD:
+    - A fresh coordinator packet admits the parser/guard invariant and bounds the exact native `action.yml` / `action.yaml` metadata context
+    - One canonical context-aware closed recognizer rejects mutable native `runs.image` Docker references and accepts exact lowercase SHA-256 digest selectors; no second free-form line regex is introduced
+    - Deterministic black-box tests cover mutable rejection and digest acceptance on both exact metadata filenames without weakening the existing composite `uses:` classifier
+    - Policy and diagnostics state that digest syntax does not prove image existence, trust, signature, provenance, SBOM, vulnerability status, or platform compatibility
+    - Focused guard, test, docs, and current-head CI evidence are terminal before closeout
+
 <a id="ledger-p1-test-hygiene-wave"></a>
 - [ ] P1: Test hygiene remediation wave for the main test suite
   - Owner: @katsiaryna_kavaleuskaya
