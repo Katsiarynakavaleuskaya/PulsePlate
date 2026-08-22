@@ -61,6 +61,7 @@ from core.food_apis.usda_client import USDAFoodItem
 from core.menu_engine import (
     DayMenu,
     FoodItem,
+    MAX_INGREDIENTS_PER_MEAL,
     WeekMenu,
     _apply_one_safe_booster,
     _apply_repair_strategy,
@@ -1745,6 +1746,31 @@ class TestTC209VIPDiffCoverage:
         assert repaired_meal["nutrients"]["iron_mg"] == 0.1
         assert repaired_meal["nutrients"]["vitamin_c_mg"] == 2000.0
         assert original == original_copy
+
+        for existing_count in (
+            MAX_INGREDIENTS_PER_MEAL - 1,
+            MAX_INGREDIENTS_PER_MEAL,
+        ):
+            existing_ingredients = [
+                {"name": f"existing-{index}"} for index in range(existing_count)
+            ]
+            bounded_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+            bounded_plan.daily_menus[0].meals[0]["ingredients"] = deepcopy(existing_ingredients)
+            bounded_snapshot = deepcopy(bounded_plan)
+            bounded_result = repair_canonical_week_plan(
+                bounded_plan,
+                targets,
+                food_db={"complete": _food_item("Complete", {"iron_mg": 10.0})},
+            )
+            result_ingredients = bounded_result.daily_menus[0].meals[0]["ingredients"]
+            assert result_ingredients[:existing_count] == existing_ingredients
+            if existing_count == MAX_INGREDIENTS_PER_MEAL - 1:
+                assert len(result_ingredients) == MAX_INGREDIENTS_PER_MEAL
+                assert result_ingredients[-1]["name"] == "Complete"
+            else:
+                assert bounded_result == bounded_plan
+                assert result_ingredients == existing_ingredients
+            assert bounded_plan == bounded_snapshot
 
         hundred_gram = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         low_density = {"low": _food_item("Low", {"iron_mg": 1.0})}

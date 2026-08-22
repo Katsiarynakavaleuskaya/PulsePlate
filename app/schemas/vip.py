@@ -15,6 +15,7 @@ from typing import Annotated, Any, List, Literal, Optional, Set, cast
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator, model_validator
 
 from core.data_sanitizer import MAX_MEALS, MAX_STRING_LENGTH
+from core.menu_engine import MAX_INGREDIENTS_PER_MEAL
 
 
 class MicronutrientType(str, Enum):
@@ -142,7 +143,6 @@ _AUTO_REPAIR_BASELINE_FIELDS = (
 )
 
 _VIP_MAX_DAYS = 7
-_VIP_MAX_INGREDIENTS = 15
 _VIP_MAX_CONTAINER_ENTRIES = 50
 _VIP_MAX_REQUEST_UNITS = 4096
 _VIP_MAX_EXTRA_DEPTH = 4
@@ -442,7 +442,7 @@ class AutoRepairMeal(BaseModel):
     ingredients: List[AutoRepairIngredient] = Field(
         ...,
         min_length=1,
-        max_length=_VIP_MAX_INGREDIENTS,
+        max_length=MAX_INGREDIENTS_PER_MEAL,
     )
     nutrients: AutoRepairMealNutrients
 
@@ -671,7 +671,7 @@ class WeeklyRecipeMeal(BaseModel):
     ingredients: List[AutoRepairIngredient] = Field(
         ...,
         min_length=1,
-        max_length=_VIP_MAX_INGREDIENTS,
+        max_length=MAX_INGREDIENTS_PER_MEAL,
     )
 
     model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})

@@ -3,16 +3,79 @@
 """
 
 from copy import deepcopy
-from typing import Any
+from collections.abc import Mapping
+from typing import TypedDict, cast
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 
 import app.routers.vip as vip_router
+from app.schemas.vip import AutoRepairWeekPlan
 import core.menu_engine as menu_engine
-from core.menu_engine import FoodItem
+from core.menu_engine import FoodItem, MAX_INGREDIENTS_PER_MEAL
 from tests._helpers.vip_contracts import assert_json_response_payload
+
+WireMapping = dict[str, object]
+
+
+class AutoRepairRequestPayload(TypedDict):
+    """Concrete wire request emitted by the VIP auto-repair test builder."""
+
+    week_plan: WireMapping
+    targets: WireMapping
+    strategy: str
+    user_preferences: WireMapping
+    profile: WireMapping
+    daily_targets: WireMapping
+
+
+class ShoplistQuantityPayload(TypedDict):
+    """Exact quantity wire object for weekly shoplist fixtures."""
+
+    value: str
+    unit: str
+
+
+class ShoplistItemPayload(TypedDict):
+    """Exact weekly shoplist item fixture."""
+
+    food_id: str
+    qty: ShoplistQuantityPayload
+    form: str
+
+
+class ShoplistPackagingRulePayload(TypedDict):
+    """Exact weekly shoplist packaging rule fixture."""
+
+    food_id: str
+    pack_size: ShoplistQuantityPayload
+    rounding: str
+    min_packs: int
+
+
+class ShoplistDayPayload(TypedDict):
+    """Exact weekly shoplist day fixture."""
+
+    items: list[ShoplistItemPayload]
+    packaging_rules: list[ShoplistPackagingRulePayload]
+
+
+def _wire_mapping_at(parent: Mapping[str, object], key: str) -> WireMapping:
+    """Return one asserted nested wire mapping without widening to Any."""
+
+    value = parent[key]
+    assert isinstance(value, dict)
+    return cast(WireMapping, value)
+
+
+def _wire_mapping_items_at(parent: Mapping[str, object], key: str) -> list[WireMapping]:
+    """Return one asserted list of nested wire mappings."""
+
+    value = parent[key]
+    assert isinstance(value, list)
+    assert all(isinstance(item, dict) for item in value)
+    return cast(list[WireMapping], value)
 
 
 def _complete_nutrient_evidence(
@@ -43,19 +106,22 @@ def _complete_nutrient_evidence(
     return values
 
 
-def _auto_repair_payload(week_plan: dict[str, Any]) -> dict[str, Any]:
+def _auto_repair_payload(week_plan: Mapping[str, object]) -> AutoRepairRequestPayload:
     """Build the canonical deterministic VIP auto-repair request."""
-    canonical_plan = deepcopy(week_plan)
+    canonical_plan: WireMapping = {key: deepcopy(value) for key, value in week_plan.items()}
     days = canonical_plan.get("days", [])
-    for day in days if isinstance(days, list) else []:
-        if not isinstance(day, dict):
+    for raw_day in cast(list[object], days) if isinstance(days, list) else []:
+        if not isinstance(raw_day, dict):
             continue
-        for meal in day.get("meals", []):
-            if not isinstance(meal, dict):
+        day = cast(WireMapping, raw_day)
+        raw_meals = day.get("meals", [])
+        for raw_meal in cast(list[object], raw_meals) if isinstance(raw_meals, list) else []:
+            if not isinstance(raw_meal, dict):
                 continue
+            meal = cast(WireMapping, raw_meal)
             nutrients = meal.get("nutrients")
             meal["nutrients"] = _complete_nutrient_evidence(
-                nutrients if isinstance(nutrients, dict) else None
+                cast(dict[str, float], nutrients) if isinstance(nutrients, dict) else None
             )
     return {
         "week_plan": canonical_plan,
@@ -116,7 +182,7 @@ def _shoplist_day(
     *,
     quantity: str,
     pack_size: str,
-) -> dict[str, Any]:
+) -> ShoplistDayPayload:
     """Build one canonical deterministic weekly-shoplist day."""
     return {
         "items": [
@@ -641,6 +707,86 @@ class TestVIPIntegration97Extended:
             assert data["echo"] == payload
             assert data["message"] == "Auto-repair completed with status: partial"
 
+        assert MAX_INGREDIENTS_PER_MEAL == 15
+        existing_ingredients = [
+            {"name": f"existing-{index}", "amount": index + 1, "unit": "g"}
+            for index in range(MAX_INGREDIENTS_PER_MEAL - 1)
+        ]
+        fourteen_ingredient_payload = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "ingredients": existing_ingredients,
+                                "nutrients": {"iron_mg": 0.0},
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        fourteen_ingredient_snapshot = deepcopy(fourteen_ingredient_payload)
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=fourteen_ingredient_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        fourteen_data = assert_json_response_payload(response)
+        assert fourteen_data["status"] == "success"
+        assert fourteen_data["repair_result"]["status"] == "partial"
+        repaired_fourteen_plan = fourteen_data["repair_result"]["repaired_plan"]
+        repaired_fourteen_meal = repaired_fourteen_plan["days"][0]["meals"][0]
+        assert len(repaired_fourteen_meal["ingredients"]) == MAX_INGREDIENTS_PER_MEAL
+        assert repaired_fourteen_meal["ingredients"][:-1] == existing_ingredients
+        assert repaired_fourteen_meal["ingredients"][-1] == {
+            "name": "Iron Booster",
+            "amount": 80.0,
+            "unit": "g",
+        }
+        AutoRepairWeekPlan.model_validate(repaired_fourteen_plan)
+        assert fourteen_ingredient_payload == fourteen_ingredient_snapshot
+
+        full_ingredients = [
+            {"name": f"existing-{index}", "amount": index + 1, "unit": "g"}
+            for index in range(MAX_INGREDIENTS_PER_MEAL)
+        ]
+        full_ingredient_payload = _auto_repair_payload(
+            {
+                "days": [
+                    {
+                        "day": "monday",
+                        "meals": [
+                            {
+                                "ingredients": full_ingredients,
+                                "nutrients": {"iron_mg": 0.0},
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        full_ingredient_snapshot = deepcopy(full_ingredient_payload)
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=full_ingredient_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        full_data = assert_json_response_payload(response)
+        assert full_data["status"] == "error"
+        assert full_data["code"] == "auto_repair_failed"
+        assert full_data["repair_result"]["status"] == "failed"
+        assert full_data["repair_result"]["repaired_plan"] == full_ingredient_payload["week_plan"]
+        assert (
+            full_data["repair_result"]["repaired_plan"]["days"][0]["meals"][0]["ingredients"]
+            == full_ingredients
+        )
+        AutoRepairWeekPlan.model_validate(full_data["repair_result"]["repaired_plan"])
+        assert full_ingredient_payload == full_ingredient_snapshot
+
         stale_summary_payload = _auto_repair_payload(payload_simple_problems["week_plan"])
         stale_summary_payload["week_plan"].update(
             {
@@ -650,7 +796,7 @@ class TestVIPIntegration97Extended:
                 "adherence_score": {"invalid": True},
             }
         )
-        stale_day = stale_summary_payload["week_plan"]["days"][0]
+        stale_day = _wire_mapping_items_at(stale_summary_payload["week_plan"], "days")[0]
         stale_day.update(
             {
                 "coverage": {"stale": 1.0},
@@ -773,7 +919,7 @@ class TestVIPIntegration97Extended:
 
         for moderate, vigorous in ((150, 0), (0, 75), (0, 0)):
             activity_payload = deepcopy(complete_payload)
-            activity_payload["daily_targets"]["activity"].update(
+            _wire_mapping_at(activity_payload["daily_targets"], "activity").update(
                 {
                     "moderate_aerobic_min": moderate,
                     "vigorous_aerobic_min": vigorous,
@@ -794,7 +940,9 @@ class TestVIPIntegration97Extended:
             ("vigorous_aerobic_min", "0"),
         ):
             invalid_activity_payload = deepcopy(complete_payload)
-            invalid_activity_payload["daily_targets"]["activity"][field_name] = invalid_value
+            _wire_mapping_at(invalid_activity_payload["daily_targets"], "activity")[
+                field_name
+            ] = invalid_value
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=invalid_activity_payload,
@@ -944,7 +1092,9 @@ class TestVIPIntegration97Extended:
         }
 
         overflow_admission = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
-        overflow_admission["week_plan"]["days"][0]["meals"][0]["nutrients"]["kcal"] = 10**310
+        overflow_day = _wire_mapping_items_at(overflow_admission["week_plan"], "days")[0]
+        overflow_meal = _wire_mapping_items_at(overflow_day, "meals")[0]
+        _wire_mapping_at(overflow_meal, "nutrients")["kcal"] = 10**310
         cached_reader = Mock(side_effect=AssertionError("core cache must not be called"))
         with monkeypatch.context() as overflow_guard:
             overflow_guard.setattr(

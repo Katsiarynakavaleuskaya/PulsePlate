@@ -40,6 +40,8 @@ class EventLoopRunningError(Exception):
 
 _logger = logging.getLogger(__name__)
 
+MAX_INGREDIENTS_PER_MEAL = 15
+
 
 @dataclass
 class FoodItem:
@@ -862,6 +864,8 @@ def _apply_one_safe_booster(
     ingredients = target_meal.get("ingredients")
     meal_nutrients = target_meal.get("nutrients")
     if not isinstance(ingredients, list) or not isinstance(meal_nutrients, dict):
+        return False
+    if len(ingredients) >= MAX_INGREDIENTS_PER_MEAL:
         return False
     requested_region = _normalized_region(day_menu.targets.calculated_for.region)
     if requested_region is None:

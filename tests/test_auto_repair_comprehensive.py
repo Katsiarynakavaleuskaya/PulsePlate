@@ -30,6 +30,7 @@ from core.auto_repair import (
 from core.menu_engine import (
     DayMenu,
     FoodItem,
+    MAX_INGREDIENTS_PER_MEAL,
     WeekMenu,
     _apply_repair_strategy,
     _calculate_day_nutrients,
@@ -558,6 +559,46 @@ class TestAutoRepairComprehensive:
         assert repaired.daily_menus[0].total_nutrients["iron_mg"] == 8.0
         assert plan == original
         assert repaired is not plan
+
+        assert MAX_INGREDIENTS_PER_MEAL == 15
+        for existing_count in (
+            MAX_INGREDIENTS_PER_MEAL - 1,
+            MAX_INGREDIENTS_PER_MEAL,
+        ):
+            existing_ingredients = [
+                {"name": f"existing-{index}", "amount": index + 1, "unit": "g"}
+                for index in range(existing_count)
+            ]
+            bounded_plan = _canonical_plan(
+                [
+                    {
+                        "ingredients": existing_ingredients,
+                        "nutrients": {"iron_mg": 0.0},
+                    }
+                ]
+            )
+            bounded_snapshot = deepcopy(bounded_plan)
+
+            bounded_result = repair_canonical_week_plan(
+                bounded_plan,
+                self.targets,
+                strategy="boosters_first",
+                food_db=food_db,
+            )
+
+            bounded_ingredients = bounded_result.daily_menus[0].meals[0]["ingredients"]
+            assert bounded_ingredients[:existing_count] == existing_ingredients
+            if existing_count == MAX_INGREDIENTS_PER_MEAL - 1:
+                assert len(bounded_ingredients) == MAX_INGREDIENTS_PER_MEAL
+                assert bounded_ingredients[-1] == {
+                    "name": "Iron Food",
+                    "amount": 80.0,
+                    "unit": "g",
+                }
+            else:
+                assert bounded_result == bounded_plan
+                assert bounded_ingredients == existing_ingredients
+            assert bounded_plan == bounded_snapshot
 
         conservative = repair_canonical_week_plan(
             plan,
