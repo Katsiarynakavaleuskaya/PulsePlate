@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from tests.runtime_toolchain_versions import (
     CANONICAL_RUBY,
     EXCON_MINIMUM_VERSION,
     FASTLANE_VERSION,
+    JSON_MINIMUM_VERSION,
     RUBY_SETUP_ACTION,
 )
 
@@ -74,6 +76,11 @@ EXPECTED_RUBY_SETUP_OWNERS = (
     (".github/workflows/ios-appstore-assets.yml", "upload-app-privacy"),
     (".github/workflows/ios-appstore-assets.yml", "upload-assets"),
     (".github/workflows/ios-appstore-assets.yml", "validate-assets"),
+)
+RUBY_DEPENDENCY_SURFACE_NAMES = frozenset({"Gemfile", "Gemfile.lock"})
+EXPECTED_RUBY_DEPENDENCY_SURFACES = frozenset({"ios/Gemfile", "ios/Gemfile.lock"})
+LOCAL_GENERATED_TOP_LEVEL_DIRS = frozenset(
+    {"worktrees", "artifacts", ".venv", "node_modules", "build", "cache"}
 )
 
 
@@ -189,6 +196,78 @@ def _tool_versions() -> dict[str, str]:
         tool, version, *_rest = stripped.split()
         entries[tool] = version
     return entries
+
+
+def _locked_top_level_json_version(lockfile: str) -> str:
+    """Return the sole stable top-level json version from Bundler's GEM specs."""
+    lines = lockfile.splitlines()
+    gem_boundaries = [index for index, line in enumerate(lines) if line == "GEM"]
+    platform_boundaries = [index for index, line in enumerate(lines) if line == "PLATFORMS"]
+
+    assert len(gem_boundaries) == 1
+    assert len(platform_boundaries) == 1
+    gem_index = gem_boundaries[0]
+    platforms_index = platform_boundaries[0]
+    assert gem_index < platforms_index
+    specs_boundaries = [
+        index for index in range(gem_index + 1, platforms_index) if lines[index] == "  specs:"
+    ]
+    assert len(specs_boundaries) == 1
+    specs_index = specs_boundaries[0]
+
+    json_rows = [
+        line
+        for line in lines[specs_index + 1 : platforms_index]
+        if re.match(r"^ {4}json(?:\s|\()", line)
+    ]
+    assert len(json_rows) == 1
+    match = re.fullmatch(r" {4}json \((\d+(?:\.\d+)*)\)", json_rows[0])
+    assert match is not None
+    return match.group(1)
+
+
+def _assert_json_lock_postcondition(lockfile: str) -> None:
+    locked_json = _locked_top_level_json_version(lockfile)
+    assert _version_at_least(locked_json, JSON_MINIMUM_VERSION)
+
+
+def _discover_ruby_dependency_surfaces(repo_root: Path) -> dict[str, Path]:
+    """Discover exact Gemfile names while pruning known top-level local output."""
+    discovered: dict[str, Path] = {}
+    pending = [repo_root]
+    while pending:
+        directory = pending.pop()
+        for path in sorted(directory.iterdir(), reverse=True):
+            relative = path.relative_to(repo_root)
+            if path.is_symlink():
+                continue
+            if path.is_dir():
+                if len(relative.parts) == 1 and path.name in LOCAL_GENERATED_TOP_LEVEL_DIRS:
+                    continue
+                pending.append(path)
+                continue
+            if path.is_file() and path.name in RUBY_DEPENDENCY_SURFACE_NAMES:
+                discovered[relative.as_posix()] = path
+    return discovered
+
+
+def _assert_ruby_json_repository_postcondition(repo_root: Path) -> None:
+    surfaces = _discover_ruby_dependency_surfaces(repo_root)
+    assert frozenset(surfaces) == EXPECTED_RUBY_DEPENDENCY_SURFACES
+
+    gemfile = surfaces["ios/Gemfile"].read_text(encoding="utf-8")
+    direct_json = re.compile(r'^\s*gem(?:\s+|\(\s*)["\']json["\'](?:\s*,|\s*\)|\s*$)')
+    assert not any(direct_json.match(line) for line in gemfile.splitlines())
+
+    candidate_locks = 0
+    for name, path in surfaces.items():
+        if not name.endswith("Gemfile.lock"):
+            continue
+        lockfile = path.read_text(encoding="utf-8")
+        if any(re.match(r"^ {4}json(?:\s|\()", line) for line in lockfile.splitlines()):
+            candidate_locks += 1
+            _assert_json_lock_postcondition(lockfile)
+    assert candidate_locks > 0
 
 
 def test_local_python_and_ruby_version_sources_are_canonical() -> None:
@@ -427,3 +506,92 @@ def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
     assert _version_at_least("1.5", EXCON_MINIMUM_VERSION)
     assert not _version_at_least("1.5.0.rc1", EXCON_MINIMUM_VERSION)
     assert "      excon (>= 0.71.0, < 2.0.0)" in lockfile
+
+    _assert_json_lock_postcondition(lockfile)
+
+
+def test_repository_ruby_json_dependency_surface_is_finite_and_patched() -> None:
+    _assert_ruby_json_repository_postcondition(REPO_ROOT)
+
+
+def test_repository_ruby_json_postcondition_rejects_an_extra_vulnerable_lock(
+    tmp_path: Path,
+) -> None:
+    ios_dir = tmp_path / "ios"
+    ios_dir.mkdir()
+    (ios_dir / "Gemfile").write_text('gem "fastlane", "= 2.237.0"\n', encoding="utf-8")
+    safe_lock = "GEM\n  specs:\n    json (2.19.9)\nPLATFORMS\n  ruby\n"
+    (ios_dir / "Gemfile.lock").write_text(safe_lock, encoding="utf-8")
+    extra_dir = tmp_path / "release-tools"
+    extra_dir.mkdir()
+    vulnerable_lock = "GEM\n  specs:\n    json (2.19.8)\nPLATFORMS\n  ruby\n"
+    (extra_dir / "Gemfile.lock").write_text(vulnerable_lock, encoding="utf-8")
+
+    with pytest.raises(AssertionError):
+        _assert_ruby_json_repository_postcondition(tmp_path)
+
+
+@pytest.mark.parametrize("version", ["2.19.9", "2.19.10"])
+def test_json_lock_postcondition_accepts_stable_patched_versions(version: str) -> None:
+    lockfile = f"""\
+GEM
+  specs:
+    json ({version})
+PLATFORMS
+  ruby
+"""
+
+    _assert_json_lock_postcondition(lockfile)
+
+
+def test_json_lock_postcondition_allows_a_preceding_git_specs_block() -> None:
+    lockfile = """\
+GIT
+  remote: https://example.test/release-helper.git
+  revision: 0123456789abcdef
+  specs:
+    release-helper (1.0.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    json (2.19.9)
+PLATFORMS
+  ruby
+"""
+
+    _assert_json_lock_postcondition(lockfile)
+
+
+@pytest.mark.parametrize(
+    "lockfile",
+    [
+        "GEM\n  specs:\n    multi_json (1.19.1)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n    json (2.19.9)\n    json (2.19.10)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n    json (= 2.19.9)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n    json (2.19.9.rc1)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n    json (2.19.8)\nPLATFORMS\n  ruby\n",
+        "GEM\nGEM\n  specs:\n    json (2.19.9)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n  specs:\n    json (2.19.9)\nPLATFORMS\n  ruby\n",
+        "GEM\n  specs:\n    json (2.19.9)\nPLATFORMS\nPLATFORMS\n  ruby\n",
+        "PLATFORMS\nGEM\n  specs:\n    json (2.19.9)\n",
+    ],
+)
+def test_json_lock_postcondition_rejects_unsafe_or_ambiguous_lockfiles(lockfile: str) -> None:
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(lockfile)
+
+
+def test_json_lock_postcondition_ignores_nested_and_similarly_named_gems() -> None:
+    lockfile = """\
+GEM
+  specs:
+    json (2.19.9)
+      json (< 3.0.0)
+    json-schema (5.2.2)
+    multi_json (1.19.1)
+PLATFORMS
+  ruby
+"""
+
+    _assert_json_lock_postcondition(lockfile)
