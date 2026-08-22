@@ -118,8 +118,9 @@ preserve state and request the specific new decision.
 
 1. Read the current repository instructions and the nearest scoped instructions.
 2. Require evidence that the canonical coordinator-first startup and task packet
-   and required ordered role passes already exist for non-trivial work. Packet
-   creation does not execute roles and grants no implementation or merge authority.
+   already exist and that every required role pass has executed in the
+   packet-declared order for non-trivial work. Packet creation does not execute
+   roles and grants no implementation or merge authority.
 3. Before PR creation, bind the repository, owned target branch and worktree,
    current base, approved goal, material paths, and stop boundaries. After PR
    creation, authenticate the PR number, repository, `head.ref`, exact head SHA,
@@ -373,9 +374,12 @@ Emit exactly one status:
   GitHub authentication. Do not use `BLOCKED` for recoverable gate failures, bounded
   in-lane remediation, ordinary descendant-head evidence refresh, or pending
   current-head evidence.
-- `WAITING_CURRENT_HEAD`: the exact-head required CI or review window is not yet
-  terminal. Continue bounded remediation and evidence refresh under the existing
-  lifecycle delegation.
+- `WAITING_CURRENT_HEAD`: Use `WAITING_CURRENT_HEAD` while either bounded
+  remediation of a recoverable same-lane gate or review failure is in progress, or
+  exact-current-head required CI or review-window evidence is nonterminal. After
+  remediation creates a successor head, refresh every affected current-head
+  evidence rail. Continue bounded remediation and evidence refresh under the
+  existing lifecycle delegation.
 - `READY_FOR_AUTHORIZED_MERGE`: readiness is proven, but merge authorization is
   absent. This is a checkpoint; request the one exact-head squash merge approval.
 - `MERGED_PENDING_POST_MERGE_PROOF`: GitHub merge is proven, but synchronization,

@@ -760,6 +760,12 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             id="failed-attempt-does-not-consume-delegation",
         ),
         pytest.param(
+            "Require evidence that the canonical coordinator-first startup and task "
+            "packet already exist and that every required role pass has executed in "
+            "the packet-declared order for non-trivial work.",
+            id="required-role-passes-must-execute-in-packet-order",
+        ),
+        pytest.param(
             "Before a coherent material diff exists, authorized same-lane implementation "
             "proceeds under the active lifecycle delegation without forcing `AUDIT` or "
             "requiring another mode selection; when the diff becomes coherent, transition "
@@ -893,6 +899,14 @@ def test_mirror_file_inventory_rejects_nested_symlink(tmp_path: Path) -> None:
             "remediation, ordinary descendant-head evidence refresh, or pending "
             "current-head evidence.",
             id="recoverable-or-pending-evidence-is-not-blocked",
+        ),
+        pytest.param(
+            "Use `WAITING_CURRENT_HEAD` while either bounded remediation of a "
+            "recoverable same-lane gate or review failure is in progress, or "
+            "exact-current-head required CI or review-window evidence is nonterminal. "
+            "After remediation creates a successor head, refresh every affected "
+            "current-head evidence rail.",
+            id="recoverable-remediation-waits-for-current-head",
         ),
         pytest.param(
             "Treat provider absence as neither review, scan, approval, PASS, nor " "no-findings.",
