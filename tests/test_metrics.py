@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 from pathlib import Path
 import re
 
@@ -1280,7 +1281,7 @@ def test_metrics_scrape_key_rejects_zero_nofollow_flag(
     secret_file = tmp_path / "metrics-key"
     _write_scrape_key(secret_file, token)
     monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
-    monkeypatch.setattr(production_invariants.os, "O_NOFOLLOW", 0)
+    monkeypatch.setattr(production_invariants.os, "O_NOFOLLOW", 0, raising=False)
 
     recognition = production_invariants.recognize_metrics_scrape_key()
 
@@ -1378,10 +1379,16 @@ def test_metrics_scrape_key_rejects_symlink_nonregular_and_unreadable(
 
     original_open = production_invariants.os.open
 
-    def _deny_open(file_name: str, flags: int) -> int:
-        if file_name == str(token_file):
+    def _deny_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if os.fsdecode(path) == str(token_file):
             raise PermissionError("denied")
-        return original_open(file_name, flags)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(production_invariants.os, "open", _deny_open)
     monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(token_file))

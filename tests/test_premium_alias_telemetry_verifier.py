@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import sys
 import tarfile
@@ -39,6 +40,7 @@ def _live_snapshot(
     app_container_id: str = _APP_CONTAINER_A,
     prometheus_container_id: str = _PROMETHEUS_CONTAINER_A,
     process_identity: str = _PROCESS_A,
+    compose_project: str = "pulseplate-test",
 ) -> verifier.LiveRuntimeSnapshot:
     return verifier.LiveRuntimeSnapshot(
         app_container_id=app_container_id,
@@ -54,6 +56,18 @@ def _live_snapshot(
         uvicorn_process_count=uvicorn_processes,
         uvicorn_process_identity=process_identity,
         retention_days=retention_days,
+        compose_project=compose_project,
+        app_compose_service="app",
+        prometheus_compose_service="prometheus",
+        prometheus_config_path="/etc/prometheus/prometheus.yml",
+        target_job=verifier.TARGET_JOB,
+        target_discovered_address=verifier.TARGET_ADDRESS,
+        target_final_address=verifier.TARGET_ADDRESS,
+        target_instance=verifier.TARGET_ADDRESS,
+        target_scheme=verifier.TARGET_SCHEME,
+        target_metrics_path=verifier.TARGET_METRICS_PATH,
+        target_scrape_interval_seconds=verifier.SCRAPE_INTERVAL_SECONDS,
+        target_scrape_timeout_seconds=verifier.SCRAPE_TIMEOUT_SECONDS,
     )
 
 
@@ -105,7 +119,15 @@ class _FakePromtoolClient:
         if expression.startswith("min(up") or expression.startswith("min_over_time"):
             return 1.0
         if expression.startswith("count_over_time"):
-            return float(verifier.FINAL_MIN_SAMPLES)
+            range_match = re.search(r"\[(?P<seconds>[0-9]+)s\]", expression)
+            assert range_match is not None
+            range_seconds = int(range_match.group("seconds"))
+            return float(
+                max(
+                    verifier.FINAL_MIN_SAMPLES,
+                    range_seconds // verifier.SCRAPE_INTERVAL_SECONDS,
+                )
+            )
         return 0.0
 
 
@@ -282,6 +304,7 @@ def test_bounded_baseline_and_final_pass_preserve_exact_zero_semantics(
         "prometheus_image",
         "prometheus_image_reference",
         "scrape_config",
+        "target_binding",
         "tsdb",
         "uvicorn_process",
     ]
@@ -370,6 +393,67 @@ def test_final_idempotency_binds_human_t0_and_exact_replay_is_no_write(
     assert (tmp_path / output_name).read_bytes() == before
 
 
+@pytest.mark.parametrize(
+    ("delta", "expected_range_seconds"),
+    [
+        (timedelta(days=45), 45 * 24 * 60 * 60),
+        (timedelta(days=45, microseconds=1), 45 * 24 * 60 * 60 + 1),
+    ],
+)
+def test_final_window_uses_complete_human_t0_range_for_every_range_query(
+    tmp_path: Path,
+    delta: timedelta,
+    expected_range_seconds: int,
+) -> None:
+    baseline = _passing_baseline(tmp_path)
+    client = _FakePromtoolClient(anchor=_T0 + delta)
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="final", t0=_T0),
+        client,
+        baseline=baseline,
+    )
+
+    assert evidence["decision"] == "PASS"
+    window = evidence["window"]
+    target = evidence["target"]
+    assert isinstance(window, dict)
+    assert isinstance(target, dict)
+    assert window["started_at"] == "2026-08-22T12:00:00Z"
+    assert window["duration_seconds"] == expected_range_seconds
+    assert target["required_samples"] == max(
+        verifier.FINAL_MIN_SAMPLES,
+        expected_range_seconds // verifier.SCRAPE_INTERVAL_SECONDS,
+    )
+    range_queries = [query for query, _time in client.queries if "[" in query]
+    assert len(range_queries) == 11
+    assert all(f"[{expected_range_seconds}s]" in query for query in range_queries)
+    assert client.queries[0][0] == 'count(up{job="pulseplate-api"})'
+    assert "instance=" not in client.queries[0][0]
+    assert all(
+        'job="pulseplate-api",instance="app:8000"' in query for query, _time in client.queries[1:]
+    )
+
+
+def test_final_pass_rejects_underdeclared_required_samples_after_recompute(
+    tmp_path: Path,
+) -> None:
+    baseline = _passing_baseline(tmp_path)
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="final", t0=_T0),
+        _FakePromtoolClient(anchor=_T0 + timedelta(days=45)),
+        baseline=baseline,
+    )
+    target = evidence["target"]
+    assert isinstance(target, dict)
+    required_samples = target["required_samples"]
+    assert isinstance(required_samples, int)
+    target["required_samples"] = required_samples - 1
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "underdeclared-samples.json", evidence)
+
+
 def test_checkpoint_pass_cross_fields_are_admitted(tmp_path: Path) -> None:
     baseline = _passing_baseline(tmp_path)
     checkpoint = verifier.build_evidence(
@@ -380,6 +464,66 @@ def test_checkpoint_pass_cross_fields_are_admitted(tmp_path: Path) -> None:
 
     assert checkpoint["decision"] == "PASS"
     verifier._validate_evidence_asset(checkpoint)
+
+
+@pytest.mark.parametrize("mode", ["checkpoint", "final"])
+def test_nonbaseline_pass_requires_one_baseline_lineage_tail(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    baseline = _passing_baseline(tmp_path)
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode=mode, t0=_T0 if mode == "final" else None),
+        _FakePromtoolClient(
+            anchor=_T0 + (timedelta(days=30) if mode == "final" else timedelta(days=1))
+        ),
+        baseline=baseline,
+    )
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(upstream_assets, list)
+    assert upstream_assets[-1]["role"] == "baseline_evidence"
+    upstream_assets.pop()
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, f"missing-{mode}-tail.json", evidence)
+
+
+def test_baseline_rejects_extra_baseline_lineage_tail(tmp_path: Path) -> None:
+    evidence = _passing_baseline(tmp_path)
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(upstream_assets, list)
+    upstream_assets.append(
+        {
+            "asset_type": verifier.ASSET_TYPE,
+            "role": "baseline_evidence",
+            "fingerprint": evidence["fingerprint"],
+        }
+    )
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "baseline-extra-tail.json", evidence)
+
+
+def test_missing_baseline_hold_lineage_remains_publishable(tmp_path: Path) -> None:
+    checkpoint = verifier.build_evidence(
+        _config(tmp_path, mode="checkpoint"),
+        _FakePromtoolClient(anchor=_T0 + timedelta(days=1)),
+        baseline=None,
+    )
+    unavailable_baseline = verifier.build_evidence(
+        _config(tmp_path, mode="baseline"),
+        _FakePromtoolClient(snapshot=verifier.VerificationError("release_identity_unavailable")),
+    )
+
+    for output_name, evidence in (
+        ("missing-baseline-checkpoint.json", checkpoint),
+        ("snapshot-unavailable-baseline.json", unavailable_baseline),
+    ):
+        assert evidence["decision"] == "HOLD"
+        verifier._validate_evidence_asset(evidence)
+        assert verifier.write_evidence_new_only(tmp_path, output_name, evidence) == "published"
 
 
 def test_wrong_target_topology_and_retention_fail_closed(tmp_path: Path) -> None:
@@ -432,11 +576,35 @@ def test_query_normalizes_huge_integer_to_nonfinite_hold() -> None:
     assert reasons == ["target_count_missing", "promtool_value_nonfinite"]
 
 
+def test_unavailable_promtool_query_accepts_expression_keyword() -> None:
+    client = verifier._UnavailablePromtoolClient()
+
+    with pytest.raises(verifier.VerificationError, match="docker_unavailable"):
+        client.query_scalar(
+            expression="up",
+            evaluation_time="2026-08-22T12:00:00Z",
+        )
+
+
 def test_identity_drift_invalidates_checkpoint_baseline(tmp_path: Path) -> None:
     evidence = verifier.build_evidence(
         _config(tmp_path, mode="checkpoint"),
         _FakePromtoolClient(
             snapshot=_live_snapshot(release_id=_RELEASE_B),
+            anchor=_T0 + timedelta(days=1),
+        ),
+        baseline=_passing_baseline(tmp_path),
+    )
+
+    assert evidence["decision"] == "HOLD"
+    assert "baseline_evidence_invalid_or_drifted" in evidence["reasons"]
+
+
+def test_target_project_drift_invalidates_checkpoint_baseline(tmp_path: Path) -> None:
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="checkpoint"),
+        _FakePromtoolClient(
+            snapshot=_live_snapshot(compose_project="other-project"),
             anchor=_T0 + timedelta(days=1),
         ),
         baseline=_passing_baseline(tmp_path),
@@ -558,6 +726,270 @@ def test_container_inspect_rejects_json_integer_digit_exhaustion() -> None:
 
     with pytest.raises(verifier.VerificationError, match="container_inspect_invalid"):
         verifier._parse_container_inspect(payload)
+
+
+def _target_discovery_payload(
+    *,
+    discovered_updates: dict[str, object] | None = None,
+    final_updates: dict[str, object] | None = None,
+) -> bytes:
+    common: dict[str, object] = {
+        "__address__": "app:8000",
+        "__scheme__": "http",
+        "__metrics_path__": "/metrics",
+        "__scrape_interval__": "30s",
+        "__scrape_timeout__": "10s",
+        "job": "pulseplate-api",
+    }
+    discovered = {**common, "__meta_extra": "ignored"}
+    final = {**common, "instance": "app:8000", "extra": "ignored"}
+    discovered.update(discovered_updates or {})
+    final.update(final_updates or {})
+    return json.dumps(
+        [{"discoveredLabels": discovered, "labels": final}],
+        separators=(",", ":"),
+    ).encode()
+
+
+def test_target_discovery_accepts_exact_bound_target_with_extra_labels() -> None:
+    binding = verifier._parse_target_discovery(_target_discovery_payload())
+
+    assert binding == verifier._TargetBinding(
+        job="pulseplate-api",
+        discovered_address="app:8000",
+        final_address="app:8000",
+        instance="app:8000",
+        scheme="http",
+        metrics_path="/metrics",
+        scrape_interval_seconds=30,
+        scrape_timeout_seconds=10,
+    )
+
+
+@pytest.mark.parametrize(
+    ("discovered_updates", "final_updates", "reason"),
+    [
+        ({"__address__": "staging:8000"}, {}, "prometheus_target_binding_mismatch"),
+        ({}, {"__address__": "staging:8000"}, "prometheus_target_binding_mismatch"),
+        ({"job": "other"}, {}, "prometheus_target_binding_mismatch"),
+        ({}, {"instance": "staging:8000"}, "prometheus_target_binding_mismatch"),
+        ({"__scrape_interval__": "60s"}, {}, "prometheus_scrape_interval_mismatch"),
+        ({}, {"__scrape_timeout__": "5s"}, "prometheus_scrape_timeout_mismatch"),
+        ({"extra_non_string": 1}, {}, "prometheus_target_discovery_invalid"),
+    ],
+)
+def test_target_discovery_rejects_drift_and_relabel_forgery(
+    discovered_updates: dict[str, object],
+    final_updates: dict[str, object],
+    reason: str,
+) -> None:
+    with pytest.raises(verifier.VerificationError, match=reason):
+        verifier._parse_target_discovery(
+            _target_discovery_payload(
+                discovered_updates=discovered_updates,
+                final_updates=final_updates,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"{}", b"[]", b"[{},{}]", b'[{"discoveredLabels":{},"labels":{},"extra":{}}]'],
+)
+def test_target_discovery_rejects_invalid_top_level_shape(payload: bytes) -> None:
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_target_discovery_invalid",
+    ):
+        verifier._parse_target_discovery(payload)
+
+
+def test_compose_service_identity_and_config_path_are_exact() -> None:
+    app_labels = {
+        "com.docker.compose.project": "pulseplate-test",
+        "com.docker.compose.service": "app",
+    }
+    prometheus_labels = {
+        "com.docker.compose.project": "pulseplate-test",
+        "com.docker.compose.service": "prometheus",
+    }
+
+    assert (
+        verifier._parse_compose_service_identity(app_labels, prometheus_labels) == "pulseplate-test"
+    )
+    assert verifier._parse_prometheus_args(
+        [
+            "--config.file=/etc/prometheus/prometheus.yml",
+            "--storage.tsdb.retention.time=45d",
+        ]
+    ) == [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.retention.time=45d",
+    ]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--config.file=/etc/prometheus/prometheus.yml"],
+        ["--config.file", "/etc/prometheus/prometheus.yml"],
+    ],
+)
+def test_prometheus_config_path_accepts_both_exact_carrier_forms(
+    arguments: list[str],
+) -> None:
+    assert verifier._parse_prometheus_args(arguments) == arguments
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--storage.tsdb.retention.time=45d"],
+        ["--storage.tsdb.retention.time", "45d"],
+    ],
+)
+def test_retention_accepts_both_exact_carrier_forms(arguments: list[str]) -> None:
+    assert verifier._parse_retention_days(arguments) == 45
+
+
+@pytest.mark.parametrize(
+    ("app_service", "prometheus_service", "prometheus_project"),
+    [
+        ("wrong", "prometheus", "pulseplate-test"),
+        ("app", "wrong", "pulseplate-test"),
+        ("app", "prometheus", "other-project"),
+    ],
+)
+def test_compose_service_identity_rejects_mismatch(
+    app_service: str,
+    prometheus_service: str,
+    prometheus_project: str,
+) -> None:
+    with pytest.raises(verifier.VerificationError, match="compose_service_identity_mismatch"):
+        verifier._parse_compose_service_identity(
+            {
+                "com.docker.compose.project": "pulseplate-test",
+                "com.docker.compose.service": app_service,
+            },
+            {
+                "com.docker.compose.project": prometheus_project,
+                "com.docker.compose.service": prometheus_service,
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [],
+        ["--config.file"],
+        ["--config.file", "--storage.tsdb.retention.time=45d"],
+        ["--config.filex=/etc/prometheus/prometheus.yml"],
+        ["--config.file=/wrong"],
+        ["--config.file", "/wrong"],
+        [
+            "--config.file=/wrong",
+            "--config.file=/etc/prometheus/prometheus.yml",
+        ],
+        [
+            "--config.file=/etc/prometheus/prometheus.yml",
+            "--config.file=/wrong",
+        ],
+        [
+            "--config.file=/etc/prometheus/prometheus.yml",
+            "--config.file=/etc/prometheus/prometheus.yml",
+        ],
+        [
+            "--config.file",
+            "/etc/prometheus/prometheus.yml",
+            "--config.file",
+            "/etc/prometheus/prometheus.yml",
+        ],
+    ],
+)
+def test_prometheus_config_path_requires_exactly_one_argument(arguments: list[str]) -> None:
+    with pytest.raises(verifier.VerificationError, match="prometheus_config_path_mismatch"):
+        verifier._parse_prometheus_args(arguments)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [],
+        ["--storage.tsdb.retention.time"],
+        ["--storage.tsdb.retention.time", "--config.file=/etc/prometheus/prometheus.yml"],
+        ["--storage.tsdb.retention.timex=45d"],
+        ["--storage.tsdb.retention.time=wrong"],
+        ["--storage.tsdb.retention.time", "wrong"],
+        [
+            "--storage.tsdb.retention.time=44d",
+            "--storage.tsdb.retention.time=45d",
+        ],
+        [
+            "--storage.tsdb.retention.time=45d",
+            "--storage.tsdb.retention.time=44d",
+        ],
+        [
+            "--storage.tsdb.retention.time=45d",
+            "--storage.tsdb.retention.time=45d",
+        ],
+    ],
+)
+def test_retention_rejects_conflicting_duplicate_and_missing_carriers(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_retention_unavailable",
+    ):
+        verifier._parse_retention_days(arguments)
+
+
+def test_target_discovery_command_failure_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = verifier.DockerPromtoolClient(
+        docker="/absolute/docker",
+        compose_file=Path("deploy/compose.yaml"),
+    )
+    client._bound_prometheus_container_id = _PROMETHEUS_CONTAINER_A
+
+    def _fail(_arguments: list[str]) -> verifier._CommandResult:
+        raise verifier.VerificationError("promtool_execution_failed")
+
+    monkeypatch.setattr(client, "_run_promtool", _fail)
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_target_discovery_unavailable",
+    ):
+        client._collect_target_binding()
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "compose_service_identity_mismatch",
+        "prometheus_config_path_mismatch",
+        "prometheus_target_discovery_unavailable",
+        "prometheus_target_discovery_invalid",
+        "prometheus_target_binding_mismatch",
+        "prometheus_scrape_interval_mismatch",
+        "prometheus_scrape_timeout_mismatch",
+    ],
+)
+def test_target_binding_failures_make_window_incomplete(
+    tmp_path: Path,
+    reason: str,
+) -> None:
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="baseline"),
+        _FakePromtoolClient(snapshot=verifier.VerificationError(reason)),
+    )
+    window = evidence["window"]
+    assert isinstance(window, dict)
+    assert evidence["decision"] == "HOLD"
+    assert reason in evidence["reasons"]
+    assert window["complete"] is False
 
 
 def _tar_payload(
@@ -835,12 +1267,24 @@ def test_docker_promtool_uses_absolute_argv_without_shell(
             {
                 "Id": app_id,
                 "Image": _DIGEST_A,
-                "Config": {"Labels": {"org.opencontainers.image.revision": _RELEASE_A}},
+                "Config": {
+                    "Labels": {
+                        "org.opencontainers.image.revision": _RELEASE_A,
+                        "com.docker.compose.project": "pulseplate-test",
+                        "com.docker.compose.service": "app",
+                    }
+                },
             },
             {
                 "Id": prometheus_id,
                 "Image": _DIGEST_B,
-                "Config": {"Image": _PROMETHEUS_REFERENCE},
+                "Config": {
+                    "Image": _PROMETHEUS_REFERENCE,
+                    "Labels": {
+                        "com.docker.compose.project": "pulseplate-test",
+                        "com.docker.compose.service": "prometheus",
+                    },
+                },
                 "Args": [
                     "--config.file=/etc/prometheus/prometheus.yml",
                     "--storage.tsdb.retention.time=45d",
@@ -881,6 +1325,16 @@ elif args == ["cp", {f'{prometheus_id}:/etc/prometheus/prometheus.yml'!r}, "-"]:
 elif args[:2] == ["top", {app_id!r}]:
     print("PID STARTED COMMAND")
     print("101 Fri Aug 22 12:00:00 2026 /usr/local/bin/python -m uvicorn app.main:app")
+elif "/bin/promtool" in args and "service-discovery" in args:
+    common = {{
+        "__address__": "app:8000",
+        "__scheme__": "http",
+        "__metrics_path__": "/metrics",
+        "__scrape_interval__": "30s",
+        "__scrape_timeout__": "10s",
+        "job": "pulseplate-api",
+    }}
+    print(json.dumps([{{"discoveredLabels": {{**common, "__meta_extra": "ignored"}}, "labels": {{**common, "instance": "app:8000", "extra": "ignored"}}}}], separators=(",", ":")))
 elif "/bin/promtool" in args and "query" in args:
     expression = args[-1]
     timestamp = {_T0.timestamp()!r}
@@ -929,12 +1383,24 @@ else:
         uvicorn_process_count=1,
         uvicorn_process_identity=process_identity,
         retention_days=45,
+        compose_project="pulseplate-test",
+        app_compose_service="app",
+        prometheus_compose_service="prometheus",
+        prometheus_config_path="/etc/prometheus/prometheus.yml",
+        target_job="pulseplate-api",
+        target_discovered_address="app:8000",
+        target_final_address="app:8000",
+        target_instance="app:8000",
+        target_scheme="http",
+        target_metrics_path="/metrics",
+        target_scrape_interval_seconds=30,
+        target_scrape_timeout_seconds=10,
     )
     assert os.fspath(config_file) not in repr(snapshot)
     assert snapshot.config_sha256 != "sha256:" + hashlib.sha256(host_config_bytes).hexdigest()
 
     calls = [json.loads(line) for line in call_log.read_text(encoding="utf-8").splitlines()]
-    assert len(calls) == 9
+    assert len(calls) == 10
     assert [call[-3:] for call in calls[:2]] == [
         ["ps", "-q", "app"],
         ["ps", "-q", "prometheus"],
@@ -943,8 +1409,15 @@ else:
     assert calls[3] == ["cp", f"{prometheus_id}:/etc/prometheus/prometheus.yml", "-"]
     assert calls[4] == ["top", app_id, "-eo", "pid,lstart,args"]
     assert all(call[:3] == ["exec", prometheus_id, "/bin/promtool"] for call in calls[5:])
-    assert "--time=2026-08-22T12:00:00Z" not in calls[7]
-    assert "--time=2026-08-22T12:00:00Z" in calls[8]
+    assert calls[5][3:] == [
+        "check",
+        "service-discovery",
+        "--timeout=1s",
+        "/etc/prometheus/prometheus.yml",
+        "pulseplate-api",
+    ]
+    assert "--time=2026-08-22T12:00:00Z" not in calls[8]
+    assert "--time=2026-08-22T12:00:00Z" in calls[9]
 
 
 def test_evidence_writer_is_private_and_identical_replay_is_no_write(tmp_path: Path) -> None:
@@ -967,6 +1440,188 @@ def test_evidence_writer_is_private_and_identical_replay_is_no_write(tmp_path: P
         before.st_mtime_ns,
         before_bytes,
     )
+
+
+def test_existing_replay_rejects_preexisting_hardlink(tmp_path: Path) -> None:
+    evidence = _passing_baseline(tmp_path)
+    output_file = tmp_path / "hardlinked.json"
+    hardlink = tmp_path / "hardlinked-copy.json"
+    verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+    os.link(output_file, hardlink)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_existing_malformed"):
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+
+
+def test_existing_replay_rejects_hardlink_mutation_during_file_fsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    output_file = tmp_path / "replay-race.json"
+    hardlink = tmp_path / "replay-race-link.json"
+    verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+    original_fsync = verifier.os.fsync
+    mutated = False
+
+    def _mutate_during_fsync(descriptor: int) -> None:
+        nonlocal mutated
+        if not mutated:
+            mutated = True
+            os.link(output_file, hardlink)
+            with hardlink.open("ab") as stream:
+                stream.write(b"mutation")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _mutate_during_fsync)
+    with pytest.raises(verifier.VerificationError, match="evidence_existing_malformed"):
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+
+    assert mutated is True
+    assert hardlink.exists()
+
+
+def test_first_publication_rejects_hardlink_mutation_during_fsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    output_file = tmp_path / "first-race.json"
+    hardlink = tmp_path / "first-race-link.json"
+    original_fsync = verifier.os.fsync
+    mutated = False
+
+    def _mutate_during_fsync(descriptor: int) -> None:
+        nonlocal mutated
+        if not mutated:
+            mutated = True
+            os.link(output_file, hardlink)
+            with hardlink.open("ab") as stream:
+                stream.write(b"mutation")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _mutate_during_fsync)
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+
+    assert mutated is True
+    assert output_file.exists()
+    assert hardlink.exists()
+
+
+def test_failed_partial_publication_is_retained_and_retry_fails_malformed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    original_write = verifier.os.write
+    calls = 0
+
+    def _partial_then_fail(descriptor: int, payload: bytes) -> int:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return original_write(descriptor, payload[: max(1, len(payload) // 2)])
+        raise OSError("synthetic partial write failure")
+
+    monkeypatch.setattr(verifier.os, "write", _partial_then_fail)
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, "partial.json", evidence)
+    partial_file = tmp_path / "partial.json"
+    assert partial_file.exists()
+    assert stat.S_IMODE(partial_file.stat().st_mode) == 0o600
+
+    monkeypatch.setattr(verifier.os, "write", original_write)
+    with pytest.raises(verifier.VerificationError, match="evidence_existing_malformed"):
+        verifier.write_evidence_new_only(tmp_path, "partial.json", evidence)
+
+
+def test_failed_file_fsync_is_retried_through_existing_file_and_directory_fsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    original_fsync = verifier.os.fsync
+    calls = 0
+
+    def _fail_first_fsync(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("synthetic file fsync failure")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _fail_first_fsync)
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, "fsync.json", evidence)
+    output_file = tmp_path / "fsync.json"
+    assert output_file.exists()
+    assert json.loads(output_file.read_text(encoding="utf-8"))["decision"] == "PASS"
+
+    synced_modes: list[int] = []
+
+    def _track_fsync(descriptor: int) -> None:
+        synced_modes.append(verifier.os.fstat(descriptor).st_mode)
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _track_fsync)
+    assert verifier.write_evidence_new_only(tmp_path, "fsync.json", evidence) == "identical_replay"
+    assert len(synced_modes) == 2
+    assert stat.S_ISREG(synced_modes[0])
+    assert stat.S_ISDIR(synced_modes[1])
+
+
+def test_zero_write_failure_is_retained_without_unlink_and_retry_fails_malformed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    original_write = verifier.os.write
+    unlink_calls = 0
+
+    def _forbidden_unlink(*_args: object, **_kwargs: object) -> None:
+        nonlocal unlink_calls
+        unlink_calls += 1
+
+    monkeypatch.setattr(verifier.os, "write", lambda _descriptor, _payload: 0)
+    monkeypatch.setattr(verifier.os, "unlink", _forbidden_unlink)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, "zero-write.json", evidence)
+    zero_file = tmp_path / "zero-write.json"
+    assert zero_file.exists()
+    assert unlink_calls == 0
+
+    monkeypatch.setattr(verifier.os, "write", original_write)
+    with pytest.raises(verifier.VerificationError, match="evidence_existing_malformed"):
+        verifier.write_evidence_new_only(tmp_path, "zero-write.json", evidence)
+
+
+@pytest.mark.parametrize("failure_call", [1, 2])
+def test_existing_replay_fsync_failures_are_stable_and_non_destructive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_call: int,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    output_file = tmp_path / f"replay-fsync-{failure_call}.json"
+    verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+    before = (output_file.stat().st_ino, output_file.read_bytes())
+    original_fsync = verifier.os.fsync
+    calls = 0
+
+    def _fail_selected_fsync(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == failure_call:
+            raise OSError("synthetic replay fsync failure")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _fail_selected_fsync)
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+
+    assert (output_file.stat().st_ino, output_file.read_bytes()) == before
 
 
 def test_evidence_writer_rejects_divergent_and_different_idempotency(
@@ -1081,6 +1736,109 @@ def test_writer_rejects_scheme_image_identity_after_lineage_and_hash_recompute(
 
     with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
         verifier.write_evidence_new_only(tmp_path, "scheme-reference.json", evidence)
+
+
+def test_writer_rejects_target_binding_drift_after_lineage_and_hash_recompute(
+    tmp_path: Path,
+) -> None:
+    evidence = copy.deepcopy(_passing_baseline(tmp_path))
+    target = evidence["target"]
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(target, dict)
+    assert isinstance(upstream_assets, list)
+    target["discovered_address"] = "staging:8000"
+    binding_keys = verifier._target_binding_snapshot(_live_snapshot()).keys()
+    binding_payload = {key: target[key] for key in binding_keys}
+    for upstream in upstream_assets:
+        if isinstance(upstream, dict) and upstream.get("role") == "target_binding":
+            upstream["fingerprint"] = verifier._source_fingerprint(
+                "prometheus_target_binding",
+                json.dumps(binding_payload, sort_keys=True, separators=(",", ":")),
+            )
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "target-binding-drift.json", evidence)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [("job", "pulseplate-api"), ("scrape_interval_seconds", 30)],
+)
+def test_snapshot_unavailable_hold_rejects_partial_target_binding(
+    tmp_path: Path,
+    field_name: str,
+    value: object,
+) -> None:
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="baseline"),
+        _FakePromtoolClient(snapshot=verifier.VerificationError("release_identity_unavailable")),
+    )
+    target = evidence["target"]
+    assert isinstance(target, dict)
+    target[field_name] = value
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(
+            tmp_path,
+            f"partial-binding-{field_name}.json",
+            evidence,
+        )
+
+
+def test_hold_rejects_complete_but_drifted_target_binding(
+    tmp_path: Path,
+) -> None:
+    evidence = copy.deepcopy(_passing_baseline(tmp_path))
+    evidence["decision"] = "HOLD"
+    evidence["reasons"] = ["synthetic_drift"]
+    target = evidence["target"]
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(target, dict)
+    assert isinstance(upstream_assets, list)
+    target["instance"] = "staging:8000"
+    binding_keys = verifier._target_binding_snapshot(_live_snapshot()).keys()
+    binding_payload = {key: target[key] for key in binding_keys}
+    for upstream in upstream_assets:
+        if isinstance(upstream, dict) and upstream.get("role") == "target_binding":
+            upstream["fingerprint"] = verifier._source_fingerprint(
+                "prometheus_target_binding",
+                json.dumps(binding_payload, sort_keys=True, separators=(",", ":")),
+            )
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "complete-drifted-binding.json", evidence)
+
+
+def test_runtime_and_target_binding_presence_are_cross_bound(
+    tmp_path: Path,
+) -> None:
+    present_runtime = copy.deepcopy(_passing_baseline(tmp_path))
+    present_runtime["decision"] = "HOLD"
+    present_runtime["reasons"] = ["synthetic_missing_binding"]
+    present_target = present_runtime["target"]
+    assert isinstance(present_target, dict)
+    for field_name in verifier._target_binding_snapshot(_live_snapshot()):
+        present_target[field_name] = None
+    _recompute_self_metadata(present_runtime)
+
+    absent_runtime = verifier.build_evidence(
+        _config(tmp_path, mode="baseline"),
+        _FakePromtoolClient(snapshot=verifier.VerificationError("release_identity_unavailable")),
+    )
+    absent_target = absent_runtime["target"]
+    assert isinstance(absent_target, dict)
+    absent_target.update(verifier._target_binding_snapshot(_live_snapshot()))
+    _recompute_self_metadata(absent_runtime)
+
+    for output_name, evidence in (
+        ("runtime-present-binding-absent.json", present_runtime),
+        ("runtime-absent-binding-present.json", absent_runtime),
+    ):
+        with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+            verifier.write_evidence_new_only(tmp_path, output_name, evidence)
 
 
 @pytest.mark.parametrize(

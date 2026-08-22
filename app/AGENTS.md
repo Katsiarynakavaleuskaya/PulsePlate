@@ -120,6 +120,10 @@ curl -fsS https://.../metrics | grep http_requests_total
   shared-key compatibility; explicit invalid configuration grants no dedicated
   access and fails production-like startup. The dedicated token must differ
   from `API_KEY` in production/staging and has no authority on other routes.
+  The OBS1B host contract is a mode-`0700` parent directory plus a mode-`0444`
+  leaf so the app and Prometheus containers can read one bind-mounted file as
+  different non-root UIDs; an owner-only leaf-mode check is forbidden in this
+  app-layer recognizer.
 - Premium-alias evidence must derive release/image/config/volume/topology and
   retention from the live Compose containers through the absolute Docker
   executable; CLI assertions are not evidence. The expected scrape target count
@@ -127,12 +131,19 @@ curl -fsS https://.../metrics | grep http_requests_total
   from one bounded `docker cp <id>:/etc/prometheus/prometheus.yml -` tar with
   exactly one safe regular member; host `Mounts.Source` bytes are not evidence.
   Bind both the local image ID and the bounded digest-pinned `Config.Image`
-  reference. Derive `observed_at`/`T1` from one
+  reference. Container `promtool check service-discovery` is the delegated
+  config/target recognizer and must prove one `pulseplate-api` target at
+  `http://app:8000/metrics`, instance `app:8000`, interval `30s`, timeout `10s`,
+  with exact Compose services `app` and `prometheus` in one project. Derive
+  `observed_at`/`T1` from one
   live Prometheus `time()` anchor, pass that exact value through `--time=` to
   every later query, bind promtool to the pre-census container ID, and require an
   exact post-query container/process/runtime census match. Docker output must be
   streamed under the bounded verifier limit; output overflow, timeout, JSON
   depth exhaustion, or any runtime replacement is `HOLD`.
+  Except for the job-wide one-target census, every live, continuity, restart,
+  and alias current/increase/reset query is scoped to both
+  `job="pulseplate-api"` and `instance="app:8000"`; alias status stays unfiltered.
 - Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
@@ -157,7 +168,10 @@ curl -fsS https://.../metrics | grep http_requests_total
   canonical JSON projection excluding only the `fingerprint` field. First write
   is new-only `0600` + `fsync`; an identical same-idempotency replay is verified
   without a write, while malformed, different-idempotency, or divergent existing
-  output fails closed.
+  output fails closed. A failed direct `O_EXCL` write is never auto-unlinked: the
+  exact mode-`0600` canonical partial/complete file remains as evidence and a
+  retry fails closed unless it validates as an identical replay; identical replay
+  fsyncs the already-open file and pinned directory descriptor before returning.
 - Before publication or replay, validate the exact evidence schema and top-level
   field set, mode/decision/reason vocabulary, static-false authority, and every
   checks/identity/topology/retention/target/alias/window type and finite value;

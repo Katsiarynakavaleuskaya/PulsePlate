@@ -25,6 +25,7 @@ ASSET_TYPE = "pulseplate.premium_alias_telemetry_evidence"
 POLICY_VERSION = "prod-obs-1.telemetry-evidence.v1"
 PROMETHEUS_URL = "http://localhost:9090"
 SCRAPE_INTERVAL_SECONDS = 30
+SCRAPE_TIMEOUT_SECONDS = 10
 MIN_RETENTION_DAYS = 45
 FINAL_WINDOW = timedelta(days=30)
 FINAL_MIN_SAMPLES = 86_400
@@ -37,6 +38,12 @@ ALIAS_ROUTES: tuple[str, ...] = (
     "/api/v1/premium/plate",
     "/api/v1/premium/gaps",
 )
+TARGET_JOB = "pulseplate-api"
+TARGET_ADDRESS = "app:8000"
+TARGET_SCHEME = "http"
+TARGET_METRICS_PATH = "/metrics"
+TARGET_JOB_SELECTOR = f'job="{TARGET_JOB}"'
+TARGET_INSTANCE_SELECTOR = f'{TARGET_JOB_SELECTOR},instance="{TARGET_ADDRESS}"'
 AUTHORITY = {
     "sets_t0": False,
     "authorizes_deploy": False,
@@ -47,7 +54,6 @@ _DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _OUTPUT_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json\Z")
 _CONTAINER_ID_RE = re.compile(r"[0-9a-f]{12,64}\Z")
 _RELEASE_REVISION_RE = re.compile(r"[0-9a-f]{40}\Z")
-_RETENTION_RE = re.compile(r"--storage\.tsdb\.retention\.time=([1-9][0-9]*)d\Z")
 # Representation/resource bound only; this does not define retention policy authority.
 _MAX_RETENTION_DIGITS = 18
 _PINNED_IMAGE_REFERENCE_RE = re.compile(
@@ -110,6 +116,17 @@ _TARGET_FIELDS = frozenset(
         "sample_count",
         "required_samples",
         "restart_changes",
+        "compose_project",
+        "app_service",
+        "prometheus_service",
+        "job",
+        "discovered_address",
+        "final_address",
+        "instance",
+        "scheme",
+        "metrics_path",
+        "scrape_interval_seconds",
+        "scrape_timeout_seconds",
     }
 )
 _ALIAS_FIELDS = frozenset({"method", "route", "current_value", "increase", "resets", "observation"})
@@ -164,6 +181,30 @@ class LiveRuntimeSnapshot:
     uvicorn_process_count: int
     uvicorn_process_identity: str
     retention_days: int
+    compose_project: str
+    app_compose_service: str
+    prometheus_compose_service: str
+    prometheus_config_path: str
+    target_job: str
+    target_discovered_address: str
+    target_final_address: str
+    target_instance: str
+    target_scheme: str
+    target_metrics_path: str
+    target_scrape_interval_seconds: int
+    target_scrape_timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class _TargetBinding:
+    job: str
+    discovered_address: str
+    final_address: str
+    instance: str
+    scheme: str
+    metrics_path: str
+    scrape_interval_seconds: int
+    scrape_timeout_seconds: int
 
 
 @dataclass(frozen=True)
@@ -189,6 +230,15 @@ def _canonical_timestamp(value: datetime) -> str:
     normalized = value.astimezone(timezone.utc)
     text = normalized.isoformat(timespec="microseconds").replace("+00:00", "Z")
     return text.replace(".000000Z", "Z")
+
+
+def _final_window_seconds(t0: datetime, observed_at: datetime) -> int | None:
+    """Return the complete human-T0 final range, rounded up to whole seconds."""
+
+    delta = observed_at - t0
+    if delta < FINAL_WINDOW:
+        return None
+    return max(int(FINAL_WINDOW.total_seconds()), math.ceil(delta.total_seconds()))
 
 
 def _output_name(raw: str) -> str:
@@ -372,13 +422,55 @@ def _hash_container_config_tar(payload: bytes) -> str:
     return _sha256_fingerprint(config_bytes)
 
 
-def _parse_retention_days(arguments: object) -> int:
+def _parse_single_flag_value(
+    arguments: object,
+    *,
+    flag: str,
+    error_code: str,
+    expected_value: str | None = None,
+) -> tuple[list[str], str]:
+    """Recognize exactly one bounded `--flag=value` or `--flag value` carrier."""
+
     if not isinstance(arguments, list) or not all(isinstance(item, str) for item in arguments):
+        raise VerificationError(error_code)
+    typed_arguments = cast(list[str], arguments)
+    values: list[str] = []
+    index = 0
+    while index < len(typed_arguments):
+        item = typed_arguments[index]
+        if item == flag:
+            if index + 1 >= len(typed_arguments):
+                raise VerificationError(error_code)
+            value = typed_arguments[index + 1]
+            if not value or value.startswith("--"):
+                raise VerificationError(error_code)
+            values.append(value)
+            index += 2
+            continue
+        prefix = f"{flag}="
+        if item.startswith(prefix):
+            value = item[len(prefix) :]
+            if not value:
+                raise VerificationError(error_code)
+            values.append(value)
+        elif item.startswith(flag):
+            raise VerificationError(error_code)
+        index += 1
+    if len(values) != 1 or (expected_value is not None and values[0] != expected_value):
+        raise VerificationError(error_code)
+    return typed_arguments, values[0]
+
+
+def _parse_retention_days(arguments: object) -> int:
+    _typed_arguments, retention_value = _parse_single_flag_value(
+        arguments,
+        flag="--storage.tsdb.retention.time",
+        error_code="prometheus_retention_unavailable",
+    )
+    match = re.fullmatch(r"([1-9][0-9]*)d", retention_value)
+    if match is None:
         raise VerificationError("prometheus_retention_unavailable")
-    matches = [match for item in arguments if (match := _RETENTION_RE.fullmatch(item))]
-    if len(matches) != 1:
-        raise VerificationError("prometheus_retention_unavailable")
-    digits = matches[0].group(1)
+    digits = match.group(1)
     if len(digits) > _MAX_RETENTION_DIGITS:
         raise VerificationError("prometheus_retention_unavailable")
     try:
@@ -395,6 +487,45 @@ def _parse_pinned_image_reference(value: object) -> str:
     ):
         raise VerificationError("prometheus_image_reference_invalid")
     return value
+
+
+def _parse_compose_service_identity(
+    app_labels: object,
+    prometheus_labels: object,
+) -> str:
+    if (
+        not isinstance(app_labels, dict)
+        or not isinstance(prometheus_labels, dict)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in app_labels.items()
+        )
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in prometheus_labels.items()
+        )
+    ):
+        raise VerificationError("compose_service_identity_mismatch")
+    app_project = app_labels.get("com.docker.compose.project")
+    if (
+        not isinstance(app_project, str)
+        or not _SAFE_IDENTITY_RE.fullmatch(app_project)
+        or prometheus_labels.get("com.docker.compose.project") != app_project
+        or app_labels.get("com.docker.compose.service") != "app"
+        or prometheus_labels.get("com.docker.compose.service") != "prometheus"
+    ):
+        raise VerificationError("compose_service_identity_mismatch")
+    return app_project
+
+
+def _parse_prometheus_args(value: object) -> list[str]:
+    typed_arguments, _config_path = _parse_single_flag_value(
+        value,
+        flag="--config.file",
+        error_code="prometheus_config_path_mismatch",
+        expected_value="/etc/prometheus/prometheus.yml",
+    )
+    return typed_arguments
 
 
 def _parse_container_ids(payload: bytes, *, error_code: str) -> list[str]:
@@ -434,6 +565,67 @@ def _parse_container_inspect(payload: bytes) -> list[dict[str, object]]:
     ):
         raise VerificationError("container_inspect_invalid")
     return inspected
+
+
+def _parse_target_discovery(payload: bytes) -> _TargetBinding:
+    try:
+        decoded = json.loads(payload)
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
+        raise VerificationError("prometheus_target_discovery_invalid") from exc
+    if not isinstance(decoded, list) or len(decoded) != 1:
+        raise VerificationError("prometheus_target_discovery_invalid")
+    record = decoded[0]
+    if not isinstance(record, dict) or set(record) != {"discoveredLabels", "labels"}:
+        raise VerificationError("prometheus_target_discovery_invalid")
+    discovered = record.get("discoveredLabels")
+    final = record.get("labels")
+    if (
+        not isinstance(discovered, dict)
+        or not isinstance(final, dict)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in discovered.items()
+        )
+        or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in final.items()
+        )
+    ):
+        raise VerificationError("prometheus_target_discovery_invalid")
+
+    binding_fields = {
+        "__address__": TARGET_ADDRESS,
+        "job": TARGET_JOB,
+        "__scheme__": TARGET_SCHEME,
+        "__metrics_path__": TARGET_METRICS_PATH,
+    }
+    if any(discovered.get(key) != value for key, value in binding_fields.items()) or any(
+        final.get(key) != value for key, value in binding_fields.items()
+    ):
+        raise VerificationError("prometheus_target_binding_mismatch")
+    if final.get("instance") != TARGET_ADDRESS:
+        raise VerificationError("prometheus_target_binding_mismatch")
+    expected_interval = f"{SCRAPE_INTERVAL_SECONDS}s"
+    if (
+        discovered.get("__scrape_interval__") != expected_interval
+        or final.get("__scrape_interval__") != expected_interval
+    ):
+        raise VerificationError("prometheus_scrape_interval_mismatch")
+    expected_timeout = f"{SCRAPE_TIMEOUT_SECONDS}s"
+    if (
+        discovered.get("__scrape_timeout__") != expected_timeout
+        or final.get("__scrape_timeout__") != expected_timeout
+    ):
+        raise VerificationError("prometheus_scrape_timeout_mismatch")
+    return _TargetBinding(
+        job=TARGET_JOB,
+        discovered_address=cast(str, discovered["__address__"]),
+        final_address=cast(str, final["__address__"]),
+        instance=cast(str, final["instance"]),
+        scheme=TARGET_SCHEME,
+        metrics_path=TARGET_METRICS_PATH,
+        scrape_interval_seconds=SCRAPE_INTERVAL_SECONDS,
+        scrape_timeout_seconds=SCRAPE_TIMEOUT_SECONDS,
+    )
 
 
 class DockerPromtoolClient:
@@ -594,6 +786,21 @@ class DockerPromtoolClient:
             error_code="promtool_execution_failed",
         )
 
+    def _collect_target_binding(self) -> _TargetBinding:
+        try:
+            result = self._run_promtool(
+                [
+                    "check",
+                    "service-discovery",
+                    "--timeout=1s",
+                    "/etc/prometheus/prometheus.yml",
+                    TARGET_JOB,
+                ]
+            )
+        except VerificationError as exc:
+            raise VerificationError("prometheus_target_discovery_unavailable") from exc
+        return _parse_target_discovery(result.stdout)
+
     def collect_live_snapshot(self) -> LiveRuntimeSnapshot:
         app_ids = _parse_container_ids(
             self._run_compose(["ps", "-q", "app"], error_code="app_container_unavailable"),
@@ -639,10 +846,10 @@ class DockerPromtoolClient:
         app_config = app_inspect.get("Config")
         if not isinstance(app_config, dict):
             raise VerificationError("release_identity_unavailable")
-        labels = app_config.get("Labels")
-        if not isinstance(labels, dict):
-            raise VerificationError("release_identity_unavailable")
-        release_id = labels.get("org.opencontainers.image.revision")
+        app_labels = app_config.get("Labels")
+        if not isinstance(app_labels, dict):
+            raise VerificationError("compose_service_identity_mismatch")
+        release_id = app_labels.get("org.opencontainers.image.revision")
         if not isinstance(release_id, str) or not _RELEASE_REVISION_RE.fullmatch(release_id):
             raise VerificationError("release_identity_unavailable")
 
@@ -650,6 +857,9 @@ class DockerPromtoolClient:
         if not isinstance(prometheus_config, dict):
             raise VerificationError("prometheus_image_reference_invalid")
         prometheus_image_reference = _parse_pinned_image_reference(prometheus_config.get("Image"))
+        prometheus_labels = prometheus_config.get("Labels")
+        app_project = _parse_compose_service_identity(app_labels, prometheus_labels)
+        prometheus_args = _parse_prometheus_args(prometheus_inspect.get("Args"))
 
         mounts = prometheus_inspect.get("Mounts")
         if not isinstance(mounts, list) or not all(isinstance(item, dict) for item in mounts):
@@ -677,7 +887,7 @@ class DockerPromtoolClient:
         if not isinstance(volume_name, str) or not _SAFE_IDENTITY_RE.fullmatch(volume_name):
             raise VerificationError("prometheus_volume_identity_invalid")
 
-        retention_days = _parse_retention_days(prometheus_inspect.get("Args"))
+        retention_days = _parse_retention_days(prometheus_args)
         top_result = self._run_docker(
             ["top", app_ids[0], "-eo", "pid,lstart,args"],
             error_code="uvicorn_topology_unavailable",
@@ -685,6 +895,7 @@ class DockerPromtoolClient:
         uvicorn_process_count, uvicorn_process_identity = _parse_uvicorn_processes(
             top_result.stdout
         )
+        target_binding = self._collect_target_binding()
 
         return LiveRuntimeSnapshot(
             app_container_id=app_ids[0],
@@ -700,6 +911,18 @@ class DockerPromtoolClient:
             uvicorn_process_count=uvicorn_process_count,
             uvicorn_process_identity=uvicorn_process_identity,
             retention_days=retention_days,
+            compose_project=app_project,
+            app_compose_service="app",
+            prometheus_compose_service="prometheus",
+            prometheus_config_path="/etc/prometheus/prometheus.yml",
+            target_job=target_binding.job,
+            target_discovered_address=target_binding.discovered_address,
+            target_final_address=target_binding.final_address,
+            target_instance=target_binding.instance,
+            target_scheme=target_binding.scheme,
+            target_metrics_path=target_binding.metrics_path,
+            target_scrape_interval_seconds=target_binding.scrape_interval_seconds,
+            target_scrape_timeout_seconds=target_binding.scrape_timeout_seconds,
         )
 
     def check_healthy(self) -> bool:
@@ -779,6 +1002,22 @@ def _topology_snapshot(snapshot: LiveRuntimeSnapshot) -> dict[str, int]:
     }
 
 
+def _target_binding_snapshot(snapshot: LiveRuntimeSnapshot) -> dict[str, object]:
+    return {
+        "compose_project": snapshot.compose_project,
+        "app_service": snapshot.app_compose_service,
+        "prometheus_service": snapshot.prometheus_compose_service,
+        "job": snapshot.target_job,
+        "discovered_address": snapshot.target_discovered_address,
+        "final_address": snapshot.target_final_address,
+        "instance": snapshot.target_instance,
+        "scheme": snapshot.target_scheme,
+        "metrics_path": snapshot.target_metrics_path,
+        "scrape_interval_seconds": snapshot.target_scrape_interval_seconds,
+        "scrape_timeout_seconds": snapshot.target_scrape_timeout_seconds,
+    }
+
+
 def _sha256_fingerprint(payload: bytes) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
@@ -834,6 +1073,18 @@ def _runtime_upstream_assets(snapshot: LiveRuntimeSnapshot) -> list[dict[str, st
             "fingerprint": _source_fingerprint("prometheus_config", snapshot.config_sha256),
         },
         {
+            "asset_type": "prometheus_target_binding",
+            "role": "target_binding",
+            "fingerprint": _source_fingerprint(
+                "prometheus_target_binding",
+                json.dumps(
+                    _target_binding_snapshot(snapshot),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ),
+        },
+        {
             "asset_type": "docker_volume",
             "role": "tsdb",
             "fingerprint": _source_fingerprint("prometheus_volume", snapshot.volume_id),
@@ -879,7 +1130,14 @@ def _attach_asset_contract(
     evidence["asset_type"] = ASSET_TYPE
     evidence["policy_version"] = POLICY_VERSION
     upstream_assets = _runtime_upstream_assets(snapshot) if snapshot is not None else []
-    baseline_fingerprint = baseline.get("fingerprint") if baseline is not None else None
+    baseline_fingerprint: object = None
+    if baseline is not None:
+        try:
+            _validate_evidence_asset(baseline)
+        except VerificationError:
+            baseline_fingerprint = None
+        else:
+            baseline_fingerprint = baseline.get("fingerprint")
     if isinstance(baseline_fingerprint, str) and _DIGEST_RE.fullmatch(baseline_fingerprint):
         upstream_assets.append(
             {
@@ -1013,6 +1271,68 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
         or required_samples < 0
     ):
         raise VerificationError("evidence_asset_invalid")
+    binding_string_fields = (
+        "compose_project",
+        "app_service",
+        "prometheus_service",
+        "job",
+        "discovered_address",
+        "final_address",
+        "instance",
+        "scheme",
+        "metrics_path",
+    )
+    if any(
+        target.get(field_name) is not None and not isinstance(target.get(field_name), str)
+        for field_name in binding_string_fields
+    ):
+        raise VerificationError("evidence_asset_invalid")
+    for field_name in ("scrape_interval_seconds", "scrape_timeout_seconds"):
+        value = target.get(field_name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        ):
+            raise VerificationError("evidence_asset_invalid")
+    binding_values = [target.get(field_name) for field_name in binding_string_fields] + [
+        target.get("scrape_interval_seconds"),
+        target.get("scrape_timeout_seconds"),
+    ]
+    binding_absent = all(value is None for value in binding_values)
+    binding_complete = all(isinstance(value, str) for value in binding_values[:9]) and all(
+        isinstance(value, int) and not isinstance(value, bool) for value in binding_values[9:]
+    )
+    if not binding_absent and not binding_complete:
+        raise VerificationError("evidence_asset_invalid")
+    if binding_complete and (
+        not isinstance(target.get("compose_project"), str)
+        or not _SAFE_IDENTITY_RE.fullmatch(cast(str, target["compose_project"]))
+        or target.get("app_service") != "app"
+        or target.get("prometheus_service") != "prometheus"
+        or target.get("job") != TARGET_JOB
+        or target.get("discovered_address") != TARGET_ADDRESS
+        or target.get("final_address") != TARGET_ADDRESS
+        or target.get("instance") != TARGET_ADDRESS
+        or target.get("scheme") != TARGET_SCHEME
+        or target.get("metrics_path") != TARGET_METRICS_PATH
+        or target.get("scrape_interval_seconds") != SCRAPE_INTERVAL_SECONDS
+        or target.get("scrape_timeout_seconds") != SCRAPE_TIMEOUT_SECONDS
+    ):
+        raise VerificationError("evidence_asset_invalid")
+
+    identities_absent = all(value is None for value in identities.values())
+    identities_present = all(isinstance(value, str) for value in identities.values())
+    topology_absent = all(value is None for value in topology.values())
+    topology_present = all(
+        isinstance(value, int) and not isinstance(value, bool) for value in topology.values()
+    )
+    if identities_absent:
+        if not topology_absent or retention_days is not None or not binding_absent:
+            raise VerificationError("evidence_asset_invalid")
+    elif identities_present:
+        if not topology_present or not isinstance(retention_days, int) or not binding_complete:
+            raise VerificationError("evidence_asset_invalid")
+    else:
+        raise VerificationError("evidence_asset_invalid")
 
     if not isinstance(aliases, list) or len(aliases) != len(ALIAS_ROUTES):
         raise VerificationError("evidence_asset_invalid")
@@ -1127,15 +1447,24 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
                 t0_time = _parse_rfc3339_utc(t0_value)
             except argparse.ArgumentTypeError as exc:
                 raise VerificationError("evidence_asset_invalid") from exc
+            derived_range_seconds = _final_window_seconds(t0_time, end_time)
+            minimum_required_samples = (
+                max(
+                    FINAL_MIN_SAMPLES,
+                    derived_range_seconds // SCRAPE_INTERVAL_SECONDS,
+                )
+                if derived_range_seconds is not None
+                else None
+            )
             if (
-                duration_seconds < int(FINAL_WINDOW.total_seconds())
-                or int((end_time - start_time).total_seconds()) != duration_seconds
-                or start_time > t0_time
-                or end_time - t0_time < FINAL_WINDOW
+                derived_range_seconds is None
+                or start_time != t0_time
+                or duration_seconds != derived_range_seconds
                 or target.get("minimum_up") != 1.0
                 or isinstance(required_samples, bool)
                 or not isinstance(required_samples, int)
-                or required_samples < FINAL_MIN_SAMPLES
+                or not isinstance(minimum_required_samples, int)
+                or required_samples < minimum_required_samples
                 or isinstance(sample_count, bool)
                 or not isinstance(sample_count, (int, float))
                 or sample_count < required_samples
@@ -1175,6 +1504,9 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
     identities = evidence.get("identities")
     if not isinstance(identities, dict):
         raise VerificationError("evidence_asset_invalid")
+    target = evidence.get("target")
+    if not isinstance(target, dict):
+        raise VerificationError("evidence_asset_invalid")
     identity_keys = (
         "app_container",
         "prometheus_container",
@@ -1212,6 +1544,22 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             or not _DIGEST_RE.fullmatch(uvicorn_process_identity)
         ):
             raise VerificationError("evidence_asset_invalid")
+        target_string_fields = (
+            "compose_project",
+            "app_service",
+            "prometheus_service",
+            "job",
+            "discovered_address",
+            "final_address",
+            "instance",
+            "scheme",
+            "metrics_path",
+        )
+        if any(not isinstance(target.get(key), str) for key in target_string_fields) or any(
+            isinstance(target.get(key), bool) or not isinstance(target.get(key), int)
+            for key in ("scrape_interval_seconds", "scrape_timeout_seconds")
+        ):
+            raise VerificationError("evidence_asset_invalid")
         snapshot = LiveRuntimeSnapshot(
             app_container_id=app_container_id,
             prometheus_container_id=prometheus_container_id,
@@ -1226,20 +1574,44 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             uvicorn_process_count=1,
             uvicorn_process_identity=uvicorn_process_identity,
             retention_days=MIN_RETENTION_DAYS,
+            compose_project=cast(str, target["compose_project"]),
+            app_compose_service=cast(str, target["app_service"]),
+            prometheus_compose_service=cast(str, target["prometheus_service"]),
+            prometheus_config_path="/etc/prometheus/prometheus.yml",
+            target_job=cast(str, target["job"]),
+            target_discovered_address=cast(str, target["discovered_address"]),
+            target_final_address=cast(str, target["final_address"]),
+            target_instance=cast(str, target["instance"]),
+            target_scheme=cast(str, target["scheme"]),
+            target_metrics_path=cast(str, target["metrics_path"]),
+            target_scrape_interval_seconds=cast(int, target["scrape_interval_seconds"]),
+            target_scrape_timeout_seconds=cast(int, target["scrape_timeout_seconds"]),
         )
         expected_runtime_assets = _runtime_upstream_assets(snapshot)
-        if upstream_assets[:9] != expected_runtime_assets or len(upstream_assets) not in {9, 10}:
+        runtime_asset_count = len(expected_runtime_assets)
+        if upstream_assets[:runtime_asset_count] != expected_runtime_assets:
             raise VerificationError("evidence_asset_invalid")
-        if len(upstream_assets) == 10 and (
-            upstream_assets[9].get("asset_type") != ASSET_TYPE
-            or upstream_assets[9].get("role") != "baseline_evidence"
-        ):
+        tail = upstream_assets[runtime_asset_count:]
+    else:
+        tail = upstream_assets
+
+    valid_baseline_tail = (
+        len(tail) == 1
+        and tail[0].get("asset_type") == ASSET_TYPE
+        and tail[0].get("role") == "baseline_evidence"
+        and isinstance(tail[0].get("fingerprint"), str)
+        and _DIGEST_RE.fullmatch(cast(str, tail[0]["fingerprint"])) is not None
+    )
+    mode = evidence.get("mode")
+    decision = evidence.get("decision")
+    complete_runtime_assets = all(isinstance(value, str) for value in identity_values)
+    if mode == "baseline":
+        if tail or (not complete_runtime_assets and upstream_assets):
             raise VerificationError("evidence_asset_invalid")
-    elif upstream_assets and not (
-        len(upstream_assets) == 1
-        and upstream_assets[0].get("asset_type") == ASSET_TYPE
-        and upstream_assets[0].get("role") == "baseline_evidence"
-    ):
+    elif decision == "PASS":
+        if not complete_runtime_assets or not valid_baseline_tail:
+            raise VerificationError("evidence_asset_invalid")
+    elif tail and not valid_baseline_tail:
         raise VerificationError("evidence_asset_invalid")
     idempotency_key = evidence.get("idempotency_key")
     fingerprint = evidence.get("fingerprint")
@@ -1348,6 +1720,9 @@ def _baseline_start(
         or aliases != expected_aliases
         or checks != {"prometheus_healthy": True, "prometheus_ready": True}
         or not isinstance(target, dict)
+        or any(
+            target.get(key) != value for key, value in _target_binding_snapshot(snapshot).items()
+        )
         or target.get("expected_count") != 1
         or target.get("observed_count") != 1.0
         or target.get("current_up") != 1.0
@@ -1438,12 +1813,26 @@ def build_evidence(
         "uvicorn_processes": None,
     }
     retention_days: int | None
+    target_binding: dict[str, object] = {
+        "compose_project": None,
+        "app_service": None,
+        "prometheus_service": None,
+        "job": None,
+        "discovered_address": None,
+        "final_address": None,
+        "instance": None,
+        "scheme": None,
+        "metrics_path": None,
+        "scrape_interval_seconds": None,
+        "scrape_timeout_seconds": None,
+    }
     if snapshot is None:
         retention_days = None
     else:
         identities.update(_identity_snapshot(snapshot))
         topology.update(_topology_snapshot(snapshot))
         retention_days = snapshot.retention_days
+        target_binding.update(_target_binding_snapshot(snapshot))
     if topology != {
         "api_containers": 1,
         "prometheus_containers": 1,
@@ -1455,14 +1844,14 @@ def build_evidence(
 
     target_count = _query(
         client,
-        'count(up{job="pulseplate-api"})',
+        f"count(up{{{TARGET_JOB_SELECTOR}}})",
         evaluation_time=evaluation_time,
         reason="target_count_missing",
         reasons=reasons,
     )
     current_up = _query(
         client,
-        'min(up{job="pulseplate-api"})',
+        f"min(up{{{TARGET_INSTANCE_SELECTOR}}})",
         evaluation_time=evaluation_time,
         reason="target_up_missing",
         reasons=reasons,
@@ -1472,31 +1861,40 @@ def build_evidence(
     if current_up is not None and current_up != 1.0:
         reasons.append("target_not_up")
 
-    start = _baseline_start(
+    baseline_start = _baseline_start(
         baseline,
         config=config,
         snapshot=snapshot,
         observed_at=observed_at,
         reasons=reasons,
     )
-    if start is not None and observed_at is not None and start > observed_at:
+    if baseline_start is not None and observed_at is not None and baseline_start > observed_at:
         reasons.append("window_order_invalid")
     duration_seconds = (
-        max(0, int((observed_at - start).total_seconds()))
-        if start is not None and observed_at is not None
+        max(0, int((observed_at - baseline_start).total_seconds()))
+        if baseline_start is not None and observed_at is not None
         else 0
     )
     t0 = config.t0
+    window_start = baseline_start
+    final_range_seconds: int | None = None
     if config.mode == "final":
         if t0 is None:
             reasons.append("t0_required")
         else:
-            if start is not None and t0 < start:
+            window_start = t0
+            if baseline_start is not None and t0 < baseline_start:
                 reasons.append("t0_precedes_baseline")
-            if observed_at is None or observed_at - t0 < FINAL_WINDOW:
+            if observed_at is None:
                 reasons.append("final_window_too_short")
+            else:
+                duration_seconds = max(0, math.ceil((observed_at - t0).total_seconds()))
+                final_range_seconds = _final_window_seconds(t0, observed_at)
+                if final_range_seconds is None:
+                    reasons.append("final_window_too_short")
 
-    range_selector = "30d" if config.mode == "final" else f"{max(1, duration_seconds)}s"
+    range_seconds = final_range_seconds or max(1, duration_seconds)
+    range_selector = f"{range_seconds}s"
     min_up: float | None = None
     sample_count: float | None = None
     restart_changes: float | None = None
@@ -1504,28 +1902,28 @@ def build_evidence(
     if config.mode != "baseline":
         min_up = _query(
             client,
-            f'min_over_time(up{{job="pulseplate-api"}}[{range_selector}])',
+            f"min_over_time(up{{{TARGET_INSTANCE_SELECTOR}}}[{range_selector}])",
             evaluation_time=evaluation_time,
             reason="up_continuity_missing",
             reasons=reasons,
         )
         sample_count = _query(
             client,
-            f'count_over_time(up{{job="pulseplate-api"}}[{range_selector}])',
+            f"count_over_time(up{{{TARGET_INSTANCE_SELECTOR}}}[{range_selector}])",
             evaluation_time=evaluation_time,
             reason="sample_continuity_missing",
             reasons=reasons,
         )
         restart_changes = _query(
             client,
-            f'sum(changes(process_start_time_seconds{{job="pulseplate-api"}}'
+            f"sum(changes(process_start_time_seconds{{{TARGET_INSTANCE_SELECTOR}}}"
             f"[{range_selector}]))",
             evaluation_time=evaluation_time,
             reason="restart_evidence_missing",
             reasons=reasons,
         )
         required_samples = (
-            FINAL_MIN_SAMPLES
+            max(FINAL_MIN_SAMPLES, range_seconds // SCRAPE_INTERVAL_SECONDS)
             if config.mode == "final"
             else max(1, duration_seconds // SCRAPE_INTERVAL_SECONDS)
         )
@@ -1538,7 +1936,7 @@ def build_evidence(
     aliases: list[dict[str, object]] = []
     for route in ALIAS_ROUTES:
         alias_name = route.rsplit("/", 1)[-1]
-        selector = f'method="POST",route="{route}"'
+        selector = f'{TARGET_INSTANCE_SELECTOR},method="POST",route="{route}"'
         current = _query(
             client,
             f"sum(http_requests_total{{{selector}}})",
@@ -1615,6 +2013,13 @@ def build_evidence(
         "process_restart_negative",
         "runtime_post_census_failed",
         "runtime_identity_drift",
+        "compose_service_identity_mismatch",
+        "prometheus_config_path_mismatch",
+        "prometheus_target_discovery_unavailable",
+        "prometheus_target_discovery_invalid",
+        "prometheus_target_binding_mismatch",
+        "prometheus_scrape_interval_mismatch",
+        "prometheus_scrape_timeout_mismatch",
     }
     complete = not any(
         reason in incomplete_window_reasons or reason.startswith("baseline_") or "_reset_" in reason
@@ -1642,10 +2047,11 @@ def build_evidence(
             "sample_count": sample_count,
             "required_samples": required_samples,
             "restart_changes": restart_changes,
+            **target_binding,
         },
         "aliases": aliases,
         "window": {
-            "started_at": _canonical_timestamp(start) if start is not None else None,
+            "started_at": _canonical_timestamp(window_start) if window_start is not None else None,
             "t0": _canonical_timestamp(t0) if t0 is not None else None,
             "ended_at": evaluation_time,
             "duration_seconds": duration_seconds,
@@ -1675,13 +2081,24 @@ def _read_existing_evidence(
     except OSError as exc:
         raise VerificationError("evidence_existing_malformed") from exc
     try:
-        metadata = os.fstat(descriptor)
+        try:
+            metadata = os.fstat(descriptor)
+        except OSError as exc:
+            raise VerificationError("evidence_existing_malformed") from exc
         if (
             not stat.S_ISREG(metadata.st_mode)
             or stat.S_IMODE(metadata.st_mode) != 0o600
             or metadata.st_size > MAX_JSON_BYTES
+            or metadata.st_nlink != 1
         ):
             raise VerificationError("evidence_existing_malformed")
+        initial_identity = (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_size,
+            metadata.st_mtime_ns,
+            metadata.st_ctime_ns,
+        )
         payload = bytearray()
         while len(payload) <= MAX_JSON_BYTES:
             try:
@@ -1692,6 +2109,30 @@ def _read_existing_evidence(
                 break
             payload.extend(chunk)
         if len(payload) > MAX_JSON_BYTES:
+            raise VerificationError("evidence_existing_malformed")
+        if len(payload) != metadata.st_size:
+            raise VerificationError("evidence_existing_malformed")
+        try:
+            os.fsync(descriptor)
+        except OSError as exc:
+            raise VerificationError("evidence_write_failed") from exc
+        try:
+            post_fsync_metadata = os.fstat(descriptor)
+        except OSError as exc:
+            raise VerificationError("evidence_existing_malformed") from exc
+        if (
+            not stat.S_ISREG(post_fsync_metadata.st_mode)
+            or stat.S_IMODE(post_fsync_metadata.st_mode) != 0o600
+            or post_fsync_metadata.st_nlink != 1
+            or (
+                post_fsync_metadata.st_dev,
+                post_fsync_metadata.st_ino,
+                post_fsync_metadata.st_size,
+                post_fsync_metadata.st_mtime_ns,
+                post_fsync_metadata.st_ctime_ns,
+            )
+            != initial_identity
+        ):
             raise VerificationError("evidence_existing_malformed")
     finally:
         os.close(descriptor)
@@ -1747,22 +2188,54 @@ def write_evidence_new_only(
                 raise VerificationError("evidence_idempotency_collision")
             if _canonical_json_bytes(existing) != payload:
                 raise VerificationError("evidence_replay_divergent")
+            try:
+                os.fsync(directory_descriptor)
+            except OSError as exc:
+                raise VerificationError("evidence_write_failed") from exc
             return "identical_replay"
         except OSError as exc:
             raise VerificationError("evidence_write_failed") from exc
         try:
-            os.fchmod(descriptor, 0o600)
-            metadata = os.fstat(descriptor)
-            if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+            created_metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(created_metadata.st_mode) or created_metadata.st_nlink != 1:
                 raise VerificationError("evidence_write_failed")
+            created_identity = (created_metadata.st_dev, created_metadata.st_ino)
+            os.fchmod(descriptor, 0o600)
             written = 0
             while written < len(payload):
                 count = os.write(descriptor, payload[written:])
                 if count <= 0:
                     raise VerificationError("evidence_write_failed")
                 written += count
+            pre_fsync_metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(pre_fsync_metadata.st_mode)
+                or stat.S_IMODE(pre_fsync_metadata.st_mode) != 0o600
+                or pre_fsync_metadata.st_nlink != 1
+                or (pre_fsync_metadata.st_dev, pre_fsync_metadata.st_ino) != created_identity
+                or pre_fsync_metadata.st_size != len(payload)
+            ):
+                raise VerificationError("evidence_write_failed")
+            pre_fsync_stability = (
+                pre_fsync_metadata.st_mtime_ns,
+                pre_fsync_metadata.st_ctime_ns,
+            )
             os.fsync(descriptor)
-        except OSError as exc:
+            post_fsync_metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(post_fsync_metadata.st_mode)
+                or stat.S_IMODE(post_fsync_metadata.st_mode) != 0o600
+                or post_fsync_metadata.st_nlink != 1
+                or (post_fsync_metadata.st_dev, post_fsync_metadata.st_ino) != created_identity
+                or post_fsync_metadata.st_size != len(payload)
+                or (
+                    post_fsync_metadata.st_mtime_ns,
+                    post_fsync_metadata.st_ctime_ns,
+                )
+                != pre_fsync_stability
+            ):
+                raise VerificationError("evidence_write_failed")
+        except (OSError, VerificationError) as exc:
             raise VerificationError("evidence_write_failed") from exc
         finally:
             os.close(descriptor)
@@ -1784,7 +2257,8 @@ class _UnavailablePromtoolClient:
     def check_ready(self) -> bool:
         return False
 
-    def query_scalar(self, _expression: str, *, evaluation_time: str) -> float:
+    def query_scalar(self, expression: str, *, evaluation_time: str) -> float:
+        del expression
         del evaluation_time
         raise VerificationError("docker_unavailable")
 
