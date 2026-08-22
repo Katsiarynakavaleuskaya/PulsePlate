@@ -18,6 +18,7 @@ from core.menu_engine import (
     DayMenu,
     WeekMenu,
     _calculate_day_nutrients,
+    _governed_nutrient_names,
     calculate_known_nutrient_gaps,
     has_complete_nutrition_evidence,
     repair_week_plan,
@@ -124,6 +125,7 @@ def validate_week_plan(week_plan: object) -> dict[str, object]:
 def _week_menu_from_wire(
     week_plan: dict[str, object],
     nutrition_targets: NutritionTargets,
+    governed_nutrients: frozenset[str],
 ) -> WeekMenu:
     """Adapt validated wire evidence into the existing canonical menu classes."""
     days = _require_wire_mapping_list(
@@ -151,7 +153,10 @@ def _week_menu_from_wire(
             recommendations=[],
             estimated_cost=0.0,
         )
-        day_menu.total_nutrients = _calculate_day_nutrients(day_menu)
+        day_menu.total_nutrients = _calculate_day_nutrients(
+            day_menu,
+            governed_nutrients=governed_nutrients,
+        )
         daily_menus.append(day_menu)
 
     raw_week_start = week_plan.get("week_start", "")
@@ -204,9 +209,14 @@ def _week_menu_to_wire(
     return repaired_wire_plan
 
 
-def _known_nutrient_contributions(before: WeekMenu, after: WeekMenu) -> dict[str, float]:
-    """Report positive deltas only for nutrient keys explicitly present before repair."""
+def _known_nutrient_contributions(
+    before: WeekMenu,
+    after: WeekMenu,
+    targets: MicronutrientTargets,
+) -> dict[str, float]:
+    """Report only governed positive deltas explicitly present before repair."""
     contributions: dict[str, float] = {}
+    governed_nutrients = _governed_nutrient_names(targets)
     for before_day, after_day in zip(before.daily_menus, after.daily_menus):
         for before_meal, after_meal in zip(before_day.meals, after_day.meals):
             before_nutrients = before_meal.get("nutrients")
@@ -214,6 +224,8 @@ def _known_nutrient_contributions(before: WeekMenu, after: WeekMenu) -> dict[str
             if not isinstance(before_nutrients, dict) or not isinstance(after_nutrients, dict):
                 continue
             for nutrient, raw_before in before_nutrients.items():
+                if nutrient not in governed_nutrients:
+                    continue
                 raw_after = after_nutrients.get(nutrient)
                 if (
                     isinstance(raw_before, bool)
@@ -295,7 +307,12 @@ class AutoRepairEngine:
         if nutrition_targets is None:
             raise ValueError("Explicit nutrition targets are required")
 
-        canonical_initial_plan = _week_menu_from_wire(validated_plan, nutrition_targets)
+        governed_nutrients = _governed_nutrient_names(targets)
+        canonical_initial_plan = _week_menu_from_wire(
+            validated_plan,
+            nutrition_targets,
+            governed_nutrients,
+        )
         initial_known_gaps = calculate_known_nutrient_gaps(canonical_initial_plan, targets)
         profile = nutrition_targets.calculated_for
         if user_preferences or profile.diet_flags or profile.medical_conditions:
@@ -382,6 +399,7 @@ class AutoRepairEngine:
         final_canonical_plan = _week_menu_from_wire(
             validate_week_plan(current_plan),
             nutrition_targets,
+            governed_nutrients,
         )
         final_remaining_gaps: dict[str, float] = calculate_known_nutrient_gaps(
             final_canonical_plan,
@@ -433,15 +451,15 @@ class AutoRepairEngine:
                     1 for ingredient in ingredients if _is_vegetable(_ingredient_name(ingredient))
                 )
                 if vegetables_count < 2:
-                    gaps["vitamin_c"] = 50.0
-                    gaps["folate"] = 30.0
+                    gaps["vitamin_c_mg"] = 50.0
+                    gaps["folate_ug"] = 30.0
 
                 protein_count = sum(
                     1 for ingredient in ingredients if _is_protein(_ingredient_name(ingredient))
                 )
                 if protein_count == 0:
-                    gaps["iron"] = 40.0
-                    gaps["protein"] = 20.0
+                    gaps["iron_mg"] = 40.0
+                    gaps["protein_g"] = 20.0
 
         _ = targets
         return gaps
@@ -462,6 +480,7 @@ class AutoRepairEngine:
         canonical_plan = _week_menu_from_wire(
             validate_week_plan(week_plan),
             nutrition_targets,
+            _governed_nutrient_names(targets),
         )
         repaired_canonical_plan = repair_week_plan(canonical_plan, targets, canonical_strategy)
         if not isinstance(repaired_canonical_plan, WeekMenu):
@@ -489,6 +508,7 @@ class AutoRepairEngine:
                     "nutrient_contributions": _known_nutrient_contributions(
                         canonical_plan,
                         repaired_canonical_plan,
+                        targets,
                     ),
                 }
             )
@@ -538,17 +558,14 @@ class AutoRepairEngine:
             "Рекомендуется ручная корректировка плана",
         ]
 
-        if "iron" in remaining_gaps:
+        if "iron_mg" in remaining_gaps:
             suggestions.append("Добавьте больше мяса, рыбы или бобовых для железа")
 
-        if "vitamin_c" in remaining_gaps:
+        if "vitamin_c_mg" in remaining_gaps:
             suggestions.append("Увеличьте количество овощей и фруктов для витамина C")
 
-        if "folate" in remaining_gaps:
+        if "folate_ug" in remaining_gaps:
             suggestions.append("Добавьте листовые овощи для фолиевой кислоты")
-
-        if "protein" in remaining_gaps:
-            suggestions.append("Увеличьте порции белковых продуктов")
 
         return suggestions
 
@@ -564,7 +581,7 @@ class AutoRepairEngine:
         suggestions: list[ChangePayload] = []
 
         for nutrient, deficit in gaps.items():
-            if nutrient == "iron":
+            if nutrient == "iron_mg":
                 suggestions.append(
                     {
                         "type": "add_ingredient",
@@ -577,7 +594,7 @@ class AutoRepairEngine:
                         "reason": f"Дефицит {nutrient}: {deficit}%",
                     }
                 )
-            elif nutrient == "vitamin_c":
+            elif nutrient == "vitamin_c_mg":
                 suggestions.append(
                     {
                         "type": "add_ingredient",
@@ -590,7 +607,7 @@ class AutoRepairEngine:
                         "reason": f"Дефицит {nutrient}: {deficit}%",
                     }
                 )
-            elif nutrient == "folate":
+            elif nutrient == "folate_ug":
                 suggestions.append(
                     {
                         "type": "add_ingredient",

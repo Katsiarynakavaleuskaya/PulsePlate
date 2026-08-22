@@ -7129,7 +7129,7 @@ export interface operations {
                                     /** Zinc Mg */
                                     zinc_mg: number;
                                 } & {
-                                    [key: string]: unknown;
+                                    [key: string]: number;
                                 };
                             } & {
                                 [key: string]: unknown;
@@ -7509,8 +7509,12 @@ export interface operations {
                             meals: ({
                                 /** Ingredients */
                                 ingredients: ({
+                                    /** Amount */
+                                    amount: number;
                                     /** Name */
                                     name: string;
+                                    /** Unit */
+                                    unit: string;
                                 } & {
                                     [key: string]: unknown;
                                 })[];

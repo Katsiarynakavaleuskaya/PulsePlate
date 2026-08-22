@@ -8,6 +8,7 @@ EN: Tests for VIP API endpoints
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -887,6 +888,10 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         nutrient_schema["properties"][field_name]["minimum"] == 0
         for field_name in nutrient_schema["required"]
     )
+    assert nutrient_schema["additionalProperties"] == {
+        "minimum": 0,
+        "type": "number",
+    }
     assert request_schema["properties"]["user_preferences"]["maxProperties"] == 50
 
     recipe_operation = schema["paths"]["/api/v1/vip/recipes/weekly"]["post"]
@@ -906,6 +911,12 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
     assert recipe_day_schema["properties"]["meals"]["maxItems"] == 10
     recipe_meal_schema = recipe_day_schema["properties"]["meals"]["items"]
     assert recipe_meal_schema["properties"]["ingredients"]["maxItems"] == 15
+    recipe_ingredient_schema = recipe_meal_schema["properties"]["ingredients"]["items"]
+    assert set(recipe_ingredient_schema["required"]) == {"name", "amount", "unit"}
+    assert recipe_ingredient_schema["properties"]["name"]["maxLength"] == 500
+    assert recipe_ingredient_schema["properties"]["amount"]["exclusiveMinimum"] == 0
+    assert recipe_ingredient_schema["properties"]["amount"]["maximum"] == 1000
+    assert recipe_ingredient_schema["properties"]["unit"]["maxLength"] == 32
     activity_schema = request_schema["properties"]["daily_targets"]["properties"]["activity"]
     for field_name in (
         "moderate_aerobic_min",
@@ -916,6 +927,18 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         assert activity_schema["properties"][field_name]["type"] == "integer"
     assert activity_schema["properties"]["moderate_aerobic_min"]["minimum"] == 0
     assert activity_schema["properties"]["vigorous_aerobic_min"]["minimum"] == 0
+
+    generated_types = (
+        Path(__file__).resolve().parents[1] / "frontend/src/api/schema.ts"
+    ).read_text(encoding="utf-8")
+    nutrient_marker = generated_types.index("AutoRepairMealNutrients")
+    numeric_extra = generated_types.index("[key: string]: number;", nutrient_marker)
+    next_unknown_extra = generated_types.index("[key: string]: unknown;", nutrient_marker)
+    assert numeric_extra < next_unknown_extra
+    recipe_amount = generated_types.index("amount: number;", numeric_extra)
+    recipe_name = generated_types.index("name: string;", recipe_amount)
+    recipe_unit = generated_types.index("unit: string;", recipe_name)
+    assert recipe_amount < recipe_name < recipe_unit
 
     for path in (
         "/api/v1/vip/auto-repair/weekly",

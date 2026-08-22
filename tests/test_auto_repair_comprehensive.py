@@ -618,7 +618,6 @@ class TestAutoRepairComprehensive:
     def test_paid_repair_real_db_failure_is_unchanged(self) -> None:
         """Paid repair never consumes the mock fallback when real loading fails."""
         with patch("core.menu_engine.get_unified_food_db", side_effect=RuntimeError("offline")):
-            assert _get_default_food_db(allow_mock_fallback=False) == {}
             mock_fallback = _get_default_food_db()
         assert {food.name for food in mock_fallback.values()} == {
             "Chicken Breast (Mock)",
@@ -768,6 +767,7 @@ class TestAutoRepairComprehensive:
                 "fat_g": 0.4,
                 "carbs_g": 20.0,
                 "fiber_g": 8.0,
+                "opaque_client_metric": 2.0,
             },
         )
         wire_plan = {
@@ -794,12 +794,14 @@ class TestAutoRepairComprehensive:
                                 "iron_mg": 0.0,
                                 "folate_ug": 0.0,
                                 "magnesium_mg": 0.0,
+                                "opaque_client_metric": 5.0,
                             },
                         }
                     ],
                 }
             ],
         }
+        wire_snapshot = deepcopy(wire_plan)
         with patch(
             "core.menu_engine.get_cached_common_foods_snapshot",
             return_value={"lentils": lentils},
@@ -822,7 +824,9 @@ class TestAutoRepairComprehensive:
             "iron_mg",
             "folate_ug",
             "magnesium_mg",
+            "opaque_client_metric",
         }
+        assert repaired_meal["nutrients"]["opaque_client_metric"] == 5.0
         assert "protein_g" not in repaired_meal["nutrients"]
         assert "fat_g" not in repaired_meal["nutrients"]
         assert "carbs_g" not in repaired_meal["nutrients"]
@@ -831,6 +835,10 @@ class TestAutoRepairComprehensive:
             "folate_ug",
             "magnesium_mg",
         }
+        assert "opaque_client_metric" not in result.remaining_gaps
+        assert "opaque_client_metric" not in result.changes_made[0]["nutrient_contributions"]
+        assert "opaque_client_metric" not in repaired_plan["days"][0]["total_nutrients"]
+        assert wire_plan == wire_snapshot
         assert repaired_plan["plan_id"] == "plan-123"
         assert repaired_plan["client_metadata"] == {"trace": "trace-456"}
         assert repaired_plan["days"][0]["day_id"] == "day-1"
@@ -868,7 +876,7 @@ class TestAutoRepairComprehensive:
         )
         invalid_after = deepcopy(invalid_before)
         invalid_after.daily_menus[0].meals[0]["nutrients"]["iron_mg"] = True
-        assert _known_nutrient_contributions(invalid_before, invalid_after) == {}
+        assert _known_nutrient_contributions(invalid_before, invalid_after, self.targets) == {}
         assert (
             calculate_known_nutrient_gaps(
                 _canonical_plan(),
@@ -1571,10 +1579,10 @@ class TestAutoRepairComprehensive:
 
         # Test with various gaps
         gaps = {
-            "iron": 30.0,
-            "vitamin_c": 25.0,
-            "folate": 15.0,
-            "protein": 20.0,
+            "iron_mg": 30.0,
+            "vitamin_c_mg": 25.0,
+            "folate_ug": 15.0,
+            "protein_g": 20.0,
         }
 
         suggestions = engine._generate_manual_suggestions(gaps)
@@ -1588,7 +1596,15 @@ class TestAutoRepairComprehensive:
         assert "желез" in suggestion_text or "iron" in suggestion_text.lower()
         assert "овощ" in suggestion_text or "vegetable" in suggestion_text.lower()
         assert "фолиев" in suggestion_text or "folate" in suggestion_text.lower()
-        assert "белк" in suggestion_text or "protein" in suggestion_text.lower()
+        assert "белк" not in suggestion_text and "protein" not in suggestion_text.lower()
+        assert (
+            len(
+                engine._generate_manual_suggestions(
+                    {"iron": 1.0, "vitamin_c": 1.0, "folate": 1.0, "protein": 1.0}
+                )
+            )
+            == 2
+        )
 
     def test_get_repair_history(self):
         """Test get_repair_history method."""
@@ -1658,7 +1674,7 @@ class TestAutoRepairComprehensive:
 
         gaps = engine._analyze_nutrient_gaps(week_plan_no_vegetables, self.targets)
         # Should detect gaps based on the logic in the method
-        assert isinstance(gaps, dict)
+        assert set(gaps) == {"iron_mg", "vitamin_c_mg", "folate_ug", "protein_g"}
 
         # Test plan with vegetables (should have fewer gaps)
         week_plan_with_vegetables = {
@@ -1669,8 +1685,8 @@ class TestAutoRepairComprehensive:
                         {
                             "name": "Breakfast",
                             "ingredients": [
-                                {"name": "spinach", "amount": 100},
-                                {"name": "bell peppers", "amount": 50},
+                                {"name": "vegetable spinach", "amount": 100},
+                                {"name": "vegetable peppers", "amount": 50},
                             ],
                         }
                     ],
@@ -1682,7 +1698,7 @@ class TestAutoRepairComprehensive:
             week_plan_with_vegetables, self.targets
         )
         # Should have fewer gaps
-        assert isinstance(gaps_with_vegetables, dict)
+        assert set(gaps_with_vegetables) == {"iron_mg", "protein_g"}
 
     def test_attempt_repair_success(self):
         """Test _attempt_repair method with successful repair."""

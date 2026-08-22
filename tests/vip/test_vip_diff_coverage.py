@@ -17,6 +17,7 @@ from copy import deepcopy
 from dataclasses import asdict, replace
 import json
 from pathlib import Path
+import sys
 from types import MappingProxyType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock, patch
@@ -41,6 +42,7 @@ from app.schemas.vip import (
     AutoRepairTargetRanges,
     AutoRepairWeeklyRequest,
     WeeklyPlanRequest,
+    WeeklyRecipeIngredient,
     WeeklyRecipesRequest,
 )
 from app.services.fitchef_runtime import _is_valid_weekly_profile_field
@@ -63,11 +65,13 @@ from core.menu_engine import (
     FoodItem,
     MAX_INGREDIENTS_PER_MEAL,
     WeekMenu,
+    _aggregate_weekly_gaps,
     _apply_one_safe_booster,
     _apply_repair_strategy,
     _calculate_day_nutrients,
     _food_nutrient_evidence,
     _get_default_food_db,
+    _governed_nutrient_names,
     _safe_booster_amount,
     calculate_known_nutrient_gaps,
     has_complete_nutrition_evidence,
@@ -379,6 +383,17 @@ def _nested_raw_mapping(depth: int, leaf: object = 0) -> dict[str, object]:
     return cast(dict[str, object], nested)
 
 
+def _recipe_ingredient(
+    name: str = "rice",
+    *,
+    amount: int | float = 100,
+    unit: str = "g",
+) -> dict[str, object]:
+    """Build one explicit weekly-recipe ingredient without inferred fields."""
+
+    return {"name": name, "amount": amount, "unit": unit}
+
+
 @pytest.fixture(autouse=True)
 def vip_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
@@ -523,27 +538,73 @@ class TestTC209VIPDiffCoverage:
                     "days": [
                         {
                             "day": " Monday ",
-                            "meals": [{"ingredients": [{"name": " rice "}]}],
+                            "meals": [
+                                {
+                                    "ingredients": [
+                                        _recipe_ingredient(" rice ", amount=1000, unit=" G ")
+                                    ]
+                                }
+                            ],
                         }
                     ]
                 }
             }
         )
         assert recipe.week_plan.days[0].day == "Monday"
+        parsed_recipe_ingredient = recipe.week_plan.days[0].meals[0].ingredients[0]
+        assert parsed_recipe_ingredient.name == "rice"
+        assert parsed_recipe_ingredient.amount == 1000.0
+        assert parsed_recipe_ingredient.unit == "G"
+
+        assert (
+            WeeklyRecipeIngredient.model_validate(_recipe_ingredient(amount=1000)).amount == 1000.0
+        )
+        with pytest.raises(ValidationError):
+            WeeklyRecipeIngredient.model_validate("not-an-object")
+        invalid_recipe_ingredients = (
+            {"name": "rice", "unit": "g"},
+            {"name": "rice", "amount": 1},
+            _recipe_ingredient(amount=0),
+            _recipe_ingredient(amount=-1),
+            _recipe_ingredient(amount=True),
+            {"name": "rice", "amount": "1", "unit": "g"},
+            _recipe_ingredient(amount=float("nan")),
+            _recipe_ingredient(amount=float("inf")),
+            _recipe_ingredient(amount=10**310),
+            _recipe_ingredient(amount=1000.1),
+            _recipe_ingredient(" "),
+            _recipe_ingredient("x" * 501),
+            {"name": 1, "amount": 1, "unit": "g"},
+            _recipe_ingredient(unit=" "),
+            _recipe_ingredient(unit="x" * 33),
+            {"name": "rice", "amount": 1, "unit": 1},
+        )
+        for invalid_ingredient in invalid_recipe_ingredients:
+            with pytest.raises(ValidationError):
+                WeeklyRecipeIngredient.model_validate(invalid_ingredient)
 
         for invalid_recipe in (
-            {"week_plan": {"days": [{"meals": [{"ingredients": [{"name": "rice"}]}]}]}},
-            {"week_plan": {"days": [{"day": " ", "meals": [{"ingredients": [{"name": "rice"}]}]}]}},
+            {"week_plan": {"days": [{"meals": [{"ingredients": [_recipe_ingredient()]}]}]}},
+            {
+                "week_plan": {
+                    "days": [
+                        {
+                            "day": " ",
+                            "meals": [{"ingredients": [_recipe_ingredient()]}],
+                        }
+                    ]
+                }
+            },
             {
                 "week_plan": {
                     "days": [
                         {
                             "day": "Monday",
-                            "meals": [{"ingredients": [{"name": "rice"}]}],
+                            "meals": [{"ingredients": [_recipe_ingredient()]}],
                         },
                         {
                             "day": " Monday ",
-                            "meals": [{"ingredients": [{"name": "beans"}]}],
+                            "meals": [{"ingredients": [_recipe_ingredient("beans")]}],
                         },
                     ]
                 }
@@ -553,7 +614,7 @@ class TestTC209VIPDiffCoverage:
                     "days": [
                         {
                             "day": "Monday",
-                            "meals": [{"ingredients": [{"name": "rice"}]}],
+                            "meals": [{"ingredients": [_recipe_ingredient()]}],
                         }
                     ]
                 },
@@ -691,7 +752,7 @@ class TestTC209VIPDiffCoverage:
                 "days": [
                     {
                         "day": "Monday",
-                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient()]}],
                     }
                 ]
             },
@@ -757,7 +818,7 @@ class TestTC209VIPDiffCoverage:
                 "days": [
                     {
                         "day": "day-0",
-                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient()]}],
                     }
                 ]
             },
@@ -859,6 +920,52 @@ class TestTC209VIPDiffCoverage:
         assert _raw_request_units(over_payload) == 4097
         with pytest.raises(ValidationError):
             AutoRepairWeeklyRequest.model_validate(over_payload)
+
+        malformed_capacity_payloads = (
+            {},
+            {"week_plan": {}, "targets": deepcopy(auto_base["targets"])},
+            {**deepcopy(auto_base), "week_plan": {"days": []}},
+            {
+                **deepcopy(auto_base),
+                "targets": {
+                    key: value for key, value in auto_base["targets"].items() if key != "iron_mg"
+                },
+            },
+            {
+                **deepcopy(auto_base),
+                "targets": {**deepcopy(auto_base["targets"]), "iron_mg": [1.0, 2.0]},
+            },
+            {
+                **deepcopy(auto_base),
+                "targets": {
+                    **deepcopy(auto_base["targets"]),
+                    "iron_mg": [1.0, "invalid", 3.0],
+                },
+            },
+        )
+        for malformed_capacity in malformed_capacity_payloads:
+            with pytest.raises(ValidationError):
+                AutoRepairWeeklyRequest.model_validate(malformed_capacity)
+
+        for target_field in _TARGET_RANGES:
+            one_day_maximum = deepcopy(auto_base)
+            one_day_maximum["targets"][target_field] = [
+                1.0,
+                sys.float_info.max,
+                sys.float_info.max,
+            ]
+            AutoRepairWeeklyRequest.model_validate(one_day_maximum)
+
+            two_day_overflow = deepcopy(one_day_maximum)
+            two_day_overflow["week_plan"]["days"] = [
+                deepcopy(auto_day),
+                deepcopy(auto_day),
+            ]
+            with pytest.raises(
+                ValidationError,
+                match="Weekly nutrient target is not representable",
+            ):
+                AutoRepairWeeklyRequest.model_validate(two_day_overflow)
 
     def test_raw_request_extra_depth_cycles_and_plain_types(self) -> None:
         auto_base = _auto_repair_request()
@@ -992,7 +1099,7 @@ class TestTC209VIPDiffCoverage:
                 "days": [
                     {
                         "day": "Monday",
-                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient()]}],
                     }
                 ]
             },
@@ -1056,6 +1163,23 @@ class TestTC209VIPDiffCoverage:
                 with pytest.raises(ValidationError):
                     AutoRepairMealNutrients.model_validate({**valid, field_name: invalid_value})
 
+        parsed_extra = AutoRepairMealNutrients.model_validate({**valid, "opaque_client_metric": 0})
+        assert parsed_extra.__pydantic_extra__ == {"opaque_client_metric": 0.0}
+        assert parsed_extra.model_dump()["opaque_client_metric"] == 0.0
+        for invalid_extra in (
+            True,
+            "1",
+            object(),
+            float("nan"),
+            float("inf"),
+            10**310,
+            -1,
+        ):
+            with pytest.raises(ValidationError):
+                AutoRepairMealNutrients.model_validate(
+                    {**valid, "opaque_client_metric": invalid_extra}
+                )
+
     def test_raw_request_plus_one_rejects_before_runtime_adapters(
         self,
         client: TestClient,
@@ -1073,6 +1197,17 @@ class TestTC209VIPDiffCoverage:
             "budget": _packed_raw_primitives(4097 - baseline_units)
         }
         assert _raw_request_units(oversized_aggregate) == 4097
+
+        weekly_gap_overflow = deepcopy(auto_base)
+        weekly_gap_overflow["week_plan"]["days"] = [
+            deepcopy(auto_day),
+            deepcopy(auto_day),
+        ]
+        weekly_gap_overflow["targets"]["iron_mg"] = [
+            1.0,
+            sys.float_info.max,
+            sys.float_info.max,
+        ]
 
         scalar_container_payloads: list[dict[str, Any]] = []
         for depth in (5, 6, 101):
@@ -1095,6 +1230,7 @@ class TestTC209VIPDiffCoverage:
         for invalid_payload in (
             oversized_days,
             oversized_aggregate,
+            weekly_gap_overflow,
             *scalar_container_payloads,
         ):
             with monkeypatch.context() as auto_guard:
@@ -1135,7 +1271,7 @@ class TestTC209VIPDiffCoverage:
 
         recipe_day = {
             "day": "day-0",
-            "meals": [{"ingredients": [{"name": "rice"}]}],
+            "meals": [{"ingredients": [_recipe_ingredient()]}],
         }
         oversized_recipe = {
             "week_plan": {
@@ -1341,11 +1477,11 @@ class TestTC209VIPDiffCoverage:
         invalid_before = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         invalid_after = deepcopy(invalid_before)
         invalid_before.daily_menus[0].meals[0]["nutrients"] = []
-        assert _known_nutrient_contributions(invalid_before, invalid_after) == {}
+        assert _known_nutrient_contributions(invalid_before, invalid_after, targets) == {}
         invalid_before = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         invalid_after = deepcopy(invalid_before)
         invalid_after.daily_menus[0].meals[0]["nutrients"]["iron_mg"] = True
-        assert _known_nutrient_contributions(invalid_before, invalid_after) == {}
+        assert _known_nutrient_contributions(invalid_before, invalid_after, targets) == {}
 
         advisory_plan = {
             "days": [
@@ -1364,10 +1500,29 @@ class TestTC209VIPDiffCoverage:
         }
         suggestions = suggest_manual_fixes(advisory_plan, targets)
         assert {item["nutrient"] for item in suggestions} == {
-            "iron",
-            "vitamin_c",
-            "folate",
+            "iron_mg",
+            "vitamin_c_mg",
+            "folate_ug",
         }
+        canonical_manual = AutoRepairEngine()._generate_manual_suggestions(
+            {
+                "iron_mg": 1.0,
+                "vitamin_c_mg": 1.0,
+                "folate_ug": 1.0,
+                "protein_g": 1.0,
+            }
+        )
+        alias_manual = AutoRepairEngine()._generate_manual_suggestions(
+            {
+                "iron": 1.0,
+                "vitamin_c": 1.0,
+                "folate": 1.0,
+                "protein": 1.0,
+            }
+        )
+        assert len(canonical_manual) == 5
+        assert len(alias_manual) == 2
+        assert not any("белков" in suggestion for suggestion in canonical_manual)
         with pytest.raises(ValueError, match="non-empty list"):
             suggest_manual_fixes({"days": []}, targets)
 
@@ -1398,6 +1553,41 @@ class TestTC209VIPDiffCoverage:
         assert second["lentils"].nutrients_per_100g["iron_mg"] == 3.3
         assert first["lentils"] is not second["lentils"]
         assert caplog.records == []
+
+        exact_name = " " + ("n" * 498) + " "
+        exact_name_row = {**valid_row, "name": exact_name}
+        cache_file.write_text(
+            json.dumps({"bounded-name": exact_name_row}),
+            encoding="utf-8",
+        )
+        exact_name_snapshot = unified_db_module.get_cached_common_foods_snapshot()
+        assert exact_name_snapshot["bounded-name"].name == exact_name
+
+        class _NameSubclass(str):
+            pass
+
+        for invalid_name in (" " * 500, "n" * 501, _NameSubclass("subclass")):
+            invalid_name_row = {**valid_row, "name": invalid_name}
+            caplog.clear()
+            with monkeypatch.context() as name_guard:
+                name_guard.setattr(
+                    unified_db_module.json,
+                    "loads",
+                    lambda _text, row=invalid_name_row: {
+                        "valid": valid_row,
+                        "invalid": row,
+                    },
+                )
+                name_guard.setattr(
+                    unified_db_module,
+                    "get_unified_food_db",
+                    Mock(side_effect=AssertionError("provider fallback must not run")),
+                )
+                assert unified_db_module.get_cached_common_foods_snapshot() == {}
+            assert "item_name_invalid" in caplog.text
+            assert str(invalid_name) not in caplog.text
+
+        cache_file.write_text(json.dumps({"lentils": valid_row}), encoding="utf-8")
 
         deficient_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         with patch(
@@ -1536,6 +1726,7 @@ class TestTC209VIPDiffCoverage:
             "cache_unreadable_or_invalid_json",
             "payload_not_object",
             "entry_identity_or_shape_invalid",
+            "item_name_invalid",
             "item_identity_invalid",
             "nutrition_inputs_missing_or_invalid",
             "nutrition_input_source_invalid",
@@ -1747,6 +1938,43 @@ class TestTC209VIPDiffCoverage:
         assert repaired_meal["nutrients"]["vitamin_c_mg"] == 2000.0
         assert original == original_copy
 
+        opaque_plan = _canonical_plan(
+            _complete_evidence(
+                {
+                    "iron_mg": 0.0,
+                    "opaque_client_metric": 5.0,
+                }
+            )
+        )
+        opaque_snapshot = deepcopy(opaque_plan)
+        assert _calculate_day_nutrients(opaque_plan.daily_menus[0])["opaque_client_metric"] == 5.0
+        opaque_repaired = repair_canonical_week_plan(
+            opaque_plan,
+            targets,
+            food_db={
+                "opaque": _food_item(
+                    "Opaque",
+                    {
+                        "iron_mg": 10.0,
+                        "opaque_client_metric": 2.0,
+                    },
+                )
+            },
+        )
+        opaque_meal = opaque_repaired.daily_menus[0].meals[0]
+        assert opaque_meal["ingredients"][-1]["amount"] == 80.0
+        assert opaque_meal["nutrients"]["iron_mg"] == 8.0
+        assert opaque_meal["nutrients"]["opaque_client_metric"] == 5.0
+        assert "opaque_client_metric" not in opaque_repaired.daily_menus[0].total_nutrients
+        assert calculate_known_nutrient_gaps(opaque_repaired, targets) == {}
+        opaque_contributions = _known_nutrient_contributions(
+            opaque_plan,
+            opaque_repaired,
+            targets,
+        )
+        assert opaque_contributions == {"iron_mg": 8.0}
+        assert opaque_plan == opaque_snapshot
+
         for existing_count in (
             MAX_INGREDIENTS_PER_MEAL - 1,
             MAX_INGREDIENTS_PER_MEAL,
@@ -1808,6 +2036,7 @@ class TestTC209VIPDiffCoverage:
             _known_nutrient_contributions(
                 explicit_kcal_plan,
                 explicit_kcal_repaired,
+                targets,
             )["kcal"]
             == 4.0
         )
@@ -1903,7 +2132,13 @@ class TestTC209VIPDiffCoverage:
             "Derived overflow",
             {"iron_mg": 10.0, "protein_g": 1e308},
         )
-        assert _food_nutrient_evidence(derived_overflow) is None
+        assert (
+            _food_nutrient_evidence(
+                derived_overflow,
+                _governed_nutrient_names(targets),
+            )
+            is None
+        )
 
         no_candidate_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         caplog.clear()
@@ -1960,6 +2195,49 @@ class TestTC209VIPDiffCoverage:
         known_gap = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         assert calculate_known_nutrient_gaps(known_gap, targets)["iron_mg"] == 8.0
 
+        overflow_ranges = {name: tuple(values) for name, values in _TARGET_RANGES.items()}
+        overflow_ranges["iron_mg"] = (
+            1.0,
+            sys.float_info.max,
+            sys.float_info.max,
+        )
+        overflow_targets = MicronutrientTargets(**overflow_ranges)
+        one_day_maximum = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+        assert calculate_known_nutrient_gaps(one_day_maximum, overflow_targets) == {
+            "iron_mg": sys.float_info.max
+        }
+        two_day_maximum = deepcopy(one_day_maximum)
+        second_day = deepcopy(two_day_maximum.daily_menus[0])
+        second_day.date = "Tuesday"
+        two_day_maximum.daily_menus.append(second_day)
+        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
+            calculate_known_nutrient_gaps(two_day_maximum, overflow_targets)
+
+        overflowing_day_evidence = _canonical_plan(
+            _complete_evidence({"iron_mg": sys.float_info.max})
+        )
+        overflowing_day_evidence.daily_menus[0].meals.append(
+            {
+                "ingredients": [{"name": "second"}],
+                "nutrients": _complete_evidence({"iron_mg": sys.float_info.max}),
+            }
+        )
+        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
+            calculate_known_nutrient_gaps(overflowing_day_evidence, overflow_targets)
+
+        assert _aggregate_weekly_gaps({"day-1": {"iron_mg": 3.0}, "day-2": {"iron_mg": 5.0}}) == {
+            "iron_mg": 8.0
+        }
+        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
+            _aggregate_weekly_gaps(
+                {
+                    "day-1": {"iron_mg": sys.float_info.max, "zinc_mg": 1.0},
+                    "day-2": {"iron_mg": sys.float_info.max, "zinc_mg": 1.0},
+                }
+            )
+        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
+            _aggregate_weekly_gaps({"day-1": {"iron_mg": 10**310}})
+
         invalid_foods = (
             FoodItem("bad-name", cast(dict[str, float], {"": 1.0}), 1.0, [], []),
             FoodItem("bad-density", cast(dict[str, float], {"iron_mg": True}), 1.0, [], []),
@@ -1979,7 +2257,13 @@ class TestTC209VIPDiffCoverage:
             ),
         )
         for food in invalid_foods:
-            assert _food_nutrient_evidence(food) is None
+            assert (
+                _food_nutrient_evidence(
+                    food,
+                    _governed_nutrient_names(targets),
+                )
+                is None
+            )
 
         day = _canonical_plan(_complete_evidence({"iron_mg": 0.0})).daily_menus[0]
         assert _safe_booster_amount(day, targets, {"iron_mg": 0.0}, "iron_mg") is None
@@ -2020,24 +2304,30 @@ class TestTC209VIPDiffCoverage:
             cast(dict[str, float], {"iron_mg": 0.0, "custom": True})
         ).daily_menus[0]
         custom_food = _food_item("Custom", {"iron_mg": 10.0, "custom": 1.0})
-        assert not _apply_one_safe_booster(invalid_existing, targets, {"custom": custom_food})
+        assert _apply_one_safe_booster(invalid_existing, targets, {"custom": custom_food})
+        assert invalid_existing.meals[0]["nutrients"]["custom"] is True
+        assert "custom" not in invalid_existing.total_nutrients
         overflowing_existing = _canonical_plan({"iron_mg": 0.0, "custom": 1e308}).daily_menus[0]
         overflow_food = _food_item("Overflow", {"iron_mg": 10.0, "custom": 1e308})
-        assert not _apply_one_safe_booster(
+        assert _apply_one_safe_booster(
             overflowing_existing,
             targets,
             {"overflow": overflow_food},
         )
+        assert overflowing_existing.meals[0]["nutrients"]["custom"] == 1e308
+        assert "custom" not in overflowing_existing.total_nutrients
 
         prospective_invalid = _canonical_plan({"iron_mg": 0.0}).daily_menus[0]
         prospective_invalid.meals.append(
             {"ingredients": [{"name": "bad"}], "nutrients": {"iron_mg": 0.0, "bad": True}}
         )
-        assert not _apply_one_safe_booster(
+        assert _apply_one_safe_booster(
             prospective_invalid,
             targets,
             {"iron": _food_item("Iron", {"iron_mg": 10.0})},
         )
+        assert prospective_invalid.meals[1]["nutrients"]["bad"] is True
+        assert "bad" not in prospective_invalid.total_nutrients
 
         invalid_mapping = _canonical_plan({"iron_mg": 0.0}).daily_menus[0]
         invalid_mapping.meals[0]["nutrients"] = []
@@ -2063,9 +2353,12 @@ class TestTC209VIPDiffCoverage:
         ) == _canonical_plan(complete)
 
         async def _running_loop_default() -> dict[str, FoodItem]:
-            return _get_default_food_db(allow_mock_fallback=False)
+            return _get_default_food_db()
 
-        assert asyncio.run(_running_loop_default()) == {}
+        assert {food.name for food in asyncio.run(_running_loop_default()).values()} == {
+            "Chicken Breast (Mock)",
+            "Lentils (Mock)",
+        }
 
     def test_routes_publish_exact_custom_envelopes_and_tolerance(
         self,
@@ -2074,6 +2367,73 @@ class TestTC209VIPDiffCoverage:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         stable_message = "Auto-repair could not complete the requested repair"
+        opaque_extra_payload = _auto_repair_request()
+        opaque_extra_payload["week_plan"]["days"][0]["meals"][0]["nutrients"][
+            "opaque_client_metric"
+        ] = 5.0
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=opaque_extra_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        opaque_data = _json_payload(response)
+        assert opaque_data["status"] == "success"
+        assert opaque_data["repair_result"]["status"] == "success"
+        assert opaque_data["repair_result"]["remaining_gaps"] == {}
+        assert (
+            opaque_data["repair_result"]["repaired_plan"]["days"][0]["meals"][0]["nutrients"][
+                "opaque_client_metric"
+            ]
+            == 5.0
+        )
+
+        for invalid_extra in (True, "1", 10**310, -1):
+            invalid_extra_payload = _auto_repair_request()
+            invalid_extra_payload["week_plan"]["days"][0]["meals"][0]["nutrients"][
+                "opaque_client_metric"
+            ] = invalid_extra
+            with monkeypatch.context() as extra_guard:
+                adapter = Mock(
+                    side_effect=AssertionError(
+                        "auto-repair adapter must not run for invalid nutrient extras"
+                    )
+                )
+                extra_guard.setattr(vip_router, "get_auto_repair_engine", adapter)
+                response = client.post(
+                    "/api/v1/vip/auto-repair/weekly",
+                    json=invalid_extra_payload,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid auto-repair request payload"}
+            adapter.assert_not_called()
+
+        for nonfinite_token in ("NaN", "Infinity"):
+            nonfinite_payload = _auto_repair_request()
+            nonfinite_payload["week_plan"]["days"][0]["meals"][0]["nutrients"][
+                "opaque_client_metric"
+            ] = "__NONFINITE__"
+            raw_body = json.dumps(nonfinite_payload).replace(
+                '"__NONFINITE__"',
+                nonfinite_token,
+            )
+            with monkeypatch.context() as nonfinite_guard:
+                adapter = Mock(
+                    side_effect=AssertionError(
+                        "auto-repair adapter must not run for nonfinite nutrient extras"
+                    )
+                )
+                nonfinite_guard.setattr(vip_router, "get_auto_repair_engine", adapter)
+                response = client.post(
+                    "/api/v1/vip/auto-repair/weekly",
+                    content=raw_body,
+                    headers={**vip_headers, "content-type": "application/json"},
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid auto-repair request payload"}
+            adapter.assert_not_called()
+
         for payload in (
             _auto_repair_request(kcal_daily=1801),
             _auto_repair_request(
@@ -2157,7 +2517,7 @@ class TestTC209VIPDiffCoverage:
                 "days": [
                     {
                         "day": "Monday",
-                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient()]}],
                     }
                 ]
             },
@@ -2188,16 +2548,84 @@ class TestTC209VIPDiffCoverage:
             assert _json_payload(response) == {"detail": "Invalid weekly recipes request payload"}
             recipe_adapter.assert_not_called()
 
+        invalid_route_ingredients = (
+            {"name": "rice", "unit": "g"},
+            {"name": "rice", "amount": 1},
+            _recipe_ingredient(amount=0),
+            _recipe_ingredient(amount=-1),
+            _recipe_ingredient(amount=True),
+            {"name": "rice", "amount": "1", "unit": "g"},
+            _recipe_ingredient(amount=10**310),
+            _recipe_ingredient(amount=1000.1),
+            _recipe_ingredient(" "),
+            _recipe_ingredient("x" * 501),
+            _recipe_ingredient(unit=" "),
+            _recipe_ingredient(unit="x" * 33),
+        )
+        for invalid_ingredient in invalid_route_ingredients:
+            invalid_ingredient_payload = deepcopy(valid_recipe_payload)
+            invalid_ingredient_payload["week_plan"]["days"][0]["meals"][0]["ingredients"] = [
+                invalid_ingredient
+            ]
+            with monkeypatch.context() as ingredient_guard:
+                recipe_adapter = Mock(
+                    side_effect=AssertionError(
+                        "recipe adapter must not run for invalid ingredient input"
+                    )
+                )
+                ingredient_guard.setattr(
+                    vip_router,
+                    "_adapter_synthesize_recipes_for_week",
+                    recipe_adapter,
+                )
+                response = client.post(
+                    "/api/v1/vip/recipes/weekly",
+                    json=invalid_ingredient_payload,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid weekly recipes request payload"}
+            recipe_adapter.assert_not_called()
+
+        for nonfinite_token in ("NaN", "Infinity"):
+            nonfinite_recipe = deepcopy(valid_recipe_payload)
+            nonfinite_recipe["week_plan"]["days"][0]["meals"][0]["ingredients"][0][
+                "amount"
+            ] = "__NONFINITE__"
+            raw_body = json.dumps(nonfinite_recipe).replace(
+                '"__NONFINITE__"',
+                nonfinite_token,
+            )
+            with monkeypatch.context() as recipe_nonfinite_guard:
+                recipe_adapter = Mock(
+                    side_effect=AssertionError(
+                        "recipe adapter must not run for nonfinite ingredient amount"
+                    )
+                )
+                recipe_nonfinite_guard.setattr(
+                    vip_router,
+                    "_adapter_synthesize_recipes_for_week",
+                    recipe_adapter,
+                )
+                response = client.post(
+                    "/api/v1/vip/recipes/weekly",
+                    content=raw_body,
+                    headers={**vip_headers, "content-type": "application/json"},
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid weekly recipes request payload"}
+            recipe_adapter.assert_not_called()
+
         invalid_recipe = {
             "week_plan": {
                 "days": [
                     {
                         "day": "Monday",
-                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient()]}],
                     },
                     {
                         "day": " Monday ",
-                        "meals": [{"ingredients": [{"name": "beans"}]}],
+                        "meals": [{"ingredients": [_recipe_ingredient("beans")]}],
                     },
                 ]
             }

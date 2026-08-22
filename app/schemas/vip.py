@@ -214,7 +214,11 @@ _VIP_RAW_DECLARED_FIELDS: dict[str, dict[str, str]] = {
     "recipes_week_plan": {"days": "recipes_days"},
     "recipes_day": {"day": _VIP_SCALAR, "meals": "recipes_meals"},
     "recipes_meal": {"ingredients": "recipes_ingredients"},
-    "recipes_ingredient": {"name": _VIP_SCALAR},
+    "recipes_ingredient": {
+        "name": _VIP_SCALAR,
+        "amount": _VIP_SCALAR,
+        "unit": _VIP_SCALAR,
+    },
 }
 
 _VIP_RAW_COLLECTION_ITEMS: dict[str, str] = {
@@ -376,6 +380,41 @@ def _validate_vip_raw_request(values: object, *, root_shape: str) -> object:
     return values
 
 
+def _validate_auto_repair_weekly_gap_capacity(
+    values: dict[object, object],
+) -> dict[object, object]:
+    """Reject only finite daily targets whose admitted weekly product overflows."""
+
+    raw_week_plan = values.get("week_plan")
+    raw_targets = values.get("targets")
+    if type(raw_week_plan) is not dict or type(raw_targets) is not dict:
+        return values
+    week_plan = cast(dict[object, object], raw_week_plan)
+    targets = cast(dict[object, object], raw_targets)
+    raw_days = week_plan.get("days")
+    if type(raw_days) is not list:
+        return values
+    day_count = len(cast(list[object], raw_days))
+    if not 1 <= day_count <= _VIP_MAX_DAYS:
+        return values
+
+    for field_name in _AUTO_REPAIR_TARGET_FIELDS:
+        raw_range = targets.get(field_name)
+        if type(raw_range) not in {list, tuple}:
+            continue
+        range_values = cast(list[object] | tuple[object, ...], raw_range)
+        if len(range_values) != 3:
+            continue
+        raw_midpoint = range_values[1]
+        if type(raw_midpoint) not in {int, float}:
+            continue
+        daily_target = float(cast(int | float, raw_midpoint))
+        weekly_target = daily_target * day_count
+        if not math.isfinite(weekly_target):
+            raise ValueError("Weekly nutrient target is not representable")
+    return values
+
+
 _NonnegativeNutrientFloat = Annotated[float, Field(ge=0)]
 
 
@@ -396,6 +435,8 @@ class AutoRepairIngredient(BaseModel):
 
 class AutoRepairMealNutrients(BaseModel):
     """Complete explicit per-meal evidence required by bounded repair."""
+
+    __pydantic_extra__: dict[str, _NonnegativeNutrientFloat] = Field(init=False)
 
     kcal: _NonnegativeNutrientFloat
     protein_g: _NonnegativeNutrientFloat
@@ -420,8 +461,7 @@ class AutoRepairMealNutrients(BaseModel):
     def validate_complete_baseline(cls, values: Any) -> Any:
         if not isinstance(values, Mapping):
             return values
-        for field_name in _AUTO_REPAIR_BASELINE_FIELDS:
-            raw_value = values.get(field_name)
+        for field_name, raw_value in values.items():
             if type(raw_value) not in {int, float}:
                 raise ValueError(f"{field_name} must be a real number")
             raw_number = cast(int | float, raw_value)
@@ -654,7 +694,10 @@ class AutoRepairWeeklyRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_raw_request_bounds(cls, values: object) -> object:
-        return _validate_vip_raw_request(values, root_shape="auto_root")
+        admitted_values = _validate_vip_raw_request(values, root_shape="auto_root")
+        return _validate_auto_repair_weekly_gap_capacity(
+            cast(dict[object, object], admitted_values)
+        )
 
     model_config = ConfigDict(
         extra="allow",
@@ -665,10 +708,48 @@ class AutoRepairWeeklyRequest(BaseModel):
     )
 
 
+class WeeklyRecipeIngredient(BaseModel):
+    """One explicit recipe ingredient without unit inference or conversion."""
+
+    name: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
+    amount: float = Field(..., gt=0, le=1000)
+    unit: str = Field(..., min_length=1, max_length=32)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_fields(cls, values: object) -> object:
+        if not isinstance(values, Mapping):
+            return values
+        raw_name = values.get("name")
+        raw_unit = values.get("unit")
+        raw_amount = values.get("amount")
+        if type(raw_name) is not str or type(raw_unit) is not str:
+            raise ValueError("Recipe ingredient name and unit must be plain strings")
+        if type(raw_amount) not in {int, float}:
+            raise ValueError("Recipe ingredient amount must be a real number")
+        try:
+            amount = float(cast(int | float, raw_amount))
+        except OverflowError as exc:
+            raise ValueError("Recipe ingredient amount must be finite") from exc
+        if not math.isfinite(amount):
+            raise ValueError("Recipe ingredient amount must be finite")
+        return values
+
+    @field_validator("name", "unit")
+    @classmethod
+    def normalize_bounded_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Recipe ingredient text fields must be non-empty")
+        return normalized
+
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
+
+
 class WeeklyRecipeMeal(BaseModel):
     """One non-empty meal admitted by weekly recipe synthesis."""
 
-    ingredients: List[AutoRepairIngredient] = Field(
+    ingredients: List[WeeklyRecipeIngredient] = Field(
         ...,
         min_length=1,
         max_length=MAX_INGREDIENTS_PER_MEAL,

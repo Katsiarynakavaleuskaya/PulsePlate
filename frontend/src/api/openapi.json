@@ -10325,7 +10325,10 @@
                                     "type": "array"
                                   },
                                   "nutrients": {
-                                    "additionalProperties": true,
+                                    "additionalProperties": {
+                                      "minimum": 0.0,
+                                      "type": "number"
+                                    },
                                     "description": "Complete explicit per-meal evidence required by bounded repair.",
                                     "maxProperties": 50,
                                     "properties": {
@@ -11050,20 +11053,34 @@
                                   "ingredients": {
                                     "items": {
                                       "additionalProperties": true,
-                                      "description": "One ingredient admitted by the weekly auto-repair wire contract.",
+                                      "description": "One explicit recipe ingredient without unit inference or conversion.",
                                       "maxProperties": 50,
                                       "properties": {
+                                        "amount": {
+                                          "exclusiveMinimum": 0.0,
+                                          "maximum": 1000.0,
+                                          "title": "Amount",
+                                          "type": "number"
+                                        },
                                         "name": {
                                           "maxLength": 500,
                                           "minLength": 1,
                                           "title": "Name",
                                           "type": "string"
+                                        },
+                                        "unit": {
+                                          "maxLength": 32,
+                                          "minLength": 1,
+                                          "title": "Unit",
+                                          "type": "string"
                                         }
                                       },
                                       "required": [
-                                        "name"
+                                        "name",
+                                        "amount",
+                                        "unit"
                                       ],
-                                      "title": "AutoRepairIngredient",
+                                      "title": "WeeklyRecipeIngredient",
                                       "type": "object"
                                     },
                                     "maxItems": 15,

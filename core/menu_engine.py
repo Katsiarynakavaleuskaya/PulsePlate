@@ -27,7 +27,6 @@ from .recommendations import (
     score_nutrient_coverage,
 )
 from .targets import (
-    _MICRONUTRIENT_RANGE_FIELDS,
     MicronutrientTargets,
     NutritionTargets,
     UserProfile,
@@ -233,7 +232,7 @@ def make_weekly_menu(
     )
 
 
-def _get_default_food_db(*, allow_mock_fallback: bool = True) -> Dict[str, FoodItem]:
+def _get_default_food_db() -> Dict[str, FoodItem]:
     """
     RU: Получает реальную базу данных продуктов из USDA.
     EN: Gets real food database from USDA.
@@ -277,9 +276,6 @@ def _get_default_food_db(*, allow_mock_fallback: bool = True) -> Dict[str, FoodI
     except Exception as e:
         # Fall back to basic mock data if API fails or loop is running
         _logger.warning("Could not load USDA data, using fallback: %s", e)
-
-    if not allow_mock_fallback:
-        return {}
 
     # Fallback mock data (reduced set)
     return {
@@ -678,12 +674,20 @@ def _finite_nonnegative_number(value: object) -> Optional[float]:
     """Return one finite nonnegative real number, otherwise no evidence."""
     if isinstance(value, bool) or not isinstance(value, Real):
         return None
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
     return number if math.isfinite(number) and number >= 0 else None
 
 
-def _day_nutrient_evidence(day_menu: DayMenu, nutrient: str) -> Optional[float]:
-    """Sum explicit per-meal evidence; any missing or invalid value is ambiguous."""
+def _day_nutrient_evidence(
+    day_menu: DayMenu,
+    nutrient: str,
+    *,
+    overflow_error: str | None = None,
+) -> Optional[float]:
+    """Sum explicit evidence, optionally surfacing overflow for a strict caller."""
     total = 0.0
     for meal in day_menu.meals:
         nutrients = meal.get("nutrients")
@@ -692,8 +696,13 @@ def _day_nutrient_evidence(day_menu: DayMenu, nutrient: str) -> Optional[float]:
         value = _finite_nonnegative_number(nutrients[nutrient])
         if value is None:
             return None
-        total += value
-    return total if math.isfinite(total) else None
+        prospective_total = total + value
+        if not math.isfinite(prospective_total):
+            if overflow_error is not None:
+                raise ValueError(overflow_error)
+            return None
+        total = prospective_total
+    return total
 
 
 def _day_omits_nutrient(day_menu: DayMenu, nutrient: str) -> bool:
@@ -715,12 +724,20 @@ def calculate_known_nutrient_gaps(
     for nutrient in sorted(targets.priority_nutrients):
         gap_total = 0.0
         for day_menu in plan.daily_menus:
-            day_total = _day_nutrient_evidence(day_menu, nutrient)
+            day_total = _day_nutrient_evidence(
+                day_menu,
+                nutrient,
+                overflow_error="Weekly nutrient gap overflowed",
+            )
             if day_total is None:
                 break
-            gap_total += max(0.0, targets.get_target(nutrient) - day_total)
+            day_gap = targets.get_target(nutrient) - day_total
+            prospective_gap_total = gap_total + max(0.0, day_gap)
+            if not math.isfinite(day_gap) or not math.isfinite(prospective_gap_total):
+                raise ValueError("Weekly nutrient gap overflowed")
+            gap_total = prospective_gap_total
         else:
-            if math.isfinite(gap_total) and gap_total > 0:
+            if gap_total > 0:
                 gaps[nutrient] = gap_total
     return gaps
 
@@ -754,23 +771,37 @@ def has_complete_nutrition_evidence(
     return True
 
 
-def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
+def _governed_nutrient_names(targets: MicronutrientTargets) -> frozenset[str]:
+    """Return the closed nutrient set that canonical repair may inspect or mutate."""
+
+    return frozenset(
+        {
+            "kcal",
+            "protein_g",
+            "fat_g",
+            "carbs_g",
+            "fiber_g",
+            *targets.priority_nutrients,
+        }
+    )
+
+
+def _food_nutrient_evidence(
+    food: FoodItem,
+    governed_nutrients: frozenset[str],
+) -> Optional[Dict[str, float]]:
     """Validate that every contribution comes from one coherent FoodItem record."""
     nutrients: Dict[str, float] = {}
     for nutrient, raw_density in food.nutrients_per_100g.items():
+        if nutrient not in governed_nutrients:
+            continue
         if not isinstance(nutrient, str) or not nutrient:
             return None
         density = _finite_nonnegative_number(raw_density)
         if density is None:
             return None
         nutrients[nutrient] = density
-    required_densities = {
-        "protein_g",
-        "fat_g",
-        "carbs_g",
-        "fiber_g",
-        *_MICRONUTRIENT_RANGE_FIELDS,
-    }
+    required_densities = governed_nutrients - {"kcal"}
     if not required_densities <= set(nutrients):
         return None
     if "kcal" not in nutrients:
@@ -831,7 +862,7 @@ def _safe_booster_amount(
         "carbs_g": float(day_menu.targets.macros.carbs_g),
         "fiber_g": float(day_menu.targets.macros.fiber_g),
     }
-    governed_nutrients = set(targets.priority_nutrients) | set(macro_maxima)
+    governed_nutrients = _governed_nutrient_names(targets)
     for nutrient, density in food_nutrients.items():
         if nutrient not in governed_nutrients or density <= 0:
             continue
@@ -870,6 +901,7 @@ def _apply_one_safe_booster(
     requested_region = _normalized_region(day_menu.targets.calculated_for.region)
     if requested_region is None:
         return False
+    governed_nutrients = _governed_nutrient_names(targets)
 
     primary_nutrients = sorted(
         targets.priority_nutrients,
@@ -880,7 +912,7 @@ def _apply_one_safe_booster(
         for food_key, food in food_db.items():
             if not _food_is_available_in_region(food, requested_region):
                 continue
-            food_nutrients = _food_nutrient_evidence(food)
+            food_nutrients = _food_nutrient_evidence(food, governed_nutrients)
             if food_nutrients is None:
                 continue
             density = food_nutrients.get(primary_nutrient, 0.0)
@@ -899,7 +931,7 @@ def _apply_one_safe_booster(
                 continue
             updated_nutrients: Dict[str, float] = {}
             for nutrient, density in food_nutrients.items():
-                if nutrient not in meal_nutrients:
+                if nutrient not in governed_nutrients or nutrient not in meal_nutrients:
                     continue
                 contribution = density * amount / 100.0
                 existing = _finite_nonnegative_number(meal_nutrients.get(nutrient, 0.0))
@@ -920,7 +952,10 @@ def _apply_one_safe_booster(
             prospective_nutrients = prospective_meal["nutrients"]
             prospective_nutrients.update(updated_nutrients)
             try:
-                prospective_total_nutrients = _calculate_day_nutrients(prospective_day)
+                prospective_total_nutrients = _calculate_day_nutrients(
+                    prospective_day,
+                    governed_nutrients=governed_nutrients,
+                )
             except ValueError:
                 return False
 
@@ -960,7 +995,7 @@ def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str,
     RU: Агрегирует недельные дефициты.
     EN: Aggregate weekly gaps.
     """
-    weekly_gaps = {}
+    weekly_gaps: Dict[str, float] = {}
     all_nutrients: set[str] = set()
 
     # Collect all nutrients
@@ -969,7 +1004,17 @@ def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str,
 
     # Sum gaps across days
     for nutrient in all_nutrients:
-        weekly_gaps[nutrient] = sum(day_gaps.get(nutrient, 0.0) for day_gaps in daily_gaps.values())
+        gap_total = 0.0
+        for day_gaps in daily_gaps.values():
+            raw_gap = day_gaps.get(nutrient, 0.0)
+            gap = _finite_nonnegative_number(raw_gap)
+            if gap is None:
+                raise ValueError("Weekly nutrient gap overflowed")
+            prospective_gap_total = gap_total + gap
+            if not math.isfinite(prospective_gap_total):
+                raise ValueError("Weekly nutrient gap overflowed")
+            gap_total = prospective_gap_total
+        weekly_gaps[nutrient] = gap_total
 
     return weekly_gaps
 
@@ -1068,7 +1113,11 @@ def _apply_snacks_strategy(
     return plan
 
 
-def _calculate_day_nutrients(day_menu: DayMenu) -> Dict[str, float]:
+def _calculate_day_nutrients(
+    day_menu: DayMenu,
+    *,
+    governed_nutrients: frozenset[str] | None = None,
+) -> Dict[str, float]:
     """
     RU: Рассчитывает общее потребление нутриентов за день.
     EN: Calculate total daily nutrient intake.
@@ -1080,6 +1129,8 @@ def _calculate_day_nutrients(day_menu: DayMenu) -> Dict[str, float]:
         if not isinstance(meal_nutrients, dict):
             raise ValueError("Meal nutrients must be a mapping")
         for nutrient, amount in meal_nutrients.items():
+            if governed_nutrients is not None and nutrient not in governed_nutrients:
+                continue
             value = _finite_nonnegative_number(amount)
             if value is None:
                 raise ValueError("Meal nutrient evidence must be finite and nonnegative")

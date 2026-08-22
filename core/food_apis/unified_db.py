@@ -582,10 +582,13 @@ def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
         for key, raw_item in raw_payload.items():
             if not isinstance(key, str) or not key or not isinstance(raw_item, dict):
                 return _reject_cached_common_foods("entry_identity_or_shape_invalid")
+            raw_name = raw_item.get("name")
+            if type(raw_name) is not str or len(raw_name) > 500 or not raw_name.strip():
+                return _reject_cached_common_foods("item_name_invalid")
             item = UnifiedFoodItem(**deepcopy(raw_item))
             if any(
                 not isinstance(value, str) or not value.strip()
-                for value in (item.name, item.source, item.source_id)
+                for value in (item.source, item.source_id)
             ):
                 return _reject_cached_common_foods("item_identity_invalid")
             if not isinstance(item.nutrients_per_100g, dict) or not item.nutrients_per_100g:

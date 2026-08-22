@@ -234,10 +234,10 @@ class TestAutoRepairEngine:
         engine = AutoRepairEngine()
 
         remaining_gaps = {
-            "iron": 30.0,
-            "vitamin_c": 25.0,
-            "folate": 20.0,
-            "protein": 15.0,
+            "iron_mg": 30.0,
+            "vitamin_c_mg": 25.0,
+            "folate_ug": 20.0,
+            "protein_g": 15.0,
         }
 
         suggestions = engine._generate_manual_suggestions(remaining_gaps)
@@ -246,6 +246,15 @@ class TestAutoRepairEngine:
         assert len(suggestions) > 0
         assert any("железа" in suggestion for suggestion in suggestions)
         assert any("витамина C" in suggestion for suggestion in suggestions)
+        assert not any("белковых" in suggestion for suggestion in suggestions)
+        assert (
+            len(
+                engine._generate_manual_suggestions(
+                    {"iron": 1.0, "vitamin_c": 1.0, "folate": 1.0, "protein": 1.0}
+                )
+            )
+            == 2
+        )
 
     def test_suggest_manual_fixes(self):
         """Тест предложения ручных исправлений"""
@@ -452,7 +461,7 @@ class TestConvenienceFunctions:
 
         mock_engine = MagicMock()
         mock_engine.suggest_manual_fixes.return_value = [
-            {"type": "add_ingredient", "nutrient": "iron", "suggestions": []}
+            {"type": "add_ingredient", "nutrient": "iron_mg", "suggestions": []}
         ]
         mock_get_engine.return_value = mock_engine
 
