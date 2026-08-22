@@ -7,37 +7,9 @@ import os
 import subprocess
 import sys
 import textwrap
-from types import ModuleType
 
 import pytest
 from fastapi import HTTPException
-
-
-def _import_or_reload_module(name: str) -> ModuleType:
-    module = sys.modules.get(name)
-    if module is not None:
-        return importlib.reload(module)
-
-    parent_name, _, child_name = name.rpartition(".")
-    if parent_name and child_name:
-        parent_module = importlib.import_module(parent_name)
-        stale_child = getattr(parent_module, child_name, None)
-        if getattr(stale_child, "__name__", None) == name:
-            delattr(parent_module, child_name)
-
-    return importlib.import_module(name)
-
-
-def _reload_legacy_app() -> ModuleType:
-    """Reload legacy_app after env changes.
-
-    RU: Перезагружаем legacy_app после изменения env, чтобы import-time wiring
-    перечитал канонические runtime helpers.
-    EN: Reload legacy_app after env changes so import-time wiring re-evaluates
-    canonical runtime helpers.
-    """
-
-    return _import_or_reload_module("legacy_app")
 
 
 def _run_application_probe(
@@ -193,13 +165,28 @@ def test_debug_env_uses_environment_when_app_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENABLE_DEBUG_ENDPOINT", raising=False)
 
-    app_module = _reload_legacy_app()
+    from app.services import admin_operations
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(app_module.debug_env())
+        asyncio.run(admin_operations.debug_env())
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Not found"
+
+    monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "true")
+    response = asyncio.run(admin_operations.debug_env())
+
+    assert response.status_code == 200
+    assert set(json.loads(response.body)) == {
+        "FEATURE_INSIGHT",
+        "LLM_PROVIDER",
+        "PERPLEXITY_MODEL",
+        "PERPLEXITY_ENDPOINT",
+        "insight_enabled",
+    }
 
 
 def test_health_prefers_environment_over_app_env(

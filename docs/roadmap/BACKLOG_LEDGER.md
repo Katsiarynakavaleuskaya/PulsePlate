@@ -7322,7 +7322,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> this PR (`codex/pro-nutrition-canonical-cutover`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7334,10 +7334,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`, removing the `app_module` alias
     and legacy synchronous scheduler resolver rail. PR #2309 merged at
     `f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the paid/BMI
-    registration mirrors. The current bounded successor adds canonical PRO
-    BMR/gaps and migrates the repository-owned Web BMR consumer without deleting
-    aliases. Product Owner sequencing keeps telemetry-admitted alias retirement,
-    root-alias auth/sunset, and final legacy deletion as separate later lanes.
+    registration mirrors. PR #2314 merged at
+    `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR/gaps
+    and migrating the repository-owned Web BMR consumer without deleting aliases.
+    PR #2317 is the current bounded successor and removes only ten legacy admin/BMI direct-call
+    Python bindings while preserving their canonical services and every HTTP,
+    auth, OpenAPI, and app-identity contract. Product Owner sequencing keeps
+    telemetry-admitted versioned-alias retirement, root-alias auth/sunset, and
+    final legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7354,7 +7358,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
-    - 🟡 Repository-owned Web BMR migration is implemented in the current PR; merge and staging verification remain
+    - 🟡 Repository-owned Web BMR migration merged in PR #2314; staging verification and the telemetry-window start remain unclaimed
     - 🟡 Versioned nutrition alias retirement requires the exact 30-day zero-hit production gate below
   - DoD:
     - All endpoints migrated to modular routers
@@ -7368,8 +7372,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical PRO nutrition cutover for BMR/gaps and Web Nutrition Setup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (product correctness / API contract / thin client)
-  - Target PR: this PR (`codex/pro-nutrition-canonical-cutover`)
-  - Status: 🛠 In implementation; keep unchecked until merge and deployment evidence exist
+  - Target PR: [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`)
+  - Status: 🟡 Runtime implementation merged at `827f8ea0ba5bf0432e011241d08553b01fa471b1`; keep unchecked because staging smoke and telemetry-window start evidence remain unclaimed
   - Reason (EN): BMR and nutrient-gap services already have canonical backend ownership, but their public HTTP contracts remain available only through the deprecated premium family, and Web Nutrition Setup still consumes the BMR alias with a client-side error-to-mock and TDEE-calculation fallback. This lane adds the missing canonical PRO routes and cuts the repository-owned Web consumer over without deleting compatibility routes. (RU: Добавляем canonical PRO BMR/gaps и переводим Web consumer, сохраняя aliases на период наблюдения.)
   - Links:
     - `app/routers/pro_nutrition_contracts.py`

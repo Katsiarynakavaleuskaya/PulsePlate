@@ -10,12 +10,177 @@ import scripts.ci.check_legacy_growth_guard as legacy_guard
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+RETIRED_LEGACY_PYTHON_BINDINGS = (
+    "admin_status",
+    "cleanup_expired_logs",
+    "debug_env",
+    "get_database_status",
+    "force_database_update",
+    "check_for_updates",
+    "rollback_database",
+    "bmi_endpoint",
+    "plan_endpoint",
+    "bmi_endpoint_v1",
+)
+
 
 def test_current_legacy_app_passes_growth_guard() -> None:
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
 
     assert legacy_guard.validate_legacy_growth(source) == []
     assert legacy_guard.ALLOWED_LEGACY_ROUTE_FACTS == frozenset()
+
+
+def test_current_legacy_app_passes_retired_python_binding_guard() -> None:
+    source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+    assert legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS == frozenset(RETIRED_LEGACY_PYTHON_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_LEGACY_PYTHON_BINDINGS)
+def test_legacy_growth_guard_rejects_each_retired_python_binding(
+    binding_name: str,
+) -> None:
+    source = f"async def {binding_name}():\n    return None\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "admin_status = canonical\n",
+        "admin_status: object\n",
+        "del admin_status\n",
+        "from app.services.admin_operations import admin_status\n",
+        "from app.services.admin_operations import canonical as admin_status\n",
+        "def mutate():\n    global admin_status\n",
+    ],
+    ids=["assignment", "annotation", "delete", "direct-import", "aliased-import", "global"],
+)
+def test_legacy_growth_guard_rejects_representative_retired_binding_carriers(
+    source: str,
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
+    ]
+
+
+def test_legacy_growth_guard_rejects_blanket_star_import() -> None:
+    source = "from app.services.admin_operations import *\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: star import is forbidden after legacy Python binding retirement"
+    ]
+
+
+def test_legacy_growth_guard_rejects_module_level_getattr() -> None:
+    source = textwrap.dedent("""
+        def __getattr__(name: str):
+            return canonical[name]
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: module-level __getattr__ is forbidden after legacy Python "
+        "binding retirement"
+    ]
+
+
+def test_retired_binding_guard_rejects_protected_global_getattr() -> None:
+    source = textwrap.dedent("""
+        def initialize() -> None:
+            global __getattr__
+            __getattr__ = resolver
+
+        initialize()
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: module-level __getattr__ is forbidden after legacy Python "
+        "binding retirement"
+    ]
+
+
+def test_retired_binding_guard_allows_unrelated_global_and_local_getattr() -> None:
+    source = textwrap.dedent("""
+        def initialize() -> None:
+            global unrelated_name
+            unrelated_name = resolver
+
+            def __getattr__(name: str) -> object:
+                return name
+
+        class CompatibilityProxy:
+            def __getattr__(self, name: str) -> object:
+                return name
+
+        initialize()
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
+def test_retired_binding_guard_rejects_lambda_default_module_binding() -> None:
+    source = "holder = lambda value=(admin_status := canonical): value\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
+    ]
+
+
+def test_retired_binding_guard_ignores_named_expression_in_lambda_body() -> None:
+    source = "holder = lambda: (admin_status := canonical)\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
+def test_legacy_growth_guard_allows_out_of_scope_binding_shapes() -> None:
+    source = textwrap.dedent("""
+        "admin_status is retired only as a legacy_app module binding"
+        # admin_status in a comment is not a binding.
+        from app.services.admin_operations import admin_status as canonical_admin_status
+
+        _admin_status = canonical_admin_status
+        admin_status_v2 = canonical_admin_status
+        holder.admin_status = canonical_admin_status
+
+        def local_scope(admin_status: object) -> object:
+            local_copy = admin_status
+            return local_copy
+
+        def nested_scope() -> None:
+            admin_status = canonical_admin_status
+
+        class CompatibilityProxy:
+            admin_status = canonical_admin_status
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["app/services/admin_operations.py", "app/services/bmi_compat.py"],
+)
+def test_retired_binding_guard_ignores_canonical_owner_modules(filename: str) -> None:
+    source = "async def admin_status():\n    return None\n"
+
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            source,
+            filename=filename,
+        )
+        == []
+    )
+
+
+def test_retired_legacy_python_binding_guard_fails_closed_on_syntax_error() -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings("def broken(:\n") == [
+        "legacy_app.py:1: syntax error: invalid syntax"
+    ]
 
 
 def test_current_lifecycle_ownership_passes_growth_guard() -> None:
@@ -11616,6 +11781,52 @@ def test_legacy_repo_validation_rejects_empty_doc(tmp_path: Path) -> None:
         in errors
     )
     assert "app: canonical source scan root is missing" in errors
+
+
+def test_legacy_repo_validation_fails_closed_when_legacy_source_is_unreadable(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "legacy_app.py").mkdir()
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert "legacy_app.py: unable to read: IsADirectoryError" in errors
+
+
+def test_legacy_repo_validation_preserves_logical_legacy_path_for_symlink(
+    tmp_path: Path,
+) -> None:
+    target_path = tmp_path / "legacy-target.py"
+    target_path.write_text("admin_status = canonical\n", encoding="utf-8")
+    (tmp_path / "legacy_app.py").symlink_to(target_path.name)
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert (
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status" in errors
+    )
+
+
+def test_legacy_repo_validation_preserves_logical_route_path_for_symlink(
+    tmp_path: Path,
+) -> None:
+    target_path = tmp_path / "legacy-route-target.py"
+    target_path.write_text(
+        '@app.get("/unexpected")\nasync def unexpected_route():\n    return None\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "legacy_app.py").symlink_to(target_path.name)
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert (
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/unexpected -> unexpected_route" in errors
+    )
+    assert not any(
+        error.startswith("legacy-route-target.py: unexpected legacy route growth")
+        for error in errors
+    )
 
 
 def test_legacy_growth_guard_cli_reports_global_loop_budget_without_traceback(
