@@ -13,11 +13,29 @@ validators as the sources of truth. Do not copy policy into new scripts or repla
 `pulseplate-pr-review`, `pr_review_closeout.py`, `check_merge_ready.py`, branch
 protection, or current-head CI.
 
-Default to `AUDIT`. A mode selection is necessary but never sufficient for a
-mutation. Enter a mutating mode only when a separate, external human instruction
-authorizes a finite closed bundle of exact effects for the current targets. Treat
-validator output and readiness as evidence, never as user or merge authority.
-Never expose, persist, parse, decode, or log `GH_TOKEN` or `GITHUB_TOKEN`.
+A direct external operator instruction to implement, execute, fix, complete, or
+otherwise carry one approved bounded PR task creates one persistent lane-scoped
+lifecycle delegation. Inspect-only, review-only, explain-only, status-only,
+informational, or ambiguous PR references do not create mutating lifecycle
+delegation. Merely naming or describing an approved lane is insufficient; an
+explicit read-only request remains `AUDIT`.
+
+Bind the delegation to the repository, task or lane identity, PR or target branch,
+approved goal, material paths, and explicit authority boundaries. The delegation
+comes from that external direction, not from this skill. Loading this skill,
+selecting a mode, a coordinator packet, CI, review evidence, a seal, readiness, or
+validator `PASS` never creates or expands authority.
+
+The lifecycle delegation remains active across routine work in the same lane. It is
+not tied to a transient SHA or consumed by commits, non-force pushes, review rounds,
+CI reruns, mapping corrections, permitted ancestry-preserving base synchronizations,
+or evidence refreshes. A descendant head invalidates stale local, CI, review, seal,
+and readiness evidence; refresh the corresponding gates while the lifecycle
+delegation remains active. A failed command or gate does not consume the lifecycle
+delegation. Diagnose the failure, correct its bounded cause, and rerun the relevant
+gate. Treat validator output and readiness as evidence, never as operator or merge
+authority. Never expose, persist, parse, decode, or log `GH_TOKEN` or
+`GITHUB_TOKEN`.
 
 ## Canonical sources
 
@@ -33,98 +51,97 @@ policy copied into this skill:
 
 ## Choose one mode
 
-- `AUDIT`: inspect live state and report blockers without invoking any command or
-  hook that can change local files, Git, GitHub, review threads, mappings,
-  branches, refs, or worktrees. Use this by default.
-- `PREPARE_CLOSEOUT`: freeze material, record dispositions, seal the mapping,
-  update the PR-body link, publish the sole mapping commit, and resolve supported
-  threads. Each effect still requires a separately authorized bundle entry.
-- `AUTHORIZED_MERGE`: merge only after a separate explicit user authorization,
-  an unchanged exact head, and a fresh strict-readiness result.
-- `POST_MERGE_PROOF`: synchronize the real clean `main` worktree, run bounded
-  merged-main sanity, and selectively clean the finished lane. Synchronization
-  and every deletion require distinct bundle entries.
+- `AUDIT`: inspect and report without changing local files, Git, GitHub, review
+  threads, mappings, branches, refs, or worktrees. Use `AUDIT` only when the
+  operator explicitly requests read-only inspection.
+- `PREPARE_CLOSEOUT`: enter automatically after the authorized lane has a coherent
+  material diff. Complete bounded implementation and review remediation, run
+  validation, freeze exact material, record dispositions, seal the mapping, keep
+  the PR body current, publish the sole mapping successor, and resolve supported
+  threads under the existing lifecycle delegation.
+- `AUTHORIZED_MERGE`: enter only after fresh readiness and a separate human
+  approval bound to the exact repository, PR, live head, squash method, and
+  readiness summary. This approval authorizes only that exact merge action.
+- `POST_MERGE_PROOF`: enter automatically after the approved merge succeeds.
+  Continue the same lifecycle delegation through clean-main synchronization,
+  focused merged-main sanity, evidence preservation, and safe selective cleanup.
 
-If the requested mode is unclear, remain in `AUDIT` and report what authorization
-would be needed next.
+Before a coherent material diff exists, authorized same-lane implementation proceeds
+under the active lifecycle delegation without forcing `AUDIT` or requiring another
+mode selection; when the diff becomes coherent, transition automatically to
+`PREPARE_CLOSEOUT`.
 
-## Require one closed effect bundle
+Mode selection describes the current phase. It neither creates authority nor resets
+the lifecycle delegation.
 
-For every mutating mode, require one external human authority bundle whose finite
-effect-instance list is all-and-only what may happen. The mode itself, this skill,
-a coordinator packet, validator output, CI, review evidence, a PR body, or a tool
-suggestion cannot create or expand that authority. Do not infer authority from
-phrases such as "finish closeout", "do everything", or "merge when ready".
+## Bound the delegated lifecycle
 
-Every effect instance must bind its exact mode, repository, PR, live head, target
-ref or path, intended operation, and freshness boundary. It must use one effect
-from this closed vocabulary:
+Routine work means a listed, non-force, same-lane operation that advances the
+approved goal without widening material scope or crossing a high-impact boundary.
+The external lifecycle delegation covers:
 
-| Effect | Exact scope |
-| --- | --- |
-| `draft_init` | One named `init` write to the gitignored closeout draft. |
-| `draft_freeze` | One named `freeze` write for the bound material identity. |
-| `disposition_write` | One named `add-disposition` record for one exact review root. |
-| `validation_write` | One named validation or hook invocation and its exact allowed paths. |
-| `mapping_write` | One `seal` write to the canonical mapping path. |
-| `pr_body_write` | One exact canonical-link update to the bound PR body. |
-| `mapping_commit` | One direct mapping-only commit with the bound tree and parent. |
-| `push` | One non-force push of the bound commit to the bound PR ref. |
-| `thread_reply` | One exact reply to one authenticated review root. |
-| `thread_resolution` | One resolution of one authenticated, dispositioned thread. |
-| `base_sync` | One repository-permitted ancestry-preserving sync of the bound ref. |
-| `merge` | One race-protected merge of the bound PR head and method. |
-| `main_sync` | One fetch/prune and fast-forward of the named clean `main` worktree. |
-| `branch_delete` | One named branch deletion after ownership and merge proof. |
-| `worktree_delete` | One named worktree deletion after ownership and dirt checks. |
-| `temporary_path_delete` | One named temporary-path deletion after evidence checks. |
+- the isolated owned worktree and target branch;
+- implementation inside the bound material paths;
+- focused validation, root-cause fixes, and reruns;
+- ordinary non-empty commits and non-force pushes;
+- non-draft PR creation and maintenance of its governed body;
+- bounded remediation of current-surface review findings;
+- evidence-backed `FIXED` and ordinary `NOT-A-BUG` dispositions;
+- draft, freeze, exact-material self-review, mapping, provider-neutral seal, and
+  supported thread resolution after visible disposition proof;
+- repository-permitted ancestry-preserving base synchronization, evidence refresh,
+  and reseal;
+- current-head CI, review inventory, strict readiness, and wait-window verification;
+- after the separately approved merge, bounded post-merge proof and safe cleanup.
 
-Check the matching effect instance immediately before its operation. Consume it
-after the single attempt, whether that attempt succeeds or fails. If an effect is
-omitted, stale, already consumed, replayed, retargeted, wildcarded, or not in the
-closed vocabulary, fail closed in every mode; do not run a subset, add an inferred
-effect, or reuse authority against a refreshed head. A command or hook whose
-possible writes exceed its exact authorized paths is unreachable.
+Routine current-surface review findings are fixed or given an evidence-backed
+ordinary disposition in the same lane without another human confirmation. Do not
+restart the complete role chain for every ordinary late comment; fix or disposition
+that finding and rerun the targeted gates plus the exact-material evidence cycle.
 
-`AUDIT` always has an empty effect-instance list and denies every effect in the
-table. In particular, do not run `init`, `freeze`, `add-disposition`, `seal`, a
-mutation-capable validation hook, any local draft or mapping writer, a Git or
-GitHub mutation, commit, push, merge, sync, or cleanup while auditing. Read-only
-commands must be known not to write caches or artifacts; otherwise stop and
-report the uncertainty.
+Route, schema, or product-behavior work already explicit in the approved goal and
+authority boundaries remains inside the lane unless an unconditional stop below
+applies. Stop when a route, schema, or product-behavior decision is newly introduced
+outside the approved goal or materially expands its authority boundaries.
+
+Material scope or authority expansion, a new dependency ecosystem or materially
+different resolver transaction, and a second materially novel carrier of the same
+open-world invariant also stop. Replacement PR, branch, or carrier; rebase, force
+push, or history rewrite; release or deployment; secrets or access control; payments
+or billing; legal, compliance, or medical-sensitive decisions; destructive data
+operations; unsafe cleanup; and unrecoverable mapping topology remain unconditional
+stops. Do not synthesize a rare OWNER-only reply or disposition that root `AGENTS.md`
+reserves for the human owner. If one of these boundaries is actually reached,
+preserve state and request the specific new decision.
 
 ## Admit the lane
 
 1. Read the current repository instructions and the nearest scoped instructions.
 2. Require evidence that the canonical coordinator-first startup and task packet
-   already exist for non-trivial work. Do not infer that loading this skill
-   executed them. In `AUDIT`, do not invoke a bootstrap or coordinator command
-   that can write a packet; report the missing prerequisite for separately
-   authorized repository startup.
-3. Authenticate the live repository and PR identity. Record the PR number,
-   repository, `head.ref`, exact head SHA, base SHA, merge-base, PR state, and
-   worktree owner. Record the RFC 3339 observation time and timezone for the live
-   snapshot; never present an undated observation as current evidence.
-4. Compare local `HEAD` with the authenticated live PR head. Stop on a mismatch,
-   ambiguous PR, dirty unowned worktree, or overlapping lane without an explicit
-   handoff.
-5. Prefer live GitHub and Git evidence over browser impressions, old handoffs,
+   and required ordered role passes already exist for non-trivial work. Packet
+   creation does not execute roles and grants no implementation or merge authority.
+3. Before PR creation, bind the repository, owned target branch and worktree,
+   current base, approved goal, material paths, and stop boundaries. After PR
+   creation, authenticate the PR number, repository, `head.ref`, exact head SHA,
+   base SHA, merge-base, PR state, and worktree owner.
+4. Record the RFC 3339 observation time and timezone for every live snapshot; never
+   present an undated observation as current evidence. Compare local `HEAD` with the
+   authenticated live PR head when one exists.
+5. Stop on an ambiguous lane identity, dirty or unowned worktree, unexpected head,
+   material overlap without a handoff, or a target outside the delegation.
+6. Prefer live GitHub and Git evidence over browser impressions, old handoffs,
    historical plans, or memory. Do not duplicate CI observation already owned by
    another active lane; report its owner and continue only with independent work.
 
 ## Close the material diff
 
 Require every bounded actionable in the current PR surface to be fixed before
-mapping it. This passive closeout skill does not authorize material code,
-contract, test, workflow, dependency, policy, or documentation edits. If a defect
-needs such a change, stop for a separately authorized implementation owner and
-return only after the material fix is present. Do not use mapping, checkboxes,
-thread resolution, or `DEFERRED` to hide an unfixed current-surface defect.
-
-This section is not executable in `AUDIT`. Before a mutation-capable formatter,
-hook, or validation command, require a `PREPARE_CLOSEOUT` bundle entry for
-`validation_write` bound to its exact permitted paths. If a hook changes anything
-outside those paths, stop and report the unauthorized mutation.
+mapping it. The external lifecycle delegation permits material edits only inside
+the bound goal and paths; this skill, a finding, or a validator cannot widen them.
+Do not use mapping, checkboxes, thread resolution, or `DEFERRED` to hide an unfixed
+current-surface defect. If a safe fix crosses a real stop boundary, preserve the
+finding and ask for the specific scope or authority decision instead of manufacturing
+a workaround.
 
 Run the current narrow local bundle:
 
@@ -140,13 +157,16 @@ git diff --check
 Inspect the test selection from `make validate-changed`. Do not run local
 `make verify` unless a human explicitly overrides the repository machine-budget
 rule for one invocation. If any gate fails, show its raw failure, fix the root
-cause, and rerun the affected required gate before continuing.
+cause inside the delegated scope, and rerun the affected required gate before
+continuing. A rerun alone is not a fix. If a hook changes an unexpected tracked
+path, stop and reconcile it against the bound material paths before proceeding.
 
 ## Freeze and review exact material
 
-This section is executable only in `PREPARE_CLOSEOUT`. Before each command below,
-consume its exact `draft_init`, `draft_freeze`, or `disposition_write` bundle
-entry. Multiple dispositions require separately enumerated effect instances.
+Enter this phase automatically in `PREPARE_CLOSEOUT` after the coherent material
+diff and its required role and validation gates. The lifecycle delegation covers
+these same-lane registered closeout operations; no per-command confirmation is
+required.
 
 Use only the registered closeout commands:
 
@@ -159,7 +179,8 @@ init -> freeze -> add-disposition -> exact-material pulseplate-pr-review -> seal
    `freeze`.
 3. Freeze the current material identity once. Any later code, tests, workflow,
    dependency, policy, contract, or non-mapping documentation change invalidates
-   the freeze, self-review, and seal.
+   the freeze, self-review, and seal. Refresh those evidence artifacts without
+   resetting or re-requesting the lifecycle delegation.
 4. Run `pulseplate-pr-review` against the exact frozen base, merge-base, material
    head, and digest. Use its canonical JSON report as `seal` input. Do not embed
    its review rubric here or restart a full role chain only because a normal late
@@ -183,12 +204,12 @@ Record actionables as follows:
 Do not invoke `review_mapping_artifact.py` directly. It is not the supported
 closeout CLI.
 
-## Seal and authorize the sole mapping commit
+## Seal and publish the sole mapping commit
 
-This section is executable only in `PREPARE_CLOSEOUT`. Require and consume the
-exact `mapping_write` effect before running `pr_review_closeout.py seal` with the
-exact-material self-review JSON. Allow only `seal` to write
-`docs/review/PR_<N>_FIXED_MAPPING.md`.
+In `PREPARE_CLOSEOUT`, run `pr_review_closeout.py seal` with the exact-material
+self-review JSON. Allow only `seal` to write
+`docs/review/PR_<N>_FIXED_MAPPING.md`. The lifecycle delegation covers this bounded
+mapping operation, but the seal remains evidence only.
 
 Keep the seal provider-neutral:
 
@@ -200,8 +221,7 @@ Keep the seal provider-neutral:
 
 Put exactly one rendered same-repository Markdown link to the canonical mapping
 on its own bullet line in the live PR body. Bind the URL to the authenticated
-exact `head.ref`. Require and consume the exact `pr_body_write` effect before the
-update. Do not duplicate URL-to-SHA mapping blocks in the PR body.
+exact `head.ref`. Do not duplicate URL-to-SHA mapping blocks in the PR body.
 
 With both opaque tokens exported and the canonical mapping as the only dirty
 path, run:
@@ -216,29 +236,25 @@ python3 scripts/orchestration/check_merge_ready.py \
 ```
 
 Interpret a pre-closeout `PASS` as procedural admission evidence only. It is not
-user authorization for mapping write, mapping commit, push, thread mutation, or
-merge, and it is not merge-readiness evidence. If strict authentication is
-unavailable, stop; do not substitute advisory output, local tests, or CI
-impressions.
+lifecycle delegation, merge authorization, or merge-readiness evidence. If strict
+authentication is unavailable, stop; do not substitute advisory output, local tests,
+or CI impressions.
 
-After `PASS`, separately require and consume `mapping_commit` before creating the
-one direct, non-empty, non-trigger mapping-only successor, then separately require
-and consume `push` before its one non-force push. A single listed effect never
-implies the other. Preserve strict authentication and the sole-tail constraint.
-Do not add another mapping tail, rebase or force-push a governed tail, or
-manufacture a CI-trigger commit. If current policy exposes a reply-only exception,
-stop for explicit human OWNER inspection and require exact `thread_reply` and
-`thread_resolution` entries before either mutation. Do not synthesize the reply,
-interpret bot prose, or create another documentation commit.
+After `PASS`, create the one direct, non-empty, non-trigger mapping-only successor
+and non-force push it under the existing lifecycle delegation. Preserve strict
+authentication and the sole-tail constraint. Do not add another mapping tail,
+rebase or force-push a governed tail, or manufacture a CI-trigger commit. If current
+policy exposes an OWNER-only reply exception, stop for explicit human OWNER
+inspection. Do not synthesize the reply, interpret bot prose, or create another
+documentation commit.
 
 ## Prove current-head readiness
 
 After the mapping push, reacquire the authenticated live head and bind all
 evidence to it.
 
-1. Resolve a review thread only after its disposition and proof are visible.
-   Require and consume its exact `thread_resolution` effect immediately before
-   resolving it.
+1. Resolve an ordinary review thread only after its disposition and proof are
+   visible. The lifecycle delegation covers that supported same-lane resolution.
 2. Reinventory actionable bot issue comments, inline comments, top-level reviews,
    and unresolved threads.
 3. Treat `gh pr checks` as diagnostic only. Inspect required workflows and jobs by
@@ -261,21 +277,33 @@ python3 scripts/orchestration/check_merge_ready.py \
 
 Delegate review quiet-window duration and polling to the current wrapper and
 repository policy. Do not hardcode historical timing. Restart the final
-verification cycle after new review activity.
+verification cycle after new review activity. New review activity refreshes the
+inventory, strict result, and wait window; it does not expire the lifecycle
+delegation.
+
+When an allowed base advance is required, use only the repository-permitted
+ancestry-preserving synchronization. Never rebase or rewrite history. Re-run the
+affected local/current-head gates, freeze, self-review, mapping seal, inventory, and
+wait cycle against the new evidence epoch. Do not ask for another human confirmation
+unless the sync crosses a real stop boundary.
 
 Report `READY_FOR_AUTHORIZED_MERGE` only when the narrow local bundle, every
 required current-head job, applicable security/governance checks, numeric
-`diff-coverage >= 97%`, complete disposition inventory, mapping topology, seal,
-strict wrapper, and review wait window all have current evidence.
+`diff-coverage >= 97%`, complete review and disposition inventory, mapping topology,
+seal, full strict wrapper, and review wait window all have current evidence.
 
-## Merge only with explicit authority
+## Merge only with exact-head human authority
 
-Exact-head readiness is evidence only. Without a fresh, post-readiness `merge`
-effect instance from a separate human authority bundle, stop at
-`READY_FOR_AUTHORIZED_MERGE`. Bind that new authority to the exact PR, live head,
-repository, and squash method. Immediately before its one attempt, reacquire the
-live head, rerun any freshness checks required by current policy, and consume the
-`merge` effect. Merge with race protection and without implicit branch deletion:
+`READY_FOR_AUTHORIZED_MERGE` is a checkpoint, not the end of the lifecycle
+delegation. The exact-head squash merge is the only ordinary human-only checkpoint.
+Readiness remains evidence only. Without a separate post-readiness human approval,
+stop at `READY_FOR_AUTHORIZED_MERGE` and present a merge packet that binds the
+repository, PR, exact live head, squash method, and fresh readiness summary.
+
+In the nominal unchanged-head path, request human merge authorization once.
+Immediately before merging, reacquire the live head and the freshness facts required
+by repository policy. If they still match the approved exact action, merge with race
+protection and without implicit branch deletion:
 
 ```bash
 gh pr merge <N> \
@@ -284,28 +312,30 @@ gh pr merge <N> \
   --match-head-commit <exact-live-head-sha>
 ```
 
-A `merge` effect never implies `branch_delete`, `main_sync`, `worktree_delete`,
-or `temporary_path_delete`. Do not add `--delete-branch`; cleanup remains a
-separately authorized post-merge operation.
+Do not add `--delete-branch`; post-merge cleanup has its own safety predicates. If
+the head changes after approval, refresh readiness and request a new exact-head merge
+approval because the approved action changed. This is the only ordinary reason for
+a repeat merge-approval request. A base, review inventory, required-check, or wait
+change before execution also returns to the corresponding evidence phase.
 
-Do not retry automatically when the head, base, review inventory, or required
-checks change. Return to the corresponding verification phase. Permit at most
-the repository-authorized ancestry-preserving base sync and reseal. A sync
-requires its own fresh `base_sync` entry in `PREPARE_CLOSEOUT`; the reseal requires
-a new `mapping_write` entry. Merge authority grants neither. Use a replacement
-carrier only through a separately authorized lane when topology is provably
-unrecoverable.
+If the merge command fails, first authenticate the PR and merge state. Diagnose a
+recoverable failure and retry only when the exact approved head and action remain
+unchanged. Never interpret an unknown command result as permission for a second
+merge, a replacement carrier, history rewrite, or cleanup.
 
 ## Prove the merged result
 
 After GitHub reports `MERGED`, report `MERGED_PENDING_POST_MERGE_PROOF` until all
-bounded post-merge proof exists.
+bounded post-merge proof exists. After the separately approved merge succeeds, the
+same lifecycle delegation continues through bounded post-merge proof until
+`CLOSED`.
 
 1. Locate the actual `main` worktree with `git worktree list --porcelain`.
 2. Require that worktree to be owned, clean, and safe. Never switch or merge in a
    checkout carrying another lane. Stop if no safe `main` worktree exists.
-3. Require and consume the exact `main_sync` effect before fetch/prune and
-   fast-forward of only that named `main` worktree. Merge authority does not apply.
+3. In only that named worktree, fetch/prune and fast-forward with
+   `git merge --ff-only origin/main`. Do not use `git pull`, rebase, or a history
+   rewrite.
 4. Prove the exact conditions:
 
 ```text
@@ -315,14 +345,18 @@ working tree clean
 ```
 
 5. Run a named focused sanity check against the merged surface on updated
-   `main`. If it can write caches or artifacts, require an exact
-   `validation_write` entry for those paths. A merge receipt alone is not product
-   or post-merge proof.
+   `main`. Keep any caches or artifacts local and gitignored. A merge receipt alone
+   is not product or post-merge proof.
 6. Clean only the exact finished or superseded worktree, branch, and temporary
-   paths after proving ownership, dirt state, and that no sole evidence copy is
-   being deleted. Each target requires its own fresh `worktree_delete`,
-   `branch_delete`, or `temporary_path_delete` effect instance. Never inherit
-   merge or synchronization authority and never use broad cleanup globs.
+   paths that satisfy the safety predicates below. If a target is dirty, unowned,
+   ambiguous, not merged or equivalent, or the sole evidence carrier, leave it in
+   place and report the real boundary.
+
+Safe cleanup means one exact target, proven lane ownership, a clean target,
+authenticated merge or equivalence proof, preservation of the sole evidence copy,
+and no broad glob. Apply those predicates independently to the remote branch, local
+branch, worktree, and each temporary path. Never delete an unresolved variable,
+wildcard expansion, broad directory, or evidence that has not been preserved.
 
 Report `CLOSED` only after authenticated merge state, the three Git conditions,
 the named passing sanity check, and the exact cleanup/preservation inventory are
@@ -332,12 +366,18 @@ recorded.
 
 Emit exactly one status:
 
-- `BLOCKED`: a required fact, gate, authorization, or safe ownership condition
-  is missing or failed.
+- `BLOCKED`: a real scope, high-impact, history, replacement, OWNER-only,
+  unrecoverable-topology, or unsafe-ownership/cleanup boundary requires a specific
+  external decision. Use `BLOCKED` also when a named required external fact cannot
+  be restored through bounded in-lane remediation, for example unavailable strict
+  GitHub authentication. Do not use `BLOCKED` for recoverable gate failures, bounded
+  in-lane remediation, ordinary descendant-head evidence refresh, or pending
+  current-head evidence.
 - `WAITING_CURRENT_HEAD`: the exact-head required CI or review window is not yet
-  terminal.
+  terminal. Continue bounded remediation and evidence refresh under the existing
+  lifecycle delegation.
 - `READY_FOR_AUTHORIZED_MERGE`: readiness is proven, but merge authorization is
-  absent.
+  absent. This is a checkpoint; request the one exact-head squash merge approval.
 - `MERGED_PENDING_POST_MERGE_PROOF`: GitHub merge is proven, but synchronization,
   sanity, or selective cleanup proof is incomplete.
 - `CLOSED`: merge and all bounded post-merge proof are complete.
