@@ -1111,10 +1111,13 @@ def _validate_current_native_subagent_bridge(
 ) -> bool:
     """Reject lossy bridge projections for current invariant packet contracts."""
 
+    creative_context = payload.get("creative_pilot_context")
     if (
         payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
         and "invariant_review" not in payload
     ):
+        if isinstance(creative_context, dict) and creative_context.get("phase") == "synthesis":
+            raise ValueError("creative pilot synthesis requires task packet schema 3.1")
         return False
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
@@ -1168,7 +1171,6 @@ def _validate_current_native_subagent_bridge(
         *binding_slugs["advisory"],
         reviewer_slug,
     ]
-    creative_context = payload.get("creative_pilot_context")
     synthesis_coordinator_aliases = False
     if (
         isinstance(creative_context, dict)
@@ -1176,7 +1178,7 @@ def _validate_current_native_subagent_bridge(
         and creative_context.get("phase") == "synthesis"
     ):
         try:
-            validated_creative_context = validate_task_pilot_context(creative_context)
+            validate_task_pilot_context(creative_context)
         except CreativePilotContractError as exc:
             raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
         synthesis_coordinator_aliases = True

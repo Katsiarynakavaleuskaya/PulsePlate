@@ -198,6 +198,8 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
         "merge_ready_phase",
         "creative_flag_false",
         "creative_flag_missing",
+        "legacy_schema_without_invariant",
+        "missing_schema_without_invariant",
     ),
 )
 def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> None:
@@ -274,6 +276,13 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         )
     elif mutation == "creative_flag_false":
         packet["automation_flags"]["creative_pilot_enabled"] = False
+    elif mutation in {"legacy_schema_without_invariant", "missing_schema_without_invariant"}:
+        if mutation == "legacy_schema_without_invariant":
+            packet["schema_version"] = "3.0"
+        else:
+            packet.pop("schema_version")
+        packet.pop("invariant_review")
+        packet["automation_flags"].pop("invariant_class_review_required")
     else:
         packet["automation_flags"].pop("creative_pilot_enabled")
 
