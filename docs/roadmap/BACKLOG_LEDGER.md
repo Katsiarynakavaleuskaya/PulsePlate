@@ -4655,7 +4655,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef deterministic PRO support handoff
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (bounded PRO contract / planning continuity)
-  - Target PR: PR-TBD-E1-05-FITCHEF-SUPPORT-HANDOFF (current E1-05 implementation PR; replace with the assigned number after PR open)
+  - Target PR: PR #2320 (current E1-05 implementation PR)
   - Status: Implementation is in progress on the current E1-05 lane and is not merged. Runtime and contract completion remain merge-bound; business utility is unmeasured and not admitted.
   - Reason (EN): E1-05 adds one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
   - Links:
