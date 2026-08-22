@@ -20,7 +20,7 @@ export type StorySessionState = 'guest' | 'pro' | 'vip';
 
 const STORYBOOK_API_BASE = 'https://storybook.pulseplate.local';
 const CBT_INSIGHT_PATH = '/api/v1/pro/cbt/insight';
-const BMR_PATH = '/api/v1/premium/bmr';
+const BMR_PATH = '/api/v1/pro/nutrition/bmr';
 const PLATE_PATH = '/api/v1/pro/nutrition/plate';
 const TARGETS_PATH = '/api/v1/pro/nutrition/targets';
 
@@ -102,14 +102,12 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
       tdee: { mifflin: 2154, harris: 2201 },
       activity_level: 'moderate',
       recommended_intake: {
-        calories: 2154,
-        protein_g: 132,
-        carbs_g: 242,
-        fat_g: 72,
+        maintenance: 2154,
+        weight_loss: 1723.2,
+        weight_gain: 2584.8,
       },
-      formulas_used: ['Mifflin-St Jeor'],
+      formulas_used: ['mifflin', 'harris'],
       notes: ['Storybook deterministic fixture'],
-      method: 'Mifflin-St Jeor',
     });
   }
 

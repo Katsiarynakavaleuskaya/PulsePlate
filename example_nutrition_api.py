@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # pyright: reportMissingTypeStubs=false
 """
-Example usage of the Premium BMR/TDEE API
+Example usage of the canonical PRO BMR/TDEE API
 
 This script demonstrates how to use the new nutrition API endpoint
 for calculating BMR and TDEE using multiple formulas.
 """
 
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import requests  # type: ignore[import-untyped]
@@ -144,20 +145,20 @@ def _make_post_request(
     return response
 
 
-def call_premium_bmr_api(
+def call_pro_bmr_api(
     weight_kg: float,
     height_cm: float,
     age: int,
     sex: str,
     activity: str,
+    api_key: str,
     bodyfat: Optional[float] = None,
     lang: str = "en",
-    api_key: str = "test_key",  # nosec B105  # Example/demo key only
     base_url: str = "http://localhost:8000",
     timeout: float = 10.0,
 ) -> BMRResponse:
     """
-    Call the Premium BMR API endpoint with automatic retry for transient failures.
+    Call the canonical PRO BMR API endpoint with retry for transient failures.
 
     Automatically retries on:
     - Timeout errors (with exponential backoff: 1s, 2s, 4s, up to 10s max)
@@ -174,7 +175,7 @@ def call_premium_bmr_api(
         activity: Activity level ("sedentary", "light", "moderate", "active", "very_active")
         bodyfat: Optional body fat percentage (for Katch-McArdle formula)
         lang: Response language ("en" or "ru")
-        api_key: API key for authentication
+        api_key: Required API key with PRO or VIP entitlement
         base_url: Base URL of the API server
         timeout: Request timeout in seconds per attempt
 
@@ -193,7 +194,10 @@ def call_premium_bmr_api(
         requests.exceptions.ConnectionError: If all retry attempts fail to connect
         requests.exceptions.RequestException: Base class for other request-related errors from requests
     """
-    url = f"{base_url}/api/v1/premium/bmr"
+    if not api_key.strip():
+        raise ValueError("A PRO or VIP API key is required")
+
+    url = f"{base_url}/api/v1/pro/nutrition/bmr"
 
     payload: Dict[str, Any] = {
         "weight_kg": weight_kg,
@@ -305,19 +309,24 @@ def main() -> None:
     """
     Example usage scenarios.
     """
-    print("🧬 Premium BMR/TDEE API Examples\n")
+    api_key = os.getenv("PULSEPLATE_PRO_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Set PULSEPLATE_PRO_API_KEY to a PRO or VIP API key")
+
+    print("🧬 Canonical PRO BMR/TDEE API Examples\n")
 
     # Example 1: Basic male calculation
     print("📊 Example 1: 30-year-old active male")
     print("-" * 40)
 
     try:
-        result = call_premium_bmr_api(
+        result = call_pro_bmr_api(
             weight_kg=75,
             height_cm=180,
             age=30,
             sex="male",
             activity="active",
+            api_key=api_key,
             lang="en",
         )
 
@@ -337,12 +346,13 @@ def main() -> None:
     print("-" * 55)
 
     try:
-        result = call_premium_bmr_api(
+        result = call_pro_bmr_api(
             weight_kg=60,
             height_cm=165,
             age=25,
             sex="female",
             activity="very_active",
+            api_key=api_key,
             bodyfat=18,  # Athletic female body fat
             lang="en",
         )
@@ -362,12 +372,13 @@ def main() -> None:
     print("-" * 30)
 
     try:
-        result = call_premium_bmr_api(
+        result = call_pro_bmr_api(
             weight_kg=70,
             height_cm=175,
             age=35,
             sex="male",
             activity="moderate",
+            api_key=api_key,
             lang="ru",
         )
 
@@ -386,12 +397,13 @@ def main() -> None:
     try:
         # EN: Demonstrate passing a custom timeout for the request
         # RU: Пример передачи пользовательского таймаута запроса
-        result = call_premium_bmr_api(
+        result = call_pro_bmr_api(
             weight_kg=75,
             height_cm=180,
             age=30,
             sex="male",
             activity="active",
+            api_key=api_key,
             lang="en",
             timeout=5.0,
         )
@@ -428,12 +440,13 @@ def main() -> None:
             params_with_activity = {**base_params_raw, "activity": activity}
             validated_params = validate_bmr_params(params_with_activity)
             # Call API by unpacking validated params (Pydantic model supports dict-style access)
-            result = call_premium_bmr_api(
+            result = call_pro_bmr_api(
                 weight_kg=validated_params.weight_kg,
                 height_cm=validated_params.height_cm,
                 age=validated_params.age,
                 sex=validated_params.sex,
                 activity=validated_params.activity,
+                api_key=api_key,
                 lang=validated_params.lang,
             )
             tdee = result.tdee["mifflin"]
@@ -441,7 +454,7 @@ def main() -> None:
         except Exception as e:
             handle_request_errors_inline(e, activity)
 
-    print("\n✨ Premium BMR/TDEE API provides comprehensive metabolic calculations!")
+    print("\n✨ Canonical PRO BMR/TDEE API provides comprehensive metabolic calculations!")
     print("💡 Use different formulas for different populations:")
     print("   • Mifflin-St Jeor: Most accurate for general population")
     print("   • Harris-Benedict: Traditional formula")
