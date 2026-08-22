@@ -5887,8 +5887,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
   - Owner: `app-store-release-agent`
   - Priority: P1 (release-tooling security)
-  - Target PR: separate `deps(ios)` PR
-  - Status: Planned; explicitly outside the frontend npm security batch
+  - Target PR: [PR #2316](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2316) (`codex/ios-ruby-json-security-remediation`)
+  - Status: In progress in PR #2316; canonical Bundler remediation and validation underway
   - Area: security / iOS release tooling / dependencies
   - Finding Type: application dependency vulnerability
   - Reason (EN): Authenticated Dependabot alert `#239` reports RubyGems `json`
@@ -5897,6 +5897,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     not mix ecosystems or mutate Bundler material, so the Ruby dependency keeps
     a separate resolver and compatibility lane.
   - Links:
+    - `docs/security/CVE-2026-54696-json-fastlane.md`
     - `docs/security/DEPENDABOT_ALERT_INVENTORY.md`
     - `ios/Gemfile`
     - `ios/Gemfile.lock`
