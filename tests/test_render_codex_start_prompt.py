@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.task_bootstrap as task_bootstrap
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.render_codex_start_prompt import (
@@ -160,6 +161,48 @@ def test_packet_prompt_renders_synthesis_aliases_as_one_coordinator_dispatch() -
     assert "Role order: agent-coordinator, agent-coordinator" not in prompt
     assert "Executable required custom-role passes: <none>" in prompt
     assert "independent review" not in prompt.lower()
+
+
+@pytest.mark.parametrize(
+    ("creative_context", "error"),
+    (
+        ([], "legacy creative_pilot_context must be an object"),
+        ({}, "legacy creative_pilot_context phase is unsupported"),
+        ({"phase": "unknown"}, "legacy creative_pilot_context phase is unsupported"),
+    ),
+)
+def test_packet_role_order_rejects_malformed_legacy_creative_context(
+    creative_context: object,
+    error: str,
+) -> None:
+    packet = _synthesis_packet()
+    packet["schema_version"] = "3.0"
+    packet.pop("invariant_review")
+    packet["automation_flags"].pop("invariant_class_review_required")
+    packet["creative_pilot_context"] = creative_context
+
+    with pytest.raises(codex_prompt.PromptError) as exc_info:
+        codex_prompt._packet_role_order(packet)
+    assert str(exc_info.value) == f"invalid task packet role dispatch: {error}"
+
+
+@pytest.mark.parametrize("schema_version", ("3.0", None))
+@pytest.mark.parametrize("creative_phase", (None, "independent", "rebuttal"))
+def test_packet_role_order_preserves_legacy_creative_context_compatibility(
+    schema_version: str | None,
+    creative_phase: str | None,
+) -> None:
+    packet = _packet()
+    if schema_version is not None:
+        packet["schema_version"] = schema_version
+    if creative_phase is not None:
+        packet["creative_pilot_context"] = {"phase": creative_phase}
+
+    assert codex_prompt._packet_role_order(packet) == [
+        "agent-coordinator",
+        "security-auditor",
+        "architecture-specialist",
+    ]
 
 
 def test_packet_prompt_fallback_role_order_without_secondary_agents() -> None:

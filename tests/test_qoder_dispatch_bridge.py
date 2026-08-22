@@ -200,6 +200,9 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
         "creative_flag_missing",
         "legacy_schema_without_invariant",
         "missing_schema_without_invariant",
+        "legacy_non_object_context",
+        "legacy_missing_phase_context",
+        "legacy_invalid_phase_context",
     ),
 )
 def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> None:
@@ -283,25 +286,85 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
             packet.pop("schema_version")
         packet.pop("invariant_review")
         packet["automation_flags"].pop("invariant_class_review_required")
+    elif mutation in {
+        "legacy_non_object_context",
+        "legacy_missing_phase_context",
+        "legacy_invalid_phase_context",
+    }:
+        packet["schema_version"] = "3.0"
+        packet.pop("invariant_review")
+        packet["automation_flags"].pop("invariant_class_review_required")
+        if mutation == "legacy_non_object_context":
+            packet["creative_pilot_context"] = []
+        elif mutation == "legacy_missing_phase_context":
+            packet["creative_pilot_context"] = {}
+        else:
+            packet["creative_pilot_context"] = {"phase": "unknown"}
     else:
         packet["automation_flags"].pop("creative_pilot_enabled")
 
-    expected_error = (
-        "creative pilot synthesis packet metadata"
-        if mutation
-        in {
-            "requested_agents_empty",
-            "requested_agents_extra",
-            "nonempty_requested_disposition",
-            "post_open_phase",
-            "merge_ready_phase",
-            "creative_flag_false",
-            "creative_flag_missing",
-        }
-        else None
-    )
-    with pytest.raises(ValueError, match=expected_error):
+    exact_errors = {
+        "requested_agents_empty": (
+            "creative pilot synthesis packet metadata requires only agent-coordinator"
+        ),
+        "requested_agents_extra": (
+            "creative pilot synthesis packet metadata requires only agent-coordinator"
+        ),
+        "nonempty_requested_disposition": (
+            "creative pilot synthesis packet metadata requires empty requested disposition"
+        ),
+        "post_open_phase": (
+            "creative pilot synthesis packet metadata requires an opening PR phase"
+        ),
+        "merge_ready_phase": (
+            "creative pilot synthesis packet metadata requires an opening PR phase"
+        ),
+        "creative_flag_false": (
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        ),
+        "creative_flag_missing": (
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        ),
+        "legacy_schema_without_invariant": (
+            "creative pilot synthesis requires task packet schema 3.1"
+        ),
+        "missing_schema_without_invariant": (
+            "creative pilot synthesis requires task packet schema 3.1"
+        ),
+        "legacy_non_object_context": "legacy creative_pilot_context must be an object",
+        "legacy_missing_phase_context": ("legacy creative_pilot_context phase is unsupported"),
+        "legacy_invalid_phase_context": ("legacy creative_pilot_context phase is unsupported"),
+    }
+    with pytest.raises(ValueError) as exc_info:
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    if mutation in exact_errors:
+        assert str(exc_info.value) == exact_errors[mutation]
+
+
+@pytest.mark.parametrize("schema_version", ("3.0", None))
+@pytest.mark.parametrize("creative_phase", (None, "independent", "rebuttal"))
+def test_legacy_creative_context_preserves_existing_role_order(
+    schema_version: str | None,
+    creative_phase: str | None,
+) -> None:
+    packet: dict[str, object] = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [{"repo_agent_slug": "security-auditor"}],
+            "advisory": [],
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+        }
+    }
+    if schema_version is not None:
+        packet["schema_version"] = schema_version
+    if creative_phase is not None:
+        packet["creative_pilot_context"] = {"phase": creative_phase}
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "security-auditor",
+        "architecture-specialist",
+    ]
 
 
 def test_single_coordinator_synthesis_cli_rejects_missing_coordinator_definition(

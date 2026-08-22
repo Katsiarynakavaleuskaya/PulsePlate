@@ -1116,8 +1116,14 @@ def _validate_current_native_subagent_bridge(
         payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
         and "invariant_review" not in payload
     ):
-        if isinstance(creative_context, dict) and creative_context.get("phase") == "synthesis":
-            raise ValueError("creative pilot synthesis requires task packet schema 3.1")
+        if "creative_pilot_context" in payload:
+            if not isinstance(creative_context, dict):
+                raise ValueError("legacy creative_pilot_context must be an object")
+            creative_phase = creative_context.get("phase")
+            if creative_phase not in {"independent", "rebuttal", "synthesis"}:
+                raise ValueError("legacy creative_pilot_context phase is unsupported")
+            if creative_phase == "synthesis":
+                raise ValueError("creative pilot synthesis requires task packet schema 3.1")
         return False
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
@@ -1471,10 +1477,10 @@ def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
     """Load one JSON object while rejecting duplicate keys."""
 
     try:
-        return cast(
-            Dict[str, Any],
-            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
+        payload: Dict[str, Any] = load_creative_pilot_json_strict(
+            packet_path.read_text(encoding="utf-8")
         )
+        return payload
     except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
         raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
@@ -2141,7 +2147,8 @@ def _load_creative_pilot_context(
             "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
         )
     try:
-        return cast(Dict[str, Any], validate_task_pilot_context(context))
+        validated_context: Dict[str, Any] = validate_task_pilot_context(context)
+        return validated_context
     except CreativePilotContractError as exc:
         raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
 
