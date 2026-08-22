@@ -1,4 +1,4 @@
-"""Fail when recognized external GitHub action refs lack full commit SHA pins."""
+"""Fail when recognized GitHub action refs lack family-specific immutable pins."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from pathlib import Path
 
 USES_RE = re.compile(r"^\s*-?\s*uses:\s*(?P<action>\S+?)(?:\s+#.*)?\s*$")
 PINNED_SHA_RE = re.compile(r"^[^@]+@[0-9a-f]{40}$")
+PINNED_DOCKER_DIGEST_RE = re.compile(r"^docker://[^@\s]+@sha256:[0-9a-f]{64}$")
+DOCKER_PIN_GRAMMAR = "docker://<image>@sha256:<64-lowercase-hex>"
 
 
 def _workflow_paths(workflows_dir: Path) -> list[Path]:
@@ -45,6 +47,12 @@ def find_unpinned_actions(root: Path) -> list[str]:
             if action.startswith("./"):
                 continue
             if action.startswith("docker://"):
+                if PINNED_DOCKER_DIGEST_RE.fullmatch(action):
+                    continue
+                violations.append(
+                    f"{action_source_path.relative_to(root)}:{line_number}: "
+                    f"Docker action reference must match '{DOCKER_PIN_GRAMMAR}'"
+                )
                 continue
             if PINNED_SHA_RE.match(action):
                 continue
@@ -63,10 +71,10 @@ def main() -> int:
 
     violations = find_unpinned_actions(args.root.resolve())
     if not violations:
-        print("OK: all recognized external GitHub action refs use full commit SHA pins")
+        print("OK: all recognized GitHub action refs satisfy family-specific immutable pins")
         return 0
 
-    print("ERROR: found unpinned GitHub Actions:")
+    print("ERROR: found GitHub Action references without required immutable pins:")
     for violation in violations:
         print(violation)
     return 1
