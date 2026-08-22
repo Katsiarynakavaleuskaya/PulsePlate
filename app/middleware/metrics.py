@@ -107,27 +107,34 @@ class _Metrics:
     ws_connect_total: Any
     ws_messages_total: Any
     ws_active_connections: _Gauge
+    _registry_owner: Any
 
 
 # Type alias for dependency injection (testability)
 _Importer = Callable[[str], Any]
 
 
-def _import_prometheus(importer: _Importer = import_module) -> tuple[Any, Any]:
-    """Import prometheus_client module and return Counter, Histogram classes.
+def _import_prometheus(importer: _Importer = import_module) -> tuple[Any, Any, Any, Any, Any]:
+    """Import the metric constructors plus global and staging registries.
 
     Args:
         importer: Module importer function (default: importlib.import_module).
                  Allows dependency injection for testing ImportError paths.
 
     Returns:
-        Tuple of (Counter, Histogram) classes from prometheus_client
+        Counter, Histogram, Gauge, global REGISTRY, and CollectorRegistry.
 
     Raises:
         ImportError: If prometheus_client module cannot be imported
     """
     prometheus_client = importer("prometheus_client")
-    return prometheus_client.Counter, prometheus_client.Histogram
+    return (
+        prometheus_client.Counter,
+        prometheus_client.Histogram,
+        prometheus_client.Gauge,
+        prometheus_client.REGISTRY,
+        prometheus_client.CollectorRegistry,
+    )
 
 
 def _seed_premium_alias_zero_series(requests_total: _Counter) -> None:
@@ -147,13 +154,13 @@ def _build_metrics() -> _Metrics | None:
         _Metrics instance or None if initialization fails
     """
     try:
-        Counter, Histogram = _import_prometheus()
-        Gauge = cast(Any, import_module("prometheus_client").Gauge)
+        Counter, Histogram, Gauge, REGISTRY, CollectorRegistry = _import_prometheus()
     except ImportError:
         return None
 
-    # prometheus_client raises ValueError if metric name already registered
-    # in the default global REGISTRY (e.g., module reload in tests/dev).
+    staging_registry = CollectorRegistry(auto_describe=True)
+    # Construct and seed only inside an isolated registry. The one global
+    # registration is atomic across every exposed metric name.
     try:
         requests_total: _Counter = cast(
             _Counter,
@@ -161,9 +168,9 @@ def _build_metrics() -> _Metrics | None:
                 "http_requests_total",
                 "Total number of HTTP requests",
                 labelnames=("method", "route", "status"),
+                registry=staging_registry,
             ),
         )
-        _seed_premium_alias_zero_series(requests_total)
 
         request_duration_seconds: _Histogram = cast(
             _Histogram,
@@ -172,6 +179,7 @@ def _build_metrics() -> _Metrics | None:
                 "HTTP request duration in seconds",
                 labelnames=("method", "route", "status"),
                 buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+                registry=staging_registry,
             ),
         )
 
@@ -181,6 +189,7 @@ def _build_metrics() -> _Metrics | None:
                 "ws_connect_total",
                 "Total WS connection outcomes",
                 labelnames=("path", "result", "reason"),
+                registry=staging_registry,
             ),
         )
         ws_messages_total: _Counter = cast(
@@ -189,6 +198,7 @@ def _build_metrics() -> _Metrics | None:
                 "ws_messages_total",
                 "Total WS messages by direction",
                 labelnames=("path", "direction", "status"),
+                registry=staging_registry,
             ),
         )
         ws_active_connections: _Gauge = cast(
@@ -197,8 +207,11 @@ def _build_metrics() -> _Metrics | None:
                 "ws_active_connections",
                 "Current active WS connections",
                 labelnames=("path",),
+                registry=staging_registry,
             ),
         )
+        _seed_premium_alias_zero_series(requests_total)
+        REGISTRY.register(staging_registry)
     except ValueError:
         logger.warning(
             "Duplicate prometheus metric registration in _build_metrics (metrics disabled)",
@@ -212,6 +225,7 @@ def _build_metrics() -> _Metrics | None:
         ws_connect_total=ws_connect_total,
         ws_messages_total=ws_messages_total,
         ws_active_connections=ws_active_connections,
+        _registry_owner=staging_registry,
     )
 
 

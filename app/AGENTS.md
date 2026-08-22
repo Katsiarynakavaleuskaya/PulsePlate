@@ -56,6 +56,10 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
   versioned `POST /api/v1/premium/{bmr,targets,plate,gaps}` aliases at
   `status="200"`; absence is never interpreted as zero. Root aliases and
   canonical `/api/v1/pro/nutrition/*` routes are not seeded.
+- Metric construction is transactional: build and seed every collector in one
+  private staging registry, then register that registry with the global registry
+  once; a late constructor or global-name conflict exposes none of the staged
+  metric names or zero-series.
 
 **Response format:**
 - **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
@@ -144,6 +148,9 @@ curl -fsS https://.../metrics | grep http_requests_total
   Except for the job-wide one-target census, every live, continuity, restart,
   and alias current/increase/reset query is scoped to both
   `job="pulseplate-api"` and `instance="app:8000"`; alias status stays unfiltered.
+  Bind observed retention days and the exact `/prometheus` storage argument into
+  runtime identity and ordered lineage. Checkpoint PASS independently requires
+  at least `duration_seconds // 30` declared and observed samples.
 - Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
@@ -166,7 +173,8 @@ curl -fsS https://.../metrics | grep http_requests_total
   fingerprint-only `upstream_assets`, `policy_version`, `idempotency_key`, and
   explicit replay/admission behavior. Its deterministic `fingerprint` hashes the
   canonical JSON projection excluding only the `fingerprint` field. First write
-  is new-only `0600` + `fsync`; an identical same-idempotency replay is verified
+  is new-only `0600` plus pinned file and directory `fsync`; an identical
+  same-idempotency replay is verified
   without a write, while malformed, different-idempotency, or divergent existing
   output fails closed. A failed direct `O_EXCL` write is never auto-unlinked: the
   exact mode-`0600` canonical partial/complete file remains as evidence and a

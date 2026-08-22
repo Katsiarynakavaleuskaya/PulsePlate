@@ -51,6 +51,7 @@ def _live_snapshot(
         prometheus_image_reference=_PROMETHEUS_REFERENCE,
         config_sha256=_DIGEST_A,
         volume_id="prometheus-data-01",
+        prometheus_storage_path="/prometheus",
         api_container_count=api_containers,
         prometheus_container_count=prometheus_containers,
         uvicorn_process_count=uvicorn_processes,
@@ -306,6 +307,8 @@ def test_bounded_baseline_and_final_pass_preserve_exact_zero_semantics(
         "scrape_config",
         "target_binding",
         "tsdb",
+        "storage_path",
+        "retention",
         "uvicorn_process",
     ]
     assert all(
@@ -464,6 +467,26 @@ def test_checkpoint_pass_cross_fields_are_admitted(tmp_path: Path) -> None:
 
     assert checkpoint["decision"] == "PASS"
     verifier._validate_evidence_asset(checkpoint)
+
+
+def test_multiday_checkpoint_rejects_underdeclared_sample_cross_fields(
+    tmp_path: Path,
+) -> None:
+    baseline = _passing_baseline(tmp_path)
+    checkpoint = verifier.build_evidence(
+        _config(tmp_path, mode="checkpoint"),
+        _FakePromtoolClient(anchor=_T0 + timedelta(days=3)),
+        baseline=baseline,
+    )
+    target = checkpoint["target"]
+    assert isinstance(target, dict)
+    assert checkpoint["decision"] == "PASS"
+    target["required_samples"] = 1
+    target["sample_count"] = 1.0
+    _recompute_self_metadata(checkpoint)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "checkpoint-underdeclared.json", checkpoint)
 
 
 @pytest.mark.parametrize("mode", ["checkpoint", "final"])
@@ -853,6 +876,19 @@ def test_retention_accepts_both_exact_carrier_forms(arguments: list[str]) -> Non
 
 
 @pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--storage.tsdb.path=/prometheus"],
+        ["--storage.tsdb.path", "/prometheus"],
+    ],
+)
+def test_prometheus_storage_path_accepts_both_exact_carrier_forms(
+    arguments: list[str],
+) -> None:
+    assert verifier._parse_prometheus_storage_path(arguments) == "/prometheus"
+
+
+@pytest.mark.parametrize(
     ("app_service", "prometheus_service", "prometheus_project"),
     [
         ("wrong", "prometheus", "pulseplate-test"),
@@ -945,6 +981,36 @@ def test_retention_rejects_conflicting_duplicate_and_missing_carriers(
         verifier._parse_retention_days(arguments)
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [],
+        ["--storage.tsdb.path"],
+        ["--storage.tsdb.path=/wrong"],
+        ["--storage.tsdb.path", "/wrong"],
+        [
+            "--storage.tsdb.path=/wrong",
+            "--storage.tsdb.path=/prometheus",
+        ],
+        [
+            "--storage.tsdb.path=/prometheus",
+            "--storage.tsdb.path=/wrong",
+        ],
+        [
+            "--storage.tsdb.path=/prometheus",
+            "--storage.tsdb.path=/prometheus",
+        ],
+        ["--storage.tsdb.pathx=/prometheus"],
+    ],
+)
+def test_prometheus_storage_path_rejects_invalid_carriers(arguments: list[str]) -> None:
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_storage_path_mismatch",
+    ):
+        verifier._parse_prometheus_storage_path(arguments)
+
+
 def test_target_discovery_command_failure_is_sanitized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -970,6 +1036,7 @@ def test_target_discovery_command_failure_is_sanitized(
     [
         "compose_service_identity_mismatch",
         "prometheus_config_path_mismatch",
+        "prometheus_storage_path_mismatch",
         "prometheus_target_discovery_unavailable",
         "prometheus_target_discovery_invalid",
         "prometheus_target_binding_mismatch",
@@ -1287,6 +1354,7 @@ def test_docker_promtool_uses_absolute_argv_without_shell(
                 },
                 "Args": [
                     "--config.file=/etc/prometheus/prometheus.yml",
+                    "--storage.tsdb.path=/prometheus",
                     "--storage.tsdb.retention.time=45d",
                 ],
                 "Mounts": [
@@ -1378,6 +1446,7 @@ else:
         prometheus_image_reference=_PROMETHEUS_REFERENCE,
         config_sha256="sha256:" + hashlib.sha256(container_config_bytes).hexdigest(),
         volume_id="prometheus-data-01",
+        prometheus_storage_path="/prometheus",
         api_container_count=1,
         prometheus_container_count=1,
         uvicorn_process_count=1,
@@ -1439,6 +1508,52 @@ def test_evidence_writer_is_private_and_identical_replay_is_no_write(tmp_path: P
         before.st_ino,
         before.st_mtime_ns,
         before_bytes,
+    )
+
+
+def test_first_publication_fsyncs_file_then_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    original_fsync = verifier.os.fsync
+    synced_modes: list[int] = []
+
+    def _track_fsync(descriptor: int) -> None:
+        synced_modes.append(verifier.os.fstat(descriptor).st_mode)
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _track_fsync)
+
+    assert verifier.write_evidence_new_only(tmp_path, "ordered-fsync.json", evidence) == "published"
+    assert len(synced_modes) == 2
+    assert stat.S_ISREG(synced_modes[0])
+    assert stat.S_ISDIR(synced_modes[1])
+
+
+def test_first_publication_directory_fsync_failure_is_stable_and_retained(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = _passing_baseline(tmp_path)
+    output_file = tmp_path / "directory-fsync.json"
+    original_fsync = verifier.os.fsync
+
+    def _fail_directory_fsync(descriptor: int) -> None:
+        if stat.S_ISDIR(verifier.os.fstat(descriptor).st_mode):
+            raise OSError("synthetic directory fsync failure")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(verifier.os, "fsync", _fail_directory_fsync)
+    with pytest.raises(verifier.VerificationError, match="evidence_write_failed"):
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence)
+
+    assert output_file.exists()
+    assert json.loads(output_file.read_text(encoding="utf-8"))["decision"] == "PASS"
+
+    monkeypatch.setattr(verifier.os, "fsync", original_fsync)
+    assert (
+        verifier.write_evidence_new_only(tmp_path, output_file.name, evidence) == "identical_replay"
     )
 
 
@@ -1759,6 +1874,45 @@ def test_writer_rejects_target_binding_drift_after_lineage_and_hash_recompute(
 
     with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
         verifier.write_evidence_new_only(tmp_path, "target-binding-drift.json", evidence)
+
+
+def test_writer_rejects_retention_upgrade_without_runtime_lineage_update(
+    tmp_path: Path,
+) -> None:
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="baseline"),
+        _FakePromtoolClient(snapshot=_live_snapshot(retention_days=30)),
+    )
+    assert evidence["decision"] == "HOLD"
+    assert "retention_too_short" in evidence["reasons"]
+    evidence["retention_days"] = 45
+    evidence["decision"] = "PASS"
+    evidence["reasons"] = []
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "retention-upgrade.json", evidence)
+
+
+def test_writer_rejects_mutated_storage_path_after_lineage_and_hash_recompute(
+    tmp_path: Path,
+) -> None:
+    evidence = copy.deepcopy(_passing_baseline(tmp_path))
+    identities = evidence["identities"]
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(identities, dict)
+    assert isinstance(upstream_assets, list)
+    identities["prometheus_storage_path"] = "/wrong"
+    for upstream in upstream_assets:
+        if isinstance(upstream, dict) and upstream.get("role") == "storage_path":
+            upstream["fingerprint"] = verifier._source_fingerprint(
+                "prometheus_storage_path",
+                "/wrong",
+            )
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "storage-path-drift.json", evidence)
 
 
 @pytest.mark.parametrize(

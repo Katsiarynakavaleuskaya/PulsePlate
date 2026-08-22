@@ -103,6 +103,7 @@ _IDENTITY_FIELDS = frozenset(
         "prometheus_image_reference",
         "prometheus_config",
         "prometheus_volume",
+        "prometheus_storage_path",
         "uvicorn_process",
     }
 )
@@ -176,6 +177,7 @@ class LiveRuntimeSnapshot:
     prometheus_image_reference: str
     config_sha256: str
     volume_id: str
+    prometheus_storage_path: str
     api_container_count: int
     prometheus_container_count: int
     uvicorn_process_count: int
@@ -528,6 +530,16 @@ def _parse_prometheus_args(value: object) -> list[str]:
     return typed_arguments
 
 
+def _parse_prometheus_storage_path(arguments: object) -> str:
+    _typed_arguments, storage_path = _parse_single_flag_value(
+        arguments,
+        flag="--storage.tsdb.path",
+        error_code="prometheus_storage_path_mismatch",
+        expected_value="/prometheus",
+    )
+    return storage_path
+
+
 def _parse_container_ids(payload: bytes, *, error_code: str) -> list[str]:
     try:
         text = payload.decode("ascii", errors="strict")
@@ -860,6 +872,7 @@ class DockerPromtoolClient:
         prometheus_labels = prometheus_config.get("Labels")
         app_project = _parse_compose_service_identity(app_labels, prometheus_labels)
         prometheus_args = _parse_prometheus_args(prometheus_inspect.get("Args"))
+        prometheus_storage_path = _parse_prometheus_storage_path(prometheus_args)
 
         mounts = prometheus_inspect.get("Mounts")
         if not isinstance(mounts, list) or not all(isinstance(item, dict) for item in mounts):
@@ -906,6 +919,7 @@ class DockerPromtoolClient:
             prometheus_image_reference=prometheus_image_reference,
             config_sha256=config_sha256,
             volume_id=volume_name,
+            prometheus_storage_path=prometheus_storage_path,
             api_container_count=len(app_ids),
             prometheus_container_count=len(prometheus_ids),
             uvicorn_process_count=uvicorn_process_count,
@@ -990,6 +1004,7 @@ def _identity_snapshot(snapshot: LiveRuntimeSnapshot) -> dict[str, str]:
         "prometheus_image_reference": snapshot.prometheus_image_reference,
         "prometheus_config": snapshot.config_sha256,
         "prometheus_volume": snapshot.volume_id,
+        "prometheus_storage_path": snapshot.prometheus_storage_path,
         "uvicorn_process": snapshot.uvicorn_process_identity,
     }
 
@@ -1088,6 +1103,22 @@ def _runtime_upstream_assets(snapshot: LiveRuntimeSnapshot) -> list[dict[str, st
             "asset_type": "docker_volume",
             "role": "tsdb",
             "fingerprint": _source_fingerprint("prometheus_volume", snapshot.volume_id),
+        },
+        {
+            "asset_type": "prometheus_storage_path",
+            "role": "storage_path",
+            "fingerprint": _source_fingerprint(
+                "prometheus_storage_path",
+                snapshot.prometheus_storage_path,
+            ),
+        },
+        {
+            "asset_type": "prometheus_retention",
+            "role": "retention",
+            "fingerprint": _source_fingerprint(
+                "prometheus_retention_days",
+                str(snapshot.retention_days),
+            ),
         },
         {
             "asset_type": "runtime_process",
@@ -1417,6 +1448,10 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
         elif mode == "checkpoint":
             required_samples = target.get("required_samples")
             sample_count = target.get("sample_count")
+            minimum_checkpoint_samples = max(
+                1,
+                duration_seconds // SCRAPE_INTERVAL_SECONDS,
+            )
             if (
                 window.get("t0") is not None
                 or duration_seconds <= 0
@@ -1424,7 +1459,7 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
                 or target.get("minimum_up") != 1.0
                 or isinstance(required_samples, bool)
                 or not isinstance(required_samples, int)
-                or required_samples < 1
+                or required_samples < minimum_checkpoint_samples
                 or isinstance(sample_count, bool)
                 or not isinstance(sample_count, (int, float))
                 or sample_count < required_samples
@@ -1507,6 +1542,7 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
     target = evidence.get("target")
     if not isinstance(target, dict):
         raise VerificationError("evidence_asset_invalid")
+    retention_days = evidence.get("retention_days")
     identity_keys = (
         "app_container",
         "prometheus_container",
@@ -1516,6 +1552,7 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
         "prometheus_image_reference",
         "prometheus_config",
         "prometheus_volume",
+        "prometheus_storage_path",
         "uvicorn_process",
     )
     identity_values = [identities.get(key) for key in identity_keys]
@@ -1528,7 +1565,8 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
         prometheus_image_reference = cast(str, identity_values[5])
         config_sha256 = cast(str, identity_values[6])
         volume_id = cast(str, identity_values[7])
-        uvicorn_process_identity = cast(str, identity_values[8])
+        prometheus_storage_path = cast(str, identity_values[8])
+        uvicorn_process_identity = cast(str, identity_values[9])
         try:
             _parse_pinned_image_reference(prometheus_image_reference)
         except VerificationError as exc:
@@ -1541,6 +1579,7 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             or not _DIGEST_RE.fullmatch(prometheus_image_id)
             or not _DIGEST_RE.fullmatch(config_sha256)
             or not _SAFE_IDENTITY_RE.fullmatch(volume_id)
+            or prometheus_storage_path != "/prometheus"
             or not _DIGEST_RE.fullmatch(uvicorn_process_identity)
         ):
             raise VerificationError("evidence_asset_invalid")
@@ -1569,11 +1608,12 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             prometheus_image_reference=prometheus_image_reference,
             config_sha256=config_sha256,
             volume_id=volume_id,
+            prometheus_storage_path=prometheus_storage_path,
             api_container_count=1,
             prometheus_container_count=1,
             uvicorn_process_count=1,
             uvicorn_process_identity=uvicorn_process_identity,
-            retention_days=MIN_RETENTION_DAYS,
+            retention_days=cast(int, retention_days),
             compose_project=cast(str, target["compose_project"]),
             app_compose_service=cast(str, target["app_service"]),
             prometheus_compose_service=cast(str, target["prometheus_service"]),
@@ -1805,6 +1845,7 @@ def build_evidence(
         "prometheus_image_reference": None,
         "prometheus_config": None,
         "prometheus_volume": None,
+        "prometheus_storage_path": None,
         "uvicorn_process": None,
     }
     topology: dict[str, object] = {
@@ -2015,6 +2056,7 @@ def build_evidence(
         "runtime_identity_drift",
         "compose_service_identity_mismatch",
         "prometheus_config_path_mismatch",
+        "prometheus_storage_path_mismatch",
         "prometheus_target_discovery_unavailable",
         "prometheus_target_discovery_invalid",
         "prometheus_target_binding_mismatch",
@@ -2235,6 +2277,7 @@ def write_evidence_new_only(
                 != pre_fsync_stability
             ):
                 raise VerificationError("evidence_write_failed")
+            os.fsync(directory_descriptor)
         except (OSError, VerificationError) as exc:
             raise VerificationError("evidence_write_failed") from exc
         finally:

@@ -453,8 +453,95 @@ def test_metrics_build_metrics_returns_none_on_duplicate_metric_registration(
     def _histogram(*_args: object, **_kwargs: object) -> object:
         raise ValueError("duplicate metric name")
 
-    monkeypatch.setattr(metrics_mod, "_import_prometheus", lambda: (_counter, _histogram))
+    class _UnusedRegistry:
+        def __init__(self, *, auto_describe: bool = False) -> None:
+            del auto_describe
+
+        def register(self, _collector: object) -> None:
+            raise AssertionError("constructor failure must occur before registration")
+
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (_counter, _histogram, _counter, _UnusedRegistry(), _UnusedRegistry),
+    )
     assert metrics_mod._build_metrics() is None
+
+
+def test_metrics_build_is_atomic_on_late_constructor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import prometheus_client
+
+    import app.middleware.metrics as metrics_mod
+
+    global_registry = prometheus_client.CollectorRegistry(auto_describe=True)
+
+    def _late_gauge_failure(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("synthetic late constructor failure")
+
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (
+            prometheus_client.Counter,
+            prometheus_client.Histogram,
+            _late_gauge_failure,
+            global_registry,
+            prometheus_client.CollectorRegistry,
+        ),
+    )
+
+    assert metrics_mod._build_metrics() is None
+    exposed = prometheus_client.generate_latest(global_registry).decode()
+    for metric_name in (
+        "http_requests_total",
+        "http_request_duration_seconds",
+        "ws_connect_total",
+        "ws_messages_total",
+        "ws_active_connections",
+    ):
+        assert metric_name not in exposed
+    assert "/api/v1/premium/bmr" not in exposed
+
+
+def test_metrics_atomic_global_registration_preserves_duplicate_owner_without_orphans(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import prometheus_client
+
+    import app.middleware.metrics as metrics_mod
+
+    global_registry = prometheus_client.CollectorRegistry(auto_describe=True)
+    prometheus_client.Gauge(
+        "ws_active_connections",
+        "Pre-existing owner",
+        labelnames=("path",),
+        registry=global_registry,
+    )
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (
+            prometheus_client.Counter,
+            prometheus_client.Histogram,
+            prometheus_client.Gauge,
+            global_registry,
+            prometheus_client.CollectorRegistry,
+        ),
+    )
+
+    assert metrics_mod._build_metrics() is None
+    exposed = prometheus_client.generate_latest(global_registry).decode()
+    assert "ws_active_connections" in exposed
+    for metric_name in (
+        "http_requests_total",
+        "http_request_duration_seconds",
+        "ws_connect_total",
+        "ws_messages_total",
+    ):
+        assert metric_name not in exposed
+    assert "/api/v1/premium/bmr" not in exposed
 
 
 def test_metrics_route_template_unknown_without_router() -> None:
