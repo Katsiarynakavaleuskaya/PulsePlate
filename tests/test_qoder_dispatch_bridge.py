@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import Any, cast, Dict, List
 
 import pytest
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     qoder_dispatch_bridge,
     review_invariant_family_relations as relations,
     role_dispatch_bridge,
     task_bootstrap,
 )
+from scripts.orchestration.context_pack import compute_task_packet_id
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -58,6 +60,47 @@ REQUIRED_ENTRY_KEYS = {
     "constraints",
     "depends_on_previous",
 }
+
+
+def _rebind_single_coordinator_synthesis_task_packet_id(packet: dict[str, object]) -> None:
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    creative_learning_hints = cast(dict[str, Any], packet["creative_learning_hints"])
+    invariant_review = cast(dict[str, Any], packet["invariant_review"])
+    creative_identity_fingerprint = fingerprint_payload(
+        {
+            "creative_learning_hints": creative_learning_hints["source_hints_fingerprint"],
+            "creative_pilot": fingerprint_payload(context),
+        }
+    )
+    base_packet_id = compute_task_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(list[str], packet["candidate_paths"]),
+        requested_agents=cast(list[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_fingerprint=task_bootstrap._design_fingerprint(
+            design_lane_mode=cast(str, packet["design_lane_mode"]),
+            design_lane_contract=cast(dict[str, Any], packet["design_lane_contract"]),
+        ),
+        creative_learning_hints_fingerprint=creative_identity_fingerprint,
+    )
+    packet["task_packet_id"] = task_bootstrap._bind_invariant_review_packet_id(
+        base_packet_id,
+        invariant_review_fingerprint=",".join(cast(list[str], invariant_review["change_classes"])),
+    )
+
+
+def _substitute_synthesis_context_identity(context: dict[str, Any]) -> None:
+    workspace_id = "workspace:substituted"
+    revision_fingerprint = "sha256:" + ("9" * 64)
+    context["workspace_id"] = workspace_id
+    context["workspace_intent_fingerprint"] = "sha256:" + ("8" * 64)
+    context["workspace_revision_fingerprint"] = revision_fingerprint
+    context["dispatch_input_fingerprint"] = revision_fingerprint
+    assignment = cast(dict[str, Any], cast(list[object], context["assignments"])[0])
+    assignment["input_fingerprint"] = revision_fingerprint
+    assignment["input_refs"] = [workspace_id, revision_fingerprint]
 
 
 def _single_coordinator_synthesis_packet() -> dict[str, object]:
@@ -123,7 +166,9 @@ def _single_coordinator_synthesis_packet() -> dict[str, object]:
         native_subagent_bridge=bridge,
         pr_phase=cast(str, packet["pr_phase"]),
     )
-    return cast(dict[str, object], packet)
+    normalized_packet = cast(dict[str, object], packet)
+    _rebind_single_coordinator_synthesis_task_packet_id(normalized_packet)
+    return normalized_packet
 
 
 def test_role_dispatch_bridge_exports_compatibility_main() -> None:
@@ -168,6 +213,15 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
 
 
+def test_single_coordinator_synthesis_accepts_rebound_context_identity() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    _substitute_synthesis_context_identity(context)
+    _rebind_single_coordinator_synthesis_task_packet_id(packet)
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -206,6 +260,7 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
         "numeric_security_review_flag",
         "invariant_review_required_flag",
         "numeric_invariant_review_flag",
+        "stale_task_packet_id",
         "legacy_schema_without_invariant",
         "missing_schema_without_invariant",
         "legacy_non_object_context",
@@ -303,6 +358,8 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         packet["automation_flags"]["invariant_class_review_required"] = True
     elif mutation == "numeric_invariant_review_flag":
         packet["automation_flags"]["invariant_class_review_required"] = 0
+    elif mutation == "stale_task_packet_id":
+        _substitute_synthesis_context_identity(context)
     elif mutation in {"legacy_schema_without_invariant", "missing_schema_without_invariant"}:
         if mutation == "legacy_schema_without_invariant":
             packet["schema_version"] = "3.0"
@@ -373,6 +430,9 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         "numeric_invariant_review_flag": (
             "creative pilot synthesis packet metadata requires no invariant review pass"
         ),
+        "stale_task_packet_id": (
+            "creative pilot synthesis task_packet_id must match canonical packet identity"
+        ),
         "legacy_schema_without_invariant": (
             "creative pilot synthesis requires task packet schema 3.1"
         ),
@@ -390,10 +450,10 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
 
 
 @pytest.mark.parametrize("schema_version", ("3.0", None))
-@pytest.mark.parametrize("creative_phase", (None, "independent", "rebuttal"))
+@pytest.mark.parametrize("context_shape", ("absent", "null", "independent", "rebuttal"))
 def test_legacy_creative_context_preserves_existing_role_order(
     schema_version: str | None,
-    creative_phase: str | None,
+    context_shape: str,
 ) -> None:
     packet: dict[str, object] = {
         "native_subagent_bridge": {
@@ -405,8 +465,10 @@ def test_legacy_creative_context_preserves_existing_role_order(
     }
     if schema_version is not None:
         packet["schema_version"] = schema_version
-    if creative_phase is not None:
-        packet["creative_pilot_context"] = {"phase": creative_phase}
+    if context_shape == "null":
+        packet["creative_pilot_context"] = None
+    elif context_shape != "absent":
+        packet["creative_pilot_context"] = {"phase": context_shape}
 
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
         "agent-coordinator",

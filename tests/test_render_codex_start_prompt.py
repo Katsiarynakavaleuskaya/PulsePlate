@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import shlex
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
+from core.evidence.fingerprints import fingerprint_payload
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.task_bootstrap as task_bootstrap
+from scripts.orchestration.context_pack import compute_task_packet_id
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.render_codex_start_prompt import (
     main,
@@ -43,6 +46,35 @@ def _packet() -> dict[str, object]:
             ],
         },
     }
+
+
+def _rebind_synthesis_task_packet_id(packet: dict[str, object]) -> None:
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    creative_learning_hints = cast(dict[str, Any], packet["creative_learning_hints"])
+    invariant_review = cast(dict[str, Any], packet["invariant_review"])
+    creative_identity_fingerprint = fingerprint_payload(
+        {
+            "creative_learning_hints": creative_learning_hints["source_hints_fingerprint"],
+            "creative_pilot": fingerprint_payload(context),
+        }
+    )
+    base_packet_id = compute_task_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(list[str], packet["candidate_paths"]),
+        requested_agents=cast(list[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_fingerprint=task_bootstrap._design_fingerprint(
+            design_lane_mode=cast(str, packet["design_lane_mode"]),
+            design_lane_contract=cast(dict[str, Any], packet["design_lane_contract"]),
+        ),
+        creative_learning_hints_fingerprint=creative_identity_fingerprint,
+    )
+    packet["task_packet_id"] = task_bootstrap._bind_invariant_review_packet_id(
+        base_packet_id,
+        invariant_review_fingerprint=",".join(cast(list[str], invariant_review["change_classes"])),
+    )
 
 
 def _synthesis_packet() -> dict[str, object]:
@@ -108,7 +140,9 @@ def _synthesis_packet() -> dict[str, object]:
         native_subagent_bridge=bridge,
         pr_phase=str(packet["pr_phase"]),
     )
-    return packet
+    normalized_packet = cast(dict[str, object], packet)
+    _rebind_synthesis_task_packet_id(normalized_packet)
+    return normalized_packet
 
 
 def test_packet_prompt_forces_agent_coordinator_first_when_packet_primary_differs() -> None:
@@ -187,16 +221,18 @@ def test_packet_role_order_rejects_malformed_legacy_creative_context(
 
 
 @pytest.mark.parametrize("schema_version", ("3.0", None))
-@pytest.mark.parametrize("creative_phase", (None, "independent", "rebuttal"))
+@pytest.mark.parametrize("context_shape", ("absent", "null", "independent", "rebuttal"))
 def test_packet_role_order_preserves_legacy_creative_context_compatibility(
     schema_version: str | None,
-    creative_phase: str | None,
+    context_shape: str,
 ) -> None:
     packet = _packet()
     if schema_version is not None:
         packet["schema_version"] = schema_version
-    if creative_phase is not None:
-        packet["creative_pilot_context"] = {"phase": creative_phase}
+    if context_shape == "null":
+        packet["creative_pilot_context"] = None
+    elif context_shape != "absent":
+        packet["creative_pilot_context"] = {"phase": context_shape}
 
     assert codex_prompt._packet_role_order(packet) == [
         "agent-coordinator",

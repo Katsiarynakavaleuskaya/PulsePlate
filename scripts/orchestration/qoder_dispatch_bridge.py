@@ -66,12 +66,15 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE
 from scripts.orchestration.context_pack import (
     collect_context_pack,
+    compute_task_packet_id,
     repo_relative_paths,
     resolve_domain,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.task_bootstrap import (
+    _bind_invariant_review_packet_id,
+    _design_fingerprint,
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
     INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
@@ -1105,10 +1108,76 @@ def _validated_dispatch_role_order(
     return dispatch_order
 
 
+def _validate_single_coordinator_synthesis_task_packet_id(
+    payload: Dict[str, Any],
+    *,
+    validated_creative_context: Dict[str, Any],
+) -> None:
+    """Bind the synthesis compatibility projection to producer packet identity."""
+
+    identity_error = "creative pilot synthesis task_packet_id must match canonical packet identity"
+    try:
+        goal = payload["goal"]
+        task_class = payload["task_class"]
+        domain = payload["domain"]
+        pr_phase = payload["pr_phase"]
+        candidate_paths = payload["candidate_paths"]
+        requested_agents = payload["requested_agents"]
+        design_lane_mode = payload["design_lane_mode"]
+        design_lane_contract = payload["design_lane_contract"]
+        creative_learning_hints = payload["creative_learning_hints"]
+        invariant_review = payload["invariant_review"]
+        if (
+            not all(isinstance(value, str) for value in (goal, task_class, domain, pr_phase))
+            or not isinstance(candidate_paths, list)
+            or any(not isinstance(path, str) for path in candidate_paths)
+            or not isinstance(requested_agents, list)
+            or any(not isinstance(agent, str) for agent in requested_agents)
+            or not isinstance(design_lane_mode, str)
+            or not isinstance(design_lane_contract, dict)
+            or not isinstance(creative_learning_hints, dict)
+            or not isinstance(invariant_review, dict)
+        ):
+            raise ValueError(identity_error)
+        learning_hints_fingerprint = creative_learning_hints.get("source_hints_fingerprint")
+        change_classes = invariant_review.get("change_classes")
+        if not isinstance(learning_hints_fingerprint, str) or not isinstance(change_classes, list):
+            raise ValueError(identity_error)
+        if any(not isinstance(change_class, str) for change_class in change_classes):
+            raise ValueError(identity_error)
+        creative_identity_fingerprint = fingerprint_payload(
+            {
+                "creative_learning_hints": learning_hints_fingerprint,
+                "creative_pilot": fingerprint_payload(validated_creative_context),
+            }
+        )
+        base_packet_id = compute_task_packet_id(
+            goal=goal,
+            task_class=task_class,
+            domain=domain,
+            candidate_paths=candidate_paths,
+            requested_agents=requested_agents,
+            pr_phase=pr_phase,
+            design_fingerprint=_design_fingerprint(
+                design_lane_mode=design_lane_mode,
+                design_lane_contract=design_lane_contract,
+            ),
+            creative_learning_hints_fingerprint=creative_identity_fingerprint,
+        )
+        expected_packet_id = _bind_invariant_review_packet_id(
+            base_packet_id,
+            invariant_review_fingerprint=",".join(change_classes),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(identity_error) from exc
+    if payload.get("task_packet_id") != expected_packet_id:
+        raise ValueError(identity_error)
+
+
 def _validate_current_native_subagent_bridge(
     payload: Dict[str, Any],
     bridge: Any,
-) -> bool:
+) -> Optional[Dict[str, Any]]:
     """Reject lossy bridge projections for current invariant packet contracts."""
 
     creative_context = payload.get("creative_pilot_context")
@@ -1116,7 +1185,7 @@ def _validate_current_native_subagent_bridge(
         payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
         and "invariant_review" not in payload
     ):
-        if "creative_pilot_context" in payload:
+        if creative_context is not None:
             if not isinstance(creative_context, dict):
                 raise ValueError("legacy creative_pilot_context must be an object")
             creative_phase = creative_context.get("phase")
@@ -1124,7 +1193,7 @@ def _validate_current_native_subagent_bridge(
                 raise ValueError("legacy creative_pilot_context phase is unsupported")
             if creative_phase == "synthesis":
                 raise ValueError("creative pilot synthesis requires task packet schema 3.1")
-        return False
+        return None
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
 
@@ -1177,18 +1246,17 @@ def _validate_current_native_subagent_bridge(
         *binding_slugs["advisory"],
         reviewer_slug,
     ]
-    synthesis_coordinator_aliases = False
+    validated_synthesis_context: Optional[Dict[str, Any]] = None
     if (
         isinstance(creative_context, dict)
         and creative_context.get("schema_version") == "creative_pilot_context.v2"
         and creative_context.get("phase") == "synthesis"
     ):
         try:
-            validate_task_pilot_context(creative_context)
+            validated_synthesis_context = validate_task_pilot_context(creative_context)
         except CreativePilotContractError as exc:
             raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
-        synthesis_coordinator_aliases = True
-    if synthesis_coordinator_aliases:
+    if validated_synthesis_context is not None:
         if payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION:
             raise ValueError("creative pilot synthesis requires task packet schema 3.1")
         if (
@@ -1205,7 +1273,7 @@ def _validate_current_native_subagent_bridge(
             )
     elif len(assigned_roles) != len(set(assigned_roles)):
         raise ValueError("current invariant packet assigned roles must be unique")
-    if not synthesis_coordinator_aliases and len(bridge_roles) != len(set(bridge_roles)):
+    if validated_synthesis_context is None and len(bridge_roles) != len(set(bridge_roles)):
         raise ValueError("current native_subagent_bridge roles must be unique")
     if (
         primary_slug != assigned_primary
@@ -1267,7 +1335,7 @@ def _validate_current_native_subagent_bridge(
     )
     if canonical_bridge != canonical_expected_bridge:
         raise ValueError(canonical_error)
-    return synthesis_coordinator_aliases
+    return validated_synthesis_context
 
 
 def _validate_current_role_dispatch_contract(
@@ -1322,11 +1390,11 @@ def _validate_current_role_dispatch_contract(
 def _validate_single_coordinator_synthesis_packet_metadata(
     payload: Dict[str, Any],
     *,
-    synthesis_coordinator_aliases: bool,
+    validated_synthesis_context: Optional[Dict[str, Any]],
 ) -> None:
     """Bind the synthesis-only alias projection to exact producer metadata."""
 
-    if not synthesis_coordinator_aliases:
+    if validated_synthesis_context is None:
         return
     if payload.get("requested_agents") != ["agent-coordinator"]:
         raise ValueError("creative pilot synthesis packet metadata requires only agent-coordinator")
@@ -1357,12 +1425,17 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         raise ValueError(
             "creative pilot synthesis packet metadata requires no invariant review pass"
         )
+    _validate_single_coordinator_synthesis_task_packet_id(
+        payload,
+        validated_creative_context=validated_synthesis_context,
+    )
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
-    synthesis_coordinator_aliases = _validate_current_native_subagent_bridge(payload, bridge)
+    validated_synthesis_context = _validate_current_native_subagent_bridge(payload, bridge)
+    synthesis_coordinator_aliases = validated_synthesis_context is not None
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -1414,7 +1487,7 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     )
     _validate_single_coordinator_synthesis_packet_metadata(
         payload,
-        synthesis_coordinator_aliases=synthesis_coordinator_aliases,
+        validated_synthesis_context=validated_synthesis_context,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order
