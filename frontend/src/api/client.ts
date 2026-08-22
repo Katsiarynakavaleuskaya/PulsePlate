@@ -162,16 +162,15 @@ export function normalizeApiUrl(base: string, apiPath: string): string {
   return baseUrl.toString();
 }
 
-const searchParams = (() => {
+function isQueryMockEnabled(): boolean {
   if (typeof window === "undefined" || typeof window.location?.search !== "string") {
-    return new URLSearchParams();
+    return false;
   }
-  return new URLSearchParams(window.location.search);
-})();
-
-const forceMock = searchParams.get("mock") === "1";
+  return new URLSearchParams(window.location.search).get("mock") === "1";
+}
 
 // PRO nutrition endpoint paths (canonical)
+export const PRO_NUTRITION_BMR_PATH = "/api/v1/pro/nutrition/bmr";
 export const PRO_NUTRITION_TARGETS_PATH = "/api/v1/pro/nutrition/targets";
 export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
 export const PRO_SESSION_PATH = "/api/v1/pro/session";
@@ -190,7 +189,11 @@ export type PaywallExposureEventRequest = {
 };
 
 function mockUrl(path: string): string | null {
-  if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
+  if (
+    path.includes(PRO_NUTRITION_BMR_PATH) ||
+    path.includes("/api/v1/premium/bmr") ||
+    path.includes("/premium/bmr")
+  ) {
     return "/mock/bmr.json";
   }
   // PRO nutrition endpoints (canonical)
@@ -435,12 +438,23 @@ export type ApiOptions = {
   onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
 };
 
+export type ApiRequestInit = Omit<RequestInit, "body"> & {
+  body?: unknown;
+  forceMock?: boolean;
+};
+
 export async function api<T = unknown>(
   path: string,
-  init?: RequestInit & { mockUrl?: string; forceMock?: boolean },
+  init?: ApiRequestInit,
   options?: ApiOptions,
   forceJson?: boolean
 ): Promise<T> {
+  const {
+    forceMock: requestForceMock = false,
+    body: requestBody,
+    ...requestInitWithoutMock
+  } = init ?? {};
+  const networkInit: RequestInit = requestInitWithoutMock;
 
   const tryNetwork = async (): Promise<T> => {
     // Validate API base before network request
@@ -449,11 +463,11 @@ export async function api<T = unknown>(
     /** NOTE: api() automatically serializes plain object/array bodies to JSON for non-GET requests.
      *  Higher layers (createPremiumEndpoint, hooks) should pass body as an object; GET without body must not set Content-Type.
      */
-    let serializedBody = init?.body;
+    let serializedBody = requestBody as BodyInit | null | undefined;
     let forceJsonForBody = forceJson;
 
     // Serialize ONLY plain objects/arrays; keep FormData/Blob/ArrayBuffer/ReadableStream/File/Response/Request AS-IS.
-    const body = init?.body as any;
+    const body = requestBody as any;
     const isPlainObjectOrArray =
       body &&
       typeof body === "object" &&
@@ -477,11 +491,11 @@ export async function api<T = unknown>(
     }
 
     const requestInit = {
-      ...init,
+      ...networkInit,
       body: serializedBody,
-      headers: mergeHeaders({ ...init, body: serializedBody }, forceJsonForBody),
-      credentials: init?.credentials ?? 'include',
-      signal: init?.signal,
+      headers: mergeHeaders({ ...networkInit, body: serializedBody }, forceJsonForBody),
+      credentials: networkInit.credentials ?? 'include',
+      signal: networkInit.signal,
     };
 
     const res = await fetch(normalizeApiUrl(getApiBase(), path), requestInit);
@@ -516,27 +530,19 @@ export async function api<T = unknown>(
     if (!url) {
       throw new Error(`No mock mapped for ${path}`);
     }
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: networkInit.signal });
     if (!res.ok) {
       throw new Error(`Mock ${url} failed: HTTP ${res.status}`);
     }
-        console.info(`[API] MOCK fallback ON → ${url}`);
+    console.info(`[API] MOCK fallback ON → ${url}`);
     return res.json() as Promise<T>;
   };
 
-  if (forceMock) {
+  if (requestForceMock || isQueryMockEnabled()) {
     return tryMock();
   }
 
-  try {
-    return await tryNetwork();
-  } catch (networkError) {
-    try {
-      return await tryMock();
-    } catch (mockError) {
-      throw networkError instanceof Error ? networkError : mockError;
-    }
-  }
+  return tryNetwork();
 }
 
 export const fetchJson = api;

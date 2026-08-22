@@ -75,7 +75,10 @@
 | Функция             | Endpoint                      | Статус      | Требует tier | Код-доказательство                    |
 | -------------------- | ----------------------------- | ----------- | ------------ | ------------------------------------- |
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
-| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `frontend/src/api/openapi.json:8158`  |
+| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:35` |
+| Generated plate     | `/api/v1/pro/nutrition/plate` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:46` |
+| BMR and TDEE        | `/api/v1/pro/nutrition/bmr` | ✅ canonical | PRO + `FEATURE_PREMIUM_NUTRITION` | `app/routers/pro_nutrition_contracts.py:56` |
+| Nutrient gaps       | `/api/v1/pro/nutrition/gaps` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:66` |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
 | Shoplist day        | `/api/v1/pro/shoplist/*`      | ✅ canonical | PRO          | `app/routers/shoplist_day.py:22`      |
@@ -90,7 +93,9 @@
 | Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO-class; legacy API-key guard | `app/routers/legacy_premium_nutrition.py:75` |
 | Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO-class; legacy API-key guard | `app/routers/legacy_premium_nutrition.py:35` |
 | BMR            | `/api/v1/premium/bmr`           | ⚠️ legacy shim   | Legacy API-key guard + `FEATURE_PREMIUM_NUTRITION` | `app/routers/legacy_premium_nutrition.py` |
+| Nutrient gaps  | `/api/v1/premium/gaps`          | ⚠️ legacy shim   | PRO-class; legacy API-key guard | `app/routers/legacy_premium_nutrition.py` |
 | BMR root alias | `/premium_bmr`                  | ⚠️ legacy public exception | No API-key dependency; `FEATURE_PREMIUM_NUTRITION` required | `app/routers/legacy_premium_nutrition.py` |
+| Targets root alias | `/premium_targets`            | ⚠️ legacy shim   | Legacy API-key guard | `app/routers/legacy_premium_nutrition.py` |
 
 > ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
 >
@@ -102,8 +107,11 @@
 > exception.
 > `/premium_bmr` is a historical root alias and remains a route-shape compatibility
 > exception until a dedicated auth/contract migration PR owns that behavior change.
-> Both BMR routes share the same request-time feature gate and canonical service;
+> All three canonical/retained BMR routes share the same request-time feature gate and canonical service;
 > the public exception does not bypass feature availability.
+> The Web Nutrition Setup now consumes canonical `/api/v1/pro/nutrition/bmr`.
+> The four versioned aliases remain live until the separately tracked 30-day
+> exact-zero traffic gate passes; the two root aliases have a separate sunset decision.
 
 ### Что НЕ входит
 

@@ -9,11 +9,10 @@
   },
   "activity_level": "moderate",
   "recommended_intake": {
-    "calories": 1950,
-    "protein_g": 95,
-    "carbs_g": 245,
-    "fat_g": 65
+    "maintenance": 2278,
+    "weight_loss": 1822.4,
+    "weight_gain": 2733.6
   },
-  "formulas_used": ["Mifflin-St Jeor", "Harris-Benedict"],
-  "notes": ["Mock BMR response using modern premium schema"]
+  "formulas_used": ["mifflin", "harris"],
+  "notes": ["Deterministic canonical PRO BMR fixture"]
 }

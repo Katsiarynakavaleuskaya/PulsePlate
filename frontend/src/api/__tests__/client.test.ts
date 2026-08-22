@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from 'vitest';
+import bmrFixture from '../../../public/mock/bmr.json';
+import type { BmrApiResponse, BmrRequest } from '../premium/bmr';
 
 // Mock auth storage functions
 const testStorage = {
@@ -153,26 +155,139 @@ describe('API Client Auth', () => {
       await expect(api('/test-endpoint')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('uses mock fallback on network failure', async () => {
+    it('propagates network failures without an automatic mock fallback', async () => {
       const { api } = await import('../client');
+      fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
-      // Mock fetch to behave differently based on URL pattern
-      fetchMock.mockImplementation((input: any) => {
-        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : 'unknown');
-        if (url.includes('/premium/bmr') && !url.includes('mock')) {
-          // Primary API call fails
-          return Promise.reject(new Error('Network error'));
-        } else if (url.includes('mock') && url.includes('bmr')) {
-          // Mock fallback succeeds
-          return Promise.resolve(createMockResponse({ mock: true }, { ok: true, status: 200 }));
-        }
-        return Promise.reject(new Error('Network error'));
+      await expect(api('/api/v1/pro/nutrition/bmr')).rejects.toThrow('Network error');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses a fixture only when request forceMock is explicit', async () => {
+      const { api } = await import('../client');
+      fetchMock.mockResolvedValueOnce(createMockResponse(bmrFixture, { ok: true, status: 200 }));
+
+      const result = await api<BmrApiResponse>('/api/v1/pro/nutrition/bmr', {
+        forceMock: true,
       });
 
-      const result = await api('/premium/bmr');
+      expect(result).toEqual(bmrFixture);
+      expect(result.recommended_intake).toEqual({
+        maintenance: 2278,
+        weight_loss: 1822.4,
+        weight_gain: 2733.6,
+      });
+      expect(result.formulas_used).toEqual(['mifflin', 'harris']);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const input = fetchMock.mock.calls[0]?.[0];
+      const requestUrl =
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+      expect(requestUrl).toContain('/mock/bmr.json');
+      expect(fetchMock.mock.calls[0]?.[1]).toBeUndefined();
+    });
 
-      expect(result).toEqual({ mock: true });
-      expect(fetchMock).toHaveBeenCalled();
+    it('uses a fixture when the current URL explicitly requests mock=1', async () => {
+      const { api } = await import('../client');
+      const previousLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        value: { ...previousLocation, search: '?mock=1', replace: vi.fn() },
+        writable: true,
+      });
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ mock: 'query' }, { ok: true, status: 200 })
+      );
+
+      try {
+        await expect(api('/api/v1/pro/nutrition/bmr')).resolves.toEqual({ mock: 'query' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const input = fetchMock.mock.calls[0]?.[0];
+        const requestUrl =
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+        expect(requestUrl).toContain('/mock/bmr.json');
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: previousLocation,
+          writable: true,
+        });
+      }
+    });
+
+    it.each([403, 500])('propagates HTTP %s without requesting a fixture', async (status) => {
+      const { api } = await import('../client');
+      const onAuthError = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ detail: `HTTP ${status}` }, { ok: false, status })
+      );
+
+      await expect(
+        api('/api/v1/pro/nutrition/bmr', undefined, { onAuthError })
+      ).rejects.toThrow(status === 403 ? 'Session invalid or expired (403).' : 'HTTP 500');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(onAuthError).toHaveBeenCalledTimes(status === 403 ? 1 : 0);
+    });
+
+    it('propagates malformed JSON without requesting a fixture', async () => {
+      const { api } = await import('../client');
+      fetchMock.mockResolvedValueOnce(
+        new Response('not-json', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      await expect(api('/api/v1/pro/nutrition/bmr')).rejects.toThrow();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('posts the generated finite BMR contract through the canonical wrapper', async () => {
+      const { getBmr } = await import('../premium/bmr');
+      const requestBody: BmrRequest = {
+        sex: 'female',
+        age: 34,
+        height_cm: 168,
+        weight_kg: 64,
+        activity: 'moderate',
+        lang: 'en',
+      };
+      const responseBody: BmrApiResponse = {
+        bmr: { mifflin: 1390, harris: 1420 },
+        tdee: { mifflin: 2154, harris: 2201 },
+        activity_level: 'Moderate activity',
+        recommended_intake: {
+          maintenance: 2154,
+          weight_loss: 1723.2,
+          weight_gain: 2584.8,
+        },
+        formulas_used: ['mifflin', 'harris'],
+        notes: [],
+      };
+      const abortController = new AbortController();
+      let capturedRequest: Request | null = null;
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedRequest = input instanceof Request ? input : new Request(input, init);
+        return createMockResponse(responseBody, { ok: true, status: 200 });
+      });
+
+      await expect(
+        getBmr(requestBody, { signal: abortController.signal })
+      ).resolves.toEqual(responseBody);
+
+      expectTypeOf<BmrRequest['sex']>().toEqualTypeOf<'male' | 'female'>();
+      expectTypeOf<BmrRequest['activity']>().toEqualTypeOf<
+        'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+      >();
+      expect(capturedRequest).not.toBeNull();
+      const observedRequest = capturedRequest as unknown as Request;
+      expect(observedRequest.url).toBe(
+        'http://test-api.com/api/v1/pro/nutrition/bmr'
+      );
+      expect(observedRequest.method).toBe('POST');
+      expect(observedRequest.credentials).toBe('include');
+      expect(observedRequest.headers.get('Content-Type')).toBe('application/json');
+      await expect(observedRequest.clone().json()).resolves.toEqual(requestBody);
+      expect(observedRequest.signal.aborted).toBe(false);
+      abortController.abort();
+      expect(observedRequest.signal.aborted).toBe(true);
     });
 
     it('resolves successfully on authenticated request', async () => {
