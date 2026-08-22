@@ -1387,6 +1387,60 @@ def _validate_current_role_dispatch_contract(
         raise ValueError(canonical_error)
 
 
+def _validate_inactive_synthesis_judgment_metadata(
+    payload: Dict[str, Any],
+    *,
+    automation_flags: Dict[str, Any],
+) -> None:
+    """Reject synthesis packets that retain judgment-only required passes."""
+
+    judgment_error = "creative pilot synthesis packet metadata requires judgment lane disabled"
+    decision_contract = payload.get("decision_contract")
+    judgment_budget = payload.get("judgment_budget")
+    result_adjudication = payload.get("result_adjudication")
+    if automation_flags.get("judgment_lane_enabled") is not False:
+        raise ValueError(judgment_error)
+    if (
+        not isinstance(decision_contract, dict)
+        or set(decision_contract) != {"mode", "judgment_enabled", "claim_taxonomy", "flow"}
+        or decision_contract.get("mode") != "standard"
+        or decision_contract.get("judgment_enabled") is not False
+        or decision_contract.get("claim_taxonomy") != []
+        or decision_contract.get("flow") != []
+    ):
+        raise ValueError(judgment_error)
+    if (
+        not isinstance(judgment_budget, dict)
+        or set(judgment_budget)
+        != {
+            "skeptic_pass_required",
+            "verifier_pass_required",
+            "max_provider_calls",
+            "uncertainty_split_required",
+        }
+        or judgment_budget.get("skeptic_pass_required") is not False
+        or judgment_budget.get("verifier_pass_required") is not False
+        or judgment_budget.get("uncertainty_split_required") is not False
+        or not isinstance(judgment_budget.get("max_provider_calls"), int)
+        or isinstance(judgment_budget.get("max_provider_calls"), bool)
+        or judgment_budget.get("max_provider_calls") != 0
+    ):
+        raise ValueError(judgment_error)
+    adjudication_fields = {
+        "claim_evidence_fields",
+        "support_statuses",
+        "evidence_modes",
+        "uncertainty_fields",
+        "promotion_labels",
+    }
+    if (
+        not isinstance(result_adjudication, dict)
+        or set(result_adjudication) != adjudication_fields
+        or any(result_adjudication.get(field) != [] for field in adjudication_fields)
+    ):
+        raise ValueError(judgment_error)
+
+
 def _validate_single_coordinator_synthesis_packet_metadata(
     payload: Dict[str, Any],
     *,
@@ -1425,6 +1479,10 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         raise ValueError(
             "creative pilot synthesis packet metadata requires no invariant review pass"
         )
+    _validate_inactive_synthesis_judgment_metadata(
+        payload,
+        automation_flags=automation_flags,
+    )
     _validate_single_coordinator_synthesis_task_packet_id(
         payload,
         validated_creative_context=validated_synthesis_context,

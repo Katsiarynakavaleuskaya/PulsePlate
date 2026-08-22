@@ -449,6 +449,66 @@ def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> 
         assert str(exc_info.value) == exact_errors[mutation]
 
 
+@pytest.mark.parametrize(
+    ("section", "field", "value"),
+    (
+        ("automation_flags", "judgment_lane_enabled", True),
+        ("automation_flags", "judgment_lane_enabled", 0),
+        ("decision_contract", "judgment_enabled", True),
+        ("decision_contract", "judgment_enabled", 0),
+        ("decision_contract", "mode", "verification_first"),
+        ("decision_contract", "claim_taxonomy", ["normative_claim"]),
+        ("decision_contract", "flow", ["skeptic"]),
+        ("judgment_budget", "skeptic_pass_required", True),
+        ("judgment_budget", "skeptic_pass_required", 0),
+        ("judgment_budget", "verifier_pass_required", True),
+        ("judgment_budget", "verifier_pass_required", 0),
+        ("judgment_budget", "uncertainty_split_required", True),
+        ("judgment_budget", "uncertainty_split_required", 0),
+        ("judgment_budget", "max_provider_calls", False),
+        ("judgment_budget", "max_provider_calls", 1),
+        ("result_adjudication", "claim_evidence_fields", ["claim_id"]),
+        ("result_adjudication", "support_statuses", ["supported"]),
+        ("result_adjudication", "evidence_modes", ["direct"]),
+        ("result_adjudication", "uncertainty_fields", ["confidence"]),
+        ("result_adjudication", "promotion_labels", ["promote"]),
+    ),
+)
+def test_single_coordinator_synthesis_judgment_near_misses_fail_closed(
+    section: str,
+    field: str,
+    value: object,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    projection = packet[section]
+    assert isinstance(projection, dict)
+    projection[field] = value
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+
+
+@pytest.mark.parametrize("rebind_context", (False, True))
+def test_synthesis_judgment_error_precedes_packet_identity(
+    rebind_context: bool,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    _substitute_synthesis_context_identity(context)
+    if rebind_context:
+        _rebind_single_coordinator_synthesis_task_packet_id(packet)
+    packet["automation_flags"]["judgment_lane_enabled"] = True
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+
+
 @pytest.mark.parametrize("schema_version", ("3.0", None))
 @pytest.mark.parametrize("context_shape", ("absent", "null", "independent", "rebuttal"))
 def test_legacy_creative_context_preserves_existing_role_order(

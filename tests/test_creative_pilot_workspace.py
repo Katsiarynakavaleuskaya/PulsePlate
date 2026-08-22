@@ -2912,6 +2912,20 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert packet["reviewer"] == "agent-coordinator"
     assert packet["automation_flags"]["security_review_required"] is False
     assert packet["automation_flags"]["invariant_class_review_required"] is False
+    assert packet["automation_flags"]["judgment_lane_enabled"] is False
+    assert packet["decision_contract"] == {
+        "mode": "standard",
+        "judgment_enabled": False,
+        "claim_taxonomy": [],
+        "flow": [],
+    }
+    assert packet["judgment_budget"] == {
+        "skeptic_pass_required": False,
+        "verifier_pass_required": False,
+        "max_provider_calls": 0,
+        "uncertainty_split_required": False,
+    }
+    assert all(value == [] for value in packet["result_adjudication"].values())
     assert [row["role"] for row in packet["creative_pilot_context"]["assignments"]] == [
         "agent-coordinator"
     ]
@@ -2971,6 +2985,37 @@ def test_synthesis_task_packet_rejects_explicit_invariant_change_class(
         "creative pilot dispatch cannot include a parser, validator, guard, "
         "or authority mechanism change; create a separate ordinary pre-open "
         "invariant-review packet without --creative-pilot-workspace"
+    )
+
+
+def test_synthesis_task_packet_with_judgment_requirement_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot adjudication results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    assert packet["automation_flags"]["judgment_lane_enabled"] is True
+    assert packet["judgment_budget"]["skeptic_pass_required"] is True
+    assert packet["judgment_budget"]["verifier_pass_required"] is True
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="pilot-synthesis-judgment-test-", dir=artifact_root
+    ) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 1
+
+    assert (
+        capsys.readouterr().err.strip()
+        == "FAIL: creative pilot synthesis packet metadata requires judgment lane disabled"
     )
 
 
