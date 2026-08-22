@@ -10373,12 +10373,10 @@ _NAMESPACE_UNKNOWN_KEY_MUTATORS = {"clear", "popitem"}
 def _namespace_mapping_mutation_names(
     node: ast.Call,
     bindings: dict[str, str],
-    *,
-    namespace_mapping: Callable[[ast.AST], bool] = _is_namespace_mapping,
 ) -> set[str] | None:
     """Return mutated names, or ``None`` when a namespace mutation is unbounded."""
 
-    if not isinstance(node.func, ast.Attribute) or not namespace_mapping(node.func.value):
+    if not isinstance(node.func, ast.Attribute) or not _is_namespace_mapping(node.func.value):
         return set()
     method = node.func.attr
     if method in _NAMESPACE_UNKNOWN_KEY_MUTATORS:
@@ -10409,195 +10407,10 @@ def _namespace_mapping_mutation_names(
     return names
 
 
-def _direct_sys_module_names(tree: ast.Module) -> tuple[frozenset[str], frozenset[str]]:
-    sys_names: set[str] = set()
-    modules_names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            sys_names.update(alias.asname or "sys" for alias in node.names if alias.name == "sys")
-        elif isinstance(node, ast.ImportFrom) and node.module == "sys":
-            modules_names.update(
-                alias.asname or "modules" for alias in node.names if alias.name == "modules"
-            )
-    return frozenset(sys_names), frozenset(modules_names)
-
-
-def _is_exact_current_module_object(
-    node: ast.AST,
-    *,
-    sys_names: frozenset[str],
-    modules_names: frozenset[str],
-) -> bool:
-    if not (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.slice, ast.Name)
-        and node.slice.id == "__name__"
-    ):
-        return False
-    if isinstance(node.value, ast.Name):
-        return node.value.id in modules_names
-    return (
-        isinstance(node.value, ast.Attribute)
-        and node.value.attr == "modules"
-        and isinstance(node.value.value, ast.Name)
-        and node.value.value.id in sys_names
-    )
-
-
-def _current_module_namespace_rebindings(
-    tree: ast.Module,
-    protected_names: set[str],
-) -> set[str]:
-    """Recognize direct module mutations without following aliases."""
-
-    sys_names, modules_names = _direct_sys_module_names(tree)
-    rebound: set[str] = set()
-
-    def is_current_module_object(node: ast.AST) -> bool:
-        return _is_exact_current_module_object(
-            node,
-            sys_names=sys_names,
-            modules_names=modules_names,
-        )
-
-    def is_global_or_module_mapping(node: ast.AST) -> bool:
-        if isinstance(node, ast.Attribute) and node.attr == "__dict__":
-            return is_current_module_object(node.value)
-        return (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and not node.keywords
-            and (
-                (node.func.id == "globals" and not node.args)
-                or (
-                    node.func.id == "vars"
-                    and len(node.args) == 1
-                    and is_current_module_object(node.args[0])
-                )
-            )
-        )
-
-    def record_name(name: str | None) -> None:
-        if name is None:
-            rebound.update(protected_names)
-        elif name in protected_names:
-            rebound.add(name)
-
-    def record_target(target: ast.AST) -> None:
-        if isinstance(target, ast.Attribute) and is_current_module_object(target.value):
-            record_name(target.attr)
-        elif isinstance(target, ast.Subscript) and is_global_or_module_mapping(target.value):
-            record_name(_static_string(target.slice))
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                record_target(target)
-        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
-            record_target(node.target)
-        elif isinstance(node, ast.Delete):
-            for target in node.targets:
-                record_target(target)
-        elif isinstance(node, ast.Call):
-            if (
-                isinstance(node.func, ast.Name)
-                and node.func.id in {"delattr", "setattr"}
-                and len(node.args) >= 2
-                and is_current_module_object(node.args[0])
-            ):
-                record_name(_static_string(node.args[1]))
-            mutation_names = _namespace_mapping_mutation_names(
-                node,
-                {},
-                namespace_mapping=is_global_or_module_mapping,
-            )
-            if mutation_names is None:
-                rebound.update(protected_names)
-            else:
-                rebound.update(mutation_names & protected_names)
-
-    def is_module_locals_or_vars(node: ast.AST) -> bool:
-        return (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in {"locals", "vars"}
-            and not node.args
-            and not node.keywords
-        )
-
-    for statement in tree.body:
-        targets: Sequence[ast.expr] = ()
-        if isinstance(statement, ast.Assign):
-            targets = statement.targets
-        elif isinstance(statement, (ast.AnnAssign, ast.AugAssign)):
-            targets = (statement.target,)
-        elif isinstance(statement, ast.Delete):
-            targets = statement.targets
-        for target in targets:
-            if isinstance(target, ast.Subscript) and is_module_locals_or_vars(target.value):
-                record_name(_static_string(target.slice))
-        if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
-            mutation_names = _namespace_mapping_mutation_names(
-                statement.value,
-                {},
-                namespace_mapping=is_module_locals_or_vars,
-            )
-            if mutation_names is None:
-                rebound.update(protected_names)
-            else:
-                rebound.update(mutation_names & protected_names)
-    return rebound
-
-
-def _forbidden_retired_binding_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
-    """Return direct alias creations that would make call parents open-ended."""
-
-    sys_names, modules_names = _direct_sys_module_names(tree)
-
-    def is_current_module_object(node: ast.AST) -> bool:
-        return _is_exact_current_module_object(
-            node,
-            sys_names=sys_names,
-            modules_names=modules_names,
-        )
-
-    module_aliases: set[str] = set()
-    mutator_aliases: set[str] = set()
-    for node in ast.walk(tree):
-        value: ast.AST | None = None
-        targets: Sequence[ast.expr] = ()
-        if isinstance(node, ast.Assign):
-            value = node.value
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            value = node.value
-            targets = (node.target,)
-        if value is not None:
-            for target in targets:
-                if not isinstance(target, ast.Name):
-                    continue
-                if is_current_module_object(value):
-                    module_aliases.add(target.id)
-                if isinstance(value, ast.Name) and value.id in {"delattr", "setattr"}:
-                    mutator_aliases.add(target.id)
-        if isinstance(node, ast.ImportFrom) and node.module == "builtins":
-            mutator_aliases.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name in {"delattr", "setattr"}
-            )
-    return module_aliases, mutator_aliases
-
-
 def _namespace_rebindings(
     tree: ast.Module,
     protected_names: set[str],
-    *,
-    current_module_only: bool = False,
 ) -> set[str]:
-    if current_module_only:
-        return _current_module_namespace_rebindings(tree, protected_names)
-
     bindings = _module_static_string_bindings(tree)
     rebound: set[str] = set()
     current_module_aliases: set[str] = set()
@@ -10705,40 +10518,26 @@ def validate_retired_legacy_python_bindings(
     *,
     filename: str = LEGACY_APP,
 ) -> list[str]:
-    """Reject bounded ordinary carriers for the exact retired Python bindings."""
+    """Reject exact retired ordinary module bindings in legacy_app.py only."""
+
+    if filename != LEGACY_APP:
+        return []
 
     tree, parse_errors = _parse_source(source_text, filename=filename)
     if parse_errors or tree is None:
         return parse_errors
 
     protected_names = set(RETIRED_LEGACY_PYTHON_BINDINGS)
-    namespace_protected_names = protected_names | {"__getattr__"}
     assigned_names = _assigned_names(tree)
     explicit_globals = {
         name for node in ast.walk(tree) if isinstance(node, ast.Global) for name in node.names
     }
-    namespace_rebound = _namespace_rebindings(
-        tree,
-        namespace_protected_names,
-        current_module_only=True,
-    )
-    rebound = ((assigned_names | explicit_globals) & protected_names) | (
-        namespace_rebound & protected_names
-    )
+    rebound = (assigned_names | explicit_globals) & protected_names
 
     errors = [
         f"{filename}: retired Python compatibility binding is forbidden: {name}"
         for name in sorted(rebound)
     ]
-    module_aliases, mutator_aliases = _forbidden_retired_binding_aliases(tree)
-    errors.extend(
-        f"{filename}: current-module namespace alias creation is forbidden: {name}"
-        for name in sorted(module_aliases)
-    )
-    errors.extend(
-        f"{filename}: attribute mutator alias creation/import is forbidden: {name}"
-        for name in sorted(mutator_aliases)
-    )
     if any(
         isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
         for node in ast.walk(tree)
@@ -10746,7 +10545,7 @@ def validate_retired_legacy_python_bindings(
         errors.append(
             f"{filename}: star import is forbidden after legacy Python binding retirement"
         )
-    if "__getattr__" in assigned_names | explicit_globals | namespace_rebound:
+    if "__getattr__" in assigned_names:
         errors.append(
             f"{filename}: module-level __getattr__ is forbidden after legacy Python "
             "binding retirement"

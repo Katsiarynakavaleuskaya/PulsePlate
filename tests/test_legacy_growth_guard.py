@@ -53,30 +53,19 @@ def test_legacy_growth_guard_rejects_each_retired_python_binding(
     "source",
     [
         "admin_status = canonical\n",
+        "admin_status: object\n",
+        "del admin_status\n",
         "from app.services.admin_operations import admin_status\n",
         "from app.services.admin_operations import canonical as admin_status\n",
         "def mutate():\n    global admin_status\n",
-        'globals()["admin_status"] = canonical\n',
     ],
-    ids=["assignment", "direct-import", "aliased-import", "global", "namespace"],
+    ids=["assignment", "annotation", "delete", "direct-import", "aliased-import", "global"],
 )
 def test_legacy_growth_guard_rejects_representative_retired_binding_carriers(
     source: str,
 ) -> None:
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
         "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
-    ]
-
-
-def test_legacy_growth_guard_fails_closed_on_indeterminate_namespace_binding() -> None:
-    source = "binding_name = choose_name()\nglobals()[binding_name] = canonical\n"
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
-        for binding_name in sorted(RETIRED_LEGACY_PYTHON_BINDINGS)
-    ] + [
-        "legacy_app.py: module-level __getattr__ is forbidden after legacy Python "
-        "binding retirement"
     ]
 
 
@@ -100,155 +89,44 @@ def test_legacy_growth_guard_rejects_module_level_getattr() -> None:
     ]
 
 
-def test_retired_python_binding_guard_rejects_namespace_assigned_module_getattr() -> None:
-    source = textwrap.dedent("""
-        globals()["__getattr__"] = (
-            lambda name: canonical if name == "admin_status" else None
-        )
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: module-level __getattr__ is forbidden after legacy Python "
-        "binding retirement"
-    ]
-
-
-def test_retired_python_binding_guard_rejects_module_scope_locals_binding() -> None:
-    source = 'locals()["admin_status"] = canonical\n'
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
-    ]
-
-
-def test_retired_python_binding_guard_allows_arbitrary_object_namespace() -> None:
-    source = 'holder.__dict__["admin_status"] = canonical\n'
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
-
-
-def test_retired_python_binding_guard_allows_function_local_vars_binding() -> None:
-    source = textwrap.dedent("""
-        def bind_locally() -> None:
-            vars()["admin_status"] = canonical
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
-
-
-def test_retired_python_binding_guard_rejects_exact_current_module_attribute() -> None:
-    source = textwrap.dedent("""
-        import sys
-        sys.modules[__name__].admin_status = canonical
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
-    ]
-
-
-def test_retired_python_binding_guard_rejects_imported_modules_attribute() -> None:
-    source = textwrap.dedent("""
-        from sys import modules
-        modules[__name__].admin_status = canonical
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
-    ]
-
-
-def test_retired_python_binding_guard_rejects_imported_modules_alias_creation() -> None:
-    source = textwrap.dedent("""
-        from sys import modules as loaded
-        current_module = loaded[__name__]
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: current-module namespace alias creation is forbidden: " "current_module"
-    ]
-
-
-def test_retired_python_binding_guard_retains_import_sys_as_support() -> None:
-    source = textwrap.dedent("""
-        import sys as system
-        system.modules[__name__].admin_status = canonical
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
-    ]
-
-
-def test_retired_python_binding_guard_rejects_current_module_alias_creation() -> None:
-    source = textwrap.dedent("""
-        import sys
-        current_module = sys.modules[__name__]
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: current-module namespace alias creation is forbidden: " "current_module"
-    ]
-
-
-def test_retired_python_binding_guard_rejects_attribute_mutator_alias_creation() -> None:
-    source = textwrap.dedent("""
-        assign = setattr
-        from builtins import delattr as remove
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: attribute mutator alias creation/import is forbidden: assign",
-        "legacy_app.py: attribute mutator alias creation/import is forbidden: remove",
-    ]
-
-
-def test_retired_python_binding_guard_closes_assigned_call_at_alias_setup() -> None:
-    source = textwrap.dedent("""
-        import sys
-        current_module = sys.modules[__name__]
-        assign = setattr
-        result = assign(current_module, "admin_status", canonical)
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
-        "legacy_app.py: current-module namespace alias creation is forbidden: " "current_module",
-        "legacy_app.py: attribute mutator alias creation/import is forbidden: assign",
-    ]
-
-
-def test_retired_python_binding_guard_allows_direct_unrelated_and_foreign_mutations() -> None:
-    source = textwrap.dedent("""
-        import sys
-        from sys import modules as loaded
-        setattr(sys.modules[__name__], "routers", namespace)
-        setattr(sys.modules[__name__].routers, "plan_export", module)
-        sys.modules[__name__].__dict__["unrelated_name"] = canonical
-        loaded[__name__].__dict__["another_unrelated_name"] = canonical
-        setattr(holder, "admin_status", canonical)
-        holder.__dict__["admin_status"] = canonical
-        service.admin_status()
-        """)
-
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
-
-
 def test_legacy_growth_guard_allows_out_of_scope_binding_shapes() -> None:
     source = textwrap.dedent("""
+        "admin_status is retired only as a legacy_app module binding"
+        # admin_status in a comment is not a binding.
         from app.services.admin_operations import admin_status as canonical_admin_status
 
+        _admin_status = canonical_admin_status
         admin_status_v2 = canonical_admin_status
-        globals()["unrelated_name"] = canonical_admin_status
+        holder.admin_status = canonical_admin_status
 
-        def mutate_unrelated() -> None:
-            global unrelated_name
+        def local_scope(admin_status: object) -> object:
+            local_copy = admin_status
+            return local_copy
+
+        def nested_scope() -> None:
+            admin_status = canonical_admin_status
 
         class CompatibilityProxy:
-            def __getattr__(self, name: str):
-                return name
+            admin_status = canonical_admin_status
         """)
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["app/services/admin_operations.py", "app/services/bmi_compat.py"],
+)
+def test_retired_binding_guard_ignores_canonical_owner_modules(filename: str) -> None:
+    source = "async def admin_status():\n    return None\n"
+
+    assert (
+        legacy_guard.validate_retired_legacy_python_bindings(
+            source,
+            filename=filename,
+        )
+        == []
+    )
 
 
 def test_retired_legacy_python_binding_guard_fails_closed_on_syntax_error() -> None:

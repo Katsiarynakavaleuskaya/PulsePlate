@@ -81,7 +81,10 @@ The `BMIRequest` / `BMIRequestV1` schema compatibility exports and BMI
 visualization exports remain explicit in `legacy_app.py:49` and
 `legacy_app.py:126`. Unknown external or reflective callers remain residual
 compatibility risk; this lane makes no telemetry or consumer-census claim for
-them and grants no authority to retire HTTP aliases.
+them and grants no authority to retire HTTP aliases. Runtime-absence tests prove
+only the imported module state produced by the current checked source and test
+environment; they do not prove absence under external monkeypatching, import
+hooks, or another runtime environment.
 
 The former synchronous `legacy_app.start_background_updates` /
 `legacy_app.stop_background_updates` wrappers, their private scheduler bindings,
@@ -228,20 +231,26 @@ those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
 For the ten retired direct-call bindings, the guard has a deliberately bounded
-closed claim over `legacy_app.py` only. It uses the existing module-level
-`_assigned_names` collector, explicit `global` declarations, and
-`_namespace_rebindings` only for direct `globals()`, exact directly imported
-`sys.modules[__name__]` mutation shapes, and direct top-level simple-statement
-no-argument `locals()` / `vars()` assignment, delete, or bare mutation-call
-shapes. Creating a direct alias for that module object or importing/assigning an
-alias for `setattr` / `delattr` is forbidden, so the guard never follows alias
-calls or interprets their syntactic parents. It also rejects every star import
-and every module-level `__getattr__`. Syntax errors, unreadable source, and
-indeterminate namespace keys fail closed. The exact set is enforced by focused
-negative and runtime-absence tests. `locals()` / `vars()` shapes nested under
-module-level control flow or placed in call-valued/non-bare parents, further
-alias chains, and reflective carriers are not interpreted; they remain residual
-STOP/manual-review territory, not additional parser branches.
+finite mechanical claim over the exact repo-relative `legacy_app.py` source
+only. It freezes the exact ten-name set, uses the existing `_assigned_names`
+collector for statically visible ordinary module-scope `Name` Store/Del
+bindings, rejects explicit `global` declarations for a protected name, rejects
+all star imports, and rejects a statically bound module-level `__getattr__`.
+Unreadable source and `SyntaxError` fail closed. Comments, strings, function or
+class locals without `global`, foreign object attributes, underscore/different
+names, and canonical owner modules outside `legacy_app.py` are outside this
+finite binding set.
+
+The containing `legacy_app.py` module is parsed into an AST, but the
+retired-binding rule does not recognize or interpret dynamic carrier families:
+`globals()` / `locals()` / `vars()`, `sys.modules`, module `__dict__`, `setattr`
+/ `delattr` in bare, imported, qualified, aliased, destructured, chained, or
+bound forms, mapping `update` / `__setitem__` / `__ior__`, `eval` / `exec`,
+import hooks, reflection, arbitrary helpers, and external monkeypatching. The
+rule neither accepts nor certifies those families and makes no completeness
+claim about them. Any new or changed dynamic namespace carrier in
+`legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
+ten protected names, requires manual STOP and review.
 
 The same guard now verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import
@@ -256,14 +265,15 @@ growth while later extraction PRs move routes behind canonical routers.
 
 The legacy growth guard is an architectural regression detector for trusted,
 reviewed repository source. It detects explicit ownership violations, direct
-reverse imports and lookups, and bounded ordinary alias forms.
+reverse imports and lookups, and the finite ordinary module bindings described
+above.
 
 It is not a Python sandbox, abstract interpreter, or proof against intentionally
 obfuscated source. Descriptor, metaclass, closure, arbitrary container or
 data-flow, `eval` / `exec`, dynamic import consumers, and equivalent reflective
 constructions remain residual risk subject to human review and repository
-security tooling. The bounded exact-name guard must not be widened to imply a
-complete census of those open-world consumers.
+security tooling. The exact-name binding guard must not be widened to imply a
+complete census of open-world namespace mutation or runtime consumers.
 
 Runtime contract tests, callable-identity tests, code review, targeted security
 review, and current-head CI remain authoritative.
