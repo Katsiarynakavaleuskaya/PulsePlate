@@ -383,18 +383,21 @@ class AutoRepairEngine:
             validate_week_plan(current_plan),
             nutrition_targets,
         )
-        remaining_gaps = calculate_known_nutrient_gaps(final_canonical_plan, targets)
+        final_remaining_gaps: dict[str, float] = calculate_known_nutrient_gaps(
+            final_canonical_plan,
+            targets,
+        )
         self._store_completed_history(invocation_history)
         return RepairResult(
             status=RepairStatus.FAILED,
             repaired_plan=current_plan,
             original_plan=original_plan,
             changes_made=[],
-            remaining_gaps=remaining_gaps,
+            remaining_gaps=final_remaining_gaps,
             strategy_used=invocation_history[-1].strategy,
             iterations=self.max_iterations,
             message="Canonical repair made no changes",
-            suggestions=self._generate_manual_suggestions(remaining_gaps),
+            suggestions=self._generate_manual_suggestions(final_remaining_gaps),
         )
 
     def _analyze_nutrient_gaps(
