@@ -250,7 +250,12 @@ class UnifiedFoodDatabase:
     EN: Unified food database with caching and multiple source support.
     """
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(
+        self,
+        cache_dir: Optional[str] = None,
+        *,
+        create_cache_dir: bool = True,
+    ) -> None:
         self.usda_client = USDAClient()
         # Resolve OFF client at runtime (allows tests to patch resolution)
         # Treat OFFClient==None as unavailable without mutating module-level flags
@@ -261,7 +266,8 @@ class UnifiedFoodDatabase:
         )
         self.off_client: Optional[Any] = runtime_off
         self.cache_dir = Path(cache_dir or "cache/food_db")
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        if create_cache_dir:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # In-memory cache for this session
         self._memory_cache: Dict[str, UnifiedFoodItem] = {}

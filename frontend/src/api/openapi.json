@@ -9747,8 +9747,8 @@
                         "description": "Explicit bounded weekly activity targets.",
                         "properties": {
                           "moderate_aerobic_min": {
-                            "exclusiveMinimum": 0.0,
                             "maximum": 10080.0,
+                            "minimum": 0.0,
                             "title": "Moderate Aerobic Min",
                             "type": "integer"
                           },
@@ -9765,8 +9765,8 @@
                             "type": "integer"
                           },
                           "vigorous_aerobic_min": {
-                            "exclusiveMinimum": 0.0,
                             "maximum": 10080.0,
+                            "minimum": 0.0,
                             "title": "Vigorous Aerobic Min",
                             "type": "integer"
                           }
@@ -10993,6 +10993,11 @@
                           "additionalProperties": true,
                           "description": "One non-empty recipe-synthesis day.",
                           "properties": {
+                            "day": {
+                              "minLength": 1,
+                              "title": "Day",
+                              "type": "string"
+                            },
                             "meals": {
                               "items": {
                                 "additionalProperties": true,
@@ -11032,6 +11037,7 @@
                             }
                           },
                           "required": [
+                            "day",
                             "meals"
                           ],
                           "title": "WeeklyRecipeDay",

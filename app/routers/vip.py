@@ -287,14 +287,14 @@ def _validate_auto_repair_result_data(result_data: object) -> Dict[str, Any]:
         raise ValueError("Auto-repair result change data is invalid")
     if not isinstance(strategy_used, str) or not strategy_used:
         raise ValueError("Auto-repair result strategy is invalid")
-    minimum_iterations = 0 if status_value in {"needs_manual", "success"} else 1
+    minimum_iterations = 0 if status_value in {"failed", "needs_manual", "success"} else 1
     if (
         isinstance(iterations, bool)
         or not isinstance(iterations, int)
         or iterations < minimum_iterations
     ):
         raise ValueError("Auto-repair result iterations are invalid")
-    if not isinstance(message, str) or not message:
+    if not isinstance(message, str) or (status_value != "success" and not message):
         raise ValueError("Auto-repair result message is invalid")
     if not isinstance(suggestions, list):
         raise ValueError("Auto-repair result suggestions are invalid")
@@ -327,6 +327,8 @@ def _build_auto_repair_nutrition_targets(
     profile = UserProfile(**request_obj.profile.model_dump(mode="python"))
     macros = MacroTargets(**request_obj.daily_targets.macros.model_dump(mode="python"))
     activity = ActivityTargets(**request_obj.daily_targets.activity.model_dump(mode="python"))
+    if activity.total_aerobic_equivalent() < 0:
+        raise ValueError("Activity targets are inconsistent")
     target_ranges = request_obj.targets.model_dump(mode="python")
     micros = MicroTargets(
         **{field_name: float(target_ranges[field_name][1]) for field_name in target_ranges}
@@ -340,8 +342,6 @@ def _build_auto_repair_nutrition_targets(
         calculated_for=profile,
         calculation_date=request_obj.daily_targets.calculation_date,
     )
-    if macros.total_calories() != nutrition_targets.kcal_daily:
-        raise ValueError("Daily kcal must equal canonical macro calories")
     if not nutrition_targets.validate_consistency():
         raise ValueError("Nutrition targets are inconsistent")
     return nutrition_targets

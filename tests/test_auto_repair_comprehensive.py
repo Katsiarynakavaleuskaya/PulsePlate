@@ -421,6 +421,69 @@ class TestAutoRepairComprehensive:
                 RepairStrategy.AGGRESSIVE,
             ]
 
+    def test_exhausted_repair_reports_only_canonical_known_gaps(self) -> None:
+        """No-progress failure preserves known gaps without inventing missing evidence."""
+        compliant_evidence = _complete_nutrients(
+            {
+                "kcal": 1200.0,
+                "protein_g": 60.0,
+                "fat_g": 40.0,
+                "carbs_g": 100.0,
+                "fiber_g": 20.0,
+                "iron_mg": 0.0,
+                "calcium_mg": 1000.0,
+                "magnesium_mg": 400.0,
+                "zinc_mg": 11.0,
+                "potassium_mg": 4700.0,
+                "iodine_ug": 150.0,
+                "selenium_ug": 55.0,
+                "folate_ug": 400.0,
+                "b12_ug": 2.4,
+                "vitamin_d_iu": 600.0,
+                "vitamin_a_ug": 900.0,
+                "vitamin_c_mg": 90.0,
+            }
+        )
+
+        def _day(evidence: dict[str, float]) -> dict[str, object]:
+            return {
+                "meals": [
+                    {
+                        "ingredients": [{"name": "rice"}],
+                        "nutrients": deepcopy(evidence),
+                    }
+                ]
+            }
+
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            return_value={},
+        ):
+            one_day = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                {"days": [_day(compliant_evidence)]},
+                self.targets,
+                nutrition_targets=self.nutrition_targets,
+            )
+            two_days = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                {"days": [_day(compliant_evidence), _day(compliant_evidence)]},
+                self.targets,
+                nutrition_targets=self.nutrition_targets,
+            )
+            missing_iron = deepcopy(compliant_evidence)
+            missing_iron.pop("iron_mg")
+            ambiguous = AutoRepairEngine(max_iterations=1).auto_repair_week_plan(
+                {"days": [_day(missing_iron)]},
+                self.targets,
+                nutrition_targets=self.nutrition_targets,
+            )
+
+        assert one_day.status is RepairStatus.FAILED
+        assert one_day.remaining_gaps == {"iron_mg": 8.0}
+        assert two_days.status is RepairStatus.FAILED
+        assert two_days.remaining_gaps == {"iron_mg": 16.0}
+        assert ambiguous.status is RepairStatus.FAILED
+        assert ambiguous.remaining_gaps == {}
+
     def test_conservative_strategy_rotates_to_balanced_boosters(self) -> None:
         """One attempt fails conservatively; the second reaches mapped boosters."""
         week_plan = {
@@ -1153,39 +1216,113 @@ class TestAutoRepairComprehensive:
         assert unknown == cases[-1][0]
 
     def test_unsupported_controls_fail_closed(self) -> None:
-        """Preferences and disabled execution never become semantic success."""
+        """Preferences, diet flags, and medical constraints take manual precedence."""
+        compliant = _complete_nutrients(
+            {
+                "kcal": 1200.0,
+                "protein_g": 60.0,
+                "fat_g": 40.0,
+                "carbs_g": 100.0,
+                "fiber_g": 20.0,
+                "iron_mg": 0.0,
+                "calcium_mg": 1000.0,
+                "magnesium_mg": 400.0,
+                "zinc_mg": 11.0,
+                "potassium_mg": 4700.0,
+                "iodine_ug": 150.0,
+                "selenium_ug": 55.0,
+                "folate_ug": 400.0,
+                "b12_ug": 2.4,
+                "vitamin_d_iu": 600.0,
+                "vitamin_a_ug": 900.0,
+                "vitamin_c_mg": 90.0,
+            }
+        )
         week_plan = {
+            "days": [
+                {
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "complete"}],
+                            "nutrients": compliant,
+                        }
+                    ]
+                }
+            ]
+        }
+        diet_profile = replace(
+            self.nutrition_targets.calculated_for,
+            diet_flags={"VEG"},
+        )
+        medical_profile = replace(
+            self.nutrition_targets.calculated_for,
+            medical_conditions={"requires-review"},
+        )
+        constrained_cases = (
+            (
+                {"exclude": ["bread"]},
+                self.nutrition_targets,
+            ),
+            (
+                {},
+                replace(self.nutrition_targets, calculated_for=diet_profile),
+            ),
+            (
+                {},
+                replace(self.nutrition_targets, calculated_for=medical_profile),
+            ),
+        )
+        for preferences, nutrition_targets in constrained_cases:
+            with patch(
+                "core.menu_engine.get_cached_common_foods_snapshot",
+                side_effect=AssertionError("catalog must not run for unsupported constraints"),
+            ) as catalog:
+                constrained_result = AutoRepairEngine().auto_repair_week_plan(
+                    week_plan,
+                    self.targets,
+                    user_preferences=preferences,
+                    nutrition_targets=nutrition_targets,
+                )
+            assert constrained_result.status == RepairStatus.NEEDS_MANUAL
+            assert constrained_result.iterations == 0
+            assert constrained_result.repaired_plan == week_plan
+            assert constrained_result.original_plan == week_plan
+            assert constrained_result.changes_made == []
+            assert constrained_result.remaining_gaps == {"iron_mg": 8.0}
+            catalog.assert_not_called()
+
+        deficient_plan = {
             "days": [{"meals": [{"ingredients": [{"name": "bread", "amount": 100, "unit": "g"}]}]}]
         }
-
-        preference_result = AutoRepairEngine().auto_repair_week_plan(
-            week_plan,
-            self.targets,
-            user_preferences={"exclude": ["bread"]},
-            nutrition_targets=self.nutrition_targets,
-        )
-        disabled_result = AutoRepairEngine(max_iterations=0).auto_repair_week_plan(
+        disabled_known_result = AutoRepairEngine(max_iterations=0).auto_repair_week_plan(
             week_plan,
             self.targets,
             nutrition_targets=self.nutrition_targets,
         )
+        disabled_unknown_result = AutoRepairEngine(max_iterations=0).auto_repair_week_plan(
+            deficient_plan,
+            self.targets,
+            nutrition_targets=self.nutrition_targets,
+        )
 
-        assert preference_result.status == RepairStatus.NEEDS_MANUAL
-        assert preference_result.changes_made == []
-        assert disabled_result.status == RepairStatus.FAILED
-        assert disabled_result.iterations == 0
+        assert disabled_known_result.status == RepairStatus.FAILED
+        assert disabled_known_result.iterations == 0
+        assert disabled_known_result.remaining_gaps == {"iron_mg": 8.0}
+        assert disabled_unknown_result.status == RepairStatus.FAILED
+        assert disabled_unknown_result.iterations == 0
+        assert disabled_unknown_result.remaining_gaps == {}
         with pytest.raises(ValueError, match="Explicit nutrition targets are required"):
-            AutoRepairEngine().auto_repair_week_plan(week_plan, self.targets)
+            AutoRepairEngine().auto_repair_week_plan(deficient_plan, self.targets)
 
     def test_complete_explicit_plan_returns_zero_iteration_success(self) -> None:
-        """Only complete exact evidence authorizes unchanged success."""
+        """Complete evidence below daily ceilings authorizes unchanged success."""
         complete = _complete_nutrients(
             {
-                "kcal": 1800.0,
-                "protein_g": 100.0,
-                "fat_g": 60.0,
-                "carbs_g": 215.0,
-                "fiber_g": 30.0,
+                "kcal": 1200.0,
+                "protein_g": 60.0,
+                "fat_g": 40.0,
+                "carbs_g": 100.0,
+                "fiber_g": 20.0,
                 "iron_mg": 8.0,
                 "calcium_mg": 1000.0,
                 "magnesium_mg": 400.0,
@@ -1219,8 +1356,23 @@ class TestAutoRepairComprehensive:
         )
         assert result.status == RepairStatus.SUCCESS
         assert result.iterations == 0
+        assert result.repaired_plan == week_plan
+        assert result.original_plan == week_plan
         assert result.changes_made == []
         assert result.remaining_gaps == {}
+        assert result.message == ""
+
+        over_ceiling = deepcopy(week_plan)
+        over_ceiling["days"][0]["meals"][0]["nutrients"]["protein_g"] = 100.1
+        canonical_over_ceiling = _canonical_plan(
+            [
+                {
+                    "ingredients": [{"name": "complete"}],
+                    "nutrients": over_ceiling["days"][0]["meals"][0]["nutrients"],
+                }
+            ]
+        )
+        assert not has_complete_nutrition_evidence(canonical_over_ceiling, self.targets)
 
     @pytest.mark.parametrize(
         "invalid_range",

@@ -282,7 +282,7 @@ class AutoRepairProfile(BaseModel):
     """Explicit profile used as NutritionTargets.calculated_for authority."""
 
     sex: Literal["female", "male"]
-    age: int = Field(..., ge=1, le=120)
+    age: int = Field(..., ge=1, le=120, strict=True)
     height_cm: float = Field(..., gt=0, le=300)
     weight_kg: float = Field(..., gt=0, le=500)
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -325,10 +325,10 @@ class AutoRepairProfile(BaseModel):
 class AutoRepairMacroTargets(BaseModel):
     """Explicit daily macro targets using canonical 4/4/9 arithmetic."""
 
-    protein_g: int = Field(..., gt=0, le=1000)
-    fat_g: int = Field(..., gt=0, le=1000)
-    carbs_g: int = Field(..., gt=0, le=2000)
-    fiber_g: int = Field(..., gt=0, le=500)
+    protein_g: int = Field(..., gt=0, le=1000, strict=True)
+    fat_g: int = Field(..., gt=0, le=1000, strict=True)
+    carbs_g: int = Field(..., gt=0, le=2000, strict=True)
+    fiber_g: int = Field(..., gt=0, le=500, strict=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -346,10 +346,10 @@ class AutoRepairMacroTargets(BaseModel):
 class AutoRepairActivityTargets(BaseModel):
     """Explicit bounded weekly activity targets."""
 
-    moderate_aerobic_min: int = Field(..., gt=0, le=10080)
-    vigorous_aerobic_min: int = Field(..., gt=0, le=10080)
-    strength_sessions: int = Field(..., gt=0, le=21)
-    steps_daily: int = Field(..., gt=0, le=100000)
+    moderate_aerobic_min: int = Field(..., ge=0, le=10080, strict=True)
+    vigorous_aerobic_min: int = Field(..., ge=0, le=10080, strict=True)
+    strength_sessions: int = Field(..., gt=0, le=21, strict=True)
+    steps_daily: int = Field(..., gt=0, le=100000, strict=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -372,9 +372,9 @@ class AutoRepairActivityTargets(BaseModel):
 class AutoRepairDailyTargets(BaseModel):
     """Explicit shared daily targets used by every admitted day."""
 
-    kcal_daily: int = Field(..., gt=0, le=10000)
+    kcal_daily: int = Field(..., gt=0, le=10000, strict=True)
     macros: AutoRepairMacroTargets
-    water_ml_daily: int = Field(..., gt=0, le=10000)
+    water_ml_daily: int = Field(..., gt=0, le=10000, strict=True)
     activity: AutoRepairActivityTargets
     calculation_date: str = Field(..., min_length=1)
 
@@ -387,13 +387,6 @@ class AutoRepairDailyTargets(BaseModel):
         ):
             raise ValueError("Daily targets must be non-boolean integers")
         return values
-
-    @model_validator(mode="after")
-    def validate_macro_calories(self) -> "AutoRepairDailyTargets":
-        macro_calories = self.macros.protein_g * 4 + self.macros.carbs_g * 4 + self.macros.fat_g * 9
-        if macro_calories != self.kcal_daily:
-            raise ValueError("Daily kcal must equal canonical macro calories")
-        return self
 
     model_config = ConfigDict(extra="forbid")
 
@@ -422,7 +415,16 @@ class WeeklyRecipeMeal(BaseModel):
 class WeeklyRecipeDay(BaseModel):
     """One non-empty recipe-synthesis day."""
 
+    day: str = Field(..., min_length=1)
     meals: List[WeeklyRecipeMeal] = Field(..., min_length=1)
+
+    @field_validator("day")
+    @classmethod
+    def normalize_day_identifier(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Recipe day identifier must be non-empty")
+        return normalized
 
     model_config = ConfigDict(extra="allow")
 
@@ -432,6 +434,13 @@ class WeeklyRecipePlan(BaseModel):
 
     days: List[WeeklyRecipeDay] = Field(..., min_length=1)
 
+    @model_validator(mode="after")
+    def validate_unique_day_identifiers(self) -> "WeeklyRecipePlan":
+        day_identifiers = [day.day for day in self.days]
+        if len(day_identifiers) != len(set(day_identifiers)):
+            raise ValueError("Recipe day identifiers must be unique")
+        return self
+
     model_config = ConfigDict(extra="allow")
 
 
@@ -439,7 +448,7 @@ class WeeklyRecipesRequest(BaseModel):
     """Typed weekly recipe request validated after VIP authorization."""
 
     week_plan: WeeklyRecipePlan
-    recipes_per_day: int = Field(default=1, gt=0, le=20)
+    recipes_per_day: int = Field(default=1, gt=0, le=20, strict=True)
 
     @model_validator(mode="before")
     @classmethod

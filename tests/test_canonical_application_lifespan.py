@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from fastapi import FastAPI
@@ -14,10 +18,27 @@ import yaml
 
 import app.bootstrap.lifespan as lifespan_module
 from app.bootstrap.food_search import FoodSearchLifecycleLease
-from app.bootstrap.lifespan import LifespanHooks, _application_lifespan_with_hooks
+from app.bootstrap.lifespan import (
+    LifespanHooks,
+    UnifiedFoodLifecycleLease,
+    _application_lifespan_with_hooks,
+)
+import core.food_apis.unified_db as unified_db_module
+from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.food_apis.scheduler_runtime import SchedulerMode
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _ClosingClient:
+    def __init__(self, error: BaseException | None = None) -> None:
+        self.error = error
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        if self.error is not None:
+            raise self.error
 
 
 def _base_hooks(events: list[str]) -> LifespanHooks:
@@ -34,12 +55,26 @@ def _base_hooks(events: list[str]) -> LifespanHooks:
     def _dispose(_app: FastAPI, _lease: FoodSearchLifecycleLease) -> None:
         events.append("food-dispose")
 
+    unified_instance = cast(UnifiedFoodDatabase, SimpleNamespace())
+
+    async def _acquire_unified_food() -> UnifiedFoodLifecycleLease:
+        events.append("unified-acquire")
+        return UnifiedFoodLifecycleLease(
+            instance=unified_instance,
+            owns_instance=False,
+        )
+
+    async def _release_unified_food(_lease: UnifiedFoodLifecycleLease) -> None:
+        events.append("unified-release")
+
     return LifespanHooks(
         run_startup_guards=lambda _app: events.append("guards"),
         initialize_database=lambda: events.append("database"),
         clear_database_fallback=lambda: events.append("fallback-clear"),
         attempt_database_fallback=lambda _env, _prod, _err: events.append("fallback-attempt"),
         validate_templates=lambda: events.append("templates"),
+        acquire_unified_food=_acquire_unified_food,
+        release_unified_food=_release_unified_food,
         configure_food_search=_configure,
         dispose_food_search=_dispose,
         start_background_updates=_start,
@@ -101,11 +136,13 @@ def test_canonical_lifespan_uses_exact_startup_and_cleanup_order(
         "database",
         "fallback-clear",
         "templates",
+        "unified-acquire",
         "food-configure",
         "scheduler-start:24",
         "body",
         "scheduler-stop",
         "food-dispose",
+        "unified-release",
     ]
 
 
@@ -182,7 +219,13 @@ def test_database_failure_delegates_to_public_fallback_without_clearing_state() 
     )
     _run_lifespan(hooks)
 
-    assert events[:4] == ["guards", "database", "fallback-attempt", "templates"]
+    assert events[:5] == [
+        "guards",
+        "database",
+        "fallback-attempt",
+        "templates",
+        "unified-acquire",
+    ]
     assert "fallback-clear" not in events
 
 
@@ -220,6 +263,465 @@ def test_template_failure_prevents_resource_acquisition() -> None:
     assert events == ["guards", "database", "fallback-clear"]
 
 
+def test_unified_food_acquisition_failure_stops_later_startup() -> None:
+    events: list[str] = []
+
+    async def _fail_acquisition() -> UnifiedFoodLifecycleLease:
+        events.append("unified-acquire-failed")
+        raise RuntimeError("unified acquisition")
+
+    hooks = replace(
+        _base_hooks(events),
+        acquire_unified_food=_fail_acquisition,
+    )
+
+    with pytest.raises(RuntimeError, match="unified acquisition"):
+        _run_lifespan(hooks)
+
+    assert events == [
+        "guards",
+        "database",
+        "fallback-clear",
+        "templates",
+        "unified-acquire-failed",
+    ]
+
+
+@pytest.mark.parametrize("cache_exists", [True, False], ids=["cached", "missing-cache"])
+def test_default_unified_food_lifecycle_is_cached_only_and_owned(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cache_exists: bool,
+) -> None:
+    events: list[str] = []
+    calls = {"build": 0, "search": 0, "save": 0, "sleep": 0}
+    usda_client = _ClosingClient()
+    off_client = _ClosingClient()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(unified_db_module, "USDAClient", lambda: usda_client)
+    monkeypatch.setattr(unified_db_module, "OFFClient", lambda: off_client)
+    monkeypatch.setattr(unified_db_module, "OFF_AVAILABLE", True)
+
+    cache_dir = tmp_path / "cache" / "food_db"
+    if cache_exists:
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "common_foods.json").write_text(
+            json.dumps(
+                {
+                    "iron": {
+                        "name": "Cached iron food",
+                        "nutrients_per_100g": {"iron_mg": 10.0},
+                        "cost_per_100g": 1.0,
+                        "tags": [],
+                        "availability_regions": ["BY"],
+                        "source": "fixture",
+                        "source_id": "iron-1",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    async def _forbidden_build(*_args: object, **_kwargs: object) -> object:
+        calls["build"] += 1
+        raise AssertionError("common-food build must not run during lifespan")
+
+    async def _forbidden_search(*_args: object, **_kwargs: object) -> object:
+        calls["search"] += 1
+        raise AssertionError("provider search must not run during lifespan")
+
+    def _forbidden_save(*_args: object, **_kwargs: object) -> None:
+        calls["save"] += 1
+        raise AssertionError("cache save must not run during lifespan")
+
+    async def _forbidden_sleep(*_args: object, **_kwargs: object) -> None:
+        calls["sleep"] += 1
+        raise AssertionError("throttle sleep must not run during lifespan")
+
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "get_common_foods_database",
+        _forbidden_build,
+    )
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "search_food",
+        _forbidden_search,
+    )
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "_save_cache",
+        _forbidden_save,
+    )
+    monkeypatch.setattr(unified_db_module.asyncio, "sleep", _forbidden_sleep)
+
+    async def _body() -> None:
+        snapshot = unified_db_module.get_cached_common_foods_snapshot()
+        if cache_exists:
+            assert snapshot["iron"].name == "Cached iron food"
+        else:
+            assert snapshot == {}
+            assert not cache_dir.exists()
+
+    hooks = replace(
+        _base_hooks(events),
+        acquire_unified_food=lifespan_module._acquire_unified_food_database,
+        release_unified_food=lifespan_module._release_unified_food_database,
+    )
+    _run_lifespan(hooks, body=_body, scheduler_mode=SchedulerMode.DISABLED)
+
+    assert calls == {"build": 0, "search": 0, "save": 0, "sleep": 0}
+    assert usda_client.close_calls == 1
+    assert off_client.close_calls == 1
+    assert unified_db_module._unified_db_instance is None
+
+
+def test_unified_food_borrowed_and_replaced_instances_preserve_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    borrowed_usda = _ClosingClient()
+    borrowed_off = _ClosingClient()
+    borrowed_instance = cast(
+        UnifiedFoodDatabase,
+        SimpleNamespace(usda_client=borrowed_usda, off_client=borrowed_off),
+    )
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", borrowed_instance)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
+
+    borrowed_lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+    assert borrowed_lease.instance is borrowed_instance
+    assert borrowed_lease.owns_instance is False
+    assert borrowed_lease.managed_lifetime is False
+    asyncio.run(lifespan_module._release_unified_food_database(borrowed_lease))
+    asyncio.run(lifespan_module._release_unified_food_database(borrowed_lease))
+    assert borrowed_usda.close_calls == 0
+    assert borrowed_off.close_calls == 0
+    assert unified_db_module._unified_db_instance is borrowed_instance
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+    owned_usda = _ClosingClient(RuntimeError("USDA close failed"))
+    owned_off = _ClosingClient()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(unified_db_module, "USDAClient", lambda: owned_usda)
+    monkeypatch.setattr(unified_db_module, "OFFClient", lambda: owned_off)
+    monkeypatch.setattr(unified_db_module, "OFF_AVAILABLE", True)
+    owned_lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+    replacement = cast(UnifiedFoodDatabase, SimpleNamespace())
+    unified_db_module._unified_db_instance = replacement
+
+    with pytest.raises(RuntimeError, match="USDA close failed"):
+        asyncio.run(lifespan_module._release_unified_food_database(owned_lease))
+    asyncio.run(lifespan_module._release_unified_food_database(owned_lease))
+
+    assert owned_usda.close_calls == 1
+    assert owned_off.close_calls == 1
+    assert unified_db_module._unified_db_instance is replacement
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+@pytest.mark.parametrize("release_owner_first", [True, False])
+def test_overlapping_managed_unified_food_leases_close_only_after_final_release(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    release_owner_first: bool,
+) -> None:
+    usda_client = _ClosingClient()
+    off_client = _ClosingClient()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
+    monkeypatch.setattr(unified_db_module, "USDAClient", lambda: usda_client)
+    monkeypatch.setattr(unified_db_module, "OFFClient", lambda: off_client)
+    monkeypatch.setattr(unified_db_module, "OFF_AVAILABLE", True)
+
+    owner_lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+    borrower_lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+
+    assert owner_lease.owns_instance is True
+    assert borrower_lease.owns_instance is False
+    assert owner_lease.managed_lifetime is True
+    assert borrower_lease.managed_lifetime is True
+    assert borrower_lease.instance is owner_lease.instance
+    assert lifespan_module._managed_unified_food_active_leases == 2
+
+    first_lease, final_lease = (
+        (owner_lease, borrower_lease) if release_owner_first else (borrower_lease, owner_lease)
+    )
+    asyncio.run(lifespan_module._release_unified_food_database(first_lease))
+    assert usda_client.close_calls == 0
+    assert off_client.close_calls == 0
+    assert unified_db_module._unified_db_instance is owner_lease.instance
+    assert lifespan_module._managed_unified_food_active_leases == 1
+
+    asyncio.run(lifespan_module._release_unified_food_database(final_lease))
+    asyncio.run(lifespan_module._release_unified_food_database(final_lease))
+    assert usda_client.close_calls == 1
+    assert off_client.close_calls == 1
+    assert unified_db_module._unified_db_instance is None
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+def test_simultaneous_threaded_unified_food_acquisition_constructs_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start_barrier = threading.Barrier(3)
+    construction_barrier = threading.Barrier(2)
+    result_lock = threading.Lock()
+    created: list[tuple[UnifiedFoodDatabase, _ClosingClient, _ClosingClient]] = []
+    leases: list[UnifiedFoodLifecycleLease] = []
+    errors: list[BaseException] = []
+
+    def _initialize(
+        instance: UnifiedFoodDatabase,
+        cache_dir: str | None = None,
+        *,
+        create_cache_dir: bool = True,
+    ) -> None:
+        del cache_dir
+        assert create_cache_dir is False
+        try:
+            construction_barrier.wait(timeout=0.2)
+        except threading.BrokenBarrierError:
+            pass
+        usda_client = _ClosingClient()
+        off_client = _ClosingClient()
+        instance.usda_client = usda_client
+        instance.off_client = off_client
+        with result_lock:
+            created.append((instance, usda_client, off_client))
+
+    def _worker() -> None:
+        try:
+            start_barrier.wait(timeout=2)
+            lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+            with result_lock:
+                leases.append(lease)
+        except BaseException as exc:
+            with result_lock:
+                errors.append(exc)
+
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_lock", threading.Lock())
+    monkeypatch.setattr(unified_db_module.UnifiedFoodDatabase, "__init__", _initialize)
+
+    workers = [threading.Thread(target=_worker) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    start_barrier.wait(timeout=2)
+    for worker in workers:
+        worker.join(timeout=2)
+
+    assert not any(worker.is_alive() for worker in workers)
+    assert errors == []
+    assert len(created) == 1
+    assert len(leases) == 2
+    assert leases[0].instance is leases[1].instance is created[0][0]
+    assert sum(lease.owns_instance for lease in leases) == 1
+    assert all(lease.managed_lifetime for lease in leases)
+    assert lifespan_module._managed_unified_food_active_leases == 2
+
+    asyncio.run(lifespan_module._release_unified_food_database(leases[0]))
+    assert created[0][1].close_calls == 0
+    assert created[0][2].close_calls == 0
+    assert unified_db_module._unified_db_instance is created[0][0]
+
+    asyncio.run(lifespan_module._release_unified_food_database(leases[1]))
+    assert created[0][1].close_calls == 1
+    assert created[0][2].close_calls == 1
+    assert unified_db_module._unified_db_instance is None
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+def test_partial_unified_food_acquisition_closes_all_local_clients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    usda_client = _ClosingClient(RuntimeError("cleanup failed"))
+    off_client = _ClosingClient()
+
+    def _fail_initialization(
+        instance: UnifiedFoodDatabase,
+        cache_dir: str | None = None,
+        *,
+        create_cache_dir: bool = True,
+    ) -> None:
+        del cache_dir
+        assert create_cache_dir is False
+        instance.usda_client = usda_client
+        instance.off_client = off_client
+        raise RuntimeError("partial initialization")
+
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "__init__",
+        _fail_initialization,
+    )
+
+    with pytest.raises(RuntimeError, match="partial initialization"):
+        asyncio.run(lifespan_module._acquire_unified_food_database())
+
+    assert usda_client.close_calls == 1
+    assert off_client.close_calls == 1
+    assert unified_db_module._unified_db_instance is None
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+def test_partial_unified_food_acquisition_cleanup_cancellation_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempted: list[str] = []
+
+    class _FirstClient:
+        async def close(self) -> None:
+            attempted.append("first")
+
+    class _SecondClient:
+        def __init__(self, started: asyncio.Event) -> None:
+            self.started = started
+
+        async def close(self) -> None:
+            attempted.append("second")
+            self.started.set()
+            await asyncio.Event().wait()
+
+    async def _scenario() -> None:
+        second_started = asyncio.Event()
+
+        def _fail_initialization(
+            instance: UnifiedFoodDatabase,
+            cache_dir: str | None = None,
+            *,
+            create_cache_dir: bool = True,
+        ) -> None:
+            del cache_dir
+            assert create_cache_dir is False
+            instance.usda_client = _FirstClient()
+            instance.off_client = _SecondClient(second_started)
+            raise RuntimeError("initialization failed")
+
+        monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+        monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+        monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
+        monkeypatch.setattr(
+            unified_db_module.UnifiedFoodDatabase,
+            "__init__",
+            _fail_initialization,
+        )
+        acquire_task = asyncio.create_task(lifespan_module._acquire_unified_food_database())
+        await second_started.wait()
+        acquire_task.cancel()
+        with pytest.raises(asyncio.CancelledError) as exc_info:
+            await acquire_task
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+        assert str(exc_info.value.__cause__) == "initialization failed"
+
+    asyncio.run(_scenario())
+    assert attempted == ["first", "second"]
+    assert unified_db_module._unified_db_instance is None
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+def test_unified_food_client_cleanup_skips_missing_duplicate_and_noncallable_clients() -> None:
+    client = _ClosingClient()
+    missing = cast(
+        UnifiedFoodDatabase,
+        SimpleNamespace(usda_client=None, off_client=SimpleNamespace(close=None)),
+    )
+    duplicate = cast(
+        UnifiedFoodDatabase,
+        SimpleNamespace(usda_client=client, off_client=client),
+    )
+
+    asyncio.run(lifespan_module._close_unified_food_clients(missing))
+    asyncio.run(lifespan_module._close_unified_food_clients(duplicate))
+
+    assert client.close_calls == 1
+
+
+def test_unified_food_external_cancellation_outranks_earlier_close_error() -> None:
+    attempted: list[str] = []
+
+    class _FirstClient:
+        async def close(self) -> None:
+            attempted.append("first")
+            raise RuntimeError("first close failed")
+
+    class _SecondClient:
+        def __init__(self, started: asyncio.Event) -> None:
+            self.started = started
+
+        async def close(self) -> None:
+            attempted.append("second")
+            self.started.set()
+            await asyncio.Event().wait()
+
+    async def _scenario() -> None:
+        second_started = asyncio.Event()
+        instance = cast(
+            UnifiedFoodDatabase,
+            SimpleNamespace(
+                usda_client=_FirstClient(),
+                off_client=_SecondClient(second_started),
+            ),
+        )
+        cleanup_task = asyncio.create_task(lifespan_module._close_unified_food_clients(instance))
+        await second_started.wait()
+        cleanup_task.cancel()
+        with pytest.raises(asyncio.CancelledError) as exc_info:
+            await cleanup_task
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+        assert cleanup_task.cancelling() == 1
+
+    asyncio.run(_scenario())
+    assert attempted == ["first", "second"]
+
+
+def test_unified_food_acquisition_race_borrows_replacement_and_closes_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_usda = _ClosingClient()
+    local_off = _ClosingClient()
+    replacement = cast(UnifiedFoodDatabase, SimpleNamespace())
+
+    def _initialize_with_replacement(
+        instance: UnifiedFoodDatabase,
+        cache_dir: str | None = None,
+        *,
+        create_cache_dir: bool = True,
+    ) -> None:
+        del cache_dir
+        assert create_cache_dir is False
+        instance.usda_client = local_usda
+        instance.off_client = local_off
+        unified_db_module._unified_db_instance = replacement
+
+    monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "__init__",
+        _initialize_with_replacement,
+    )
+
+    lease = asyncio.run(lifespan_module._acquire_unified_food_database())
+
+    assert lease.instance is replacement
+    assert lease.owns_instance is False
+    assert local_usda.close_calls == 1
+    assert local_off.close_calls == 1
+
+
 def test_food_configuration_failure_prevents_scheduler_start() -> None:
     events: list[str] = []
 
@@ -232,7 +734,7 @@ def test_food_configuration_failure_prevents_scheduler_start() -> None:
     with pytest.raises(RuntimeError, match="food"):
         _run_lifespan(hooks)
 
-    assert events[-1] == "food-configure"
+    assert events[-2:] == ["food-configure", "unified-release"]
     assert "scheduler-start:24" not in events
     assert "scheduler-stop" not in events
 
@@ -271,10 +773,10 @@ def test_scheduler_environment_precedence(
 
     assert ("scheduler-start:24" in events) is should_start
     if should_start:
-        assert events[-2:] == ["scheduler-stop", "food-dispose"]
+        assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release"]
     else:
         assert "scheduler-stop" not in events
-        assert events[-1] == "food-dispose"
+        assert events[-2:] == ["food-dispose", "unified-release"]
 
 
 @pytest.mark.parametrize(
@@ -334,7 +836,7 @@ def test_timeout_cancels_and_drains_start_task(
     _run_lifespan(hooks)
 
     assert cancelled is True
-    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release"]
 
 
 def test_drain_cancelled_task_cancels_a_pending_task() -> None:
@@ -448,7 +950,76 @@ def test_body_exception_is_not_masked_by_cleanup_failures(
     with pytest.raises(ValueError, match="body failed"):
         _run_lifespan(hooks, body=_body)
 
-    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release"]
+
+
+def test_unified_food_cleanup_error_never_masks_body_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _release(_lease: UnifiedFoodLifecycleLease) -> None:
+        events.append("unified-release-failed")
+        raise RuntimeError("unified release failed")
+
+    async def _body() -> None:
+        raise ValueError("body failed")
+
+    hooks = replace(
+        _base_hooks(events),
+        release_unified_food=_release,
+    )
+    with caplog.at_level("ERROR", logger="app.bootstrap.lifespan"):
+        with pytest.raises(ValueError, match="body failed"):
+            _run_lifespan(hooks, body=_body)
+
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release-failed"]
+    assert "Error releasing unified-food resources" in caplog.text
+
+
+def test_unified_food_cleanup_cancellation_propagates_without_primary_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _release(_lease: UnifiedFoodLifecycleLease) -> None:
+        events.append("unified-release-cancelled")
+        raise asyncio.CancelledError
+
+    hooks = replace(
+        _base_hooks(events),
+        release_unified_food=_release,
+    )
+    with pytest.raises(asyncio.CancelledError):
+        _run_lifespan(hooks)
+
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release-cancelled"]
+
+
+def test_unified_food_cleanup_cancellation_does_not_mask_body_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _release(_lease: UnifiedFoodLifecycleLease) -> None:
+        events.append("unified-release-cancelled")
+        raise asyncio.CancelledError
+
+    async def _body() -> None:
+        raise ValueError("body failed")
+
+    hooks = replace(_base_hooks(events), release_unified_food=_release)
+    with caplog.at_level("ERROR", logger="app.bootstrap.lifespan"):
+        with pytest.raises(ValueError, match="body failed"):
+            _run_lifespan(hooks, body=_body)
+
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release-cancelled"]
+    assert "Unified-food shutdown was cancelled" in caplog.text
 
 
 def test_stop_cancellation_does_not_mask_body_exception(
@@ -468,7 +1039,7 @@ def test_stop_cancellation_does_not_mask_body_exception(
     with pytest.raises(ValueError, match="body failed"):
         _run_lifespan(hooks, body=_body)
 
-    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release"]
 
 
 def test_stop_cancellation_propagates_without_primary_exception(
@@ -485,7 +1056,7 @@ def test_stop_cancellation_propagates_without_primary_exception(
     with pytest.raises(asyncio.CancelledError):
         _run_lifespan(hooks)
 
-    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    assert events[-3:] == ["scheduler-stop", "food-dispose", "unified-release"]
 
 
 def test_body_cancellation_propagates_after_reverse_cleanup(
@@ -501,7 +1072,7 @@ def test_body_cancellation_propagates_after_reverse_cleanup(
     with pytest.raises(asyncio.CancelledError, match="body cancelled"):
         _run_lifespan(_base_hooks(events), body=_body)
 
-    assert events[-3:] == ["body", "scheduler-stop", "food-dispose"]
+    assert events[-4:] == ["body", "scheduler-stop", "food-dispose", "unified-release"]
 
 
 def test_scheduler_start_exception_logs_continues_and_cleans_up(
@@ -524,11 +1095,12 @@ def test_scheduler_start_exception_logs_continues_and_cleans_up(
         _run_lifespan(hooks, body=_body)
 
     assert "Failed to start background updates" in caplog.text
-    assert events[-4:] == [
+    assert events[-5:] == [
         "scheduler-start-failed",
         "scheduler-stop",
         "body",
         "food-dispose",
+        "unified-release",
     ]
 
 
@@ -627,9 +1199,11 @@ def test_non_in_process_modes_never_start_or_stop_scheduler_hooks(
         "database",
         "fallback-clear",
         "templates",
+        "unified-acquire",
         "food-configure",
         "body",
         "food-dispose",
+        "unified-release",
     ]
 
 

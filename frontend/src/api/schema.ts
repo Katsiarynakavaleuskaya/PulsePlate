@@ -7500,6 +7500,8 @@ export interface operations {
                     week_plan: {
                         /** Days */
                         days: ({
+                            /** Day */
+                            day: string;
                             /** Meals */
                             meals: ({
                                 /** Ingredients */

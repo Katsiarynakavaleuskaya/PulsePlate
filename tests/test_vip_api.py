@@ -848,6 +848,23 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         "balanced",
         "aggressive",
     ]
+    profile_age_schema = request_schema["properties"]["profile"]["properties"]["age"]
+    assert profile_age_schema == {
+        "maximum": 120,
+        "minimum": 1,
+        "title": "Age",
+        "type": "integer",
+    }
+    daily_schema = request_schema["properties"]["daily_targets"]
+    assert daily_schema["properties"]["kcal_daily"]["type"] == "integer"
+    assert daily_schema["properties"]["kcal_daily"]["exclusiveMinimum"] == 0
+    assert daily_schema["properties"]["kcal_daily"]["maximum"] == 10000
+    assert daily_schema["properties"]["water_ml_daily"]["type"] == "integer"
+    assert daily_schema["properties"]["water_ml_daily"]["exclusiveMinimum"] == 0
+    assert daily_schema["properties"]["water_ml_daily"]["maximum"] == 10000
+    macro_schema = daily_schema["properties"]["macros"]
+    for field_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
+        assert macro_schema["properties"][field_name]["type"] == "integer"
     meal_schema = request_schema["properties"]["week_plan"]["properties"]["days"]["items"][
         "properties"
     ]["meals"]["items"]
@@ -857,7 +874,22 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
     recipe_operation = schema["paths"]["/api/v1/vip/recipes/weekly"]["post"]
     recipe_schema = recipe_operation["requestBody"]["content"]["application/json"]["schema"]
     assert set(recipe_schema["required"]) == {"week_plan"}
+    assert recipe_schema["properties"]["recipes_per_day"]["type"] == "integer"
     assert recipe_schema["properties"]["recipes_per_day"]["exclusiveMinimum"] == 0
+    assert recipe_schema["properties"]["recipes_per_day"]["maximum"] == 20
+    recipe_day_schema = recipe_schema["properties"]["week_plan"]["properties"]["days"]["items"]
+    assert set(recipe_day_schema["required"]) == {"day", "meals"}
+    assert recipe_day_schema["properties"]["day"]["minLength"] == 1
+    activity_schema = request_schema["properties"]["daily_targets"]["properties"]["activity"]
+    for field_name in (
+        "moderate_aerobic_min",
+        "vigorous_aerobic_min",
+        "strength_sessions",
+        "steps_daily",
+    ):
+        assert activity_schema["properties"][field_name]["type"] == "integer"
+    assert activity_schema["properties"]["moderate_aerobic_min"]["minimum"] == 0
+    assert activity_schema["properties"]["vigorous_aerobic_min"]["minimum"] == 0
 
     for path in (
         "/api/v1/vip/auto-repair/weekly",
@@ -985,8 +1017,33 @@ def test_vip_auto_repair_schema_rejects_ambiguous_values() -> None:
     }
     with pytest.raises(ValidationError):
         AutoRepairDailyTargets.model_validate({**valid_daily_targets, "kcal_daily": True})
-    with pytest.raises(ValidationError):
-        AutoRepairDailyTargets.model_validate({**valid_daily_targets, "kcal_daily": 1801})
+    assert (
+        AutoRepairDailyTargets.model_validate(
+            {**valid_daily_targets, "kcal_daily": 1801}
+        ).kcal_daily
+        == 1801
+    )
+    for moderate, vigorous in ((150, 0), (0, 75), (0, 0)):
+        activity = AutoRepairActivityTargets.model_validate(
+            {
+                "moderate_aerobic_min": moderate,
+                "vigorous_aerobic_min": vigorous,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            }
+        )
+        assert activity.moderate_aerobic_min == moderate
+        assert activity.vigorous_aerobic_min == vigorous
+    for invalid_value in (-1, True, 1.5, "0"):
+        with pytest.raises(ValidationError):
+            AutoRepairActivityTargets.model_validate(
+                {
+                    "moderate_aerobic_min": invalid_value,
+                    "vigorous_aerobic_min": 0,
+                    "strength_sessions": 2,
+                    "steps_daily": 8000,
+                }
+            )
 
 
 def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:

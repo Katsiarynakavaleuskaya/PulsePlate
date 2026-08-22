@@ -261,6 +261,22 @@ class AutoRepairEngine:
             raise ValueError("Explicit nutrition targets are required")
 
         canonical_initial_plan = _week_menu_from_wire(validated_plan, nutrition_targets)
+        initial_known_gaps = calculate_known_nutrient_gaps(canonical_initial_plan, targets)
+        profile = nutrition_targets.calculated_for
+        if user_preferences or profile.diet_flags or profile.medical_conditions:
+            self._store_completed_history([])
+            return RepairResult(
+                status=RepairStatus.NEEDS_MANUAL,
+                repaired_plan=deepcopy(validated_plan),
+                original_plan=original_plan,
+                changes_made=[],
+                remaining_gaps=initial_known_gaps,
+                strategy_used=initial_strategy,
+                iterations=0,
+                message="Canonical auto-repair does not support these preferences",
+                suggestions=self._generate_manual_suggestions(initial_known_gaps),
+            )
+
         if has_complete_nutrition_evidence(canonical_initial_plan, targets):
             self._store_completed_history([])
             return RepairResult(
@@ -268,24 +284,10 @@ class AutoRepairEngine:
                 repaired_plan=deepcopy(validated_plan),
                 original_plan=original_plan,
                 changes_made=[],
-                remaining_gaps={},
+                remaining_gaps=initial_known_gaps,
                 strategy_used=initial_strategy,
                 iterations=0,
-                message="Plan already satisfies all explicit targets",
-                suggestions=[],
-            )
-
-        if user_preferences:
-            self._store_completed_history([])
-            return RepairResult(
-                status=RepairStatus.NEEDS_MANUAL,
-                repaired_plan=deepcopy(validated_plan),
-                original_plan=original_plan,
-                changes_made=[],
-                remaining_gaps={},
-                strategy_used=initial_strategy,
-                iterations=0,
-                message="Canonical auto-repair does not support these preferences",
+                message="",
                 suggestions=[],
             )
 
@@ -296,11 +298,11 @@ class AutoRepairEngine:
                 repaired_plan=deepcopy(validated_plan),
                 original_plan=original_plan,
                 changes_made=[],
-                remaining_gaps={},
+                remaining_gaps=initial_known_gaps,
                 strategy_used=initial_strategy,
                 iterations=0,
                 message="Auto-repair did not execute",
-                suggestions=[],
+                suggestions=self._generate_manual_suggestions(initial_known_gaps),
             )
 
         invocation_history: List[RepairIteration] = []
@@ -339,17 +341,22 @@ class AutoRepairEngine:
                 )
             current_strategy = self._get_next_strategy(current_strategy)
 
+        final_canonical_plan = _week_menu_from_wire(
+            validate_week_plan(current_plan),
+            nutrition_targets,
+        )
+        remaining_gaps = calculate_known_nutrient_gaps(final_canonical_plan, targets)
         self._store_completed_history(invocation_history)
         return RepairResult(
             status=RepairStatus.FAILED,
             repaired_plan=current_plan,
             original_plan=original_plan,
             changes_made=[],
-            remaining_gaps={},
+            remaining_gaps=remaining_gaps,
             strategy_used=invocation_history[-1].strategy,
             iterations=self.max_iterations,
             message="Canonical repair made no changes",
-            suggestions=self._generate_manual_suggestions({}),
+            suggestions=self._generate_manual_suggestions(remaining_gaps),
         )
 
     def _analyze_nutrient_gaps(
@@ -498,10 +505,7 @@ class AutoRepairEngine:
 
     def suggest_manual_fixes(self, week_plan: Dict, targets: MicronutrientTargets) -> List[Dict]:
         """Предлагает ручные исправления для плана"""
-        try:
-            gaps = self._analyze_nutrient_gaps(week_plan, targets)
-        except ValueError:
-            return []
+        gaps = self._analyze_nutrient_gaps(week_plan, targets)
         suggestions = []
 
         for nutrient, deficit in gaps.items():

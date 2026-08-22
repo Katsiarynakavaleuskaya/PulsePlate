@@ -720,21 +720,21 @@ def has_complete_nutrition_evidence(
     plan: WeekMenu,
     targets: MicronutrientTargets,
 ) -> bool:
-    """Return true only when every explicit day exactly satisfies all target bounds."""
+    """Require macro ceilings and each micro at target or above, up to its maximum."""
     if not plan.daily_menus:
         return False
     for day_menu in plan.daily_menus:
         daily_targets = day_menu.targets
-        exact_targets = {
+        daily_ceilings = {
             "kcal": float(daily_targets.kcal_daily),
             "protein_g": float(daily_targets.macros.protein_g),
             "fat_g": float(daily_targets.macros.fat_g),
             "carbs_g": float(daily_targets.macros.carbs_g),
             "fiber_g": float(daily_targets.macros.fiber_g),
         }
-        for nutrient, expected in exact_targets.items():
+        for nutrient, ceiling in daily_ceilings.items():
             actual = _day_nutrient_evidence(day_menu, nutrient)
-            if actual is None or actual != expected:
+            if actual is None or actual > ceiling:
                 return False
         for nutrient in targets.priority_nutrients:
             actual = _day_nutrient_evidence(day_menu, nutrient)

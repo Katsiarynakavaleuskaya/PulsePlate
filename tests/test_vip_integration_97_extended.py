@@ -448,6 +448,61 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid weekly recipes request payload"
         }
 
+        invalid_day_payloads = (
+            {
+                "week_plan": {
+                    "days": [
+                        {
+                            "meals": payload_simple["week_plan"]["days"][0]["meals"],
+                        }
+                    ]
+                }
+            },
+            {
+                "week_plan": {
+                    "days": [
+                        {
+                            "day": "   ",
+                            "meals": payload_simple["week_plan"]["days"][0]["meals"],
+                        }
+                    ]
+                }
+            },
+            {
+                "week_plan": {
+                    "days": [
+                        payload_simple["week_plan"]["days"][0],
+                        {
+                            "day": " monday ",
+                            "meals": payload_simple["week_plan"]["days"][0]["meals"],
+                        },
+                    ]
+                }
+            },
+        )
+        for invalid_payload in invalid_day_payloads:
+            with monkeypatch.context() as invalid_day_capability:
+                synthesize = Mock(
+                    side_effect=AssertionError(
+                        "recipe synthesis must not run for invalid day identifiers"
+                    )
+                )
+                invalid_day_capability.setattr(
+                    vip_router,
+                    "_adapter_synthesize_recipes_for_week",
+                    synthesize,
+                )
+                response = client.post(
+                    "/api/v1/vip/recipes/weekly",
+                    json=invalid_payload,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 422
+            assert assert_json_response_payload(response) == {
+                "detail": "Invalid weekly recipes request payload"
+            }
+            synthesize.assert_not_called()
+
         for invalid_count in (0, True, 10**310):
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
@@ -625,11 +680,11 @@ class TestVIPIntegration97Extended:
                                 "ingredients": [{"name": "complete"}],
                                 "nutrients": _complete_nutrient_evidence(
                                     {
-                                        "kcal": 1800.0,
-                                        "protein_g": 100.0,
-                                        "fat_g": 60.0,
-                                        "carbs_g": 215.0,
-                                        "fiber_g": 30.0,
+                                        "kcal": 1200.0,
+                                        "protein_g": 60.0,
+                                        "fat_g": 40.0,
+                                        "carbs_g": 100.0,
+                                        "fiber_g": 20.0,
                                         "iron_mg": 8.0,
                                         "calcium_mg": 1000.0,
                                         "magnesium_mg": 400.0,
@@ -661,6 +716,79 @@ class TestVIPIntegration97Extended:
         assert complete_data["repair_result"]["status"] == "success"
         assert complete_data["repair_result"]["iterations"] == 0
         assert complete_data["repair_result"]["changes_made"] == []
+        assert complete_data["repair_result"]["remaining_gaps"] == {}
+        assert complete_data["repair_result"]["message"] == ""
+        assert complete_data["repair_result"]["repaired_plan"] == complete_payload["week_plan"]
+        assert complete_data["repair_result"]["original_plan"] == complete_payload["week_plan"]
+
+        for kcal_daily, macros in (
+            (1801, {"protein_g": 100, "fat_g": 60, "carbs_g": 215, "fiber_g": 30}),
+            (2000, {"protein_g": 100, "fat_g": 60, "carbs_g": 240, "fiber_g": 30}),
+        ):
+            tolerance_payload = deepcopy(complete_payload)
+            tolerance_payload["daily_targets"]["kcal_daily"] = kcal_daily
+            tolerance_payload["daily_targets"]["macros"] = macros
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=tolerance_payload,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            tolerance_data = assert_json_response_payload(response)
+            assert tolerance_data["status"] == "success"
+            assert tolerance_data["repair_result"]["status"] == "success"
+
+        over_tolerance_payload = deepcopy(complete_payload)
+        over_tolerance_payload["daily_targets"]["kcal_daily"] = 2001
+        over_tolerance_payload["daily_targets"]["macros"] = {
+            "protein_g": 100,
+            "fat_g": 60,
+            "carbs_g": 240,
+            "fiber_g": 30,
+        }
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=over_tolerance_payload,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
+        for moderate, vigorous in ((150, 0), (0, 75), (0, 0)):
+            activity_payload = deepcopy(complete_payload)
+            activity_payload["daily_targets"]["activity"].update(
+                {
+                    "moderate_aerobic_min": moderate,
+                    "vigorous_aerobic_min": vigorous,
+                }
+            )
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=activity_payload,
+                headers=vip_headers,
+            )
+            assert response.status_code == 200
+            assert assert_json_response_payload(response)["status"] == "success"
+
+        for field_name, invalid_value in (
+            ("moderate_aerobic_min", -1),
+            ("moderate_aerobic_min", True),
+            ("moderate_aerobic_min", 1.5),
+            ("vigorous_aerobic_min", "0"),
+        ):
+            invalid_activity_payload = deepcopy(complete_payload)
+            invalid_activity_payload["daily_targets"]["activity"][field_name] = invalid_value
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json=invalid_activity_payload,
+                headers=vip_headers,
+            )
+            assert response.status_code == 422
+            assert assert_json_response_payload(response) == {
+                "detail": "Invalid auto-repair request payload"
+            }
 
         known_deficits_payload = _auto_repair_payload(
             {
@@ -888,6 +1016,42 @@ class TestVIPIntegration97Extended:
         assert data["repair_result"]["iterations"] == 0
         assert data["repair_result"]["message"] == stable_failure_message
         assert "Canonical auto-repair does not support these preferences" not in str(data)
+
+        for profile_field, constraint in (
+            ("diet_flags", ["VEG"]),
+            ("medical_conditions", ["requires-review"]),
+        ):
+            constrained_payload = deepcopy(complete_payload)
+            constrained_payload["profile"][profile_field] = constraint
+            with monkeypatch.context() as constraint_guard:
+                catalog = Mock(
+                    side_effect=AssertionError(
+                        "catalog must not run for unsupported dietary or medical constraints"
+                    )
+                )
+                constraint_guard.setattr(
+                    menu_engine,
+                    "get_cached_common_foods_snapshot",
+                    catalog,
+                )
+                response = client.post(
+                    "/api/v1/vip/auto-repair/weekly",
+                    json=constrained_payload,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 200
+            constrained_data = assert_json_response_payload(response)
+            assert constrained_data["status"] == "error"
+            assert constrained_data["code"] == "auto_repair_failed"
+            assert constrained_data["repair_result"]["status"] == "needs_manual"
+            assert constrained_data["repair_result"]["iterations"] == 0
+            assert (
+                constrained_data["repair_result"]["repaired_plan"] == complete_payload["week_plan"]
+            )
+            assert (
+                constrained_data["repair_result"]["original_plan"] == complete_payload["week_plan"]
+            )
+            catalog.assert_not_called()
 
         zero_interval = _auto_repair_payload(payload_no_problems["week_plan"])
         zero_interval["targets"]["iron_mg"] = [0.0, 0.0, 0.0]
