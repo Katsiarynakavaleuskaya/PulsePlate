@@ -58,36 +58,6 @@ _managed_unified_food_active_leases = 0
 _managed_unified_food_lock = threading.Lock()
 
 
-async def _close_unified_food_clients(instance: UnifiedFoodDatabase) -> None:
-    """Close each initialized API client once while attempting every client."""
-
-    first_ordinary_error: BaseException | None = None
-    cancellation_error: asyncio.CancelledError | None = None
-    closed_client_ids: set[int] = set()
-    for attribute_name in ("usda_client", "off_client"):
-        client = getattr(instance, attribute_name, None)
-        if client is None or id(client) in closed_client_ids:
-            continue
-        closed_client_ids.add(id(client))
-        close = getattr(client, "close", None)
-        if not callable(close):
-            continue
-        try:
-            await close()
-        except asyncio.CancelledError as exc:
-            if cancellation_error is None:
-                cancellation_error = exc
-        except BaseException as exc:
-            if first_ordinary_error is None:
-                first_ordinary_error = exc
-    if cancellation_error is not None:
-        if first_ordinary_error is not None:
-            raise cancellation_error from first_ordinary_error
-        raise cancellation_error
-    if first_ordinary_error is not None:
-        raise first_ordinary_error
-
-
 async def _acquire_unified_food_database() -> UnifiedFoodLifecycleLease:
     """Initialize the process catalog without search, refresh, or cache writes."""
 
@@ -95,35 +65,57 @@ async def _acquire_unified_food_database() -> UnifiedFoodLifecycleLease:
 
     import core.food_apis.unified_db as unified_db_module
 
-    instance: UnifiedFoodDatabase
-    initialization_error: BaseException | None = None
-    replacement: UnifiedFoodDatabase | None = None
     with _managed_unified_food_lock:
-        existing = unified_db_module._unified_db_instance
-        if existing is _managed_unified_food_instance and existing is not None:
+        existing = unified_db_module._read_unified_db_instance()
+        if _managed_unified_food_instance is not None:
+            if existing is not _managed_unified_food_instance:
+                raise RuntimeError("Unified-food singleton is not lifecycle-managed")
             _managed_unified_food_active_leases += 1
             return UnifiedFoodLifecycleLease(
-                instance=existing,
+                instance=_managed_unified_food_instance,
                 owns_instance=False,
                 managed_lifetime=True,
             )
-        if existing is not None:
-            return UnifiedFoodLifecycleLease(instance=existing, owns_instance=False)
+        if _managed_unified_food_active_leases != 0 or existing is not None:
+            raise RuntimeError("Unified-food singleton is not lifecycle-managed")
 
-        instance = unified_db_module.UnifiedFoodDatabase.__new__(
-            unified_db_module.UnifiedFoodDatabase
+    instance = unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
+    initialization_signals = unified_db_module._UnifiedFoodSignalAccumulator()
+    try:
+        unified_db_module.UnifiedFoodDatabase.__init__(
+            instance,
+            create_cache_dir=False,
         )
+    except BaseException as error:
+        initialization_signals.add_exception(error, ordinary_kind="initialization")
+
+    if initialization_signals.has_signal:
         try:
-            unified_db_module.UnifiedFoodDatabase.__init__(
-                instance,
-                create_cache_dir=False,
-            )
-        except BaseException as exc:
-            initialization_error = exc
+            await unified_db_module.close_unified_food_clients(instance)
+        except BaseException as error:
+            initialization_signals.add_exception(error, ordinary_kind="cleanup")
+        initialization_signals.raise_if_any()
+        raise RuntimeError(unified_db_module.UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE)
+
+    managed_winner: UnifiedFoodDatabase | None = None
+    acquisition_kind: str | None = None
+    with _managed_unified_food_lock:
+        existing = unified_db_module._read_unified_db_instance()
+        if _managed_unified_food_instance is not None:
+            if existing is _managed_unified_food_instance:
+                managed_winner = _managed_unified_food_instance
+            else:
+                acquisition_kind = "acquisition_foreign"
+        elif _managed_unified_food_active_leases != 0:
+            acquisition_kind = "acquisition_foreign"
+        elif existing is not None:
+            acquisition_kind = "acquisition_changed"
         else:
-            replacement = unified_db_module._unified_db_instance
-            if replacement is None:
-                unified_db_module._unified_db_instance = instance
+            published, _observed = unified_db_module._compare_exchange_unified_db_instance(
+                None,
+                instance,
+            )
+            if published:
                 _managed_unified_food_instance = instance
                 _managed_unified_food_active_leases = 1
                 return UnifiedFoodLifecycleLease(
@@ -131,30 +123,33 @@ async def _acquire_unified_food_database() -> UnifiedFoodLifecycleLease:
                     owns_instance=True,
                     managed_lifetime=True,
                 )
+            acquisition_kind = "acquisition_changed"
 
-    if initialization_error is not None:
-        try:
-            await _close_unified_food_clients(instance)
-        except asyncio.CancelledError as cleanup_cancellation:
-            raise cleanup_cancellation from initialization_error
-        except BaseException:
-            logger.error(
-                "Error cleaning partially acquired unified-food resources",
-                exc_info=True,
-            )
-        raise initialization_error.with_traceback(initialization_error.__traceback__)
-
-    if replacement is not None:
-        await _close_unified_food_clients(instance)
+    if managed_winner is not None:
+        await unified_db_module.close_unified_food_clients(instance)
         with _managed_unified_food_lock:
-            if replacement is _managed_unified_food_instance:
+            existing = unified_db_module._read_unified_db_instance()
+            if (
+                _managed_unified_food_instance is managed_winner
+                and existing is managed_winner
+                and _managed_unified_food_active_leases > 0
+            ):
                 _managed_unified_food_active_leases += 1
                 return UnifiedFoodLifecycleLease(
-                    instance=replacement,
+                    instance=managed_winner,
                     owns_instance=False,
                     managed_lifetime=True,
                 )
-        return UnifiedFoodLifecycleLease(instance=replacement, owns_instance=False)
+        raise RuntimeError("Unified-food singleton changed during acquisition")
+
+    if acquisition_kind is not None:
+        acquisition_signals = unified_db_module._UnifiedFoodSignalAccumulator()
+        acquisition_signals.add_ordinary(acquisition_kind)
+        try:
+            await unified_db_module.close_unified_food_clients(instance)
+        except BaseException as error:
+            acquisition_signals.add_exception(error, ordinary_kind="cleanup")
+        acquisition_signals.raise_if_any()
 
     raise RuntimeError("Unified-food acquisition produced no instance")
 
@@ -164,8 +159,7 @@ async def _release_unified_food_database(lease: UnifiedFoodLifecycleLease) -> No
 
     global _managed_unified_food_active_leases, _managed_unified_food_instance
 
-    import core.food_apis.unified_db as unified_db_module
-
+    close_instance: UnifiedFoodDatabase | None = None
     with _managed_unified_food_lock:
         if lease._released:
             return
@@ -181,10 +175,13 @@ async def _release_unified_food_database(lease: UnifiedFoodLifecycleLease) -> No
 
         _managed_unified_food_active_leases = 0
         _managed_unified_food_instance = None
-        if unified_db_module._unified_db_instance is lease.instance:
-            unified_db_module._unified_db_instance = None
+        close_instance = lease.instance
 
-    await _close_unified_food_clients(lease.instance)
+    if close_instance is not None:
+        import core.food_apis.unified_db as unified_db_module
+
+        unified_db_module._compare_exchange_unified_db_instance(close_instance, None)
+        await unified_db_module.close_unified_food_clients(close_instance)
 
 
 async def _unavailable_background_update_start(

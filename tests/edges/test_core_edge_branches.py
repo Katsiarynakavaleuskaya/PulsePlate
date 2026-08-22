@@ -490,42 +490,6 @@ def test_product_finder_error_paths_and_csv(tmp_path: Path, monkeypatch: pytest.
     assert csv_path.exists() and "buckwheat" in csv_path.read_text(encoding="utf-8")
 
 
-def test_menu_engine_default_strategy_and_boosters_branch():
-    from core.menu_engine import FoodItem as MEFood
-    from core.menu_engine import (
-        WeekMenu,
-        _apply_repair_strategy,
-        _find_booster_foods,
-    )
-
-    # Default strategy falls back to boosters_first (returns plan unchanged)
-    plan = WeekMenu(
-        week_start="w",
-        daily_menus=[],
-        weekly_coverage={},
-        shopping_list={},
-        total_cost=0.0,
-        adherence_score=0.0,
-    )
-    same = _apply_repair_strategy(plan, {}, {}, "unknown", {}, None)
-    assert same is plan
-
-    # boosters branch: with gaps and nutrient content >0 we should list candidates
-    food_db = {
-        "spinach": MEFood(
-            name="spinach",
-            nutrients_per_100g={"iron_mg": 2.0},
-            cost_per_100g=1.0,
-            tags=[],
-            availability_regions=[],
-        )
-    }
-    boosters = _find_booster_foods(
-        {"iron_mg": 10.0}, None, food_db
-    )  # pyright: ignore[reportArgumentType]
-    assert "iron_mg" in boosters and boosters["iron_mg"][0].name == "spinach"
-
-
 class _StubFood:
     def __init__(self, kcal_zero: bool = False) -> None:
         self.per_g = 100.0

@@ -32,7 +32,6 @@ from core.menu_engine import (
     FoodItem,
     MAX_INGREDIENTS_PER_MEAL,
     WeekMenu,
-    _apply_repair_strategy,
     _calculate_day_nutrients,
     _get_default_food_db,
     _safe_booster_amount,
@@ -645,7 +644,7 @@ class TestAutoRepairComprehensive:
                 nutrition_targets=self.nutrition_targets,
             )
 
-        resolver.assert_called_once_with()
+        resolver.assert_not_called()
         assert result.status == RepairStatus.FAILED
         assert result.repaired_plan == result.original_plan
         assert result.changes_made == []
@@ -756,7 +755,7 @@ class TestAutoRepairComprehensive:
             assert get_cached_common_foods_snapshot() == {}
 
     def test_known_remaining_gaps_and_wire_metadata_are_preserved(self) -> None:
-        """Report only known gaps and do not publish absent FoodItem macro nutrients."""
+        """Report governed changes while preserving metadata and opaque meal evidence."""
         lentils = _food_item(
             "Lentils",
             {
@@ -769,6 +768,20 @@ class TestAutoRepairComprehensive:
                 "fiber_g": 8.0,
                 "opaque_client_metric": 2.0,
             },
+        )
+        governed_evidence = _complete_nutrients(
+            {
+                nutrient: self.targets.get_target(nutrient)
+                for nutrient in self.targets.priority_nutrients
+            }
+        )
+        governed_evidence.update(
+            {
+                "iron_mg": 0.0,
+                "folate_ug": 0.0,
+                "magnesium_mg": 0.0,
+                "opaque_client_metric": 5.0,
+            }
         )
         wire_plan = {
             "plan_id": "plan-123",
@@ -790,12 +803,7 @@ class TestAutoRepairComprehensive:
                         {
                             "meal_id": "meal-1",
                             "ingredients": [{"name": "rice"}],
-                            "nutrients": {
-                                "iron_mg": 0.0,
-                                "folate_ug": 0.0,
-                                "magnesium_mg": 0.0,
-                                "opaque_client_metric": 5.0,
-                            },
+                            "nutrients": governed_evidence,
                         }
                     ],
                 }
@@ -820,17 +828,14 @@ class TestAutoRepairComprehensive:
         }
         repaired_plan = result.repaired_plan
         repaired_meal = repaired_plan["days"][0]["meals"][0]
-        assert set(repaired_meal["nutrients"]) == {
-            "iron_mg",
-            "folate_ug",
-            "magnesium_mg",
-            "opaque_client_metric",
-        }
+        assert set(repaired_meal["nutrients"]) == set(governed_evidence)
         assert repaired_meal["nutrients"]["opaque_client_metric"] == 5.0
-        assert "protein_g" not in repaired_meal["nutrients"]
-        assert "fat_g" not in repaired_meal["nutrients"]
-        assert "carbs_g" not in repaired_meal["nutrients"]
         assert set(result.changes_made[0]["nutrient_contributions"]) == {
+            "kcal",
+            "protein_g",
+            "fat_g",
+            "carbs_g",
+            "fiber_g",
             "iron_mg",
             "folate_ug",
             "magnesium_mg",
@@ -899,24 +904,6 @@ class TestAutoRepairComprehensive:
             [{"ingredients": [{"name": "overmax"}], "nutrients": {"iron_mg": 46.0}}]
         )
         assert not has_complete_nutrition_evidence(overmax_complete, self.targets)
-        assert (
-            _apply_repair_strategy(
-                invalid_before,
-                {},
-                {},
-                "replace_ingredients",
-                {},
-                None,
-            )
-            is invalid_before
-        )
-        assert (
-            _apply_repair_strategy(invalid_before, {}, {}, "boosters_first", {}, None)
-            is invalid_before
-        )
-        assert (
-            _apply_repair_strategy(invalid_before, {}, {}, "add_snacks", {}, None) is invalid_before
-        )
 
     def test_canonical_booster_amount_caps(self) -> None:
         """Bound amounts by 100 g and by another governed nutrient maximum."""

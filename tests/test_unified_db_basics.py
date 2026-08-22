@@ -5,12 +5,18 @@ RU: Тесты для модуля унифицированной базы да�
 EN: Tests for unified food database module.
 """
 
+import asyncio
+from collections.abc import Iterator
 import tempfile
+import threading
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import core.food_apis.unified_db as unified_db_module
 from core.food_apis.unified_db import (
     UnifiedFoodDatabase,
     UnifiedFoodItem,
@@ -22,6 +28,34 @@ from core.off_nutrition.bridge import (
     merge_wire_nutrition_sources,
     nutrition_inputs_from_unified_wire,
 )
+
+
+def _replace_registered_unified_food(
+    replacement: UnifiedFoodDatabase | None,
+) -> UnifiedFoodDatabase | None:
+    observed = unified_db_module._read_unified_db_instance()
+    replaced, current = unified_db_module._compare_exchange_unified_db_instance(
+        observed,
+        replacement,
+    )
+    assert replaced
+    assert current is replacement
+    return observed
+
+
+@pytest.fixture(autouse=True)
+def _restore_unified_food_register() -> Iterator[None]:
+    read_register = unified_db_module._read_unified_db_instance
+    compare_exchange = unified_db_module._compare_exchange_unified_db_instance
+    original = read_register()
+    yield
+    current = read_register()
+    restored, observed = compare_exchange(
+        current,
+        original,
+    )
+    assert restored
+    assert observed is original
 
 
 class TestUnifiedFoodItemDataClass:
@@ -743,9 +777,9 @@ class TestUtilityFunctions:
         mock_db.search_food.assert_called_once_with("test query")
 
     @pytest.mark.asyncio
-    @patch("core.food_apis.unified_db._unified_db_instance", None)
     async def test_get_unified_food_db_new_instance(self):
         """Test getting new unified database instance."""
+        _replace_registered_unified_food(None)
         db = await get_unified_food_db()
 
         assert db is not None
@@ -754,3 +788,482 @@ class TestUtilityFunctions:
         # Second call should return same instance
         db2 = await get_unified_food_db()
         assert db is db2
+
+        cleared, observed = unified_db_module._compare_exchange_unified_db_instance(db, None)
+        assert cleared
+        assert observed is None
+        await db.close()
+
+
+class _EqualRegisterCandidate:
+    def __init__(self, identity: str) -> None:
+        self.identity = identity
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _EqualRegisterCandidate) and self.identity == other.identity
+
+
+class _RaceCandidate:
+    def __init__(self, name: str, close_error: BaseException | None = None) -> None:
+        self.name = name
+        self.close_error = close_error
+        self.close_calls = 0
+        self.usda_client = self
+        self.off_client = None
+
+    async def close(self) -> None:
+        assert not unified_db_module._unified_db_instance_lock.locked()
+        self.close_calls += 1
+        if self.close_error is not None:
+            raise self.close_error
+
+
+def test_unified_food_register_compare_exchange_uses_identity() -> None:
+    _replace_registered_unified_food(None)
+    first = cast(UnifiedFoodDatabase, _EqualRegisterCandidate("same"))
+    equal_but_distinct = cast(UnifiedFoodDatabase, _EqualRegisterCandidate("same"))
+    assert first == equal_but_distinct
+    assert first is not equal_but_distinct
+
+    published, observed = unified_db_module._compare_exchange_unified_db_instance(None, first)
+    assert published
+    assert observed is first
+
+    replaced, observed = unified_db_module._compare_exchange_unified_db_instance(
+        equal_but_distinct,
+        None,
+    )
+    assert not replaced
+    assert observed is first
+    assert unified_db_module._read_unified_db_instance() is first
+
+    replaced, observed = unified_db_module._compare_exchange_unified_db_instance(
+        first,
+        equal_but_distinct,
+    )
+    assert replaced
+    assert observed is equal_but_distinct
+
+
+@pytest.mark.parametrize("replacement_first", [True, False])
+def test_unified_food_register_clear_preserves_identity_order(
+    replacement_first: bool,
+) -> None:
+    _replace_registered_unified_food(None)
+    managed = cast(UnifiedFoodDatabase, _EqualRegisterCandidate("managed"))
+    replacement = cast(UnifiedFoodDatabase, _EqualRegisterCandidate("replacement"))
+    assert unified_db_module._compare_exchange_unified_db_instance(None, managed)[0]
+
+    if replacement_first:
+        assert unified_db_module._compare_exchange_unified_db_instance(
+            managed,
+            replacement,
+        )[0]
+        cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+            managed,
+            None,
+        )
+        assert not cleared
+        assert observed is replacement
+    else:
+        assert unified_db_module._compare_exchange_unified_db_instance(managed, None)[0]
+        assert unified_db_module._compare_exchange_unified_db_instance(
+            None,
+            replacement,
+        )[0]
+
+    assert unified_db_module._read_unified_db_instance() is replacement
+
+
+def test_close_unified_food_clients_bounds_unique_sync_and_awaitable_clients() -> None:
+    events: list[str] = []
+
+    class _SyncClient:
+        def close(self) -> None:
+            events.append("sync")
+
+    class _AsyncClient:
+        async def close(self) -> None:
+            events.append("async")
+
+    sync_client = _SyncClient()
+    async_client = _AsyncClient()
+    asyncio.run(
+        unified_db_module.close_unified_food_clients(
+            SimpleNamespace(
+                usda_client=sync_client,
+                off_client=async_client,
+                unrelated_client=_SyncClient(),
+            )
+        )
+    )
+    assert events == ["sync", "async"]
+
+    events.clear()
+    asyncio.run(
+        unified_db_module.close_unified_food_clients(
+            SimpleNamespace(usda_client=sync_client, off_client=sync_client)
+        )
+    )
+    assert events == ["sync"]
+    asyncio.run(
+        unified_db_module.close_unified_food_clients(
+            SimpleNamespace(usda_client=None, off_client=SimpleNamespace(close=None))
+        )
+    )
+    asyncio.run(unified_db_module.close_unified_food_clients(SimpleNamespace()))
+
+
+def test_close_unified_food_clients_attribute_failure_still_attempts_other_client() -> None:
+    events: list[str] = []
+
+    class _OffClient:
+        def close(self) -> None:
+            events.append("off")
+
+    class _AttributeFailure:
+        off_client = _OffClient()
+
+        @property
+        def usda_client(self) -> object:
+            raise RuntimeError("raw-attribute-error")
+
+    with pytest.raises(
+        unified_db_module.UnifiedFoodClientCleanupError,
+        match=f"^{unified_db_module.UNIFIED_FOOD_CLEANUP_ERROR_MESSAGE}$",
+    ) as exc_info:
+        asyncio.run(unified_db_module.close_unified_food_clients(_AttributeFailure()))
+    assert events == ["off"]
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    ("first_signal", "second_signal", "expected_type"),
+    [
+        ("ordinary", "cancel", asyncio.CancelledError),
+        ("cancel", "ordinary", asyncio.CancelledError),
+        ("cancel", "keyboard", KeyboardInterrupt),
+        ("keyboard", "cancel", KeyboardInterrupt),
+        ("ordinary", "system", SystemExit),
+        ("system", "ordinary", SystemExit),
+        ("ordinary", "generator", GeneratorExit),
+        ("generator", "ordinary", GeneratorExit),
+    ],
+)
+def test_close_unified_food_clients_signal_precedence_is_order_independent(
+    first_signal: str,
+    second_signal: str,
+    expected_type: type[BaseException],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def _error(signal: str) -> BaseException:
+        if signal == "ordinary":
+            return RuntimeError("raw-ordinary")
+        if signal == "cancel":
+            return asyncio.CancelledError("raw-cancel")
+        if signal == "keyboard":
+            return KeyboardInterrupt("raw-keyboard")
+        if signal == "system":
+            return SystemExit("raw-system-code")
+        return GeneratorExit("raw-generator")
+
+    class _SignalClient:
+        def __init__(self, error: BaseException) -> None:
+            self.error = error
+
+        async def close(self) -> None:
+            raise self.error
+
+    instance = SimpleNamespace(
+        usda_client=_SignalClient(_error(first_signal)),
+        off_client=_SignalClient(_error(second_signal)),
+    )
+    with pytest.raises(expected_type) as exc_info:
+        asyncio.run(unified_db_module.close_unified_food_clients(instance))
+
+    top = exc_info.value
+    assert top.__context__ is None
+    assert "raw-" not in str(top)
+    if isinstance(top, asyncio.CancelledError):
+        assert str(top) == unified_db_module.UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE
+        assert isinstance(top.__cause__, unified_db_module.UnifiedFoodClientCleanupError)
+    elif isinstance(top, SystemExit):
+        assert top.code == 1
+        assert isinstance(top.__cause__, unified_db_module.UnifiedFoodClientCleanupError)
+    elif isinstance(top, (KeyboardInterrupt, GeneratorExit)):
+        assert str(top) == ""
+        if "ordinary" in {first_signal, second_signal}:
+            assert isinstance(top.__cause__, unified_db_module.UnifiedFoodClientCleanupError)
+        else:
+            assert isinstance(top.__cause__, asyncio.CancelledError)
+            assert str(top.__cause__) == unified_db_module.UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE
+    cause = top.__cause__
+    while cause is not None:
+        assert cause.__context__ is None
+        assert "raw-" not in str(cause)
+        cause = cause.__cause__
+    assert caplog.records == []
+
+
+@pytest.mark.parametrize(
+    ("raw_code", "expected_code"),
+    [(None, None), (7, 7), (True, 1), ("private-code", 1)],
+)
+def test_close_unified_food_clients_sanitizes_system_exit_code(
+    raw_code: object,
+    expected_code: int | None,
+) -> None:
+    class _SystemExitClient:
+        async def close(self) -> None:
+            raise SystemExit(raw_code)
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(
+            unified_db_module.close_unified_food_clients(
+                SimpleNamespace(usda_client=_SystemExitClient(), off_client=None)
+            )
+        )
+    assert exc_info.value.code == expected_code
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize(("first_code", "second_code"), [(3, 4), (4, 3)])
+def test_close_unified_food_clients_preserves_first_within_process_tier(
+    first_code: int,
+    second_code: int,
+) -> None:
+    class _SystemExitClient:
+        def __init__(self, code: int) -> None:
+            self.code = code
+
+        async def close(self) -> None:
+            raise SystemExit(self.code)
+
+    with pytest.raises(SystemExit) as exc_info:
+        asyncio.run(
+            unified_db_module.close_unified_food_clients(
+                SimpleNamespace(
+                    usda_client=_SystemExitClient(first_code),
+                    off_client=_SystemExitClient(second_code),
+                )
+            )
+        )
+    assert exc_info.value.code == first_code
+
+
+def test_close_unified_food_clients_ordinary_error_is_fixed_from_none() -> None:
+    class _OrdinaryClient:
+        async def close(self) -> None:
+            raise RuntimeError("raw-private-error")
+
+    with pytest.raises(
+        unified_db_module.UnifiedFoodClientCleanupError,
+        match=f"^{unified_db_module.UNIFIED_FOOD_CLEANUP_ERROR_MESSAGE}$",
+    ) as exc_info:
+        asyncio.run(
+            unified_db_module.close_unified_food_clients(
+                SimpleNamespace(usda_client=_OrdinaryClient(), off_client=None)
+            )
+        )
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+
+
+@pytest.mark.parametrize("winner_name", ["first", "second"])
+@pytest.mark.parametrize("loser_fails", [False, True])
+def test_get_unified_food_db_concurrent_publish_closes_loser_outside_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    winner_name: str,
+    loser_fails: bool,
+) -> None:
+    _replace_registered_unified_food(None)
+    construction_barrier = threading.Barrier(2)
+    winner_published = threading.Event()
+    result_lock = threading.Lock()
+    candidates: dict[str, _RaceCandidate] = {}
+    results: list[UnifiedFoodDatabase] = []
+    errors: list[BaseException] = []
+    real_compare_exchange = unified_db_module._compare_exchange_unified_db_instance
+
+    def _new_candidate(_cls: type[UnifiedFoodDatabase]) -> _RaceCandidate:
+        name = threading.current_thread().name
+        close_error = (
+            RuntimeError("raw-loser-close") if loser_fails and name != winner_name else None
+        )
+        candidate = _RaceCandidate(name, close_error)
+        with result_lock:
+            candidates[name] = candidate
+        return candidate
+
+    def _initialize_candidate(_candidate: object) -> None:
+        construction_barrier.wait(timeout=2)
+
+    def _ordered_compare_exchange(
+        expected: UnifiedFoodDatabase | None,
+        replacement: UnifiedFoodDatabase | None,
+    ) -> tuple[bool, UnifiedFoodDatabase | None]:
+        name = threading.current_thread().name
+        if expected is None and replacement is not None and name in {"first", "second"}:
+            if name == winner_name:
+                result = real_compare_exchange(expected, replacement)
+                winner_published.set()
+                return result
+            assert winner_published.wait(timeout=2)
+        return real_compare_exchange(expected, replacement)
+
+    def _worker() -> None:
+        try:
+            result = asyncio.run(unified_db_module.get_unified_food_db())
+            with result_lock:
+                results.append(result)
+        except BaseException as exc:
+            with result_lock:
+                errors.append(exc)
+
+    class _CandidateDatabase:
+        @staticmethod
+        def __new__(cls: type[object]) -> _RaceCandidate:
+            return _new_candidate(cast(type[UnifiedFoodDatabase], cls))
+
+        def __init__(self) -> None:
+            _initialize_candidate(self)
+
+    monkeypatch.setattr(unified_db_module, "UnifiedFoodDatabase", _CandidateDatabase)
+    monkeypatch.setattr(
+        unified_db_module,
+        "_compare_exchange_unified_db_instance",
+        _ordered_compare_exchange,
+    )
+    workers = [
+        threading.Thread(target=_worker, name="first"),
+        threading.Thread(target=_worker, name="second"),
+    ]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=2)
+
+    assert not any(worker.is_alive() for worker in workers)
+    winner = candidates[winner_name]
+    loser_name = "second" if winner_name == "first" else "first"
+    loser = candidates[loser_name]
+    if loser_fails:
+        assert results == [winner]
+        assert len(errors) == 1
+        assert isinstance(errors[0], unified_db_module.UnifiedFoodClientCleanupError)
+        assert str(errors[0]) == unified_db_module.UNIFIED_FOOD_CLEANUP_ERROR_MESSAGE
+        assert errors[0].__cause__ is None
+        assert errors[0].__context__ is None
+    else:
+        assert errors == []
+        assert results == [winner, winner]
+    assert winner.close_calls == 0
+    assert loser.close_calls == 1
+    assert unified_db_module._read_unified_db_instance() is winner
+
+    cleared, _observed = real_compare_exchange(
+        cast(UnifiedFoodDatabase, winner),
+        None,
+    )
+    assert cleared
+    asyncio.run(winner.close())
+
+
+@pytest.mark.asyncio
+async def test_get_unified_food_db_loser_cleanup_cancellation_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _replace_registered_unified_food(None)
+    close_started = asyncio.Event()
+    winner = _RaceCandidate("winner")
+
+    class _BlockingCandidate(_RaceCandidate):
+        async def close(self) -> None:
+            assert not unified_db_module._unified_db_instance_lock.locked()
+            self.close_calls += 1
+            close_started.set()
+            await asyncio.Event().wait()
+
+    candidate = _BlockingCandidate("loser")
+    real_compare_exchange = unified_db_module._compare_exchange_unified_db_instance
+
+    def _lose_publish(
+        expected: UnifiedFoodDatabase | None,
+        replacement: UnifiedFoodDatabase | None,
+    ) -> tuple[bool, UnifiedFoodDatabase | None]:
+        del replacement
+        published, _observed = real_compare_exchange(
+            expected,
+            cast(UnifiedFoodDatabase, winner),
+        )
+        assert published
+        return False, cast(UnifiedFoodDatabase, winner)
+
+    class _BlockingDatabase:
+        @staticmethod
+        def __new__(_cls: type[object]) -> _BlockingCandidate:
+            return candidate
+
+        def __init__(self) -> None:
+            pass
+
+    monkeypatch.setattr(unified_db_module, "UnifiedFoodDatabase", _BlockingDatabase)
+    monkeypatch.setattr(
+        unified_db_module,
+        "_compare_exchange_unified_db_instance",
+        _lose_publish,
+    )
+    getter_task = asyncio.create_task(unified_db_module.get_unified_food_db())
+    await close_started.wait()
+    getter_task.cancel()
+    with pytest.raises(
+        asyncio.CancelledError,
+        match=f"^{unified_db_module.UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE}$",
+    ) as cancellation_exc:
+        await getter_task
+
+    assert candidate.close_calls == 1
+    assert cancellation_exc.value.__cause__ is None
+    assert cancellation_exc.value.__context__ is None
+    assert unified_db_module._read_unified_db_instance() is winner
+    cleared, _observed = real_compare_exchange(
+        cast(UnifiedFoodDatabase, winner),
+        None,
+    )
+    assert cleared
+    await winner.close()
+
+
+@pytest.mark.asyncio
+async def test_get_unified_food_db_partial_initialization_uses_cleanup_algebra(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _replace_registered_unified_food(None)
+    candidate = _RaceCandidate("partial", RuntimeError("raw-cleanup-error"))
+
+    def _fail_initialization(_candidate: object) -> None:
+        raise RuntimeError("raw-initialization-error")
+
+    class _PartialDatabase:
+        @staticmethod
+        def __new__(_cls: type[object]) -> _RaceCandidate:
+            return candidate
+
+        def __init__(self) -> None:
+            _fail_initialization(self)
+
+    monkeypatch.setattr(unified_db_module, "UnifiedFoodDatabase", _PartialDatabase)
+    with pytest.raises(
+        RuntimeError,
+        match=f"^{unified_db_module.UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE}$",
+    ) as exc_info:
+        await unified_db_module.get_unified_food_db()
+
+    assert candidate.close_calls == 1
+    assert unified_db_module._read_unified_db_instance() is None
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert "raw-" not in caplog.text

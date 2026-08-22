@@ -65,9 +65,7 @@ from core.menu_engine import (
     FoodItem,
     MAX_INGREDIENTS_PER_MEAL,
     WeekMenu,
-    _aggregate_weekly_gaps,
     _apply_one_safe_booster,
-    _apply_repair_strategy,
     _calculate_day_nutrients,
     _food_nutrient_evidence,
     _get_default_food_db,
@@ -2194,7 +2192,6 @@ class TestTC209VIPDiffCoverage:
         assert not has_complete_nutrition_evidence(over_macro, targets)
         known_gap = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         assert calculate_known_nutrient_gaps(known_gap, targets)["iron_mg"] == 8.0
-
         overflow_ranges = {name: tuple(values) for name, values in _TARGET_RANGES.items()}
         overflow_ranges["iron_mg"] = (
             1.0,
@@ -2225,19 +2222,6 @@ class TestTC209VIPDiffCoverage:
         with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
             calculate_known_nutrient_gaps(overflowing_day_evidence, overflow_targets)
 
-        assert _aggregate_weekly_gaps({"day-1": {"iron_mg": 3.0}, "day-2": {"iron_mg": 5.0}}) == {
-            "iron_mg": 8.0
-        }
-        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
-            _aggregate_weekly_gaps(
-                {
-                    "day-1": {"iron_mg": sys.float_info.max, "zinc_mg": 1.0},
-                    "day-2": {"iron_mg": sys.float_info.max, "zinc_mg": 1.0},
-                }
-            )
-        with pytest.raises(ValueError, match="^Weekly nutrient gap overflowed$"):
-            _aggregate_weekly_gaps({"day-1": {"iron_mg": 10**310}})
-
         invalid_foods = (
             FoodItem("bad-name", cast(dict[str, float], {"": 1.0}), 1.0, [], []),
             FoodItem("bad-density", cast(dict[str, float], {"iron_mg": True}), 1.0, [], []),
@@ -2267,6 +2251,54 @@ class TestTC209VIPDiffCoverage:
 
         day = _canonical_plan(_complete_evidence({"iron_mg": 0.0})).daily_menus[0]
         assert _safe_booster_amount(day, targets, {"iron_mg": 0.0}, "iron_mg") is None
+        governed_nutrients = _governed_nutrient_names(targets)
+        complete_candidate = _food_item(
+            "Iron",
+            {"iron_mg": 10.0, "calcium_mg": 0.0},
+        )
+        candidate_evidence = _food_nutrient_evidence(
+            complete_candidate,
+            governed_nutrients,
+        )
+        assert candidate_evidence is not None
+
+        missing_current_calcium = deepcopy(day)
+        missing_current_calcium.meals[0]["nutrients"].pop("calcium_mg")
+        missing_current_snapshot = deepcopy(missing_current_calcium)
+        assert (
+            _safe_booster_amount(
+                missing_current_calcium,
+                targets,
+                candidate_evidence,
+                "iron_mg",
+            )
+            is None
+        )
+        assert not _apply_one_safe_booster(
+            missing_current_calcium,
+            targets,
+            {"iron": complete_candidate},
+        )
+        assert missing_current_calcium == missing_current_snapshot
+
+        explicit_zero_calcium = deepcopy(day)
+        explicit_zero_calcium.meals[0]["nutrients"]["calcium_mg"] = 0.0
+        assert (
+            _safe_booster_amount(
+                explicit_zero_calcium,
+                targets,
+                candidate_evidence,
+                "iron_mg",
+            )
+            == 80.0
+        )
+        assert _apply_one_safe_booster(
+            explicit_zero_calcium,
+            targets,
+            {"iron": complete_candidate},
+        )
+        assert explicit_zero_calcium.meals[0]["ingredients"][-1]["amount"] == 80.0
+
         missing_primary = deepcopy(day)
         missing_primary.meals[0]["nutrients"].pop("iron_mg")
         assert _safe_booster_amount(missing_primary, targets, {"iron_mg": 10.0}, "iron_mg") is None
@@ -2293,7 +2325,7 @@ class TestTC209VIPDiffCoverage:
         assert not _apply_one_safe_booster(day, targets, {"bad": invalid_foods[2]})
 
         omitted_macros = _canonical_plan({"iron_mg": 0.0}).daily_menus[0]
-        assert _apply_one_safe_booster(
+        assert not _apply_one_safe_booster(
             omitted_macros,
             targets,
             {"iron": _food_item("Iron", {"iron_mg": 10.0})},
@@ -2304,30 +2336,27 @@ class TestTC209VIPDiffCoverage:
             cast(dict[str, float], {"iron_mg": 0.0, "custom": True})
         ).daily_menus[0]
         custom_food = _food_item("Custom", {"iron_mg": 10.0, "custom": 1.0})
-        assert _apply_one_safe_booster(invalid_existing, targets, {"custom": custom_food})
+        assert not _apply_one_safe_booster(invalid_existing, targets, {"custom": custom_food})
         assert invalid_existing.meals[0]["nutrients"]["custom"] is True
-        assert "custom" not in invalid_existing.total_nutrients
         overflowing_existing = _canonical_plan({"iron_mg": 0.0, "custom": 1e308}).daily_menus[0]
         overflow_food = _food_item("Overflow", {"iron_mg": 10.0, "custom": 1e308})
-        assert _apply_one_safe_booster(
+        assert not _apply_one_safe_booster(
             overflowing_existing,
             targets,
             {"overflow": overflow_food},
         )
         assert overflowing_existing.meals[0]["nutrients"]["custom"] == 1e308
-        assert "custom" not in overflowing_existing.total_nutrients
 
         prospective_invalid = _canonical_plan({"iron_mg": 0.0}).daily_menus[0]
         prospective_invalid.meals.append(
             {"ingredients": [{"name": "bad"}], "nutrients": {"iron_mg": 0.0, "bad": True}}
         )
-        assert _apply_one_safe_booster(
+        assert not _apply_one_safe_booster(
             prospective_invalid,
             targets,
             {"iron": _food_item("Iron", {"iron_mg": 10.0})},
         )
         assert prospective_invalid.meals[1]["nutrients"]["bad"] is True
-        assert "bad" not in prospective_invalid.total_nutrients
 
         invalid_mapping = _canonical_plan({"iron_mg": 0.0}).daily_menus[0]
         invalid_mapping.meals[0]["nutrients"] = []
@@ -2343,15 +2372,6 @@ class TestTC209VIPDiffCoverage:
         with pytest.raises(ValueError, match="overflowed"):
             _calculate_day_nutrients(overflow_day)
 
-        assert _apply_repair_strategy(
-            _canonical_plan(complete),
-            {},
-            {},
-            "unknown",
-            {},
-            None,
-        ) == _canonical_plan(complete)
-
         async def _running_loop_default() -> dict[str, FoodItem]:
             return _get_default_food_db()
 
@@ -2359,6 +2379,94 @@ class TestTC209VIPDiffCoverage:
             "Chicken Breast (Mock)",
             "Lentils (Mock)",
         }
+
+    def test_repair_requires_whole_plan_governed_evidence_before_catalog(self) -> None:
+        targets = _micronutrient_targets()
+        governed_nutrients = _governed_nutrient_names(targets)
+        complete_evidence = _complete_evidence({"iron_mg": 0.0})
+        food = _food_item("Iron", {"iron_mg": 10.0})
+
+        control = _canonical_plan(complete_evidence)
+        control_snapshot = deepcopy(control)
+        repaired_control = repair_canonical_week_plan(
+            control,
+            targets,
+            food_db={"iron": food},
+        )
+        assert repaired_control != control
+        assert repaired_control.daily_menus[0].meals[0]["ingredients"][-1]["amount"] == 80.0
+        assert control == control_snapshot
+
+        all_zero = _canonical_plan({nutrient: 0.0 for nutrient in governed_nutrients})
+        assert (
+            repair_canonical_week_plan(
+                all_zero,
+                targets,
+                food_db={"iron": food},
+            )
+            != all_zero
+        )
+
+        for missing_nutrient in sorted(governed_nutrients):
+            incomplete = _canonical_plan(complete_evidence)
+            incomplete.daily_menus[0].meals[0]["nutrients"].pop(missing_nutrient)
+            incomplete_snapshot = deepcopy(incomplete)
+            with patch(
+                "core.menu_engine.get_cached_common_foods_snapshot",
+                side_effect=AssertionError("catalog must not run for incomplete plan evidence"),
+            ) as catalog:
+                result = repair_canonical_week_plan(incomplete, targets)
+            assert result == incomplete_snapshot
+            assert incomplete == incomplete_snapshot
+            catalog.assert_not_called()
+
+        for nutrient, invalid_value in (
+            ("kcal", True),
+            ("protein_g", -1.0),
+            ("iron_mg", float("nan")),
+            ("vitamin_c_mg", float("inf")),
+        ):
+            invalid = _canonical_plan(complete_evidence)
+            invalid.daily_menus[0].meals[0]["nutrients"][nutrient] = invalid_value
+            invalid_snapshot = deepcopy(invalid)
+            with patch(
+                "core.menu_engine.get_cached_common_foods_snapshot",
+                side_effect=AssertionError("catalog must not run for invalid plan evidence"),
+            ) as catalog:
+                result = repair_canonical_week_plan(invalid, targets)
+            assert result == invalid_snapshot
+            assert invalid == invalid_snapshot
+            catalog.assert_not_called()
+
+        late_incomplete = _canonical_plan(complete_evidence)
+        second_day = deepcopy(late_incomplete.daily_menus[0])
+        second_day.date = "Tuesday"
+        second_day.meals.append(deepcopy(second_day.meals[0]))
+        second_day.meals[-1]["nutrients"].pop("fiber_g")
+        late_incomplete.daily_menus.append(second_day)
+        late_snapshot = deepcopy(late_incomplete)
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            side_effect=AssertionError("catalog must not run before whole-plan validation"),
+        ) as catalog:
+            late_result = repair_canonical_week_plan(late_incomplete, targets)
+        assert late_result == late_snapshot
+        assert late_incomplete == late_snapshot
+        catalog.assert_not_called()
+
+        incomplete_food = deepcopy(food)
+        incomplete_food.nutrients_per_100g.pop("calcium_mg")
+        candidate_control = _canonical_plan(complete_evidence)
+        candidate_snapshot = deepcopy(candidate_control)
+        assert (
+            repair_canonical_week_plan(
+                candidate_control,
+                targets,
+                food_db={"incomplete": incomplete_food},
+            )
+            == candidate_snapshot
+        )
+        assert candidate_control == candidate_snapshot
 
     def test_routes_publish_exact_custom_envelopes_and_tolerance(
         self,

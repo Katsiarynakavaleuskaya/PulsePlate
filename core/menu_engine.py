@@ -647,6 +647,9 @@ def repair_week_plan(
     repaired_plan.daily_menus = [deepcopy(day_menu) for day_menu in plan.daily_menus]
     if strategy != "boosters_first":
         return repaired_plan
+    governed_nutrients = _governed_nutrient_names(targets)
+    if not _plan_has_complete_governed_evidence(repaired_plan, governed_nutrients):
+        return repaired_plan
 
     if food_db is None:
         cached_foods = get_cached_common_foods_snapshot()
@@ -703,14 +706,6 @@ def _day_nutrient_evidence(
             return None
         total = prospective_total
     return total
-
-
-def _day_omits_nutrient(day_menu: DayMenu, nutrient: str) -> bool:
-    """Return true only when every meal consistently omits one nutrient key."""
-    return bool(day_menu.meals) and all(
-        isinstance(meal.get("nutrients"), dict) and nutrient not in meal["nutrients"]
-        for meal in day_menu.meals
-    )
 
 
 def calculate_known_nutrient_gaps(
@@ -786,6 +781,38 @@ def _governed_nutrient_names(targets: MicronutrientTargets) -> frozenset[str]:
     )
 
 
+def _day_has_complete_governed_evidence(
+    day_menu: DayMenu,
+    governed_nutrients: frozenset[str],
+) -> bool:
+    """Require explicit finite nonnegative governed evidence in each meal."""
+
+    if not day_menu.meals:
+        return False
+    for meal in day_menu.meals:
+        nutrients = meal.get("nutrients")
+        if not isinstance(nutrients, dict):
+            return False
+        for nutrient in governed_nutrients:
+            if nutrient not in nutrients:
+                return False
+            if _finite_nonnegative_number(nutrients[nutrient]) is None:
+                return False
+    return True
+
+
+def _plan_has_complete_governed_evidence(
+    plan: WeekMenu,
+    governed_nutrients: frozenset[str],
+) -> bool:
+    """Require nonempty days and complete governed evidence throughout the plan."""
+
+    return bool(plan.daily_menus) and all(
+        _day_has_complete_governed_evidence(day_menu, governed_nutrients)
+        for day_menu in plan.daily_menus
+    )
+
+
 def _food_nutrient_evidence(
     food: FoodItem,
     governed_nutrients: frozenset[str],
@@ -844,6 +871,9 @@ def _safe_booster_amount(
     primary_nutrient: str,
 ) -> Optional[float]:
     """Bound a booster by 100 g, primary gap fill, and every target maximum."""
+    governed_nutrients = _governed_nutrient_names(targets)
+    if not _day_has_complete_governed_evidence(day_menu, governed_nutrients):
+        return None
     primary_density = food_nutrients.get(primary_nutrient, 0.0)
     if primary_density <= 0:
         return None
@@ -862,14 +892,11 @@ def _safe_booster_amount(
         "carbs_g": float(day_menu.targets.macros.carbs_g),
         "fiber_g": float(day_menu.targets.macros.fiber_g),
     }
-    governed_nutrients = _governed_nutrient_names(targets)
     for nutrient, density in food_nutrients.items():
         if nutrient not in governed_nutrients or density <= 0:
             continue
         current = _day_nutrient_evidence(day_menu, nutrient)
         if current is None:
-            if nutrient in macro_maxima and _day_omits_nutrient(day_menu, nutrient):
-                continue
             return None
         maximum = (
             macro_maxima[nutrient] if nutrient in macro_maxima else targets.get_maximum(nutrient)
@@ -931,10 +958,12 @@ def _apply_one_safe_booster(
                 continue
             updated_nutrients: Dict[str, float] = {}
             for nutrient, density in food_nutrients.items():
-                if nutrient not in governed_nutrients or nutrient not in meal_nutrients:
+                if nutrient not in governed_nutrients:
                     continue
+                if nutrient not in meal_nutrients:
+                    return False
                 contribution = density * amount / 100.0
-                existing = _finite_nonnegative_number(meal_nutrients.get(nutrient, 0.0))
+                existing = _finite_nonnegative_number(meal_nutrients[nutrient])
                 if existing is None:
                     return False
                 updated_value = existing + contribution
@@ -964,153 +993,6 @@ def _apply_one_safe_booster(
             day_menu.total_nutrients = prospective_total_nutrients
             return True
     return False
-
-
-def _calculate_daily_micronutrient_gaps(
-    plan: WeekMenu, targets: MicronutrientTargets
-) -> Dict[str, Dict[str, float]]:
-    """
-    RU: Рассчитывает дефициты микронутриентов по дням.
-    EN: Calculate daily micronutrient gaps.
-    """
-    daily_gaps = {}
-
-    for day_menu in plan.daily_menus:
-        day_nutrients = _calculate_day_nutrients(day_menu)
-        day_gaps = {}
-
-        for nutrient in targets.priority_nutrients.keys():
-            target = targets.get_target(nutrient)
-            actual = day_nutrients.get(nutrient, 0.0)
-            gap = max(0, target - actual)
-            day_gaps[nutrient] = gap
-
-        daily_gaps[day_menu.date] = day_gaps
-
-    return daily_gaps
-
-
-def _aggregate_weekly_gaps(daily_gaps: Dict[str, Dict[str, float]]) -> Dict[str, float]:
-    """
-    RU: Агрегирует недельные дефициты.
-    EN: Aggregate weekly gaps.
-    """
-    weekly_gaps: Dict[str, float] = {}
-    all_nutrients: set[str] = set()
-
-    # Collect all nutrients
-    for day_gaps in daily_gaps.values():
-        all_nutrients.update(day_gaps.keys())
-
-    # Sum gaps across days
-    for nutrient in all_nutrients:
-        gap_total = 0.0
-        for day_gaps in daily_gaps.values():
-            raw_gap = day_gaps.get(nutrient, 0.0)
-            gap = _finite_nonnegative_number(raw_gap)
-            if gap is None:
-                raise ValueError("Weekly nutrient gap overflowed")
-            prospective_gap_total = gap_total + gap
-            if not math.isfinite(prospective_gap_total):
-                raise ValueError("Weekly nutrient gap overflowed")
-            gap_total = prospective_gap_total
-        weekly_gaps[nutrient] = gap_total
-
-    return weekly_gaps
-
-
-def _find_booster_foods(
-    gaps: Dict[str, float],
-    targets: MicronutrientTargets,
-    food_db: Dict[str, FoodItem],
-) -> Dict[str, List[FoodItem]]:
-    """
-    RU: Находит продукты-усилители для дефицитных нутриентов.
-    EN: Find booster foods for deficient nutrients.
-    """
-    booster_foods: Dict[str, List[FoodItem]] = {}
-
-    for nutrient, gap in gaps.items():
-        if gap > 0:  # Only for deficient nutrients
-            # Find foods rich in this nutrient
-            candidates = []
-            for food in food_db.values():
-                nutrient_content = food.nutrients_per_100g.get(nutrient, 0.0)
-                if nutrient_content > 0:
-                    # Calculate how much food needed to fill gap
-                    amount_needed = gap / nutrient_content * 100  # grams
-                    candidates.append((food, nutrient_content, amount_needed))
-
-            # Sort by nutrient density and select top candidates
-            candidates.sort(key=lambda x: x[1], reverse=True)
-            booster_foods[nutrient] = [c[0] for c in candidates[:5]]  # Top 5
-
-    return booster_foods
-
-
-def _apply_repair_strategy(
-    plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
-    strategy: str,
-    food_db: Dict[str, FoodItem],
-    recipe_db: Optional[Dict[str, Recipe]],
-) -> WeekMenu:
-    """
-    RU: Применяет стратегию ремонта к плану.
-    EN: Apply repair strategy to the plan.
-    """
-    if strategy == "boosters_first":
-        return _apply_boosters_strategy(plan, daily_gaps, booster_foods)
-    elif strategy == "replace_ingredients":
-        return _apply_replace_strategy(plan, daily_gaps, booster_foods, food_db)
-    elif strategy == "add_snacks":
-        return _apply_snacks_strategy(plan, daily_gaps, booster_foods)
-    else:
-        return plan
-
-
-def _apply_boosters_strategy(
-    plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
-) -> WeekMenu:
-    """
-    RU: Добавляет продукты-усилители к существующим блюдам.
-    EN: Add booster foods to existing meals.
-    """
-    # For now, return the original plan
-    # In a full implementation, this would modify meals to include boosters
-    return plan
-
-
-def _apply_replace_strategy(
-    plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
-    food_db: Dict[str, FoodItem],
-) -> WeekMenu:
-    """
-    RU: Заменяет ингредиенты на более богатые нутриентами.
-    EN: Replace ingredients with more nutrient-dense alternatives.
-    """
-    # For now, return the original plan
-    # In a full implementation, this would replace ingredients
-    return plan
-
-
-def _apply_snacks_strategy(
-    plan: WeekMenu,
-    daily_gaps: Dict[str, Dict[str, float]],
-    booster_foods: Dict[str, List[FoodItem]],
-) -> WeekMenu:
-    """
-    RU: Добавляет перекусы для восполнения дефицитов.
-    EN: Add snacks to fill nutrient gaps.
-    """
-    # For now, return the original plan
-    # In a full implementation, this would add targeted snacks
-    return plan
 
 
 def _calculate_day_nutrients(

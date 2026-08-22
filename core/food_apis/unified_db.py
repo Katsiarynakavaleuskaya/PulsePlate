@@ -14,6 +14,7 @@ import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
 import importlib
+import inspect
 import json
 import logging
 import math
@@ -21,6 +22,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import tempfile
+import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
 from core.off_nutrition.bridge import (
@@ -30,6 +32,106 @@ from core.off_nutrition.bridge import (
 
 from .usda_client import USDAClient, USDAFoodItem
 from .unified_language import normalize_unified_db_language
+
+UNIFIED_FOOD_CLEANUP_ERROR_MESSAGE = "Unified-food client cleanup failed"
+UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE = "Unified-food client cleanup cancelled"
+UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE = "Unified-food database initialization failed"
+
+
+class UnifiedFoodClientCleanupError(RuntimeError):
+    """Sanitized ordinary failure while closing unified-food clients."""
+
+
+class _UnifiedFoodSignalAccumulator:
+    """Accumulate sanitized P > K > O cleanup signals without retaining raw errors."""
+
+    def __init__(self) -> None:
+        self._process_signal: tuple[str, int | None] | None = None
+        self._cancelled = False
+        self._ordinary_kind: str | None = None
+
+    @property
+    def has_signal(self) -> bool:
+        return (
+            self._process_signal is not None or self._cancelled or self._ordinary_kind is not None
+        )
+
+    def add_exception(self, error: BaseException, *, ordinary_kind: str) -> None:
+        current: BaseException | None = error
+        seen: set[int] = set()
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            self._add_single_exception(current, ordinary_kind=ordinary_kind)
+            current = current.__cause__
+
+    def _add_single_exception(self, error: BaseException, *, ordinary_kind: str) -> None:
+        if isinstance(error, KeyboardInterrupt):
+            if self._process_signal is None:
+                self._process_signal = ("keyboard", None)
+            return
+        if isinstance(error, SystemExit):
+            if self._process_signal is None:
+                code = error.code if error.code is None or type(error.code) is int else 1
+                self._process_signal = ("system_exit", code)
+            return
+        if isinstance(error, GeneratorExit):
+            if self._process_signal is None:
+                self._process_signal = ("generator_exit", None)
+            return
+        if isinstance(error, asyncio.CancelledError):
+            if not self._cancelled:
+                self._cancelled = True
+            return
+        if self._ordinary_kind is None:
+            self._ordinary_kind = ordinary_kind
+
+    def add_ordinary(self, kind: str) -> None:
+        if self._ordinary_kind is None:
+            self._ordinary_kind = kind
+
+    def _ordinary_exception(self) -> Exception | None:
+        if self._ordinary_kind is None:
+            return None
+        if self._ordinary_kind == "initialization":
+            return RuntimeError(UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE)
+        if self._ordinary_kind == "acquisition_changed":
+            return RuntimeError("Unified-food singleton changed during acquisition")
+        if self._ordinary_kind == "acquisition_foreign":
+            return RuntimeError("Unified-food singleton is not lifecycle-managed")
+        return UnifiedFoodClientCleanupError(UNIFIED_FOOD_CLEANUP_ERROR_MESSAGE)
+
+    def _process_exception(self) -> BaseException | None:
+        if self._process_signal is None:
+            return None
+        signal_name, code = self._process_signal
+        if signal_name == "keyboard":
+            return KeyboardInterrupt()
+        if signal_name == "generator_exit":
+            return GeneratorExit()
+        return SystemExit(code)
+
+    def raise_if_any(self) -> None:
+        ordinary = self._ordinary_exception()
+        cancelled: asyncio.CancelledError | None = None
+        if self._cancelled:
+            cancelled = asyncio.CancelledError(UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE)
+            if ordinary is not None:
+                cancelled.__cause__ = ordinary
+                cancelled.__suppress_context__ = True
+
+        process_signal = self._process_exception()
+        if process_signal is not None:
+            lower = cancelled if cancelled is not None else ordinary
+            if lower is not None:
+                raise process_signal from lower
+            raise process_signal from None
+        if cancelled is not None:
+            if ordinary is not None:
+                raise cancelled from ordinary
+            raise cancelled from None
+        if ordinary is not None:
+            raise ordinary from None
+
 
 # Type-only imports for Open Food Facts
 if TYPE_CHECKING:
@@ -544,15 +646,67 @@ class UnifiedFoodDatabase:
 
         return foods_db
 
-    async def close(self):
+    async def close(self) -> None:
         """Close all API clients."""
-        await self.usda_client.close()
-        if self.off_client:
-            await self.off_client.close()
+        await close_unified_food_clients(self)
 
 
 # Global instance for easy access
 _unified_db_instance: Optional[UnifiedFoodDatabase] = None
+_unified_db_instance_lock = threading.Lock()
+
+
+async def close_unified_food_clients(instance: object) -> None:
+    """Close every unique bounded client once and raise one sanitized signal chain."""
+
+    signals = _UnifiedFoodSignalAccumulator()
+    closed_client_ids: set[int] = set()
+    for attribute_name in ("usda_client", "off_client"):
+        try:
+            client = getattr(instance, attribute_name, None)
+        except BaseException as error:
+            signals.add_exception(error, ordinary_kind="cleanup")
+            continue
+        if client is None or id(client) in closed_client_ids:
+            continue
+        closed_client_ids.add(id(client))
+        try:
+            close = getattr(client, "close", None)
+        except BaseException as error:
+            signals.add_exception(error, ordinary_kind="cleanup")
+            continue
+        if not callable(close):
+            continue
+        try:
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+        except BaseException as error:
+            signals.add_exception(error, ordinary_kind="cleanup")
+    signals.raise_if_any()
+
+
+def _read_unified_db_instance() -> UnifiedFoodDatabase | None:
+    """Return one identity snapshot under the private non-reentrant register lock."""
+
+    with _unified_db_instance_lock:
+        return _unified_db_instance
+
+
+def _compare_exchange_unified_db_instance(
+    expected: UnifiedFoodDatabase | None,
+    replacement: UnifiedFoodDatabase | None,
+) -> tuple[bool, UnifiedFoodDatabase | None]:
+    """Replace the process singleton only when the observed identity is expected."""
+
+    global _unified_db_instance
+
+    with _unified_db_instance_lock:
+        observed = _unified_db_instance
+        if observed is not expected:
+            return False, observed
+        _unified_db_instance = replacement
+        return True, replacement
 
 
 def _reject_cached_common_foods(reason_code: str) -> Dict[str, UnifiedFoodItem]:
@@ -564,7 +718,7 @@ def _reject_cached_common_foods(reason_code: str) -> Dict[str, UnifiedFoodItem]:
 
 def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
     """Read a validated common-food cache from the already configured instance only."""
-    instance = _unified_db_instance
+    instance = _read_unified_db_instance()
     if instance is None:
         return _reject_cached_common_foods("instance_unconfigured")
     cache_file = instance.cache_dir / "common_foods.json"
@@ -723,10 +877,33 @@ async def get_unified_food_db() -> UnifiedFoodDatabase:
     RU: Получить глобальный экземпляр унифицированной базы данных продуктов.
     EN: Get global instance of unified food database.
     """
-    global _unified_db_instance
-    if _unified_db_instance is None:
-        _unified_db_instance = UnifiedFoodDatabase()
-    return _unified_db_instance
+    existing = _read_unified_db_instance()
+    if existing is not None:
+        return existing
+
+    candidate = UnifiedFoodDatabase.__new__(UnifiedFoodDatabase)
+    initialization_signals = _UnifiedFoodSignalAccumulator()
+    try:
+        UnifiedFoodDatabase.__init__(candidate)
+    except BaseException as error:
+        initialization_signals.add_exception(error, ordinary_kind="initialization")
+    if initialization_signals.has_signal:
+        try:
+            await close_unified_food_clients(candidate)
+        except BaseException as error:
+            initialization_signals.add_exception(error, ordinary_kind="cleanup")
+        initialization_signals.raise_if_any()
+        raise RuntimeError(UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE)
+
+    published, observed = _compare_exchange_unified_db_instance(None, candidate)
+    if published:
+        return candidate
+
+    await close_unified_food_clients(candidate)
+
+    if observed is None:
+        raise RuntimeError("Unified-food singleton publication lost without a winner")
+    return observed
 
 
 async def search_foods_unified(query: str, max_results: int = 5) -> List[UnifiedFoodResult]:

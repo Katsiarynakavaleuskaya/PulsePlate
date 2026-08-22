@@ -338,8 +338,11 @@ class TestSimpleCoverageBoost:
         chunks = search_knowledge("test")
         assert isinstance(chunks, list)
 
-    def test_other_core_modules(self):
+    def test_other_core_modules(self) -> None:
         """Покрытие остальных core модулей"""
+        unified_db_module = None
+        prior_unified_db = None
+        unified_db_captured = False
         try:
             # auto_repair module
             import core.auto_repair as auto_repair_module
@@ -457,8 +460,11 @@ class TestSimpleCoverageBoost:
 
             # menu_engine module
             import core.menu_engine as menu_engine_module
+            import core.food_apis.unified_db as unified_db_module
 
             assert menu_engine_module is not None
+            prior_unified_db = unified_db_module._read_unified_db_instance()
+            unified_db_captured = True
 
             # Тест основных функций menu_engine
             if hasattr(menu_engine_module, "make_weekly_menu"):
@@ -482,7 +488,7 @@ class TestSimpleCoverageBoost:
                     pass
 
             # Тест helper функций для покрытия
-            if hasattr(menu_engine_module, "_get_default_food_db"):
+            if prior_unified_db is None and hasattr(menu_engine_module, "_get_default_food_db"):
                 try:
                     result = menu_engine_module._get_default_food_db()
                     assert isinstance(result, dict)
@@ -554,6 +560,82 @@ class TestSimpleCoverageBoost:
             Exception
         ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
+        finally:
+            if unified_db_captured:
+                assert unified_db_module is not None
+                current_unified_db = unified_db_module._read_unified_db_instance()
+                if current_unified_db is prior_unified_db:
+                    pass
+                elif prior_unified_db is None and current_unified_db is not None:
+                    captured_test_instance = current_unified_db
+                    cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                        captured_test_instance,
+                        None,
+                    )
+                    asyncio.run(
+                        unified_db_module.close_unified_food_clients(captured_test_instance)
+                    )
+                    if not cleared:
+                        raise AssertionError("Unified-food test cleanup CAS failed")
+                    if observed is not None:
+                        raise AssertionError("Unified-food test cleanup returned invalid state")
+                else:
+                    raise AssertionError(
+                        "Unified-food test changed a pre-existing singleton identity"
+                    )
+
+    def test_other_core_modules_preserves_foreign_unified_db(self) -> None:
+        """A pre-existing foreign singleton is observed but never called or closed."""
+
+        import core.food_apis.unified_db as unified_db_module
+
+        method_calls: list[str] = []
+
+        class _ForeignClient:
+            def __init__(self) -> None:
+                self.close_calls = 0
+
+            async def close(self) -> None:
+                self.close_calls += 1
+
+        class _ForeignDatabase:
+            def __init__(self) -> None:
+                self.usda_client = _ForeignClient()
+                self.off_client = _ForeignClient()
+
+            async def get_common_foods_database(self) -> dict[str, object]:
+                method_calls.append("get_common_foods_database")
+                return {}
+
+            async def search_food(self, *_args: object, **_kwargs: object) -> list[object]:
+                method_calls.append("search_food")
+                return []
+
+            def _save_cache(self, *_args: object, **_kwargs: object) -> None:
+                method_calls.append("_save_cache")
+
+        foreign_database = _ForeignDatabase()
+        prior = unified_db_module._read_unified_db_instance()
+        installed, observed = unified_db_module._compare_exchange_unified_db_instance(
+            prior,
+            foreign_database,
+        )
+        assert installed
+        assert observed is foreign_database
+        try:
+            self.test_other_core_modules()
+            assert unified_db_module._read_unified_db_instance() is foreign_database
+            assert method_calls == []
+            assert foreign_database.usda_client.close_calls == 0
+            assert foreign_database.off_client.close_calls == 0
+        finally:
+            restored, observed = unified_db_module._compare_exchange_unified_db_instance(
+                foreign_database,
+                prior,
+            )
+            assert restored
+            assert observed is prior
+        assert unified_db_module._read_unified_db_instance() is prior
 
     def test_unified_db_module_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
