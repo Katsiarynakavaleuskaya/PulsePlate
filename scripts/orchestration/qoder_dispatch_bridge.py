@@ -1405,7 +1405,7 @@ def _canonical_synthesis_candidate_paths(payload: Dict[str, Any]) -> List[str]:
 
     path_error = "creative pilot synthesis packet metadata requires canonical candidate_paths"
     try:
-        canonical_paths = canonical_task_candidate_paths(
+        canonical_paths: List[str] = canonical_task_candidate_paths(
             payload.get("candidate_paths"),
             mode="strict_wire",
         )

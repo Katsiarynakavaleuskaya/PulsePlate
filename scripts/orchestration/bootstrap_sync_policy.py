@@ -329,7 +329,11 @@ def classify_invariant_review(
             raise ValueError(
                 f"Unsupported invariant change class: {raw_change_class!r}. Supported: {supported}"
             )
-        explicit_set.add(raw_change_class)
+        explicit_set.update(
+            change_class
+            for change_class in INVARIANT_CHANGE_CLASSES
+            if change_class == raw_change_class
+        )
 
     try:
         normalized_paths = canonical_task_candidate_paths(
