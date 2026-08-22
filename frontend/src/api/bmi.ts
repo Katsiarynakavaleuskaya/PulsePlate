@@ -2,15 +2,13 @@
 // EN: API client for BMI calculation (FREE tier endpoint)
 
 import { api } from './client';
+import type { ApiOptions } from './client';
 import type { components } from './schema';
 
 type BMICalculateRequest = components['schemas']['BMICalculateRequest'];
 type BMICalculateResponse = components['schemas']['BMICalculateResponse'];
 
-export interface BMIApiOptions {
-  signal?: AbortSignal;
-  onAuthError?: (code: number, headers: Headers) => void;
-}
+export type BMIApiOptions = Pick<ApiOptions, 'onAuthError'> & { signal?: AbortSignal };
 
 /**
  * Calculate BMI via unified engine.

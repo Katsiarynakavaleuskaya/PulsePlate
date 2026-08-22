@@ -1,0 +1,96 @@
+# PR 2314 — Review Governance
+
+Review-Seal-Version: v1
+
+## Lane Start Provenance
+Packet: `artifacts/orchestration/task_packets/468d9bbad471.json`
+
+## Experiment Runner Evidence
+Artifact: `artifacts/orchestration/experiments/results/pro-nutrition-canonical-cutover-result.json`
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 7b5e6b2b777edef7207b7620ffa9e07e10bfcae8
+Evidence: frontend/src/api/client.ts:533; frontend/src/api/__tests__/client.test.ts:165; explicit fixture request options are asserted by passing Vitest coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833859603 -> 7b5e6b2b777edef7207b7620ffa9e07e10bfcae8
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: docs/architecture/LEGACY_COMPATIBILITY_SEAM.md:132; app/routers/pro_nutrition_contracts.py:56 and :66 provide exact BMR and gaps evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833892963 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md:73,77,93 cite the exact BMR, plate, and targets hook call sites.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833892966 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: tests/test_critical_blocks_targets_gaps.py:24 and tests/test_premium_bmr_api.py:58 cover production-like PRO_API_KEYS authorization.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833892977 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: app/schemas/bmr.py:21 and tests/test_openapi_namespace_guards.py prove finite sex/activity enums in generated OpenAPI types.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833893885 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: docs/contracts/PRODUCT_TIER_MAP.md:77 records FEATURE_PREMIUM_NUTRITION for canonical and retained BMR routes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833893888 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 90e0918838adc795aae83b2c3b37857a90231351
+Evidence: frontend/public/mock/bmr.json:1 and frontend/src/api/__tests__/client.test.ts:165 assert canonical intake keys and lowercase formula identifiers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3834078172 -> 90e0918838adc795aae83b2c3b37857a90231351
+
+Disposition: FIXED
+Commit: 9468aa9440fb63b82c53100a3db7a12ed15bdedf
+Evidence: tests/edges/test_pro_contracts_bootstrap.py adds executable branch coverage; CI run 32558981649 job 96999945452 reports numeric diff coverage 99%.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#issuecomment-5376393657 -> 9468aa9440fb63b82c53100a3db7a12ed15bdedf
+
+Disposition: FIXED
+Commit: 7b5e6b2b777edef7207b7620ffa9e07e10bfcae8
+Evidence: The sole Sourcery child root discussion_r3833859603 is fixed and its focused frontend regression passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4997600000 -> 7b5e6b2b777edef7207b7620ffa9e07e10bfcae8
+
+Disposition: FIXED
+Commit: 1199059e13389a63fd37267fc965a27de8981652
+Evidence: Both Codex child roots discussion_r3833893885 and discussion_r3833893888 are fixed; make openapi-check passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4997637368 -> 1199059e13389a63fd37267fc965a27de8981652
+
+Disposition: FIXED
+Commit: 90e0918838adc795aae83b2c3b37857a90231351
+Evidence: The sole Codex child root discussion_r3834078172 is fixed by the canonical public BMR fixture and regression test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4997847390 -> 90e0918838adc795aae83b2c3b37857a90231351
+
+Disposition: FIXED
+Commit: 44900905228884688d3d5d1e26b07d3c320f1746
+Evidence: tests/edges/test_pro_contracts_bootstrap.py:199 and :504 now use path-keyed selection, explicit family survival proof, and a stable repeatable owner result.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4999365664 -> 44900905228884688d3d5d1e26b07d3c320f1746
+
+Disposition: NOT-A-BUG
+Evidence: frontend/src/api/__tests__/client.test.ts:11-18,184-205; the configured Vitest/jsdom client suite passes repeatedly, including explicit query-mock behavior.
+Reason: The standalone JSDOM descriptor experiment does not reproduce the repository test harness; the existing configurable location seam executes before every asserted request without TypeError.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#discussion_r3833892970
+
+Disposition: NOT-A-BUG
+Evidence: The four inline roots are independently dispositioned; docs/roadmap/BACKLOG_LEDGER.md:7365-7368 already requires all-worker aggregation, while app/routers/pro_nutrition_contracts.py:40-43 and :71-74 use the same direct bounded service style.
+Reason: This aggregate review container has no independent unresolved defect: its telemetry nitpick is already satisfied and its threadpool consistency premise is false because targets is not offloaded either.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4997636116
+
+Disposition: NOT-A-BUG
+Evidence: frontend/src/api/premium/bmr.ts:1-16 exports BmrRequest and BmrApiResponse directly from generated schema aliases; frontend/src/api/__tests__/client.test.ts intentionally exercises those public aliases.
+Reason: The migration contract requires preserving the wrapper public names and imports, so testing through the public wrapper is intentional and remains generated-type-backed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314#pullrequestreview-4998065650
+
+## Review Material Seal
+<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
+<!-- pragma: allowlist nextline secret -->
+{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:bdeddf859c31c22b2e0456c9b6d1b1cc9329c739c690d6ec5f05c4d4204feab5","material_head_sha":"44900905228884688d3d5d1e26b07d3c320f1746","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"b052690a9754d104d013ed9823110317b8d8f4d3","blocking":false,"head_revision":"44900905228884688d3d5d1e26b07d3c320f1746","material_digest":"sha256:bdeddf859c31c22b2e0456c9b6d1b1cc9329c739c690d6ec5f05c4d4204feab5","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"b052690a9754d104d013ed9823110317b8d8f4d3","digest":"sha256:bdeddf859c31c22b2e0456c9b6d1b1cc9329c739c690d6ec5f05c4d4204feab5","material_head_sha":"44900905228884688d3d5d1e26b07d3c320f1746","merge_base_sha":"b052690a9754d104d013ed9823110317b8d8f4d3","policy_version":"pulseplate.material-classification/v1"},"pr_number":2314,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:bdeddf859c31c22b2e0456c9b6d1b1cc9329c739c690d6ec5f05c4d4204feab5","material_head_sha":"44900905228884688d3d5d1e26b07d3c320f1746","report_payload":{"actionable_findings_count":0,"base_ref_oid":"b052690a9754d104d013ed9823110317b8d8f4d3","calibration":{"case_labels":["review-source-degraded","large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/468d9bbad471.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"468d9bbad471"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 2509 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","Add and fill docs/review/PR_<N>_FIXED_MAPPING.md before merge-ready loop","make test-fast","make validate-changed"],"generated_at_utc":"2026-08-22T07:42:25Z","material_digest":"sha256:bdeddf859c31c22b2e0456c9b6d1b1cc9329c739c690d6ec5f05c4d4204feab5","material_head_sha":"44900905228884688d3d5d1e26b07d3c320f1746","merge_base_sha":"b052690a9754d104d013ed9823110317b8d8f4d3","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"b052690a9754d104d013ed9823110317b8d8f4d3..44900905228884688d3d5d1e26b07d3c320f1746","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2314_FIXED_MAPPING.md","fallback_required":true,"reason":"Fixed-mapping artifact unavailable","source":"fixed_mapping_artifact","source_degraded":true,"status":"unavailable"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":["app/bootstrap/pro_contracts.py","app/routers/pro_nutrition_contracts.py","app/schemas/bmr.py","core/compliance/privacy.py","core/compliance/transparency.py","docs/architecture/LEGACY_COMPATIBILITY_SEAM.md","docs/contracts/API_CANONICAL_MAP.md","docs/contracts/PRODUCT_TIER_MAP.md","docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md","docs/roadmap/BACKLOG_LEDGER.md","example_nutrition_api.py","frontend/public/mock/bmr.json","frontend/src/api/__tests__/client.test.ts","frontend/src/api/bmi.ts","frontend/src/api/client.ts","frontend/src/api/openapi.json","frontend/src/api/premium/bmr.ts","frontend/src/api/premium/types.ts","frontend/src/api/schema.ts","frontend/src/pages/NutritionSetup/__tests__/hooks.test.tsx","frontend/src/pages/NutritionSetup/hooks.ts","frontend/src/stories/__tests__/storybookParity.test.ts","frontend/src/stories/storybookParitySupport.tsx","tests/edges/test_pro_contracts_bootstrap.py","tests/security/_api_authz_contracts.py","tests/test_compliance_control_plane.py","tests/test_critical_blocks_targets_gaps.py","tests/test_openapi_namespace_guards.py","tests/test_premium_bmr_api.py"],"diff_summary":{"additions":2239,"changed_lines":2509,"deletions":270,"files":29},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","app/AGENTS.md","core/AGENTS.md","frontend/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:ba502e855fcc1775482d5e4b214b28f82074c9c4d014783ca3b9bf55ccdf37ab","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
+<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->

@@ -20,34 +20,8 @@ export function createPremiumEndpoint<TReq, TRes>(endpoint: string) {
     );
 }
 
-export type BmrRequest = {
-  sex: 'male' | 'female';
-  age: number;
-  height_cm: number;
-  weight_kg: number;
-  activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-  bodyfat?: number | null;
-  lang?: SupportedPremiumLang | string;
-};
-
-export type BmrValues = {
-  mifflin: number;
-  harris: number;
-  katch?: number;
-};
-
-export type TdeeValues = {
-  mifflin: number;
-  harris: number;
-  katch?: number;
-};
-
-export type RecommendedIntake = {
-  calories: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
-};
+export type BmrRequest = components["schemas"]["BMRRequest"];
+export type BmrApiResponse = components["schemas"]["BMRResponse"];
 
 export type Portion = {
   protein_palm: number;
@@ -72,18 +46,9 @@ export type Meal = {
   micros?: Record<string, number>;
 };
 
-export type BmrApiResponse = {
-  bmr: BmrValues;
-  tdee: TdeeValues;
-  activity_level: string;
-  recommended_intake: RecommendedIntake;
-  formulas_used: string[];
-  notes: string[];
-  method?: string;
-};
-
 // OpenAPI generated types
 export type PlateRequest = components["schemas"]["PlateRequest"];
+export type PlateResponse = components["schemas"]["PlateResponse"];
 
 export type PlateApiResponse = {
   kcal: number;

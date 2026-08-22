@@ -9,19 +9,24 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import app
-from app.middleware.api_tiers import TEST_KEY_PRO
+from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
+from app.security.web_session import WEB_SESSION_COOKIE_NAME
 from app.services import pro_nutrition_targets as service
 
 _TARGETS_PATH = "/api/v1/premium/targets"
 _STRICT_TARGETS_PATH = "/premium_targets"
 _GAPS_PATH = "/api/v1/premium/gaps"
 _PRO_TARGETS_PATH = "/api/v1/pro/nutrition/targets"
+_PRO_GAPS_PATH = "/api/v1/pro/nutrition/gaps"
 _AUTH_HEADER_VALUE = "targets-gaps-test-value"
 
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("API_KEY", _AUTH_HEADER_VALUE)
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("DEBUG", "true")
     with TestClient(app) as test_client:
         yield test_client
 
@@ -212,6 +217,142 @@ def test_premium_gaps_real_profiles_use_localized_food_first_recommendations(
     assert payload["food_recommendations"]
     assert all(item.startswith(prefix) for item in payload["food_recommendations"])
     assert payload["adherence_score"] == 0.0
+
+
+def test_pro_gaps_real_profile_returns_exact_contract(client: TestClient) -> None:
+    response = client.post(
+        _PRO_GAPS_PATH,
+        headers={"X-API-Key": TEST_KEY_PRO},
+        json=_gaps_payload(lang="en"),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    payload = response.json()
+    assert payload["gaps"]["iron_mg"]["priority"] == "high"
+    assert payload["food_recommendations"]
+    assert payload["adherence_score"] == 0.0
+
+
+def test_pro_gaps_accepts_configured_pro_key_in_production_like_env(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured_pro_key = "production-configured-pro-key"
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("PRO_API_KEYS", configured_pro_key)
+
+    response = client.post(
+        _PRO_GAPS_PATH,
+        headers={"X-API-Key": configured_pro_key},
+        json=_gaps_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["gaps"]
+
+
+@pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
+def test_pro_gaps_accepts_pro_and_vip_headers(
+    client: TestClient,
+    api_key: str,
+) -> None:
+    response = client.post(
+        _PRO_GAPS_PATH,
+        headers={"X-API-Key": api_key},
+        json=_gaps_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["gaps"]
+
+
+@pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
+def test_pro_gaps_accepts_paid_session_cookie(
+    client: TestClient,
+    api_key: str,
+) -> None:
+    exchange = client.post(
+        "/api/v1/pro/session/exchange",
+        headers={"X-API-Key": api_key},
+    )
+    assert exchange.status_code == 200
+    assert WEB_SESSION_COOKIE_NAME in client.cookies
+
+    response = client.post(_PRO_GAPS_PATH, json=_gaps_payload())
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["gaps"]
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected_status", "expected_detail", "authenticate"),
+    [
+        ({}, 401, "API key required for PRO tier access", "ApiKey"),
+        ({"X-API-Key": "wrong-key"}, 403, "API key does not have PRO tier access", None),
+        (
+            {"X-API-Key": _AUTH_HEADER_VALUE},
+            403,
+            "API key does not have PRO tier access",
+            None,
+        ),
+    ],
+)
+def test_pro_gaps_guard_rejects_before_validation_and_service(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    expected_status: int,
+    expected_detail: str,
+    authenticate: str | None,
+) -> None:
+    from app.routers import pro_nutrition_contracts
+
+    service_calls: list[str] = []
+
+    def _unexpected_service(_request: object) -> object:
+        service_calls.append("called")
+        raise AssertionError("gaps service must not run before PRO authorization")
+
+    monkeypatch.setattr(
+        pro_nutrition_contracts,
+        "analyze_nutrient_gaps_response",
+        _unexpected_service,
+    )
+
+    response = client.post(_PRO_GAPS_PATH, headers=headers, json={})
+
+    assert response.status_code == expected_status
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": expected_detail}
+    assert response.headers.get("www-authenticate") == authenticate
+    assert service_calls == []
+
+
+def test_pro_gaps_invalid_header_does_not_fall_back_to_valid_cookie(
+    client: TestClient,
+) -> None:
+    exchange = client.post(
+        "/api/v1/pro/session/exchange",
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+    assert exchange.status_code == 200
+
+    response = client.post(
+        _PRO_GAPS_PATH,
+        headers={"X-API-Key": "wrong-key"},
+        json=_gaps_payload(),
+    )
+
+    assert response.status_code == 403
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": "API key does not have PRO tier access"}
 
 
 def test_premium_gaps_unavailable_analyzer_is_exact_503(

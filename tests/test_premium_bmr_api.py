@@ -23,6 +23,8 @@ from app.http_error_details import (
     PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL,
 )
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
+from app.security.web_session import WEB_SESSION_COOKIE_NAME
 from app.services import pro_nutrition_bmr as bmr_service
 from app.services.pro_nutrition_bmr import BMRDependencies, calculate_bmr_response
 
@@ -53,6 +55,9 @@ _EXPECTED_RESPONSE = {
 def _configure_bmr_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("DEBUG", "true")
 
 
 def _request(
@@ -697,6 +702,139 @@ def test_both_routes_preserve_the_exact_success_contract(client: TestClient) -> 
     assert public_alias.headers["content-type"].startswith("application/json")
     assert protected.json() == _EXPECTED_RESPONSE
     assert public_alias.json() == _EXPECTED_RESPONSE
+
+
+def test_canonical_pro_bmr_route_returns_exact_success_contract(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/pro/nutrition/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == _EXPECTED_RESPONSE
+
+
+def test_canonical_pro_bmr_accepts_configured_pro_key_in_production_like_env(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured_pro_key = "production-configured-pro-key"
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("PRO_API_KEYS", configured_pro_key)
+
+    response = client.post(
+        "/api/v1/pro/nutrition/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": configured_pro_key},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == _EXPECTED_RESPONSE
+
+
+@pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
+def test_canonical_pro_bmr_accepts_pro_and_vip_headers(
+    client: TestClient,
+    api_key: str,
+) -> None:
+    response = client.post(
+        "/api/v1/pro/nutrition/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": api_key},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == _EXPECTED_RESPONSE
+
+
+@pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
+def test_canonical_pro_bmr_accepts_paid_session_cookie(
+    client: TestClient,
+    api_key: str,
+) -> None:
+    exchange = client.post(
+        "/api/v1/pro/session/exchange",
+        headers={"X-API-Key": api_key},
+    )
+    assert exchange.status_code == 200
+    assert WEB_SESSION_COOKIE_NAME in client.cookies
+
+    response = client.post("/api/v1/pro/nutrition/bmr", json=_VALID_PAYLOAD)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == _EXPECTED_RESPONSE
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected_status", "expected_detail", "authenticate"),
+    [
+        ({}, 401, "API key required for PRO tier access", "ApiKey"),
+        ({"X-API-Key": "invalid"}, 403, "API key does not have PRO tier access", None),
+        (
+            {"X-API-Key": "test_key"},
+            403,
+            "API key does not have PRO tier access",
+            None,
+        ),
+    ],
+)
+def test_canonical_pro_bmr_auth_fails_before_body_validation_and_service(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    expected_status: int,
+    expected_detail: str,
+    authenticate: str | None,
+) -> None:
+    from app.routers import pro_nutrition_contracts
+
+    service_calls: list[str] = []
+
+    async def _unexpected_service(_request: BMRRequest) -> BMRResponse:
+        service_calls.append("called")
+        raise AssertionError("BMR service must not run before PRO authorization")
+
+    monkeypatch.setattr(
+        pro_nutrition_contracts,
+        "calculate_bmr_response",
+        _unexpected_service,
+    )
+
+    response = client.post("/api/v1/pro/nutrition/bmr", headers=headers, json={})
+
+    assert response.status_code == expected_status
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": expected_detail}
+    assert response.headers.get("www-authenticate") == authenticate
+    assert service_calls == []
+
+
+def test_canonical_pro_bmr_invalid_header_does_not_fall_back_to_valid_cookie(
+    client: TestClient,
+) -> None:
+    exchange = client.post(
+        "/api/v1/pro/session/exchange",
+        headers={"X-API-Key": TEST_KEY_PRO},
+    )
+    assert exchange.status_code == 200
+
+    response = client.post(
+        "/api/v1/pro/nutrition/bmr",
+        headers={"X-API-Key": "invalid"},
+        json=_VALID_PAYLOAD,
+    )
+
+    assert response.status_code == 403
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": "API key does not have PRO tier access"}
 
 
 def test_protected_route_retains_api_key_dependency(client: TestClient) -> None:
