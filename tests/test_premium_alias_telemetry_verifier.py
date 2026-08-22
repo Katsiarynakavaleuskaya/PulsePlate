@@ -69,6 +69,18 @@ def _live_snapshot(
         target_metrics_path=verifier.TARGET_METRICS_PATH,
         target_scrape_interval_seconds=verifier.SCRAPE_INTERVAL_SECONDS,
         target_scrape_timeout_seconds=verifier.SCRAPE_TIMEOUT_SECONDS,
+        loaded_target_fingerprint=verifier._target_binding_fingerprint(
+            verifier._TargetBinding(
+                job=verifier.TARGET_JOB,
+                discovered_address=verifier.TARGET_ADDRESS,
+                final_address=verifier.TARGET_ADDRESS,
+                instance=verifier.TARGET_ADDRESS,
+                scheme=verifier.TARGET_SCHEME,
+                metrics_path=verifier.TARGET_METRICS_PATH,
+                scrape_interval_seconds=verifier.SCRAPE_INTERVAL_SECONDS,
+                scrape_timeout_seconds=verifier.SCRAPE_TIMEOUT_SECONDS,
+            )
+        ),
     )
 
 
@@ -210,6 +222,59 @@ def test_parser_rejects_stale_caller_truth_and_unsafe_output_name(tmp_path: Path
         verifier._parse_args(arguments)
 
 
+def test_default_output_name_preserves_utc_microseconds() -> None:
+    first_anchor = datetime(2026, 8, 22, 12, 0, 0, 123_456, tzinfo=timezone.utc)
+    second_anchor = first_anchor.replace(microsecond=123_457)
+
+    first_name = verifier._default_output_name("baseline", first_anchor)
+    second_name = verifier._default_output_name("baseline", second_anchor)
+
+    assert first_name == "premium_alias_telemetry_baseline_20260822T120000123456Z.json"
+    assert second_name == "premium_alias_telemetry_baseline_20260822T120000123457Z.json"
+    assert first_name != second_name
+    assert verifier._OUTPUT_NAME_RE.fullmatch(first_name)
+    assert verifier._OUTPUT_NAME_RE.fullmatch(second_name)
+
+
+def test_cli_default_output_uses_exact_microsecond_live_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    anchor = datetime(2026, 8, 22, 12, 0, 0, 654_321, tzinfo=timezone.utc)
+    client = _FakePromtoolClient(anchor=anchor)
+    published_names: list[str] = []
+
+    def _create_client(*, compose_file: Path) -> _FakePromtoolClient:
+        assert compose_file == tmp_path / "compose.yaml"
+        return client
+
+    def _publish(
+        evidence_dir: Path,
+        output_name: str,
+        evidence: dict[str, object],
+    ) -> str:
+        assert evidence_dir == tmp_path
+        assert evidence["observed_at"] == "2026-08-22T12:00:00.654321Z"
+        published_names.append(output_name)
+        return "published"
+
+    monkeypatch.setattr(verifier.DockerPromtoolClient, "create", _create_client)
+    monkeypatch.setattr(verifier, "write_evidence_new_only", _publish)
+
+    result = verifier.main(
+        [
+            "baseline",
+            "--compose-file",
+            os.fspath(tmp_path / "compose.yaml"),
+            "--evidence-dir",
+            os.fspath(tmp_path),
+        ]
+    )
+
+    assert result == 0
+    assert published_names == ["premium_alias_telemetry_baseline_20260822T120000654321Z.json"]
+
+
 def _promtool_payload(*, result_type: str = "vector", result: object = None) -> bytes:
     if result is None:
         result = [{"metric": {}, "value": [1_777_000_000.0, "0"]}]
@@ -306,6 +371,7 @@ def test_bounded_baseline_and_final_pass_preserve_exact_zero_semantics(
         "prometheus_image_reference",
         "scrape_config",
         "target_binding",
+        "loaded_target",
         "tsdb",
         "storage_path",
         "retention",
@@ -427,14 +493,23 @@ def test_final_window_uses_complete_human_t0_range_for_every_range_query(
         verifier.FINAL_MIN_SAMPLES,
         expected_range_seconds // verifier.SCRAPE_INTERVAL_SECONDS,
     )
+    aliases = evidence["aliases"]
+    assert isinstance(aliases, list)
+    assert all(alias["sample_count"] == target["required_samples"] for alias in aliases)
     range_queries = [query for query, _time in client.queries if "[" in query]
-    assert len(range_queries) == 11
+    assert len(range_queries) == 15
     assert all(f"[{expected_range_seconds}s]" in query for query in range_queries)
     assert client.queries[0][0] == 'count(up{job="pulseplate-api"})'
     assert "instance=" not in client.queries[0][0]
     assert all(
         'job="pulseplate-api",instance="app:8000"' in query for query, _time in client.queries[1:]
     )
+    alias_queries = [query for query, _time in client.queries if "http_requests_total" in query]
+    canary_queries = [query for query in alias_queries if query.startswith("count_over_time")]
+    non_canary_alias_queries = [query for query in alias_queries if query not in canary_queries]
+    assert len(canary_queries) == 4
+    assert all('status="200"' in query for query in canary_queries)
+    assert all("status=" not in query for query in non_canary_alias_queries)
 
 
 def test_final_pass_rejects_underdeclared_required_samples_after_recompute(
@@ -703,6 +778,59 @@ def test_alias_missing_positive_and_negative_values_hold(
     assert any(reason_fragment in reason for reason in evidence["reasons"])
 
 
+@pytest.mark.parametrize(
+    ("value", "reason"),
+    [
+        (1.0, "alias_bmr_sample_count_too_low"),
+        (
+            verifier.VerificationError("promtool_vector_missing"),
+            "alias_bmr_sample_count_missing",
+        ),
+    ],
+)
+def test_alias_canary_sample_count_short_or_missing_forces_incomplete_hold(
+    tmp_path: Path,
+    value: float | verifier.VerificationError,
+    reason: str,
+) -> None:
+    fragment = (
+        'count_over_time(http_requests_total{job="pulseplate-api",instance="app:8000",'
+        'method="POST",route="/api/v1/premium/bmr",status="200"}'
+    )
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="final", t0=_T0),
+        _FakePromtoolClient(
+            overrides={fragment: value},
+            anchor=_T0 + timedelta(days=45),
+        ),
+        baseline=_passing_baseline(tmp_path),
+    )
+    window = evidence["window"]
+    assert isinstance(window, dict)
+    assert evidence["decision"] == "HOLD"
+    assert reason in evidence["reasons"]
+    assert window["complete"] is False
+
+
+def test_writer_rejects_underdeclared_alias_canary_samples_after_recompute(
+    tmp_path: Path,
+) -> None:
+    evidence = verifier.build_evidence(
+        _config(tmp_path, mode="final", t0=_T0),
+        _FakePromtoolClient(anchor=_T0 + timedelta(days=45)),
+        baseline=_passing_baseline(tmp_path),
+    )
+    aliases = evidence["aliases"]
+    assert isinstance(aliases, list)
+    first_alias = aliases[0]
+    assert isinstance(first_alias, dict)
+    first_alias["sample_count"] = 1.0
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "alias-canary-underdeclared.json", evidence)
+
+
 def test_gap_reset_restart_and_short_window_each_force_hold(tmp_path: Path) -> None:
     evidence = verifier.build_evidence(
         _config(tmp_path, mode="final", t0=_T0),
@@ -825,6 +953,105 @@ def test_target_discovery_rejects_invalid_top_level_shape(payload: bytes) -> Non
         match="prometheus_target_discovery_invalid",
     ):
         verifier._parse_target_discovery(payload)
+
+
+def _loaded_target_payload(*, updates: dict[str, object] | None = None) -> bytes:
+    common = {
+        "__address__": "app:8000",
+        "__scheme__": "http",
+        "__metrics_path__": "/metrics",
+        "__scrape_interval__": "30s",
+        "__scrape_timeout__": "10s",
+        "job": "pulseplate-api",
+    }
+    target: dict[str, object] = {
+        "discoveredLabels": {**common, "__meta_extra": "ignored"},
+        "labels": {"instance": "app:8000", "job": "pulseplate-api", "extra": "ignored"},
+        "scrapePool": "pulseplate-api",
+        "scrapeUrl": "http://app:8000/metrics",
+        "globalUrl": "http://app:8000/metrics",
+        "scrapeInterval": "30s",
+        "scrapeTimeout": "10s",
+        "health": "up",
+        "lastScrape": "ignored",
+    }
+    target.update(updates or {})
+    return json.dumps(
+        {"status": "success", "data": {"activeTargets": [target]}},
+        separators=(",", ":"),
+    ).encode()
+
+
+def test_loaded_target_parser_accepts_exact_v3_14_active_target() -> None:
+    loaded = verifier._parse_loaded_target(_loaded_target_payload())
+
+    assert loaded == verifier._TargetBinding(
+        job="pulseplate-api",
+        discovered_address="app:8000",
+        final_address="app:8000",
+        instance="app:8000",
+        scheme="http",
+        metrics_path="/metrics",
+        scrape_interval_seconds=30,
+        scrape_timeout_seconds=10,
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"{}",
+        b'{"status":"error","data":{"activeTargets":[]}}',
+        b'{"status":"success","data":{"activeTargets":[]}}',
+        b'{"status":"success","data":{"activeTargets":[{},{}]}}',
+    ],
+)
+def test_loaded_target_parser_rejects_malformed_api_shape(payload: bytes) -> None:
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_loaded_target_invalid",
+    ):
+        verifier._parse_loaded_target(payload)
+
+
+@pytest.mark.parametrize(
+    ("updates", "reason"),
+    [
+        ({"scrapePool": "other"}, "prometheus_loaded_target_mismatch"),
+        ({"scrapeUrl": "http://staging:8000/metrics"}, "prometheus_loaded_target_mismatch"),
+        ({"globalUrl": "http://staging:8000/metrics"}, "prometheus_loaded_target_mismatch"),
+        ({"scrapeInterval": "60s"}, "prometheus_loaded_target_mismatch"),
+        ({"scrapeTimeout": "5s"}, "prometheus_loaded_target_mismatch"),
+        (
+            {"labels": {"instance": "staging:8000", "job": "pulseplate-api"}},
+            "prometheus_loaded_target_mismatch",
+        ),
+        ({"discoveredLabels": {"job": 1}}, "prometheus_loaded_target_invalid"),
+    ],
+)
+def test_loaded_target_parser_rejects_malformed_and_drifted_target(
+    updates: dict[str, object],
+    reason: str,
+) -> None:
+    with pytest.raises(verifier.VerificationError, match=reason):
+        verifier._parse_loaded_target(_loaded_target_payload(updates=updates))
+
+
+def test_file_and_loaded_target_bindings_must_match() -> None:
+    file_binding = verifier._parse_target_discovery(_target_discovery_payload())
+    loaded_binding = verifier._TargetBinding(
+        job="pulseplate-api",
+        discovered_address="app:8000",
+        final_address="app:8000",
+        instance="staging:8000",
+        scheme="http",
+        metrics_path="/metrics",
+        scrape_interval_seconds=30,
+        scrape_timeout_seconds=10,
+    )
+
+    with pytest.raises(verifier.VerificationError, match="prometheus_loaded_target_mismatch"):
+        verifier._require_matching_target_bindings(file_binding, loaded_binding)
 
 
 def test_compose_service_identity_and_config_path_are_exact() -> None:
@@ -1031,6 +1258,30 @@ def test_target_discovery_command_failure_is_sanitized(
         client._collect_target_binding()
 
 
+def test_loaded_target_command_failure_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = verifier.DockerPromtoolClient(
+        docker="/absolute/docker",
+        compose_file=Path("deploy/compose.yaml"),
+    )
+    client._bound_app_container_id = _APP_CONTAINER_A
+
+    def _fail(
+        _arguments: list[str],
+        *,
+        error_code: str,
+    ) -> verifier._CommandResult:
+        raise verifier.VerificationError(error_code)
+
+    monkeypatch.setattr(client, "_run_docker", _fail)
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_loaded_target_unavailable",
+    ):
+        client._collect_loaded_target_binding()
+
+
 @pytest.mark.parametrize(
     "reason",
     [
@@ -1042,6 +1293,9 @@ def test_target_discovery_command_failure_is_sanitized(
         "prometheus_target_binding_mismatch",
         "prometheus_scrape_interval_mismatch",
         "prometheus_scrape_timeout_mismatch",
+        "prometheus_loaded_target_unavailable",
+        "prometheus_loaded_target_invalid",
+        "prometheus_loaded_target_mismatch",
     ],
 )
 def test_target_binding_failures_make_window_incomplete(
@@ -1403,6 +1657,27 @@ elif "/bin/promtool" in args and "service-discovery" in args:
         "job": "pulseplate-api",
     }}
     print(json.dumps([{{"discoveredLabels": {{**common, "__meta_extra": "ignored"}}, "labels": {{**common, "instance": "app:8000", "extra": "ignored"}}}}], separators=(",", ":")))
+elif args[:4] == ["exec", {app_id!r}, "/usr/local/bin/python", "-c"]:
+    common = {{
+        "__address__": "app:8000",
+        "__scheme__": "http",
+        "__metrics_path__": "/metrics",
+        "__scrape_interval__": "30s",
+        "__scrape_timeout__": "10s",
+        "job": "pulseplate-api",
+    }}
+    target = {{
+        "discoveredLabels": {{**common, "__meta_extra": "ignored"}},
+        "labels": {{"instance": "app:8000", "job": "pulseplate-api", "extra": "ignored"}},
+        "scrapePool": "pulseplate-api",
+        "scrapeUrl": "http://app:8000/metrics",
+        "globalUrl": "http://app:8000/metrics",
+        "scrapeInterval": "30s",
+        "scrapeTimeout": "10s",
+        "health": "up",
+        "lastScrape": "ignored",
+    }}
+    print(json.dumps({{"status": "success", "data": {{"activeTargets": [target]}}}}, separators=(",", ":")))
 elif "/bin/promtool" in args and "query" in args:
     expression = args[-1]
     timestamp = {_T0.timestamp()!r}
@@ -1464,12 +1739,24 @@ else:
         target_metrics_path="/metrics",
         target_scrape_interval_seconds=30,
         target_scrape_timeout_seconds=10,
+        loaded_target_fingerprint=verifier._target_binding_fingerprint(
+            verifier._TargetBinding(
+                job="pulseplate-api",
+                discovered_address="app:8000",
+                final_address="app:8000",
+                instance="app:8000",
+                scheme="http",
+                metrics_path="/metrics",
+                scrape_interval_seconds=30,
+                scrape_timeout_seconds=10,
+            )
+        ),
     )
     assert os.fspath(config_file) not in repr(snapshot)
     assert snapshot.config_sha256 != "sha256:" + hashlib.sha256(host_config_bytes).hexdigest()
 
     calls = [json.loads(line) for line in call_log.read_text(encoding="utf-8").splitlines()]
-    assert len(calls) == 10
+    assert len(calls) == 11
     assert [call[-3:] for call in calls[:2]] == [
         ["ps", "-q", "app"],
         ["ps", "-q", "prometheus"],
@@ -1477,7 +1764,14 @@ else:
     assert calls[2] == ["inspect", app_id, prometheus_id]
     assert calls[3] == ["cp", f"{prometheus_id}:/etc/prometheus/prometheus.yml", "-"]
     assert calls[4] == ["top", app_id, "-eo", "pid,lstart,args"]
-    assert all(call[:3] == ["exec", prometheus_id, "/bin/promtool"] for call in calls[5:])
+    assert calls[6] == [
+        "exec",
+        app_id,
+        "/usr/local/bin/python",
+        "-c",
+        verifier._LOADED_TARGET_SCRIPT,
+    ]
+    assert all(call[:3] == ["exec", prometheus_id, "/bin/promtool"] for call in calls[7:])
     assert calls[5][3:] == [
         "check",
         "service-discovery",
@@ -1485,8 +1779,8 @@ else:
         "/etc/prometheus/prometheus.yml",
         "pulseplate-api",
     ]
-    assert "--time=2026-08-22T12:00:00Z" not in calls[8]
-    assert "--time=2026-08-22T12:00:00Z" in calls[9]
+    assert "--time=2026-08-22T12:00:00Z" not in calls[9]
+    assert "--time=2026-08-22T12:00:00Z" in calls[10]
 
 
 def test_evidence_writer_is_private_and_identical_replay_is_no_write(tmp_path: Path) -> None:
@@ -1874,6 +2168,25 @@ def test_writer_rejects_target_binding_drift_after_lineage_and_hash_recompute(
 
     with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
         verifier.write_evidence_new_only(tmp_path, "target-binding-drift.json", evidence)
+
+
+def test_writer_rejects_loaded_target_fingerprint_drift_after_recompute(
+    tmp_path: Path,
+) -> None:
+    evidence = copy.deepcopy(_passing_baseline(tmp_path))
+    target = evidence["target"]
+    upstream_assets = evidence["upstream_assets"]
+    assert isinstance(target, dict)
+    assert isinstance(upstream_assets, list)
+    drifted_fingerprint = "sha256:" + "d" * 64
+    target["loaded_target_fingerprint"] = drifted_fingerprint
+    for upstream in upstream_assets:
+        if isinstance(upstream, dict) and upstream.get("role") == "loaded_target":
+            upstream["fingerprint"] = drifted_fingerprint
+    _recompute_self_metadata(evidence)
+
+    with pytest.raises(verifier.VerificationError, match="evidence_asset_invalid"):
+        verifier.write_evidence_new_only(tmp_path, "loaded-target-drift.json", evidence)
 
 
 def test_writer_rejects_retention_upgrade_without_runtime_lineage_update(

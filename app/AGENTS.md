@@ -138,7 +138,10 @@ curl -fsS https://.../metrics | grep http_requests_total
   reference. Container `promtool check service-discovery` is the delegated
   config/target recognizer and must prove one `pulseplate-api` target at
   `http://app:8000/metrics`, instance `app:8000`, interval `30s`, timeout `10s`,
-  with exact Compose services `app` and `prometheus` in one project. Derive
+  with exact Compose services `app` and `prometheus` in one project. Cross-bind
+  that file-derived result to the loaded `/api/v1/targets?state=active` response
+  fetched through the bound app container on the private network; evidence stores
+  only its aggregate fingerprint, never raw target labels or config. Derive
   `observed_at`/`T1` from one
   live Prometheus `time()` anchor, pass that exact value through `--time=` to
   every later query, bind promtool to the pre-census container ID, and require an
@@ -148,6 +151,8 @@ curl -fsS https://.../metrics | grep http_requests_total
   Except for the job-wide one-target census, every live, continuity, restart,
   and alias current/increase/reset query is scoped to both
   `job="pulseplate-api"` and `instance="app:8000"`; alias status stays unfiltered.
+  Each non-baseline window additionally requires a full-window sample canary for
+  the seeded `status="200"` alias series at the same target and range.
   Bind observed retention days and the exact `/prometheus` storage argument into
   runtime identity and ordered lineage. Checkpoint PASS independently requires
   at least `duration_seconds // 30` declared and observed samples.

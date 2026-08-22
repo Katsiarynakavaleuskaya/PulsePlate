@@ -44,6 +44,23 @@ TARGET_SCHEME = "http"
 TARGET_METRICS_PATH = "/metrics"
 TARGET_JOB_SELECTOR = f'job="{TARGET_JOB}"'
 TARGET_INSTANCE_SELECTOR = f'{TARGET_JOB_SELECTOR},instance="{TARGET_ADDRESS}"'
+_LOADED_TARGET_SCRIPT = f"""import http.client
+import sys
+
+connection = http.client.HTTPConnection("prometheus", 9090, timeout=5)
+try:
+    connection.request("GET", "/api/v1/targets?state=active")
+    response = connection.getresponse()
+    content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
+    if response.status != 200 or content_type != "application/json":
+        raise SystemExit(2)
+    payload = response.read({MAX_JSON_BYTES + 1})
+    if len(payload) > {MAX_JSON_BYTES}:
+        raise SystemExit(3)
+    sys.stdout.buffer.write(payload)
+finally:
+    connection.close()
+"""
 AUTHORITY = {
     "sets_t0": False,
     "authorizes_deploy": False,
@@ -126,11 +143,14 @@ _TARGET_FIELDS = frozenset(
         "instance",
         "scheme",
         "metrics_path",
+        "loaded_target_fingerprint",
         "scrape_interval_seconds",
         "scrape_timeout_seconds",
     }
 )
-_ALIAS_FIELDS = frozenset({"method", "route", "current_value", "increase", "resets", "observation"})
+_ALIAS_FIELDS = frozenset(
+    {"method", "route", "current_value", "increase", "resets", "sample_count", "observation"}
+)
 _WINDOW_FIELDS = frozenset({"started_at", "t0", "ended_at", "duration_seconds", "complete"})
 _ALIAS_OBSERVATIONS = frozenset(
     {"missing", "observed_negative", "observed_positive", "observed_exact_zero"}
@@ -195,6 +215,7 @@ class LiveRuntimeSnapshot:
     target_metrics_path: str
     target_scrape_interval_seconds: int
     target_scrape_timeout_seconds: int
+    loaded_target_fingerprint: str
 
 
 @dataclass(frozen=True)
@@ -269,7 +290,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def _default_output_name(mode: str, observed_at: datetime) -> str:
-    stamp = observed_at.strftime("%Y%m%dT%H%M%SZ")
+    stamp = observed_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return f"premium_alias_telemetry_{mode}_{stamp}.json"
 
 
@@ -640,6 +661,90 @@ def _parse_target_discovery(payload: bytes) -> _TargetBinding:
     )
 
 
+def _target_binding_fingerprint(binding: _TargetBinding) -> str:
+    payload = json.dumps(
+        {
+            "job": binding.job,
+            "discovered_address": binding.discovered_address,
+            "final_address": binding.final_address,
+            "instance": binding.instance,
+            "scheme": binding.scheme,
+            "metrics_path": binding.metrics_path,
+            "scrape_interval_seconds": binding.scrape_interval_seconds,
+            "scrape_timeout_seconds": binding.scrape_timeout_seconds,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return _sha256_fingerprint(payload)
+
+
+def _parse_loaded_target(payload: bytes) -> _TargetBinding:
+    decoded = _json_loads_object(payload, error_code="prometheus_loaded_target_invalid")
+    if decoded.get("status") != "success":
+        raise VerificationError("prometheus_loaded_target_invalid")
+    data = decoded.get("data")
+    if not isinstance(data, dict):
+        raise VerificationError("prometheus_loaded_target_invalid")
+    active_targets = data.get("activeTargets")
+    if not isinstance(active_targets, list) or len(active_targets) != 1:
+        raise VerificationError("prometheus_loaded_target_invalid")
+    record = active_targets[0]
+    if not isinstance(record, dict):
+        raise VerificationError("prometheus_loaded_target_invalid")
+    discovered = record.get("discoveredLabels")
+    labels = record.get("labels")
+    if (
+        not isinstance(discovered, dict)
+        or not isinstance(labels, dict)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in discovered.items()
+        )
+        or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in labels.items()
+        )
+    ):
+        raise VerificationError("prometheus_loaded_target_invalid")
+    expected_discovered = {
+        "__address__": TARGET_ADDRESS,
+        "__scheme__": TARGET_SCHEME,
+        "__metrics_path__": TARGET_METRICS_PATH,
+        "__scrape_interval__": f"{SCRAPE_INTERVAL_SECONDS}s",
+        "__scrape_timeout__": f"{SCRAPE_TIMEOUT_SECONDS}s",
+        "job": TARGET_JOB,
+    }
+    if (
+        any(discovered.get(key) != value for key, value in expected_discovered.items())
+        or labels.get("instance") != TARGET_ADDRESS
+        or labels.get("job") != TARGET_JOB
+        or record.get("scrapePool") != TARGET_JOB
+        or record.get("scrapeUrl") != f"{TARGET_SCHEME}://{TARGET_ADDRESS}{TARGET_METRICS_PATH}"
+        or record.get("globalUrl") != f"{TARGET_SCHEME}://{TARGET_ADDRESS}{TARGET_METRICS_PATH}"
+        or record.get("scrapeInterval") != f"{SCRAPE_INTERVAL_SECONDS}s"
+        or record.get("scrapeTimeout") != f"{SCRAPE_TIMEOUT_SECONDS}s"
+    ):
+        raise VerificationError("prometheus_loaded_target_mismatch")
+    return _TargetBinding(
+        job=TARGET_JOB,
+        discovered_address=TARGET_ADDRESS,
+        final_address=TARGET_ADDRESS,
+        instance=TARGET_ADDRESS,
+        scheme=TARGET_SCHEME,
+        metrics_path=TARGET_METRICS_PATH,
+        scrape_interval_seconds=SCRAPE_INTERVAL_SECONDS,
+        scrape_timeout_seconds=SCRAPE_TIMEOUT_SECONDS,
+    )
+
+
+def _require_matching_target_bindings(
+    file_binding: _TargetBinding,
+    loaded_binding: _TargetBinding,
+) -> None:
+    if file_binding != loaded_binding:
+        raise VerificationError("prometheus_loaded_target_mismatch")
+
+
 class DockerPromtoolClient:
     """Derive live runtime truth and run fixed private promtool operations."""
 
@@ -651,6 +756,7 @@ class DockerPromtoolClient:
             "-f",
             os.fspath(compose_file),
         ]
+        self._bound_app_container_id: str | None = None
         self._bound_prometheus_container_id: str | None = None
 
     @classmethod
@@ -813,6 +919,21 @@ class DockerPromtoolClient:
             raise VerificationError("prometheus_target_discovery_unavailable") from exc
         return _parse_target_discovery(result.stdout)
 
+    def _collect_loaded_target_binding(self) -> _TargetBinding:
+        if self._bound_app_container_id is None:
+            raise VerificationError("prometheus_loaded_target_unavailable")
+        result = self._run_docker(
+            [
+                "exec",
+                self._bound_app_container_id,
+                "/usr/local/bin/python",
+                "-c",
+                _LOADED_TARGET_SCRIPT,
+            ],
+            error_code="prometheus_loaded_target_unavailable",
+        )
+        return _parse_loaded_target(result.stdout)
+
     def collect_live_snapshot(self) -> LiveRuntimeSnapshot:
         app_ids = _parse_container_ids(
             self._run_compose(["ps", "-q", "app"], error_code="app_container_unavailable"),
@@ -827,6 +948,8 @@ class DockerPromtoolClient:
         )
         if len(app_ids) != 1 or len(prometheus_ids) != 1:
             raise VerificationError("container_topology_mismatch")
+        if self._bound_app_container_id is None:
+            self._bound_app_container_id = app_ids[0]
         if self._bound_prometheus_container_id is None:
             self._bound_prometheus_container_id = prometheus_ids[0]
 
@@ -909,6 +1032,8 @@ class DockerPromtoolClient:
             top_result.stdout
         )
         target_binding = self._collect_target_binding()
+        loaded_target_binding = self._collect_loaded_target_binding()
+        _require_matching_target_bindings(target_binding, loaded_target_binding)
 
         return LiveRuntimeSnapshot(
             app_container_id=app_ids[0],
@@ -937,6 +1062,7 @@ class DockerPromtoolClient:
             target_metrics_path=target_binding.metrics_path,
             target_scrape_interval_seconds=target_binding.scrape_interval_seconds,
             target_scrape_timeout_seconds=target_binding.scrape_timeout_seconds,
+            loaded_target_fingerprint=_target_binding_fingerprint(loaded_target_binding),
         )
 
     def check_healthy(self) -> bool:
@@ -1030,6 +1156,7 @@ def _target_binding_snapshot(snapshot: LiveRuntimeSnapshot) -> dict[str, object]
         "metrics_path": snapshot.target_metrics_path,
         "scrape_interval_seconds": snapshot.target_scrape_interval_seconds,
         "scrape_timeout_seconds": snapshot.target_scrape_timeout_seconds,
+        "loaded_target_fingerprint": snapshot.loaded_target_fingerprint,
     }
 
 
@@ -1098,6 +1225,11 @@ def _runtime_upstream_assets(snapshot: LiveRuntimeSnapshot) -> list[dict[str, st
                     separators=(",", ":"),
                 ),
             ),
+        },
+        {
+            "asset_type": "prometheus_loaded_target",
+            "role": "loaded_target",
+            "fingerprint": snapshot.loaded_target_fingerprint,
         },
         {
             "asset_type": "docker_volume",
@@ -1312,6 +1444,7 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
         "instance",
         "scheme",
         "metrics_path",
+        "loaded_target_fingerprint",
     )
     if any(
         target.get(field_name) is not None and not isinstance(target.get(field_name), str)
@@ -1329,8 +1462,12 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
         target.get("scrape_timeout_seconds"),
     ]
     binding_absent = all(value is None for value in binding_values)
-    binding_complete = all(isinstance(value, str) for value in binding_values[:9]) and all(
-        isinstance(value, int) and not isinstance(value, bool) for value in binding_values[9:]
+    binding_string_count = len(binding_string_fields)
+    binding_complete = all(
+        isinstance(value, str) for value in binding_values[:binding_string_count]
+    ) and all(
+        isinstance(value, int) and not isinstance(value, bool)
+        for value in binding_values[binding_string_count:]
     )
     if not binding_absent and not binding_complete:
         raise VerificationError("evidence_asset_invalid")
@@ -1347,6 +1484,19 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
         or target.get("metrics_path") != TARGET_METRICS_PATH
         or target.get("scrape_interval_seconds") != SCRAPE_INTERVAL_SECONDS
         or target.get("scrape_timeout_seconds") != SCRAPE_TIMEOUT_SECONDS
+        or target.get("loaded_target_fingerprint")
+        != _target_binding_fingerprint(
+            _TargetBinding(
+                job=cast(str, target["job"]),
+                discovered_address=cast(str, target["discovered_address"]),
+                final_address=cast(str, target["final_address"]),
+                instance=cast(str, target["instance"]),
+                scheme=cast(str, target["scheme"]),
+                metrics_path=cast(str, target["metrics_path"]),
+                scrape_interval_seconds=cast(int, target["scrape_interval_seconds"]),
+                scrape_timeout_seconds=cast(int, target["scrape_timeout_seconds"]),
+            )
+        )
     ):
         raise VerificationError("evidence_asset_invalid")
 
@@ -1379,7 +1529,7 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
             or observation not in _ALIAS_OBSERVATIONS
             or any(
                 not _is_finite_number_or_none(alias.get(field_name))
-                for field_name in ("current_value", "increase", "resets")
+                for field_name in ("current_value", "increase", "resets", "sample_count")
             )
         ):
             raise VerificationError("evidence_asset_invalid")
@@ -1441,6 +1591,7 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
                     alias.get("current_value") != 0.0
                     or alias.get("increase") is not None
                     or alias.get("resets") is not None
+                    or alias.get("sample_count") is not None
                     for alias in alias_records
                 )
             ):
@@ -1468,6 +1619,8 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
                     alias.get("current_value") != 0.0
                     or alias.get("increase") != 0.0
                     or alias.get("resets") != 0.0
+                    or not isinstance(alias.get("sample_count"), (int, float))
+                    or cast(float, alias["sample_count"]) < required_samples
                     for alias in alias_records
                 )
             ):
@@ -1508,6 +1661,8 @@ def _validate_evidence_structure(evidence: dict[str, object]) -> None:
                     alias.get("current_value") != 0.0
                     or alias.get("increase") != 0.0
                     or alias.get("resets") != 0.0
+                    or not isinstance(alias.get("sample_count"), (int, float))
+                    or cast(float, alias["sample_count"]) < required_samples
                     for alias in alias_records
                 )
             ):
@@ -1593,6 +1748,7 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             "instance",
             "scheme",
             "metrics_path",
+            "loaded_target_fingerprint",
         )
         if any(not isinstance(target.get(key), str) for key in target_string_fields) or any(
             isinstance(target.get(key), bool) or not isinstance(target.get(key), int)
@@ -1626,6 +1782,7 @@ def _validate_evidence_asset(evidence: dict[str, object]) -> None:
             target_metrics_path=cast(str, target["metrics_path"]),
             target_scrape_interval_seconds=cast(int, target["scrape_interval_seconds"]),
             target_scrape_timeout_seconds=cast(int, target["scrape_timeout_seconds"]),
+            loaded_target_fingerprint=cast(str, target["loaded_target_fingerprint"]),
         )
         expected_runtime_assets = _runtime_upstream_assets(snapshot)
         runtime_asset_count = len(expected_runtime_assets)
@@ -1741,6 +1898,7 @@ def _baseline_start(
             "current_value": 0.0,
             "increase": None,
             "resets": None,
+            "sample_count": None,
             "observation": "observed_exact_zero",
         }
         for route in ALIAS_ROUTES
@@ -1866,6 +2024,7 @@ def build_evidence(
         "metrics_path": None,
         "scrape_interval_seconds": None,
         "scrape_timeout_seconds": None,
+        "loaded_target_fingerprint": None,
     }
     if snapshot is None:
         retention_days = None
@@ -1992,6 +2151,7 @@ def build_evidence(
         )
         increase: float | None = None
         resets: float | None = None
+        alias_sample_count: float | None = None
         if config.mode != "baseline":
             increase = _query(
                 client,
@@ -2007,6 +2167,20 @@ def build_evidence(
                 reason=f"alias_{alias_name}_reset_missing",
                 reasons=reasons,
             )
+            canary_selector = f'{selector},status="200"'
+            alias_sample_count = _query(
+                client,
+                f"count_over_time(http_requests_total{{{canary_selector}}}[{range_selector}])",
+                evaluation_time=evaluation_time,
+                reason=f"alias_{alias_name}_sample_count_missing",
+                reasons=reasons,
+            )
+            if (
+                alias_sample_count is not None
+                and isinstance(required_samples, int)
+                and alias_sample_count < required_samples
+            ):
+                reasons.append(f"alias_{alias_name}_sample_count_too_low")
             increase_observation = _check_exact_zero(
                 increase,
                 prefix=f"alias_{alias_name}_increase",
@@ -2028,6 +2202,7 @@ def build_evidence(
                 "current_value": current,
                 "increase": increase,
                 "resets": resets,
+                "sample_count": alias_sample_count,
                 "observation": observation,
             }
         )
@@ -2062,9 +2237,16 @@ def build_evidence(
         "prometheus_target_binding_mismatch",
         "prometheus_scrape_interval_mismatch",
         "prometheus_scrape_timeout_mismatch",
+        "prometheus_loaded_target_unavailable",
+        "prometheus_loaded_target_invalid",
+        "prometheus_loaded_target_mismatch",
     }
     complete = not any(
-        reason in incomplete_window_reasons or reason.startswith("baseline_") or "_reset_" in reason
+        reason in incomplete_window_reasons
+        or reason.startswith("baseline_")
+        or "_reset_" in reason
+        or reason.endswith("_sample_count_missing")
+        or reason.endswith("_sample_count_too_low")
         for reason in reasons
     )
     unique_reasons = sorted(set(reasons))
