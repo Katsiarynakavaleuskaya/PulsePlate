@@ -412,14 +412,17 @@ class TestUnifiedFoodDatabaseSearch:
 
         return mock_client
 
-    @pytest.mark.asyncio
-    async def test_search_food_usda_preferred(self, temp_cache_dir, mock_usda_client):
+    def test_search_food_usda_preferred(
+        self,
+        temp_cache_dir: str,
+        mock_usda_client: AsyncMock,
+    ) -> None:
         """Test food search with USDA preferred."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.usda_client = mock_usda_client
         db.off_client = None
 
-        results = await db.search_food("chicken breast", prefer_source="usda")
+        results = asyncio.run(db.search_food("chicken breast", prefer_source="usda"))
 
         assert len(results) == 1
         assert results[0].name == "Chicken breast, cooked"
@@ -429,11 +432,14 @@ class TestUnifiedFoodDatabaseSearch:
         cache_key = "search_chicken breast"
         assert cache_key in db._memory_cache
 
-    @pytest.mark.asyncio
     @patch("core.food_apis.unified_db.OFFClient")
-    async def test_search_food_off_preferred(
-        self, mock_off_class, temp_cache_dir, mock_usda_client, mock_off_client
-    ):
+    def test_search_food_off_preferred(
+        self,
+        mock_off_class: MagicMock,
+        temp_cache_dir: str,
+        mock_usda_client: AsyncMock,
+        mock_off_client: AsyncMock,
+    ) -> None:
         """Test food search with Open Food Facts preferred."""
         # Set up OFF client mock
         mock_off_class.return_value = mock_off_client
@@ -442,17 +448,19 @@ class TestUnifiedFoodDatabaseSearch:
         db.usda_client = mock_usda_client
         db.off_client = mock_off_client
 
-        results = await db.search_food("yogurt", prefer_source="openfoodfacts")
+        results = asyncio.run(db.search_food("yogurt", prefer_source="openfoodfacts"))
 
         assert len(results) == 1
         assert results[0].name == "Greek Yogurt"
         assert results[0].source == "Open Food Facts"
 
-    @pytest.mark.asyncio
     @patch("core.food_apis.unified_db.OFFClient")
-    async def test_search_food_fallback_to_off(
-        self, mock_off_class, temp_cache_dir, mock_off_client
-    ):
+    def test_search_food_fallback_to_off(
+        self,
+        mock_off_class: MagicMock,
+        temp_cache_dir: str,
+        mock_off_client: AsyncMock,
+    ) -> None:
         """Test search fallback to OFF when USDA returns no results."""
         # Set up empty USDA results
         mock_usda_empty = AsyncMock()
@@ -465,13 +473,12 @@ class TestUnifiedFoodDatabaseSearch:
         db.usda_client = mock_usda_empty
         db.off_client = mock_off_client
 
-        results = await db.search_food("unknown food", prefer_source="usda")
+        results = asyncio.run(db.search_food("unknown food", prefer_source="usda"))
 
         assert len(results) == 1
         assert results[0].source == "Open Food Facts"
 
-    @pytest.mark.asyncio
-    async def test_search_food_cached_result(self, temp_cache_dir):
+    def test_search_food_cached_result(self, temp_cache_dir: str) -> None:
         """Test search returns cached result."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.off_client = None
@@ -490,14 +497,13 @@ class TestUnifiedFoodDatabaseSearch:
         cache_key = "search_cached food"
         db._memory_cache[cache_key] = cached_item
 
-        results = await db.search_food("cached food")
+        results = asyncio.run(db.search_food("cached food"))
 
         assert len(results) == 1
         assert results[0].name == "Cached Food"
         assert results[0].source == "Cache"
 
-    @pytest.mark.asyncio
-    async def test_search_food_no_results(self, temp_cache_dir):
+    def test_search_food_no_results(self, temp_cache_dir: str) -> None:
         """Test search with no results from any source."""
         # Mock empty results
         mock_usda_empty = AsyncMock()
@@ -507,12 +513,11 @@ class TestUnifiedFoodDatabaseSearch:
         db.usda_client = mock_usda_empty
         db.off_client = None  # No OFF client
 
-        results = await db.search_food("nonexistent food")
+        results = asyncio.run(db.search_food("nonexistent food"))
 
         assert results == []
 
-    @pytest.mark.asyncio
-    async def test_search_food_usda_pref_merges_top_hit_with_off(self, temp_cache_dir) -> None:
+    def test_search_food_usda_pref_merges_top_hit_with_off(self, temp_cache_dir: str) -> None:
         """With prefer_source=usda, top USDA hit is enriched via OFF + resolver."""
         mock_usda = AsyncMock()
         usda_item = USDAFoodItem(
@@ -540,7 +545,7 @@ class TestUnifiedFoodDatabaseSearch:
         db.usda_client = mock_usda
         db.off_client = mock_off
 
-        results = await db.search_food("resolver merge chicken", prefer_source="usda")
+        results = asyncio.run(db.search_food("resolver merge chicken", prefer_source="usda"))
         assert len(results) >= 1
         top = results[0]
         assert "merged" in top.source.lower()
@@ -548,9 +553,10 @@ class TestUnifiedFoodDatabaseSearch:
         assert top.nutrients_per_100g.get("fiber_g") == 3.0
         mock_off.search_products.assert_awaited()
 
-    @pytest.mark.asyncio
-    async def test_search_food_usda_pref_merge_skips_when_off_raises(
-        self, temp_cache_dir, caplog
+    def test_search_food_usda_pref_merge_skips_when_off_raises(
+        self,
+        temp_cache_dir: str,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Merge block must swallow OFF errors and keep plain USDA row."""
         import logging
@@ -575,7 +581,7 @@ class TestUnifiedFoodDatabaseSearch:
         db.off_client = mock_off
 
         caplog.set_level(logging.DEBUG, logger="core.food_apis.unified_db")
-        results = await db.search_food("plain usda merge skip", prefer_source="usda")
+        results = asyncio.run(db.search_food("plain usda merge skip", prefer_source="usda"))
         assert len(results) == 1
         assert results[0].source == "USDA FoodData Central"
         assert "skipping USDA+OFF" in caplog.text
@@ -592,7 +598,7 @@ class TestUnifiedFoodDatabaseSearch:
         mock_off.search_products.return_value = [off_item]
 
         caplog.clear()
-        merged_results = await db.search_food("plain usda merge skip", prefer_source="usda")
+        merged_results = asyncio.run(db.search_food("plain usda merge skip", prefer_source="usda"))
         assert len(merged_results) == 1
         top = merged_results[0]
         assert "merged" in top.source.lower()
@@ -609,8 +615,7 @@ class TestUnifiedFoodDatabaseGetById:
         with tempfile.TemporaryDirectory() as temp_dir:
             yield temp_dir
 
-    @pytest.mark.asyncio
-    async def test_get_food_by_id_usda(self, temp_cache_dir):
+    def test_get_food_by_id_usda(self, temp_cache_dir: str) -> None:
         """Test getting USDA food by ID."""
         # Mock USDA client
         mock_usda_client = AsyncMock()
@@ -630,7 +635,7 @@ class TestUnifiedFoodDatabaseGetById:
         db.usda_client = mock_usda_client
         db.off_client = None
 
-        result = await db.get_food_by_id("usda", "12345")
+        result = asyncio.run(db.get_food_by_id("usda", "12345"))
 
         assert result is not None
         assert result.name == "Test Food"
@@ -641,9 +646,8 @@ class TestUnifiedFoodDatabaseGetById:
         cache_key = "usda_12345"
         assert cache_key in db._memory_cache
 
-    @pytest.mark.asyncio
     @patch("core.food_apis.unified_db.OFFClient")
-    async def test_get_food_by_id_off(self, mock_off_class, temp_cache_dir):
+    def test_get_food_by_id_off(self, mock_off_class: MagicMock, temp_cache_dir: str) -> None:
         """Test getting OFF food by ID."""
         # Mock OFF client
         mock_off_client = AsyncMock()
@@ -661,15 +665,14 @@ class TestUnifiedFoodDatabaseGetById:
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
         db.off_client = mock_off_client
 
-        result = await db.get_food_by_id("openfoodfacts", "123456")
+        result = asyncio.run(db.get_food_by_id("openfoodfacts", "123456"))
 
         assert result is not None
         assert result.name == "OFF Product"
         assert result.source == "Open Food Facts"
         assert result.source_id == "123456"
 
-    @pytest.mark.asyncio
-    async def test_get_food_by_id_cached(self, temp_cache_dir):
+    def test_get_food_by_id_cached(self, temp_cache_dir: str) -> None:
         """Test getting food by ID from cache."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
 
@@ -687,27 +690,25 @@ class TestUnifiedFoodDatabaseGetById:
         cache_key = "usda_cached123"
         db._memory_cache[cache_key] = cached_item
 
-        result = await db.get_food_by_id("usda", "cached123")
+        result = asyncio.run(db.get_food_by_id("usda", "cached123"))
 
         assert result is not None
         assert result.name == "Cached Food"
         assert result.source == "Cache"
 
-    @pytest.mark.asyncio
-    async def test_get_food_by_id_invalid_usda_id(self, temp_cache_dir):
+    def test_get_food_by_id_invalid_usda_id(self, temp_cache_dir: str) -> None:
         """Test getting USDA food with invalid ID."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
 
-        result = await db.get_food_by_id("usda", "invalid_id")
+        result = asyncio.run(db.get_food_by_id("usda", "invalid_id"))
 
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_get_food_by_id_unknown_source(self, temp_cache_dir):
+    def test_get_food_by_id_unknown_source(self, temp_cache_dir: str) -> None:
         """Test getting food with unknown source."""
         db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
 
-        result = await db.get_food_by_id("unknown_source", "123")
+        result = asyncio.run(db.get_food_by_id("unknown_source", "123"))
 
         assert result is None
 
@@ -715,8 +716,7 @@ class TestUnifiedFoodDatabaseGetById:
 class TestUnifiedFoodDatabaseClose:
     """Test database cleanup."""
 
-    @pytest.mark.asyncio
-    async def test_close_database(self):
+    def test_close_database(self) -> None:
         """Test closing database and clients."""
         # Mock clients
         mock_usda_client = AsyncMock()
@@ -726,13 +726,12 @@ class TestUnifiedFoodDatabaseClose:
         db.usda_client = mock_usda_client
         db.off_client = mock_off_client
 
-        await db.close()
+        asyncio.run(db.close())
 
         mock_usda_client.close.assert_called_once()
         mock_off_client.close.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_close_database_no_off_client(self):
+    def test_close_database_no_off_client(self) -> None:
         """Test closing database without OFF client."""
         mock_usda_client = AsyncMock()
 
@@ -741,7 +740,7 @@ class TestUnifiedFoodDatabaseClose:
         db.off_client = None
 
         # Should not crash when OFF client is None
-        await db.close()
+        asyncio.run(db.close())
 
         mock_usda_client.close.assert_called_once()
 
@@ -749,9 +748,8 @@ class TestUnifiedFoodDatabaseClose:
 class TestUtilityFunctions:
     """Test utility functions."""
 
-    @pytest.mark.asyncio
     @patch("core.food_apis.unified_db.get_unified_food_db")
-    async def test_search_foods_unified(self, mock_get_db):
+    def test_search_foods_unified(self, mock_get_db: AsyncMock) -> None:
         """Test unified search function."""
         # Mock database
         mock_db = AsyncMock()
@@ -768,7 +766,7 @@ class TestUtilityFunctions:
         mock_db.search_food.return_value = [mock_item]
         mock_get_db.return_value = mock_db
 
-        results = await search_foods_unified("test query", max_results=5)
+        results = asyncio.run(search_foods_unified("test query", max_results=5))
 
         assert len(results) == 1
         assert results[0]["name"] == "Test Food"
@@ -776,23 +774,22 @@ class TestUtilityFunctions:
 
         mock_db.search_food.assert_called_once_with("test query")
 
-    @pytest.mark.asyncio
-    async def test_get_unified_food_db_new_instance(self):
+    def test_get_unified_food_db_new_instance(self) -> None:
         """Test getting new unified database instance."""
         _replace_registered_unified_food(None)
-        db = await get_unified_food_db()
+        db = asyncio.run(get_unified_food_db())
 
         assert db is not None
         assert isinstance(db, UnifiedFoodDatabase)
 
         # Second call should return same instance
-        db2 = await get_unified_food_db()
+        db2 = asyncio.run(get_unified_food_db())
         assert db is db2
 
         cleared, observed = unified_db_module._compare_exchange_unified_db_instance(db, None)
         assert cleared
         assert observed is None
-        await db.close()
+        asyncio.run(db.close())
 
 
 class _EqualRegisterCandidate:
@@ -1171,8 +1168,7 @@ def test_get_unified_food_db_concurrent_publish_closes_loser_outside_lock(
     asyncio.run(winner.close())
 
 
-@pytest.mark.asyncio
-async def test_get_unified_food_db_loser_cleanup_cancellation_propagates(
+def test_get_unified_food_db_loser_cleanup_cancellation_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _replace_registered_unified_food(None)
@@ -1215,29 +1211,33 @@ async def test_get_unified_food_db_loser_cleanup_cancellation_propagates(
         "_compare_exchange_unified_db_instance",
         _lose_publish,
     )
-    getter_task = asyncio.create_task(unified_db_module.get_unified_food_db())
-    await close_started.wait()
-    getter_task.cancel()
-    with pytest.raises(
-        asyncio.CancelledError,
-        match=f"^{unified_db_module.UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE}$",
-    ) as cancellation_exc:
-        await getter_task
+
+    async def _run_cancellation_scenario() -> BaseException:
+        getter_task = asyncio.create_task(unified_db_module.get_unified_food_db())
+        await close_started.wait()
+        getter_task.cancel()
+        with pytest.raises(
+            asyncio.CancelledError,
+            match=f"^{unified_db_module.UNIFIED_FOOD_CLEANUP_CANCELLED_MESSAGE}$",
+        ) as cancellation_exc:
+            await getter_task
+        return cancellation_exc.value
+
+    cancellation = asyncio.run(_run_cancellation_scenario())
 
     assert candidate.close_calls == 1
-    assert cancellation_exc.value.__cause__ is None
-    assert cancellation_exc.value.__context__ is None
+    assert cancellation.__cause__ is None
+    assert cancellation.__context__ is None
     assert unified_db_module._read_unified_db_instance() is winner
     cleared, _observed = real_compare_exchange(
         cast(UnifiedFoodDatabase, winner),
         None,
     )
     assert cleared
-    await winner.close()
+    asyncio.run(winner.close())
 
 
-@pytest.mark.asyncio
-async def test_get_unified_food_db_partial_initialization_uses_cleanup_algebra(
+def test_get_unified_food_db_partial_initialization_uses_cleanup_algebra(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1260,7 +1260,7 @@ async def test_get_unified_food_db_partial_initialization_uses_cleanup_algebra(
         RuntimeError,
         match=f"^{unified_db_module.UNIFIED_FOOD_INITIALIZATION_ERROR_MESSAGE}$",
     ) as exc_info:
-        await unified_db_module.get_unified_food_db()
+        asyncio.run(unified_db_module.get_unified_food_db())
 
     assert candidate.close_calls == 1
     assert unified_db_module._read_unified_db_instance() is None
