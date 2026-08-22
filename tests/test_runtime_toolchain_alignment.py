@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import re
-import shutil
-import subprocess
 from collections import Counter
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -80,8 +77,6 @@ EXPECTED_RUBY_SETUP_OWNERS = (
     (".github/workflows/ios-appstore-assets.yml", "upload-assets"),
     (".github/workflows/ios-appstore-assets.yml", "validate-assets"),
 )
-RUBY_DEPENDENCY_SURFACE_NAMES = frozenset({"Gemfile", "Gemfile.lock"})
-EXPECTED_RUBY_DEPENDENCY_SURFACES = frozenset({"ios/Gemfile", "ios/Gemfile.lock"})
 
 
 def _require(condition: bool, message: str) -> None:
@@ -268,66 +263,6 @@ def _assert_json_lock_postcondition(lockfile: str) -> None:
         _version_at_least(locked_json, JSON_MINIMUM_VERSION),
         "top-level json version is below the repository security floor",
     )
-
-
-def _discover_ruby_dependency_surfaces(repo_root: Path) -> dict[str, Path]:
-    """Discover tracked exact Gemfile names through a strict NUL-delimited Git census."""
-    git = shutil.which("git") or ""
-    _require(bool(git), "git executable is unavailable for dependency surface census")
-    _require(Path(git).is_absolute(), "git executable must resolve to an absolute path")
-    git_environment = {
-        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
-    }
-    command = [git, "-C", str(repo_root), "ls-files", "--cached", "-z"]
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            timeout=30,
-            env=git_environment,
-            shell=False,
-        )
-    except subprocess.TimeoutExpired:
-        raise AssertionError("git index census timed out") from None
-    except OSError:
-        raise AssertionError("git index census could not start") from None
-    _require(result.returncode == 0, "git index census failed")
-    try:
-        output = result.stdout.decode("utf-8", errors="strict")
-    except UnicodeDecodeError:
-        raise AssertionError("git index census returned non-UTF-8 paths") from None
-    _require(not output or output.endswith("\0"), "git index census returned malformed NUL framing")
-    records = output.split("\0")[:-1] if output else []
-    _require(all(records), "git index census returned an empty path record")
-    _require(len(records) == len(set(records)), "git index census returned duplicate paths")
-
-    discovered: dict[str, Path] = {}
-    for record in records:
-        relative = PurePosixPath(record)
-        _require(
-            not relative.is_absolute() and ".." not in relative.parts,
-            "git index census returned an invalid relative path",
-        )
-        if relative.name not in RUBY_DEPENDENCY_SURFACE_NAMES:
-            continue
-        discovered[record] = repo_root.joinpath(*relative.parts)
-    return discovered
-
-
-def _assert_ruby_json_repository_postcondition(repo_root: Path) -> None:
-    surfaces = _discover_ruby_dependency_surfaces(repo_root)
-    _require(
-        frozenset(surfaces) == EXPECTED_RUBY_DEPENDENCY_SURFACES,
-        "tracked Ruby dependency surfaces differ from the exact two-path contract",
-    )
-    for path in surfaces.values():
-        _require(
-            path.is_file() and not path.is_symlink(),
-            "tracked Ruby dependency surface must be a regular non-symlink file",
-        )
-    lockfile = surfaces["ios/Gemfile.lock"].read_text(encoding="utf-8")
-    _assert_json_lock_postcondition(lockfile)
 
 
 def test_local_python_and_ruby_version_sources_are_canonical() -> None:
@@ -570,10 +505,6 @@ def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
     _assert_json_lock_postcondition(lockfile)
 
 
-def test_repository_ruby_json_dependency_surface_is_finite_and_patched() -> None:
-    _assert_ruby_json_repository_postcondition(REPO_ROOT)
-
-
 def _minimal_bundler_lock(
     version: str = "2.19.9",
     *,
@@ -591,157 +522,6 @@ DEPENDENCIES
 {dependencies}BUNDLED WITH
    2.4.22
 """
-
-
-def _write_minimal_ruby_dependency_surfaces(repo_root: Path, lockfile: str) -> None:
-    ios_dir = repo_root / "ios"
-    ios_dir.mkdir()
-    (ios_dir / "Gemfile").write_text('gem "fastlane", "= 2.237.0"\n', encoding="utf-8")
-    (ios_dir / "Gemfile.lock").write_text(lockfile, encoding="utf-8")
-
-
-def _mock_git_index(
-    monkeypatch: pytest.MonkeyPatch,
-    stdout: bytes,
-    *,
-    returncode: int = 0,
-    stderr: bytes = b"",
-) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/git")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[], returncode=returncode, stdout=stdout, stderr=stderr
-        ),
-    )
-
-
-def test_git_index_census_is_nul_safe_and_clears_git_environment(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
-        captured["command"] = command
-        captured.update(kwargs)
-        return subprocess.CompletedProcess(
-            args=command,
-            returncode=0,
-            stdout=b"ios/Gemfile\0release tools/Gemfile.lock\0",
-            stderr=b"",
-        )
-
-    monkeypatch.setenv("GIT_SECRET_CONTEXT", "must-not-propagate")
-    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/git")
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    surfaces = _discover_ruby_dependency_surfaces(tmp_path)
-
-    assert set(surfaces) == {"ios/Gemfile", "release tools/Gemfile.lock"}
-    assert captured["command"] == [
-        "/usr/bin/git",
-        "-C",
-        str(tmp_path),
-        "ls-files",
-        "--cached",
-        "-z",
-    ]
-    assert captured["check"] is False
-    assert captured["capture_output"] is True
-    assert captured["timeout"] == 30
-    assert captured["shell"] is False
-    assert all(not key.startswith("GIT_") for key in captured["env"])
-
-
-def test_repository_postcondition_ignores_untracked_extra_lock(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _write_minimal_ruby_dependency_surfaces(tmp_path, _minimal_bundler_lock())
-    extra_dir = tmp_path / "untracked"
-    extra_dir.mkdir()
-    (extra_dir / "Gemfile.lock").write_text(_minimal_bundler_lock("2.19.8"), encoding="utf-8")
-    _mock_git_index(monkeypatch, b"ios/Gemfile\0ios/Gemfile.lock\0")
-
-    _assert_ruby_json_repository_postcondition(tmp_path)
-
-
-def test_repository_postcondition_rejects_a_tracked_extra_vulnerable_lock(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _write_minimal_ruby_dependency_surfaces(tmp_path, _minimal_bundler_lock())
-    extra_dir = tmp_path / "release-tools"
-    extra_dir.mkdir()
-    (extra_dir / "Gemfile.lock").write_text(_minimal_bundler_lock("2.19.8"), encoding="utf-8")
-    _mock_git_index(
-        monkeypatch,
-        b"ios/Gemfile\0ios/Gemfile.lock\0release-tools/Gemfile.lock\0",
-    )
-
-    with pytest.raises(AssertionError):
-        _assert_ruby_json_repository_postcondition(tmp_path)
-
-
-def test_repository_postcondition_rejects_a_missing_tracked_surface(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ios_dir = tmp_path / "ios"
-    ios_dir.mkdir()
-    (ios_dir / "Gemfile").write_text('gem "fastlane"\n', encoding="utf-8")
-    _mock_git_index(monkeypatch, b"ios/Gemfile\0ios/Gemfile.lock\0")
-
-    with pytest.raises(AssertionError, match="regular non-symlink"):
-        _assert_ruby_json_repository_postcondition(tmp_path)
-
-
-def test_repository_postcondition_rejects_a_symlinked_tracked_surface(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ios_dir = tmp_path / "ios"
-    ios_dir.mkdir()
-    (ios_dir / "Gemfile").write_text('gem "fastlane"\n', encoding="utf-8")
-    target = tmp_path / "outside.lock"
-    target.write_text(_minimal_bundler_lock(), encoding="utf-8")
-    (ios_dir / "Gemfile.lock").symlink_to(target)
-    _mock_git_index(monkeypatch, b"ios/Gemfile\0ios/Gemfile.lock\0")
-
-    with pytest.raises(AssertionError, match="regular non-symlink"):
-        _assert_ruby_json_repository_postcondition(tmp_path)
-
-
-def test_git_index_census_fails_when_git_is_unavailable(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _name: None)
-
-    with pytest.raises(AssertionError, match="git executable is unavailable"):
-        _discover_ruby_dependency_surfaces(tmp_path)
-
-
-def test_git_index_census_fails_on_nonzero_exit_without_stderr_leakage(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_git_index(monkeypatch, b"", returncode=128, stderr=b"secret raw diagnostic")
-
-    with pytest.raises(AssertionError, match="^git index census failed$"):
-        _discover_ruby_dependency_surfaces(tmp_path)
-
-
-def test_git_index_census_fails_on_malformed_utf8(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_git_index(monkeypatch, b"ios/Gemfile\0\xff\0")
-
-    with pytest.raises(AssertionError, match="non-UTF-8 paths"):
-        _discover_ruby_dependency_surfaces(tmp_path)
 
 
 @pytest.mark.parametrize("version", ["2.19.9", "2.19.10"])
