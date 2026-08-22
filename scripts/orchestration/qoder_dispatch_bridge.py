@@ -82,6 +82,7 @@ from scripts.orchestration.task_bootstrap import (
     _bind_invariant_review_packet_id,
     _design_fingerprint,
     _judgment_lane_enabled,
+    _read_creative_pilot_workspace,
     _validated_judgment_activation,
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
     INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
@@ -1545,6 +1546,36 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         payload,
         validated_creative_context=validated_synthesis_context,
     )
+    _validate_single_coordinator_synthesis_workspace_source(
+        payload,
+        validated_synthesis_context=validated_synthesis_context,
+    )
+
+
+def _validate_single_coordinator_synthesis_workspace_source(
+    payload: Dict[str, Any],
+    *,
+    validated_synthesis_context: Dict[str, Any],
+) -> None:
+    """Re-read and bind the synthesis-ready workspace behind one alias dispatch."""
+
+    source_error = (
+        "creative pilot synthesis packet must bind a validated " "synthesis-ready workspace source"
+    )
+    source = payload.get("creative_pilot_workspace_source")
+    if (
+        not isinstance(source, str)
+        or not source
+        or source != source.strip()
+        or any(ord(character) < 32 or ord(character) == 127 for character in source)
+    ):
+        raise ValueError(source_error)
+    try:
+        workspace, rebuilt_context = _read_creative_pilot_workspace(source, "synthesis")
+    except ValueError as exc:
+        raise ValueError(source_error) from exc
+    if workspace is None or rebuilt_context != validated_synthesis_context:
+        raise ValueError(source_error)
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:

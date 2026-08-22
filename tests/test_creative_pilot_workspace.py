@@ -2872,6 +2872,20 @@ def _synthesis_ready_workspace_path(
     return workspace_path
 
 
+def _run_synthesis_packet_for_error(
+    packet: dict[str, Any],
+    *,
+    capsys: pytest.CaptureFixture[str],
+) -> tuple[int, str]:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-source-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        result = role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"])
+    return result, capsys.readouterr().err.strip()
+
+
 @pytest.mark.parametrize(
     "native_bridge_transport",
     ("codex-native-subagents", "kimi-native-subagents"),
@@ -2935,6 +2949,121 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert manifest["parallel_execution_allowed"] is False
     assert manifest["dispatch_sequence"][0]["readonly"] is True
     assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "replacement"),
+    (
+        ("missing", None),
+        ("replace", None),
+        ("replace", ""),
+        ("replace", 1),
+        ("replace", " workspace.json "),
+        ("replace", "workspace.json\n"),
+    ),
+)
+def test_synthesis_dispatch_requires_workspace_source_field(
+    mutation: str,
+    replacement: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    if mutation == "missing":
+        packet.pop("creative_pilot_workspace_source")
+    else:
+        packet["creative_pilot_workspace_source"] = replacement
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet must bind a validated "
+        "synthesis-ready workspace source"
+    )
+
+
+@pytest.mark.parametrize(
+    "source_kind",
+    ("missing", "outside", "malformed", "symlink", "modified_after_packet"),
+)
+def test_synthesis_dispatch_rejects_unbound_workspace_source_artifact(
+    source_kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    pilot_root = workspace_path.parents[1]
+    if source_kind == "missing":
+        source_path = pilot_root / "pilot-missing" / "workspace.json"
+    elif source_kind == "outside":
+        source_path = tmp_path / "outside" / "workspace.json"
+        source_path.parent.mkdir()
+        shutil.copyfile(workspace_path, source_path)
+    elif source_kind == "malformed":
+        source_path = pilot_root / "pilot-malformed" / "workspace.json"
+        source_path.parent.mkdir()
+        source_path.write_text("{", encoding="utf-8")
+    elif source_kind == "symlink":
+        source_path = pilot_root / "pilot-symlink" / "workspace.json"
+        source_path.parent.mkdir()
+        source_path.symlink_to(workspace_path)
+    else:
+        source_path = workspace_path
+        workspace_path.write_text("{}", encoding="utf-8")
+    packet["creative_pilot_workspace_source"] = str(source_path)
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet must bind a validated "
+        "synthesis-ready workspace source"
+    )
+
+
+def test_synthesis_dispatch_accepts_identical_workspace_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    copied_path = workspace_path.parents[1] / "pilot-copy" / "workspace.json"
+    copied_path.parent.mkdir()
+    shutil.copyfile(workspace_path, copied_path)
+    packet["creative_pilot_workspace_source"] = str(copied_path)
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-copy-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 0
+    manifest = json.loads(capsys.readouterr().out)
+
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
 
 
 @pytest.mark.parametrize("hide_required_flag", (False, True))

@@ -27,6 +27,7 @@ from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contr
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 PACKET_PATH = REPO_ROOT / "docs" / "orchestration" / "PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md"
+_SYNTHETIC_WORKSPACE_SOURCE = "test://synthetic-synthesis-workspace"
 
 REQUIRED_TOP_LEVEL_KEYS = {
     "schema_version",
@@ -64,6 +65,33 @@ REQUIRED_ENTRY_KEYS = {
 
 class _LegacyCandidatePathList(list[object]):
     pass
+
+
+@pytest.fixture(autouse=True)
+def _isolate_synthetic_synthesis_workspace_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep metadata matrices synthetic while real CLI tests bind workspace artifacts."""
+
+    validate_source = qoder_dispatch_bridge._validate_single_coordinator_synthesis_workspace_source
+
+    def validate_or_stub(
+        payload: Dict[str, Any],
+        *,
+        validated_synthesis_context: Dict[str, Any],
+    ) -> None:
+        if payload.get("creative_pilot_workspace_source") == _SYNTHETIC_WORKSPACE_SOURCE:
+            return
+        validate_source(
+            payload,
+            validated_synthesis_context=validated_synthesis_context,
+        )
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "_validate_single_coordinator_synthesis_workspace_source",
+        validate_or_stub,
+    )
 
 
 def _rebind_single_coordinator_synthesis_task_packet_id(packet: dict[str, object]) -> None:
@@ -136,6 +164,7 @@ def _single_coordinator_synthesis_packet(
             "reviewer": "agent-coordinator",
             "requested_agents": ["agent-coordinator"],
             "requested_agent_disposition": [],
+            "creative_pilot_workspace_source": _SYNTHETIC_WORKSPACE_SOURCE,
             "native_subagent_bridge": bridge,
             "creative_pilot_context": {
                 "schema_version": "creative_pilot_context.v2",

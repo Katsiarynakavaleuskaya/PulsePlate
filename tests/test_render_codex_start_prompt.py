@@ -10,6 +10,7 @@ from typing import Any, cast
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration import qoder_dispatch_bridge
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.task_bootstrap as task_bootstrap
 from scripts.orchestration.context_pack import compute_task_packet_id
@@ -21,6 +22,34 @@ from scripts.orchestration.render_codex_start_prompt import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_SYNTHETIC_WORKSPACE_SOURCE = "test://synthetic-synthesis-workspace"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_synthetic_synthesis_workspace_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep prompt fixtures synthetic while public CLI tests bind real workspaces."""
+
+    validate_source = qoder_dispatch_bridge._validate_single_coordinator_synthesis_workspace_source
+
+    def validate_or_stub(
+        payload: dict[str, Any],
+        *,
+        validated_synthesis_context: dict[str, Any],
+    ) -> None:
+        if payload.get("creative_pilot_workspace_source") == _SYNTHETIC_WORKSPACE_SOURCE:
+            return
+        validate_source(
+            payload,
+            validated_synthesis_context=validated_synthesis_context,
+        )
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "_validate_single_coordinator_synthesis_workspace_source",
+        validate_or_stub,
+    )
 
 
 def _packet() -> dict[str, object]:
@@ -102,6 +131,7 @@ def _synthesis_packet() -> dict[str, object]:
             "reviewer": "agent-coordinator",
             "requested_agents": ["agent-coordinator"],
             "requested_agent_disposition": [],
+            "creative_pilot_workspace_source": _SYNTHETIC_WORKSPACE_SOURCE,
             "native_subagent_bridge": bridge,
             "creative_pilot_context": {
                 "schema_version": "creative_pilot_context.v2",
