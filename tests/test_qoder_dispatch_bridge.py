@@ -103,13 +103,17 @@ def _substitute_synthesis_context_identity(context: dict[str, Any]) -> None:
     assignment["input_refs"] = [workspace_id, revision_fingerprint]
 
 
-def _single_coordinator_synthesis_packet() -> dict[str, object]:
+def _single_coordinator_synthesis_packet(
+    *,
+    goal: str = "synthesize validated creative pilot results",
+    candidate_paths: list[str] | None = None,
+) -> dict[str, object]:
     revision_fingerprint = "sha256:" + ("2" * 64)
     workspace_id = "workspace:synthesis-test"
     packet = task_bootstrap.build_task_packet(
-        goal="synthesize validated creative pilot results",
+        goal=goal,
         task_class="orchestration",
-        candidate_paths=["README.md"],
+        candidate_paths=["README.md"] if candidate_paths is None else candidate_paths,
         requested_agents=["agent-coordinator"],
     )
     transport = packet["native_subagent_bridge"]["transport"]
@@ -220,6 +224,53 @@ def test_single_coordinator_synthesis_accepts_rebound_context_identity() -> None
     _rebind_single_coordinator_synthesis_task_packet_id(packet)
 
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+def test_synthesis_security_requirement_cannot_be_hidden_by_flag() -> None:
+    packet = _single_coordinator_synthesis_packet(candidate_paths=["deploy/example.yaml"])
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["security_review_required"] is True
+    automation_flags["security_review_required"] = False
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires security_review_required=false"
+    )
+
+
+def test_synthesis_judgment_requirement_cannot_be_hidden_by_projection() -> None:
+    packet = _single_coordinator_synthesis_packet(
+        goal="synthesize validated creative pilot adjudication results"
+    )
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["judgment_lane_enabled"] is True
+    automation_flags["judgment_lane_enabled"] = False
+    packet["decision_contract"] = {
+        "mode": "standard",
+        "judgment_enabled": False,
+        "claim_taxonomy": [],
+        "flow": [],
+    }
+    packet["judgment_budget"] = {
+        "skeptic_pass_required": False,
+        "verifier_pass_required": False,
+        "max_provider_calls": 0,
+        "uncertainty_split_required": False,
+    }
+    packet["result_adjudication"] = {
+        "claim_evidence_fields": [],
+        "support_statuses": [],
+        "evidence_modes": [],
+        "uncertainty_fields": [],
+        "promotion_labels": [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
 
 
 @pytest.mark.parametrize(

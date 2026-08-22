@@ -2937,7 +2937,9 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
 
 
+@pytest.mark.parametrize("hide_required_flag", (False, True))
 def test_synthesis_task_packet_with_security_review_requirement_fails_closed(
+    hide_required_flag: bool,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -2951,6 +2953,8 @@ def test_synthesis_task_packet_with_security_review_requirement_fails_closed(
         creative_pilot_phase="synthesis",
     )
     assert packet["automation_flags"]["security_review_required"] is True
+    if hide_required_flag:
+        packet["automation_flags"]["security_review_required"] = False
     artifact_root = REPO_ROOT / "artifacts" / "orchestration"
     artifact_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -2988,7 +2992,9 @@ def test_synthesis_task_packet_rejects_explicit_invariant_change_class(
     )
 
 
+@pytest.mark.parametrize("hide_required_projection", (False, True))
 def test_synthesis_task_packet_with_judgment_requirement_fails_closed(
+    hide_required_projection: bool,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -3004,6 +3010,27 @@ def test_synthesis_task_packet_with_judgment_requirement_fails_closed(
     assert packet["automation_flags"]["judgment_lane_enabled"] is True
     assert packet["judgment_budget"]["skeptic_pass_required"] is True
     assert packet["judgment_budget"]["verifier_pass_required"] is True
+    if hide_required_projection:
+        packet["automation_flags"]["judgment_lane_enabled"] = False
+        packet["decision_contract"] = {
+            "mode": "standard",
+            "judgment_enabled": False,
+            "claim_taxonomy": [],
+            "flow": [],
+        }
+        packet["judgment_budget"] = {
+            "skeptic_pass_required": False,
+            "verifier_pass_required": False,
+            "max_provider_calls": 0,
+            "uncertainty_split_required": False,
+        }
+        packet["result_adjudication"] = {
+            "claim_evidence_fields": [],
+            "support_statuses": [],
+            "evidence_modes": [],
+            "uncertainty_fields": [],
+            "promotion_labels": [],
+        }
     artifact_root = REPO_ROOT / "artifacts" / "orchestration"
     artifact_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(

@@ -57,6 +57,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     classify_invariant_review,
     compute_invariant_family_review_packet_id,
+    requires_security_review,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
@@ -71,10 +72,17 @@ from scripts.orchestration.context_pack import (
     resolve_domain,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
-from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.routing_graph_loader import (
+    REQUIRED_BOOTSTRAP_LANE,
+    load_bootstrap_lane_activations,
+    load_routing_graph,
+    require_bootstrap_lane_activation,
+)
 from scripts.orchestration.task_bootstrap import (
     _bind_invariant_review_packet_id,
     _design_fingerprint,
+    _judgment_lane_enabled,
+    _validated_judgment_activation,
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
     INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
@@ -1398,6 +1406,32 @@ def _validate_inactive_synthesis_judgment_metadata(
     decision_contract = payload.get("decision_contract")
     judgment_budget = payload.get("judgment_budget")
     result_adjudication = payload.get("result_adjudication")
+    goal = payload.get("goal")
+    task_class = payload.get("task_class")
+    candidate_paths = payload.get("candidate_paths")
+    if (
+        not isinstance(goal, str)
+        or not isinstance(task_class, str)
+        or not isinstance(candidate_paths, list)
+        or any(not isinstance(path, str) for path in candidate_paths)
+    ):
+        raise ValueError(judgment_error)
+    try:
+        judgment_required = _judgment_lane_enabled(
+            goal=goal,
+            task_class=task_class,
+            candidate_paths=candidate_paths,
+            activation=_validated_judgment_activation(
+                require_bootstrap_lane_activation(
+                    load_bootstrap_lane_activations(),
+                    REQUIRED_BOOTSTRAP_LANE,
+                )
+            ),
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(judgment_error) from exc
+    if judgment_required:
+        raise ValueError(judgment_error)
     if automation_flags.get("judgment_lane_enabled") is not False:
         raise ValueError(judgment_error)
     if (
@@ -1467,6 +1501,15 @@ def _validate_single_coordinator_synthesis_packet_metadata(
             "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
         )
     if automation_flags.get("security_review_required") is not False:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        )
+    candidate_paths = payload.get("candidate_paths")
+    if (
+        not isinstance(candidate_paths, list)
+        or any(not isinstance(path, str) for path in candidate_paths)
+        or requires_security_review(candidate_paths)
+    ):
         raise ValueError(
             "creative pilot synthesis packet metadata requires security_review_required=false"
         )
