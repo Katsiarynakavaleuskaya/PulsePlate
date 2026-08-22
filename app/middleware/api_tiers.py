@@ -220,7 +220,8 @@ def _compat_paid_expires_at(
         return None
     if not is_legacy_manual_compat_row(created_at=created_at):
         return None
-    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    compat_expires_at: datetime = manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    return compat_expires_at
 
 
 def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
