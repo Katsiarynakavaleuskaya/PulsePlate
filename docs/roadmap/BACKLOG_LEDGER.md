@@ -2759,7 +2759,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
     being executed as mixed bump lanes. The series must codify policy classes (`security-floor`,
     `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
-    mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
+    mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` on every slice.
   - Links:
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2181`
     - `.github/dependabot.yml`
@@ -2767,15 +2767,62 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
     - `docs/DEPENDENCY_MANAGEMENT.md:62`
-    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - `AGENTS.md:703`
+    - `docs/orchestration/workflow.md:149`
     - `requirements.txt:1`
     - `requirements-dev.txt:1`
     - `requirements-ci-lite.txt:1`
   - DoD:
-    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - Series packet defines role order, PR slices, and the mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` lane; authoritative evidence anchors are `AGENTS.md:703` and `docs/orchestration/workflow.md:149`
     - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
-    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:66`
     - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
+
+<a id="ledger-p1-depsec2-multi-ecosystem-dependency-closure"></a>
+- [ ] P1: DEPSEC-2 multi-ecosystem dependency coverage and compatibility closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: DS-1 `codex/docker-action-digest-pin-guard-current-main`; DS-2, DS-3, and reproduction-gated DS-4 remain separate PRs
+  - Status: 🟡 In progress via DS-1 immutable Docker action digest guard
+  - Area: dependency security / CI governance / runtime compatibility
+  - Finding Type: multi-ecosystem automation and architecture-drift closure
+  - Reason (EN): Dependency maintenance needs a finite current-main train with explicit ecosystem ownership, native resolvers, immutable lock or digest evidence, focused verification, rollback, and post-merge alert reconciliation. Configuration-authority PRs must not carry package updates; cross-ecosystem mega-updates and auto-merge are forbidden.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-governance-pr-series`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `.github/dependabot.yml`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
+  - Execution slices:
+    - DS-1: require immutable digests for recognized `docker://` action references
+    - DS-2: add bounded scheduled update ownership for non-Python ecosystems without updating packages
+    - DS-3: reconcile fresh test-quality dependency and pre-commit hook parity without runtime dependency changes
+    - DS-4: fix FastAPI lifespan/test compatibility only after a preserved red reproduction identifies the owning defect class
+  - DoD:
+    - Every slice runs the mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` chain and lands as its own scoped PR
+    - `pip`, `npm`, `bundler`, and `github-actions` have explicit update ownership; Docker and SwiftPM are either bounded automation or explicit manual ownership
+    - Current manifests, locks, CI images, and toolchain files have fresh census evidence, with zero untriaged alerts and no stale branch, historical lock, or stale CI used as current authority
+    - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
+
+<a id="ledger-p1-native-docker-action-image-pin-guard"></a>
+- [ ] P1: Native Docker action `runs.image` immutable pin guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-NATIVE-DOCKER-ACTION-IMAGE-PIN-GUARD
+  - Status: 📋 Deferred from DS-1 pending separate invariant admission
+  - Area: dependency security / GitHub Action metadata / CI governance
+  - Finding Type: uncovered context-dependent executable carrier
+  - Reason (EN): Native container actions declare images through `runs: using: docker` plus `runs.image`, not a `uses:` line. This is a second materially novel carrier outside DS-1's bounded lexical recognizer and requires a separately admitted context-aware closed recognizer instead of another free-form line regex.
+  - Links:
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `scripts/ci/guard_actions_pin.py`
+    - `tests/test_tooling_surface_guards.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
+  - DoD:
+    - A fresh coordinator packet admits the parser/guard invariant and bounds the exact native `action.yml` / `action.yaml` metadata context
+    - One canonical context-aware closed recognizer rejects mutable native `runs.image` Docker references and accepts exact lowercase SHA-256 digest selectors; no second free-form line regex is introduced
+    - Deterministic black-box tests cover mutable rejection and digest acceptance on both exact metadata filenames without weakening the existing composite `uses:` classifier
+    - Policy and diagnostics state that digest syntax does not prove image existence, trust, signature, provenance, SBOM, vulnerability status, or platform compatibility
+    - Focused guard, test, docs, and current-head CI evidence are terminal before closeout
 
 <a id="ledger-p1-test-hygiene-wave"></a>
 - [ ] P1: Test hygiene remediation wave for the main test suite
@@ -7275,7 +7322,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> this PR (`codex/pro-nutrition-canonical-cutover`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7287,10 +7334,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`, removing the `app_module` alias
     and legacy synchronous scheduler resolver rail. PR #2309 merged at
     `f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the paid/BMI
-    registration mirrors. The current bounded successor adds canonical PRO
-    BMR/gaps and migrates the repository-owned Web BMR consumer without deleting
-    aliases. Product Owner sequencing keeps telemetry-admitted alias retirement,
-    root-alias auth/sunset, and final legacy deletion as separate later lanes.
+    registration mirrors. PR #2314 merged at
+    `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR/gaps
+    and migrating the repository-owned Web BMR consumer without deleting aliases.
+    PR #2317 is the current bounded successor and removes only ten legacy admin/BMI direct-call
+    Python bindings while preserving their canonical services and every HTTP,
+    auth, OpenAPI, and app-identity contract. Product Owner sequencing keeps
+    telemetry-admitted versioned-alias retirement, root-alias auth/sunset, and
+    final legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7307,7 +7358,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
-    - 🟡 Repository-owned Web BMR migration is implemented in the current PR; merge and staging verification remain
+    - 🟡 Repository-owned Web BMR migration merged in PR #2314; staging verification and the telemetry-window start remain unclaimed
     - 🟡 Versioned nutrition alias retirement requires the exact 30-day zero-hit production gate below
   - DoD:
     - All endpoints migrated to modular routers
@@ -7321,8 +7372,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical PRO nutrition cutover for BMR/gaps and Web Nutrition Setup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (product correctness / API contract / thin client)
-  - Target PR: this PR (`codex/pro-nutrition-canonical-cutover`)
-  - Status: 🛠 In implementation; keep unchecked until merge and deployment evidence exist
+  - Target PR: [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`)
+  - Status: 🟡 Runtime implementation merged at `827f8ea0ba5bf0432e011241d08553b01fa471b1`; keep unchecked because staging smoke and telemetry-window start evidence remain unclaimed
   - Reason (EN): BMR and nutrient-gap services already have canonical backend ownership, but their public HTTP contracts remain available only through the deprecated premium family, and Web Nutrition Setup still consumes the BMR alias with a client-side error-to-mock and TDEE-calculation fallback. This lane adds the missing canonical PRO routes and cuts the repository-owned Web consumer over without deleting compatibility routes. (RU: Добавляем canonical PRO BMR/gaps и переводим Web consumer, сохраняя aliases на период наблюдения.)
   - Links:
     - `app/routers/pro_nutrition_contracts.py`

@@ -4,7 +4,6 @@ import importlib
 import logging
 import sys
 from contextlib import suppress
-from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,7 +16,6 @@ from typing import (
 )
 
 from fastapi import Body, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import (
     BaseModel,
     ValidationError,
@@ -131,6 +129,11 @@ _BMI_COMPAT_REEXPORTS = (
     generate_bmi_visualization,
 )
 
+_BMI_SCHEMA_COMPAT_REEXPORTS = (
+    BMIRequest,
+    BMIRequestV1,
+)
+
 _LEGACY_IMPORT_COMPAT_REEXPORTS = (
     DataClass,
     get_retention_manager,
@@ -219,14 +222,6 @@ _api_description = _application_metadata.description
 # (moved to top with other imports)
 
 
-async def admin_status() -> Dict[str, str]:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import admin_status as _admin_status
-
-    return await _admin_status()
-
-
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
 # Shopping-list route registration is owned by app.main canonical bootstrap.
 
@@ -266,40 +261,6 @@ with suppress(Exception):
 
 
 # ---------- Core logic ----------
-
-
-async def cleanup_expired_logs(
-    data_class: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import cleanup_expired_logs as _cleanup_expired_logs
-
-    return await _cleanup_expired_logs(data_class=data_class)
-
-
-async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    """Compatibility direct-call shim; route ownership is canonical."""
-
-    from app.services.bmi_compat import bmi_endpoint as _bmi_endpoint
-
-    return await _bmi_endpoint(req)
-
-
-async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    """Compatibility direct-call shim; route ownership is canonical."""
-
-    from app.services.bmi_compat import plan_endpoint as _plan_endpoint
-
-    return await _plan_endpoint(req)
-
-
-async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
-    """Compatibility direct-call shim; route ownership is canonical."""
-
-    from app.services.bmi_compat import bmi_endpoint_v1 as _bmi_endpoint_v1
-
-    return await _bmi_endpoint_v1(req)
 
 
 MenuEngineCallable = Callable[..., Any]
@@ -542,73 +503,6 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     Perfect for food diary analysis and meal optimization.
     """
     return analyze_nutrient_gaps_response(req)
-
-
-async def debug_env() -> JSONResponse:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import debug_env as _debug_env
-
-    return await _debug_env()
-
-
-# ========================================
-# Database Auto-Update Management Endpoints
-# ========================================
-
-
-async def get_database_status() -> JSONResponse:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import get_database_status as _get_database_status
-
-    return await _get_database_status()
-
-
-async def force_database_update(source: Optional[str] = None) -> JSONResponse:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import force_database_update as _force_database_update
-
-    return await _force_database_update(source=source)
-
-
-async def check_for_updates() -> JSONResponse:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import check_for_updates as _check_for_updates
-
-    return await _check_for_updates()
-
-
-async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
-    """Compatibility shim for direct imports; route ownership is canonical."""
-
-    from app.services.admin_operations import rollback_database as _rollback_database
-
-    return await _rollback_database(source=source, target_version=target_version)
-
-
-_APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
-
-
-def _iter_app_modules() -> list[ModuleType]:
-    """Return all loaded module objects that point to app.py (handles aliasing in tests)."""
-    modules: list[ModuleType] = []
-    seen: set[int] = set()
-    if _APP_PACKAGE_REF is not None:
-        modules.append(_APP_PACKAGE_REF)
-        seen.add(id(_APP_PACKAGE_REF))
-    for mod in sys.modules.values():
-        if not isinstance(mod, ModuleType):
-            continue
-        if id(mod) in seen:
-            continue
-        file = getattr(mod, "__file__", "") or ""
-        if file.endswith("app.py"):
-            modules.append(mod)
-            seen.add(id(mod))
-    return modules
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.

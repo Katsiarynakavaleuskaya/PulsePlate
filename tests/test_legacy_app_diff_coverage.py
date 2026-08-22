@@ -764,38 +764,6 @@ def test_week_plan_registration_requires_api_key_dependency(
         app_main._include_legacy_premium_weekly_plan_router_if_needed(FastAPI())
 
 
-def test_rollback_database_coroutine_callable_path(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    async def _run() -> None:
-        """Cover coroutine rollback_callable branch (line ~4782)."""
-
-        class _UpdateManager:
-            versions_file = tmp_path / "database-versions.json"
-            versions: dict[str, object] = {}
-
-            def _load_versions(self) -> dict[str, object]:
-                return {}
-
-            async def rollback_database(self, source: str, target_version: str) -> bool:
-                return True
-
-        class _Scheduler:
-            update_manager = _UpdateManager()
-
-        async def _getter() -> Any:
-            return _Scheduler()
-
-        from app.services import admin_operations
-
-        monkeypatch.setattr(admin_operations, "get_update_scheduler", _getter)
-        out = await legacy_app.rollback_database("usda", "v1")
-        assert out["success"] is True
-
-    asyncio.run(_run())
-
-
 def test_legacy_plate_entrypoints_are_exact_canonical_aliases() -> None:
     """Legacy Plate execution cannot diverge from canonical service ownership."""
     assert legacy_app._compute_premium_plate is plate_service.generate_plate_response
