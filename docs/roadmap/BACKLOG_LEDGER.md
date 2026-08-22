@@ -2775,7 +2775,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Series packet defines role order, PR slices, and the mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` lane; authoritative evidence anchors are `AGENTS.md:703` and `docs/orchestration/workflow.md:149`
     - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
-    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:66`
     - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
 
 <a id="ledger-p1-depsec2-multi-ecosystem-dependency-closure"></a>
