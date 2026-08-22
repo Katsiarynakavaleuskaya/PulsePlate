@@ -47,6 +47,7 @@ from app.schemas.fitchef import (
     FitChefSourceItem,
 )
 from app.schemas.fitchef_coaching import (
+    FitChefSupportHandoffRequest,
     FitChefSupportHandoffResponse,
     FitChefSupportNeed,
 )
@@ -494,8 +495,12 @@ def test_support_handoff_handler_has_finite_nonexecuting_call_graph() -> None:
         "UnicodeDecodeError",
         "ValidationError",
         "ValueError",
+        "get",
+        "headers",
         "json",
+        "lower",
         "model_validate",
+        "partition",
     }
 
 
@@ -738,7 +743,7 @@ class TestFitChefSupportHandoffRoute:
         response = self.client.post(
             self.url,
             content="{",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "text/plain"},
         )
 
         assert response.status_code == 401
@@ -757,7 +762,7 @@ class TestFitChefSupportHandoffRoute:
             content="{",
             headers={
                 "X-API-Key": presented_credential,
-                "Content-Type": "application/json",
+                "Content-Type": "text/plain",
             },
         )
 
@@ -953,7 +958,7 @@ class TestFitChefSupportHandoffRoute:
         response = self.client.post(
             self.url,
             content="{",
-            headers={**self.pro_headers, "Content-Type": "application/json"},
+            headers={**self.pro_headers, "Content-Type": "text/plain"},
         )
 
         assert response.status_code == 503
@@ -961,6 +966,22 @@ class TestFitChefSupportHandoffRoute:
 
     def test_malformed_json_returns_stable_422_after_admission(self) -> None:
         """Malformed JSON is sanitized after auth and feature admission."""
+
+        def _forbidden_validate(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("request model validation must not run after JSON decode failure")
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run after JSON decode failure")
+
+        self.monkeypatch.setattr(
+            FitChefSupportHandoffRequest,
+            "model_validate",
+            _forbidden_validate,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
 
         response = self.client.post(
             self.url,
@@ -974,9 +995,17 @@ class TestFitChefSupportHandoffRoute:
     def test_invalid_utf8_json_returns_stable_422_without_mapping(self) -> None:
         """Invalid UTF-8 is sanitized by the distinct JSON decode boundary."""
 
+        def _forbidden_validate(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("request model validation must not run after UTF-8 decode failure")
+
         def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
             pytest.fail("support mapper must not run for invalid UTF-8 JSON")
 
+        self.monkeypatch.setattr(
+            FitChefSupportHandoffRequest,
+            "model_validate",
+            _forbidden_validate,
+        )
         self.monkeypatch.setattr(
             "app.routers.fitchef_structured.build_fitchef_support_handoff",
             _forbidden_mapper,
@@ -987,6 +1016,83 @@ class TestFitChefSupportHandoffRoute:
             headers={**self.pro_headers, "Content-Type": "application/json"},
         )
 
+        assert response.status_code == 422
+        assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
+
+    @pytest.mark.parametrize(
+        "content_type",
+        (
+            "application/json",
+            "Application/JSON",
+            "application/json; charset=utf-8",
+            "APPLICATION/JSON; charset=UTF-8",
+            "application/json;ignored-tail",
+        ),
+    )
+    def test_supported_json_media_types_are_accepted(self, content_type: str) -> None:
+        """Case variants and any parameter tail preserve the exact JSON base type."""
+
+        response = self.client.post(
+            self.url,
+            content=b'{"support_need":"daily_structure"}',
+            headers={**self.pro_headers, "Content-Type": content_type},
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["support_need"] == "daily_structure"
+
+    @pytest.mark.parametrize(
+        "content_type",
+        (
+            None,
+            "",
+            " application/json",
+            "application/json ",
+            "application/json ; charset=utf-8",
+            "application/problem+json",
+            "text/json",
+            "text/plain",
+        ),
+    )
+    def test_unsupported_media_type_returns_stable_422_before_body_work(
+        self,
+        content_type: str | None,
+    ) -> None:
+        """Only the exact untrimmed application/json base type is admitted."""
+
+        async def _forbidden_json(_request: Request) -> object:
+            pytest.fail("request.json must not run for a rejected media type")
+
+        def _forbidden_validate(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("model validation must not run for a rejected media type")
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for a rejected media type")
+
+        self.monkeypatch.setattr(Request, "json", _forbidden_json)
+        self.monkeypatch.setattr(
+            FitChefSupportHandoffRequest,
+            "model_validate",
+            _forbidden_validate,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+        headers = dict(self.pro_headers)
+        if content_type is not None:
+            headers["Content-Type"] = content_type
+
+        response = self.client.post(
+            self.url,
+            content=b'{"support_need":"daily_structure"}',
+            headers=headers,
+        )
+
+        if content_type is None:
+            assert "content-type" not in response.request.headers
+        else:
+            assert response.request.headers["content-type"] == content_type
         assert response.status_code == 422
         assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
 
@@ -1723,11 +1829,6 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     monkeypatch.setattr(app_main, "cbt_insight_router", _make_router("/api/v1/pro/cbt/insight"))
     monkeypatch.setattr(
         app_main, "fitchef_structured_router", _make_router("/api/v1/pro/fitchef/explain")
-    )
-    monkeypatch.setattr(
-        app_main,
-        "fitchef_support_handoff_router",
-        _make_router("/api/v1/pro/fitchef/recommend"),
     )
     monkeypatch.setattr(
         app_main,

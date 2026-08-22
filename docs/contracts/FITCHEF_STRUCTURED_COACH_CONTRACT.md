@@ -52,10 +52,11 @@ envelope rules.
 
 ## Route family freeze
 
-### Landed PRO structured coach surfaces
+### PRO structured coach surfaces
 
 - `POST /api/v1/pro/fitchef/explain`
-- `POST /api/v1/pro/fitchef/recommend`
+- `POST /api/v1/pro/fitchef/recommend` — implemented in PR #2320 but
+  merge-bound until merge and post-merge verification
 
 ### Landed VIP structured coach surface
 
@@ -80,7 +81,7 @@ without changing route naming or public mascot canon.
   - landed first bounded capability: `Distortion Simulator`
   - shape direction: structured thought-record style reframing tool
 - `POST /api/v1/pro/fitchef/recommend`
-  - landed bounded capability: deterministic support handoff
+  - PR #2320 merge-bound capability: deterministic support handoff
   - closed request needs: `daily_structure` and `weekly_structure`
   - shape: one descriptor-only product-surface action, not open-ended chat,
     plan adaptation, navigation, or downstream execution
@@ -157,6 +158,13 @@ invoke the target surface; or create or change a plan.
 3. raw JSON parse and `FitChefSupportHandoffRequest` validation
 4. pure two-branch descriptor selection
 
+After auth and the shared feature flag, the route reads `Content-Type` once,
+partitions once at the first `;`, and compares the untrimmed base token
+case-insensitively to exactly `application/json`. The parameter tail is ignored.
+Missing, empty, leading/base-trailing whitespace, `application/json ;...`,
+`+json`, and other media types return the existing stable JSON `422` before
+`request.json()`, DTO validation, or mapping; no `415` is introduced.
+
 It documents only `200`, `401`, `403`, `422`, and `503`. It does not use an
 execution-mode gate, input guard, rate limit, monthly quota, provider, RAG,
 planner, persistence, analytics, navigation, or target invocation. This narrow
@@ -187,7 +195,7 @@ The landed VIP Identity Loop Mapper runtime is schema-frozen by
 `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and
 `wellness_boundary`.
 
-The landed deterministic PRO support handoff is schema-frozen by
+The PR #2320 merge-bound deterministic PRO support handoff is schema-frozen by
 `FitChefSupportHandoffRequest`, `FitChefSupportHandoffActionV1`, and
 `FitChefSupportHandoffResponse`:
 
@@ -365,9 +373,10 @@ Future structured coach implementation must:
 - PR #1870 landed the feature-gated VIP Identity Loop Mapper runtime at
   `POST /api/v1/vip/fitchef/insight` with the frozen
   `FitChefIdentityLoopMapperResponse` envelope.
-- The E1-05 lane lands the feature-gated deterministic PRO support handoff at
+- PR #2320 implements the feature-gated deterministic PRO support handoff at
   `POST /api/v1/pro/fitchef/recommend` with frozen DTOs and deterministic route
-  tests. It emits no analytics and executes no action.
+  tests. It remains merge-bound until merge and post-merge verification, emits
+  no analytics, and executes no action.
 
 ### Later VIP structured follow-ups
 
@@ -378,8 +387,9 @@ Future structured coach implementation must:
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- adding any new runtime surface beyond the landed PRO explain/support-handoff
-  routes and bounded VIP Identity Loop Mapper route
+- adding any new runtime surface beyond the landed PRO explain route, the
+  merge-bound PR #2320 support-handoff candidate, and the bounded VIP Identity
+  Loop Mapper route
 - adding frontend or iOS FitChef runtime consumers
 - mixing website brand rollout or App Store assets into this contract lane
 

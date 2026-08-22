@@ -40,6 +40,7 @@ from app.effective_routes import (
     route_include_in_schema,
     route_methods,
     route_path,
+    route_responses,
 )
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.middleware.api_tiers import get_current_user, require_pro_tier, require_vip_tier
@@ -68,6 +69,7 @@ from app.routers.catalog import (
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import (
+    fitchef_support_handoff,
     router as fitchef_structured_router,
     support_handoff_router as fitchef_support_handoff_router,
 )
@@ -132,6 +134,7 @@ from app.routers.users import (
 )
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
+from app.schemas.fitchef_coaching import FitChefSupportHandoffResponse
 from app.utils.feature_flags import is_business_module_enabled
 
 logger = logging.getLogger(__name__)
@@ -154,6 +157,7 @@ _HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend"
+_FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES: frozenset[int] = frozenset({200, 401, 403, 422, 503})
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
@@ -538,6 +542,79 @@ def _has_route(
 
 def _effective_app_routes(target_app: FastAPI) -> tuple[object, ...]:
     return tuple(iter_effective_route_candidates(target_app.routes))
+
+
+def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
+    """Return whether one effective route preserves the frozen handoff contract."""
+
+    route = getattr(candidate, "original_route", candidate)
+    if not isinstance(route, APIRoute):
+        return False
+    dependencies = [dependency.call for dependency in route.dependant.dependencies]
+    return (
+        route_path(candidate) == _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        and route_methods(route) == {"POST"}
+        and route_include_in_schema(candidate) is True
+        and route_endpoint(candidate) is fitchef_support_handoff
+        and route.response_model is FitChefSupportHandoffResponse
+        and dependencies == [require_pro_tier]
+        and set(route_responses(route)) == _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES
+    )
+
+
+def _validate_fitchef_support_handoff_source() -> None:
+    """Fail closed unless the dedicated source router has one exact member."""
+
+    candidates = tuple(iter_effective_route_candidates(fitchef_support_handoff_router.routes))
+    if len(candidates) != 1 or not _is_exact_fitchef_support_handoff_route(candidates[0]):
+        raise RuntimeError("Invalid FitChef support handoff source route.")
+
+
+def _validate_fitchef_support_handoff_target(
+    target_app: FastAPI,
+    *,
+    required: bool,
+) -> None:
+    """Validate an absent or one exact live handoff owner without mutation."""
+
+    candidates = tuple(
+        route
+        for route in _effective_app_routes(target_app)
+        if route_path(route) == _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    )
+    if not candidates and not required:
+        return
+    if len(candidates) != 1 or not _is_exact_fitchef_support_handoff_route(candidates[0]):
+        raise RuntimeError("Invalid existing FitChef support handoff route.")
+
+
+def _same_fitchef_support_handoff_endpoint(existing: object, expected: object) -> bool:
+    """Match only the exact frozen handoff endpoint object."""
+
+    return existing is expected
+
+
+def _include_fitchef_support_handoff_router_if_needed(target_app: FastAPI) -> None:
+    """Register and postvalidate the dedicated support-handoff route family."""
+
+    _validate_fitchef_support_handoff_source()
+    _validate_fitchef_support_handoff_target(target_app, required=False)
+    ensure_route_family_registered(
+        target_app,
+        family_name="FitChef support handoff",
+        routers=(fitchef_support_handoff_router,),
+        members=(
+            RouteMemberContract(
+                path=_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH,
+                method="POST",
+                include_in_schema=True,
+                required_status_codes=_FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES,
+                required_dependencies=(require_pro_tier,),
+            ),
+        ),
+        endpoint_matcher=_same_fitchef_support_handoff_endpoint,
+    )
+    _validate_fitchef_support_handoff_target(target_app, required=True)
 
 
 def _route_has_endpoint(
@@ -1099,12 +1176,13 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """Apply canonical additive bootstrap to the provided FastAPI instance."""
     app = target_app
     validate_openapi_builder_state(target_app)
+    _validate_fitchef_support_handoff_source()
+    _validate_fitchef_support_handoff_target(app, required=False)
     source_routes = []
     for path, router in (
         (_FEEDBACK_ROUTE_PATH, feedback_router),
         (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
         (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
-        (_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH, fitchef_support_handoff_router),
         (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
         (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
     ):
@@ -1204,8 +1282,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     if not route_exists[_FITCHEF_STRUCTURED_ROUTE_PATH]:
         app.include_router(fitchef_structured_router)
 
-    if not route_exists[_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH]:
-        app.include_router(fitchef_support_handoff_router)
+    _include_fitchef_support_handoff_router_if_needed(app)
 
     if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)

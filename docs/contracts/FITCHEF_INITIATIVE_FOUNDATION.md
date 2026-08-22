@@ -128,13 +128,24 @@ Status reconciliation:
 
 - `POST /api/v1/pro/fitchef/explain` is now the landed, feature-gated PRO
   Distortion Simulator runtime from PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
-- `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen PRO follow-up.
+- `POST /api/v1/pro/fitchef/recommend` is implemented by PR #2320 as a
+  feature-gated deterministic selector-only PRO descriptor. It remains
+  merge-bound and is not public-main runtime truth until merge and post-merge
+  verification complete.
 - `POST /api/v1/vip/fitchef/insight` is now the landed, feature-gated VIP
   Identity Loop Mapper runtime from PR #1870 /
   `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
 - `POST /api/v1/vip/fitchef/chat` and `POST /api/v1/vip/fitchef/week-repair`
   remain future-only VIP structured coach follow-ups until later reviewed
   runtime PRs register routes and update OpenAPI.
+
+The PR #2320 candidate accepts only a `Content-Type` whose untrimmed base token,
+compared case-insensitively before the first `;`, is exactly `application/json`.
+Missing, empty, whitespace-padded, `+json`, or other media types return the same
+stable JSON `422` envelope before body decoding, DTO validation, or mapping.
+The selector reads only the explicit `support_need` and returns a product-surface
+descriptor; it performs no execution, mutation, AI/provider/RAG work, client
+navigation, plan inspection, or value/outcome claim.
 
 ## Artifact and asset governance
 
@@ -168,8 +179,9 @@ mutation remain outside this foundation wave.
 - shipping mascot or App Icon binaries
 - mutating Fastlane metadata/upload surfaces or App Store Connect draft state
 - adding new runtime behavior outside the already-landed, feature-gated PRO
-  `POST /api/v1/pro/fitchef/explain` route and the bounded VIP Identity Loop
-  Mapper lane at `POST /api/v1/vip/fitchef/insight`
+  `POST /api/v1/pro/fitchef/explain` route, the bounded VIP Identity Loop Mapper
+  lane at `POST /api/v1/vip/fitchef/insight`, and the merge-bound PR #2320
+  selector-only `POST /api/v1/pro/fitchef/recommend` candidate
 - adding any remaining structured coach routes before their dedicated reviewed
   runtime PRs
 
@@ -180,6 +192,9 @@ mutation remain outside this foundation wave.
 - `app.routers.fitchef_insight.fitchef_weekly_reflection`
 - `app.routers.fitchef_insight.fitchef_slip_support`
 - `app.routers.fitchef_structured.fitchef_distortion_simulator`
+- `app.routers.fitchef_structured.fitchef_support_handoff`
+- `app.services.fitchef_support_handoff.build_fitchef_support_handoff`
+- `app.main._include_fitchef_support_handoff_router_if_needed`
 - `app.main.ensure_canonical_app_bootstrap`
 - `app.services.fitchef_runtime.run_mascot_insight_task`
 - `app.services.fitchef_runtime.run_weekly_reflection_task`

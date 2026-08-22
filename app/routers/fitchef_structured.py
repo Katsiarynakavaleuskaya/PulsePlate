@@ -172,6 +172,13 @@ async def _parse_fitchef_support_handoff_request(
 ) -> FitChefSupportHandoffRequest:
     """Parse the frozen request only after auth and feature admission."""
 
+    content_type = request.headers.get("content-type")
+    if not content_type or content_type.partition(";")[0].lower() != "application/json":
+        raise HTTPException(
+            status_code=422,
+            detail=FITCHEF_SUPPORT_HANDOFF_VALIDATION_DETAIL,
+        )
+
     try:
         raw_payload = await request.json()
     except (ValueError, UnicodeDecodeError, RecursionError):

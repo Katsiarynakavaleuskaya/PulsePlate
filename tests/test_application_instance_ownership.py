@@ -31,7 +31,7 @@ import app.main as main; import app as package; import legacy_app; from app.boot
 import legacy_app; import app.main as main; import app as package; from app.bootstrap import application as canonical""".splitlines()
 _HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/pro/fitchef/recommend:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
-_HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH:fitchef_support_handoff_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
+_HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
 _OPTIONAL_ENV = "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split()
 _WS_EXTRA_PATHS = {"w": "/unexpected-ws", "h": "/unexpected-http"}
 _WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR CCw CCh".split()
@@ -200,7 +200,12 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
         else:
             endpoint = fn if owner == "c" else (lambda: None)
             target.add_api_route(path, endpoint, methods=[method])
-    _assert_atomic_bootstrap_failure(target, "Duplicate")
+    expected_error = (
+        "Invalid existing FitChef support handoff route"
+        if path == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        else "Duplicate"
+    )
+    _assert_atomic_bootstrap_failure(target, expected_error)
 
 
 @pytest.mark.parametrize(
@@ -231,6 +236,144 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         selected.add_api_route("/unexpected-source", lambda: None, methods=["GET"])
     monkeypatch.setattr(main, router_name, selected)
     _assert_atomic_bootstrap_failure(FastAPI(), "Invalid canonical HTTP source route")
+
+
+@pytest.mark.parametrize(
+    "state",
+    (
+        "zero",
+        "extra",
+        "wrong_path",
+        "wrong_method",
+        "wrong_visibility",
+        "wrong_endpoint",
+        "wrong_model",
+        "missing_status",
+        "extra_status",
+        "wrong_dependency",
+        "extra_dependency",
+        "combined_methods",
+    ),
+)
+def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
+    state: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every malformed dedicated source is rejected before target mutation."""
+
+    router = APIRouter()
+    if state != "zero":
+        path = (
+            "/api/v1/pro/fitchef/not-recommend"
+            if state == "wrong_path"
+            else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        )
+        methods = (
+            ["POST", "DELETE"]
+            if state == "combined_methods"
+            else ["GET" if state == "wrong_method" else "POST"]
+        )
+        endpoint = (lambda: None) if state == "wrong_endpoint" else main.fitchef_support_handoff
+        response_model = (
+            dict[str, object] if state == "wrong_model" else main.FitChefSupportHandoffResponse
+        )
+        status_codes = set(main._FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES)
+        if state == "missing_status":
+            status_codes.remove(503)
+        if state == "extra_status":
+            status_codes.add(418)
+        dependencies = [
+            Depends((lambda: None) if state == "wrong_dependency" else main.require_pro_tier)
+        ]
+        if state == "extra_dependency":
+            dependencies.append(Depends(lambda: None))
+        router.add_api_route(
+            path,
+            endpoint,
+            methods=methods,
+            include_in_schema=state != "wrong_visibility",
+            response_model=response_model,
+            responses={code: {"description": str(code)} for code in status_codes},
+            dependencies=dependencies,
+        )
+        if state == "extra":
+            router.add_api_route("/unexpected-support-source", lambda: None, methods=["GET"])
+
+    monkeypatch.setattr(main, "fitchef_support_handoff_router", router)
+    _assert_atomic_bootstrap_failure(FastAPI(), "Invalid FitChef support handoff source route")
+
+
+@pytest.mark.parametrize(
+    "state",
+    (
+        "foreign",
+        "duplicate",
+        "wrong_method",
+        "wrong_visibility",
+        "wrong_model",
+        "missing_status",
+        "extra_status",
+        "wrong_dependency",
+        "extra_dependency",
+        "combined_methods",
+    ),
+)
+def test_fitchef_support_handoff_existing_target_fails_unchanged(
+    state: str,
+) -> None:
+    """Foreign, duplicate, and metadata-drift live owners fail before mutation."""
+
+    target = FastAPI()
+    status_codes = set(main._FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES)
+    if state == "missing_status":
+        status_codes.remove(503)
+    if state == "extra_status":
+        status_codes.add(418)
+    endpoint = (lambda: None) if state == "foreign" else main.fitchef_support_handoff
+    methods = (
+        ["POST", "DELETE"]
+        if state == "combined_methods"
+        else ["GET" if state == "wrong_method" else "POST"]
+    )
+    response_model = (
+        dict[str, object] if state == "wrong_model" else main.FitChefSupportHandoffResponse
+    )
+    dependencies = [
+        Depends((lambda: None) if state == "wrong_dependency" else main.require_pro_tier)
+    ]
+    if state == "extra_dependency":
+        dependencies.append(Depends(lambda: None))
+    target.add_api_route(
+        main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH,
+        endpoint,
+        methods=methods,
+        include_in_schema=state != "wrong_visibility",
+        response_model=response_model,
+        responses={code: {"description": str(code)} for code in status_codes},
+        dependencies=dependencies,
+    )
+    if state == "duplicate":
+        target.include_router(main.fitchef_support_handoff_router)
+
+    _assert_atomic_bootstrap_failure(target, "Invalid existing FitChef support handoff route")
+
+
+def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() -> None:
+    """Absent registration includes once; the exact live target is a no-op."""
+
+    target = FastAPI()
+    main._include_fitchef_support_handoff_router_if_needed(target)
+    first_routes = tuple(target.routes)
+    main._include_fitchef_support_handoff_router_if_needed(target)
+
+    matching = [
+        route
+        for route in main._effective_app_routes(target)
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
+    assert tuple(target.routes) == first_routes
+    assert len(matching) == 1
+    assert main._is_exact_fitchef_support_handoff_route(matching[0]) is True
 
 
 @pytest.mark.parametrize("s", _WS_STATES)
