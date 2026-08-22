@@ -89,6 +89,40 @@ def test_legacy_growth_guard_rejects_module_level_getattr() -> None:
     ]
 
 
+def test_retired_binding_guard_rejects_protected_global_getattr() -> None:
+    source = textwrap.dedent("""
+        def initialize() -> None:
+            global __getattr__
+            __getattr__ = resolver
+
+        initialize()
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: module-level __getattr__ is forbidden after legacy Python "
+        "binding retirement"
+    ]
+
+
+def test_retired_binding_guard_allows_unrelated_global_and_local_getattr() -> None:
+    source = textwrap.dedent("""
+        def initialize() -> None:
+            global unrelated_name
+            unrelated_name = resolver
+
+            def __getattr__(name: str) -> object:
+                return name
+
+        class CompatibilityProxy:
+            def __getattr__(self, name: str) -> object:
+                return name
+
+        initialize()
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == []
+
+
 def test_retired_binding_guard_rejects_lambda_default_module_binding() -> None:
     source = "holder = lambda value=(admin_status := canonical): value\n"
 
@@ -11770,6 +11804,28 @@ def test_legacy_repo_validation_preserves_logical_legacy_path_for_symlink(
 
     assert (
         "legacy_app.py: retired Python compatibility binding is forbidden: admin_status" in errors
+    )
+
+
+def test_legacy_repo_validation_preserves_logical_route_path_for_symlink(
+    tmp_path: Path,
+) -> None:
+    target_path = tmp_path / "legacy-route-target.py"
+    target_path.write_text(
+        '@app.get("/unexpected")\nasync def unexpected_route():\n    return None\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "legacy_app.py").symlink_to(target_path.name)
+
+    errors = legacy_guard.validate_repo(tmp_path)
+
+    assert (
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/unexpected -> unexpected_route" in errors
+    )
+    assert not any(
+        error.startswith("legacy-route-target.py: unexpected legacy route growth")
+        for error in errors
     )
 
 

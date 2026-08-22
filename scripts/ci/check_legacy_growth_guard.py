@@ -10547,7 +10547,7 @@ def validate_retired_legacy_python_bindings(
         errors.append(
             f"{filename}: star import is forbidden after legacy Python binding retirement"
         )
-    if "__getattr__" in assigned_names:
+    if "__getattr__" in assigned_names | explicit_globals:
         errors.append(
             f"{filename}: module-level __getattr__ is forbidden after legacy Python "
             "binding retirement"
@@ -11123,7 +11123,7 @@ def validate_repo(repo_root: Path) -> list[str]:
         extend_analysis(
             lambda: validate_legacy_growth(
                 legacy_source,
-                filename=_display(legacy_path, repo_root),
+                filename=LEGACY_APP,
             )
         )
         errors.extend(
