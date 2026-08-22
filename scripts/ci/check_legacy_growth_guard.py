@@ -37,6 +37,20 @@ CANONICAL_OPENAPI_SYMBOLS = frozenset(
         "_install_openapi_builder",
     }
 )
+RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
+    {
+        "admin_status",
+        "cleanup_expired_logs",
+        "debug_env",
+        "get_database_status",
+        "force_database_update",
+        "check_for_updates",
+        "rollback_database",
+        "bmi_endpoint",
+        "plan_endpoint",
+        "bmi_endpoint_v1",
+    }
+)
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
     {
         "app.bootstrap.food_search",
@@ -10171,7 +10185,9 @@ def _assigned_names(tree: ast.Module) -> set[str]:
                 self.visit(type_param)
 
         def visit_Lambda(self, node: ast.Lambda) -> None:
-            return
+            for default in (*node.args.defaults, *node.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
 
         def visit_ListComp(self, node: ast.ListComp) -> None:
             self._visit_comprehension(node.generators)
@@ -10393,7 +10409,10 @@ def _namespace_mapping_mutation_names(
     return names
 
 
-def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[str]:
+def _namespace_rebindings(
+    tree: ast.Module,
+    protected_names: set[str],
+) -> set[str]:
     bindings = _module_static_string_bindings(tree)
     rebound: set[str] = set()
     current_module_aliases: set[str] = set()
@@ -10494,6 +10513,46 @@ def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[st
             else:
                 rebound.update(mutation_names & protected_names)
     return rebound
+
+
+def validate_retired_legacy_python_bindings(
+    source_text: str,
+    *,
+    filename: str = LEGACY_APP,
+) -> list[str]:
+    """Reject exact retired ordinary module bindings in legacy_app.py only."""
+
+    if filename != LEGACY_APP:
+        return []
+
+    tree, parse_errors = _parse_source(source_text, filename=filename)
+    if parse_errors or tree is None:
+        return parse_errors
+
+    protected_names = set(RETIRED_LEGACY_PYTHON_BINDINGS)
+    assigned_names = _assigned_names(tree)
+    explicit_globals = {
+        name for node in ast.walk(tree) if isinstance(node, ast.Global) for name in node.names
+    }
+    rebound = (assigned_names | explicit_globals) & protected_names
+
+    errors = [
+        f"{filename}: retired Python compatibility binding is forbidden: {name}"
+        for name in sorted(rebound)
+    ]
+    if any(
+        isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
+        for node in ast.walk(tree)
+    ):
+        errors.append(
+            f"{filename}: star import is forbidden after legacy Python binding retirement"
+        )
+    if "__getattr__" in assigned_names | explicit_globals:
+        errors.append(
+            f"{filename}: module-level __getattr__ is forbidden after legacy Python "
+            "binding retirement"
+        )
+    return errors
 
 
 def _subscript_attribute_name(
@@ -11064,7 +11123,13 @@ def validate_repo(repo_root: Path) -> list[str]:
         extend_analysis(
             lambda: validate_legacy_growth(
                 legacy_source,
-                filename=_display(legacy_path, repo_root),
+                filename=LEGACY_APP,
+            )
+        )
+        errors.extend(
+            validate_retired_legacy_python_bindings(
+                legacy_source,
+                filename=LEGACY_APP,
             )
         )
     if doc_text is not None:

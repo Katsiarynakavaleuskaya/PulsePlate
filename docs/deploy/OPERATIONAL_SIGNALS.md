@@ -10,7 +10,7 @@ Operator-facing index for the runtime signals that already exist in PulsePlate t
 | `/health/db` | DB readiness | `200` when DB is reachable, `503` otherwise | `app/routers/health.py`, `app/main.py`, `app/AGENTS.md` |
 | `/ready` | Readiness alias | Same behavior as `/health/db`; hidden from OpenAPI | `app/routers/health.py`, `app/main.py`, `app/AGENTS.md` |
 | `/api/v1/health` | Compatibility alias | Mirrors `/health` payload | `app/routers/health.py`, `app/main.py` |
-| `/debug_env` | Local/operator debug surface | Returns a gated env dump when debug/operator access is enabled; otherwise stays unavailable to avoid production leakage | `legacy_app.py` |
+| `/debug_env` | Local/operator debug surface | Returns limited debug configuration when debug/operator access is enabled; otherwise stays unavailable to avoid production leakage | `app/routers/admin_operations.py`, `app/services/admin_operations.py` |
 
 Use `/health` for liveness checks and `/ready` or `/health/db` for dependency-aware readiness checks.
 
