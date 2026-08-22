@@ -165,6 +165,8 @@ def test_debug_env_uses_environment_when_app_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENABLE_DEBUG_ENDPOINT", raising=False)
 
     from app.services import admin_operations
 
@@ -172,6 +174,19 @@ def test_debug_env_uses_environment_when_app_env_missing(
         asyncio.run(admin_operations.debug_env())
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Not found"
+
+    monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "true")
+    response = asyncio.run(admin_operations.debug_env())
+
+    assert response.status_code == 200
+    assert set(json.loads(response.body)) == {
+        "FEATURE_INSIGHT",
+        "LLM_PROVIDER",
+        "PERPLEXITY_MODEL",
+        "PERPLEXITY_ENDPOINT",
+        "insight_enabled",
+    }
 
 
 def test_health_prefers_environment_over_app_env(

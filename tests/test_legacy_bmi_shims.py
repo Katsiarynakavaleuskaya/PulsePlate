@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+import scripts.ci.check_legacy_growth_guard as legacy_guard
 from core.bmi.engine import BMICalculateResult
 from core.bmi.risk import WaistRiskResult
 from core.i18n import t
@@ -51,6 +52,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     }
 
     assert canonical_owners.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
+    assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
