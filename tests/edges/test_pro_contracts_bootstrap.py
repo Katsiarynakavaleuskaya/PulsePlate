@@ -200,8 +200,15 @@ def test_register_pro_contract_routes_accepts_original_route_response_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target_app = _exact_destination_app()
-    bmr_route = _pro_family_routes(target_app)[2]
-    original_bmr_route = _pro_family_routes(_exact_destination_app())[2]
+    bmr_path = _EXPECTED_PATHS[2]
+    bmr_route = next(
+        route for route in _pro_family_routes(target_app) if route_path(route) == bmr_path
+    )
+    original_bmr_route = next(
+        route
+        for route in _pro_family_routes(_exact_destination_app())
+        if route_path(route) == bmr_path
+    )
     monkeypatch.setattr(bmr_route, "response_model", None)
     monkeypatch.setattr(
         bmr_route,
@@ -211,6 +218,8 @@ def test_register_pro_contract_routes_accepts_original_route_response_model(
     )
 
     register_pro_contract_routes(target_app)
+
+    assert [route_path(route) for route in _pro_family_routes(target_app)] == list(_EXPECTED_PATHS)
 
 
 def test_register_pro_contract_routes_ignores_non_route_carriers() -> None:
@@ -504,15 +513,13 @@ def test_register_pro_contract_routes_rejects_first_match_without_family_census(
 def test_register_pro_contract_routes_rejects_partial_ownership_after_registration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    owner_results = iter(
-        (
-            (False, False, False, False),
-            (True, True, True, False),
-        )
-    )
+    owner_results: list[tuple[bool, ...]] = [
+        (False, False, False, False),
+        (True, True, True, False),
+    ]
 
     def _owners(_app: FastAPI, _specs: tuple[object, ...]) -> tuple[bool, ...]:
-        return next(owner_results)
+        return owner_results.pop(0) if len(owner_results) > 1 else owner_results[0]
 
     monkeypatch.setattr(
         pro_contracts_bootstrap,
