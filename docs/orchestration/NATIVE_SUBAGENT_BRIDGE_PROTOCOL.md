@@ -120,6 +120,15 @@ composition, or non-canonical bridge/dispatch contracts. It does not change
 task packet schema `3.1`, bridge protocol `1.0`, ordinary reviewer separation,
 or any other creative-pilot phase.
 
+The exact synthesis projection also requires a declared
+`creative_pilot_workspace_source`. Before dispatch, the neutral consumer uses
+the canonical producer workspace reader to re-read a nonterminal
+`synthesis_ready` workspace and requires its rebuilt task context to equal the
+validated packet context exactly. Missing, stale, malformed, out-of-root,
+symlinked, wrong-phase, or differently revised sources fail closed. A validated
+byte-identical copy under the admitted workspace root remains equivalent because
+authority is bound to workspace content and revision, not to a literal pathname.
+
 Task-packet `candidate_paths` have one shared lexical authority:
 `context_pack.canonical_task_candidate_paths`. Producer mode accepts only exact
 built-in lists or tuples, canonical relative POSIX paths, a leading `./` alias
