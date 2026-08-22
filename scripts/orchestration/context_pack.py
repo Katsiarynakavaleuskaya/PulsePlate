@@ -105,7 +105,7 @@ def _canonical_task_candidate_path(raw_path: object, *, mode: TaskCandidatePathM
         raise _invalid_task_candidate_paths()
     if (
         not raw_path
-        or any(character.isspace() for character in raw_path)
+        or any(character.isspace() and character != " " for character in raw_path)
         or any(unicodedata.category(character).startswith("C") for character in raw_path)
         or "\\" in raw_path
         or "//" in raw_path
@@ -128,7 +128,10 @@ def _canonical_task_candidate_path(raw_path: object, *, mode: TaskCandidatePathM
     is_absolute = candidate.startswith("/")
     candidate_parts = candidate.split("/")
     path_components = candidate_parts[1:] if is_absolute else candidate_parts
-    if any(component in {"", ".", ".."} for component in path_components):
+    if any(
+        component in {"", ".", ".."} or component.startswith(" ") or component.endswith(" ")
+        for component in path_components
+    ):
         raise _invalid_task_candidate_paths()
 
     if is_absolute:

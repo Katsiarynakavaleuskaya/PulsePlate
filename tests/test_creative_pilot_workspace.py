@@ -2949,6 +2949,9 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     assert manifest["parallel_execution_allowed"] is False
     assert manifest["dispatch_sequence"][0]["readonly"] is True
     assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
+    assert set(packet["required_context"]).issubset(
+        manifest["dispatch_sequence"][0]["required_context_paths"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -3064,6 +3067,82 @@ def test_synthesis_dispatch_accepts_identical_workspace_copy(
     manifest = json.loads(capsys.readouterr().out)
 
     assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
+
+
+def test_synthesis_dispatch_binds_candidate_paths_to_workspace_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["README.md"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet candidate_paths must match workspace targets"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_root_agents",
+        "missing_runbook",
+        "missing_scoped_agents",
+        "extra",
+        "duplicate",
+        "absolute",
+        "traversal",
+        "reversed",
+    ),
+)
+def test_synthesis_dispatch_binds_required_context_to_candidate_paths(
+    mutation: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    required_context = list(packet["required_context"])
+    if mutation == "missing_root_agents":
+        required_context.remove("AGENTS.md")
+    elif mutation == "missing_runbook":
+        required_context.remove("RUNBOOK_AGENT.md")
+    elif mutation == "missing_scoped_agents":
+        required_context.remove("core/AGENTS.md")
+    elif mutation == "extra":
+        required_context.append("docs/roadmap/BACKLOG_LEDGER.md")
+    elif mutation == "duplicate":
+        required_context.append(required_context[0])
+    elif mutation == "absolute":
+        required_context[0] = f"{REPO_ROOT.as_posix()}/AGENTS.md"
+    elif mutation == "traversal":
+        required_context.append("../AGENTS.md")
+    else:
+        required_context.reverse()
+    packet["required_context"] = required_context
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet required_context must match canonical context"
+    )
 
 
 @pytest.mark.parametrize("hide_required_flag", (False, True))

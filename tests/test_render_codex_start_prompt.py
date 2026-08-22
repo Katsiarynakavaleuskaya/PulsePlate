@@ -37,12 +37,14 @@ def _isolate_synthetic_synthesis_workspace_source(
         payload: dict[str, Any],
         *,
         validated_synthesis_context: dict[str, Any],
+        candidate_paths: list[str],
     ) -> None:
         if payload.get("creative_pilot_workspace_source") == _SYNTHETIC_WORKSPACE_SOURCE:
             return
         validate_source(
             payload,
             validated_synthesis_context=validated_synthesis_context,
+            candidate_paths=candidate_paths,
         )
 
     monkeypatch.setattr(

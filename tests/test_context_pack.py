@@ -134,7 +134,10 @@ def test_candidate_path_elements_must_be_exact_strings(raw_value: object) -> Non
         " ",
         " README.md",
         "README.md ",
-        "docs/my file.md",
+        "docs/ file.md",
+        "docs/dir /file.md",
+        "docs/my\u00a0file.md",
+        "docs/my\u3000file.md",
         "./",
         "./.",
         "././README.md",
@@ -212,6 +215,31 @@ def test_candidate_path_identity_preserves_printable_unicode_without_normalizati
     assert canonical_task_candidate_paths(["docs／file.md"], mode="producer") == ["docs／file.md"]
 
 
+def test_candidate_path_preserves_ordinary_internal_spaces() -> None:
+    repo_root = REPO_ROOT.as_posix()
+    paths = [
+        ".github/Attached HTML and CSS Context",
+        "ios/PulsePlate/Preview Content/.gitkeep",
+    ]
+
+    assert canonical_task_candidate_paths(paths, mode="producer") == sorted(paths)
+    assert canonical_task_candidate_paths(sorted(paths), mode="strict_wire") == sorted(paths)
+    assert canonical_task_candidate_paths(
+        [f"{repo_root}/ios/PulsePlate/Preview Content/.gitkeep"],
+        mode="producer",
+    ) == ["ios/PulsePlate/Preview Content/.gitkeep"]
+    identities = {
+        compute_task_packet_id(
+            goal="Bind spaces",
+            task_class="Orchestration",
+            domain="orchestration",
+            candidate_paths=[path],
+        )
+        for path in ("docs/a b.md", "docs/a  b.md", "docs/a-b.md")
+    }
+    assert len(identities) == 3
+
+
 def test_candidate_path_recognizer_has_no_filesystem_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -228,6 +256,9 @@ def test_candidate_path_recognizer_has_no_filesystem_semantics(
     ]
     assert canonical_task_candidate_paths(["future/new.py"], mode="strict_wire") == [
         "future/new.py"
+    ]
+    assert canonical_task_candidate_paths([f"{repo_root}/future/new file.py"], mode="producer") == [
+        "future/new file.py"
     ]
 
 

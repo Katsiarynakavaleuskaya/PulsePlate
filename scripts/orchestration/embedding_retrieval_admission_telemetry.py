@@ -16,6 +16,7 @@ from typing import TypeAlias
 
 from core.evidence.fingerprints import fingerprint_payload
 from core.evidence.policies import validate_fingerprint
+from scripts.orchestration.context_pack import canonical_task_candidate_paths
 
 JsonScalar: TypeAlias = str | int | bool | None
 JsonValue: TypeAlias = (
@@ -117,7 +118,6 @@ MAX_STRING_LENGTH = 512
 MAX_METADATA_BYTES = 4096
 MAX_METADATA_DEPTH = 8
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
-_REPO_PATH_RE = re.compile(r"^[A-Za-z0-9.][A-Za-z0-9_./-]*$")
 _DERIVED_ID_RE = re.compile(
     r"^(?:embedding-retrieval-ref|embedding-retrieval-candidate|"
     r"embedding-retrieval-policy|embedding-retrieval-admission):[0-9a-f]{24}$"
@@ -676,16 +676,17 @@ def _validate_token_shape(name: str, value: str) -> str:
 
 
 def _validate_repo_relative_path(name: str, value: str) -> str:
-    normalized = value.strip().removeprefix("./")
-    if not normalized:
-        raise ValueError(f"{name} must be non-empty")
-    if len(normalized) > MAX_STRING_LENGTH:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} contains unsafe metadata")
+    if len(value) > MAX_STRING_LENGTH:
         raise ValueError(f"{name} exceeds maximum length")
-    if "\\" in normalized or normalized.startswith("../") or "/../" in normalized:
+    try:
+        normalized: list[str] = canonical_task_candidate_paths([value], mode="strict_wire")
+    except ValueError as exc:
+        raise ValueError(f"{name} contains unsafe metadata") from exc
+    if len(normalized) != 1:
         raise ValueError(f"{name} contains unsafe metadata")
-    if _PATH_RE.search(normalized) or not _REPO_PATH_RE.match(normalized):
-        raise ValueError(f"{name} contains unsafe metadata")
-    return normalized
+    return normalized[0]
 
 
 def _normalize_unique_tokens(name: str, values: Iterable[str]) -> tuple[str, ...]:

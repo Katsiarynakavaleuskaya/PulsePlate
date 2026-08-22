@@ -1292,6 +1292,36 @@ def test_task_bootstrap_candidate_path_aliases_share_canonical_packet_identity()
 
 
 @pytest.mark.parametrize(
+    "candidate_path",
+    (
+        ".github/Attached HTML and CSS Context",
+        "ios/PulsePlate/Preview Content/.gitkeep",
+    ),
+)
+def test_task_bootstrap_preserves_internal_space_path_identity(candidate_path: str) -> None:
+    common = {
+        "goal": "Review a tracked path containing ordinary spaces",
+        "task_class": "Orchestration",
+    }
+    relative = build_task_packet(**common, candidate_paths=[candidate_path])
+    dot_alias = build_task_packet(**common, candidate_paths=[f"./{candidate_path}"])
+    absolute_alias = build_task_packet(
+        **common,
+        candidate_paths=[f"{REPO_ROOT.as_posix()}/{candidate_path}"],
+    )
+
+    assert relative["candidate_paths"] == [candidate_path]
+    assert dot_alias["candidate_paths"] == [candidate_path]
+    assert absolute_alias["candidate_paths"] == [candidate_path]
+    assert dot_alias["task_packet_id"] == relative["task_packet_id"]
+    assert absolute_alias["task_packet_id"] == relative["task_packet_id"]
+    assert any(
+        row["source_path"] == candidate_path
+        for row in relative["embedding_retrieval_admission"]["evidence_refs"]
+    )
+
+
+@pytest.mark.parametrize(
     "candidate_paths",
     (
         ["./"],

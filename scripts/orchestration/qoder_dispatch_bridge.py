@@ -1126,6 +1126,7 @@ def _validate_single_coordinator_synthesis_task_packet_id(
     payload: Dict[str, Any],
     *,
     validated_creative_context: Dict[str, Any],
+    candidate_paths: List[str],
 ) -> None:
     """Bind the synthesis compatibility projection to producer packet identity."""
 
@@ -1134,17 +1135,17 @@ def _validate_single_coordinator_synthesis_task_packet_id(
         goal = payload["goal"]
         task_class = payload["task_class"]
         domain = payload["domain"]
+        cluster = payload["cluster"]
         pr_phase = payload["pr_phase"]
-        candidate_paths = payload["candidate_paths"]
         requested_agents = payload["requested_agents"]
         design_lane_mode = payload["design_lane_mode"]
         design_lane_contract = payload["design_lane_contract"]
         creative_learning_hints = payload["creative_learning_hints"]
         invariant_review = payload["invariant_review"]
         if (
-            not all(isinstance(value, str) for value in (goal, task_class, domain, pr_phase))
-            or not isinstance(candidate_paths, list)
-            or any(not isinstance(path, str) for path in candidate_paths)
+            not all(
+                isinstance(value, str) for value in (goal, task_class, domain, cluster, pr_phase)
+            )
             or not isinstance(requested_agents, list)
             or any(not isinstance(agent, str) for agent in requested_agents)
             or not isinstance(design_lane_mode, str)
@@ -1159,6 +1160,18 @@ def _validate_single_coordinator_synthesis_task_packet_id(
             raise ValueError(identity_error)
         if any(not isinstance(change_class, str) for change_class in change_classes):
             raise ValueError(identity_error)
+        canonical_domain = resolve_domain(
+            goal=goal,
+            task_class=task_class,
+            candidate_paths=candidate_paths,
+        )
+        canonical_route = load_routing_graph().get(canonical_domain)
+        if (
+            domain != canonical_domain
+            or canonical_route is None
+            or cluster != canonical_route.cluster
+        ):
+            raise ValueError(identity_error)
         creative_identity_fingerprint = fingerprint_payload(
             {
                 "creative_learning_hints": learning_hints_fingerprint,
@@ -1168,7 +1181,7 @@ def _validate_single_coordinator_synthesis_task_packet_id(
         base_packet_id = compute_task_packet_id(
             goal=goal,
             task_class=task_class,
-            domain=domain,
+            domain=canonical_domain,
             candidate_paths=candidate_paths,
             requested_agents=requested_agents,
             pr_phase=pr_phase,
@@ -1545,10 +1558,12 @@ def _validate_single_coordinator_synthesis_packet_metadata(
     _validate_single_coordinator_synthesis_task_packet_id(
         payload,
         validated_creative_context=validated_synthesis_context,
+        candidate_paths=candidate_paths,
     )
     _validate_single_coordinator_synthesis_workspace_source(
         payload,
         validated_synthesis_context=validated_synthesis_context,
+        candidate_paths=candidate_paths,
     )
 
 
@@ -1556,6 +1571,7 @@ def _validate_single_coordinator_synthesis_workspace_source(
     payload: Dict[str, Any],
     *,
     validated_synthesis_context: Dict[str, Any],
+    candidate_paths: List[str],
 ) -> None:
     """Re-read and bind the synthesis-ready workspace behind one alias dispatch."""
 
@@ -1576,6 +1592,22 @@ def _validate_single_coordinator_synthesis_workspace_source(
         raise ValueError(source_error) from exc
     if workspace is None or rebuilt_context != validated_synthesis_context:
         raise ValueError(source_error)
+    target_paths = canonical_task_candidate_paths(
+        [row["path"] for row in workspace["target_manifest"]["files"]],
+        mode="producer",
+    )
+    if candidate_paths != target_paths:
+        raise ValueError(
+            "creative pilot synthesis packet candidate_paths must match workspace targets"
+        )
+    expected_required_context = collect_context_pack(
+        candidate_paths,
+        include_orchestration=(payload["cluster"] == "ops" or len(candidate_paths) != 1),
+    )
+    if payload.get("required_context") != expected_required_context:
+        raise ValueError(
+            "creative pilot synthesis packet required_context must match canonical context"
+        )
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
@@ -1936,15 +1968,26 @@ def _packet_required_context_for_manifest(
     if not isinstance(payload, dict):
         return None
     invariant_review = payload.get("invariant_review")
-    if (
-        not isinstance(invariant_review, dict)
-        or invariant_review.get("schema_version") != INVARIANT_REVIEW_V2_SCHEMA_VERSION
-    ):
+    creative_context = payload.get("creative_pilot_context")
+    is_synthesis = (
+        isinstance(creative_context, dict)
+        and creative_context.get("schema_version") == "creative_pilot_context.v2"
+        and creative_context.get("phase") == "synthesis"
+    )
+    is_invariant_v2 = (
+        isinstance(invariant_review, dict)
+        and invariant_review.get("schema_version") == INVARIANT_REVIEW_V2_SCHEMA_VERSION
+    )
+    if not is_invariant_v2 and not is_synthesis:
         return None
     return list(
         _validate_string_list(
             payload.get("required_context"),
-            field="invariant_review.v2 required_context",
+            field=(
+                "invariant_review.v2 required_context"
+                if is_invariant_v2
+                else "creative synthesis required_context"
+            ),
         )
     )
 

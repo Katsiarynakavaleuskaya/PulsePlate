@@ -79,12 +79,14 @@ def _isolate_synthetic_synthesis_workspace_source(
         payload: Dict[str, Any],
         *,
         validated_synthesis_context: Dict[str, Any],
+        candidate_paths: List[str],
     ) -> None:
         if payload.get("creative_pilot_workspace_source") == _SYNTHETIC_WORKSPACE_SOURCE:
             return
         validate_source(
             payload,
             validated_synthesis_context=validated_synthesis_context,
+            candidate_paths=candidate_paths,
         )
 
     monkeypatch.setattr(
@@ -282,6 +284,59 @@ def test_single_coordinator_synthesis_accepts_rebound_context_identity() -> None
     _rebind_single_coordinator_synthesis_task_packet_id(packet)
 
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+def test_single_coordinator_synthesis_rederives_domain_before_identity() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    forged_domain = "frontend"
+    forged_route = qoder_dispatch_bridge.load_routing_graph()[forged_domain]
+    packet["domain"] = forged_domain
+    packet["cluster"] = forged_route.cluster
+    _rebind_single_coordinator_synthesis_task_packet_id(packet)
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
+
+
+def test_single_coordinator_synthesis_rejects_noncanonical_cluster() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    packet["cluster"] = "forged-cluster"
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    (
+        ("domain", None),
+        ("domain", 1),
+        ("cluster", None),
+        ("cluster", 1),
+        ("cluster", "unknown-cluster"),
+    ),
+)
+def test_single_coordinator_synthesis_requires_domain_cluster_shape(
+    field: str,
+    replacement: object,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    if replacement is None:
+        packet.pop(field)
+    else:
+        packet[field] = replacement
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
 
 
 def test_synthesis_security_requirement_cannot_be_hidden_by_flag() -> None:
