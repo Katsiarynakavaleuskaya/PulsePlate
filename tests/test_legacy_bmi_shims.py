@@ -32,6 +32,7 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
 
 
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
+    import app.schemas.bmi_compat as bmi_schemas
     import app.services.admin_operations as admin_operations
     import app.services.bmi_compat as bmi_compat
     import legacy_app
@@ -51,6 +52,8 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
 
     assert canonical_owners.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
+    assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
+    assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
     for binding_name, owner in canonical_owners.items():
         assert callable(getattr(owner, binding_name))
         assert not hasattr(legacy_app, binding_name)

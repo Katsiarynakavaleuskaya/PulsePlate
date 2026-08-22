@@ -147,6 +147,39 @@ def test_retired_python_binding_guard_rejects_exact_current_module_attribute() -
     ]
 
 
+def test_retired_python_binding_guard_rejects_imported_modules_attribute() -> None:
+    source = textwrap.dedent("""
+        from sys import modules
+        modules[__name__].admin_status = canonical
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
+    ]
+
+
+def test_retired_python_binding_guard_rejects_imported_modules_alias_creation() -> None:
+    source = textwrap.dedent("""
+        from sys import modules as loaded
+        current_module = loaded[__name__]
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: current-module namespace alias creation is forbidden: " "current_module"
+    ]
+
+
+def test_retired_python_binding_guard_retains_import_sys_as_support() -> None:
+    source = textwrap.dedent("""
+        import sys as system
+        system.modules[__name__].admin_status = canonical
+        """)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: admin_status"
+    ]
+
+
 def test_retired_python_binding_guard_rejects_current_module_alias_creation() -> None:
     source = textwrap.dedent("""
         import sys
@@ -187,9 +220,11 @@ def test_retired_python_binding_guard_closes_assigned_call_at_alias_setup() -> N
 def test_retired_python_binding_guard_allows_direct_unrelated_and_foreign_mutations() -> None:
     source = textwrap.dedent("""
         import sys
+        from sys import modules as loaded
         setattr(sys.modules[__name__], "routers", namespace)
         setattr(sys.modules[__name__].routers, "plan_export", module)
         sys.modules[__name__].__dict__["unrelated_name"] = canonical
+        loaded[__name__].__dict__["another_unrelated_name"] = canonical
         setattr(holder, "admin_status", canonical)
         holder.__dict__["admin_status"] = canonical
         service.admin_status()

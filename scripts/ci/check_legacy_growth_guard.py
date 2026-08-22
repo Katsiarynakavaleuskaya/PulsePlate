@@ -10409,30 +10409,55 @@ def _namespace_mapping_mutation_names(
     return names
 
 
+def _direct_sys_module_names(tree: ast.Module) -> tuple[frozenset[str], frozenset[str]]:
+    sys_names: set[str] = set()
+    modules_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            sys_names.update(alias.asname or "sys" for alias in node.names if alias.name == "sys")
+        elif isinstance(node, ast.ImportFrom) and node.module == "sys":
+            modules_names.update(
+                alias.asname or "modules" for alias in node.names if alias.name == "modules"
+            )
+    return frozenset(sys_names), frozenset(modules_names)
+
+
+def _is_exact_current_module_object(
+    node: ast.AST,
+    *,
+    sys_names: frozenset[str],
+    modules_names: frozenset[str],
+) -> bool:
+    if not (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.slice, ast.Name)
+        and node.slice.id == "__name__"
+    ):
+        return False
+    if isinstance(node.value, ast.Name):
+        return node.value.id in modules_names
+    return (
+        isinstance(node.value, ast.Attribute)
+        and node.value.attr == "modules"
+        and isinstance(node.value.value, ast.Name)
+        and node.value.value.id in sys_names
+    )
+
+
 def _current_module_namespace_rebindings(
     tree: ast.Module,
     protected_names: set[str],
 ) -> set[str]:
     """Recognize direct module mutations without following aliases."""
 
-    sys_aliases = {
-        alias.asname or "sys"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-        if alias.name == "sys"
-    }
+    sys_names, modules_names = _direct_sys_module_names(tree)
     rebound: set[str] = set()
 
     def is_current_module_object(node: ast.AST) -> bool:
-        return (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Attribute)
-            and node.value.attr == "modules"
-            and isinstance(node.value.value, ast.Name)
-            and node.value.value.id in sys_aliases
-            and isinstance(node.slice, ast.Name)
-            and node.slice.id == "__name__"
+        return _is_exact_current_module_object(
+            node,
+            sys_names=sys_names,
+            modules_names=modules_names,
         )
 
     def is_global_or_module_mapping(node: ast.AST) -> bool:
@@ -10527,23 +10552,13 @@ def _current_module_namespace_rebindings(
 def _forbidden_retired_binding_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
     """Return direct alias creations that would make call parents open-ended."""
 
-    sys_aliases = {
-        alias.asname or "sys"
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-        if alias.name == "sys"
-    }
+    sys_names, modules_names = _direct_sys_module_names(tree)
 
     def is_current_module_object(node: ast.AST) -> bool:
-        return (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Attribute)
-            and node.value.attr == "modules"
-            and isinstance(node.value.value, ast.Name)
-            and node.value.value.id in sys_aliases
-            and isinstance(node.slice, ast.Name)
-            and node.slice.id == "__name__"
+        return _is_exact_current_module_object(
+            node,
+            sys_names=sys_names,
+            modules_names=modules_names,
         )
 
     module_aliases: set[str] = set()
