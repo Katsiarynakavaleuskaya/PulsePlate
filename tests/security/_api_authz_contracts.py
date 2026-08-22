@@ -421,6 +421,8 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
     _contract("POST", "/api/v1/pro/nutrition/day-close", *PRO_SUBJECT),
     _contract("GET", "/api/v1/pro/nutrition/daily", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/nutrition/deficiency-recommendations", *PRO_SUBJECT),
+    _contract("POST", "/api/v1/pro/nutrition/bmr", *PRO_SUBJECT),
+    _contract("POST", "/api/v1/pro/nutrition/gaps", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/nutrition/meal-log", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/nutrition/micronutrient-targets", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/nutrition/plate", *PRO_SUBJECT),

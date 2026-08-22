@@ -33,6 +33,9 @@ These routes are the current canonical operator surface.
 | Weekly meal planning | `/api/v1/pro/meal/weekly` | POST | PRO | Canonical PRO weekly-planning route |
 | Daily nutrition / plate | `/api/v1/pro/nutrition/daily` | GET | PRO | Canonical PRO nutrition-day route |
 | Nutrition targets | `/api/v1/pro/nutrition/targets` | POST | PRO | Canonical PRO targets route |
+| Generated plate | `/api/v1/pro/nutrition/plate` | POST | PRO | Canonical PRO generated-plate route |
+| BMR and TDEE | `/api/v1/pro/nutrition/bmr` | POST | PRO | Canonical PRO BMR/TDEE route; uses `BMRRequest` and `BMRResponse` |
+| Nutrient gaps | `/api/v1/pro/nutrition/gaps` | POST | PRO | Canonical PRO nutrient-gap route; uses `NutrientGapsRequest` and `NutrientGapsResponse` |
 | Payment activation | `/api/v1/pro/payments/activate` | POST | PRO | Canonical payment activation route |
 | Payment activation status | `/api/v1/pro/payments/activations/{activation_id}` | GET | PRO | Canonical payment status route |
 | FitChef structured explain | `/api/v1/pro/fitchef/explain` | POST | PRO | Feature-gated PRO structured Distortion Simulator route landed via PR #1215; additive to the live mascot canon |
@@ -66,10 +69,12 @@ These routes remain for compatibility and migration. They must not be described 
 | Compatibility route | Method | Current tier semantics | Canonical target | Status |
 |---|---:|---|---|---|
 | `/api/v1/premium/plan/week-flexible` | POST | PRO | `/api/v1/pro/meal/weekly` | Deprecated PRO bridge |
-| `/api/v1/premium/bmr` | POST | Legacy premium compatibility | No canonical `/api/v1/pro/*` replacement documented yet | Legacy-compatible endpoint retained until a canonical migration target is committed |
-| `/api/v1/premium/tdee` | POST | Legacy premium compatibility | No canonical `/api/v1/pro/*` replacement documented yet | Legacy-compatible endpoint retained until a canonical migration target is committed |
+| `/api/v1/premium/bmr` | POST | Legacy premium compatibility | `/api/v1/pro/nutrition/bmr` | Retained during the production telemetry window |
+| `/api/v1/premium/gaps` | POST | Legacy premium compatibility | `/api/v1/pro/nutrition/gaps` | Retained during the production telemetry window |
 | `/api/v1/premium/targets` | POST | PRO | `/api/v1/pro/nutrition/targets` | Legacy shim |
 | `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/plate` | Legacy shim; preserves plate request/response semantics |
+| `/premium_bmr` | POST | Historical public compatibility | `/api/v1/pro/nutrition/bmr` | Retained pending a separate auth and consumer-sunset decision |
+| `/premium_targets` | POST | Legacy app-client credential | `/api/v1/pro/nutrition/targets` | Retained pending a separate root-alias sunset decision |
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |
 | `/insight` | POST | VIP | `/api/v1/insight` | Hidden deprecated legacy alias; owned by `app/routers/legacy_insight.py` |
@@ -77,8 +82,9 @@ These routes remain for compatibility and migration. They must not be described 
 ### Compatibility Notes
 
 - `/api/v1/premium/plan/week` is the most important namespace mismatch: it requires VIP semantics while living under `/premium/*`.
-- `/api/v1/premium/plate` and `/api/v1/premium/targets` still exist for migration compatibility, but product docs should direct operators and clients toward `/api/v1/pro/*`.
-- `/api/v1/premium/bmr` and `/api/v1/premium/tdee` remain legacy-compatible premium endpoints. No committed `/api/v1/pro/bmr` or `/api/v1/pro/tdee` replacement is documented yet, so they remain legacy-compatible rather than migrated.
+- The repository-owned Web Nutrition Setup calls `/api/v1/pro/nutrition/bmr`; all four versioned nutrition aliases remain callable while their 30-day production traffic window is incomplete.
+- `/api/v1/premium/tdee` is not a registered runtime route. TDEE remains part of `BMRResponse` from `/api/v1/pro/nutrition/bmr`; requests to the stale standalone path receive the ordinary FastAPI 404.
+- `/premium_bmr` and `/premium_targets` are separate root-namespace compatibility decisions and are not authorized for removal by the versioned-alias telemetry window.
 - The hidden day/week CSV test/demo aliases under `/api/v1/premium/exports/*`
   are retired, are no longer compatibility surface, and return the ordinary
   FastAPI 404. Both canonical export families remain registered behind the

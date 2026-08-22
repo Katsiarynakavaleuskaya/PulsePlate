@@ -129,9 +129,18 @@ thinly over time, but it must not grow new product behavior.
 PR #2294 completed canonical FastAPI construction ownership. The bounded
 `codex/retire-legacy-scheduler-app-module-compat` successor removed only the
 package module alias and legacy synchronous scheduler compatibility rail. The
-next bounded lane retired the eight paid/BMI registration mirrors and the
-canonical reverse import without changing route registration. HTTP alias
-retirement and final legacy deletion remain separate ordered lanes.
+next bounded lane landed as PR #2309 at
+`f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the eight paid/BMI
+registration mirrors and the canonical reverse import without changing route
+registration. The current canonical-cutover lane adds PRO BMR and nutrient-gap
+routes and moves the repository-owned Web Nutrition Setup BMR consumer to the
+canonical namespace. All four versioned nutrition aliases and both root aliases
+remain callable; HTTP alias retirement and final legacy deletion remain separate
+ordered lanes behind production traffic and consumer evidence (canonical route
+evidence: `app/routers/pro_nutrition_contracts.py:61` and
+`app/routers/pro_nutrition_contracts.py:71`; bounded registrar evidence:
+`app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
+`frontend/src/api/premium/bmr.ts:4`).
 
 Allowed in `legacy_app.py`:
 
@@ -174,13 +183,13 @@ Forbidden in `legacy_app.py`:
 | Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. Facade rebinding and reverse imports are forbidden. |
 | PRO targets/gaps API contracts | `app/schemas/premium_contracts.py` | Canonical request/response ownership; legacy imports preserve the existing wire shapes without parallel schema definitions. |
 | PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; legacy exports are exact aliases or thin route shims only. |
-| PRO targets/gaps routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical targets and retained compatibility routes call the service directly; existing tier/API-key, visibility, deprecation, and OpenAPI contracts remain authoritative. |
+| PRO targets/gaps routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical targets/gaps and retained compatibility routes call the service directly; the canonical family uses `require_pro_tier`, while legacy API-key behavior remains unchanged. |
 | PRO Plate API contract | `app/schemas/premium_contracts.py` | The existing `PlateRequest` / `PlateResponse` wire shapes remain shared by canonical and retained routes. |
 | PRO Plate runtime | `app/services/pro_nutrition_plate.py` + `core/` nutrition modules | The service owns typed Plate orchestration, bounded fallbacks, required sanitization, and stable error envelopes through direct core dependencies resolved per call; facade lookup, module-table lookup, mutable dependency registries, and import-time callable caches are forbidden. Legacy Plate service exports are exact aliases or thin compatibility wrappers only. |
 | PRO Plate routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical and retained Plate handlers call the canonical service directly. Existing PRO-tier/API-key divergence, deprecation metadata, response models, and OpenAPI visibility remain unchanged. |
 | Premium BMR API contract | `app/schemas/bmr.py` | Both retained request DTOs enforce the same finite core boundaries; the existing `BMRResponse` wire shape remains shared. |
 | Premium BMR runtime | `app/services/pro_nutrition_bmr.py` + `core/bmr.py` | The service owns request-time feature gating, defensive dependency validation, localization, response assembly, and stable fail-closed errors through direct core callables resolved per call. Dynamic facade/module lookup, synthetic success stubs, and fallback TDEE values are forbidden. |
-| Premium BMR routes | `app/routers/legacy_premium_nutrition.py` | `/api/v1/premium/bmr` retains the app-client API-key dependency, `/premium_bmr` remains the historical public exception, and both delegate directly to the same feature-gated service. |
+| PRO and retained BMR routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | `/api/v1/pro/nutrition/bmr` is the public PRO contract and Web consumer target. `/api/v1/premium/bmr` retains the app-client API-key dependency, `/premium_bmr` remains the historical public exception, and all three delegate directly to the same feature-gated service. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 

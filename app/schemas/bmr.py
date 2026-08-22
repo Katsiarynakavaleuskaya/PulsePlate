@@ -6,7 +6,7 @@ RU: Схемы для расчета BMR (базового метаболизм�
 EN: Schemas for BMR (basal metabolic rate) and TDEE calculations.
 """
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import math
 
@@ -21,8 +21,8 @@ class _BMRRequestBase(BaseModel):
     weight_kg: float = Field(..., gt=0)
     height_cm: float = Field(..., gt=0)
     age: int = Field(..., ge=1, le=120)
-    sex: str = Field(..., pattern="^(male|female)$")
-    activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
+    sex: Literal["male", "female"]
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"]
     bodyfat: Optional[float] = Field(None, gt=0, le=50)
     lang: Language = "en"
 
