@@ -35,11 +35,13 @@ EXACT_NPM_SEMVER_RE = re.compile(
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 )
-MIN_DOMPURIFY_VERSION = Version("3.4.11")
-MIN_JS_YAML_VERSION = Version("4.2.0")
-MIN_UNDICI_VERSION = Version("7.28.0")
+MIN_DOMPURIFY_VERSION = Version("3.4.13")
+MIN_JS_YAML_VERSION = Version("4.3.1")
+MIN_POSTCSS_VERSION = Version("8.5.23")
+MIN_STYLE_DICTIONARY_VERSION = Version("5.4.4")
+MIN_UNDICI_VERSION = Version("7.29.0")
 MIN_WS_VERSION = Version("8.21.0")
-BRACE_EXPANSION_APPROVED_OUTPUTS = {2: "2.1.3", 5: "5.0.8"}
+BRACE_EXPANSION_APPROVED_OUTPUTS = {2: "2.1.4", 5: "5.0.9"}
 BRACE_EXPANSION_OVERRIDE_CARRIERS = {
     2: "minimatch@3",
     5: "minimatch@10",
@@ -71,6 +73,19 @@ BRACE_EXPANSION_ADVISORY_RANGES = {
     advisory: tuple(SpecifierSet(value) for value in ranges)
     for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
 }
+BRACE_EXPANSION_CURRENT_ADVISORY_RANGE_TEXT = {
+    **BRACE_EXPANSION_ADVISORY_RANGE_TEXT,
+    "GHSA-rgw5-rvv9-x895": (
+        "<1.1.18",
+        ">=2.0.0,<2.1.4",
+        ">=3.0.0,<3.0.6",
+        ">=4.0.0,<5.0.9",
+    ),
+}
+BRACE_EXPANSION_CURRENT_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(value) for value in ranges)
+    for advisory, ranges in BRACE_EXPANSION_CURRENT_ADVISORY_RANGE_TEXT.items()
+}
 BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
     {
         "GHSA-3jxr-9vmj-r5cp",
@@ -81,6 +96,7 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
         "GHSA-v6h2-p8h4-qcjw",
     }
 )
+BRACE_EXPANSION_CURRENT_ADVISORIES = frozenset(BRACE_EXPANSION_CURRENT_ADVISORY_RANGES)
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
 BRACE_EXPANSION_RENDERED_PROJECTIONS = {
     "GHSA-3jxr-9vmj-r5cp": (
@@ -169,6 +185,77 @@ NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.jso
 FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
     {"frontend/package.json", "frontend/package-lock.json"}
 )
+FRONTEND_SECURITY_TARGETS = {
+    "dompurify": {
+        "manifest_path": ("overrides", "dompurify"),
+        "manifest_value": "3.4.13",
+        "floor": str(MIN_DOMPURIFY_VERSION),
+        "selected": "3.4.13",
+        "advisories": {
+            "GHSA-c2j3-45gr-mqc4": ("<=3.4.11",),
+            "GHSA-55q2-fjhq-7xh7": ("<=3.4.12",),
+        },
+    },
+    "js-yaml": {
+        "manifest_path": ("overrides", "js-yaml"),
+        "manifest_value": "4.3.1",
+        "floor": str(MIN_JS_YAML_VERSION),
+        "selected": "4.3.1",
+        "advisories": {
+            "GHSA-52cp-r559-cp3m": (">=3.0.0,<3.15.0", ">=4.0.0,<4.3.0"),
+            "GHSA-5p4m-2wfm-xmqj": (">=3.0.0,<3.15.1", ">=4.0.0,<4.3.1"),
+        },
+    },
+    "postcss": {
+        "manifest_path": ("devDependencies", "postcss"),
+        "manifest_value": "^8.5.26",
+        "floor": str(MIN_POSTCSS_VERSION),
+        "selected": "8.5.26",
+        "advisories": {
+            "GHSA-r28c-9q8g-f849": ("<=8.5.17",),
+            "GHSA-fxqj-rqcc-2cmp": ("<=8.5.22",),
+        },
+    },
+    "style-dictionary": {
+        "manifest_path": ("devDependencies", "style-dictionary"),
+        "manifest_value": "5.4.4",
+        "floor": str(MIN_STYLE_DICTIONARY_VERSION),
+        "selected": "5.4.4",
+        "advisories": {
+            "GHSA-vj5c-m527-mpff": (">=4.3.0,<5.4.4",),
+        },
+    },
+    "undici": {
+        "manifest_path": ("overrides", "undici"),
+        "manifest_value": "7.29.0",
+        "floor": str(MIN_UNDICI_VERSION),
+        "selected": "7.29.0",
+        "advisories": {
+            "GHSA-8xcm-r25x-g524": ("<6.28.0", ">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
+            "GHSA-4cwx-7wf7-3272": (">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
+            "GHSA-jr45-8vmc-qm54": (">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
+            "GHSA-v3r7-h72x-cjcm": ("<6.28.0", ">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
+            "GHSA-m8rv-5g2x-5cg5": ("<6.28.0", ">=7.0.0,<7.29.0", ">=8.0.0,<8.9.0"),
+        },
+    },
+}
+FRONTEND_SECURITY_BOUNDARY_CASES = (
+    ("dompurify-below", "dompurify", "3.4.12", False),
+    ("dompurify-floor", "dompurify", "3.4.13", True),
+    ("dompurify-selected", "dompurify", "3.4.13", True),
+    ("js-yaml-below", "js-yaml", "4.3.0", False),
+    ("js-yaml-floor", "js-yaml", "4.3.1", True),
+    ("js-yaml-selected", "js-yaml", "4.3.1", True),
+    ("postcss-below", "postcss", "8.5.22", False),
+    ("postcss-floor", "postcss", "8.5.23", True),
+    ("postcss-selected", "postcss", "8.5.26", True),
+    ("style-dictionary-below", "style-dictionary", "5.4.3", False),
+    ("style-dictionary-floor", "style-dictionary", "5.4.4", True),
+    ("style-dictionary-selected", "style-dictionary", "5.4.4", True),
+    ("undici-below", "undici", "7.28.0", False),
+    ("undici-floor", "undici", "7.29.0", True),
+    ("undici-selected", "undici", "7.29.0", True),
+)
 
 
 def _load_json(path: Path) -> dict:
@@ -235,14 +322,18 @@ def _parse_version(*, value: object, source: str) -> Version:
         raise AssertionError(f"{source}: malformed version {value!r}") from exc
 
 
-def _is_brace_expansion_lock_path(path: object) -> bool:
+def _is_frontend_target_lock_path(path: object, *, target: str) -> bool:
     if not isinstance(path, str):
         return False
     normalized = path.replace("\\", "/")
     return PurePosixPath(normalized).parts[-2:] == (
         "node_modules",
-        "brace-expansion",
+        target,
     )
+
+
+def _is_brace_expansion_lock_path(path: object) -> bool:
+    return _is_frontend_target_lock_path(path, target="brace-expansion")
 
 
 def _fully_decode_url_path(path: str) -> str:
@@ -316,23 +407,25 @@ def _find_override_key_paths(
     return found
 
 
-def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
-    """Enumerate the finite lockfile candidate universe independently of validity."""
+def _discover_frontend_target_lock_entries(
+    packages: object,
+    *,
+    target: str,
+) -> dict[str, dict]:
+    """Enumerate one target through the existing path/name/tarball signals."""
 
     assert isinstance(packages, dict), "frontend/package-lock.json: packages must be an object"
     entries: dict[str, dict] = {}
     for raw_path, package in packages.items():
-        canonical_path_signal = _is_brace_expansion_lock_path(raw_path)
-        name_signal = isinstance(package, dict) and package.get("name") == "brace-expansion"
+        canonical_path_signal = _is_frontend_target_lock_path(raw_path, target=target)
+        name_signal = isinstance(package, dict) and package.get("name") == target
         url_signal = isinstance(package, dict) and _has_registry_tarball_path_signal(
-            package.get("resolved"), target="brace-expansion"
+            package.get("resolved"), target=target
         )
         if not (canonical_path_signal or name_signal or url_signal):
             continue
         assert isinstance(raw_path, str)
-        assert (
-            canonical_path_signal
-        ), f"{raw_path}: brace-expansion alias/noncanonical installed path"
+        assert canonical_path_signal, f"{raw_path}: {target} alias/noncanonical installed path"
         path = PurePosixPath(raw_path)
         assert "\\" not in raw_path, f"{raw_path}: lock path must use POSIX separators"
         assert not path.is_absolute(), f"{raw_path}: lock path must be relative"
@@ -340,15 +433,21 @@ def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
         assert path.as_posix() == raw_path, f"{raw_path}: lock path must be canonical"
         assert path.parts[-2:] == (
             "node_modules",
-            "brace-expansion",
-        ), f"{raw_path}: malformed brace-expansion lock path"
+            target,
+        ), f"{raw_path}: malformed {target} lock path"
         assert isinstance(package, dict), f"{raw_path}: package entry must be an object"
         if "name" in package:
             assert (
-                package["name"] == "brace-expansion"
-            ), f"{raw_path}: package name conflicts with brace-expansion path"
+                package["name"] == target
+            ), f"{raw_path}: package name conflicts with {target} path"
         entries[raw_path] = package
     return entries
+
+
+def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
+    """Enumerate the finite lockfile candidate universe independently of validity."""
+
+    return _discover_frontend_target_lock_entries(packages, target="brace-expansion")
 
 
 def _normalize_brace_expansion_lock_entries(entries: dict[str, dict]) -> dict[str, dict]:
@@ -419,13 +518,13 @@ def _brace_expansion_head_evidence_digest(
 
 
 def _version_is_affected(*, version: Version, advisory: str) -> bool:
-    ranges = BRACE_EXPANSION_ADVISORY_RANGES[advisory]
+    ranges = BRACE_EXPANSION_CURRENT_ADVISORY_RANGES[advisory]
     return any(version in affected_range for affected_range in ranges)
 
 
 def _assert_brace_expansion_head_postcondition(versions: set[Version]) -> None:
-    assert set(BRACE_EXPANSION_ADVISORY_RANGES) == BRACE_EXPANSION_CUTOFF_ADVISORIES
-    for advisory in BRACE_EXPANSION_CUTOFF_ADVISORIES:
+    assert set(BRACE_EXPANSION_CURRENT_ADVISORY_RANGES) == BRACE_EXPANSION_CURRENT_ADVISORIES
+    for advisory in BRACE_EXPANSION_CURRENT_ADVISORIES:
         assert all(
             not _version_is_affected(version=version, advisory=advisory) for version in versions
         ), f"{advisory}: governed head occurrence remains affected"
@@ -1135,21 +1234,127 @@ def _brace_expansion_guard_fixture() -> tuple[dict, dict]:
     return (
         {
             "overrides": {
-                "minimatch@3": {"brace-expansion": "2.1.3"},
-                "minimatch@10": {"brace-expansion": "5.0.8"},
+                "minimatch@3": {"brace-expansion": "2.1.4"},
+                "minimatch@10": {"brace-expansion": "5.0.9"},
             }
         },
         {
             "packages": {
-                "node_modules/brace-expansion": _brace_entry("2.1.3"),
-                "node_modules/glob/node_modules/brace-expansion": _brace_entry("5.0.8"),
+                "node_modules/brace-expansion": _brace_entry("2.1.4"),
+                "node_modules/glob/node_modules/brace-expansion": _brace_entry("5.0.9"),
             }
         },
     )
 
 
+def _assert_frontend_security_target_version(*, target: str, raw_version: object) -> Version:
+    """Require one stable comparable version outside the target's full cutoff."""
+
+    policy = FRONTEND_SECURITY_TARGETS[target]
+    version = _parse_version(value=raw_version, source=f"{target} governed occurrence")
+    floor = Version(policy["floor"])
+    assert version >= floor, f"{target}: {version} is below security floor {floor}"
+    advisories = policy["advisories"]
+    assert isinstance(advisories, dict)
+    for advisory, raw_ranges in advisories.items():
+        assert isinstance(raw_ranges, tuple)
+        affected_ranges = tuple(SpecifierSet(raw_range) for raw_range in raw_ranges)
+        assert all(
+            version not in affected_range for affected_range in affected_ranges
+        ), f"{target}/{advisory}: governed occurrence remains affected"
+    return version
+
+
+def _assert_frontend_security_targets() -> None:
+    """Validate the five non-brace targets across every tracked npm surface."""
+
+    surfaces = {
+        relative: _load_json(REPO_ROOT / relative) for relative in _enumerate_repo_npm_surfaces()
+    }
+    for target, policy in FRONTEND_SECURITY_TARGETS.items():
+        manifest_occurrences: dict[tuple[str, ...], object] = {}
+        lock_occurrences: dict[tuple[str, str], dict] = {}
+        for relative, document in surfaces.items():
+            basename = PurePosixPath(relative).name
+            if basename == "package.json":
+                for path, value in _find_manifest_target_paths(
+                    document,
+                    target=target,
+                    surface=relative,
+                    surfaces=surfaces,
+                ).items():
+                    manifest_occurrences[(relative, *path)] = value
+                continue
+            assert basename in NPM_LOCK_SURFACE_BASENAMES
+            for path, package in _discover_frontend_target_lock_entries(
+                document.get("packages"), target=target
+            ).items():
+                lock_occurrences[(relative, path)] = package
+
+        manifest_path = policy["manifest_path"]
+        assert isinstance(manifest_path, tuple)
+        expected_manifest_occurrences = {
+            ("frontend/package.json", *manifest_path): policy["manifest_value"]
+        }
+        assert manifest_occurrences == expected_manifest_occurrences, (
+            f"{target}: manifest carriers disagree with the approved current owner; "
+            f"found {manifest_occurrences!r}"
+        )
+        assert lock_occurrences, f"{target}: governed lock occurrence missing"
+        assert {relative for relative, _ in lock_occurrences} == {
+            "frontend/package-lock.json"
+        }, f"{target}: unexpected tracked lock owner"
+
+        selected = policy["selected"]
+        assert isinstance(selected, str)
+        lock_versions: set[Version] = set()
+        for (relative, path), package in lock_occurrences.items():
+            raw_version = package.get("version")
+            parsed_version = _assert_frontend_security_target_version(
+                target=target,
+                raw_version=raw_version,
+            )
+            assert raw_version == selected, f"{relative}:{path}: {target} selected target drift"
+            expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{selected}.tgz"
+            assert (
+                package.get("resolved") == expected_resolved
+            ), f"{relative}:{path}: {target} canonical provenance mismatch"
+            integrity = package.get("integrity")
+            assert (
+                isinstance(integrity, str) and integrity.strip()
+            ), f"{relative}:{path}: integrity missing"
+            lock_versions.add(parsed_version)
+        assert lock_versions == {Version(selected)}, f"{target}: manifest/lock target disagreement"
+
+
 def test_parse_version_accepts_exact_npm_semver() -> None:
-    assert _parse_version(value="2.1.3", source="fixture") == Version("2.1.3")
+    assert _parse_version(value="2.1.4", source="fixture") == Version("2.1.4")
+
+
+@pytest.mark.parametrize(
+    ("case_id", "version", "allowed"),
+    (
+        ("brace-2-below", "2.1.3", False),
+        ("brace-2-floor", "2.1.4", True),
+        ("brace-2-selected", "2.1.4", True),
+        ("brace-5-below", "5.0.8", False),
+        ("brace-5-floor", "5.0.9", True),
+        ("brace-5-selected", "5.0.9", True),
+    ),
+)
+def test_brace_expansion_current_advisory_boundaries(
+    case_id: str,
+    version: str,
+    allowed: bool,
+) -> None:
+    """The successor advisory owns both exact floor and selected-target controls."""
+
+    assert case_id
+    if allowed:
+        _assert_brace_expansion_head_postcondition({Version(version)})
+        return
+    with pytest.raises(AssertionError, match="GHSA-rgw5-rvv9-x895"):
+        _assert_brace_expansion_head_postcondition({Version(version)})
 
 
 def test_parse_version_accepts_number_max_safe_integer_component() -> None:
@@ -1476,11 +1681,11 @@ def test_brace_expansion_current_postcondition_allows_safe_graph_evolution(case:
         del package_json["overrides"]["minimatch@3"]
         del packages["node_modules/brace-expansion"]
     elif case == "safe-patch-2":
-        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4"
-        packages["node_modules/brace-expansion"].update(_brace_entry("2.1.4"))
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.5"
+        packages["node_modules/brace-expansion"].update(_brace_entry("2.1.5"))
     elif case == "safe-patch-5":
-        package_json["overrides"]["minimatch@10"]["brace-expansion"] = "5.0.9"
-        packages["node_modules/glob/node_modules/brace-expansion"].update(_brace_entry("5.0.9"))
+        package_json["overrides"]["minimatch@10"]["brace-expansion"] = "5.0.10"
+        packages["node_modules/glob/node_modules/brace-expansion"].update(_brace_entry("5.0.10"))
     elif case == "safe-new-lock-major":
         packages["node_modules/future/node_modules/brace-expansion"] = _brace_entry("6.0.0")
     else:
@@ -1833,12 +2038,12 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
     """A candidate outside A still blocks an affected governed head occurrence."""
 
     monkeypatch.setitem(
-        BRACE_EXPANSION_ADVISORY_RANGES,
+        BRACE_EXPANSION_CURRENT_ADVISORY_RANGES,
         "GHSA-f886-m6hf-6m8v",
-        (SpecifierSet("==2.1.3"),),
+        (SpecifierSet("==2.1.4"),),
     )
     with pytest.raises(AssertionError, match="GHSA-f886-m6hf-6m8v"):
-        _assert_brace_expansion_head_postcondition({Version("2.1.3"), Version("5.0.8")})
+        _assert_brace_expansion_head_postcondition({Version("2.1.4"), Version("5.0.9")})
 
 
 @pytest.mark.parametrize(
@@ -1892,7 +2097,7 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
     if case == "affected-lock-output":
         packages["node_modules/future-carrier/node_modules/brace-expansion"] = _brace_entry("2.0.3")
     elif case == "lock-only-safe-patch":
-        root.update(_brace_entry("2.1.4"))
+        root.update(_brace_entry("2.1.5"))
     elif case == "extra-override-carrier":
         package_json["overrides"]["future-carrier"] = {"nested": {"brace-expansion": "2.1.3"}}
     elif case == "missing-lock-output":
@@ -1987,7 +2192,7 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
     elif case == "integrity":
         root["integrity"] = ""
     elif case == "manifest-lock":
-        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4"
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.5"
     elif case == "blanket":
         package_json["overrides"]["brace-expansion"] = "5.0.8"
     elif case == "selector-override":
@@ -2020,31 +2225,42 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         )
 
 
-def test_frontend_package_has_dompurify_override_floor() -> None:
-    """RU/EN: package.json override must keep dompurify at secure floor version."""
-    package_json = _load_json(FRONTEND_PACKAGE_JSON)
-    overrides = package_json.get("overrides", {})
-    dompurify_override = overrides.get("dompurify")
-    assert isinstance(dompurify_override, str), "frontend/package.json: overrides.dompurify missing"
-    assert Version(dompurify_override) >= MIN_DOMPURIFY_VERSION
+def test_frontend_security_targets_cover_all_current_tracked_surfaces() -> None:
+    """Every non-brace batch target has one bounded carrier and universal postcondition."""
+
+    _assert_frontend_security_targets()
 
 
-def test_frontend_package_has_js_yaml_override_floor() -> None:
-    """RU/EN: package.json override must keep js-yaml at secure floor version."""
-    package_json = _load_json(FRONTEND_PACKAGE_JSON)
-    overrides = package_json.get("overrides", {})
-    js_yaml_override = overrides.get("js-yaml")
-    assert isinstance(js_yaml_override, str), "frontend/package.json: overrides.js-yaml missing"
-    assert Version(js_yaml_override) >= MIN_JS_YAML_VERSION
+@pytest.mark.parametrize(
+    ("case_id", "target", "version", "allowed"),
+    FRONTEND_SECURITY_BOUNDARY_CASES,
+    ids=[case[0] for case in FRONTEND_SECURITY_BOUNDARY_CASES],
+)
+def test_frontend_security_target_boundaries(
+    case_id: str,
+    target: str,
+    version: str,
+    allowed: bool,
+) -> None:
+    """Every below/floor/selected control is explicit and independently executable."""
+
+    assert case_id
+    if allowed:
+        assert _assert_frontend_security_target_version(
+            target=target,
+            raw_version=version,
+        ) == Version(version)
+        return
+    with pytest.raises(AssertionError, match="below security floor|remains affected"):
+        _assert_frontend_security_target_version(target=target, raw_version=version)
 
 
-def test_frontend_package_has_undici_override_floor() -> None:
-    """RU/EN: package.json override must keep undici at secure floor version."""
-    package_json = _load_json(FRONTEND_PACKAGE_JSON)
-    overrides = package_json.get("overrides", {})
-    undici_override = overrides.get("undici")
-    assert isinstance(undici_override, str), "frontend/package.json: overrides.undici missing"
-    assert Version(undici_override) >= MIN_UNDICI_VERSION
+@pytest.mark.parametrize("target", tuple(FRONTEND_SECURITY_TARGETS))
+def test_frontend_security_targets_reject_prerelease_false_green(target: str) -> None:
+    """A later-looking prerelease cannot bypass a stable advisory boundary."""
+
+    with pytest.raises(AssertionError, match="prerelease output is not approved"):
+        _assert_frontend_security_target_version(target=target, raw_version="99.0.0-rc.1")
 
 
 def test_frontend_package_has_ws_override_floor() -> None:
@@ -2054,30 +2270,6 @@ def test_frontend_package_has_ws_override_floor() -> None:
     ws_override = overrides.get("ws")
     assert isinstance(ws_override, str), "frontend/package.json: overrides.ws missing"
     assert Version(ws_override) >= MIN_WS_VERSION
-
-
-def test_frontend_lock_resolves_dompurify_to_safe_npm_release() -> None:
-    """RU/EN: package-lock must resolve dompurify from npm registry."""
-    package_lock = _load_json(FRONTEND_LOCK_JSON)
-    dompurify_pkg = package_lock.get("packages", {}).get("node_modules/dompurify", {})
-    lock_version = dompurify_pkg.get("version")
-    resolved = dompurify_pkg.get("resolved", "")
-
-    assert isinstance(lock_version, str), "frontend/package-lock.json: dompurify version missing"
-    assert Version(lock_version) >= MIN_DOMPURIFY_VERSION
-    _assert_npm_registry_resolution(package_name="dompurify", resolved=resolved)
-
-
-def test_frontend_lock_resolves_undici_to_safe_npm_release() -> None:
-    """RU/EN: package-lock must resolve undici from npm registry."""
-    package_lock = _load_json(FRONTEND_LOCK_JSON)
-    undici_pkg = package_lock.get("packages", {}).get("node_modules/undici", {})
-    lock_version = undici_pkg.get("version")
-    resolved = undici_pkg.get("resolved", "")
-
-    assert isinstance(lock_version, str), "frontend/package-lock.json: undici version missing"
-    assert Version(lock_version) >= MIN_UNDICI_VERSION
-    _assert_npm_registry_resolution(package_name="undici", resolved=resolved)
 
 
 def test_frontend_lock_resolves_ws_to_safe_npm_release() -> None:
@@ -2090,22 +2282,3 @@ def test_frontend_lock_resolves_ws_to_safe_npm_release() -> None:
     assert isinstance(lock_version, str), "frontend/package-lock.json: ws version missing"
     assert Version(lock_version) >= MIN_WS_VERSION
     _assert_npm_registry_resolution(package_name="ws", resolved=resolved)
-
-
-def test_frontend_lock_resolves_all_js_yaml_entries_to_safe_npm_release() -> None:
-    """RU/EN: every js-yaml package entry must use the secure npm release."""
-    package_lock = _load_json(FRONTEND_LOCK_JSON)
-    packages = package_lock.get("packages", {})
-    js_yaml_entries = {
-        path: package
-        for path, package in packages.items()
-        if path == "node_modules/js-yaml" or path.endswith("/node_modules/js-yaml")
-    }
-
-    assert js_yaml_entries, "frontend/package-lock.json: js-yaml package entries missing"
-    for path, package in js_yaml_entries.items():
-        lock_version = package.get("version")
-        resolved = package.get("resolved", "")
-        assert isinstance(lock_version, str), f"{path}: js-yaml version missing"
-        assert Version(lock_version) >= MIN_JS_YAML_VERSION, f"{path}: js-yaml below secure floor"
-        _assert_npm_registry_resolution(package_name="js-yaml", resolved=resolved)
