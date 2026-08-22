@@ -48,6 +48,8 @@ _OUTPUT_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json\Z")
 _CONTAINER_ID_RE = re.compile(r"[0-9a-f]{12,64}\Z")
 _RELEASE_REVISION_RE = re.compile(r"[0-9a-f]{40}\Z")
 _RETENTION_RE = re.compile(r"--storage\.tsdb\.retention\.time=([1-9][0-9]*)d\Z")
+# Representation/resource bound only; this does not define retention policy authority.
+_MAX_RETENTION_DIGITS = 18
 _PINNED_IMAGE_REFERENCE_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9._/:+-]{0,191}@sha256:[0-9a-f]{64}\Z"
 )
@@ -236,7 +238,7 @@ def _json_loads_object(payload: bytes, *, error_code: str) -> dict[str, object]:
 
     try:
         decoded = json.loads(payload, parse_constant=_reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
         raise VerificationError(error_code) from exc
     if not isinstance(decoded, dict):
         raise VerificationError(error_code)
@@ -274,6 +276,18 @@ def _read_bounded_regular_json(file_name: Path) -> dict[str, object]:
     return _json_loads_object(bytes(payload), error_code="baseline_evidence_invalid")
 
 
+def _normalize_finite_real(value: object) -> float | None:
+    """Normalize one closed-grammar real without coercing bool, strings, or objects."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        normalized = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return normalized if math.isfinite(normalized) else None
+
+
 def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
     decoded = _json_loads_object(payload, error_code="promtool_result_invalid")
     if decoded.get("status") != "success":
@@ -296,15 +310,16 @@ def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
         or not isinstance(value[1], str)
     ):
         raise VerificationError("promtool_result_invalid")
-    if not math.isfinite(float(value[0])):
+    timestamp = _normalize_finite_real(value[0])
+    if timestamp is None:
         raise VerificationError("promtool_result_invalid")
     try:
         numeric = float(value[1])
-    except ValueError as exc:
+    except (OverflowError, ValueError) as exc:
         raise VerificationError("promtool_result_invalid") from exc
     if not math.isfinite(numeric):
         raise VerificationError("promtool_value_nonfinite")
-    return float(value[0]), numeric
+    return timestamp, numeric
 
 
 def _parse_promtool_vector(payload: bytes) -> float:
@@ -363,7 +378,13 @@ def _parse_retention_days(arguments: object) -> int:
     matches = [match for item in arguments if (match := _RETENTION_RE.fullmatch(item))]
     if len(matches) != 1:
         raise VerificationError("prometheus_retention_unavailable")
-    return int(matches[0].group(1))
+    digits = matches[0].group(1)
+    if len(digits) > _MAX_RETENTION_DIGITS:
+        raise VerificationError("prometheus_retention_unavailable")
+    try:
+        return int(digits)
+    except (OverflowError, ValueError) as exc:
+        raise VerificationError("prometheus_retention_unavailable") from exc
 
 
 def _parse_pinned_image_reference(value: object) -> str:
@@ -404,7 +425,7 @@ def _parse_uvicorn_processes(payload: bytes) -> tuple[int, str]:
 def _parse_container_inspect(payload: bytes) -> list[dict[str, object]]:
     try:
         inspected = json.loads(payload)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise VerificationError("container_inspect_invalid") from exc
     if (
         not isinstance(inspected, list)
@@ -879,11 +900,11 @@ def _attach_asset_contract(
 
 
 def _is_finite_number_or_none(value: object) -> bool:
-    return value is None or (
-        not isinstance(value, bool)
-        and isinstance(value, (int, float))
-        and math.isfinite(float(value))
-    )
+    if value is None:
+        return True
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return _normalize_finite_real(value) is not None
 
 
 def _is_canonical_timestamp_or_none(value: object) -> bool:
@@ -1251,10 +1272,14 @@ def _query(
     except VerificationError as exc:
         reasons.extend((reason, exc.code))
         return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         reasons.extend((reason, "promtool_value_nonfinite"))
         return None
-    return float(value)
+    normalized = _normalize_finite_real(value)
+    if normalized is None:
+        reasons.extend((reason, "promtool_value_nonfinite"))
+        return None
+    return normalized
 
 
 def _check_exact_zero(

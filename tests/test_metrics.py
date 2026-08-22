@@ -1270,6 +1270,53 @@ def test_metrics_scrape_key_accepts_partial_reads_and_matches_constant_time_seam
     assert token not in repr(recognition)
 
 
+def test_metrics_scrape_key_rejects_zero_nofollow_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "z" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    monkeypatch.setattr(production_invariants.os, "O_NOFOLLOW", 0)
+
+    recognition = production_invariants.recognize_metrics_scrape_key()
+
+    assert recognition.marker == "invalid"
+    assert recognition.matches(token) is False
+
+
+def test_metrics_scrape_key_retries_one_interrupted_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "i" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    original_read = production_invariants.os.read
+    calls = {"total": 0, "interrupts": 0}
+
+    def _interrupt_once(descriptor: int, size: int) -> bytes:
+        calls["total"] += 1
+        if calls["interrupts"] == 0:
+            calls["interrupts"] += 1
+            raise InterruptedError
+        return original_read(descriptor, size)
+
+    monkeypatch.setattr(production_invariants.os, "read", _interrupt_once)
+    recognition = production_invariants.recognize_metrics_scrape_key()
+
+    assert calls["interrupts"] == 1
+    assert calls["total"] >= 2
+    assert recognition.marker == "ready"
+    assert recognition.matches(token) is True
+
+
 @pytest.mark.parametrize("length", [32, 256])
 def test_metrics_scrape_key_accepts_both_length_boundaries(
     tmp_path: Path,

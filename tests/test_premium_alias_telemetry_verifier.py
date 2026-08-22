@@ -214,6 +214,36 @@ def test_promtool_parser_rejects_malformed_missing_and_nonfinite_vectors(
         verifier._parse_promtool_vector(payload)
 
 
+def test_promtool_parser_rejects_oversized_integer_timestamp() -> None:
+    payload = _promtool_payload(result=[{"metric": {}, "value": [10**400, "0"]}])
+
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(payload)
+
+
+@pytest.mark.parametrize(
+    "digit_count",
+    [verifier._MAX_RETENTION_DIGITS + 1, 5_000],
+)
+def test_retention_parser_rejects_unbounded_digit_count(digit_count: int) -> None:
+    retention_argument = "--storage.tsdb.retention.time=" + "9" * digit_count + "d"
+
+    with pytest.raises(
+        verifier.VerificationError,
+        match="prometheus_retention_unavailable",
+    ):
+        verifier._parse_retention_days([retention_argument])
+
+
+def test_finite_number_guard_rejects_huge_integer_without_overflow() -> None:
+    assert verifier._is_finite_number_or_none(10**400) is False
+
+
+@pytest.mark.parametrize("value", [True, "1", b"1", None])
+def test_finite_real_normalizer_keeps_closed_runtime_grammar(value: object) -> None:
+    assert verifier._normalize_finite_real(value) is None
+
+
 def test_bounded_baseline_and_final_pass_preserve_exact_zero_semantics(
     tmp_path: Path,
 ) -> None:
@@ -388,6 +418,20 @@ def test_evaluator_rejects_nonfinite_client_values(tmp_path: Path, value: float)
     assert target["observed_count"] is None
 
 
+def test_query_normalizes_huge_integer_to_nonfinite_hold() -> None:
+    reasons: list[str] = []
+    result = verifier._query(
+        _FakePromtoolClient(overrides={"count(up": 10**400}),
+        'count(up{job="pulseplate-api"})',
+        evaluation_time="2026-08-22T12:00:00Z",
+        reason="target_count_missing",
+        reasons=reasons,
+    )
+
+    assert result is None
+    assert reasons == ["target_count_missing", "promtool_value_nonfinite"]
+
+
 def test_identity_drift_invalidates_checkpoint_baseline(tmp_path: Path) -> None:
     evidence = verifier.build_evidence(
         _config(tmp_path, mode="checkpoint"),
@@ -507,6 +551,13 @@ def test_deeply_nested_promtool_and_inspect_json_fail_closed() -> None:
         verifier._parse_promtool_vector(deeply_nested)
     with pytest.raises(verifier.VerificationError, match="container_inspect_invalid"):
         verifier._parse_container_inspect(deeply_nested)
+
+
+def test_container_inspect_rejects_json_integer_digit_exhaustion() -> None:
+    payload = b'[{"oversized_integer":' + b"9" * 5_000 + b"},{}]"
+
+    with pytest.raises(verifier.VerificationError, match="container_inspect_invalid"):
+        verifier._parse_container_inspect(payload)
 
 
 def _tar_payload(
