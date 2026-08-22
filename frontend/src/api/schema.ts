@@ -7066,7 +7066,10 @@ export interface operations {
                             number
                         ];
                     };
-                    /** User Preferences */
+                    /**
+                     * User Preferences
+                     * @description Unsupported semantic preferences still receive bounded raw admission.
+                     */
                     user_preferences?: {
                         [key: string]: unknown;
                     };

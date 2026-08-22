@@ -149,10 +149,21 @@ def canonical_auto_repair_food_db() -> dict[str, FoodItem]:
                 "fat_g": 0.0,
                 "carbs_g": 0.0,
                 "fiber_g": 0.0,
+                "calcium_mg": 0.0,
+                "magnesium_mg": 0.0,
+                "zinc_mg": 0.0,
+                "potassium_mg": 0.0,
+                "iodine_ug": 0.0,
+                "selenium_ug": 0.0,
+                "folate_ug": 0.0,
+                "b12_ug": 0.0,
+                "vitamin_d_iu": 0.0,
+                "vitamin_a_ug": 0.0,
+                "vitamin_c_mg": 0.0,
             },
             cost_per_100g=1.0,
             tags=[],
-            availability_regions=[],
+            availability_regions=[" by "],
         )
     }
 
@@ -633,16 +644,16 @@ class TestVIPIntegration97Extended:
         stale_summary_payload = _auto_repair_payload(payload_simple_problems["week_plan"])
         stale_summary_payload["week_plan"].update(
             {
-                "weekly_coverage": {"overflow": 10**310},
+                "weekly_coverage": {"stale": 1.0},
                 "shopping_list": "invalid",
-                "total_cost": 10**310,
+                "total_cost": 99.0,
                 "adherence_score": {"invalid": True},
             }
         )
         stale_day = stale_summary_payload["week_plan"]["days"][0]
         stale_day.update(
             {
-                "coverage": {"overflow": 10**310},
+                "coverage": {"stale": 1.0},
                 "recommendations": "invalid",
                 "estimated_cost": {"invalid": True},
             }

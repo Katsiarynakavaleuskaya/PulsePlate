@@ -834,6 +834,9 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         "daily_targets",
     }
     assert "$defs" not in request_schema
+    assert request_schema["maxProperties"] == 50
+    assert "depth 4" in request_schema["description"]
+    assert "4096 aggregate units" in request_schema["description"]
     target_schema = request_schema["properties"]["targets"]
     assert target_schema["additionalProperties"] is False
     assert len(target_schema["required"]) == 12
@@ -865,21 +868,44 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
     macro_schema = daily_schema["properties"]["macros"]
     for field_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
         assert macro_schema["properties"][field_name]["type"] == "integer"
-    meal_schema = request_schema["properties"]["week_plan"]["properties"]["days"]["items"][
-        "properties"
-    ]["meals"]["items"]
+    week_plan_schema = request_schema["properties"]["week_plan"]
+    assert week_plan_schema["maxProperties"] == 50
+    assert week_plan_schema["properties"]["days"]["maxItems"] == 7
+    day_schema = week_plan_schema["properties"]["days"]["items"]
+    assert day_schema["maxProperties"] == 50
+    assert day_schema["properties"]["meals"]["maxItems"] == 10
+    meal_schema = day_schema["properties"]["meals"]["items"]
+    assert meal_schema["maxProperties"] == 50
+    assert meal_schema["properties"]["ingredients"]["maxItems"] == 15
+    ingredient_schema = meal_schema["properties"]["ingredients"]["items"]
+    assert ingredient_schema["maxProperties"] == 50
+    assert ingredient_schema["properties"]["name"]["maxLength"] == 500
     nutrient_schema = meal_schema["properties"]["nutrients"]
     assert len(nutrient_schema["required"]) == 17
+    assert nutrient_schema["maxProperties"] == 50
+    assert all(
+        nutrient_schema["properties"][field_name]["minimum"] == 0
+        for field_name in nutrient_schema["required"]
+    )
+    assert request_schema["properties"]["user_preferences"]["maxProperties"] == 50
 
     recipe_operation = schema["paths"]["/api/v1/vip/recipes/weekly"]["post"]
     recipe_schema = recipe_operation["requestBody"]["content"]["application/json"]["schema"]
     assert set(recipe_schema["required"]) == {"week_plan"}
+    assert recipe_schema["maxProperties"] == 50
+    assert "depth 4" in recipe_schema["description"]
+    assert "4096 aggregate units" in recipe_schema["description"]
     assert recipe_schema["properties"]["recipes_per_day"]["type"] == "integer"
     assert recipe_schema["properties"]["recipes_per_day"]["exclusiveMinimum"] == 0
     assert recipe_schema["properties"]["recipes_per_day"]["maximum"] == 20
     recipe_day_schema = recipe_schema["properties"]["week_plan"]["properties"]["days"]["items"]
+    assert recipe_schema["properties"]["week_plan"]["properties"]["days"]["maxItems"] == 7
     assert set(recipe_day_schema["required"]) == {"day", "meals"}
     assert recipe_day_schema["properties"]["day"]["minLength"] == 1
+    assert recipe_day_schema["properties"]["day"]["maxLength"] == 500
+    assert recipe_day_schema["properties"]["meals"]["maxItems"] == 10
+    recipe_meal_schema = recipe_day_schema["properties"]["meals"]["items"]
+    assert recipe_meal_schema["properties"]["ingredients"]["maxItems"] == 15
     activity_schema = request_schema["properties"]["daily_targets"]["properties"]["activity"]
     for field_name in (
         "moderate_aerobic_min",

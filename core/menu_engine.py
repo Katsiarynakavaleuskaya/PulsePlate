@@ -26,7 +26,12 @@ from .recommendations import (
     generate_deficiency_recommendations,
     score_nutrient_coverage,
 )
-from .targets import MicronutrientTargets, NutritionTargets, UserProfile
+from .targets import (
+    _MICRONUTRIENT_RANGE_FIELDS,
+    MicronutrientTargets,
+    NutritionTargets,
+    UserProfile,
+)
 
 
 class EventLoopRunningError(Exception):
@@ -757,14 +762,46 @@ def _food_nutrient_evidence(food: FoodItem) -> Optional[Dict[str, float]]:
         if density is None:
             return None
         nutrients[nutrient] = density
-    for macro in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
-        if macro not in nutrients:
-            return None
-    kcal = nutrients["protein_g"] * 4 + nutrients["carbs_g"] * 4 + nutrients["fat_g"] * 9
-    if not math.isfinite(kcal) or kcal < 0:
+    required_densities = {
+        "protein_g",
+        "fat_g",
+        "carbs_g",
+        "fiber_g",
+        *_MICRONUTRIENT_RANGE_FIELDS,
+    }
+    if not required_densities <= set(nutrients):
         return None
-    nutrients["kcal"] = kcal
+    if "kcal" not in nutrients:
+        derived_kcal = (
+            nutrients["protein_g"] * 4 + nutrients["carbs_g"] * 4 + nutrients["fat_g"] * 9
+        )
+        if not math.isfinite(derived_kcal) or derived_kcal < 0:
+            return None
+        nutrients["kcal"] = derived_kcal
     return nutrients
+
+
+def _normalized_region(value: object) -> str | None:
+    """Normalize one explicit region identifier without inference."""
+
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().casefold()
+    return normalized or None
+
+
+def _food_is_available_in_region(food: FoodItem, requested_region: str) -> bool:
+    """Require exact membership in a complete, explicitly supplied region list."""
+
+    if not isinstance(food.availability_regions, list) or not food.availability_regions:
+        return False
+    normalized_regions: set[str] = set()
+    for region in food.availability_regions:
+        normalized = _normalized_region(region)
+        if normalized is None:
+            return False
+        normalized_regions.add(normalized)
+    return requested_region in normalized_regions
 
 
 def _safe_booster_amount(
@@ -826,6 +863,9 @@ def _apply_one_safe_booster(
     meal_nutrients = target_meal.get("nutrients")
     if not isinstance(ingredients, list) or not isinstance(meal_nutrients, dict):
         return False
+    requested_region = _normalized_region(day_menu.targets.calculated_for.region)
+    if requested_region is None:
+        return False
 
     primary_nutrients = sorted(
         targets.priority_nutrients,
@@ -834,6 +874,8 @@ def _apply_one_safe_booster(
     for primary_nutrient in primary_nutrients:
         candidates: list[tuple[float, str, str, FoodItem, Dict[str, float]]] = []
         for food_key, food in food_db.items():
+            if not _food_is_available_in_region(food, requested_region):
+                continue
             food_nutrients = _food_nutrient_evidence(food)
             if food_nutrients is None:
                 continue

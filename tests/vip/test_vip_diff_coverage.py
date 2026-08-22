@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
@@ -240,6 +240,18 @@ def _food_item(name: str, nutrients: dict[str, float]) -> FoodItem:
             "fat_g": 0.0,
             "carbs_g": 0.0,
             "fiber_g": 0.0,
+            "iron_mg": 0.0,
+            "calcium_mg": 0.0,
+            "magnesium_mg": 0.0,
+            "zinc_mg": 0.0,
+            "potassium_mg": 0.0,
+            "iodine_ug": 0.0,
+            "selenium_ug": 0.0,
+            "folate_ug": 0.0,
+            "b12_ug": 0.0,
+            "vitamin_d_iu": 0.0,
+            "vitamin_a_ug": 0.0,
+            "vitamin_c_mg": 0.0,
             **nutrients,
         },
         cost_per_100g=1.0,
@@ -260,6 +272,17 @@ def _verified_cache_row(
         "carbs_g": 20.0,
         "fiber_g": 8.0,
         "iron_mg": iron_mg,
+        "calcium_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "potassium_mg": 0.0,
+        "iodine_ug": 0.0,
+        "selenium_ug": 0.0,
+        "folate_ug": 0.0,
+        "b12_ug": 0.0,
+        "vitamin_d_iu": 0.0,
+        "vitamin_a_ug": 0.0,
+        "vitamin_c_mg": 0.0,
     }
     return {
         "name": name,
@@ -311,6 +334,48 @@ def _json_payload(response: Response) -> dict[str, Any]:
     payload = response.json()
     assert isinstance(payload, dict)
     return cast(dict[str, Any], payload)
+
+
+def _raw_request_units(value: object) -> int:
+    """Mirror the documented aggregate-unit metric for exact-boundary fixtures."""
+
+    units = 0
+    stack = [value]
+    while stack:
+        current = stack.pop()
+        if type(current) is dict:
+            if not current:
+                units += 1
+            for key, child in current.items():
+                assert type(key) is str
+                units += 1
+                stack.append(child)
+        elif type(current) in {list, tuple, set}:
+            if not current:
+                units += 1
+            stack.extend(current)
+        else:
+            units += 1
+    return units
+
+
+def _packed_raw_primitives(count: int) -> list[list[list[int]]]:
+    """Pack primitive occurrences below all 50-entry and depth-four limits."""
+
+    leaves = [[0] * min(50, count - offset) for offset in range(0, count, 50)]
+    middle = [leaves[offset : offset + 50] for offset in range(0, len(leaves), 50)]
+    assert len(middle) <= 50
+    return middle
+
+
+def _nested_raw_mapping(depth: int, leaf: object = 0) -> dict[str, object]:
+    """Build a non-recursive raw mapping chain for admission-boundary tests."""
+
+    nested: object = leaf
+    for index in range(depth):
+        nested = {f"level-{index}": nested}
+    assert isinstance(nested, dict)
+    return cast(dict[str, object], nested)
 
 
 @pytest.fixture(autouse=True)
@@ -638,6 +703,469 @@ class TestTC209VIPDiffCoverage:
                     {**valid_recipe_request, "recipes_per_day": invalid_count}
                 )
 
+    def test_raw_request_product_and_aggregate_boundaries(self) -> None:
+        auto_base = _auto_repair_request()
+        auto_day = deepcopy(auto_base["week_plan"]["days"][0])
+        auto_meal = deepcopy(auto_day["meals"][0])
+        auto_ingredient = deepcopy(auto_meal["ingredients"][0])
+
+        for day_count in (7, 8):
+            payload = deepcopy(auto_base)
+            payload["week_plan"]["days"] = [deepcopy(auto_day) for _ in range(day_count)]
+            if day_count == 7:
+                assert len(AutoRepairWeeklyRequest.model_validate(payload).week_plan.days) == 7
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        for meal_count in (10, 11):
+            payload = deepcopy(auto_base)
+            payload["week_plan"]["days"][0]["meals"] = [
+                deepcopy(auto_meal) for _ in range(meal_count)
+            ]
+            if meal_count == 10:
+                assert (
+                    len(AutoRepairWeeklyRequest.model_validate(payload).week_plan.days[0].meals)
+                    == 10
+                )
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        for ingredient_count in (15, 16):
+            payload = deepcopy(auto_base)
+            payload["week_plan"]["days"][0]["meals"][0]["ingredients"] = [
+                deepcopy(auto_ingredient) for _ in range(ingredient_count)
+            ]
+            if ingredient_count == 15:
+                assert (
+                    len(
+                        AutoRepairWeeklyRequest.model_validate(payload)
+                        .week_plan.days[0]
+                        .meals[0]
+                        .ingredients
+                    )
+                    == 15
+                )
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        recipe_base = {
+            "week_plan": {
+                "days": [
+                    {
+                        "day": "day-0",
+                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                    }
+                ]
+            },
+            "recipes_per_day": 1,
+        }
+        recipe_day = deepcopy(recipe_base["week_plan"]["days"][0])
+        recipe_meal = deepcopy(recipe_day["meals"][0])
+        recipe_ingredient = deepcopy(recipe_meal["ingredients"][0])
+
+        for day_count in (7, 8):
+            payload = deepcopy(recipe_base)
+            payload["week_plan"]["days"] = [
+                {**deepcopy(recipe_day), "day": f"day-{index}"} for index in range(day_count)
+            ]
+            if day_count == 7:
+                assert len(WeeklyRecipesRequest.model_validate(payload).week_plan.days) == 7
+            else:
+                with pytest.raises(ValidationError):
+                    WeeklyRecipesRequest.model_validate(payload)
+
+        for meal_count in (10, 11):
+            payload = deepcopy(recipe_base)
+            payload["week_plan"]["days"][0]["meals"] = [
+                deepcopy(recipe_meal) for _ in range(meal_count)
+            ]
+            if meal_count == 10:
+                assert (
+                    len(WeeklyRecipesRequest.model_validate(payload).week_plan.days[0].meals) == 10
+                )
+            else:
+                with pytest.raises(ValidationError):
+                    WeeklyRecipesRequest.model_validate(payload)
+
+        for ingredient_count in (15, 16):
+            payload = deepcopy(recipe_base)
+            payload["week_plan"]["days"][0]["meals"][0]["ingredients"] = [
+                deepcopy(recipe_ingredient) for _ in range(ingredient_count)
+            ]
+            if ingredient_count == 15:
+                assert (
+                    len(
+                        WeeklyRecipesRequest.model_validate(payload)
+                        .week_plan.days[0]
+                        .meals[0]
+                        .ingredients
+                    )
+                    == 15
+                )
+            else:
+                with pytest.raises(ValidationError):
+                    WeeklyRecipesRequest.model_validate(payload)
+
+        for entry_count in (50, 51):
+            payload = deepcopy(auto_base)
+            payload["user_preferences"] = {f"key-{index}": index for index in range(entry_count)}
+            if entry_count == 50:
+                AutoRepairWeeklyRequest.model_validate(payload)
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        for collection_size in (50, 51):
+            payload = deepcopy(auto_base)
+            payload["user_preferences"] = {"items": list(range(collection_size))}
+            if collection_size == 50:
+                AutoRepairWeeklyRequest.model_validate(payload)
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        for string_length in (500, 501):
+            payload = deepcopy(auto_base)
+            payload["user_preferences"] = {"text": "x" * string_length}
+            if string_length == 500:
+                AutoRepairWeeklyRequest.model_validate(payload)
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        for key_length in (500, 501):
+            payload = deepcopy(auto_base)
+            payload["user_preferences"] = {"k" * key_length: 1}
+            if key_length == 500:
+                AutoRepairWeeklyRequest.model_validate(payload)
+            else:
+                with pytest.raises(ValidationError):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        baseline_units = _raw_request_units(auto_base)
+        exact_payload = deepcopy(auto_base)
+        exact_payload["user_preferences"] = {
+            "budget": _packed_raw_primitives(4096 - baseline_units)
+        }
+        assert _raw_request_units(exact_payload) == 4096
+        AutoRepairWeeklyRequest.model_validate(exact_payload)
+
+        over_payload = deepcopy(auto_base)
+        over_payload["user_preferences"] = {"budget": _packed_raw_primitives(4097 - baseline_units)}
+        assert _raw_request_units(over_payload) == 4097
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(over_payload)
+
+    def test_raw_request_extra_depth_cycles_and_plain_types(self) -> None:
+        auto_base = _auto_repair_request()
+        depth_four = {"a": {"b": {"c": {"d": {"value": 0}}}}}
+        accepted = deepcopy(auto_base)
+        accepted["user_preferences"] = depth_four
+        AutoRepairWeeklyRequest.model_validate(accepted)
+        accepted_unknown = deepcopy(auto_base)
+        accepted_unknown["unknown_extra"] = depth_four
+        AutoRepairWeeklyRequest.model_validate(accepted_unknown)
+
+        depth_five = {"a": {"b": {"c": {"d": {"value": {"too_deep": 0}}}}}}
+        for root_key in ("user_preferences", "unknown_extra"):
+            rejected = deepcopy(auto_base)
+            rejected[root_key] = depth_five
+            with pytest.raises(ValidationError):
+                AutoRepairWeeklyRequest.model_validate(rejected)
+
+        list_depth_five = {"a": {"b": {"c": {"d": {"value": [[0]]}}}}}
+        rejected_list_depth = deepcopy(auto_base)
+        rejected_list_depth["user_preferences"] = list_depth_five
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(rejected_list_depth)
+
+        cycle: dict[str, object] = {}
+        cycle["self"] = cycle
+        cyclic = deepcopy(auto_base)
+        cyclic["user_preferences"] = cycle
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(cyclic)
+
+        list_cycle: list[object] = []
+        list_cycle.append(list_cycle)
+        cyclic_list = deepcopy(auto_base)
+        cyclic_list["user_preferences"] = {"cycle": list_cycle}
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(cyclic_list)
+
+        non_string_key = deepcopy(auto_base)
+        non_string_key["user_preferences"] = cast(dict[str, object], {1: "invalid"})
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(non_string_key)
+
+        alias = _packed_raw_primitives(1100)
+        repeated_alias = deepcopy(auto_base)
+        repeated_alias["user_preferences"] = {
+            "a": alias,
+            "b": alias,
+            "c": alias,
+            "d": alias,
+        }
+        assert _raw_request_units(repeated_alias) > 4096
+        with pytest.raises(ValidationError):
+            AutoRepairWeeklyRequest.model_validate(repeated_alias)
+
+        direct_plain = deepcopy(auto_base)
+        direct_plain["user_preferences"] = {"tuple": (1, 2), "set": {1, 2}}
+        AutoRepairWeeklyRequest.model_validate(direct_plain)
+
+        class _CopySpy:
+            deepcopy_calls = 0
+
+            def __deepcopy__(self, _memo: object) -> object:
+                self.deepcopy_calls += 1
+                raise AssertionError("raw validation must precede deepcopy")
+
+        copy_spy = _CopySpy()
+        unsupported_values = (
+            MappingProxyType({"key": "value"}),
+            frozenset({1}),
+            b"bytes",
+            (value for value in (1, 2)),
+            object(),
+            copy_spy,
+            float("nan"),
+            float("inf"),
+            10**310,
+        )
+        for unsupported in unsupported_values:
+            payload = deepcopy(auto_base)
+            payload["user_preferences"] = {"value": unsupported}
+            with pytest.raises(ValidationError):
+                AutoRepairWeeklyRequest.model_validate(payload)
+        assert copy_spy.deepcopy_calls == 0
+
+    def test_raw_request_declared_shapes_reject_container_carriers(self) -> None:
+        for depth in (5, 6, 101):
+            age_payload = _auto_repair_request()
+            age_payload["profile"]["age"] = _nested_raw_mapping(depth)
+
+            diet_payload = _auto_repair_request()
+            diet_payload["profile"]["diet_flags"] = [_nested_raw_mapping(depth)]
+
+            medical_payload = _auto_repair_request()
+            medical_payload["profile"]["medical_conditions"] = [[_nested_raw_mapping(depth)]]
+
+            triplet_payload = _auto_repair_request()
+            triplet_payload["targets"]["iron_mg"] = [
+                _nested_raw_mapping(depth),
+                8.0,
+                45.0,
+            ]
+
+            for payload in (age_payload, diet_payload, medical_payload, triplet_payload):
+                with pytest.raises(
+                    ValidationError,
+                    match="VIP request scalar field contains a container",
+                ):
+                    AutoRepairWeeklyRequest.model_validate(payload)
+
+        mapping_as_collection = _auto_repair_request()
+        mapping_as_collection["week_plan"] = []
+        collection_as_mapping = _auto_repair_request()
+        collection_as_mapping["week_plan"]["days"] = {}
+        structured_as_scalar = _auto_repair_request()
+        structured_as_scalar["week_plan"] = 1
+        structured_as_string = _auto_repair_request()
+        structured_as_string["week_plan"] = "invalid"
+        structured_as_bool = _auto_repair_request()
+        structured_as_bool["week_plan"] = False
+        with pytest.raises(ValidationError, match="declared collection shape"):
+            AutoRepairWeeklyRequest.model_validate(mapping_as_collection)
+        with pytest.raises(ValidationError, match="declared mapping shape"):
+            AutoRepairWeeklyRequest.model_validate(collection_as_mapping)
+        for payload in (structured_as_scalar, structured_as_string, structured_as_bool):
+            with pytest.raises(ValidationError, match="declared container shape"):
+                AutoRepairWeeklyRequest.model_validate(payload)
+
+        recipe_payload = {
+            "week_plan": {
+                "days": [
+                    {
+                        "day": "Monday",
+                        "meals": [{"ingredients": [{"name": "rice"}]}],
+                    }
+                ]
+            },
+            "recipes_per_day": _nested_raw_mapping(101),
+        }
+        with pytest.raises(
+            ValidationError,
+            match="VIP request scalar field contains a container",
+        ):
+            WeeklyRecipesRequest.model_validate(recipe_payload)
+
+        class _CopySpy:
+            deepcopy_calls = 0
+
+            def __deepcopy__(self, _memo: object) -> object:
+                self.deepcopy_calls += 1
+                raise AssertionError("declared scalar rejection must precede deepcopy")
+
+        copy_spy = _CopySpy()
+        no_traversal_payload = _auto_repair_request()
+        no_traversal_payload["profile"]["age"] = _nested_raw_mapping(101, copy_spy)
+        with pytest.raises(
+            ValidationError,
+            match="VIP request scalar field contains a container",
+        ):
+            AutoRepairWeeklyRequest.model_validate(no_traversal_payload)
+        assert copy_spy.deepcopy_calls == 0
+
+        deepest_extra = _auto_repair_request()
+        deepest_extra["week_plan"]["days"][0]["meals"][0]["ingredients"][0]["unknown_extra"] = (
+            _nested_raw_mapping(6)
+        )
+        with pytest.raises(ValidationError, match="container depth exceeds its declared bound"):
+            AutoRepairWeeklyRequest.model_validate(deepest_extra)
+
+        nested_collection: object = 0
+        for _ in range(6):
+            nested_collection = [nested_collection]
+        deepest_collection_extra = _auto_repair_request()
+        deepest_collection_extra["week_plan"]["days"][0]["meals"][0]["ingredients"][0][
+            "unknown_extra"
+        ] = nested_collection
+        with pytest.raises(ValidationError, match="container depth exceeds its declared bound"):
+            AutoRepairWeeklyRequest.model_validate(deepest_collection_extra)
+
+    def test_meal_nutrients_publish_and_enforce_nonnegative_fields(self) -> None:
+        valid = _complete_evidence()
+        for field_name in valid:
+            zero_payload = {**valid, field_name: 0}
+            parsed = AutoRepairMealNutrients.model_validate(zero_payload)
+            assert getattr(parsed, field_name) == 0.0
+            for invalid_value in (
+                True,
+                "0",
+                object(),
+                float("nan"),
+                float("inf"),
+                10**310,
+                -1,
+            ):
+                with pytest.raises(ValidationError):
+                    AutoRepairMealNutrients.model_validate({**valid, field_name: invalid_value})
+
+    def test_raw_request_plus_one_rejects_before_runtime_adapters(
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        auto_base = _auto_repair_request()
+        auto_day = deepcopy(auto_base["week_plan"]["days"][0])
+        oversized_days = deepcopy(auto_base)
+        oversized_days["week_plan"]["days"] = [deepcopy(auto_day) for _ in range(8)]
+
+        baseline_units = _raw_request_units(auto_base)
+        oversized_aggregate = deepcopy(auto_base)
+        oversized_aggregate["user_preferences"] = {
+            "budget": _packed_raw_primitives(4097 - baseline_units)
+        }
+        assert _raw_request_units(oversized_aggregate) == 4097
+
+        scalar_container_payloads: list[dict[str, Any]] = []
+        for depth in (5, 6, 101):
+            age_payload = _auto_repair_request()
+            age_payload["profile"]["age"] = _nested_raw_mapping(depth)
+            scalar_container_payloads.append(age_payload)
+
+            flags_payload = _auto_repair_request()
+            flags_payload["profile"]["diet_flags"] = [_nested_raw_mapping(depth)]
+            scalar_container_payloads.append(flags_payload)
+
+            triplet_payload = _auto_repair_request()
+            triplet_payload["targets"]["iron_mg"] = [
+                _nested_raw_mapping(depth),
+                8.0,
+                45.0,
+            ]
+            scalar_container_payloads.append(triplet_payload)
+
+        for invalid_payload in (
+            oversized_days,
+            oversized_aggregate,
+            *scalar_container_payloads,
+        ):
+            with monkeypatch.context() as auto_guard:
+                runtime = Mock(
+                    side_effect=AssertionError("auto-repair runtime must not be constructed")
+                )
+                catalog = Mock(
+                    side_effect=AssertionError("catalog must not run before raw admission")
+                )
+                target_builder = Mock(
+                    side_effect=AssertionError("target adapter must not run before raw admission")
+                )
+                repair_deepcopy = Mock(
+                    side_effect=AssertionError("repair deepcopy must not run before raw admission")
+                )
+                auto_guard.setattr(vip_router, "get_auto_repair_engine", runtime)
+                auto_guard.setattr(
+                    vip_router,
+                    "_build_auto_repair_nutrition_targets",
+                    target_builder,
+                )
+                auto_guard.setattr(
+                    "core.menu_engine.get_cached_common_foods_snapshot",
+                    catalog,
+                )
+                auto_guard.setattr("core.auto_repair.deepcopy", repair_deepcopy)
+                response = client.post(
+                    "/api/v1/vip/auto-repair/weekly",
+                    json=invalid_payload,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid auto-repair request payload"}
+            runtime.assert_not_called()
+            catalog.assert_not_called()
+            target_builder.assert_not_called()
+            repair_deepcopy.assert_not_called()
+
+        recipe_day = {
+            "day": "day-0",
+            "meals": [{"ingredients": [{"name": "rice"}]}],
+        }
+        oversized_recipe = {
+            "week_plan": {
+                "days": [{**deepcopy(recipe_day), "day": f"day-{index}"} for index in range(8)]
+            },
+            "recipes_per_day": 1,
+        }
+        scalar_recipe: dict[str, Any] = {
+            "week_plan": deepcopy(oversized_recipe["week_plan"]),
+            "recipes_per_day": _nested_raw_mapping(101),
+        }
+        scalar_recipe["week_plan"]["days"] = [deepcopy(recipe_day)]
+        for invalid_recipe in (oversized_recipe, scalar_recipe):
+            with monkeypatch.context() as recipe_guard:
+                synthesize = Mock(
+                    side_effect=AssertionError("recipe synthesis must not run before raw admission")
+                )
+                recipe_guard.setattr(
+                    vip_router,
+                    "_adapter_synthesize_recipes_for_week",
+                    synthesize,
+                )
+                response = client.post(
+                    "/api/v1/vip/recipes/weekly",
+                    json=invalid_recipe,
+                    headers=vip_headers,
+                )
+            assert response.status_code == 422
+            assert _json_payload(response) == {"detail": "Invalid weekly recipes request payload"}
+            synthesize.assert_not_called()
+
     def test_canonical_targets_delegate_tolerance_and_activity_arithmetic(self) -> None:
         exact = _nutrition_targets()
         near = _nutrition_targets(kcal_daily=1801)
@@ -703,19 +1231,11 @@ class TestTC209VIPDiffCoverage:
 
         deficient_plan = _wire_plan({"iron_mg": 0.0})
         cached_food = UnifiedFoodItem(
-            name="Iron booster",
-            nutrients_per_100g={
-                "protein_g": 0.0,
-                "fat_g": 0.0,
-                "carbs_g": 0.0,
-                "fiber_g": 0.0,
-                "iron_mg": 10.0,
-            },
-            cost_per_100g=1.0,
-            tags=[],
-            availability_regions=["BY"],
-            source="fixture",
-            source_id="iron",
+            **_verified_cache_row(
+                name="Iron booster",
+                source_id="iron",
+                iron_mg=10.0,
+            )
         )
         with patch(
             "core.menu_engine.get_cached_common_foods_snapshot",
@@ -1245,6 +1765,120 @@ class TestTC209VIPDiffCoverage:
             == over_ceiling
         )
 
+        explicit_kcal_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0, "kcal": 1796.0}))
+        explicit_kcal_food = _food_item(
+            "Explicit kcal",
+            {"iron_mg": 10.0, "protein_g": 25.0, "kcal": 10.0},
+        )
+        explicit_kcal_repaired = repair_canonical_week_plan(
+            explicit_kcal_plan,
+            targets,
+            food_db={"explicit": explicit_kcal_food},
+        )
+        explicit_kcal_meal = explicit_kcal_repaired.daily_menus[0].meals[0]
+        assert explicit_kcal_meal["ingredients"][-1]["amount"] == 40.0
+        assert explicit_kcal_meal["nutrients"]["kcal"] == 1800.0
+        assert (
+            _known_nutrient_contributions(
+                explicit_kcal_plan,
+                explicit_kcal_repaired,
+            )["kcal"]
+            == 4.0
+        )
+
+        invalid_explicit_kcal = _food_item(
+            "Invalid explicit kcal",
+            {"iron_mg": 10.0, "protein_g": 25.0, "kcal": float("inf")},
+        )
+        assert (
+            repair_canonical_week_plan(
+                explicit_kcal_plan,
+                targets,
+                food_db={"invalid-explicit": invalid_explicit_kcal},
+            )
+            == explicit_kcal_plan
+        )
+
+        derived_kcal_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0, "kcal": 1760.0}))
+        derived_kcal_food = _food_item(
+            "Derived kcal",
+            {"iron_mg": 10.0, "protein_g": 25.0},
+        )
+        derived_kcal_repaired = repair_canonical_week_plan(
+            derived_kcal_plan,
+            targets,
+            food_db={"derived": derived_kcal_food},
+        )
+        assert derived_kcal_repaired.daily_menus[0].meals[0]["ingredients"][-1]["amount"] == 40.0
+        assert derived_kcal_repaired.daily_menus[0].meals[0]["nutrients"]["kcal"] == 1800.0
+
+        normalized_region_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+        normalized_region_plan.daily_menus[0].targets = replace(
+            normalized_region_plan.daily_menus[0].targets,
+            calculated_for=replace(
+                normalized_region_plan.daily_menus[0].targets.calculated_for,
+                region=" by ",
+            ),
+        )
+        normalized_region_food = _food_item("Regional", {"iron_mg": 10.0})
+        normalized_region_food.availability_regions = [" US ", " By "]
+        assert (
+            repair_canonical_week_plan(
+                normalized_region_plan,
+                targets,
+                food_db={"regional": normalized_region_food},
+            )
+            != normalized_region_plan
+        )
+
+        for invalid_regions in (["US"], [], cast(list[str], [123])):
+            unavailable_food = _food_item("Unavailable", {"iron_mg": 10.0})
+            unavailable_food.availability_regions = invalid_regions
+            assert (
+                repair_canonical_week_plan(
+                    normalized_region_plan,
+                    targets,
+                    food_db={"unavailable": unavailable_food},
+                )
+                == normalized_region_plan
+            )
+
+        missing_requested_region = deepcopy(normalized_region_plan)
+        missing_requested_region.daily_menus[0].targets = replace(
+            missing_requested_region.daily_menus[0].targets,
+            calculated_for=replace(
+                missing_requested_region.daily_menus[0].targets.calculated_for,
+                region="   ",
+            ),
+        )
+        assert (
+            repair_canonical_week_plan(
+                missing_requested_region,
+                targets,
+                food_db={"regional": normalized_region_food},
+            )
+            == missing_requested_region
+        )
+
+        complete_candidate = _food_item("Complete", {"iron_mg": 10.0})
+        for missing_nutrient in _TARGET_RANGES:
+            incomplete_candidate = deepcopy(complete_candidate)
+            incomplete_candidate.nutrients_per_100g.pop(missing_nutrient)
+            assert (
+                repair_canonical_week_plan(
+                    normalized_region_plan,
+                    targets,
+                    food_db={"incomplete": incomplete_candidate},
+                )
+                == normalized_region_plan
+            )
+
+        derived_overflow = _food_item(
+            "Derived overflow",
+            {"iron_mg": 10.0, "protein_g": 1e308},
+        )
+        assert _food_nutrient_evidence(derived_overflow) is None
+
         no_candidate_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
         caplog.clear()
         with patch(
@@ -1579,19 +2213,11 @@ class TestTC209VIPDiffCoverage:
         catalog.assert_not_called()
 
         cached_food = UnifiedFoodItem(
-            name="Iron booster",
-            nutrients_per_100g={
-                "protein_g": 0.0,
-                "fat_g": 0.0,
-                "carbs_g": 0.0,
-                "fiber_g": 0.0,
-                "iron_mg": 10.0,
-            },
-            cost_per_100g=1.0,
-            tags=[],
-            availability_regions=["BY"],
-            source="fixture",
-            source_id="iron",
+            **_verified_cache_row(
+                name="Iron booster",
+                source_id="iron",
+                iron_mg=10.0,
+            )
         )
         monkeypatch.setattr(
             "core.menu_engine.get_cached_common_foods_snapshot",

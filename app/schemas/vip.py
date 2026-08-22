@@ -10,9 +10,11 @@ from collections.abc import Mapping
 from enum import Enum
 import math
 from numbers import Real
-from typing import Any, List, Literal, Optional, Set
+from typing import Annotated, Any, List, Literal, Optional, Set, cast
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator, model_validator
+
+from core.data_sanitizer import MAX_MEALS, MAX_STRING_LENGTH
 
 
 class MicronutrientType(str, Enum):
@@ -130,22 +132,6 @@ _AUTO_REPAIR_TARGET_FIELDS = (
     "vitamin_c_mg",
 )
 
-
-class AutoRepairIngredient(BaseModel):
-    """One ingredient admitted by the weekly auto-repair wire contract."""
-
-    name: str = Field(..., min_length=1)
-
-    @field_validator("name")
-    @classmethod
-    def validate_nonempty_name(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Ingredient name must be non-empty")
-        return value
-
-    model_config = ConfigDict(extra="allow")
-
-
 _AUTO_REPAIR_BASELINE_FIELDS = (
     "kcal",
     "protein_g",
@@ -155,27 +141,279 @@ _AUTO_REPAIR_BASELINE_FIELDS = (
     *_AUTO_REPAIR_TARGET_FIELDS,
 )
 
+_VIP_MAX_DAYS = 7
+_VIP_MAX_INGREDIENTS = 15
+_VIP_MAX_CONTAINER_ENTRIES = 50
+_VIP_MAX_REQUEST_UNITS = 4096
+_VIP_MAX_EXTRA_DEPTH = 4
+# Root-to-leaf container depth is finite: the deepest declared plan path uses
+# depths 0..7, and one allowed extra subtree can then use depths 0..4.
+_VIP_MAX_RAW_CONTAINER_DEPTH = 12
+_VIP_EXTRA_ROOT = "__extra_root__"
+_VIP_SCALAR = "__scalar__"
+
+_VIP_RAW_DECLARED_FIELDS: dict[str, dict[str, str]] = {
+    "auto_root": {
+        "week_plan": "auto_week_plan",
+        "targets": "auto_targets",
+        "profile": "auto_profile",
+        "daily_targets": "auto_daily_targets",
+        "strategy": _VIP_SCALAR,
+        "user_preferences": _VIP_EXTRA_ROOT,
+    },
+    "auto_week_plan": {"days": "auto_days"},
+    "auto_day": {"meals": "auto_meals"},
+    "auto_meal": {
+        "ingredients": "auto_ingredients",
+        "nutrients": "auto_nutrients",
+    },
+    "auto_ingredient": {"name": _VIP_SCALAR},
+    "auto_nutrients": {field_name: _VIP_SCALAR for field_name in _AUTO_REPAIR_BASELINE_FIELDS},
+    "auto_targets": {
+        field_name: "auto_target_triplet" for field_name in _AUTO_REPAIR_TARGET_FIELDS
+    },
+    "auto_profile": {
+        "sex": _VIP_SCALAR,
+        "age": _VIP_SCALAR,
+        "height_cm": _VIP_SCALAR,
+        "weight_kg": _VIP_SCALAR,
+        "activity": _VIP_SCALAR,
+        "goal": _VIP_SCALAR,
+        "deficit_pct": _VIP_SCALAR,
+        "surplus_pct": _VIP_SCALAR,
+        "bodyfat": _VIP_SCALAR,
+        "region": _VIP_SCALAR,
+        "timezone": _VIP_SCALAR,
+        "diet_flags": "plain_collection",
+        "life_stage": _VIP_SCALAR,
+        "medical_conditions": "plain_collection",
+    },
+    "auto_daily_targets": {
+        "kcal_daily": _VIP_SCALAR,
+        "macros": "auto_macros",
+        "water_ml_daily": _VIP_SCALAR,
+        "activity": "auto_activity",
+        "calculation_date": _VIP_SCALAR,
+    },
+    "auto_macros": {
+        "protein_g": _VIP_SCALAR,
+        "fat_g": _VIP_SCALAR,
+        "carbs_g": _VIP_SCALAR,
+        "fiber_g": _VIP_SCALAR,
+    },
+    "auto_activity": {
+        "moderate_aerobic_min": _VIP_SCALAR,
+        "vigorous_aerobic_min": _VIP_SCALAR,
+        "strength_sessions": _VIP_SCALAR,
+        "steps_daily": _VIP_SCALAR,
+    },
+    "recipes_root": {
+        "week_plan": "recipes_week_plan",
+        "recipes_per_day": _VIP_SCALAR,
+    },
+    "recipes_week_plan": {"days": "recipes_days"},
+    "recipes_day": {"day": _VIP_SCALAR, "meals": "recipes_meals"},
+    "recipes_meal": {"ingredients": "recipes_ingredients"},
+    "recipes_ingredient": {"name": _VIP_SCALAR},
+}
+
+_VIP_RAW_COLLECTION_ITEMS: dict[str, str] = {
+    "auto_days": "auto_day",
+    "auto_meals": "auto_meal",
+    "auto_ingredients": "auto_ingredient",
+    "auto_target_triplet": _VIP_SCALAR,
+    "plain_collection": _VIP_SCALAR,
+    "recipes_days": "recipes_day",
+    "recipes_meals": "recipes_meal",
+    "recipes_ingredients": "recipes_ingredient",
+}
+
+_VIP_RAW_BOUNDS_DESCRIPTION = (
+    "Runtime admission rejects cycles, limits each extra subtree to depth 4, "
+    "limits the complete request to 4096 aggregate units, and applies bounded "
+    "plain-container/string rules before nested model construction."
+)
+
+
+def _validate_vip_raw_request(values: object, *, root_shape: str) -> object:
+    """Iteratively validate one bounded VIP request before nested construction."""
+
+    aggregate_units = 0
+    stack: list[tuple[object, str, int | None, int, frozenset[int]]] = [
+        (values, root_shape, None, 0, frozenset())
+    ]
+    while stack:
+        value, declared_shape, extra_depth, container_depth, ancestor_ids = stack.pop()
+        value_type = type(value)
+        if value_type is dict:
+            if declared_shape == _VIP_SCALAR:
+                raise ValueError("VIP request scalar field contains a container")
+            if extra_depth is None and declared_shape not in _VIP_RAW_DECLARED_FIELDS:
+                raise ValueError("VIP request field does not match its declared mapping shape")
+            if container_depth > _VIP_MAX_RAW_CONTAINER_DEPTH:
+                raise ValueError("VIP request container depth exceeds its declared bound")
+            if extra_depth is not None and extra_depth > _VIP_MAX_EXTRA_DEPTH:
+                raise ValueError("VIP request extra depth exceeds 4")
+            value_id = id(value)
+            if value_id in ancestor_ids:
+                raise ValueError("VIP request contains a cycle")
+            next_ancestors = ancestor_ids | {value_id}
+            raw_mapping = cast(dict[object, object], value)
+            if len(raw_mapping) > _VIP_MAX_CONTAINER_ENTRIES:
+                raise ValueError("VIP request mapping exceeds 50 entries")
+            if not raw_mapping:
+                aggregate_units += 1
+            declared_fields = (
+                _VIP_RAW_DECLARED_FIELDS[declared_shape] if extra_depth is None else {}
+            )
+            for raw_key, child in raw_mapping.items():
+                if not isinstance(raw_key, str) or type(raw_key) is not str:
+                    raise ValueError("VIP request mapping keys must be bounded plain strings")
+                if len(raw_key) > MAX_STRING_LENGTH:
+                    raise ValueError("VIP request mapping keys must be bounded plain strings")
+                aggregate_units += 1
+                child_shape: str
+                child_extra_depth: int | None
+                if extra_depth is not None:
+                    child_shape = _VIP_EXTRA_ROOT
+                    child_extra_depth = (
+                        extra_depth + 1 if type(child) in {dict, list, tuple, set} else extra_depth
+                    )
+                elif raw_key in declared_fields:
+                    configured_shape = declared_fields[raw_key]
+                    child_shape = configured_shape
+                    child_extra_depth = 0 if configured_shape == _VIP_EXTRA_ROOT else None
+                else:
+                    child_shape = _VIP_EXTRA_ROOT
+                    child_extra_depth = 0
+                child_container_depth = (
+                    container_depth + 1
+                    if type(child) in {dict, list, tuple, set}
+                    else container_depth
+                )
+                stack.append(
+                    (
+                        child,
+                        child_shape,
+                        child_extra_depth,
+                        child_container_depth,
+                        next_ancestors,
+                    )
+                )
+        elif value_type in {list, tuple, set}:
+            if declared_shape == _VIP_SCALAR:
+                raise ValueError("VIP request scalar field contains a container")
+            if extra_depth is None and declared_shape not in _VIP_RAW_COLLECTION_ITEMS:
+                raise ValueError("VIP request field does not match its declared collection shape")
+            if container_depth > _VIP_MAX_RAW_CONTAINER_DEPTH:
+                raise ValueError("VIP request container depth exceeds its declared bound")
+            if extra_depth is not None and extra_depth > _VIP_MAX_EXTRA_DEPTH:
+                raise ValueError("VIP request extra depth exceeds 4")
+            value_id = id(value)
+            if value_id in ancestor_ids:
+                raise ValueError("VIP request contains a cycle")
+            next_ancestors = ancestor_ids | {value_id}
+            raw_collection = cast(
+                list[object] | tuple[object, ...] | set[object],
+                value,
+            )
+            if len(raw_collection) > _VIP_MAX_CONTAINER_ENTRIES:
+                raise ValueError("VIP request collection exceeds 50 entries")
+            if not raw_collection:
+                aggregate_units += 1
+            item_shape = (
+                _VIP_RAW_COLLECTION_ITEMS[declared_shape]
+                if extra_depth is None
+                else _VIP_EXTRA_ROOT
+            )
+            for child in raw_collection:
+                collection_child_extra_depth: int | None = (
+                    extra_depth + 1
+                    if extra_depth is not None and type(child) in {dict, list, tuple, set}
+                    else extra_depth
+                )
+                child_container_depth = (
+                    container_depth + 1
+                    if type(child) in {dict, list, tuple, set}
+                    else container_depth
+                )
+                stack.append(
+                    (
+                        child,
+                        item_shape,
+                        collection_child_extra_depth,
+                        child_container_depth,
+                        next_ancestors,
+                    )
+                )
+        elif value_type is str:
+            if extra_depth is None and declared_shape != _VIP_SCALAR:
+                raise ValueError("VIP request field does not match its declared container shape")
+            raw_string = cast(str, value)
+            if len(raw_string) > MAX_STRING_LENGTH:
+                raise ValueError("VIP request string exceeds 500 characters")
+            aggregate_units += 1
+        elif value is None or value_type is bool:
+            if extra_depth is None and declared_shape != _VIP_SCALAR:
+                raise ValueError("VIP request field does not match its declared container shape")
+            aggregate_units += 1
+        elif value_type is int or value_type is float:
+            if extra_depth is None and declared_shape != _VIP_SCALAR:
+                raise ValueError("VIP request field does not match its declared container shape")
+            raw_number = cast(int | float, value)
+            try:
+                numeric_value = float(raw_number)
+            except OverflowError as exc:
+                raise ValueError("VIP request number is not finite") from exc
+            if not math.isfinite(numeric_value):
+                raise ValueError("VIP request number is not finite")
+            aggregate_units += 1
+        else:
+            raise ValueError("VIP request contains an unsupported raw value")
+
+        if aggregate_units > _VIP_MAX_REQUEST_UNITS:
+            raise ValueError("VIP request exceeds 4096 aggregate units")
+    return values
+
+
+_NonnegativeNutrientFloat = Annotated[float, Field(ge=0)]
+
+
+class AutoRepairIngredient(BaseModel):
+    """One ingredient admitted by the weekly auto-repair wire contract."""
+
+    name: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
+
+    @field_validator("name")
+    @classmethod
+    def validate_nonempty_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Ingredient name must be non-empty")
+        return value
+
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
+
 
 class AutoRepairMealNutrients(BaseModel):
     """Complete explicit per-meal evidence required by bounded repair."""
 
-    kcal: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
-    fiber_g: float
-    iron_mg: float
-    calcium_mg: float
-    magnesium_mg: float
-    zinc_mg: float
-    potassium_mg: float
-    iodine_ug: float
-    selenium_ug: float
-    folate_ug: float
-    b12_ug: float
-    vitamin_d_iu: float
-    vitamin_a_ug: float
-    vitamin_c_mg: float
+    kcal: _NonnegativeNutrientFloat
+    protein_g: _NonnegativeNutrientFloat
+    fat_g: _NonnegativeNutrientFloat
+    carbs_g: _NonnegativeNutrientFloat
+    fiber_g: _NonnegativeNutrientFloat
+    iron_mg: _NonnegativeNutrientFloat
+    calcium_mg: _NonnegativeNutrientFloat
+    magnesium_mg: _NonnegativeNutrientFloat
+    zinc_mg: _NonnegativeNutrientFloat
+    potassium_mg: _NonnegativeNutrientFloat
+    iodine_ug: _NonnegativeNutrientFloat
+    selenium_ug: _NonnegativeNutrientFloat
+    folate_ug: _NonnegativeNutrientFloat
+    b12_ug: _NonnegativeNutrientFloat
+    vitamin_d_iu: _NonnegativeNutrientFloat
+    vitamin_a_ug: _NonnegativeNutrientFloat
+    vitamin_c_mg: _NonnegativeNutrientFloat
 
     @model_validator(mode="before")
     @classmethod
@@ -184,20 +422,28 @@ class AutoRepairMealNutrients(BaseModel):
             return values
         for field_name in _AUTO_REPAIR_BASELINE_FIELDS:
             raw_value = values.get(field_name)
-            if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+            if type(raw_value) not in {int, float}:
                 raise ValueError(f"{field_name} must be a real number")
-            value = float(raw_value)
+            raw_number = cast(int | float, raw_value)
+            try:
+                value = float(raw_number)
+            except OverflowError as exc:
+                raise ValueError(f"{field_name} must be finite and nonnegative") from exc
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{field_name} must be finite and nonnegative")
         return values
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairMeal(BaseModel):
     """One meal with explicit nutrient evidence for safe bounded repair."""
 
-    ingredients: List[AutoRepairIngredient] = Field(..., min_length=1)
+    ingredients: List[AutoRepairIngredient] = Field(
+        ...,
+        min_length=1,
+        max_length=_VIP_MAX_INGREDIENTS,
+    )
     nutrients: AutoRepairMealNutrients
 
     @model_validator(mode="before")
@@ -218,23 +464,23 @@ class AutoRepairMeal(BaseModel):
                 raise ValueError("Meal nutrient values must be finite and nonnegative")
         return values
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairDay(BaseModel):
     """One non-empty day in the weekly auto-repair request."""
 
-    meals: List[AutoRepairMeal] = Field(..., min_length=1)
+    meals: List[AutoRepairMeal] = Field(..., min_length=1, max_length=MAX_MEALS)
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairWeekPlan(BaseModel):
     """Non-empty weekly plan admitted by the public auto-repair route."""
 
-    days: List[AutoRepairDay] = Field(..., min_length=1)
+    days: List[AutoRepairDay] = Field(..., min_length=1, max_length=_VIP_MAX_DAYS)
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairTargetRanges(BaseModel):
@@ -275,7 +521,7 @@ class AutoRepairTargetRanges(BaseModel):
                 raise ValueError(f"{field_name} must satisfy minimum <= target <= maximum")
         return values
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairProfile(BaseModel):
@@ -290,11 +536,11 @@ class AutoRepairProfile(BaseModel):
     deficit_pct: Optional[float] = Field(..., ge=5, le=25)
     surplus_pct: Optional[float] = Field(..., ge=5, le=20)
     bodyfat: Optional[float] = Field(..., gt=0, le=100)
-    region: str = Field(..., min_length=1)
-    timezone: str = Field(..., min_length=1)
-    diet_flags: Set[str]
+    region: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
+    timezone: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
+    diet_flags: Set[str] = Field(..., max_length=_VIP_MAX_CONTAINER_ENTRIES)
     life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
-    medical_conditions: Set[str]
+    medical_conditions: Set[str] = Field(..., max_length=_VIP_MAX_CONTAINER_ENTRIES)
 
     @model_validator(mode="before")
     @classmethod
@@ -319,7 +565,7 @@ class AutoRepairProfile(BaseModel):
                 raise ValueError(f"{field_name} must be finite")
         return values
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairMacroTargets(BaseModel):
@@ -340,7 +586,7 @@ class AutoRepairMacroTargets(BaseModel):
             raise ValueError("Macro targets must be non-boolean integers")
         return values
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairActivityTargets(BaseModel):
@@ -366,7 +612,7 @@ class AutoRepairActivityTargets(BaseModel):
             raise ValueError("Activity targets must be non-boolean integers")
         return values
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairDailyTargets(BaseModel):
@@ -376,7 +622,7 @@ class AutoRepairDailyTargets(BaseModel):
     macros: AutoRepairMacroTargets
     water_ml_daily: int = Field(..., gt=0, le=10000, strict=True)
     activity: AutoRepairActivityTargets
-    calculation_date: str = Field(..., min_length=1)
+    calculation_date: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
 
     @model_validator(mode="before")
     @classmethod
@@ -388,7 +634,7 @@ class AutoRepairDailyTargets(BaseModel):
             raise ValueError("Daily targets must be non-boolean integers")
         return values
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"maxProperties": 50})
 
 
 class AutoRepairWeeklyRequest(BaseModel):
@@ -399,24 +645,43 @@ class AutoRepairWeeklyRequest(BaseModel):
     profile: AutoRepairProfile
     daily_targets: AutoRepairDailyTargets
     strategy: Literal["conservative", "balanced", "aggressive"] = "balanced"
-    user_preferences: dict[str, Any] = Field(default_factory=dict)
+    user_preferences: dict[str, Any] = Field(
+        default_factory=dict,
+        max_length=_VIP_MAX_CONTAINER_ENTRIES,
+        description="Unsupported semantic preferences still receive bounded raw admission.",
+    )
 
-    model_config = ConfigDict(extra="allow")
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_request_bounds(cls, values: object) -> object:
+        return _validate_vip_raw_request(values, root_shape="auto_root")
+
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "description": _VIP_RAW_BOUNDS_DESCRIPTION,
+            "maxProperties": 50,
+        },
+    )
 
 
 class WeeklyRecipeMeal(BaseModel):
     """One non-empty meal admitted by weekly recipe synthesis."""
 
-    ingredients: List[AutoRepairIngredient] = Field(..., min_length=1)
+    ingredients: List[AutoRepairIngredient] = Field(
+        ...,
+        min_length=1,
+        max_length=_VIP_MAX_INGREDIENTS,
+    )
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class WeeklyRecipeDay(BaseModel):
     """One non-empty recipe-synthesis day."""
 
-    day: str = Field(..., min_length=1)
-    meals: List[WeeklyRecipeMeal] = Field(..., min_length=1)
+    day: str = Field(..., min_length=1, max_length=MAX_STRING_LENGTH)
+    meals: List[WeeklyRecipeMeal] = Field(..., min_length=1, max_length=MAX_MEALS)
 
     @field_validator("day")
     @classmethod
@@ -426,13 +691,13 @@ class WeeklyRecipeDay(BaseModel):
             raise ValueError("Recipe day identifier must be non-empty")
         return normalized
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class WeeklyRecipePlan(BaseModel):
     """Non-empty weekly recipe plan."""
 
-    days: List[WeeklyRecipeDay] = Field(..., min_length=1)
+    days: List[WeeklyRecipeDay] = Field(..., min_length=1, max_length=_VIP_MAX_DAYS)
 
     @model_validator(mode="after")
     def validate_unique_day_identifiers(self) -> "WeeklyRecipePlan":
@@ -441,7 +706,7 @@ class WeeklyRecipePlan(BaseModel):
             raise ValueError("Recipe day identifiers must be unique")
         return self
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", json_schema_extra={"maxProperties": 50})
 
 
 class WeeklyRecipesRequest(BaseModel):
@@ -457,7 +722,18 @@ class WeeklyRecipesRequest(BaseModel):
             raise ValueError("recipes_per_day must be a non-boolean positive integer")
         return values
 
-    model_config = ConfigDict(extra="allow")
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_request_bounds(cls, values: object) -> object:
+        return _validate_vip_raw_request(values, root_shape="recipes_root")
+
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "description": _VIP_RAW_BOUNDS_DESCRIPTION,
+            "maxProperties": 50,
+        },
+    )
 
 
 class RegionalConfig(BaseModel):

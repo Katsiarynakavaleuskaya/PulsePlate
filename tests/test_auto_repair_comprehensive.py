@@ -122,9 +122,21 @@ def _food_item(name: str, nutrients: dict[str, float]) -> FoodItem:
         "fat_g": 0.0,
         "carbs_g": 0.0,
         "fiber_g": 0.0,
+        "iron_mg": 0.0,
+        "calcium_mg": 0.0,
+        "magnesium_mg": 0.0,
+        "zinc_mg": 0.0,
+        "potassium_mg": 0.0,
+        "iodine_ug": 0.0,
+        "selenium_ug": 0.0,
+        "folate_ug": 0.0,
+        "b12_ug": 0.0,
+        "vitamin_d_iu": 0.0,
+        "vitamin_a_ug": 0.0,
+        "vitamin_c_mg": 0.0,
         **nutrients,
     }
-    return FoodItem(name, complete, 1.0, [], [])
+    return FoodItem(name, complete, 1.0, [], [" BY "])
 
 
 def _same_week_menu(plan: WeekMenu, *_args: object) -> WeekMenu:
