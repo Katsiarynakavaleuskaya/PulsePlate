@@ -2906,6 +2906,9 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
         "agent-coordinator"
     ]
     assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
+    assert manifest["missing_agents"] == []
+    assert manifest["parallelizable_groups"] == []
+    assert manifest["parallel_execution_allowed"] is False
     assert manifest["dispatch_sequence"][0]["readonly"] is True
     assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
 
