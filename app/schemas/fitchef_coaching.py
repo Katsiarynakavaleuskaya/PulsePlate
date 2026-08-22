@@ -32,7 +32,7 @@ class FitChefSupportHandoffActionV1(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    action_type: Literal["handoff_to_product_surface"] = "handoff_to_product_surface"
+    action_type: Literal["handoff_to_product_surface"]
     target_surface: FitChefSupportTargetSurface
 
 
@@ -41,15 +41,15 @@ class FitChefSupportHandoffResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    schema_version: Literal["fitchef_support_handoff.v1"] = "fitchef_support_handoff.v1"
-    scenario: Literal["support_handoff"] = "support_handoff"
+    schema_version: Literal["fitchef_support_handoff.v1"]
+    scenario: Literal["support_handoff"]
     support_need: FitChefSupportNeed
     action: FitChefSupportHandoffActionV1
-    user_confirmation_required: Literal[True] = True
-    execution_authority: Literal[False] = False
-    plan_mutation_authority: Literal[False] = False
-    used_llm: Literal[False] = False
-    wellness_boundary: Literal["wellness_planning_only"] = "wellness_planning_only"
+    user_confirmation_required: Literal[True]
+    execution_authority: Literal[False]
+    plan_mutation_authority: Literal[False]
+    used_llm: Literal[False]
+    wellness_boundary: Literal["wellness_planning_only"]
 
     @field_validator("user_confirmation_required", mode="before")
     @classmethod

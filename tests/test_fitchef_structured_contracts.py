@@ -51,6 +51,29 @@ from app.services.fitchef_support_handoff import build_fitchef_support_handoff
 from core.evidence.fingerprints import JsonValue
 
 
+def _complete_support_handoff_payload(
+    *,
+    support_need: FitChefSupportNeed = "daily_structure",
+    target_surface: str = "pro_daily_plate",
+) -> dict[str, object]:
+    """Return one complete valid payload with every frozen constant explicit."""
+
+    return {
+        "schema_version": "fitchef_support_handoff.v1",
+        "scenario": "support_handoff",
+        "support_need": support_need,
+        "action": {
+            "action_type": "handoff_to_product_surface",
+            "target_surface": target_surface,
+        },
+        "user_confirmation_required": True,
+        "execution_authority": False,
+        "plan_mutation_authority": False,
+        "used_llm": False,
+        "wellness_boundary": "wellness_planning_only",
+    }
+
+
 def test_weekly_reflection_clarification_contract_is_fixed_and_immutable() -> None:
     """Clarification accepts exactly one goal field and no mutable extras."""
 
@@ -269,40 +292,22 @@ def test_support_handoff_contract_and_service_are_exact(
     request = FitChefSupportHandoffRequest(support_need=support_need)
     response = build_fitchef_support_handoff(support_need=request.support_need)
 
-    assert response.model_dump(mode="json") == {
-        "schema_version": "fitchef_support_handoff.v1",
-        "scenario": "support_handoff",
-        "support_need": support_need,
-        "action": {
-            "action_type": "handoff_to_product_surface",
-            "target_surface": target_surface,
-        },
-        "user_confirmation_required": True,
-        "execution_authority": False,
-        "plan_mutation_authority": False,
-        "used_llm": False,
-        "wellness_boundary": "wellness_planning_only",
-    }
+    assert response.model_dump(mode="json") == _complete_support_handoff_payload(
+        support_need=support_need,
+        target_surface=target_surface,
+    )
+    assert response.model_fields_set == set(FitChefSupportHandoffResponse.model_fields)
+    assert response.action.model_fields_set == set(FitChefSupportHandoffActionV1.model_fields)
     assert response.user_confirmation_required is True
     assert response.execution_authority is False
     assert response.plan_mutation_authority is False
     assert response.used_llm is False
 
     explicit_response = FitChefSupportHandoffResponse.model_validate(
-        {
-            "schema_version": "fitchef_support_handoff.v1",
-            "scenario": "support_handoff",
-            "support_need": support_need,
-            "action": {
-                "action_type": "handoff_to_product_surface",
-                "target_surface": target_surface,
-            },
-            "user_confirmation_required": True,
-            "execution_authority": False,
-            "plan_mutation_authority": False,
-            "used_llm": False,
-            "wellness_boundary": "wellness_planning_only",
-        }
+        _complete_support_handoff_payload(
+            support_need=support_need,
+            target_surface=target_surface,
+        )
     )
     assert explicit_response.user_confirmation_required is True
     assert explicit_response.execution_authority is False
@@ -330,20 +335,97 @@ def test_support_handoff_models_reject_extras_and_impossible_values() -> None:
             }
         )
     with pytest.raises(ValidationError):
-        FitChefSupportHandoffResponse.model_validate(
-            {
-                "support_need": "daily_structure",
-                "action": {
-                    "action_type": "handoff_to_product_surface",
-                    "target_surface": "pro_daily_plate",
-                },
-                "message": "free text is forbidden",
-            }
-        )
+        response_payload = _complete_support_handoff_payload()
+        response_payload["message"] = "free text is forbidden"
+        FitChefSupportHandoffResponse.model_validate(response_payload)
 
     impossible_need = cast(FitChefSupportNeed, "unsupported")
     with pytest.raises(ValueError, match="unsupported FitChef support need"):
         build_fitchef_support_handoff(support_need=impossible_need)
+
+
+def test_support_handoff_model_fields_are_all_required() -> None:
+    """Request, action, and response DTOs expose no implicit field defaults."""
+
+    assert tuple(FitChefSupportHandoffRequest.model_fields) == ("support_need",)
+    assert tuple(FitChefSupportHandoffActionV1.model_fields) == (
+        "action_type",
+        "target_surface",
+    )
+    assert tuple(FitChefSupportHandoffResponse.model_fields) == (
+        "schema_version",
+        "scenario",
+        "support_need",
+        "action",
+        "user_confirmation_required",
+        "execution_authority",
+        "plan_mutation_authority",
+        "used_llm",
+        "wellness_boundary",
+    )
+    for model in (
+        FitChefSupportHandoffRequest,
+        FitChefSupportHandoffActionV1,
+        FitChefSupportHandoffResponse,
+    ):
+        assert all(field.is_required() for field in model.model_fields.values())
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "action_type",
+        "schema_version",
+        "scenario",
+        "user_confirmation_required",
+        "execution_authority",
+        "plan_mutation_authority",
+        "used_llm",
+        "wellness_boundary",
+    ),
+)
+def test_support_handoff_omitted_constant_is_rejected(field_name: str) -> None:
+    """Each frozen constant is independently required at runtime."""
+
+    payload = _complete_support_handoff_payload()
+    if field_name == "action_type":
+        action = cast(dict[str, object], payload["action"])
+        del action[field_name]
+    else:
+        del payload[field_name]
+
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffResponse.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    (
+        ("action_type", "navigate"),
+        ("action_type", None),
+        ("schema_version", "fitchef_support_handoff.v2"),
+        ("schema_version", None),
+        ("scenario", "recommendation"),
+        ("scenario", None),
+        ("wellness_boundary", "general_coaching"),
+        ("wellness_boundary", None),
+    ),
+)
+def test_support_handoff_string_constant_rejects_wrong_literal_and_null(
+    field_name: str,
+    invalid_value: object,
+) -> None:
+    """Every fixed string literal fails closed on widening or null."""
+
+    payload = _complete_support_handoff_payload()
+    if field_name == "action_type":
+        action = cast(dict[str, object], payload["action"])
+        action[field_name] = invalid_value
+    else:
+        payload[field_name] = invalid_value
+
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffResponse.model_validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -377,14 +459,8 @@ def test_support_handoff_response_rejects_non_exact_boolean_values(
 ) -> None:
     """Identity validators reject opposite, numeric, string, and null booleans."""
 
-    payload: dict[str, object] = {
-        "support_need": "daily_structure",
-        "action": {
-            "action_type": "handoff_to_product_surface",
-            "target_surface": "pro_daily_plate",
-        },
-        field_name: invalid_value,
-    }
+    payload = _complete_support_handoff_payload()
+    payload[field_name] = invalid_value
     with pytest.raises(ValidationError):
         FitChefSupportHandoffResponse.model_validate(payload)
 

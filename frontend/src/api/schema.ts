@@ -2882,7 +2882,6 @@ export interface components {
         FitChefSupportHandoffActionV1: {
             /**
              * Action Type
-             * @default handoff_to_product_surface
              * @constant
              */
             action_type: "handoff_to_product_surface";
@@ -2900,25 +2899,21 @@ export interface components {
             action: components["schemas"]["FitChefSupportHandoffActionV1"];
             /**
              * Execution Authority
-             * @default false
              * @constant
              */
             execution_authority: false;
             /**
              * Plan Mutation Authority
-             * @default false
              * @constant
              */
             plan_mutation_authority: false;
             /**
              * Scenario
-             * @default support_handoff
              * @constant
              */
             scenario: "support_handoff";
             /**
              * Schema Version
-             * @default fitchef_support_handoff.v1
              * @constant
              */
             schema_version: "fitchef_support_handoff.v1";
@@ -2929,19 +2924,16 @@ export interface components {
             support_need: "daily_structure" | "weekly_structure";
             /**
              * Used Llm
-             * @default false
              * @constant
              */
             used_llm: false;
             /**
              * User Confirmation Required
-             * @default true
              * @constant
              */
             user_confirmation_required: true;
             /**
              * Wellness Boundary
-             * @default wellness_planning_only
              * @constant
              */
             wellness_boundary: "wellness_planning_only";

@@ -1322,13 +1322,24 @@ class TestFitChefSupportHandoffRoute:
             "schema",
         )
         assert response_schema["$ref"] == "#/components/schemas/FitChefSupportHandoffResponse"
-        response_properties = _nested_object(
+        response_component = _nested_object(
             schema,
             "components",
             "schemas",
             "FitChefSupportHandoffResponse",
-            "properties",
         )
+        assert response_component["required"] == [
+            "schema_version",
+            "scenario",
+            "support_need",
+            "action",
+            "user_confirmation_required",
+            "execution_authority",
+            "plan_mutation_authority",
+            "used_llm",
+            "wellness_boundary",
+        ]
+        response_properties = _nested_object(response_component, "properties")
         assert set(response_properties) == {
             "schema_version",
             "scenario",
@@ -1356,9 +1367,11 @@ class TestFitChefSupportHandoffRoute:
         assert scenario_schema["const"] == "support_handoff"
         assert wellness_schema["const"] == "wellness_planning_only"
         assert confirmation_schema["const"] is True
+        false_field_schemas: list[dict[str, object]] = []
         for field_name in ("execution_authority", "plan_mutation_authority", "used_llm"):
             field_schema = cast(dict[str, object], response_properties[field_name])
             assert field_schema["const"] is False
+            false_field_schemas.append(field_schema)
 
         action_schema = _nested_object(
             schema,
@@ -1367,6 +1380,7 @@ class TestFitChefSupportHandoffRoute:
             "FitChefSupportHandoffActionV1",
         )
         assert action_schema["additionalProperties"] is False
+        assert action_schema["required"] == ["action_type", "target_surface"]
         action_properties = _nested_object(action_schema, "properties")
         action_type_schema = _nested_object(action_properties, "action_type")
         target_surface_schema = _nested_object(action_properties, "target_surface")
@@ -1375,6 +1389,15 @@ class TestFitChefSupportHandoffRoute:
             "pro_daily_plate",
             "pro_weekly_plan",
         ]
+        for field_schema in (
+            action_type_schema,
+            schema_version_schema,
+            scenario_schema,
+            confirmation_schema,
+            *false_field_schemas,
+            wellness_schema,
+        ):
+            assert "default" not in field_schema
 
 
 class TestFitChefIdentityLoopMapperRoute:

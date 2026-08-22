@@ -2553,7 +2553,6 @@
         "properties": {
           "action_type": {
             "const": "handoff_to_product_surface",
-            "default": "handoff_to_product_surface",
             "title": "Action Type",
             "type": "string"
           },
@@ -2567,6 +2566,7 @@
           }
         },
         "required": [
+          "action_type",
           "target_surface"
         ],
         "title": "FitChefSupportHandoffActionV1",
@@ -2581,25 +2581,21 @@
           },
           "execution_authority": {
             "const": false,
-            "default": false,
             "title": "Execution Authority",
             "type": "boolean"
           },
           "plan_mutation_authority": {
             "const": false,
-            "default": false,
             "title": "Plan Mutation Authority",
             "type": "boolean"
           },
           "scenario": {
             "const": "support_handoff",
-            "default": "support_handoff",
             "title": "Scenario",
             "type": "string"
           },
           "schema_version": {
             "const": "fitchef_support_handoff.v1",
-            "default": "fitchef_support_handoff.v1",
             "title": "Schema Version",
             "type": "string"
           },
@@ -2613,26 +2609,30 @@
           },
           "used_llm": {
             "const": false,
-            "default": false,
             "title": "Used Llm",
             "type": "boolean"
           },
           "user_confirmation_required": {
             "const": true,
-            "default": true,
             "title": "User Confirmation Required",
             "type": "boolean"
           },
           "wellness_boundary": {
             "const": "wellness_planning_only",
-            "default": "wellness_planning_only",
             "title": "Wellness Boundary",
             "type": "string"
           }
         },
         "required": [
+          "schema_version",
+          "scenario",
           "support_need",
-          "action"
+          "action",
+          "user_confirmation_required",
+          "execution_authority",
+          "plan_mutation_authority",
+          "used_llm",
+          "wellness_boundary"
         ],
         "title": "FitChefSupportHandoffResponse",
         "type": "object"
