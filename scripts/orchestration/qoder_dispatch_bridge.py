@@ -43,7 +43,6 @@ from scripts.orchestration.requested_agents import (
     normalize_implementation_owner_slugs,
 )
 from scripts.orchestration.bootstrap_sync_policy import (
-    _normalize_invariant_review_path,
     INVARIANT_CHANGE_CLASSES,
     INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_REVIEW_BOUNDARY_CLASSES,
@@ -66,6 +65,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE
 from scripts.orchestration.context_pack import (
+    canonical_task_candidate_paths,
     collect_context_pack,
     compute_task_packet_id,
     repo_relative_paths,
@@ -716,17 +716,12 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     try:
-        canonical_candidate_paths = sorted(
-            {
-                normalized_path
-                for raw_path in candidate_paths
-                if (normalized_path := _normalize_invariant_review_path(raw_path))
-            }
+        canonical_candidate_paths = canonical_task_candidate_paths(
+            candidate_paths,
+            mode="strict_wire",
         )
     except ValueError:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical") from None
-    if canonical_candidate_paths != candidate_paths:
-        raise ValueError("invariant_review.v2 candidate_paths must be canonical")
     canonical_domain = resolve_domain(
         task_class=cast(str, required_strings["task_class"]),
         candidate_paths=canonical_candidate_paths,
@@ -815,7 +810,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                 )
             if status not in honored_statuses:
                 continue
-            expected_status = (
+            assignment_status = (
                 REQUESTED_AGENT_STATUS_HONORED_PRIMARY
                 if agent == primary_agent
                 else (
@@ -828,7 +823,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                     )
                 )
             )
-            if status != expected_status:
+            if status != assignment_status:
                 raise ValueError(
                     "not_required invariant_review.v2 requested-agent status "
                     "must match the role assignment"
@@ -927,12 +922,22 @@ def _validated_dispatch_role_order(
             "invariant_class_review_required" in automation_flags
         ):
             raise ValueError("current invariant-class packets require invariant_review metadata")
-        candidate_paths = payload.get("candidate_paths")
+        legacy_candidate_paths: Optional[List[str]] = None
+        if "candidate_paths" in payload:
+            try:
+                legacy_candidate_paths = canonical_task_candidate_paths(
+                    payload.get("candidate_paths"),
+                    mode="strict_wire",
+                )
+            except ValueError as exc:
+                raise ValueError("invariant review paths must be canonical") from exc
         raw_pr_phase = payload.get("pr_phase")
         bounded_trigger_required = False
-        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and isinstance(candidate_paths, list):
+        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and (
+            legacy_candidate_paths is not None
+        ):
             bounded_trigger_required = classify_invariant_review(
-                candidate_paths=candidate_paths
+                candidate_paths=legacy_candidate_paths
             ).required
         if bounded_trigger_required:
             raise ValueError(
@@ -1396,25 +1401,16 @@ def _validate_current_role_dispatch_contract(
 
 
 def _canonical_synthesis_candidate_paths(payload: Dict[str, Any]) -> List[str]:
-    """Require the exact repo-relative path spelling used by packet identity."""
+    """Delegate exact synthesis path recognition to the packet path authority."""
 
     path_error = "creative pilot synthesis packet metadata requires canonical candidate_paths"
-    candidate_paths = payload.get("candidate_paths")
-    if not isinstance(candidate_paths, list) or any(
-        not isinstance(path, str) for path in candidate_paths
-    ):
-        raise ValueError(path_error)
     try:
-        identity_paths = repo_relative_paths(candidate_paths)
-        canonical_paths = [
-            normalized
-            for path in identity_paths
-            if (normalized := _normalize_invariant_review_path(path))
-        ]
-    except (OSError, TypeError, ValueError) as exc:
+        canonical_paths = canonical_task_candidate_paths(
+            payload.get("candidate_paths"),
+            mode="strict_wire",
+        )
+    except ValueError as exc:
         raise ValueError(path_error) from exc
-    if candidate_paths != canonical_paths:
-        raise ValueError(path_error)
     return canonical_paths
 
 
@@ -1497,11 +1493,16 @@ def _validate_single_coordinator_synthesis_packet_metadata(
     payload: Dict[str, Any],
     *,
     validated_synthesis_context: Optional[Dict[str, Any]],
+    candidate_paths: Optional[List[str]],
 ) -> None:
     """Bind the synthesis-only alias projection to exact producer metadata."""
 
     if validated_synthesis_context is None:
         return
+    if candidate_paths is None:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires canonical candidate_paths"
+        )
     if payload.get("requested_agents") != ["agent-coordinator"]:
         raise ValueError("creative pilot synthesis packet metadata requires only agent-coordinator")
     if payload.get("requested_agent_disposition") != []:
@@ -1518,7 +1519,6 @@ def _validate_single_coordinator_synthesis_packet_metadata(
         raise ValueError(
             "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
         )
-    candidate_paths = _canonical_synthesis_candidate_paths(payload)
     if automation_flags.get("security_review_required") is not False:
         raise ValueError(
             "creative pilot synthesis packet metadata requires security_review_required=false"
@@ -1552,6 +1552,9 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     bridge = payload.get("native_subagent_bridge")
     validated_synthesis_context = _validate_current_native_subagent_bridge(payload, bridge)
     synthesis_coordinator_aliases = validated_synthesis_context is not None
+    synthesis_candidate_paths = (
+        _canonical_synthesis_candidate_paths(payload) if synthesis_coordinator_aliases else None
+    )
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -1604,6 +1607,7 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     _validate_single_coordinator_synthesis_packet_metadata(
         payload,
         validated_synthesis_context=validated_synthesis_context,
+        candidate_paths=synthesis_candidate_paths,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order

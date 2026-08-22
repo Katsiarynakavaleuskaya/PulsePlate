@@ -32,9 +32,9 @@ from core.judgment import (
 from scripts.orchestration.context_pack import (
     ORCHESTRATION_CONTEXT_FILES,
     REPO_ROOT,
+    canonical_task_candidate_paths,
     collect_context_pack,
     compute_task_packet_id,
-    repo_relative_paths,
     resolve_domain,
 )
 from scripts.orchestration.context_pack_compression import (
@@ -612,16 +612,18 @@ def _judgment_lane_enabled(
     *,
     goal: str,
     task_class: str,
-    candidate_paths: list[str] | tuple[str, ...],
+    candidate_paths: list[str],
     activation: BootstrapLaneActivation,
 ) -> bool:
     """Return True when the task clearly targets the judgment/adjudication lane."""
 
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
+    judgment_paths = [] if canonical_paths == ["."] else canonical_paths
     normalized_haystack = " ".join(
         [
             goal.strip().lower(),
             task_class.strip().lower(),
-            *(path.lower() for path in candidate_paths),
+            *(path.lower() for path in judgment_paths),
         ]
     )
     return any(term in normalized_haystack for term in activation.signal_terms)
@@ -1556,11 +1558,13 @@ def build_task_packet(
             raise ValueError(
                 "--review-invariant-family-relations-input requires --pr-phase post_open_review"
             )
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="producer")
+    if review_invariant_family_relations_input is not None:
         family_repeat = _build_family_repeat_projection(
             _read_invariant_family_relations_input(review_invariant_family_relations_input)
         )
     invariant_review_decision = classify_invariant_review(
-        candidate_paths=candidate_paths,
+        candidate_paths=canonical_paths,
         explicit_classes=invariant_change_classes,
     )
     invariant_review_required_now = _invariant_review_required_now(
@@ -1573,9 +1577,6 @@ def build_task_packet(
             "or authority mechanism change; create a separate ordinary pre-open "
             "invariant-review packet without --creative-pilot-workspace"
         )
-    normalized_paths = repo_relative_paths(
-        [path.strip() for path in candidate_paths if path.strip()]
-    )
     if native_bridge_transport not in NATIVE_BRIDGE_TRANSPORTS:
         supported = ", ".join(NATIVE_BRIDGE_TRANSPORTS)
         raise ValueError(
@@ -1630,7 +1631,7 @@ def build_task_packet(
     )
     domain = resolve_domain(
         task_class=task_class,
-        candidate_paths=normalized_paths,
+        candidate_paths=canonical_paths,
         goal=goal,
     )
     routing = load_routing_graph()
@@ -1663,7 +1664,7 @@ def build_task_packet(
         goal=goal,
         task_class=task_class,
         domain=decision.domain,
-        candidate_paths=normalized_paths,
+        candidate_paths=canonical_paths,
         requested_agents=normalized_requested_agents,
         pr_phase=normalized_pr_phase,
         design_fingerprint=_design_fingerprint(
@@ -1679,8 +1680,8 @@ def build_task_packet(
             invariant_review_fingerprint=invariant_review_decision.fingerprint,
         )
     context_pack = collect_context_pack(
-        normalized_paths,
-        include_orchestration=decision.cluster == "ops" or len(normalized_paths) != 1,
+        canonical_paths,
+        include_orchestration=decision.cluster == "ops" or len(canonical_paths) != 1,
     )
     if family_repeat is not None:
         context_pack = sorted(set(context_pack).union({INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT}))
@@ -1693,7 +1694,7 @@ def build_task_packet(
     judgment_enabled = _judgment_lane_enabled(
         goal=goal,
         task_class=task_class,
-        candidate_paths=normalized_paths,
+        candidate_paths=canonical_paths,
         activation=judgment_activation,
     )
     if judgment_enabled:
@@ -1706,7 +1707,7 @@ def build_task_packet(
         requested_agents=normalized_requested_agents,
         routing=routing,
     )
-    security_review_required = bootstrap_requires_security_review(normalized_paths)
+    security_review_required = bootstrap_requires_security_review(canonical_paths)
     if security_review_required:
         secondary_agents = list(requested_agent_resolution["secondary_agents"])
         security_in_review_path = "security-auditor" in {
@@ -1797,7 +1798,7 @@ def build_task_packet(
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,
-        candidate_paths=normalized_paths,
+        candidate_paths=canonical_paths,
         domain=decision.domain,
         requested_agents=normalized_requested_agents,
         design_source=design_lane_contract["design_source"],
@@ -1862,7 +1863,7 @@ def build_task_packet(
             goal=goal,
             task_class=task_class,
             domain=decision.domain,
-            candidate_paths=normalized_paths,
+            candidate_paths=canonical_paths,
             requested_agents=normalized_requested_agents,
             pr_phase=normalized_pr_phase,
             design_lane_mode=design_lane_mode,
@@ -1889,11 +1890,11 @@ def build_task_packet(
     needs_backlog_update = bootstrap_needs_backlog_update(
         goal=goal,
         task_class=task_class,
-        candidate_paths=normalized_paths,
+        candidate_paths=canonical_paths,
     )
-    needs_docs_sync = bootstrap_needs_docs_sync(normalized_paths)
-    needs_agents_sync = bootstrap_needs_agents_sync(normalized_paths)
-    envelope_mode_hint = resolve_analysis_envelope_mode(normalized_paths)
+    needs_docs_sync = bootstrap_needs_docs_sync(canonical_paths)
+    needs_agents_sync = bootstrap_needs_agents_sync(canonical_paths)
+    envelope_mode_hint = resolve_analysis_envelope_mode(canonical_paths)
     message_envelope = {
         "protocol_version": MESSAGE_ENVELOPE_PROTOCOL_VERSION,
         "derived_view": MESSAGE_ENVELOPE_DERIVED_VIEW,
@@ -1950,8 +1951,11 @@ def build_task_packet(
             "promotion_labels": [],
         }
 
+    # Root remains authoritative packet scope; file-evidence-only metadata cannot
+    # represent it as a concrete changed file and therefore receives no file node.
+    metadata_candidate_paths = [] if canonical_paths == ["."] else canonical_paths
     context_pack_compression = build_context_pack_compression(
-        candidate_paths=normalized_paths,
+        candidate_paths=metadata_candidate_paths,
         required_context=context_pack,
         pr_phase=normalized_pr_phase,
         domain=decision.domain,
@@ -1978,7 +1982,7 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
     )
     embedding_retrieval_admission = build_embedding_retrieval_admission_telemetry(
-        candidate_paths=normalized_paths,
+        candidate_paths=metadata_candidate_paths,
         required_context=context_pack,
         pr_phase=normalized_pr_phase,
         domain=decision.domain,
@@ -1992,7 +1996,7 @@ def build_task_packet(
         "task_class": task_class.strip(),
         "domain": decision.domain,
         "cluster": decision.cluster,
-        "candidate_paths": normalized_paths,
+        "candidate_paths": canonical_paths,
         "primary_agent": requested_agent_resolution["primary_agent"],
         "secondary_agents": requested_agent_resolution["secondary_agents"],
         "reviewer": requested_agent_resolution["reviewer"],

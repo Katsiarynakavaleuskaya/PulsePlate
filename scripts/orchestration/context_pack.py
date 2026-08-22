@@ -6,9 +6,12 @@ EN: Shared helpers for deterministic context packs and path-based routing.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import hashlib
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import cast, Literal
+import unicodedata
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -87,6 +90,89 @@ PATH_DOMAIN_HINTS: tuple[tuple[str, str], ...] = (
     ("app/", "backend"),
     ("tests/", "qa"),
 )
+
+TaskCandidatePathMode = Literal["producer", "strict_wire"]
+_TASK_CANDIDATE_PATH_MODES = ("producer", "strict_wire")
+_TASK_CANDIDATE_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _invalid_task_candidate_paths() -> ValueError:
+    return ValueError("canonical task candidate paths are invalid")
+
+
+def _canonical_task_candidate_path(raw_path: object, *, mode: TaskCandidatePathMode) -> str:
+    if type(raw_path) is not str:
+        raise _invalid_task_candidate_paths()
+    if (
+        not raw_path
+        or any(character.isspace() for character in raw_path)
+        or any(unicodedata.category(character).startswith("C") for character in raw_path)
+        or "\\" in raw_path
+        or "//" in raw_path
+        or raw_path.endswith("/")
+        or raw_path.startswith("~")
+        or _TASK_CANDIDATE_SCHEME_RE.match(raw_path)
+    ):
+        raise _invalid_task_candidate_paths()
+
+    candidate = raw_path
+    if candidate.startswith("./"):
+        if mode != "producer" or candidate == "./":
+            raise _invalid_task_candidate_paths()
+        candidate = candidate[2:]
+        if not candidate or candidate == "." or candidate.startswith("./"):
+            raise _invalid_task_candidate_paths()
+
+    if candidate == ".":
+        return "."
+    is_absolute = candidate.startswith("/")
+    candidate_parts = candidate.split("/")
+    path_components = candidate_parts[1:] if is_absolute else candidate_parts
+    if any(component in {"", ".", ".."} for component in path_components):
+        raise _invalid_task_candidate_paths()
+
+    if is_absolute:
+        if mode != "producer":
+            raise _invalid_task_candidate_paths()
+        repository_parts = PurePosixPath(REPO_ROOT.as_posix()).parts
+        absolute_parts = PurePosixPath(candidate).parts
+        if absolute_parts[: len(repository_parts)] != repository_parts:
+            raise _invalid_task_candidate_paths()
+        relative_parts = absolute_parts[len(repository_parts) :]
+        return "." if not relative_parts else PurePosixPath(*relative_parts).as_posix()
+
+    if candidate.startswith("/") or PurePosixPath(candidate).is_absolute():
+        raise _invalid_task_candidate_paths()
+    return candidate
+
+
+def canonical_task_candidate_paths(
+    raw_paths: object,
+    *,
+    mode: TaskCandidatePathMode,
+) -> list[str]:
+    """Return the closed canonical task-packet ``candidate_paths`` projection.
+
+    This is lexical routing/identity metadata only. It performs no filesystem,
+    existence, file-type, or symlink validation and grants no access authority.
+    """
+
+    if mode not in _TASK_CANDIDATE_PATH_MODES:
+        raise _invalid_task_candidate_paths()
+    if mode == "producer":
+        if type(raw_paths) not in {list, tuple}:
+            raise _invalid_task_candidate_paths()
+    elif type(raw_paths) is not list:
+        raise _invalid_task_candidate_paths()
+
+    raw_sequence = cast(Sequence[object], raw_paths)
+    validated = [_canonical_task_candidate_path(raw_path, mode=mode) for raw_path in raw_sequence]
+    canonical = sorted(set(validated))
+    if "." in canonical:
+        canonical = ["."]
+    if mode == "strict_wire" and list(raw_sequence) != canonical:
+        raise _invalid_task_candidate_paths()
+    return canonical
 
 
 def normalize_text(*parts: str) -> str:
@@ -170,9 +256,11 @@ def collect_context_pack(
 ) -> list[str]:
     """Build deterministic context-pack file list for a task."""
 
+    canonical_paths = canonical_task_candidate_paths(raw_paths, mode="strict_wire")
     context = set(CORE_CONTEXT_FILES)
-    context.update(collect_scoped_agents(raw_paths))
-    if include_orchestration:
+    if canonical_paths != ["."]:
+        context.update(collect_scoped_agents(canonical_paths))
+    if include_orchestration or canonical_paths == ["."]:
         context.update(ORCHESTRATION_CONTEXT_FILES)
     return sorted(context)
 
@@ -263,7 +351,7 @@ def compute_task_packet_id(
             pr_phase.strip(),
             design_fingerprint.strip(),
             creative_learning_hints_fingerprint.strip(),
-            *repo_relative_paths(candidate_paths),
+            *canonical_task_candidate_paths(candidate_paths, mode="producer"),
             *requested_agents,
         ]
     )

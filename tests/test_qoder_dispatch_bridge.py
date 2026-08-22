@@ -62,6 +62,10 @@ REQUIRED_ENTRY_KEYS = {
 }
 
 
+class _LegacyCandidatePathList(list[object]):
+    pass
+
+
 def _rebind_single_coordinator_synthesis_task_packet_id(packet: dict[str, object]) -> None:
     context = cast(dict[str, Any], packet["creative_pilot_context"])
     creative_learning_hints = cast(dict[str, Any], packet["creative_learning_hints"])
@@ -215,6 +219,31 @@ def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
     packet = _single_coordinator_synthesis_packet()
 
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+def test_root_scope_packet_preserves_required_invariant_dispatch() -> None:
+    packet = task_bootstrap.build_task_packet(
+        goal="Inspect repository scope",
+        task_class="Orchestration",
+        candidate_paths=["."],
+    )
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    assert packet["candidate_paths"] == ["."]
+    assert roles[:3] == ["agent-coordinator", "logic-agent", "philosophy-agent"]
+    assert roles.count("security-auditor") == 1
+
+
+def test_root_scope_cannot_claim_single_coordinator_synthesis_alias() -> None:
+    packet = _single_coordinator_synthesis_packet()
+    packet["candidate_paths"] = ["."]
+
+    with pytest.raises(
+        ValueError,
+        match="invariant_review classes and evidence must match the canonical classifier",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
 def test_single_coordinator_synthesis_accepts_rebound_context_identity() -> None:
@@ -618,7 +647,7 @@ def test_single_coordinator_synthesis_judgment_structure_fails_closed(
     with pytest.raises(ValueError) as exc_info:
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
     expected_error = (
-        "invariant_review requires candidate_paths as a string list"
+        "creative pilot synthesis packet metadata requires canonical candidate_paths"
         if mutation in {"candidate_paths_non_list", "candidate_path_non_string"}
         else "creative pilot synthesis packet metadata requires judgment lane disabled"
     )
@@ -1090,20 +1119,11 @@ def test_qoder_rejects_v2_noncanonical_candidate_path(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
-def test_qoder_rejects_v2_parent_traversal_with_recomputed_identity(
+def test_qoder_rejects_v2_parent_traversal_before_identity_recomputation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _v2_packet(monkeypatch)
     packet["candidate_paths"] = ["../outside.py"]
-    packet["required_context"] = sorted(
-        set(
-            qoder_dispatch_bridge.collect_context_pack(
-                ["../outside.py"],
-                include_orchestration=True,
-            )
-        ).union({task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT})
-    )
-    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
 
     with pytest.raises(ValueError, match="candidate_paths"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
@@ -3887,8 +3907,63 @@ def test_legacy_packet_with_malformed_path_fails_closed(
     else:
         packet["schema_version"] = schema_version
 
-    with pytest.raises(ValueError, match="must use unambiguous POSIX separators"):
+    with pytest.raises(ValueError, match="invariant review paths must be canonical"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+@pytest.mark.parametrize("pr_phase", ["none", "post_open_review"])
+@pytest.mark.parametrize(
+    "candidate_paths",
+    [
+        "scripts/ci/guard_actions_pin.py",
+        {"path": "scripts/ci/guard_actions_pin.py"},
+        1,
+        ("scripts/ci/guard_actions_pin.py",),
+        _LegacyCandidatePathList(["scripts/ci/guard_actions_pin.py"]),
+        ["./scripts/ci/guard_actions_pin.py"],
+    ],
+    ids=("scalar", "mapping", "integer", "tuple", "list-subclass", "noncanonical-list"),
+)
+def test_legacy_packet_rejects_every_present_noncanonical_candidate_path_carrier(
+    schema_version: str | None,
+    pr_phase: str,
+    candidate_paths: object,
+) -> None:
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = candidate_paths
+    packet["pr_phase"] = pr_phase
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    with pytest.raises(ValueError, match="invariant review paths must be canonical"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+@pytest.mark.parametrize("pr_phase", ["none", "post_open_review"])
+def test_legacy_packet_preserves_genuine_candidate_path_absence(
+    schema_version: str | None,
+    pr_phase: str,
+) -> None:
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["pr_phase"] = pr_phase
+    packet.pop("candidate_paths")
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    assert roles[0] == "agent-coordinator"
+    assert "architecture-specialist" in roles
 
 
 @pytest.mark.parametrize(
