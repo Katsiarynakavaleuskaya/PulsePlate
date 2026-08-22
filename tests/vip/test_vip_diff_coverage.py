@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from dataclasses import asdict
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -55,6 +56,8 @@ from core.auto_repair import (
 )
 import core.food_apis.unified_db as unified_db_module
 from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
+from core.food_apis.openfoodfacts_client import OFFFoodItem
+from core.food_apis.usda_client import USDAFoodItem
 from core.menu_engine import (
     DayMenu,
     FoodItem,
@@ -243,6 +246,40 @@ def _food_item(name: str, nutrients: dict[str, float]) -> FoodItem:
         tags=[],
         availability_regions=["BY"],
     )
+
+
+def _verified_cache_row(
+    *,
+    name: str = "Lentils",
+    source_id: str = "lentils-1",
+    iron_mg: float = 3.3,
+) -> dict[str, object]:
+    nutrients = {
+        "protein_g": 9.0,
+        "fat_g": 0.4,
+        "carbs_g": 20.0,
+        "fiber_g": 8.0,
+        "iron_mg": iron_mg,
+    }
+    return {
+        "name": name,
+        "nutrients_per_100g": nutrients,
+        "cost_per_100g": 1.0,
+        "tags": ["VEG"],
+        "availability_regions": ["BY"],
+        "source": "fixture",
+        "source_id": source_id,
+        "nutrition_inputs": [
+            {
+                "source": "estimate",
+                "record_id": source_id,
+                "nutrients": deepcopy(nutrients),
+            }
+        ],
+        "nutrition_provenance": {nutrient: "estimate" for nutrient in nutrients},
+        "nutrition_nutrient_confidence": {nutrient: 0.4 for nutrient in nutrients},
+        "nutrition_confidence": 0.4,
+    }
 
 
 def _canonical_plan(
@@ -475,11 +512,8 @@ class TestTC209VIPDiffCoverage:
                     "steps_daily": 8000,
                 }
             )
-            assert (
-                activity.total_aerobic_equivalent()
-                if hasattr(activity, "total_aerobic_equivalent")
-                else moderate + vigorous * 2 >= 0
-            )
+            assert activity.moderate_aerobic_min == moderate
+            assert activity.vigorous_aerobic_min == vigorous
         for invalid_aerobic in (-1, True, 1.5, "0"):
             with pytest.raises(ValidationError):
                 AutoRepairActivityTargets.model_validate(
@@ -834,25 +868,7 @@ class TestTC209VIPDiffCoverage:
         instance = cast(UnifiedFoodDatabase, SimpleNamespace(cache_dir=cache_dir))
         monkeypatch.setattr(unified_db_module, "_unified_db_instance", instance)
         cache_file = cache_dir / "common_foods.json"
-        valid_row = {
-            "name": "Lentils",
-            "nutrients_per_100g": {
-                "protein_g": 9.0,
-                "fat_g": 0.4,
-                "carbs_g": 20.0,
-                "fiber_g": 8.0,
-                "iron_mg": 3.3,
-            },
-            "cost_per_100g": 1.0,
-            "tags": ["VEG"],
-            "availability_regions": ["BY"],
-            "source": "fixture",
-            "source_id": "lentils-1",
-            "nutrition_inputs": [],
-            "nutrition_provenance": {"iron_mg": "fixture"},
-            "nutrition_nutrient_confidence": {"iron_mg": 0.9},
-            "nutrition_confidence": 0.9,
-        }
+        valid_row = _verified_cache_row()
         cache_file.write_text(json.dumps({"lentils": valid_row}), encoding="utf-8")
         caplog.clear()
         first = unified_db_module.get_cached_common_foods_snapshot()
@@ -861,6 +877,21 @@ class TestTC209VIPDiffCoverage:
         assert second["lentils"].nutrients_per_100g["iron_mg"] == 3.3
         assert first["lentils"] is not second["lentils"]
         assert caplog.records == []
+
+        deficient_plan = _canonical_plan(_complete_evidence({"iron_mg": 0.0}))
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            return_value=second,
+        ):
+            repaired_from_verified_cache = repair_canonical_week_plan(
+                deficient_plan,
+                _micronutrient_targets(),
+            )
+        assert repaired_from_verified_cache != deficient_plan
+        assert (
+            repaired_from_verified_cache.daily_menus[0].meals[0]["ingredients"][-1]["name"]
+            == "Lentils"
+        )
 
         cache_file.write_text("{}", encoding="utf-8")
         caplog.clear()
@@ -881,9 +912,65 @@ class TestTC209VIPDiffCoverage:
             unreadable_cache.setattr(Path, "read_text", _raise_unreadable)
             assert unified_db_module.get_cached_common_foods_snapshot() == {}
 
+        legacy_row = {
+            key: deepcopy(value)
+            for key, value in valid_row.items()
+            if key
+            not in {
+                "nutrition_inputs",
+                "nutrition_provenance",
+                "nutrition_nutrient_confidence",
+                "nutrition_confidence",
+            }
+        }
+        missing_provenance = deepcopy(valid_row)
+        missing_provenance["nutrition_provenance"].pop("iron_mg")
+        missing_nutrient_confidence = deepcopy(valid_row)
+        missing_nutrient_confidence["nutrition_nutrient_confidence"].pop("iron_mg")
+        zero_nutrient_confidence = deepcopy(valid_row)
+        zero_nutrient_confidence["nutrition_nutrient_confidence"]["iron_mg"] = 0.0
+        zero_overall_confidence = {**valid_row, "nutrition_confidence": 0.0}
+        extra_provenance = deepcopy(valid_row)
+        extra_provenance["nutrition_provenance"]["unpublished_mg"] = "fixture"
+        raw_coverage_missing = deepcopy(valid_row)
+        raw_coverage_missing["nutrition_inputs"][0]["nutrients"].pop("iron_mg")
+        raw_value_mismatch = deepcopy(valid_row)
+        raw_value_mismatch["nutrition_inputs"][0]["nutrients"]["iron_mg"] = 9.9
+        raw_source_mismatch = deepcopy(valid_row)
+        raw_source_mismatch["nutrition_inputs"][0]["source"] = "usda"
+        stored_provenance_mismatch = deepcopy(valid_row)
+        stored_provenance_mismatch["nutrition_provenance"] = {
+            nutrient: "usda" for nutrient in stored_provenance_mismatch["nutrients_per_100g"]
+        }
+        stored_confidence_mismatch = deepcopy(valid_row)
+        stored_confidence_mismatch["nutrition_nutrient_confidence"] = {
+            nutrient: 0.7 for nutrient in stored_confidence_mismatch["nutrients_per_100g"]
+        }
+        stored_overall_mismatch = {**valid_row, "nutrition_confidence": 0.7}
         invalid_rows: list[object] = [
             ["not-an-object"],
+            legacy_row,
+            {**valid_row, "nutrition_inputs": [{"junk": True}]},
+            {
+                **valid_row,
+                "nutrition_inputs": [{"nutrients": {"iron_mg": 3.3}}],
+            },
+            {**valid_row, "nutrition_inputs": [{"source": "estimate"}]},
+            raw_coverage_missing,
+            raw_value_mismatch,
+            raw_source_mismatch,
+            missing_provenance,
+            extra_provenance,
+            stored_provenance_mismatch,
+            missing_nutrient_confidence,
+            zero_nutrient_confidence,
+            stored_confidence_mismatch,
+            zero_overall_confidence,
+            stored_overall_mismatch,
             {**valid_row, "name": ""},
+            {**valid_row, "name": 123},
+            {**valid_row, "source": 123},
+            {**valid_row, "source_id": {"unexpected": "shape"}},
             {**valid_row, "nutrients_per_100g": []},
             {**valid_row, "nutrients_per_100g": {"": 1.0}},
             {**valid_row, "nutrients_per_100g": {"iron_mg": True}},
@@ -929,6 +1016,18 @@ class TestTC209VIPDiffCoverage:
             "payload_not_object",
             "entry_identity_or_shape_invalid",
             "item_identity_invalid",
+            "nutrition_inputs_missing_or_invalid",
+            "nutrition_input_source_invalid",
+            "nutrition_input_nutrients_missing_or_invalid",
+            "nutrition_input_coverage_invalid",
+            "nutrition_provenance_coverage_invalid",
+            "nutrient_confidence_coverage_invalid",
+            "nutrient_confidence_range_invalid",
+            "overall_confidence_invalid",
+            "resolved_nutrients_mismatch",
+            "resolved_provenance_mismatch",
+            "resolved_nutrient_confidence_mismatch",
+            "resolved_overall_confidence_mismatch",
         } <= reason_codes
         diagnostic_text = caplog.text
         assert str(cache_file) not in diagnostic_text
@@ -936,6 +1035,172 @@ class TestTC209VIPDiffCoverage:
         assert "not-json" not in diagnostic_text
         assert "missing required fields" not in diagnostic_text
         assert "secret-exception-value" not in diagnostic_text
+
+    def test_common_food_cache_publication_is_atomic_and_failure_safe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        cache_file = cache_dir / "common_foods.json"
+        old_payload = {"old": _verified_cache_row(name="Old food", source_id="old-1")}
+        new_payload = {
+            "new": _verified_cache_row(
+                name="New food",
+                source_id="new-1",
+                iron_mg=4.4,
+            )
+        }
+        cache_file.write_text(json.dumps(old_payload), encoding="utf-8")
+        instance = cast(UnifiedFoodDatabase, SimpleNamespace(cache_dir=cache_dir))
+        monkeypatch.setattr(unified_db_module, "_unified_db_instance", instance)
+        real_replace = unified_db_module.os.replace
+        observed: dict[str, object] = {}
+
+        def _inspect_replace(source: object, destination: object) -> None:
+            observed["before"] = {
+                key: item.name
+                for key, item in unified_db_module.get_cached_common_foods_snapshot().items()
+            }
+            observed["temp"] = json.loads(Path(source).read_text(encoding="utf-8"))
+            real_replace(source, destination)
+
+        with monkeypatch.context() as successful_publish:
+            successful_publish.setattr(unified_db_module.os, "replace", _inspect_replace)
+            assert unified_db_module._publish_common_foods_cache(cache_file, new_payload)
+
+        assert observed == {
+            "before": {"old": "Old food"},
+            "temp": new_payload,
+        }
+        assert {
+            key: item.name
+            for key, item in unified_db_module.get_cached_common_foods_snapshot().items()
+        } == {"new": "New food"}
+        assert list(cache_dir.glob(".common_foods.*.tmp")) == []
+
+        cache_file.write_text(json.dumps(old_payload), encoding="utf-8")
+        caplog.clear()
+
+        def _fail_replace(_source: object, _destination: object) -> None:
+            raise OSError("secret-replace-error")
+
+        with monkeypatch.context() as failed_publish:
+            failed_publish.setattr(unified_db_module.os, "replace", _fail_replace)
+            assert not unified_db_module._publish_common_foods_cache(cache_file, new_payload)
+
+        assert {
+            key: item.name
+            for key, item in unified_db_module.get_cached_common_foods_snapshot().items()
+        } == {"old": "Old food"}
+        assert list(cache_dir.glob(".common_foods.*.tmp")) == []
+        assert "Failed to publish common-food cache" in caplog.text
+        assert str(cache_file) not in caplog.text
+        assert "secret-replace-error" not in caplog.text
+        assert "Old food" not in caplog.text
+        assert "New food" not in caplog.text
+
+    def test_canonical_food_constructors_round_trip_sparse_verified_evidence(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        usda_item = USDAFoodItem(
+            fdc_id=9001,
+            description="Sparse USDA chicken",
+            food_category="Poultry",
+            nutrients_per_100g={"protein_g": 31.0, "kcal": 165.0},
+            data_type="Foundation",
+            publication_date="2019-04-01",
+        )
+        usda_unified = UnifiedFoodItem.from_usda_item(usda_item)
+        off_item = OFFFoodItem(
+            code="9998887776665",
+            product_name="Legacy flat OFF row",
+            categories=["Prepared foods"],
+            nutrients_per_100g={"protein_g": 10.0, "fiber_g": 3.0},
+            ingredients_text=None,
+            brands=None,
+            labels=[],
+            countries=["BY"],
+            packaging=[],
+            image_url=None,
+            last_modified_t=1,
+        )
+        off_unified = UnifiedFoodItem.from_off_item(off_item)
+        merged = UnifiedFoodItem.from_usda_and_off_merge(usda_unified, off_unified)
+
+        assert "fat_g" not in usda_unified.nutrients_per_100g
+        assert "carbs_g" not in usda_unified.nutrients_per_100g
+        assert "fat_g" not in off_unified.nutrients_per_100g
+        assert "carbs_g" not in off_unified.nutrients_per_100g
+        assert "fat_g" not in merged.nutrients_per_100g
+        assert "carbs_g" not in merged.nutrients_per_100g
+        assert set(usda_unified.nutrition_provenance.values()) == {"usda"}
+        assert set(off_unified.nutrition_provenance.values()) == {"estimate"}
+        assert merged.nutrition_provenance["protein_g"] == "usda"
+        assert merged.nutrition_provenance["fiber_g"] == "estimate"
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        cache_file = cache_dir / "common_foods.json"
+        serialized: dict[str, object] = {
+            "usda": asdict(usda_unified),
+            "off": asdict(off_unified),
+            "merged": asdict(merged),
+        }
+        assert unified_db_module._publish_common_foods_cache(cache_file, serialized)
+        database = cast(UnifiedFoodDatabase, SimpleNamespace(cache_dir=cache_dir))
+        monkeypatch.setattr(unified_db_module, "_unified_db_instance", database)
+
+        snapshot = unified_db_module.get_cached_common_foods_snapshot()
+
+        assert set(snapshot) == {"usda", "off", "merged"}
+        assert snapshot["usda"].nutrients_per_100g == usda_unified.nutrients_per_100g
+        assert snapshot["off"].nutrients_per_100g == off_unified.nutrients_per_100g
+        assert snapshot["merged"].nutrients_per_100g == merged.nutrients_per_100g
+        assert snapshot["usda"].nutrition_inputs
+        assert snapshot["off"].nutrition_inputs
+        assert snapshot["merged"].nutrition_inputs
+
+    def test_common_food_database_build_uses_atomic_publisher(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        database = UnifiedFoodDatabase.__new__(UnifiedFoodDatabase)
+        database.cache_dir = cache_dir
+        search_calls = 0
+        verified_item = UnifiedFoodItem(**_verified_cache_row())
+
+        async def _search_food(
+            _query: str,
+            prefer_source: str = "usda",
+            save_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
+            nonlocal search_calls
+            del prefer_source
+            assert save_cache is False
+            search_calls += 1
+            return [verified_item] if search_calls == 1 else []
+
+        database.search_food = _search_food
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+
+        built = asyncio.run(database.get_common_foods_database())
+
+        assert len(built) == 1
+        assert next(iter(built.values())) is verified_item
+        assert search_calls == 20
+        assert list(cache_dir.glob(".common_foods.*.tmp")) == []
+        monkeypatch.setattr(unified_db_module, "_unified_db_instance", database)
+        snapshot = unified_db_module.get_cached_common_foods_snapshot()
+        assert len(snapshot) == 1
+        assert next(iter(snapshot.values())).name == "Lentils"
 
     def test_booster_is_deterministic_capped_and_input_immutable(
         self,

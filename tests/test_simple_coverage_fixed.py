@@ -555,7 +555,7 @@ class TestSimpleCoverageBoost:
         ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
-    def test_unified_db_module_coverage(self) -> None:
+    def test_unified_db_module_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
         import core.food_apis.unified_db as unified_db_module
 
@@ -573,9 +573,9 @@ class TestSimpleCoverageBoost:
         async def _get_configured_database() -> object:
             return await unified_db_module.get_unified_food_db()
 
-        with patch.object(unified_db_module, "_unified_db_instance", mock_db):
-            result = asyncio.run(_get_configured_database())
-            assert result is mock_db
+        monkeypatch.setattr(unified_db_module, "_unified_db_instance", mock_db)
+        result = asyncio.run(_get_configured_database())
+        assert result is mock_db
 
     def test_update_manager_module_coverage(self):
         """Покрытие core/food_apis/update_manager.py (95% -> 97%+)"""

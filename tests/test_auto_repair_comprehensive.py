@@ -620,20 +620,31 @@ class TestAutoRepairComprehensive:
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
         cache_file = cache_dir / "common_foods.json"
+        valid_nutrients = {
+            "protein_g": 9.0,
+            "fat_g": 0.4,
+            "carbs_g": 20.0,
+            "fiber_g": 8.0,
+            "iron_mg": 3.3,
+        }
         valid_row = {
             "name": "Lentils",
-            "nutrients_per_100g": {
-                "protein_g": 9.0,
-                "fat_g": 0.4,
-                "carbs_g": 20.0,
-                "fiber_g": 8.0,
-                "iron_mg": 3.3,
-            },
+            "nutrients_per_100g": valid_nutrients,
             "cost_per_100g": 1.0,
             "tags": ["VEG"],
             "availability_regions": ["BY"],
             "source": "cached-test",
             "source_id": "lentils-1",
+            "nutrition_inputs": [
+                {
+                    "source": "estimate",
+                    "record_id": "lentils-1",
+                    "nutrients": deepcopy(valid_nutrients),
+                }
+            ],
+            "nutrition_provenance": {nutrient: "estimate" for nutrient in valid_nutrients},
+            "nutrition_nutrient_confidence": {nutrient: 0.4 for nutrient in valid_nutrients},
+            "nutrition_confidence": 0.4,
         }
         cache_file.write_text(
             json.dumps({"lentils": valid_row}),

@@ -18,6 +18,10 @@ from core.food_apis.unified_db import (
     search_foods_unified,
 )
 from core.food_apis.usda_client import USDAFoodItem
+from core.off_nutrition.bridge import (
+    merge_wire_nutrition_sources,
+    nutrition_inputs_from_unified_wire,
+)
 
 
 class TestUnifiedFoodItemDataClass:
@@ -64,7 +68,7 @@ class TestUnifiedFoodItemConversions:
     """Test UnifiedFoodItem conversion methods."""
 
     def test_from_usda_item(self):
-        """Test conversion from USDA item with macronutrient defaults."""
+        """USDA conversion preserves only supplied resolver-backed nutrients."""
         # Create mock USDA item with partial nutrients (missing carbs_g)
         usda_item = USDAFoodItem(
             fdc_id=12345,
@@ -82,10 +86,9 @@ class TestUnifiedFoodItemConversions:
         assert (
             unified_item.name == "Chicken, broilers or fryers, breast, meat only, cooked, roasted"
         )
-        # Check that defaults were added for missing macros
         assert unified_item.nutrients_per_100g["protein_g"] == 31.0
         assert unified_item.nutrients_per_100g["fat_g"] == 3.6
-        assert unified_item.nutrients_per_100g["carbs_g"] == 0.0  # Default added
+        assert "carbs_g" not in unified_item.nutrients_per_100g
         assert unified_item.nutrients_per_100g["kcal"] == 165.0
         assert unified_item.cost_per_100g == 4.0
         assert unified_item.tags == ["protein", "meat"]
@@ -93,14 +96,29 @@ class TestUnifiedFoodItemConversions:
         assert unified_item.source == "USDA FoodData Central"
         assert unified_item.source_id == "12345"
         assert unified_item.category == "Poultry Products"
-        # Synthetic macro defaults must not inherit USDA provenance labels.
         assert "carbs_g" not in unified_item.nutrition_provenance
+        assert "carbs_g" not in unified_item.nutrition_nutrient_confidence
         assert unified_item.nutrition_provenance.get("protein_g") == "usda"
         assert unified_item.nutrition_confidence == 0.7
+        reconstructed_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=unified_item.nutrition_inputs,
+            nutrients_per_100g=unified_item.nutrients_per_100g,
+            fallback_source="usda",
+            record_id=unified_item.source_id,
+        )
+        reconstructed = merge_wire_nutrition_sources(
+            primary_inputs=reconstructed_inputs,
+            secondary_inputs=[],
+            nutrient_keys=sorted(unified_item.nutrients_per_100g),
+        )
+        assert dict(reconstructed.nutrients) == unified_item.nutrients_per_100g
+        assert dict(reconstructed.provenance) == unified_item.nutrition_provenance
+        assert dict(reconstructed.nutrient_confidence) == unified_item.nutrition_nutrient_confidence
+        assert reconstructed.confidence == unified_item.nutrition_confidence
 
     @patch("core.food_apis.unified_db.OFF_AVAILABLE", True)
     def test_from_off_item(self):
-        """Test conversion from Open Food Facts item with macronutrient defaults."""
+        """Legacy flat OFF conversion preserves only explicit estimate nutrients."""
         # Create mock OFF item with partial nutrients (missing fat_g and carbs_g)
         mock_off_item = MagicMock()
         mock_off_item.product_name = "Greek Yogurt"
@@ -113,10 +131,13 @@ class TestUnifiedFoodItemConversions:
         unified_item = UnifiedFoodItem.from_off_item(mock_off_item, estimated_cost=2.5)
 
         assert unified_item.name == "Greek Yogurt"
-        # Check that defaults were added for missing macros
         assert unified_item.nutrients_per_100g["protein_g"] == 10.0
-        assert unified_item.nutrients_per_100g["fat_g"] == 0.0  # Default added
-        assert unified_item.nutrients_per_100g["carbs_g"] == 0.0  # Default added
+        assert "fat_g" not in unified_item.nutrients_per_100g
+        assert "carbs_g" not in unified_item.nutrients_per_100g
+        assert "fat_g" not in unified_item.nutrition_provenance
+        assert "carbs_g" not in unified_item.nutrition_provenance
+        assert "fat_g" not in unified_item.nutrition_nutrient_confidence
+        assert "carbs_g" not in unified_item.nutrition_nutrient_confidence
         assert unified_item.nutrients_per_100g["kcal"] == 59.0
         assert unified_item.cost_per_100g == 2.5
         assert unified_item.tags == ["dairy", "protein"]
@@ -124,6 +145,21 @@ class TestUnifiedFoodItemConversions:
         assert unified_item.source == "Open Food Facts"
         assert unified_item.source_id == "1234567890123"
         assert unified_item.category == "Dairy products"
+        reconstructed_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=unified_item.nutrition_inputs,
+            nutrients_per_100g=unified_item.nutrients_per_100g,
+            fallback_source="estimate",
+            record_id=unified_item.source_id,
+        )
+        reconstructed = merge_wire_nutrition_sources(
+            primary_inputs=reconstructed_inputs,
+            secondary_inputs=[],
+            nutrient_keys=sorted(unified_item.nutrients_per_100g),
+        )
+        assert dict(reconstructed.nutrients) == unified_item.nutrients_per_100g
+        assert dict(reconstructed.provenance) == unified_item.nutrition_provenance
+        assert dict(reconstructed.nutrient_confidence) == unified_item.nutrition_nutrient_confidence
+        assert reconstructed.confidence == unified_item.nutrition_confidence
 
     @patch("core.food_apis.unified_db.OFF_AVAILABLE", True)
     def test_from_off_item_no_categories(self):

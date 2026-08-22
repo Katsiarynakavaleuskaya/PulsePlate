@@ -11,13 +11,16 @@ This module provides a single interface to access multiple food databases
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from copy import deepcopy
 import importlib
 import json
 import logging
 import math
+import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+import tempfile
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
 from core.off_nutrition.bridge import (
@@ -54,6 +57,38 @@ def _resolve_off_client() -> Tuple[Any, bool]:
 OFFClient, OFF_AVAILABLE = _resolve_off_client()
 
 logger = logging.getLogger(__name__)
+
+
+def _publish_common_foods_cache(
+    cache_file: Path,
+    cache_data: dict[str, object],
+) -> bool:
+    """Publish one complete common-food cache with same-directory atomic replace."""
+
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=cache_file.parent,
+            prefix=".common_foods.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            json.dump(cache_data, temp_file, indent=2, ensure_ascii=False)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_path, cache_file)
+    except Exception:
+        logger.error("Failed to publish common-food cache")
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                logger.error("Failed to clean incomplete common-food cache temp file")
+        return False
+    return True
 
 
 def _load_time_module() -> Any:
@@ -100,80 +135,83 @@ class UnifiedFoodItem:
     def from_usda_item(
         cls, usda_item: USDAFoodItem, estimated_cost: float = 1.0
     ) -> "UnifiedFoodItem":
-        """Convert USDA item to unified format.
+        """Convert one USDA item through the canonical nutrition resolver."""
 
-        Note: Ensures all primary macronutrients (protein_g, fat_g, carbs_g) have
-        default 0.0 values if missing from USDA response. Pure protein/fat foods
-        (e.g., chicken breast, salmon) may have 0 carbs and USDA may omit the field.
-        """
-        # Normalize nutrients - ensure primary macros have defaults for downstream math.
         raw_nutrients = dict(usda_item.nutrients_per_100g)
-        nutrients = dict(raw_nutrients)
-
-        # Set defaults for primary macronutrients if missing
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
+        nutrition_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=[
+                {
+                    "source": "usda",
+                    "record_id": str(usda_item.fdc_id),
+                    "version_ref": usda_item.publication_date,
+                    "nutrients": raw_nutrients,
+                    "raw_payload": {},
+                }
+            ],
+            nutrients_per_100g=raw_nutrients,
+            fallback_source="usda",
+            record_id=str(usda_item.fdc_id),
+            version_ref=usda_item.publication_date,
+        )
+        resolved = merge_wire_nutrition_sources(
+            primary_inputs=nutrition_inputs,
+            secondary_inputs=[],
+            nutrient_keys=sorted(raw_nutrients) if raw_nutrients else None,
+        )
 
         return cls(
             name=usda_item.description,
-            nutrients_per_100g=nutrients,
+            nutrients_per_100g=dict(resolved.nutrients),
             cost_per_100g=estimated_cost,
             tags=usda_item._generate_tags(),
             availability_regions=["US", "BY", "RU"],  # Assume global availability
             source="USDA FoodData Central",
             source_id=str(usda_item.fdc_id),
             category=usda_item.food_category,
-            nutrition_inputs=[
-                {
-                    "source": "usda",
-                    "record_id": str(usda_item.fdc_id),
-                    "version_ref": usda_item.publication_date,
-                    "nutrients": dict(raw_nutrients),
-                    "raw_payload": {},
-                }
-            ],
-            # Only attribute USDA provenance to fields present in the upstream payload;
-            # synthetic macro defaults must not be labeled as USDA-sourced.
-            nutrition_provenance={key: "usda" for key in raw_nutrients},
-            nutrition_nutrient_confidence=(
-                {key: 0.7 for key in raw_nutrients} if raw_nutrients else {}
-            ),
-            nutrition_confidence=0.7 if raw_nutrients else 0.0,
+            nutrition_inputs=[entry.to_dict() for entry in resolved.raw_inputs],
+            nutrition_provenance=dict(resolved.provenance),
+            nutrition_nutrient_confidence=dict(resolved.nutrient_confidence),
+            nutrition_confidence=resolved.confidence,
         )
 
     @classmethod
     def from_off_item(
         cls, off_item: "OFFFoodItemType", estimated_cost: float = 1.5
     ) -> "UnifiedFoodItem":
-        """Convert Open Food Facts item to unified format.
+        """Convert one OFF item through explicit or legacy-estimate resolver inputs."""
 
-        Note: Ensures all primary macronutrients (protein_g, fat_g, carbs_g) have
-        default 0.0 values if missing from Open Food Facts response.
-        """
-        # Normalize nutrients - ensure primary macros have defaults
-        nutrients = dict(off_item.nutrients_per_100g)
-
-        # Set defaults for primary macronutrients if missing
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
+        flat_nutrients = dict(off_item.nutrients_per_100g)
+        raw_wire_inputs = getattr(off_item, "nutrition_inputs", [])
+        wire_inputs = (
+            [dict(row) for row in raw_wire_inputs if isinstance(row, Mapping)]
+            if isinstance(raw_wire_inputs, list)
+            else []
+        )
+        nutrition_inputs = nutrition_inputs_from_unified_wire(
+            nutrition_inputs_wire=wire_inputs,
+            nutrients_per_100g=flat_nutrients,
+            fallback_source="estimate",
+            record_id=str(off_item.code),
+        )
+        resolved = merge_wire_nutrition_sources(
+            primary_inputs=nutrition_inputs,
+            secondary_inputs=[],
+            nutrient_keys=sorted(flat_nutrients) if flat_nutrients else None,
+        )
 
         return cls(
             name=off_item.product_name,
-            nutrients_per_100g=nutrients,
+            nutrients_per_100g=dict(resolved.nutrients),
             cost_per_100g=estimated_cost,
             tags=off_item._generate_tags(),
             availability_regions=off_item.countries,
             source="Open Food Facts",
             source_id=off_item.code,
             category=off_item.categories[0] if off_item.categories else None,
-            nutrition_inputs=list(getattr(off_item, "nutrition_inputs", [])),
-            nutrition_provenance=dict(getattr(off_item, "nutrition_provenance", {})),
-            nutrition_nutrient_confidence=dict(
-                getattr(off_item, "nutrition_nutrient_confidence", {})
-            ),
-            nutrition_confidence=float(getattr(off_item, "nutrition_confidence", 0.0)),
+            nutrition_inputs=[entry.to_dict() for entry in resolved.raw_inputs],
+            nutrition_provenance=dict(resolved.provenance),
+            nutrition_nutrient_confidence=dict(resolved.nutrient_confidence),
+            nutrition_confidence=resolved.confidence,
         )
 
     @classmethod
@@ -208,9 +246,6 @@ class UnifiedFoodItem:
             nutrient_keys=nutrient_keys,
         )
         nutrients = dict(resolved.nutrients)
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
         tags = list(dict.fromkeys([*usda_unified.tags, *off_unified.tags]))
         regions = list(
             dict.fromkeys([*usda_unified.availability_regions, *off_unified.availability_regions])
@@ -503,13 +538,9 @@ class UnifiedFoodDatabase:
                 continue
 
         # Save common foods cache
-        try:
-            cache_data = {key: asdict(item) for key, item in foods_db.items()}
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved {len(foods_db)} common foods to cache")
-        except Exception as e:
-            logger.error(f"Error saving common foods cache: {e}")
+        serialized_cache: dict[str, object] = {key: asdict(item) for key, item in foods_db.items()}
+        if _publish_common_foods_cache(cache_file, serialized_cache):
+            logger.info("Saved %d common foods to cache", len(foods_db))
 
         return foods_db
 
@@ -552,9 +583,12 @@ def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
             if not isinstance(key, str) or not key or not isinstance(raw_item, dict):
                 return _reject_cached_common_foods("entry_identity_or_shape_invalid")
             item = UnifiedFoodItem(**deepcopy(raw_item))
-            if not item.name or not item.source or not item.source_id:
+            if any(
+                not isinstance(value, str) or not value.strip()
+                for value in (item.name, item.source, item.source_id)
+            ):
                 return _reject_cached_common_foods("item_identity_invalid")
-            if not isinstance(item.nutrients_per_100g, dict):
+            if not isinstance(item.nutrients_per_100g, dict) or not item.nutrients_per_100g:
                 return _reject_cached_common_foods("nutrients_shape_invalid")
             for nutrient, raw_value in item.nutrients_per_100g.items():
                 if not isinstance(nutrient, str) or not nutrient:
@@ -581,32 +615,100 @@ def get_cached_common_foods_snapshot() -> Dict[str, UnifiedFoodItem]:
                 return _reject_cached_common_foods("availability_regions_invalid")
             if item.category is not None and not isinstance(item.category, str):
                 return _reject_cached_common_foods("category_invalid")
-            if not isinstance(item.nutrition_inputs, list) or not all(
-                isinstance(value, dict) for value in item.nutrition_inputs
+            if (
+                not isinstance(item.nutrition_inputs, list)
+                or not item.nutrition_inputs
+                or not all(
+                    isinstance(value, dict) and bool(value) for value in item.nutrition_inputs
+                )
             ):
-                return _reject_cached_common_foods("nutrition_inputs_invalid")
-            if not isinstance(item.nutrition_provenance, dict) or not all(
-                isinstance(name, str) and isinstance(value, str)
-                for name, value in item.nutrition_provenance.items()
+                return _reject_cached_common_foods("nutrition_inputs_missing_or_invalid")
+            nutrient_names = set(item.nutrients_per_100g)
+            validated_input_rows: list[dict[str, object]] = []
+            raw_nutrient_union: set[str] = set()
+            for raw_input in item.nutrition_inputs:
+                raw_source = raw_input.get("source")
+                if not isinstance(raw_source, str) or not raw_source.strip():
+                    return _reject_cached_common_foods("nutrition_input_source_invalid")
+                raw_nutrients = raw_input.get("nutrients")
+                if not isinstance(raw_nutrients, Mapping) or not raw_nutrients:
+                    return _reject_cached_common_foods(
+                        "nutrition_input_nutrients_missing_or_invalid"
+                    )
+                validated_raw_nutrients: dict[str, float] = {}
+                for raw_nutrient, raw_value in raw_nutrients.items():
+                    if not isinstance(raw_nutrient, str) or not raw_nutrient.strip():
+                        return _reject_cached_common_foods(
+                            "nutrition_input_nutrient_identity_invalid"
+                        )
+                    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+                        return _reject_cached_common_foods(
+                            "nutrition_input_nutrient_value_type_invalid"
+                        )
+                    numeric_value = float(raw_value)
+                    if not math.isfinite(numeric_value) or numeric_value < 0:
+                        return _reject_cached_common_foods(
+                            "nutrition_input_nutrient_value_range_invalid"
+                        )
+                    validated_raw_nutrients[raw_nutrient] = numeric_value
+                raw_nutrient_union.update(validated_raw_nutrients)
+                validated_input = deepcopy(raw_input)
+                validated_input["source"] = raw_source
+                validated_input["nutrients"] = validated_raw_nutrients
+                validated_input_rows.append(validated_input)
+            if not nutrient_names <= raw_nutrient_union:
+                return _reject_cached_common_foods("nutrition_input_coverage_invalid")
+            if (
+                not isinstance(item.nutrition_provenance, dict)
+                or set(item.nutrition_provenance) != nutrient_names
+                or not all(
+                    isinstance(name, str) and isinstance(value, str) and bool(value.strip())
+                    for name, value in item.nutrition_provenance.items()
+                )
             ):
-                return _reject_cached_common_foods("nutrition_provenance_invalid")
-            if not isinstance(item.nutrition_nutrient_confidence, dict):
-                return _reject_cached_common_foods("nutrient_confidence_shape_invalid")
+                return _reject_cached_common_foods("nutrition_provenance_coverage_invalid")
+            if (
+                not isinstance(item.nutrition_nutrient_confidence, dict)
+                or set(item.nutrition_nutrient_confidence) != nutrient_names
+            ):
+                return _reject_cached_common_foods("nutrient_confidence_coverage_invalid")
             for name, raw_confidence in item.nutrition_nutrient_confidence.items():
                 if not isinstance(name, str) or isinstance(raw_confidence, bool):
                     return _reject_cached_common_foods("nutrient_confidence_identity_invalid")
                 if not isinstance(raw_confidence, (int, float)):
                     return _reject_cached_common_foods("nutrient_confidence_type_invalid")
                 confidence = float(raw_confidence)
-                if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+                if not math.isfinite(confidence) or not 0 < confidence <= 1:
                     return _reject_cached_common_foods("nutrient_confidence_range_invalid")
             if (
                 isinstance(item.nutrition_confidence, bool)
                 or not isinstance(item.nutrition_confidence, (int, float))
                 or not math.isfinite(float(item.nutrition_confidence))
-                or not 0 <= float(item.nutrition_confidence) <= 1
+                or not 0 < float(item.nutrition_confidence) <= 1
             ):
                 return _reject_cached_common_foods("overall_confidence_invalid")
+            rebuilt_inputs = nutrition_inputs_from_unified_wire(
+                nutrition_inputs_wire=validated_input_rows,
+                nutrients_per_100g={},
+                fallback_source="estimate",
+                record_id=item.source_id,
+            )
+            resolved = merge_wire_nutrition_sources(
+                primary_inputs=rebuilt_inputs,
+                secondary_inputs=[],
+                nutrient_keys=sorted(nutrient_names),
+            )
+            published_nutrients = {
+                nutrient: float(value) for nutrient, value in item.nutrients_per_100g.items()
+            }
+            if dict(resolved.nutrients) != published_nutrients:
+                return _reject_cached_common_foods("resolved_nutrients_mismatch")
+            if dict(resolved.provenance) != item.nutrition_provenance:
+                return _reject_cached_common_foods("resolved_provenance_mismatch")
+            if dict(resolved.nutrient_confidence) != item.nutrition_nutrient_confidence:
+                return _reject_cached_common_foods("resolved_nutrient_confidence_mismatch")
+            if resolved.confidence != float(item.nutrition_confidence):
+                return _reject_cached_common_foods("resolved_overall_confidence_mismatch")
             validated[key] = deepcopy(item)
     except (TypeError, ValueError, OverflowError):
         return _reject_cached_common_foods("entry_model_invalid")

@@ -580,7 +580,7 @@ class TestVIPIntegration97Extended:
                 ]
             }
         )
-        payload_no_problems = _auto_repair_payload(
+        payload_multi_ingredient_deficit = _auto_repair_payload(
             {
                 "days": [
                     {
@@ -602,7 +602,11 @@ class TestVIPIntegration97Extended:
             }
         )
 
-        for payload in (payload_problems, payload_simple_problems, payload_no_problems):
+        for payload in (
+            payload_problems,
+            payload_simple_problems,
+            payload_multi_ingredient_deficit,
+        ):
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=payload,
@@ -928,7 +932,7 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid auto-repair request payload"
         }
 
-        overflow_admission = _auto_repair_payload(payload_no_problems["week_plan"])
+        overflow_admission = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
         overflow_admission["week_plan"]["days"][0]["meals"][0]["nutrients"]["kcal"] = 10**310
         cached_reader = Mock(side_effect=AssertionError("core cache must not be called"))
         with monkeypatch.context() as overflow_guard:
@@ -961,7 +965,9 @@ class TestVIPIntegration97Extended:
             ("priority_nutrients", {"iron_mg": 5}),
             ("deficiency_threshold", 0.8),
         ):
-            payload_with_extra_target = _auto_repair_payload(payload_no_problems["week_plan"])
+            payload_with_extra_target = _auto_repair_payload(
+                payload_multi_ingredient_deficit["week_plan"]
+            )
             payload_with_extra_target["targets"][forbidden_target_field] = forbidden_value
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
@@ -999,7 +1005,7 @@ class TestVIPIntegration97Extended:
         }
 
         stable_failure_message = "Auto-repair could not complete the requested repair"
-        preferences_payload = _auto_repair_payload(payload_no_problems["week_plan"])
+        preferences_payload = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
         preferences_payload["user_preferences"] = {"exclude": ["bread"]}
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -1053,7 +1059,7 @@ class TestVIPIntegration97Extended:
             )
             catalog.assert_not_called()
 
-        zero_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        zero_interval = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
         zero_interval["targets"]["iron_mg"] = [0.0, 0.0, 0.0]
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -1065,7 +1071,7 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid auto-repair request payload"
         }
 
-        negative_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        negative_interval = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
         negative_interval["targets"]["iron_mg"] = [-1.0, 8.0, 45.0]
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -1077,7 +1083,7 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid auto-repair request payload"
         }
 
-        malformed_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        malformed_interval = _auto_repair_payload(payload_multi_ingredient_deficit["week_plan"])
         malformed_interval["targets"]["iron_mg"] = [8.0, 6.0, 45.0]
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",

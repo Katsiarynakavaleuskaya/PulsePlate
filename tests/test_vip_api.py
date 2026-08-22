@@ -905,7 +905,7 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
         assert detail_shapes == {"string", "array"}
 
 
-def test_vip_auto_repair_schema_rejects_ambiguous_values() -> None:
+def test_vip_auto_repair_schema_admits_valid_and_rejects_ambiguous_values() -> None:
     """Cover the typed schema's fail-closed pre-coercion branches."""
     from pydantic import ValidationError
 

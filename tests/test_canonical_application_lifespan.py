@@ -317,6 +317,16 @@ def test_default_unified_food_lifecycle_is_cached_only_and_owned(
                         "availability_regions": ["BY"],
                         "source": "fixture",
                         "source_id": "iron-1",
+                        "nutrition_inputs": [
+                            {
+                                "source": "estimate",
+                                "record_id": "iron-1",
+                                "nutrients": {"iron_mg": 10.0},
+                            }
+                        ],
+                        "nutrition_provenance": {"iron_mg": "estimate"},
+                        "nutrition_nutrient_confidence": {"iron_mg": 0.4},
+                        "nutrition_confidence": 0.4,
                     }
                 }
             ),
@@ -472,7 +482,6 @@ def test_simultaneous_threaded_unified_food_acquisition_constructs_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     start_barrier = threading.Barrier(3)
-    construction_barrier = threading.Barrier(2)
     result_lock = threading.Lock()
     created: list[tuple[UnifiedFoodDatabase, _ClosingClient, _ClosingClient]] = []
     leases: list[UnifiedFoodLifecycleLease] = []
@@ -486,10 +495,6 @@ def test_simultaneous_threaded_unified_food_acquisition_constructs_once(
     ) -> None:
         del cache_dir
         assert create_cache_dir is False
-        try:
-            construction_barrier.wait(timeout=0.2)
-        except threading.BrokenBarrierError:
-            pass
         usda_client = _ClosingClient()
         off_client = _ClosingClient()
         instance.usda_client = usda_client
@@ -561,6 +566,8 @@ def test_partial_unified_food_acquisition_closes_all_local_clients(
         raise RuntimeError("partial initialization")
 
     monkeypatch.setattr(unified_db_module, "_unified_db_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
     monkeypatch.setattr(
         unified_db_module.UnifiedFoodDatabase,
         "__init__",
