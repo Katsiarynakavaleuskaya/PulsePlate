@@ -52,12 +52,9 @@ envelope rules.
 
 ## Route family freeze
 
-### Landed PRO structured coach surface
+### Landed PRO structured coach surfaces
 
 - `POST /api/v1/pro/fitchef/explain`
-
-### Remaining PRO structured coach follow-up
-
 - `POST /api/v1/pro/fitchef/recommend`
 
 ### Landed VIP structured coach surface
@@ -83,8 +80,10 @@ without changing route naming or public mascot canon.
   - landed first bounded capability: `Distortion Simulator`
   - shape direction: structured thought-record style reframing tool
 - `POST /api/v1/pro/fitchef/recommend`
-  - intended first bounded capability: action-oriented follow-up after reframing
-  - shape direction: structured next-step recommendation, not open-ended chat
+  - landed bounded capability: deterministic support handoff
+  - closed request needs: `daily_structure` and `weekly_structure`
+  - shape: one descriptor-only product-surface action, not open-ended chat,
+    plan adaptation, navigation, or downstream execution
 
 ### VIP mapping
 
@@ -144,13 +143,32 @@ aligned with the live mascot routers:
 3. input guard
 4. quota / policy / provider path
 
+The deterministic `POST /api/v1/pro/fitchef/recommend` route is the bounded
+non-executing exception to steps 2-4. Its exact order is:
+
+`POST /api/v1/pro/fitchef/recommend` returns one deterministic, non-executing
+product-surface handoff selected solely from the request's explicit
+`support_need`. It does not inspect a plan, history, adherence, goal, or prior
+FitChef response; infer friction or intent; call RAG, an AI provider, or an LLM;
+invoke the target surface; or create or change a plan.
+
+1. canonical `require_pro_tier`
+2. shared `FEATURE_FITCHEF_STRUCTURED_COACH` flag
+3. raw JSON parse and `FitChefSupportHandoffRequest` validation
+4. pure two-branch descriptor selection
+
+It documents only `200`, `401`, `403`, `422`, and `503`. It does not use an
+execution-mode gate, input guard, rate limit, monthly quota, provider, RAG,
+planner, persistence, analytics, navigation, or target invocation. This narrow
+exception does not weaken any expensive or AI-backed FitChef route.
+
 Additional freeze points:
 
 - live mascot routes remain on `RATE_LIMIT_INSIGHT`
 - expensive structured coach surfaces must stay fail-closed on rate limit,
   quota, provider unavailability, and unsafe input
-- future runtime paths must preserve explicit `429`, `503`, and `504`
-  documentation and deterministic tests
+- future expensive or provider-backed runtime paths must preserve explicit
+  `429`, `503`, and `504` documentation and deterministic tests
 
 ## Structured response direction
 
@@ -168,6 +186,46 @@ The landed VIP Identity Loop Mapper runtime is schema-frozen by
 `identity_shift_statement`, `replacement_action`, `repair_if_slip`, `sources`,
 `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and
 `wellness_boundary`.
+
+The landed deterministic PRO support handoff is schema-frozen by
+`FitChefSupportHandoffRequest`, `FitChefSupportHandoffActionV1`, and
+`FitChefSupportHandoffResponse`:
+
+- `daily_structure` maps only to `pro_daily_plate`
+- `weekly_structure` maps only to `pro_weekly_plan`
+- `action.action_type` is always `handoff_to_product_surface`
+- `user_confirmation_required=true`
+- `execution_authority=false`
+- `plan_mutation_authority=false`
+- `used_llm=false`
+- `wellness_boundary=wellness_planning_only`
+
+These fields have the following frozen meaning:
+
+- `recommend` means only enum-to-surface selection. It does not mean best
+  choice, ranking, personalization, or inferred suitability.
+- `support_need` is the caller's explicit request-local choice. It is not a
+  detected problem, goal authority, inferred friction, or persisted preference.
+- `user_confirmation_required=true` requires a separate user gesture before a
+  client uses the handoff. It is not plan approval.
+- `execution_authority=false` forbids automatic target invocation, screen
+  opening, navigation, or generation by the server or client.
+- `plan_mutation_authority=false` means no plan lookup, creation, repair,
+  replacement, update, persistence, or deletion and makes no claim that a plan
+  exists.
+- `used_llm=false` is backed by the pure service boundary and negative-call
+  tests, not treated as sufficient evidence by itself.
+- `target_surface` is a declarative backend slug. It does not guarantee that a
+  client screen exists or that a downstream request is available to this user.
+
+The response contains no free text, history, reframe, or plan. Its product
+utility remains unmeasured, and the surface slug does not claim that any client
+has implemented navigation.
+
+The selector itself performs no database or analytics work after authorization.
+Canonical `require_pro_tier` may read persisted subscription state, and existing
+middleware may still emit operational metrics; neither is selector-side product
+state or plan mutation.
 
 The generic envelope direction below is for later unimplemented structured-coach
 follow-ups that do not already have a frozen response schema. It must not
@@ -307,12 +365,9 @@ Future structured coach implementation must:
 - PR #1870 landed the feature-gated VIP Identity Loop Mapper runtime at
   `POST /api/v1/vip/fitchef/insight` with the frozen
   `FitChefIdentityLoopMapperResponse` envelope.
-
-### Remaining PRO follow-up
-
-- `POST /api/v1/pro/fitchef/recommend`
-- deterministic route tests
-- analytics and action-routing contracts
+- The E1-05 lane lands the feature-gated deterministic PRO support handoff at
+  `POST /api/v1/pro/fitchef/recommend` with frozen DTOs and deterministic route
+  tests. It emits no analytics and executes no action.
 
 ### Later VIP structured follow-ups
 
@@ -323,9 +378,8 @@ Future structured coach implementation must:
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- adding any new runtime surface in this lane beyond the already-landed
-  `POST /api/v1/pro/fitchef/explain` and bounded VIP Identity Loop Mapper
-  route at `POST /api/v1/vip/fitchef/insight`
+- adding any new runtime surface beyond the landed PRO explain/support-handoff
+  routes and bounded VIP Identity Loop Mapper route
 - adding frontend or iOS FitChef runtime consumers
 - mixing website brand rollout or App Store assets into this contract lane
 
@@ -336,6 +390,8 @@ truth:
 
 - `app.main.ensure_canonical_app_bootstrap`
 - `app.routers.fitchef_structured.fitchef_distortion_simulator`
+- `app.routers.fitchef_structured.fitchef_support_handoff`
+- `app.services.fitchef_support_handoff.build_fitchef_support_handoff`
 - `app.routers.fitchef_insight.router`
 - `app.routers.fitchef_insight.fitchef_mascot_insight`
 - `app.routers.fitchef_insight.fitchef_weekly_reflection`

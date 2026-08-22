@@ -67,7 +67,10 @@ from app.routers.catalog import (
 )
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
-from app.routers.fitchef_structured import router as fitchef_structured_router
+from app.routers.fitchef_structured import (
+    router as fitchef_structured_router,
+    support_handoff_router as fitchef_support_handoff_router,
+)
 from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
 from app.routers.foods import FOODS_ROUTE_SPECS, get_food_store, router as foods_router
 from app.routers.health import router as health_router
@@ -150,6 +153,7 @@ _HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
 )
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
+_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend"
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
@@ -1100,6 +1104,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         (_FEEDBACK_ROUTE_PATH, feedback_router),
         (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
         (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
+        (_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH, fitchef_support_handoff_router),
         (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
         (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
     ):
@@ -1198,6 +1203,9 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     if not route_exists[_FITCHEF_STRUCTURED_ROUTE_PATH]:
         app.include_router(fitchef_structured_router)
+
+    if not route_exists[_FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH]:
+        app.include_router(fitchef_support_handoff_router)
 
     if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)

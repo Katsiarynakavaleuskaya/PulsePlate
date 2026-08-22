@@ -13,10 +13,28 @@ from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+import app.middleware.api_tiers as api_tiers_mod
 from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
+from app.middleware.api_tiers import (
+    AuthSource,
+    DBLookupResult,
+    DBLookupStatus,
+    SubscriptionTier,
+    TEST_KEY_PRO,
+    TEST_KEY_VIP,
+    require_pro_tier,
+    resolve_pro_auth_context,
+)
+from app.routers.api_key import api_key_header
+from app.routers.fitchef_structured import (
+    _parse_fitchef_support_handoff_request,
+    fitchef_support_handoff,
+    support_handoff_router,
+)
 from app.schemas.fitchef import (
     FitChefDistortionFieldAssuranceAssessmentV1,
     FitChefDistortionSimulatorInput,
@@ -28,11 +46,17 @@ from app.schemas.fitchef import (
     FitChefIdentityLoopValue,
     FitChefSourceItem,
 )
+from app.schemas.fitchef_coaching import (
+    FitChefSupportHandoffResponse,
+    FitChefSupportNeed,
+)
 from app.services.fitchef_claim_evidence_assurance import (
     FitChefSourceOccurrenceV1,
     FitChefSourceSnapshotV1,
     build_distortion_field_assurance_unavailable,
 )
+from app.services.fitchef_support_handoff import build_fitchef_support_handoff
+from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
 
 if TYPE_CHECKING:
     from core.insight.fitchef_companion import FitChefDistortionDraft
@@ -436,6 +460,815 @@ class TestFitChefDistortionSimulatorRoute:
             "properties",
         )
         assert "claim_evidence_assessment" not in public_properties
+
+
+def test_support_handoff_source_router_has_one_directly_guarded_post() -> None:
+    """The canonical source router owns exactly one directly PRO-guarded POST."""
+
+    candidates = tuple(iter_effective_route_candidates(support_handoff_router.routes))
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    route = getattr(candidate, "original_route", candidate)
+    assert isinstance(route, APIRoute)
+    assert route_path(candidate) == "/api/v1/pro/fitchef/recommend"
+    assert route_methods(route) == {"POST"}
+    assert [dependency.call for dependency in route.dependant.dependencies] == [require_pro_tier]
+
+
+def test_support_handoff_handler_has_finite_nonexecuting_call_graph() -> None:
+    """The route and parser may only admit, validate, and invoke the pure mapper."""
+
+    assert set(fitchef_support_handoff.__code__.co_names) == {
+        "FITCHEF_STRUCTURED_DISABLED_DETAIL",
+        "HTTPException",
+        "_is_fitchef_structured_enabled",
+        "_parse_fitchef_support_handoff_request",
+        "build_fitchef_support_handoff",
+        "support_need",
+    }
+    assert set(_parse_fitchef_support_handoff_request.__code__.co_names) == {
+        "FITCHEF_SUPPORT_HANDOFF_VALIDATION_DETAIL",
+        "FitChefSupportHandoffRequest",
+        "HTTPException",
+        "RecursionError",
+        "UnicodeDecodeError",
+        "ValidationError",
+        "ValueError",
+        "json",
+        "model_validate",
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_status"),
+    ((b"", 403), (TEST_KEY_PRO.encode("ascii"), 200)),
+)
+def test_resolve_pro_auth_context_recovers_raw_request_header(
+    raw_value: bytes,
+    expected_status: int,
+) -> None:
+    """A real Request recovers the raw selected header when Security yields None."""
+
+    header_name = api_key_header.model.name.lower().encode("ascii")
+    request = Request({"type": "http", "headers": [(header_name, raw_value)]})
+    assert request.headers.get(api_key_header.model.name) == raw_value.decode("ascii")
+
+    if expected_status == 403:
+        with pytest.raises(HTTPException) as exc_info:
+            resolve_pro_auth_context(x_api_key=None, request=request)
+        assert exc_info.value.status_code == expected_status
+        assert exc_info.value.detail == "API key does not have PRO tier access"
+        return
+
+    context = resolve_pro_auth_context(x_api_key=None, request=request)
+    assert context.api_key == TEST_KEY_PRO
+    assert context.tier == SubscriptionTier.PRO
+    assert context.source == AuthSource.HEADER
+
+
+def test_resolve_pro_auth_context_does_not_overwrite_explicit_argument() -> None:
+    """An explicit non-None dependency value remains authoritative over raw headers."""
+
+    header_name = api_key_header.model.name.lower().encode("ascii")
+    request = Request({"type": "http", "headers": [(header_name, b"invalid")]})
+
+    context = resolve_pro_auth_context(x_api_key=TEST_KEY_PRO, request=request)
+
+    assert context.api_key == TEST_KEY_PRO
+    assert context.tier == SubscriptionTier.PRO
+    assert context.source == AuthSource.HEADER
+
+
+def test_resolve_pro_auth_context_direct_call_without_request_remains_compatible() -> None:
+    """Direct callers with an explicit key do not require a real Request object."""
+
+    context = resolve_pro_auth_context(x_api_key=TEST_KEY_PRO)
+
+    assert context.api_key == TEST_KEY_PRO
+    assert context.tier == SubscriptionTier.PRO
+    assert context.source == AuthSource.HEADER
+
+
+@pytest.mark.parametrize(
+    ("first_value", "second_value", "expected_selected", "expected_status"),
+    (
+        (TEST_KEY_PRO, "invalid", TEST_KEY_PRO, 200),
+        ("invalid", TEST_KEY_PRO, "invalid", 403),
+    ),
+)
+def test_resolve_pro_auth_context_uses_canonical_duplicate_header_selection(
+    first_value: str,
+    second_value: str,
+    expected_selected: str,
+    expected_status: int,
+) -> None:
+    """Duplicate headers use Headers.get once and never scan alternate values."""
+
+    header_name = api_key_header.model.name.lower().encode("ascii")
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (header_name, first_value.encode("ascii")),
+                (header_name, second_value.encode("ascii")),
+            ],
+        }
+    )
+    assert request.headers.get(api_key_header.model.name) == expected_selected
+
+    if expected_status == 403:
+        with pytest.raises(HTTPException) as exc_info:
+            resolve_pro_auth_context(x_api_key=None, request=request)
+        assert exc_info.value.status_code == expected_status
+        return
+
+    context = resolve_pro_auth_context(x_api_key=None, request=request)
+    assert context.api_key == expected_selected
+    assert context.source == AuthSource.HEADER
+
+
+class TestFitChefSupportHandoffRoute:
+    """Route coverage for the deterministic PRO support handoff."""
+
+    @pytest.fixture(autouse=True)
+    def setup(
+        self,
+        client: TestClient,
+        pro_headers: dict[str, str],
+        vip_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self.client = client
+        self.pro_headers = pro_headers
+        self.vip_headers = vip_headers
+        self.monkeypatch = monkeypatch
+        self.url = "/api/v1/pro/fitchef/recommend"
+        self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+
+    @pytest.mark.parametrize(
+        ("support_need", "target_surface"),
+        (
+            ("daily_structure", "pro_daily_plate"),
+            ("weekly_structure", "pro_weekly_plan"),
+        ),
+    )
+    def test_returns_exact_descriptor_only_handoff(
+        self,
+        support_need: str,
+        target_surface: str,
+    ) -> None:
+        """Each closed need maps to one exact non-executing action descriptor."""
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": support_need},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response) == {
+            "schema_version": "fitchef_support_handoff.v1",
+            "scenario": "support_handoff",
+            "support_need": support_need,
+            "action": {
+                "action_type": "handoff_to_product_surface",
+                "target_surface": target_surface,
+            },
+            "user_confirmation_required": True,
+            "execution_authority": False,
+            "plan_mutation_authority": False,
+            "used_llm": False,
+            "wellness_boundary": "wellness_planning_only",
+        }
+
+    @pytest.mark.parametrize(
+        ("support_need", "target_surface", "expected_content"),
+        (
+            (
+                "daily_structure",
+                "pro_daily_plate",
+                b'{"schema_version":"fitchef_support_handoff.v1","scenario":"support_handoff",'
+                b'"support_need":"daily_structure","action":{"action_type":'
+                b'"handoff_to_product_surface","target_surface":"pro_daily_plate"},'
+                b'"user_confirmation_required":true,"execution_authority":false,'
+                b'"plan_mutation_authority":false,"used_llm":false,'
+                b'"wellness_boundary":"wellness_planning_only"}',
+            ),
+            (
+                "weekly_structure",
+                "pro_weekly_plan",
+                b'{"schema_version":"fitchef_support_handoff.v1","scenario":"support_handoff",'
+                b'"support_need":"weekly_structure","action":{"action_type":'
+                b'"handoff_to_product_surface","target_surface":"pro_weekly_plan"},'
+                b'"user_confirmation_required":true,"execution_authority":false,'
+                b'"plan_mutation_authority":false,"used_llm":false,'
+                b'"wellness_boundary":"wellness_planning_only"}',
+            ),
+        ),
+    )
+    def test_repeated_identical_calls_return_identical_json_bytes_and_values(
+        self,
+        support_need: str,
+        target_surface: str,
+        expected_content: bytes,
+    ) -> None:
+        """Both closed mappings remain byte-for-byte deterministic across calls."""
+
+        first = self.client.post(
+            self.url,
+            json={"support_need": support_need},
+            headers=self.pro_headers,
+        )
+        second = self.client.post(
+            self.url,
+            json={"support_need": support_need},
+            headers=self.pro_headers,
+        )
+
+        assert first.status_code == second.status_code == 200
+        assert first.content == second.content == expected_content
+        assert (
+            _json_body(first)
+            == _json_body(second)
+            == {
+                "schema_version": "fitchef_support_handoff.v1",
+                "scenario": "support_handoff",
+                "support_need": support_need,
+                "action": {
+                    "action_type": "handoff_to_product_surface",
+                    "target_surface": target_surface,
+                },
+                "user_confirmation_required": True,
+                "execution_authority": False,
+                "plan_mutation_authority": False,
+                "used_llm": False,
+                "wellness_boundary": "wellness_planning_only",
+            }
+        )
+
+    def test_vip_credential_returns_exact_pro_handoff(self) -> None:
+        """A valid VIP credential remains valid for this canonical PRO route."""
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "weekly_structure"},
+            headers=self.vip_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response) == {
+            "schema_version": "fitchef_support_handoff.v1",
+            "scenario": "support_handoff",
+            "support_need": "weekly_structure",
+            "action": {
+                "action_type": "handoff_to_product_surface",
+                "target_surface": "pro_weekly_plan",
+            },
+            "user_confirmation_required": True,
+            "execution_authority": False,
+            "plan_mutation_authority": False,
+            "used_llm": False,
+            "wellness_boundary": "wellness_planning_only",
+        }
+
+    def test_auth_precedes_feature_gate_and_json_parsing(self) -> None:
+        """Missing auth wins even when the feature is off and JSON is malformed."""
+
+        self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "false")
+        response = self.client.post(
+            self.url,
+            content="{",
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"] == "ApiKey"
+        assert _json_body(response) == {"detail": "API key required for PRO tier access"}
+
+    @pytest.mark.parametrize("presented_credential", ("", "invalid"))
+    def test_invalid_credential_precedes_malformed_json(
+        self,
+        presented_credential: str,
+    ) -> None:
+        """Every invalid presented credential returns canonical 403 before JSON parsing."""
+
+        response = self.client.post(
+            self.url,
+            content="{",
+            headers={
+                "X-API-Key": presented_credential,
+                "Content-Type": "application/json",
+            },
+        )
+
+        assert response.request.headers["x-api-key"] == presented_credential
+        assert response.status_code == 403
+        assert _json_body(response) == {"detail": "API key does not have PRO tier access"}
+
+    @pytest.mark.parametrize("presented_credential", ("", " ", "invalid"))
+    def test_invalid_header_dominates_valid_cookie_and_never_calls_mapper(
+        self,
+        presented_credential: str,
+    ) -> None:
+        """Every presented invalid header blocks cookie fallback and mapping."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for an invalid presented header")
+
+        issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO", ttl_seconds=300)
+        self.client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+            headers={"X-API-Key": presented_credential},
+        )
+
+        assert response.request.headers["x-api-key"] == presented_credential
+        assert response.status_code == 403
+        assert _json_body(response) == {"detail": "API key does not have PRO tier access"}
+
+    @pytest.mark.parametrize(
+        ("api_key", "tier"),
+        ((TEST_KEY_PRO, "PRO"), (TEST_KEY_VIP, "VIP")),
+    )
+    def test_absent_header_with_valid_paid_cookie_succeeds(
+        self,
+        api_key: str,
+        tier: str,
+    ) -> None:
+        """A truly absent header preserves valid PRO and VIP cookie fallback."""
+
+        issued = issue_web_session(api_key=api_key, tier=tier, ttl_seconds=300)
+        self.client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+        )
+
+        assert "x-api-key" not in response.request.headers
+        assert response.status_code == 200
+        assert _json_body(response)["support_need"] == "daily_structure"
+
+    def test_valid_header_dominates_cookie_without_cookie_resolution(self) -> None:
+        """A valid header returns before the valid cookie resolver is consulted."""
+
+        def _forbidden_cookie_resolution(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("valid header must dominate cookie resolution")
+
+        issued = issue_web_session(api_key=TEST_KEY_VIP, tier="VIP", ttl_seconds=300)
+        self.client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+        self.monkeypatch.setattr(
+            api_tiers_mod,
+            "_resolve_cookie_auth_context",
+            _forbidden_cookie_resolution,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "weekly_structure"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["support_need"] == "weekly_structure"
+
+    @pytest.mark.parametrize(
+        "lookup_status",
+        (DBLookupStatus.MISS, DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER),
+    )
+    def test_db_non_hit_rejects_env_fallback_without_mapper(
+        self,
+        lookup_status: DBLookupStatus,
+    ) -> None:
+        """DB-backed non-HIT outcomes remain 403 with no env fallback or mapping."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for a DB auth non-HIT")
+
+        self.monkeypatch.setenv("APP_ENV", "production")
+        self.monkeypatch.setenv("ENVIRONMENT", "production")
+        self.monkeypatch.setenv("DEBUG", "false")
+        self.monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        self.monkeypatch.setenv("PRO_API_KEYS", "env_fallback_key")
+        self.monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _api_key: DBLookupResult(status=lookup_status),
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+            headers={"X-API-Key": "env_fallback_key"},
+        )
+
+        assert response.status_code == 403
+        assert _json_body(response) == {"detail": "API key does not have PRO tier access"}
+
+    def test_db_hit_authorizes_support_handoff(self) -> None:
+        """A DB HIT with PRO tier authorizes the deterministic mapper path."""
+
+        self.monkeypatch.setenv("APP_ENV", "production")
+        self.monkeypatch.setenv("ENVIRONMENT", "production")
+        self.monkeypatch.setenv("DEBUG", "false")
+        self.monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        self.monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _api_key: DBLookupResult(
+                status=DBLookupStatus.HIT,
+                tier=SubscriptionTier.PRO,
+            ),
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+            headers={"X-API-Key": "db_hit_key"},
+        )
+
+        assert response.status_code == 200
+        assert _json_body(response)["support_need"] == "daily_structure"
+
+    def test_db_hit_with_free_tier_rejects_without_mapping(self) -> None:
+        """A recognized FREE entitlement remains insufficient for the PRO route."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for a FREE DB entitlement")
+
+        self.monkeypatch.setenv("APP_ENV", "production")
+        self.monkeypatch.setenv("ENVIRONMENT", "production")
+        self.monkeypatch.setenv("DEBUG", "false")
+        self.monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        self.monkeypatch.setattr(
+            api_tiers_mod,
+            "_lookup_tier_from_db",
+            lambda _api_key: DBLookupResult(
+                status=DBLookupStatus.HIT,
+                tier=SubscriptionTier.FREE,
+            ),
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+            headers={"X-API-Key": "db_free_key"},
+        )
+
+        assert response.status_code == 403
+        assert _json_body(response) == {"detail": "API key does not have PRO tier access"}
+
+    @pytest.mark.parametrize("flag_value", (None, "false", "malformed", " true "))
+    def test_unavailable_feature_precedes_json_and_never_calls_mapper(
+        self,
+        flag_value: str | None,
+    ) -> None:
+        """Unset, disabled, and malformed feature values fail before JSON or mapping."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run when the feature is unavailable")
+
+        if flag_value is None:
+            self.monkeypatch.delenv("FEATURE_FITCHEF_STRUCTURED_COACH", raising=False)
+        else:
+            self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", flag_value)
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+        response = self.client.post(
+            self.url,
+            content="{",
+            headers={**self.pro_headers, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 503
+        assert _json_body(response) == {"detail": "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"}
+
+    def test_malformed_json_returns_stable_422_after_admission(self) -> None:
+        """Malformed JSON is sanitized after auth and feature admission."""
+
+        response = self.client.post(
+            self.url,
+            content="{",
+            headers={**self.pro_headers, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 422
+        assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
+
+    def test_invalid_utf8_json_returns_stable_422_without_mapping(self) -> None:
+        """Invalid UTF-8 is sanitized by the distinct JSON decode boundary."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for invalid UTF-8 JSON")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+        response = self.client.post(
+            self.url,
+            content=b"\xff",
+            headers={**self.pro_headers, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 422
+        assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
+
+    @pytest.mark.parametrize(
+        "content",
+        (
+            b'{"support_need":' + (b"1" * 5_000) + b"}",
+            (b"[" * 20_000) + (b"]" * 20_000),
+        ),
+        ids=("integer_digit_limit", "decoder_recursion_limit"),
+    )
+    def test_json_decoder_limits_return_stable_422_without_mapping(
+        self,
+        content: bytes,
+    ) -> None:
+        """Bounded decoder failures remain inside the stable validation envelope."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run after a JSON decoder limit")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+        response = self.client.post(
+            self.url,
+            content=content,
+            headers={**self.pro_headers, "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 422
+        assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
+
+    @pytest.mark.parametrize(
+        "payload",
+        (
+            {},
+            {"support_need": None},
+            {"support_need": 0},
+            {"support_need": 1},
+            {"support_need": False},
+            {"support_need": True},
+            {"support_need": {}},
+            {"support_need": []},
+            {"support_need": "DAILY_STRUCTURE"},
+            {"support_need": " daily_structure "},
+            {"support_need": "unsupported"},
+            {"support_need": "daily_structure", "history": []},
+            [],
+            None,
+        ),
+    )
+    def test_invalid_schema_returns_stable_422(self, payload: object) -> None:
+        """Missing, open-ended, extra, and non-object JSON fail with one stable envelope."""
+
+        def _forbidden_mapper(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support mapper must not run for an invalid request")
+
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _forbidden_mapper,
+        )
+        response = self.client.post(self.url, json=payload, headers=self.pro_headers)
+
+        assert response.status_code == 422
+        assert _json_body(response) == {"detail": "fitchef_support_handoff_validation_error"}
+
+    def test_handoff_bypasses_every_ai_execution_subsystem(self) -> None:
+        """The descriptor route stays independent of AI execution and quota surfaces."""
+
+        mapper_calls: list[FitChefSupportNeed] = []
+
+        def _tracked_mapper(
+            *,
+            support_need: FitChefSupportNeed,
+        ) -> FitChefSupportHandoffResponse:
+            mapper_calls.append(support_need)
+            return build_fitchef_support_handoff(support_need=support_need)
+
+        def _forbidden(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support handoff must not call an AI execution subsystem")
+
+        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "blocked")
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.build_fitchef_support_handoff",
+            _tracked_mapper,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured._require_fitchef_structured_mode",
+            _forbidden,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.require_safe_ai_agent_input",
+            _forbidden,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            _forbidden,
+        )
+        self.monkeypatch.setattr(
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            _forbidden,
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            _forbidden,
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
+            _forbidden,
+        )
+        self.monkeypatch.setattr("llm.get_provider", _forbidden)
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _forbidden,
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "weekly_structure"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        data = _json_body(response)
+        assert data["used_llm"] is False
+        assert data["execution_authority"] is False
+        assert data["plan_mutation_authority"] is False
+        assert mapper_calls == ["weekly_structure"]
+
+    @pytest.mark.parametrize(
+        "execution_mode",
+        (None, "malformed", "review-required", "blocked"),
+    )
+    def test_valid_handoff_is_independent_of_execution_mode(
+        self,
+        execution_mode: str | None,
+    ) -> None:
+        """Execution-mode state never enters the deterministic descriptor path."""
+
+        def _forbidden(*_args: object, **_kwargs: object) -> object:
+            pytest.fail("support handoff must not call an execution subsystem")
+
+        if execution_mode is None:
+            self.monkeypatch.delenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", raising=False)
+        else:
+            self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", execution_mode)
+        for target in (
+            "app.routers.fitchef_structured._require_fitchef_structured_mode",
+            "app.routers.fitchef_structured.require_safe_ai_agent_input",
+            "app.routers.fitchef_structured.fitchef_runtime.run_distortion_simulator_task",
+            "app.routers.fitchef_structured.fitchef_runtime.run_identity_loop_mapper_task",
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            "app.services.fitchef_runtime._persist_privileged_action_audit",
+            "llm.get_provider",
+            "core.rag.vector_rag.retrieve_context_structured",
+        ):
+            self.monkeypatch.setattr(target, _forbidden)
+
+        expected_payload = {
+            "schema_version": "fitchef_support_handoff.v1",
+            "scenario": "support_handoff",
+            "support_need": "daily_structure",
+            "action": {
+                "action_type": "handoff_to_product_surface",
+                "target_surface": "pro_daily_plate",
+            },
+            "user_confirmation_required": True,
+            "execution_authority": False,
+            "plan_mutation_authority": False,
+            "used_llm": False,
+            "wellness_boundary": "wellness_planning_only",
+        }
+        expected_content = (
+            b'{"schema_version":"fitchef_support_handoff.v1","scenario":"support_handoff",'
+            b'"support_need":"daily_structure","action":{"action_type":'
+            b'"handoff_to_product_surface","target_surface":"pro_daily_plate"},'
+            b'"user_confirmation_required":true,"execution_authority":false,'
+            b'"plan_mutation_authority":false,"used_llm":false,'
+            b'"wellness_boundary":"wellness_planning_only"}'
+        )
+
+        response = self.client.post(
+            self.url,
+            json={"support_need": "daily_structure"},
+            headers=self.pro_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.content == expected_content
+        assert _json_body(response) == expected_payload
+
+    def test_openapi_documents_exact_support_handoff_contract(self) -> None:
+        """OpenAPI exposes the manual request body and only the frozen response statuses."""
+
+        response = self.client.get("/openapi.json")
+        schema = _json_body(response)
+        operation = _nested_object(schema, "paths", self.url, "post")
+        responses = _nested_object(operation, "responses")
+        assert set(responses) == {"200", "401", "403", "422", "503"}
+        assert operation["security"] == [{"APIKeyHeader": []}]
+        assert operation["summary"] == "Select deterministic FitChef support handoff"
+        assert operation["description"] == (
+            "POST /api/v1/pro/fitchef/recommend returns one deterministic, non-executing "
+            "product-surface handoff selected solely from the request's explicit support_need. "
+            "It does not inspect a plan, history, adherence, goal, or prior FitChef response; "
+            "infer friction or intent; call RAG, an AI provider, or an LLM; invoke the target "
+            "surface; or create or change a plan."
+        )
+
+        request_body = _nested_object(operation, "requestBody")
+        assert request_body["required"] is True
+        request_content = _nested_object(request_body, "content")
+        assert set(request_content) == {"application/json"}
+        request_schema = _nested_object(request_content, "application/json", "schema")
+        assert request_schema["title"] == "FitChefSupportHandoffRequest"
+        assert request_schema["additionalProperties"] is False
+        support_need_schema = _nested_object(request_schema, "properties", "support_need")
+        assert support_need_schema["enum"] == ["daily_structure", "weekly_structure"]
+        assert request_schema["required"] == ["support_need"]
+
+        response_schema = _nested_object(
+            responses,
+            "200",
+            "content",
+            "application/json",
+            "schema",
+        )
+        assert response_schema["$ref"] == "#/components/schemas/FitChefSupportHandoffResponse"
+        response_properties = _nested_object(
+            schema,
+            "components",
+            "schemas",
+            "FitChefSupportHandoffResponse",
+            "properties",
+        )
+        assert set(response_properties) == {
+            "schema_version",
+            "scenario",
+            "support_need",
+            "action",
+            "user_confirmation_required",
+            "execution_authority",
+            "plan_mutation_authority",
+            "used_llm",
+            "wellness_boundary",
+        }
+        response_support_need_schema = _nested_object(response_properties, "support_need")
+        assert response_support_need_schema["enum"] == [
+            "daily_structure",
+            "weekly_structure",
+        ]
+        assert response_properties["action"] == {
+            "$ref": "#/components/schemas/FitChefSupportHandoffActionV1"
+        }
+        schema_version_schema = _nested_object(response_properties, "schema_version")
+        scenario_schema = _nested_object(response_properties, "scenario")
+        wellness_schema = _nested_object(response_properties, "wellness_boundary")
+        confirmation_schema = _nested_object(response_properties, "user_confirmation_required")
+        assert schema_version_schema["const"] == "fitchef_support_handoff.v1"
+        assert scenario_schema["const"] == "support_handoff"
+        assert wellness_schema["const"] == "wellness_planning_only"
+        assert confirmation_schema["const"] is True
+        for field_name in ("execution_authority", "plan_mutation_authority", "used_llm"):
+            field_schema = cast(dict[str, object], response_properties[field_name])
+            assert field_schema["const"] is False
+
+        action_schema = _nested_object(
+            schema,
+            "components",
+            "schemas",
+            "FitChefSupportHandoffActionV1",
+        )
+        assert action_schema["additionalProperties"] is False
+        action_properties = _nested_object(action_schema, "properties")
+        action_type_schema = _nested_object(action_properties, "action_type")
+        target_surface_schema = _nested_object(action_properties, "target_surface")
+        assert action_type_schema["const"] == "handoff_to_product_surface"
+        assert target_surface_schema["enum"] == [
+            "pro_daily_plate",
+            "pro_weekly_plan",
+        ]
 
 
 class TestFitChefIdentityLoopMapperRoute:
@@ -893,6 +1726,11 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     )
     monkeypatch.setattr(
         app_main,
+        "fitchef_support_handoff_router",
+        _make_router("/api/v1/pro/fitchef/recommend"),
+    )
+    monkeypatch.setattr(
+        app_main,
         "creative_research_internal_router",
         _make_router("/api/v1/internal/creative-research/pilot"),
     )
@@ -919,12 +1757,18 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
         for route in iter_effective_route_candidates(app.routes)
         if route_path(route) == "/api/v1/pro/fitchef/explain" and "POST" in route_methods(route)
     ]
+    support_handoff_routes = [
+        route
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == "/api/v1/pro/fitchef/recommend" and "POST" in route_methods(route)
+    ]
     vip_structured_routes = [
         route
         for route in iter_effective_route_candidates(app.routes)
         if route_path(route) == "/api/v1/vip/fitchef/insight" and "POST" in route_methods(route)
     ]
     assert len(structured_routes) == 1
+    assert len(support_handoff_routes) == 1
     assert len(vip_structured_routes) == 1
     assert vip_registration_calls == [app, app]
 

@@ -8,12 +8,71 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.fitchef import (
     FitChefClarificationV1,
     FitChefWeeklyReflectionResponseState,
 )
+
+FitChefSupportNeed = Literal["daily_structure", "weekly_structure"]
+FitChefSupportTargetSurface = Literal["pro_daily_plate", "pro_weekly_plan"]
+
+
+class FitChefSupportHandoffRequest(BaseModel):
+    """Closed request contract for deterministic FitChef support routing."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    support_need: FitChefSupportNeed
+
+
+class FitChefSupportHandoffActionV1(BaseModel):
+    """Descriptor-only action pointing at one canonical product surface."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    action_type: Literal["handoff_to_product_surface"] = "handoff_to_product_surface"
+    target_surface: FitChefSupportTargetSurface
+
+
+class FitChefSupportHandoffResponse(BaseModel):
+    """Frozen non-executing response for the FitChef support handoff."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal["fitchef_support_handoff.v1"] = "fitchef_support_handoff.v1"
+    scenario: Literal["support_handoff"] = "support_handoff"
+    support_need: FitChefSupportNeed
+    action: FitChefSupportHandoffActionV1
+    user_confirmation_required: Literal[True] = True
+    execution_authority: Literal[False] = False
+    plan_mutation_authority: Literal[False] = False
+    used_llm: Literal[False] = False
+    wellness_boundary: Literal["wellness_planning_only"] = "wellness_planning_only"
+
+    @field_validator("user_confirmation_required", mode="before")
+    @classmethod
+    def require_exact_true(cls, value: object) -> object:
+        """Reject numeric truthy values before Literal coercion."""
+
+        if value is not True:
+            raise ValueError("user_confirmation_required must be exactly true")
+        return value
+
+    @field_validator(
+        "execution_authority",
+        "plan_mutation_authority",
+        "used_llm",
+        mode="before",
+    )
+    @classmethod
+    def require_exact_false(cls, value: object) -> object:
+        """Reject numeric falsey values before Literal coercion."""
+
+        if value is not False:
+            raise ValueError("handoff authority flags must be exactly false")
+        return value
 
 
 class FitChefCoachingRequest(BaseModel):

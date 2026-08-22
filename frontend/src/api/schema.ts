@@ -298,6 +298,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/fitchef/recommend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Select deterministic FitChef support handoff
+         * @description POST /api/v1/pro/fitchef/recommend returns one deterministic, non-executing product-surface handoff selected solely from the request's explicit support_need. It does not inspect a plan, history, adherence, goal, or prior FitChef response; infer friction or intent; call RAG, an AI provider, or an LLM; invoke the target surface; or create or change a plan.
+         */
+        post: operations["fitchef_support_handoff_api_v1_pro_fitchef_recommend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/meal/shopping-list": {
         parameters: {
             query?: never;
@@ -2854,6 +2874,77 @@ export interface components {
             warnings: string[];
             /** Wellness Boundary */
             wellness_boundary: string;
+        };
+        /**
+         * FitChefSupportHandoffActionV1
+         * @description Descriptor-only action pointing at one canonical product surface.
+         */
+        FitChefSupportHandoffActionV1: {
+            /**
+             * Action Type
+             * @default handoff_to_product_surface
+             * @constant
+             */
+            action_type: "handoff_to_product_surface";
+            /**
+             * Target Surface
+             * @enum {string}
+             */
+            target_surface: "pro_daily_plate" | "pro_weekly_plan";
+        };
+        /**
+         * FitChefSupportHandoffResponse
+         * @description Frozen non-executing response for the FitChef support handoff.
+         */
+        FitChefSupportHandoffResponse: {
+            action: components["schemas"]["FitChefSupportHandoffActionV1"];
+            /**
+             * Execution Authority
+             * @default false
+             * @constant
+             */
+            execution_authority: false;
+            /**
+             * Plan Mutation Authority
+             * @default false
+             * @constant
+             */
+            plan_mutation_authority: false;
+            /**
+             * Scenario
+             * @default support_handoff
+             * @constant
+             */
+            scenario: "support_handoff";
+            /**
+             * Schema Version
+             * @default fitchef_support_handoff.v1
+             * @constant
+             */
+            schema_version: "fitchef_support_handoff.v1";
+            /**
+             * Support Need
+             * @enum {string}
+             */
+            support_need: "daily_structure" | "weekly_structure";
+            /**
+             * Used Llm
+             * @default false
+             * @constant
+             */
+            used_llm: false;
+            /**
+             * User Confirmation Required
+             * @default true
+             * @constant
+             */
+            user_confirmation_required: true;
+            /**
+             * Wellness Boundary
+             * @default wellness_planning_only
+             * @constant
+             */
+            wellness_boundary: "wellness_planning_only";
         };
         /**
          * FitChefVipCoachingErrorResponse
@@ -5711,6 +5802,72 @@ export interface operations {
             };
             /** @description LLM provider call timed out */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_support_handoff_api_v1_pro_fitchef_recommend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Support Need
+                     * @enum {string}
+                     */
+                    support_need: "daily_structure" | "weekly_structure";
+                };
+            };
+        };
+        responses: {
+            /** @description Deterministic FitChef support handoff selected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefSupportHandoffResponse"];
+                };
+            };
+            /** @description API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description PRO tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Feature disabled */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

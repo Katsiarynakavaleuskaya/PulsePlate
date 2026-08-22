@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 from dataclasses import replace
+from pathlib import Path
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -29,6 +32,10 @@ from app.schemas.fitchef_coaching import (
     FitChefIdentityLoopMapperRequest,
     FitChefIdentityLoopMapperResponse,
     FitChefIdentityLoopView,
+    FitChefSupportHandoffActionV1,
+    FitChefSupportHandoffRequest,
+    FitChefSupportHandoffResponse,
+    FitChefSupportNeed,
     FitChefVipCoachingErrorResponse,
     FitChefWeeklyReflectionResponse,
 )
@@ -40,6 +47,7 @@ from app.services.fitchef_claim_evidence_assurance import (
     build_fitchef_source_items,
     freeze_fitchef_source_snapshot,
 )
+from app.services.fitchef_support_handoff import build_fitchef_support_handoff
 from core.evidence.fingerprints import JsonValue
 
 
@@ -243,6 +251,158 @@ def test_structured_fitchef_public_request_and_response_contracts() -> None:
     assert identity_request.trigger_context == "work runs late"
     assert distortion_response.model_dump()["scenario"] == "distortion_simulator"
     assert identity_response.model_dump()["scenario"] == "identity_loop_mapper"
+
+
+@pytest.mark.parametrize(
+    ("support_need", "target_surface"),
+    (
+        ("daily_structure", "pro_daily_plate"),
+        ("weekly_structure", "pro_weekly_plan"),
+    ),
+)
+def test_support_handoff_contract_and_service_are_exact(
+    support_need: FitChefSupportNeed,
+    target_surface: str,
+) -> None:
+    """The pure selector returns one immutable descriptor for each closed need."""
+
+    request = FitChefSupportHandoffRequest(support_need=support_need)
+    response = build_fitchef_support_handoff(support_need=request.support_need)
+
+    assert response.model_dump(mode="json") == {
+        "schema_version": "fitchef_support_handoff.v1",
+        "scenario": "support_handoff",
+        "support_need": support_need,
+        "action": {
+            "action_type": "handoff_to_product_surface",
+            "target_surface": target_surface,
+        },
+        "user_confirmation_required": True,
+        "execution_authority": False,
+        "plan_mutation_authority": False,
+        "used_llm": False,
+        "wellness_boundary": "wellness_planning_only",
+    }
+    assert response.user_confirmation_required is True
+    assert response.execution_authority is False
+    assert response.plan_mutation_authority is False
+    assert response.used_llm is False
+
+    explicit_response = FitChefSupportHandoffResponse.model_validate(
+        {
+            "schema_version": "fitchef_support_handoff.v1",
+            "scenario": "support_handoff",
+            "support_need": support_need,
+            "action": {
+                "action_type": "handoff_to_product_surface",
+                "target_surface": target_surface,
+            },
+            "user_confirmation_required": True,
+            "execution_authority": False,
+            "plan_mutation_authority": False,
+            "used_llm": False,
+            "wellness_boundary": "wellness_planning_only",
+        }
+    )
+    assert explicit_response.user_confirmation_required is True
+    assert explicit_response.execution_authority is False
+    assert explicit_response.plan_mutation_authority is False
+    assert explicit_response.used_llm is False
+
+    with pytest.raises(ValidationError):
+        request.support_need = "weekly_structure"
+    with pytest.raises(ValidationError):
+        response.action.target_surface = "pro_daily_plate"
+
+
+def test_support_handoff_models_reject_extras_and_impossible_values() -> None:
+    """Frozen DTOs fail closed on open-world fields and impossible direct input."""
+
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffRequest.model_validate(
+            {"support_need": "daily_structure", "history": []}
+        )
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffActionV1.model_validate(
+            {
+                "action_type": "navigate",
+                "target_surface": "pro_daily_plate",
+            }
+        )
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffResponse.model_validate(
+            {
+                "support_need": "daily_structure",
+                "action": {
+                    "action_type": "handoff_to_product_surface",
+                    "target_surface": "pro_daily_plate",
+                },
+                "message": "free text is forbidden",
+            }
+        )
+
+    impossible_need = cast(FitChefSupportNeed, "unsupported")
+    with pytest.raises(ValueError, match="unsupported FitChef support need"):
+        build_fitchef_support_handoff(support_need=impossible_need)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    (
+        ("user_confirmation_required", False),
+        ("user_confirmation_required", 0),
+        ("user_confirmation_required", 1),
+        ("user_confirmation_required", "true"),
+        ("user_confirmation_required", None),
+        ("execution_authority", True),
+        ("execution_authority", 0),
+        ("execution_authority", 1),
+        ("execution_authority", "false"),
+        ("execution_authority", None),
+        ("plan_mutation_authority", True),
+        ("plan_mutation_authority", 0),
+        ("plan_mutation_authority", 1),
+        ("plan_mutation_authority", "false"),
+        ("plan_mutation_authority", None),
+        ("used_llm", True),
+        ("used_llm", 0),
+        ("used_llm", 1),
+        ("used_llm", "false"),
+        ("used_llm", None),
+    ),
+)
+def test_support_handoff_response_rejects_non_exact_boolean_values(
+    field_name: str,
+    invalid_value: object,
+) -> None:
+    """Identity validators reject opposite, numeric, string, and null booleans."""
+
+    payload: dict[str, object] = {
+        "support_need": "daily_structure",
+        "action": {
+            "action_type": "handoff_to_product_surface",
+            "target_surface": "pro_daily_plate",
+        },
+        field_name: invalid_value,
+    }
+    with pytest.raises(ValidationError):
+        FitChefSupportHandoffResponse.model_validate(payload)
+
+
+def test_support_handoff_service_import_boundary_is_pure() -> None:
+    """The selector imports only its frozen schema and no execution subsystem."""
+
+    service_path = Path("app/services/fitchef_support_handoff.py")
+    tree = ast.parse(service_path.read_text(encoding="utf-8"))
+    direct_imports = [node for node in ast.walk(tree) if isinstance(node, ast.Import)]
+    imported_modules = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    }
+
+    assert direct_imports == []
+    assert imported_modules == {"__future__", "app.schemas.fitchef_coaching"}
 
 
 @pytest.mark.parametrize(

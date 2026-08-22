@@ -130,10 +130,10 @@
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
 | FitChef explain | `/api/v1/pro/fitchef/explain` | ✅ feature-gated runtime | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
-| FitChef recommend | `/api/v1/pro/fitchef/recommend` | 🧭 contract-frozen | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef recommend | `/api/v1/pro/fitchef/recommend` | ✅ feature-gated deterministic runtime | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
 > `POST /api/v1/pro/fitchef/explain` is the landed first bounded structured runtime for the CBT Coaching Wave: `Distortion Simulator` (PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`).
-> `POST /api/v1/pro/fitchef/recommend` remains a contract-frozen follow-up for the structured next-step recommendation lane.
+> `POST /api/v1/pro/fitchef/recommend` is a descriptor-only support handoff: `daily_structure` maps to `pro_daily_plate`, while `weekly_structure` maps to `pro_weekly_plan`. It uses canonical PRO auth and the shared structured-coach flag, grants no execution or plan-mutation authority, implements no VIP planning logic, and has unmeasured product utility.
 
 ---
 

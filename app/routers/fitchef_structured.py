@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.routing import APIRoute
+from pydantic import ValidationError
 
 from app.contracts.vip_contract import vip_error
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
@@ -32,6 +33,8 @@ from app.schemas.fitchef_coaching import (
     FitChefIdentityLoopMapperRequest,
     FitChefIdentityLoopMapperResponse,
     FitChefIdentityLoopView,
+    FitChefSupportHandoffRequest,
+    FitChefSupportHandoffResponse,
     FitChefVipCoachingErrorResponse,
 )
 from app.security.agent_control_plane import normalize_execution_mode, require_execution_mode
@@ -42,6 +45,7 @@ from app.security.rate_limit import (
     limit_if_available,
 )
 from app.services import fitchef_runtime
+from app.services.fitchef_support_handoff import build_fitchef_support_handoff
 from core.insight.fitchef_companion import has_high_distress_boundary
 
 logger = logging.getLogger(__name__)
@@ -52,6 +56,7 @@ FitChefStructuredMode = Literal["auto-safe", "review-required", "blocked"]
 FITCHEF_HIGH_DISTRESS_BOUNDARY_DETAIL = "fitchef_high_distress_boundary"
 FITCHEF_STRUCTURED_DISABLED_DETAIL = "FEATURE_FITCHEF_STRUCTURED_COACH is disabled"
 FITCHEF_IDENTITY_LOOP_VALIDATION_DETAIL = "fitchef_identity_loop_mapper_validation_error"
+FITCHEF_SUPPORT_HANDOFF_VALIDATION_DETAIL = "fitchef_support_handoff_validation_error"
 
 _VIP_ERROR_CODE_BY_DETAIL: dict[str, str] = {
     FITCHEF_STRUCTURED_DISABLED_DETAIL: "fitchef_structured_disabled",
@@ -90,10 +95,20 @@ class FitChefVipEnvelopeRoute(APIRoute):
 
 
 router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
+support_handoff_router = APIRouter(tags=["pro", "fitchef", "coaching", "structured"])
 vip_router = APIRouter(
     tags=["vip", "fitchef", "coaching", "structured"],
     route_class=FitChefVipEnvelopeRoute,
 )
+
+_FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI: dict[str, object] = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": FitChefSupportHandoffRequest.model_json_schema(),
+        }
+    },
+}
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -150,6 +165,30 @@ def _vip_error_response(status_code: int, detail: object) -> JSONResponse:
         status_code=status_code,
         content=vip_error(code=code, message=message),
     )
+
+
+async def _parse_fitchef_support_handoff_request(
+    request: Request,
+) -> FitChefSupportHandoffRequest:
+    """Parse the frozen request only after auth and feature admission."""
+
+    try:
+        raw_payload = await request.json()
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        raise HTTPException(
+            status_code=422,
+            detail=FITCHEF_SUPPORT_HANDOFF_VALIDATION_DETAIL,
+        ) from None
+
+    try:
+        payload: FitChefSupportHandoffRequest
+        payload = FitChefSupportHandoffRequest.model_validate(raw_payload)
+    except ValidationError:
+        raise HTTPException(
+            status_code=422,
+            detail=FITCHEF_SUPPORT_HANDOFF_VALIDATION_DETAIL,
+        ) from None
+    return payload
 
 
 @router.post(
@@ -219,6 +258,40 @@ async def fitchef_distortion_simulator(
         transparency_notice_id=result.transparency_notice_id,
         wellness_boundary=result.wellness_boundary,
     )
+
+
+@support_handoff_router.post(
+    "/api/v1/pro/fitchef/recommend",
+    dependencies=[Depends(require_pro_tier)],
+    response_model=FitChefSupportHandoffResponse,
+    summary="Select deterministic FitChef support handoff",
+    description=(
+        "POST /api/v1/pro/fitchef/recommend returns one deterministic, non-executing "
+        "product-surface handoff selected solely from the request's explicit support_need. "
+        "It does not inspect a plan, history, adherence, goal, or prior FitChef response; "
+        "infer friction or intent; call RAG, an AI provider, or an LLM; invoke the target "
+        "surface; or create or change a plan."
+    ),
+    responses={
+        200: {"description": "Deterministic FitChef support handoff selected"},
+        401: {"description": "API key required", "model": FitChefCoachingErrorResponse},
+        403: {"description": "PRO tier required", "model": FitChefCoachingErrorResponse},
+        422: {
+            "description": "Request validation failed",
+            "model": FitChefCoachingErrorResponse,
+        },
+        503: {"description": "Feature disabled", "model": FitChefCoachingErrorResponse},
+    },
+    openapi_extra={"requestBody": _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI},
+)
+async def fitchef_support_handoff(request: Request) -> FitChefSupportHandoffResponse:
+    """Return one non-executing product-surface descriptor for a PRO caller."""
+
+    if not _is_fitchef_structured_enabled():
+        raise HTTPException(status_code=503, detail=FITCHEF_STRUCTURED_DISABLED_DETAIL)
+
+    payload = await _parse_fitchef_support_handoff_request(request)
+    return build_fitchef_support_handoff(support_need=payload.support_need)
 
 
 @vip_router.post(
