@@ -1469,7 +1469,10 @@ def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
     """Load one JSON object while rejecting duplicate keys."""
 
     try:
-        return load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8"))
+        return cast(
+            Dict[str, Any],
+            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
+        )
     except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
         raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
@@ -2136,7 +2139,7 @@ def _load_creative_pilot_context(
             "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
         )
     try:
-        return validate_task_pilot_context(context)
+        return cast(Dict[str, Any], validate_task_pilot_context(context))
     except CreativePilotContractError as exc:
         raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
 
