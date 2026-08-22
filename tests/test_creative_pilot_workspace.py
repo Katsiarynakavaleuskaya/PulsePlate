@@ -2860,6 +2860,15 @@ def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    local_head_sha = subprocess.check_output(
+        [GIT, "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
+    ).strip()
+    assert re.fullmatch(r"[0-9a-f]{40}", local_head_sha)
+    current_module = sys.modules[__name__]
+    monkeypatch.setattr(current_module, "_sha", lambda: local_head_sha)
+    monkeypatch.setattr(pilot_contract, "current_origin_main_sha", lambda: local_head_sha)
+    monkeypatch.setattr(current_module, "_CHAIN_CACHE", None)
+    monkeypatch.setattr(current_module, "_SYNTHESIS_CASE_CACHE", {})
     synthesis_ready, _synthesis, _workspace_after_synthesis = _synthesis_case("approve")
     root = tmp_path / "adaptive_pilots"
     workspace_path = root / "pilot-synthesis" / "workspace.json"
