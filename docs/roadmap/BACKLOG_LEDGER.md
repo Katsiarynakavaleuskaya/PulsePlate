@@ -5960,11 +5960,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #594 remains closed on `main`
 
 <a id="ledger-p1-ruby-json-cve-2026-54696-release-tooling"></a>
-- [ ] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
+- [x] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
   - Owner: `app-store-release-agent`
   - Priority: P1 (release-tooling security)
   - Target PR: [PR #2316](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2316) (`codex/ios-ruby-json-security-remediation`)
-  - Status: In progress in PR #2316; canonical Bundler remediation and validation underway
+  - Status: Closed by merged PR #2316 at `99d94da720c04921ea270eba7fc4d5966fb563ac`; exact-main canonical CI run `32571072394` completed successfully and the post-merge proof is complete
   - Area: security / iOS release tooling / dependencies
   - Finding Type: application dependency vulnerability
   - Reason (EN): Authenticated Dependabot alert `#239` reports RubyGems `json`
@@ -7423,15 +7423,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT
-  - Status: ⏳ Blocked by the merged/deployed canonical cutover and a complete 30-day observation window
+  - Target PR: [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → PR-OBS1B internal Prometheus deploy contour → separate future alias-retirement PR
+  - Status: ⏳ PR #2319 implements only the application and evidence foundation; Prometheus activation, separately authorized staging/production deployment, human-authored `T₀`, the complete `30 × 24h` production window, and a future retirement PR remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
   - Links:
+    - `app/security/production_invariants.py`
     - `app/middleware/metrics.py`
+    - `scripts/verify_premium_alias_telemetry.py`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`
   - DoD:
-    - Record the verified deployment timestamp of the canonical-cutover PR and observe 30 consecutive calendar days after it
+    - After separately authorized production activation, record the human-approved `T₀` and evaluate only at `T₁ >= T₀ + 30 × 24h`; staging evidence never starts the production clock
     - For each exact route `/api/v1/premium/bmr`, `/api/v1/premium/targets`, `/api/v1/premium/plate`, and `/api/v1/premium/gaps`, preserve the query/result evidence for `sum(increase(http_requests_total{method="POST", route="<exact-path>"}[30d])) == 0`
     - Prove aggregation across every API replica/worker plus complete scrape coverage and retention for the whole window
     - Confirm there is no known supported consumer; no-data, partial retention, per-process-only evidence, or any hit blocks removal
