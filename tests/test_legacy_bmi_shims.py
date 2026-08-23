@@ -8,15 +8,57 @@ PR-456 Commit 3: Verify that /bmi and /api/v1/bmi delegate to canonical handler.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+import scripts.ci.check_legacy_growth_guard as legacy_guard
 from core.bmi.engine import BMICalculateResult
 from core.bmi.risk import WaistRiskResult
 from core.i18n import t
+
+RETIRED_LEGACY_PYTHON_BINDINGS = {
+    "admin_status",
+    "cleanup_expired_logs",
+    "debug_env",
+    "get_database_status",
+    "force_database_update",
+    "check_for_updates",
+    "rollback_database",
+    "bmi_endpoint",
+    "plan_endpoint",
+    "bmi_endpoint_v1",
+}
+
+
+def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
+    import app.schemas.bmi_compat as bmi_schemas
+    import app.services.admin_operations as admin_operations
+    import app.services.bmi_compat as bmi_compat
+    import legacy_app
+
+    canonical_owners = {
+        "admin_status": admin_operations,
+        "cleanup_expired_logs": admin_operations,
+        "debug_env": admin_operations,
+        "get_database_status": admin_operations,
+        "force_database_update": admin_operations,
+        "check_for_updates": admin_operations,
+        "rollback_database": admin_operations,
+        "bmi_endpoint": bmi_compat,
+        "plan_endpoint": bmi_compat,
+        "bmi_endpoint_v1": bmi_compat,
+    }
+
+    assert canonical_owners.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
+    assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
+    assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
+    assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
+    assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
+    for binding_name, owner in canonical_owners.items():
+        assert callable(getattr(owner, binding_name))
+        assert not hasattr(legacy_app, binding_name)
 
 
 def test_bmi_endpoint_v1_uses_canonical_handler_via_shim(
@@ -302,31 +344,3 @@ def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_categ
     assert data["group"] == "athlete"
     assert data["athlete"] is True
     assert data["note"] == f"{t('en', 'advice_athlete_bmi')} | Extra waist note"
-
-
-@pytest.mark.parametrize(
-    ("legacy_name", "service_name", "payload"),
-    [
-        ("bmi_endpoint", "bmi_endpoint", {"route": "bmi"}),
-        ("plan_endpoint", "plan_endpoint", {"route": "plan"}),
-        ("bmi_endpoint_v1", "bmi_endpoint_v1", {"route": "bmi-v1"}),
-    ],
-)
-def test_legacy_bmi_direct_call_shims_delegate_to_canonical_services(
-    monkeypatch: pytest.MonkeyPatch,
-    legacy_name: str,
-    service_name: str,
-    payload: dict[str, str],
-) -> None:
-    import app.services.bmi_compat as bmi_compat_service
-    import legacy_app
-
-    async def _fake_service(req: object) -> dict[str, object]:
-        return {"payload": payload, "request": req}
-
-    request = object()
-    monkeypatch.setattr(bmi_compat_service, service_name, _fake_service)
-
-    result = asyncio.run(getattr(legacy_app, legacy_name)(request))
-
-    assert result == {"payload": payload, "request": request}

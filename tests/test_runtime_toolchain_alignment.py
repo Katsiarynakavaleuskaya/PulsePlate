@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from tests.runtime_toolchain_versions import (
     CANONICAL_RUBY,
     EXCON_MINIMUM_VERSION,
     FASTLANE_VERSION,
+    JSON_MINIMUM_VERSION,
     RUBY_SETUP_ACTION,
 )
 
@@ -75,6 +77,11 @@ EXPECTED_RUBY_SETUP_OWNERS = (
     (".github/workflows/ios-appstore-assets.yml", "upload-assets"),
     (".github/workflows/ios-appstore-assets.yml", "validate-assets"),
 )
+
+
+def _require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
 
 
 def _load_workflow(path: str) -> dict[str, Any]:
@@ -189,6 +196,73 @@ def _tool_versions() -> dict[str, str]:
         tool, version, *_rest = stripped.split()
         entries[tool] = version
     return entries
+
+
+def _locked_top_level_json_version(lockfile: str) -> str:
+    """Return the sole stable top-level json version from Bundler's GEM specs."""
+    lines = lockfile.splitlines()
+    gem_boundaries = [index for index, line in enumerate(lines) if line == "GEM"]
+    platform_boundaries = [index for index, line in enumerate(lines) if line == "PLATFORMS"]
+    dependency_boundaries = [index for index, line in enumerate(lines) if line == "DEPENDENCIES"]
+    bundled_boundaries = [index for index, line in enumerate(lines) if line == "BUNDLED WITH"]
+
+    _require(len(gem_boundaries) == 1, "lock must contain exactly one GEM section")
+    _require(len(platform_boundaries) == 1, "lock must contain exactly one PLATFORMS section")
+    _require(
+        len(dependency_boundaries) == 1,
+        "lock must contain exactly one DEPENDENCIES section",
+    )
+    _require(len(bundled_boundaries) == 1, "lock must contain exactly one BUNDLED WITH section")
+    gem_index = gem_boundaries[0]
+    platforms_index = platform_boundaries[0]
+    dependencies_index = dependency_boundaries[0]
+    bundled_index = bundled_boundaries[0]
+    _require(
+        gem_index < platforms_index < dependencies_index < bundled_index,
+        "lock sections must be ordered GEM < PLATFORMS < DEPENDENCIES < BUNDLED WITH",
+    )
+    specs_boundaries = [
+        index for index in range(gem_index + 1, platforms_index) if lines[index] == "  specs:"
+    ]
+    _require(len(specs_boundaries) == 1, "GEM section must contain exactly one specs boundary")
+    specs_index = specs_boundaries[0]
+    remote_rows = [
+        (index, lines[index])
+        for index in range(gem_index + 1, platforms_index)
+        if lines[index].startswith("  remote:")
+    ]
+    _require(len(remote_rows) == 1, "GEM section must contain exactly one remote")
+    remote_index, remote_row = remote_rows[0]
+    _require(
+        remote_row == "  remote: https://rubygems.org/",
+        "GEM remote must be the canonical RubyGems HTTPS endpoint",
+    )
+    _require(remote_index < specs_index, "GEM remote must precede specs")
+
+    json_rows = [
+        line
+        for line in lines[specs_index + 1 : platforms_index]
+        if re.match(r"^ {4}json(?:\s|\()", line)
+    ]
+    _require(len(json_rows) == 1, "GEM specs must contain exactly one top-level json row")
+    match = re.fullmatch(r" {4}json \((\d+(?:\.\d+)*)\)", json_rows[0])
+    _require(match is not None, "top-level json row must contain one stable numeric version")
+
+    direct_json_rows = [
+        line
+        for line in lines[dependencies_index + 1 : bundled_index]
+        if re.fullmatch(r" {2}json!?(?: \([^)]*\))?", line)
+    ]
+    _require(not direct_json_rows, "DEPENDENCIES must not declare json directly")
+    return match.group(1)
+
+
+def _assert_json_lock_postcondition(lockfile: str) -> None:
+    locked_json = _locked_top_level_json_version(lockfile)
+    _require(
+        _version_at_least(locked_json, JSON_MINIMUM_VERSION),
+        "top-level json version is below the repository security floor",
+    )
 
 
 def test_local_python_and_ruby_version_sources_are_canonical() -> None:
@@ -427,3 +501,133 @@ def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
     assert _version_at_least("1.5", EXCON_MINIMUM_VERSION)
     assert not _version_at_least("1.5.0.rc1", EXCON_MINIMUM_VERSION)
     assert "      excon (>= 0.71.0, < 2.0.0)" in lockfile
+
+    _assert_json_lock_postcondition(lockfile)
+
+
+def _minimal_bundler_lock(
+    version: str = "2.19.9",
+    *,
+    prefix: str = "",
+    remote: str = "  remote: https://rubygems.org/\n",
+    dependencies: str = "  fastlane (= 2.237.0)\n",
+) -> str:
+    return f"""\
+{prefix}GEM
+{remote}  specs:
+    json ({version})
+PLATFORMS
+  ruby
+DEPENDENCIES
+{dependencies}BUNDLED WITH
+   2.4.22
+"""
+
+
+@pytest.mark.parametrize("version", ["2.19.9", "2.19.10"])
+def test_json_lock_postcondition_accepts_stable_patched_versions(version: str) -> None:
+    _assert_json_lock_postcondition(_minimal_bundler_lock(version))
+
+
+def test_json_lock_postcondition_allows_a_preceding_git_specs_block() -> None:
+    prefix = """\
+GIT
+  remote: https://example.test/release-helper.git
+  revision: 0123456789abcdef
+  specs:
+    release-helper (1.0.0)
+
+"""
+
+    _assert_json_lock_postcondition(_minimal_bundler_lock(prefix=prefix))
+
+
+@pytest.mark.parametrize(
+    "remote",
+    [
+        "",
+        "  remote: https://rubygems.org/\n  remote: https://rubygems.org/\n",
+        "  remote: http://rubygems.org/\n",
+        "  remote: https://evil.example/\n",
+    ],
+)
+def test_json_lock_postcondition_rejects_missing_duplicate_or_alternate_remote(
+    remote: str,
+) -> None:
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(_minimal_bundler_lock(remote=remote))
+
+
+def test_json_lock_postcondition_rejects_remote_after_specs() -> None:
+    lockfile = _minimal_bundler_lock(remote="").replace(
+        "  specs:\n",
+        "  specs:\n  remote: https://rubygems.org/\n",
+        1,
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(lockfile)
+
+
+@pytest.mark.parametrize("heading", ["GEM", "PLATFORMS", "DEPENDENCIES", "BUNDLED WITH"])
+def test_json_lock_postcondition_rejects_missing_sections(heading: str) -> None:
+    lockfile = _minimal_bundler_lock().replace(f"{heading}\n", "", 1)
+
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(lockfile)
+
+
+@pytest.mark.parametrize("heading", ["GEM", "PLATFORMS", "DEPENDENCIES", "BUNDLED WITH"])
+def test_json_lock_postcondition_rejects_duplicate_sections(heading: str) -> None:
+    lockfile = _minimal_bundler_lock().replace(f"{heading}\n", f"{heading}\n{heading}\n", 1)
+
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(lockfile)
+
+
+def test_json_lock_postcondition_rejects_misordered_sections() -> None:
+    lockfile = _minimal_bundler_lock().replace(
+        "PLATFORMS\n  ruby\nDEPENDENCIES\n",
+        "DEPENDENCIES\nPLATFORMS\n  ruby\n",
+        1,
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(lockfile)
+
+
+@pytest.mark.parametrize("dependency", ["  json\n", "  json (>= 2.19.9)\n", "  json!\n"])
+def test_json_lock_postcondition_rejects_direct_json_dependencies(dependency: str) -> None:
+    with pytest.raises(AssertionError, match="must not declare json directly"):
+        _assert_json_lock_postcondition(_minimal_bundler_lock(dependencies=dependency))
+
+
+@pytest.mark.parametrize("version", ["2.19.8", "2.19.9.rc1", "= 2.19.9", "2.19.9-beta"])
+def test_json_lock_postcondition_rejects_unsafe_json_versions(version: str) -> None:
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(_minimal_bundler_lock(version))
+
+
+def test_json_lock_postcondition_rejects_missing_or_duplicate_json_rows() -> None:
+    missing = _minimal_bundler_lock().replace("    json (2.19.9)\n", "")
+    duplicate = _minimal_bundler_lock().replace(
+        "    json (2.19.9)\n",
+        "    json (2.19.9)\n    json (2.19.10)\n",
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(missing)
+    with pytest.raises(AssertionError):
+        _assert_json_lock_postcondition(duplicate)
+
+
+def test_json_lock_postcondition_ignores_nested_and_similarly_named_gems() -> None:
+    lockfile = _minimal_bundler_lock(
+        dependencies="  json-schema\n  multi_json (= 1.19.1)\n",
+    ).replace(
+        "    json (2.19.9)\n",
+        "    json (2.19.9)\n      json (< 3.0.0)\n    json-schema (5.2.2)\n"
+        "    multi_json (1.19.1)\n",
+    )
+
+    _assert_json_lock_postcondition(lockfile)

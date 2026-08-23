@@ -1,47 +1,76 @@
-# Dependabot Alert Inventory - 2026-07-13
+<!-- markdownlint-disable MD013 MD031 MD032 -->
 
-This inventory extends the PR #2008 source of truth for eight Dependabot alerts
-observed on 2026-06-22 with Excon alert #231 fixed on 2026-07-12. It keeps
-raw Dependabot branches out of the merge path when they overlap lock/profile
-surfaces or cannot prove the current repo-owned dependency path.
+# Dependabot open alert inventory - 2026-08-22
 
-## Alert Status Inventory
+## Snapshot boundary
 
-| Alert | Advisory / CVE | Package | Manifest | Dependency type | Install profile | Production exposure | Fixed version | Proxy availability | Owner PR | Disposition | Evidence | Recheck date |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| #231 | GHSA-48rx-c7pg-q66r / CVE-2026-54171 | excon | ios/Gemfile.lock | runtime | iOS Fastlane release tooling | Privileged release-tooling graph, not backend runtime or the shipped iOS app binary | 1.5.0 | Available from RubyGems through Bundler; Fastlane 2.237.0 permits excon >=0.71.0,<2.0.0 | PR #2108 | FIXED in repo and marked `fixed` by GitHub on 2026-07-12 after resolving excon 1.5.0 | docs/security/CVE-2026-54171-excon-fastlane.md, ios/Gemfile, ios/Gemfile.lock, tests/test_runtime_toolchain_alignment.py | Closed 2026-07-12 |
-| #227 | GHSA-6v7p-g79w-8964 | msgpack | requirements-lock.txt | runtime | combined lock | Potential only if the combined lock is installed in runtime; no product msgpack import proven | 1.2.1 | Available through configured Python package resolution; broad resolver churn avoided | PR #2008 | FIXED in PR #2008 by pinning msgpack 1.2.1 and blocking <1.2.1 | requirements-lock.txt:210, tests/fixtures/dependency_security_schema.json:16, docs/security/GHSA-6v7p-g79w-8964-msgpack.md | After PR #2008 merge and GitHub dependency graph refresh |
-| #226 | GHSA-6v7p-g79w-8964 | msgpack | requirements-dev.txt | development | dev tooling | Dev tooling exposure through CacheControl / pip-audit graph | 1.2.1 | Available through configured Python package resolution; broad resolver churn avoided | PR #2008 | FIXED in PR #2008 by adding the dev floor and pinning msgpack 1.2.1 | requirements-dev.in:27, requirements-dev.txt:108, tests/fixtures/dependency_security_schema.json:16, docs/security/GHSA-6v7p-g79w-8964-msgpack.md | After PR #2008 merge and GitHub dependency graph refresh |
-| #225 | GHSA-6v7p-g79w-8964 | msgpack | requirements-ci-lite.txt | runtime | ci-lite | Not reproduced from current repo manifests; ci-lite has no direct cachecontrol or msgpack entry | 1.2.1 | Available, but do not add unused ci-lite packages without proving the dependency path | PR #2008 inventory, future recheck lane if it persists | DEFERRED recheck after PR #2008 refresh | docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-msgpack-ci-lite-alert-recheck, requirements-ci-lite.in, requirements-ci-lite.txt | 2026-06-29 |
-| #224 | GHSA-98m9-hrrm-r99r / CVE-2026-54297 | faraday | ios/Gemfile.lock | runtime | iOS Fastlane release tooling | Release tooling graph, not application runtime | 1.10.6 and 2.14.3 per advisory text | Not applicable - Ruby/Fastlane lockfile, not Python proxy-managed | PR #2081 | RESOLVED to faraday 1.10.6; temporary scanner-lag suppression removed after the 2026-07-05 Trivy v0.71.2 no-policy filesystem recheck stopped reporting the remediated lock | docs/security/CVE-2026-54297-faraday-fastlane.md, docs/review/PR_2081_FIXED_MAPPING.md, docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297 | 2026-07-05 |
-| #162 | GHSA-rrmf-rvhw-rf47 / CVE-2025-3000 | torch | requirements-ci-lite.txt | runtime | ci-lite | Not reproduced from current ci-lite manifests; no direct torch pin | N/A - repo path removed | No repo-owned torch path remains in ci-lite | This PR | NOT REPRODUCED / dependency graph refresh | docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md, requirements-ci-lite.txt, docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile | After this PR merge and GitHub dependency graph refresh |
-| #161 | GHSA-rrmf-rvhw-rf47 / CVE-2025-3000 | torch | requirements-rag-vector-cpu.txt | runtime | optional RAG/vector CPU | Repo remediation resolved by removal: optional vector CPU profile now uses FastEmbed/ONNX + pgvector and no PyTorch dependency | N/A - removed | FastEmbed/ONNX path available through the approved Python proxy | This PR | RESOLVED BY REMOVAL / dependency graph refresh | docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md, requirements-rag-vector-cpu.in, requirements-rag-vector-cpu.txt, docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile | After this PR merge and GitHub dependency graph refresh |
-| #160 | GHSA-rrmf-rvhw-rf47 / CVE-2025-3000 | torch | requirements-rag-vector.txt | runtime | optional RAG/vector | Repo remediation resolved by removal: optional vector profile now uses FastEmbed/ONNX + pgvector and no PyTorch dependency | N/A - removed | FastEmbed/ONNX path available through the approved Python proxy | This PR | RESOLVED BY REMOVAL / dependency graph refresh | docs/security/PYTORCH_JIT_CVE_2025_3000_ADVISORY.md, requirements-rag-vector.in, requirements-rag-vector.txt, docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pytorch-jit-cve-2025-3000-vector-profile | After this PR merge and GitHub dependency graph refresh |
+This is the complete authenticated open-alert census observed at
+`2026-08-22T07:49:57Z` using all REST pagination:
 
-## Raw Dependabot PR No-Go
+```text
+GET /repos/Katsiarynakavaleuskaya/PulsePlate/dependabot/alerts
+    ?state=open&per_page=100
+pagination: --paginate --slurp
+```
 
-Do not merge raw Dependabot PRs #2000 through #2004 from this lane:
+The census contains exactly one open alert. It is the RubyGems `json` alert
+from `ios/Gemfile.lock`; no npm or pip alert was open at this snapshot.
 
-- #2000 updates msgpack but is Dependabot-owned and does not carry the repo
-  guard/backlog/inventory evidence required for this security lane.
-- #2001, #2002, #2003, and #2004 touch broader testing, quality, and vector
-  profile surfaces. Those overlap active lock/profile governance and must remain
-  outside the PR #2008 remediation.
+## Authenticated open alerts
 
-## Future Owner Lanes
+| Alert | Ecosystem | Package | Advisory / CVE | Manifest | Current lane |
+| --- | --- | --- | --- | --- | --- |
+| `#239` | RubyGems | `json` | `GHSA-x2f5-4prf-w687` / `CVE-2026-54696` | `ios/Gemfile.lock` | `codex/ios-ruby-json-security-remediation` |
 
-1. PR #2008 owns the msgpack remediation for the repo-owned dev/full-lock pins
-   and the current seven-alert inventory.
-2. The `requirements-ci-lite.txt` msgpack alert #225 is a recheck lane only
-   unless GitHub's refreshed dependency graph proves a current repo-owned
-   ci-lite path.
-3. Faraday is remediated to `1.10.6` in the Fastlane release-tooling lock, and
-   the temporary scanner-lag suppression was removed after the 2026-07-05 Trivy
-   recheck stopped flagging the remediated lock.
-4. Torch optional RAG/vector alerts #160/#161 are repo-remediated by removal in
-   this PR; alert closure waits for the GitHub dependency graph refresh.
-5. The broader Python dependency surface contract is tracked separately in
-   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-python-dependency-surface-contract`.
-6. Excon alert #231 is remediated through the exact Fastlane `2.237.0` pin and
-   resolver-selected Excon `1.5.0`; GitHub marked it `fixed` on 2026-07-12 and
-   no vulnerability suppression is used.
+The alert payload reports severity LOW, affected range `>= 2.9.0, < 2.19.9`,
+first patched version `2.19.9`, state `open`, and no fixed, dismissed, or
+auto-dismissed timestamp. The CVE alias is independently cross-checked through
+the authenticated GitHub Advisory Database endpoint because the repository
+alert payload did not populate its advisory `cves` array.
+
+## Repository remediation versus provider closure
+
+The candidate dependency transaction is owned by
+`docs/security/CVE-2026-54696-json-fastlane.md` and tracked at
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ruby-json-cve-2026-54696-release-tooling`.
+Its Bundler-generated lock resolves `json 2.19.9`, and its all-severity Trivy
+0.72.0 filesystem scan reports zero vulnerabilities.
+The exact candidate carrier is `ios/Gemfile.lock:176`.
+
+That candidate repository evidence does not close Dependabot alert `#239`.
+GitHub can update the provider state only after merged material is ingested by
+the dependency graph. Until a post-merge authenticated lookup returns terminal
+provider state, report repository remediation and provider closure separately.
+
+## Closed alert reconciliation
+
+The open census intentionally excludes historical pip alert `#225` for
+`msgpack` / `GHSA-6v7p-g79w-8964`. Its separately authenticated exact-alert
+lookup remains:
+
+```text
+alert_number=225
+ecosystem=pip
+package=msgpack
+advisory=GHSA-6v7p-g79w-8964
+state=fixed
+fixed_at=2026-06-22T22:34:21Z
+dismissed_at=null
+auto_dismissed_at=null
+manifest=requirements-ci-lite.txt
+```
+
+The corresponding item is closed at
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-msgpack-ci-lite-alert-recheck`.
+This is provider-state reconciliation only: no pip dependency material is
+changed by the Ruby `json` lane.
+
+## Refresh rule
+
+After merge, repeat the complete authenticated census and perform a separate
+exact lookup for alert `#239`. Until exact-main CI, the merged lock, the
+all-severity scanner result, and the provider refresh are each terminally
+observed, report `MERGED_PENDING_POST_MERGE_PROOF`; do not translate one signal
+into another.
+
+<!-- markdownlint-enable MD013 MD031 MD032 -->

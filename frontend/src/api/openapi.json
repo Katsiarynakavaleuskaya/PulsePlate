@@ -1424,6 +1424,138 @@
         "title": "BMIScaleV1Spec",
         "type": "object"
       },
+      "BMRRequest": {
+        "description": "Request model for BMR calculation.",
+        "properties": {
+          "activity": {
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "active",
+              "very_active"
+            ],
+            "title": "Activity",
+            "type": "string"
+          },
+          "age": {
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Age",
+            "type": "integer"
+          },
+          "bodyfat": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 50.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfat"
+          },
+          "height_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height Cm",
+            "type": "number"
+          },
+          "lang": {
+            "default": "en",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "sex": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "title": "Sex",
+            "type": "string"
+          },
+          "weight_kg": {
+            "exclusiveMinimum": 0.0,
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "weight_kg",
+          "height_cm",
+          "age",
+          "sex",
+          "activity"
+        ],
+        "title": "BMRRequest",
+        "type": "object"
+      },
+      "BMRResponse": {
+        "description": "Response model for BMR calculation",
+        "properties": {
+          "activity_level": {
+            "description": "Localized description of the activity level used in calculations (e.g., 'sedentary', 'light', 'moderate', 'active', 'very_active').",
+            "title": "Activity Level",
+            "type": "string"
+          },
+          "bmr": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "BMR values calculated by different formulas. Keys are formula names (e.g., 'mifflin', 'harris', 'katch'), values are BMR in kcal/day.",
+            "title": "Bmr",
+            "type": "object"
+          },
+          "formulas_used": {
+            "description": "List of BMR formula names that were used in the calculation (e.g., ['mifflin', 'harris', 'katch']).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Formulas Used",
+            "type": "array"
+          },
+          "notes": {
+            "description": "Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "recommended_intake": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Recommended daily calorie intake for different goals. Keys: 'maintenance', 'weight_loss' (20% deficit), 'weight_gain' (20% surplus); values are calories in kcal/day.",
+            "title": "Recommended Intake",
+            "type": "object"
+          },
+          "tdee": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "TDEE (Total Daily Energy Expenditure) values for different formulas and activity levels. Keys are formula names, values are TDEE in kcal/day.",
+            "title": "Tdee",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bmr",
+          "tdee",
+          "activity_level",
+          "recommended_intake",
+          "formulas_used",
+          "notes"
+        ],
+        "title": "BMRResponse",
+        "type": "object"
+      },
       "CBTInsightRequest": {
         "description": "Request schema for CBT insight endpoint.",
         "properties": {
@@ -3306,6 +3438,58 @@
           "overall_score"
         ],
         "title": "NutrientCoverageSummary",
+        "type": "object"
+      },
+      "NutrientGapsRequest": {
+        "description": "RU: Запрос на анализ дефицитов. EN: Nutrient-gap analysis request.",
+        "properties": {
+          "consumed_nutrients": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Consumed Nutrients",
+            "type": "object"
+          },
+          "user_profile": {
+            "$ref": "#/components/schemas/WHOTargetsRequest"
+          }
+        },
+        "required": [
+          "consumed_nutrients",
+          "user_profile"
+        ],
+        "title": "NutrientGapsRequest",
+        "type": "object"
+      },
+      "NutrientGapsResponse": {
+        "description": "RU: Ответ анализа дефицитов. EN: Nutrient-gap analysis response.",
+        "properties": {
+          "adherence_score": {
+            "title": "Adherence Score",
+            "type": "number"
+          },
+          "food_recommendations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Food Recommendations",
+            "type": "array"
+          },
+          "gaps": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Gaps",
+            "type": "object"
+          }
+        },
+        "required": [
+          "gaps",
+          "food_recommendations",
+          "adherence_score"
+        ],
+        "title": "NutrientGapsResponse",
         "type": "object"
       },
       "NutritionSegmentData": {
@@ -7867,6 +8051,54 @@
         ]
       }
     },
+    "/api/v1/pro/nutrition/bmr": {
+      "post": {
+        "description": "Canonical BMR/TDEE endpoint for PRO tier.",
+        "operationId": "pro_nutrition_bmr_api_v1_pro_nutrition_bmr_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BMRRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BMRResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "BMR and TDEE calculations (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
     "/api/v1/pro/nutrition/coverage": {
       "post": {
         "description": "Score nutrient coverage against WHO-based targets.\n\nRU: Оценивает покрытие нутриентов в рационе относительно целей ВОЗ.\nEN: Scores actual nutrient intake against personalized WHO targets.",
@@ -8163,6 +8395,54 @@
           }
         ],
         "summary": "Food-based deficiency recommendations (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/gaps": {
+      "post": {
+        "description": "Canonical nutrient-gap endpoint for PRO tier.",
+        "operationId": "pro_nutrition_gaps_api_v1_pro_nutrition_gaps_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NutrientGapsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutrientGapsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Nutrient gap analysis (PRO)",
         "tags": [
           "nutrition",
           "pro"

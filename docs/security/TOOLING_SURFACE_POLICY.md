@@ -6,8 +6,8 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
 
 ## Hard Rules
 
-- Recognized external GitHub action references must use lowercase 40-hex commit
-  SHA pins on these bounded surfaces:
+- Recognized GitHub action references must use family-specific immutable pins
+  on these bounded surfaces:
   - active `.github/workflows/**/*.yml` and `.github/workflows/**/*.yaml` files
   - exact `.github/actions/**/action.yml` and `.github/actions/**/action.yaml`
     composite metadata filenames
@@ -19,11 +19,27 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
   generated-runtime parser. Arbitrary YAML filenames under `.github/actions/`
   are outside this bounded scan, and the guard makes no completeness claim for
   other executable carriers or YAML-semantic forms.
-- Recognized references are classified in this order:
-  - local `./` references are repo-local and do not require an external SHA pin
-  - `docker://` references are excluded from this classifier; exclusion is not
-    a safety, provenance, or immutability claim
-  - other references must satisfy the exact lowercase 40-hex SHA predicate
+- Native container action metadata using `runs: using: docker` with a
+  `runs.image: docker://...` field is a distinct, context-dependent carrier.
+  The current literal `uses:` guard does not parse or cover it; a separately
+  admitted closed recognizer is tracked at
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-native-docker-action-image-pin-guard`.
+- Recognized references are classified exactly once in this order:
+  - local `./` references are repo-local and do not require an external pin
+  - `docker://` references must end in an exact lowercase
+    `sha256:<64-lowercase-hex>` digest; a tag may precede the digest, but a tag
+    alone is mutable and forbidden
+  - other external references must satisfy the exact lowercase 40-hex commit
+    SHA predicate
+- Docker acceptance proves only that the recognized lexical token has the
+  required digest selector shape. It does not validate the complete Docker/OCI
+  reference grammar, fetch or verify the image, or establish trust, signature,
+  provenance, SBOM, vulnerability, or platform-compatibility claims.
+- Executable evidence for this classifier and its Docker boundary lives at
+  `scripts/ci/guard_actions_pin.py:11` and
+  `tests/test_tooling_surface_guards.py:181`; the native `runs.image`
+  negative-control boundary is explicit at
+  `tests/test_tooling_surface_guards.py:269`.
 - On `pull_request`, `jobs.pr_scope_guard` executes the bounded guard against
   the live checkout as the first validation command after `set -euo pipefail`
   and before `scripts/ci/pr_scope_guard.sh` in the step immediately after

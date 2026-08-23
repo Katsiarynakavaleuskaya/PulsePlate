@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime
 import hashlib
 import json
 from fnmatch import fnmatch
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,6 +25,24 @@ from packaging.version import Version
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json"
 ADMISSION_DOC_PATH = REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
+DEPENDABOT_INVENTORY_PATH = REPO_ROOT / "docs" / "security" / "DEPENDABOT_ALERT_INVENTORY.md"
+BACKLOG_LEDGER_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+MSGPACK_ALERT_NUMBER = "225"
+MSGPACK_ALERT_LEDGER_ANCHOR = "ledger-p1-msgpack-ci-lite-alert-recheck"
+MSGPACK_ALERT_TUPLE = {
+    "alert_number": MSGPACK_ALERT_NUMBER,
+    "ecosystem": "pip",
+    "package": "msgpack",
+    "advisory": "GHSA-6v7p-g79w-8964",
+    "state": "fixed",
+    "fixed_at": "2026-06-22T22:34:21Z",
+    "dismissed_at": "null",
+    "auto_dismissed_at": "null",
+    "manifest": "requirements-ci-lite.txt",
+}
+MSGPACK_ALERT_TUPLE_FIELDS = frozenset(MSGPACK_ALERT_TUPLE)
+MSGPACK_CLOSED_SECTION_HEADING = "## Closed alert reconciliation"
+DEPENDABOT_OPEN_SECTION_HEADING = "## Authenticated open alerts"
 SNAPSHOT_START = "<!-- dependency-remediation-admission-v1-snapshot:start -->"
 SNAPSHOT_END = "<!-- dependency-remediation-admission-v1-snapshot:end -->"
 SNAPSHOT_ALLOWLIST_LINE = "<!-- pragma: allowlist nextline secret -->"
@@ -104,6 +124,352 @@ URL_VCS_EDITABLE_PREFIXES = (
     "bzr+",
 )
 PIP_DIRECTIVE_SEMANTIC_CARRIER = "__pip_directive__"
+
+
+def _extract_unique_markdown_section(document: str, heading: str, *, projection: str) -> str:
+    """Extract one exact level-two section for the alert-225 parity guard."""
+
+    lines = document.splitlines()
+    matches = [index for index, line in enumerate(lines) if line == heading]
+    assert len(matches) == 1, f"{projection}: expected exactly one {heading!r} section"
+    start = matches[0] + 1
+    end = next(
+        (index for index in range(start, len(lines)) if lines[index].startswith("## ")),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
+
+
+def _extract_unique_msgpack_ledger_block(document: str) -> str:
+    """Extract the uniquely anchored msgpack alert-225 ledger block."""
+
+    marker = f'<a id="{MSGPACK_ALERT_LEDGER_ANCHOR}"></a>'
+    assert (
+        document.count(marker) == 1
+    ), f"ledger: expected exactly one {MSGPACK_ALERT_LEDGER_ANCHOR!r} anchor"
+    remainder = document.split(marker, maxsplit=1)[1]
+    next_anchor = re.search(r'^<a id="[A-Za-z0-9_-]+"></a>$', remainder, flags=re.MULTILINE)
+    return remainder[: next_anchor.start()] if next_anchor is not None else remainder
+
+
+def _parse_msgpack_alert_tuple(section: str, *, projection: str) -> dict[str, str]:
+    """Parse one complete sanitized alert-225 tuple without prose inference."""
+
+    fenced_blocks = re.findall(
+        r"^[ ]*```text\n(.*?)\n[ ]*```$",
+        section,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    candidates = [block for block in fenced_blocks if "alert_number=" in block]
+    assert len(candidates) == 1, f"{projection}: expected exactly one alert-225 tuple"
+    raw_lines = candidates[0].splitlines()
+    indentation = min(len(line) - len(line.lstrip(" ")) for line in raw_lines if line)
+    tuple_lines = [line[indentation:] for line in raw_lines]
+    parsed: dict[str, str] = {}
+    for line in tuple_lines:
+        assert line and line.strip() == line, f"{projection}: malformed tuple line"
+        key, separator, value = line.partition("=")
+        assert separator and key and value, f"{projection}: malformed tuple field"
+        assert key not in parsed, f"{projection}: duplicate tuple field {key!r}"
+        parsed[key] = value
+    assert set(parsed) == MSGPACK_ALERT_TUPLE_FIELDS, (
+        f"{projection}: tuple fields mismatch; " f"expected {sorted(MSGPACK_ALERT_TUPLE_FIELDS)!r}"
+    )
+    timestamp = parsed["fixed_at"]
+    assert re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+        timestamp,
+    ), f"{projection}: fixed_at must be exact UTC YYYY-MM-DDTHH:MM:SSZ"
+    try:
+        datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise AssertionError(f"{projection}: fixed_at must be a valid UTC timestamp") from error
+    return parsed
+
+
+def _assert_msgpack_alert_225_inventory_ledger_parity(
+    inventory_document: str,
+    ledger_document: str,
+) -> None:
+    """Require exact closed-provider tuple parity for historical alert 225."""
+
+    open_section = _extract_unique_markdown_section(
+        inventory_document,
+        DEPENDABOT_OPEN_SECTION_HEADING,
+        projection="inventory",
+    )
+    assert not re.search(
+        r"#225(?![0-9A-Za-z_])",
+        open_section,
+    ), "inventory: fixed alert 225 must not remain in the open-alert table"
+    closed_section = _extract_unique_markdown_section(
+        inventory_document,
+        MSGPACK_CLOSED_SECTION_HEADING,
+        projection="inventory",
+    )
+    assert (
+        f"BACKLOG_LEDGER.md#{MSGPACK_ALERT_LEDGER_ANCHOR}" in closed_section
+    ), "inventory: alert-225 tuple must point to its unique ledger anchor"
+    assert (
+        "provider-state reconciliation only" in closed_section.lower()
+    ), "inventory: provider-state-only boundary missing"
+    inventory_tuple = _parse_msgpack_alert_tuple(closed_section, projection="inventory")
+
+    ledger_block = _extract_unique_msgpack_ledger_block(ledger_document)
+    ledger_tuple = _parse_msgpack_alert_tuple(ledger_block, projection="ledger")
+    assert inventory_tuple == ledger_tuple, "ledger: alert-225 tuple differs from inventory"
+    assert inventory_tuple == MSGPACK_ALERT_TUPLE, (
+        "inventory: alert-225 tuple differs from the authenticated sanitized value; "
+        f"expected {MSGPACK_ALERT_TUPLE!r}"
+    )
+    assert re.search(
+        r"^- \[x\] P1: Recheck msgpack Dependabot alert #225",
+        ledger_block,
+        flags=re.MULTILINE,
+    ), "ledger: fixed alert 225 requires a checked parent item"
+    assert (
+        "- [x] Recheck Dependabot alert `#225`" in ledger_block
+    ), "ledger: provider-recheck DoD must be checked"
+    assert (
+        "- [x] Record authenticated closure evidence" in ledger_block
+    ), "ledger: closure-evidence DoD must be checked"
+    assert (
+        "no repo-owned vulnerable dependency path was reproduced" in ledger_block
+    ), "ledger: historical no-reproduced-path boundary missing"
+    lowered = ledger_block.lower()
+    for forbidden in ("live dependabot alert", "pending recheck", "status: planned"):
+        assert forbidden not in lowered, f"ledger: active-state carrier remains: {forbidden!r}"
+
+
+def _msgpack_alert_tuple_text(fields: dict[str, str] | None = None) -> str:
+    """Render the closed synthetic tuple used by deterministic negative controls."""
+
+    values = fields or MSGPACK_ALERT_TUPLE
+    return "\n".join(f"{key}={value}" for key, value in values.items())
+
+
+def _msgpack_inventory_fixture(*, fields: dict[str, str] | None = None) -> str:
+    """Return a minimal inventory with disjoint open and closed alert sections."""
+
+    return (
+        "# Inventory\n\n"
+        f"{DEPENDABOT_OPEN_SECTION_HEADING}\n\n"
+        "| Alert | Package |\n| --- | --- |\n| `#999` | `other` |\n\n"
+        f"{MSGPACK_CLOSED_SECTION_HEADING}\n\n"
+        "```text\n"
+        f"{_msgpack_alert_tuple_text(fields)}\n"
+        "```\n\n"
+        f"`docs/roadmap/BACKLOG_LEDGER.md#{MSGPACK_ALERT_LEDGER_ANCHOR}`\n\n"
+        "Provider-state reconciliation only; no new pip dependency material remediation.\n\n"
+        "## Next section\n"
+    )
+
+
+def _msgpack_ledger_fixture(*, fields: dict[str, str] | None = None) -> str:
+    """Return a minimal completed ledger block for the alert-225 invariant."""
+
+    return (
+        f'<a id="{MSGPACK_ALERT_LEDGER_ANCHOR}"></a>\n'
+        "- [x] P1: Recheck msgpack Dependabot alert #225 after remediation\n"
+        "  - Status: Completed.\n"
+        "  - Authenticated provider-state tuple:\n\n"
+        "    ```text\n"
+        + "\n".join(f"    {line}" for line in _msgpack_alert_tuple_text(fields).splitlines())
+        + "\n    ```\n"
+        "  - Reason: Historical provider alert; no new pip material.\n"
+        "  - DoD:\n"
+        "    - [x] Recheck Dependabot alert `#225` after provider refresh.\n"
+        "    - [x] Record authenticated closure evidence.\n"
+        "    - [x] Preserve requirements unchanged because no repo-owned vulnerable "
+        "dependency path was reproduced.\n\n"
+        '<a id="next-ledger-item"></a>\n'
+    )
+
+
+def test_msgpack_alert_225_live_inventory_and_ledger_are_exactly_reconciled() -> None:
+    """Current docs must agree on the exact authenticated terminal provider tuple."""
+
+    _assert_msgpack_alert_225_inventory_ledger_parity(
+        DEPENDABOT_INVENTORY_PATH.read_text(encoding="utf-8"),
+        BACKLOG_LEDGER_PATH.read_text(encoding="utf-8"),
+    )
+
+
+def test_msgpack_alert_225_parity_allows_field_order_and_unrelated_text() -> None:
+    """Named fields remain semantic while unrelated regions stay outside the owner."""
+
+    reordered = dict(reversed(tuple(MSGPACK_ALERT_TUPLE.items())))
+    inventory = "unrelated prefix\n" + _msgpack_inventory_fixture(fields=reordered).replace(
+        "| `#999` | `other` |",
+        "| `#224` | `other` |\n| `#2250` | `other` |\n| `#1225` | `other` |",
+    )
+    ledger = "unrelated ledger prefix\n" + _msgpack_ledger_fixture(fields=reordered)
+
+    _assert_msgpack_alert_225_inventory_ledger_parity(inventory, ledger)
+    assert "{" not in inventory, "sanitized fixture must not require raw provider JSON"
+    assert "https://" not in ledger, "sanitized fixture must not require provider URLs"
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "missing_closed_section",
+        "duplicate_closed_section",
+        "duplicate_closed_tuple",
+        "missing_ledger_anchor",
+        "duplicate_ledger_anchor",
+        "fixed_alert_in_open_table",
+        "fixed_alert_open_unformatted",
+        "fixed_alert_open_linked",
+        "fixed_alert_open_embedded_cell",
+        "fixed_alert_open_prose",
+        "inventory_state_open",
+        "inventory_state_dismissed",
+        "inventory_state_unknown",
+        "ledger_state_mismatch",
+        "fixed_at_one_second_drift",
+        "fixed_at_missing",
+        "fixed_at_malformed",
+        "fixed_at_invalid_calendar",
+        "dismissed_at_mismatch",
+        "dismissed_at_missing",
+        "auto_dismissed_at_mismatch",
+        "auto_dismissed_at_missing",
+        "manifest_mismatch",
+        "package_mismatch",
+        "advisory_mismatch",
+        "alert_number_mismatch",
+        "ecosystem_mismatch",
+        "parent_unchecked",
+        "provider_recheck_unchecked",
+        "closure_evidence_unchecked",
+        "active_state_wording",
+        "partial_tuple",
+        "duplicate_tuple_field",
+        "unrelated_alert_substitution",
+        "missing_ledger_link",
+        "missing_provider_state_boundary",
+    ),
+)
+def test_msgpack_alert_225_parity_fails_closed(case: str) -> None:
+    """Every missing, duplicate, contradictory, or malformed projection must fail."""
+
+    inventory_fields = dict(MSGPACK_ALERT_TUPLE)
+    ledger_fields = dict(MSGPACK_ALERT_TUPLE)
+    inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+
+    if case == "missing_closed_section":
+        inventory = inventory.replace(MSGPACK_CLOSED_SECTION_HEADING, "## Removed section")
+    elif case == "duplicate_closed_section":
+        inventory += f"\n{MSGPACK_CLOSED_SECTION_HEADING}\n"
+    elif case == "duplicate_closed_tuple":
+        inventory = inventory.replace(
+            "## Next section",
+            f"```text\n{_msgpack_alert_tuple_text()}\n```\n\n## Next section",
+        )
+    elif case == "missing_ledger_anchor":
+        ledger = ledger.replace(MSGPACK_ALERT_LEDGER_ANCHOR, "missing-ledger-anchor")
+    elif case == "duplicate_ledger_anchor":
+        marker = f'<a id="{MSGPACK_ALERT_LEDGER_ANCHOR}"></a>'
+        ledger = f"{marker}\n{ledger}"
+    elif case == "fixed_alert_in_open_table":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| `#225` | `msgpack` |",
+        )
+    elif case == "fixed_alert_open_unformatted":
+        inventory = inventory.replace("| `#999` | `other` |", "| #225 | msgpack |")
+    elif case == "fixed_alert_open_linked":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| [#225](dependabot/alerts/225) | msgpack |",
+        )
+    elif case == "fixed_alert_open_embedded_cell":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| Active alert `#225` | msgpack |",
+        )
+    elif case == "fixed_alert_open_prose":
+        inventory = inventory.replace(
+            "| `#999` | `other` |",
+            "| `#999` | `other` |\n\nAlert #225 remains open.",
+        )
+    elif case in {"inventory_state_open", "inventory_state_dismissed", "inventory_state_unknown"}:
+        state = case.removeprefix("inventory_state_")
+        inventory_fields["state"] = state
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "ledger_state_mismatch":
+        ledger_fields["state"] = "open"
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "fixed_at_one_second_drift":
+        ledger_fields["fixed_at"] = "2026-06-22T22:34:22Z"
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "fixed_at_missing":
+        inventory_fields.pop("fixed_at")
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "fixed_at_malformed":
+        inventory_fields["fixed_at"] = "2026-06-22 22:34:21"
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "fixed_at_invalid_calendar":
+        inventory_fields["fixed_at"] = "2026-02-30T22:34:21Z"
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "dismissed_at_mismatch":
+        ledger_fields["dismissed_at"] = "2026-06-22T22:34:21Z"
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "dismissed_at_missing":
+        ledger_fields.pop("dismissed_at")
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "auto_dismissed_at_mismatch":
+        ledger_fields["auto_dismissed_at"] = "2026-06-22T22:34:21Z"
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "auto_dismissed_at_missing":
+        ledger_fields.pop("auto_dismissed_at")
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case in {
+        "manifest_mismatch",
+        "package_mismatch",
+        "advisory_mismatch",
+        "alert_number_mismatch",
+        "ecosystem_mismatch",
+    }:
+        field = case.removesuffix("_mismatch")
+        ledger_fields[field] = "other"
+        ledger = _msgpack_ledger_fixture(fields=ledger_fields)
+    elif case == "parent_unchecked":
+        ledger = ledger.replace("- [x] P1: Recheck", "- [ ] P1: Recheck")
+    elif case == "provider_recheck_unchecked":
+        ledger = ledger.replace(
+            "- [x] Recheck Dependabot alert `#225`",
+            "- [ ] Recheck Dependabot alert `#225`",
+        )
+    elif case == "closure_evidence_unchecked":
+        ledger = ledger.replace(
+            "- [x] Record authenticated closure evidence",
+            "- [ ] Record authenticated closure evidence",
+        )
+    elif case == "active_state_wording":
+        ledger = ledger.replace("Historical provider alert", "Live Dependabot alert")
+    elif case == "partial_tuple":
+        inventory_fields.pop("manifest")
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "duplicate_tuple_field":
+        inventory = inventory.replace("state=fixed", "state=fixed\nstate=fixed", 1)
+    elif case == "unrelated_alert_substitution":
+        inventory_fields["alert_number"] = "999"
+        inventory = _msgpack_inventory_fixture(fields=inventory_fields)
+    elif case == "missing_ledger_link":
+        inventory = inventory.replace(MSGPACK_ALERT_LEDGER_ANCHOR, "other-anchor")
+    elif case == "missing_provider_state_boundary":
+        inventory = inventory.replace(
+            "Provider-state reconciliation only",
+            "Historical record",
+        )
+    else:
+        raise AssertionError(f"unhandled alert-225 parity case: {case}")
+
+    with pytest.raises(AssertionError):
+        _assert_msgpack_alert_225_inventory_ledger_parity(inventory, ledger)
 
 
 def _is_constraint_style(path: Path) -> bool:
