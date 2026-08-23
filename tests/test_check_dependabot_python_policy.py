@@ -216,7 +216,7 @@ def test_closed_updater_registry_has_exact_core_v1_contract() -> None:
             "package-ecosystem": "github-actions",
             "directories": ["/", "/.github/actions/*"],
             **policy.EXPECTED_COMMON_UPDATE_EXACT_VALUES,
-            "cooldown": policy.EXPECTED_COOLDOWN,
+            "cooldown": policy.EXPECTED_GITHUB_ACTIONS_COOLDOWN,
         },
     }
 
@@ -423,7 +423,6 @@ def test_multi_ecosystem_grouping_is_forbidden_at_root_and_update(
         ("open-pull-requests-limit", -1),
         ("open-pull-requests-limit", False),
         ("open-pull-requests-limit", 1.0),
-        ("cooldown", {"default-days": 7}),
         ("commit-message", {"prefix": "deps"}),
     ],
 )
@@ -442,6 +441,113 @@ def test_non_python_schedule_limit_cooldown_and_commit_policy_are_exact(
 
     update_index = _update_index(config, ecosystem)
     assert any(f"updates[{update_index}].{key}:" in error for error in errors)
+
+
+def test_github_actions_default_only_cooldown_is_the_positive_contract() -> None:
+    config = _load_config(REPO_ROOT)
+    actions_update = _update_by_ecosystem(config, "github-actions")
+
+    assert actions_update["cooldown"] == policy.EXPECTED_GITHUB_ACTIONS_COOLDOWN
+    assert policy.EXPECTED_UPDATE_CONTRACTS["github-actions"].cooldown == {"default-days": 7}
+    assert policy.validate_repo(REPO_ROOT) == []
+
+
+@pytest.mark.parametrize(
+    "extra_key",
+    ("semver-major-days", "semver-minor-days", "semver-patch-days"),
+)
+def test_github_actions_rejects_each_unsupported_semver_cooldown_key(
+    tmp_path: Path,
+    extra_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    actions = _update_by_ecosystem(config, "github-actions")
+    cooldown = actions["cooldown"]
+    assert isinstance(cooldown, dict)
+    cooldown[extra_key] = 30
+    update_index = _update_index(config, "github-actions")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:updates[{update_index}].cooldown:"
+        "keys must be exactly ['default-days']; got key_count=2"
+    ]
+
+
+def test_github_actions_cooldown_requires_default_days(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, "github-actions")["cooldown"] = {}
+    update_index = _update_index(config, "github-actions")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:updates[{update_index}].cooldown:"
+        "keys must be exactly ['default-days']; got key_count=0"
+    ]
+
+
+def test_github_actions_cooldown_rejects_wrong_default_days(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, "github-actions")["cooldown"] = {"default-days": 8}
+    update_index = _update_index(config, "github-actions")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:updates[{update_index}].cooldown.default-days:"
+        "must be 7; got integer"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("wrong_type", "expected_shape"),
+    ((7.0, "number"), (True, "boolean"), ("7", "string"), (None, "null")),
+)
+def test_github_actions_cooldown_rejects_wrong_type_default_days(
+    tmp_path: Path,
+    wrong_type: object,
+    expected_shape: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, "github-actions")["cooldown"] = {"default-days": wrong_type}
+    update_index = _update_index(config, "github-actions")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:updates[{update_index}].cooldown.default-days:"
+        f"must be 7; got {expected_shape}"
+    ]
+
+
+@pytest.mark.parametrize("ecosystem", ["pip", "npm", "bundler"])
+def test_version_updaters_reject_default_only_cooldown(
+    tmp_path: Path,
+    ecosystem: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, ecosystem)["cooldown"] = {"default-days": 7}
+    update_index = _update_index(config, ecosystem)
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:updates[{update_index}].cooldown:keys must be exactly "
+        "['default-days', 'semver-major-days', 'semver-minor-days', "
+        "'semver-patch-days']; got key_count=1"
+    ]
 
 
 @pytest.mark.parametrize("dependency_key", sorted(policy.BUSINESS_COLLATERAL_DEPENDENCY_KEYS))
