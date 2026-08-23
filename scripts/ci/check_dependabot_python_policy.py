@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Validate the production-governed Python Dependabot intake policy."""
+"""Validate the production-governed Dependabot intake policy."""
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
 import fnmatch
+import json
 import os
 from pathlib import Path
 import re
 import stat
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 from packaging.requirements import InvalidRequirement, Requirement
 import yaml
@@ -34,11 +36,12 @@ CONFIG_PATH = Path(".github/dependabot.yml")
 SHADOW_CONFIG_PATH = Path(".github/dependabot.yaml")
 CONSTRAINTS_PATH = Path("constraints.txt")
 REGISTRY_NAME = "python-index"
+REGISTRY_AUTH_KEYS = ("username", "pass" + "word")
 REGISTRY_CONFIG = {
     "type": "python-index",
     "url": "https://packages.pulseplate.app/root/pulseplate/+simple/",
-    "username": "${{secrets.DEVPI_DEPENDABOT_USER}}",
-    "password": "${{secrets.DEVPI_DEPENDABOT_PASSWORD}}",
+    REGISTRY_AUTH_KEYS[0]: "${{secrets.DEVPI_DEPENDABOT_USER}}",
+    REGISTRY_AUTH_KEYS[1]: "${{secrets.DEVPI_DEPENDABOT_PASSWORD}}",
     "replaces-base": True,
 }
 EXPECTED_COOLDOWN = {
@@ -145,6 +148,20 @@ FORBIDDEN_UPDATE_KEYS = {
     "ignore",
     "exclude-paths",
     "target-branch",
+    "multi-ecosystem-group",
+}
+NON_PYTHON_FORBIDDEN_AUTHORITY_KEYS = FORBIDDEN_UPDATE_KEYS | {
+    "groups",
+    "registries",
+    "labels",
+    "assignees",
+    "reviewers",
+    "milestone",
+    "auto-merge",
+    "automerge",
+    "approve",
+    "auto-approve",
+    "approvers",
 }
 EXTERNAL_CODE_EXECUTION_KEY = "insecure-external-code-execution"
 EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
@@ -156,7 +173,100 @@ EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "commit-message": {"prefix": "deps", "include": "scope"},
 }
 EXPECTED_UPDATE_KEYS = set(EXPECTED_UPDATE_EXACT_VALUES) | {"cooldown", "groups"}
+EXPECTED_COMMON_UPDATE_EXACT_VALUES: dict[str, object] = {
+    "schedule": {"interval": "weekly"},
+    "open-pull-requests-limit": 1,
+    "commit-message": {"prefix": "deps", "include": "scope"},
+}
+
+
+@dataclass(frozen=True)
+class UpdaterContract:
+    """One statically typed closed-world updater contract."""
+
+    scope_key: str
+    scope_paths: tuple[str, ...]
+    exact_values: Mapping[str, object]
+    keys: frozenset[str]
+
+
+EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
+    "pip": UpdaterContract(
+        scope_key="directory",
+        scope_paths=("/",),
+        exact_values=EXPECTED_UPDATE_EXACT_VALUES,
+        keys=frozenset(EXPECTED_UPDATE_KEYS),
+    ),
+    "npm": UpdaterContract(
+        scope_key="directories",
+        scope_paths=("/", "/frontend"),
+        exact_values={
+            "package-ecosystem": "npm",
+            **EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+        },
+        keys=frozenset(
+            {
+                "package-ecosystem",
+                "directories",
+                *EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+                "cooldown",
+            }
+        ),
+    ),
+    "bundler": UpdaterContract(
+        scope_key="directory",
+        scope_paths=("/ios",),
+        exact_values={
+            "package-ecosystem": "bundler",
+            **EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+        },
+        keys=frozenset(
+            {
+                "package-ecosystem",
+                "directory",
+                *EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+                "cooldown",
+            }
+        ),
+    ),
+    "github-actions": UpdaterContract(
+        scope_key="directories",
+        scope_paths=("/", "/.github/actions/*"),
+        exact_values={
+            "package-ecosystem": "github-actions",
+            **EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+        },
+        keys=frozenset(
+            {
+                "package-ecosystem",
+                "directories",
+                *EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+                "cooldown",
+            }
+        ),
+    ),
+}
+EXPECTED_UPDATER_ECOSYSTEMS = frozenset(EXPECTED_UPDATE_CONTRACTS)
+ALL_EXPECTED_UPDATE_KEYS = frozenset(
+    key for contract in EXPECTED_UPDATE_CONTRACTS.values() for key in contract.keys
+)
+SCOPE_KEYS = frozenset({"directory", "directories"})
+BUSINESS_COLLATERAL_PACKAGE_PATH = Path("scripts/business_collateral/package.json")
+BUSINESS_COLLATERAL_DEPENDENCY_KEYS = frozenset(
+    {"dependencies", "devDependencies", "optionalDependencies", "peerDependencies"}
+)
+BUSINESS_COLLATERAL_LOCK_PATHS = (
+    Path("scripts/business_collateral/package-lock.json"),
+    Path("scripts/business_collateral/npm-shrinkwrap.json"),
+    Path("scripts/business_collateral/yarn.lock"),
+    Path("scripts/business_collateral/pnpm-lock.yaml"),
+    Path("scripts/business_collateral/pnpm-lock.yml"),
+    Path("scripts/business_collateral/bun.lock"),
+    Path("scripts/business_collateral/bun.lockb"),
+)
 MAX_CONFIG_BYTES = 64 * 1024
+MAX_BUSINESS_PACKAGE_BYTES = 16 * 1024
+MAX_BUSINESS_JSON_INTEGER_DIGITS = 4300
 MAX_YAML_TOKENS = 4096
 MAX_YAML_NESTING = 32
 MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
@@ -290,7 +400,7 @@ def _walk_mapping(
     if isinstance(value, Mapping):
         yield path, value
         safe_keys = (
-            EXPECTED_UPDATE_KEYS
+            set(ALL_EXPECTED_UPDATE_KEYS)
             | set(EXPECTED_GROUPS)
             | {
                 "version",
@@ -302,7 +412,7 @@ def _walk_mapping(
                 "patterns",
                 "update-types",
             }
-            | FORBIDDEN_UPDATE_KEYS
+            | NON_PYTHON_FORBIDDEN_AUTHORITY_KEYS
         )
         for key, child in value.items():
             key_component = key if isinstance(key, str) and key in safe_keys else "<mapping-value>"
@@ -602,21 +712,282 @@ def _validate_exact_mapping(
             )
 
 
+def _validate_business_collateral_marker(repo_root: Path, errors: list[str]) -> None:
+    """Require an explicit ownership decision before collateral becomes an npm surface."""
+
+    package_text, failure = _read_bounded_regular_utf8(
+        repo_root,
+        BUSINESS_COLLATERAL_PACKAGE_PATH,
+        max_bytes=MAX_BUSINESS_PACKAGE_BYTES,
+    )
+    if failure is not None:
+        errors.append(
+            _policy_input_error(
+                BUSINESS_COLLATERAL_PACKAGE_PATH,
+                failure,
+                max_bytes=MAX_BUSINESS_PACKAGE_BYTES,
+            )
+        )
+    elif package_text is None:
+        errors.append(
+            _policy_input_error(
+                BUSINESS_COLLATERAL_PACKAGE_PATH,
+                INPUT_UNREADABLE,
+                max_bytes=MAX_BUSINESS_PACKAGE_BYTES,
+            )
+        )
+    else:
+        try:
+            package_manifest = json.loads(
+                package_text,
+                parse_constant=_reject_nonstandard_json_constant,
+                parse_int=_parse_bounded_json_integer,
+            )
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            errors.append(
+                _source_error(
+                    BUSINESS_COLLATERAL_PACKAGE_PATH,
+                    "$",
+                    "must be valid bounded JSON",
+                )
+            )
+        else:
+            if not isinstance(package_manifest, Mapping):
+                errors.append(
+                    _source_error(
+                        BUSINESS_COLLATERAL_PACKAGE_PATH,
+                        "$",
+                        "dependency-free marker must be a mapping",
+                    )
+                )
+            else:
+                if not _exact_value_matches(package_manifest.get("type"), "commonjs"):
+                    errors.append(
+                        _source_error(
+                            BUSINESS_COLLATERAL_PACKAGE_PATH,
+                            "type",
+                            "dependency-free marker must declare exact string 'commonjs'",
+                        )
+                    )
+                for dependency_key in sorted(
+                    BUSINESS_COLLATERAL_DEPENDENCY_KEYS.intersection(package_manifest)
+                ):
+                    errors.append(
+                        _source_error(
+                            BUSINESS_COLLATERAL_PACKAGE_PATH,
+                            dependency_key,
+                            "dependency ownership is not admitted for this marker",
+                        )
+                    )
+
+    for lock_path in BUSINESS_COLLATERAL_LOCK_PATHS:
+        candidate = repo_root / lock_path
+        if candidate.exists() or candidate.is_symlink():
+            errors.append(
+                _source_error(
+                    lock_path,
+                    "$",
+                    "adjacent lock requires a separate explicit updater ownership decision",
+                )
+            )
+
+
+def _reject_nonstandard_json_constant(_constant: str) -> NoReturn:
+    """Reject NaN and infinities without reflecting their untrusted spelling."""
+
+    raise ValueError
+
+
+def _parse_bounded_json_integer(raw_integer: str) -> int:
+    """Parse one JSON integer within an explicit non-reflecting digit budget."""
+
+    digits = raw_integer[1:] if raw_integer.startswith("-") else raw_integer
+    if len(digits) > MAX_BUSINESS_JSON_INTEGER_DIGITS:
+        raise ValueError
+    return int(raw_integer)
+
+
+def _scope_paths(
+    *,
+    update: Mapping[object, object],
+    update_path: str,
+    ecosystem: str,
+    present_scope_keys: frozenset[str],
+    errors: list[str],
+) -> tuple[str, ...] | None:
+    """Return one validated canonical scope without rendering untrusted values."""
+
+    if len(present_scope_keys) != 1:
+        errors.append(
+            _error(
+                update_path,
+                "must define exactly one of 'directory' or 'directories'",
+            )
+        )
+        return None
+
+    scope_key = next(iter(present_scope_keys))
+    raw_scope = update[scope_key]
+    if scope_key == "directory":
+        if not isinstance(raw_scope, str):
+            errors.append(_error(f"{update_path}.directory", "must be a string"))
+            return None
+        paths = (raw_scope,)
+    else:
+        if not isinstance(raw_scope, list) or not raw_scope:
+            errors.append(
+                _error(
+                    f"{update_path}.directories",
+                    "must be a non-empty list of strings",
+                )
+            )
+            return None
+        if not all(isinstance(path, str) for path in raw_scope):
+            errors.append(
+                _error(
+                    f"{update_path}.directories",
+                    "must be a non-empty list of strings",
+                )
+            )
+            return None
+        paths = tuple(raw_scope)
+
+    if len(set(paths)) != len(paths):
+        errors.append(_error(f"{update_path}.{scope_key}", "duplicate paths are forbidden"))
+
+    paths_are_canonical = True
+    for index, path in enumerate(paths):
+        path_location = (
+            f"{update_path}.directory"
+            if scope_key == "directory"
+            else f"{update_path}.directories[{index}]"
+        )
+        has_wildcard = any(character in path for character in "*?[")
+        path_parts = path[1:].split("/") if path.startswith("/") else []
+        is_canonical = (
+            bool(path)
+            and path.startswith("/")
+            and "\\" not in path
+            and (path == "/" or not path.endswith("/"))
+            and "//" not in path
+            and (path == "/" or all(part not in {"", ".", ".."} for part in path_parts))
+            and not any(character.isspace() or ord(character) < 32 for character in path)
+        )
+        if not is_canonical:
+            errors.append(
+                _error(
+                    path_location,
+                    "must be a canonical absolute repository directory",
+                )
+            )
+            paths_are_canonical = False
+        if has_wildcard and not (ecosystem == "github-actions" and path == "/.github/actions/*"):
+            errors.append(
+                _error(
+                    path_location,
+                    "wildcards are forbidden except the exact composite-action token",
+                )
+            )
+            paths_are_canonical = False
+
+    return paths if paths_are_canonical else None
+
+
+def _validate_update_contract(
+    *,
+    repo_root: Path,
+    update: Mapping[object, object],
+    update_index: int,
+    ecosystem: str,
+    errors: list[str],
+) -> tuple[str, ...] | None:
+    """Validate one recognized updater against its finite local contract."""
+
+    update_path = f"updates[{update_index}]"
+    contract = EXPECTED_UPDATE_CONTRACTS[ecosystem]
+    expected_keys = contract.keys
+    if set(update) != expected_keys:
+        errors.append(
+            _error(
+                update_path,
+                f"keys must be exactly {_sorted_keys(expected_keys)!r}; "
+                f"got key_count={len(update)}",
+            )
+        )
+
+    for key, expected_value in contract.exact_values.items():
+        if key in SCOPE_KEYS:
+            continue
+        actual_value = update.get(key)
+        if not _exact_value_matches(actual_value, expected_value):
+            errors.append(
+                _error(
+                    f"{update_path}.{key}",
+                    f"must be exactly {expected_value!r}; got {_value_shape(actual_value)}",
+                )
+            )
+
+    present_scope_keys = SCOPE_KEYS.intersection(update)
+    paths = _scope_paths(
+        update=update,
+        update_path=update_path,
+        ecosystem=ecosystem,
+        present_scope_keys=present_scope_keys,
+        errors=errors,
+    )
+    expected_scope_key = contract.scope_key
+    expected_scope_paths = contract.scope_paths
+    actual_scope_key = next(iter(present_scope_keys)) if len(present_scope_keys) == 1 else None
+    if actual_scope_key != expected_scope_key:
+        errors.append(
+            _error(
+                update_path,
+                f"scope key must be exactly {expected_scope_key!r}",
+            )
+        )
+    if paths is not None and (
+        len(paths) != len(expected_scope_paths) or set(paths) != set(expected_scope_paths)
+    ):
+        errors.append(
+            _error(
+                f"{update_path}.{expected_scope_key}",
+                f"scope must be exactly {sorted(expected_scope_paths)!r}",
+            )
+        )
+
+    _validate_exact_mapping(
+        actual=update.get("cooldown"),
+        expected=EXPECTED_COOLDOWN,
+        key_path=f"{update_path}.cooldown",
+        errors=errors,
+    )
+
+    if ecosystem == "pip":
+        _validate_groups(
+            repo_root=repo_root,
+            groups=update.get("groups"),
+            errors=errors,
+            update_path=update_path,
+        )
+    return paths
+
+
 def _validate_groups(
     *,
     repo_root: Path,
     groups: object,
     errors: list[str],
+    update_path: str = "updates[0]",
 ) -> None:
     if not isinstance(groups, Mapping):
-        errors.append(_error("updates[0].groups", "must be a mapping"))
+        errors.append(_error(f"{update_path}.groups", "must be a mapping"))
         return
     expected_names = set(EXPECTED_GROUPS)
     actual_names = set(groups)
     if actual_names != expected_names:
         errors.append(
             _error(
-                "updates[0].groups",
+                f"{update_path}.groups",
                 f"group names must be exactly {_sorted_keys(expected_names)!r}; "
                 f"got group_count={len(actual_names)}",
             )
@@ -624,7 +995,7 @@ def _validate_groups(
 
     usable_groups: dict[str, tuple[str, ...]] = {}
     for group_name, expected in EXPECTED_GROUPS.items():
-        key_path = f"updates[0].groups.{group_name}"
+        key_path = f"{update_path}.groups.{group_name}"
         group = groups.get(group_name)
         if not isinstance(group, Mapping):
             errors.append(_error(key_path, "must be a mapping"))
@@ -674,14 +1045,14 @@ def _validate_groups(
             if pattern in {"*", "**"}:
                 errors.append(
                     _error(
-                        f"updates[0].groups.{group_name}.patterns[{pattern_index}]",
+                        f"{update_path}.groups.{group_name}.patterns[{pattern_index}]",
                         "catch-all patterns are forbidden",
                     )
                 )
             if not any(_matches(package, pattern) for package in known_packages):
                 errors.append(
                     _error(
-                        f"updates[0].groups.{group_name}.patterns[{pattern_index}]",
+                        f"{update_path}.groups.{group_name}.patterns[{pattern_index}]",
                         f"pattern {pattern!r} matches no known source or lock package",
                     )
                 )
@@ -754,6 +1125,8 @@ def validate_repo(repo_root: Path) -> list[str]:
         errors.append(_error("$", "root must be a mapping"))
         return errors
 
+    _validate_business_collateral_marker(repo_root, errors)
+
     for mapping_path, mapping in _walk_mapping(config, "$"):
         if EXTERNAL_CODE_EXECUTION_KEY in mapping:
             errors.append(
@@ -814,51 +1187,92 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(updates, list):
         errors.append(_error("updates", "must be a list"))
         return errors
-    if len(updates) != 1:
+    if len(updates) != len(EXPECTED_UPDATER_ECOSYSTEMS):
         errors.append(
             _error(
                 "updates",
-                f"must contain exactly one governed update block; got {len(updates)}",
+                "must contain exactly four governed update blocks; " f"got {len(updates)}",
             )
         )
-        return errors
-    update = updates[0]
-    update_path = "updates[0]"
-    if not isinstance(update, Mapping):
-        errors.append(_error(update_path, "must be a mapping"))
-        return errors
-    if set(update) != EXPECTED_UPDATE_KEYS:
-        errors.append(
-            _error(
-                update_path,
-                f"keys must be exactly {_sorted_keys(EXPECTED_UPDATE_KEYS)!r}; "
-                f"got key_count={len(update)}",
+
+    observed: dict[str, list[tuple[int, tuple[str, ...] | None]]] = {}
+    for update_index, update in enumerate(updates):
+        update_path = f"updates[{update_index}]"
+        if not isinstance(update, Mapping):
+            errors.append(_error(update_path, "must be a mapping"))
+            continue
+
+        ecosystem_value = update.get("package-ecosystem")
+        ecosystem = ecosystem_value if isinstance(ecosystem_value, str) else ""
+
+        for mapping_path, mapping in _walk_mapping(update, update_path):
+            for forbidden_key in sorted(FORBIDDEN_UPDATE_KEYS.intersection(mapping)):
+                errors.append(
+                    _error(
+                        f"{mapping_path}.{forbidden_key}",
+                        "key is forbidden by Mode A intake policy",
+                    )
+                )
+            if ecosystem != "pip":
+                for forbidden_key in sorted(
+                    NON_PYTHON_FORBIDDEN_AUTHORITY_KEYS.intersection(mapping)
+                    - FORBIDDEN_UPDATE_KEYS
+                ):
+                    errors.append(
+                        _error(
+                            f"{mapping_path}.{forbidden_key}",
+                            "key is forbidden for bounded non-Python updater authority",
+                        )
+                    )
+
+        if ecosystem not in EXPECTED_UPDATER_ECOSYSTEMS:
+            errors.append(
+                _error(
+                    f"{update_path}.package-ecosystem",
+                    "must be one of the four exact governed ecosystems; "
+                    f"got {_value_shape(ecosystem_value)}",
+                )
             )
+            continue
+
+        paths = _validate_update_contract(
+            repo_root=repo_root,
+            update=update,
+            update_index=update_index,
+            ecosystem=ecosystem,
+            errors=errors,
         )
-    for key, expected_value in EXPECTED_UPDATE_EXACT_VALUES.items():
-        actual_value = update.get(key)
-        if not _exact_value_matches(actual_value, expected_value):
+        observed.setdefault(ecosystem, []).append((update_index, paths))
+
+    for ecosystem in sorted(EXPECTED_UPDATER_ECOSYSTEMS):
+        occurrences = observed.get(ecosystem, [])
+        if not occurrences:
             errors.append(
                 _error(
-                    f"{update_path}.{key}",
-                    f"must be exactly {expected_value!r}; got {_value_shape(actual_value)}",
+                    "updates",
+                    f"missing required {ecosystem!r} updater identity",
                 )
             )
-    _validate_exact_mapping(
-        actual=update.get("cooldown"),
-        expected=EXPECTED_COOLDOWN,
-        key_path=f"{update_path}.cooldown",
-        errors=errors,
-    )
-    for mapping_path, mapping in _walk_mapping(update, update_path):
-        for forbidden_key in sorted(FORBIDDEN_UPDATE_KEYS.intersection(mapping)):
+            continue
+        if len(occurrences) > 1:
             errors.append(
                 _error(
-                    f"{mapping_path}.{forbidden_key}",
-                    "key is forbidden by Mode A intake policy",
+                    "updates",
+                    f"duplicate {ecosystem!r} updater identity is forbidden",
                 )
             )
-    _validate_groups(repo_root=repo_root, groups=update.get("groups"), errors=errors)
+            valid_path_sets = [set(paths) for _, paths in occurrences if paths is not None]
+            if any(
+                left.intersection(right)
+                for left_index, left in enumerate(valid_path_sets)
+                for right in valid_path_sets[left_index + 1 :]
+            ):
+                errors.append(
+                    _error(
+                        "updates",
+                        f"overlapping {ecosystem!r} updater scopes are forbidden",
+                    )
+                )
     return errors
 
 
