@@ -43,7 +43,6 @@ from scripts.orchestration.requested_agents import (
     normalize_implementation_owner_slugs,
 )
 from scripts.orchestration.bootstrap_sync_policy import (
-    _normalize_invariant_review_path,
     INVARIANT_CHANGE_CLASSES,
     INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_REVIEW_BOUNDARY_CLASSES,
@@ -57,6 +56,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     classify_invariant_review,
     compute_invariant_family_review_packet_id,
+    requires_security_review,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
@@ -65,13 +65,25 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
 )
 from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE
 from scripts.orchestration.context_pack import (
+    canonical_task_candidate_paths,
     collect_context_pack,
+    compute_task_packet_id,
     repo_relative_paths,
     resolve_domain,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
-from scripts.orchestration.routing_graph_loader import load_routing_graph
+from scripts.orchestration.routing_graph_loader import (
+    REQUIRED_BOOTSTRAP_LANE,
+    load_bootstrap_lane_activations,
+    load_routing_graph,
+    require_bootstrap_lane_activation,
+)
 from scripts.orchestration.task_bootstrap import (
+    _bind_invariant_review_packet_id,
+    _design_fingerprint,
+    _judgment_lane_enabled,
+    _read_creative_pilot_workspace,
+    _validated_judgment_activation,
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
     INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
@@ -705,17 +717,12 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     try:
-        canonical_candidate_paths = sorted(
-            {
-                normalized_path
-                for raw_path in candidate_paths
-                if (normalized_path := _normalize_invariant_review_path(raw_path))
-            }
+        canonical_candidate_paths = canonical_task_candidate_paths(
+            candidate_paths,
+            mode="strict_wire",
         )
     except ValueError:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical") from None
-    if canonical_candidate_paths != candidate_paths:
-        raise ValueError("invariant_review.v2 candidate_paths must be canonical")
     canonical_domain = resolve_domain(
         task_class=cast(str, required_strings["task_class"]),
         candidate_paths=canonical_candidate_paths,
@@ -804,7 +811,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                 )
             if status not in honored_statuses:
                 continue
-            expected_status = (
+            assignment_status = (
                 REQUESTED_AGENT_STATUS_HONORED_PRIMARY
                 if agent == primary_agent
                 else (
@@ -817,7 +824,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                     )
                 )
             )
-            if status != expected_status:
+            if status != assignment_status:
                 raise ValueError(
                     "not_required invariant_review.v2 requested-agent status "
                     "must match the role assignment"
@@ -916,12 +923,22 @@ def _validated_dispatch_role_order(
             "invariant_class_review_required" in automation_flags
         ):
             raise ValueError("current invariant-class packets require invariant_review metadata")
-        candidate_paths = payload.get("candidate_paths")
+        legacy_candidate_paths: Optional[List[str]] = None
+        if "candidate_paths" in payload:
+            try:
+                legacy_candidate_paths = canonical_task_candidate_paths(
+                    payload.get("candidate_paths"),
+                    mode="strict_wire",
+                )
+            except ValueError as exc:
+                raise ValueError("invariant review paths must be canonical") from exc
         raw_pr_phase = payload.get("pr_phase")
         bounded_trigger_required = False
-        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and isinstance(candidate_paths, list):
+        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and (
+            legacy_candidate_paths is not None
+        ):
             bounded_trigger_required = classify_invariant_review(
-                candidate_paths=candidate_paths
+                candidate_paths=legacy_candidate_paths
             ).required
         if bounded_trigger_required:
             raise ValueError(
@@ -1105,17 +1122,105 @@ def _validated_dispatch_role_order(
     return dispatch_order
 
 
+def _validate_single_coordinator_synthesis_task_packet_id(
+    payload: Dict[str, Any],
+    *,
+    validated_creative_context: Dict[str, Any],
+    candidate_paths: List[str],
+) -> None:
+    """Bind the synthesis compatibility projection to producer packet identity."""
+
+    identity_error = "creative pilot synthesis task_packet_id must match canonical packet identity"
+    try:
+        goal = payload["goal"]
+        task_class = payload["task_class"]
+        domain = payload["domain"]
+        cluster = payload["cluster"]
+        pr_phase = payload["pr_phase"]
+        requested_agents = payload["requested_agents"]
+        design_lane_mode = payload["design_lane_mode"]
+        design_lane_contract = payload["design_lane_contract"]
+        creative_learning_hints = payload["creative_learning_hints"]
+        invariant_review = payload["invariant_review"]
+        if (
+            not all(
+                isinstance(value, str) for value in (goal, task_class, domain, cluster, pr_phase)
+            )
+            or not isinstance(requested_agents, list)
+            or any(not isinstance(agent, str) for agent in requested_agents)
+            or not isinstance(design_lane_mode, str)
+            or not isinstance(design_lane_contract, dict)
+            or not isinstance(creative_learning_hints, dict)
+            or not isinstance(invariant_review, dict)
+        ):
+            raise ValueError(identity_error)
+        learning_hints_fingerprint = creative_learning_hints.get("source_hints_fingerprint")
+        change_classes = invariant_review.get("change_classes")
+        if not isinstance(learning_hints_fingerprint, str) or not isinstance(change_classes, list):
+            raise ValueError(identity_error)
+        if any(not isinstance(change_class, str) for change_class in change_classes):
+            raise ValueError(identity_error)
+        canonical_domain = resolve_domain(
+            goal=goal,
+            task_class=task_class,
+            candidate_paths=candidate_paths,
+        )
+        canonical_route = load_routing_graph().get(canonical_domain)
+        if (
+            domain != canonical_domain
+            or canonical_route is None
+            or cluster != canonical_route.cluster
+        ):
+            raise ValueError(identity_error)
+        creative_identity_fingerprint = fingerprint_payload(
+            {
+                "creative_learning_hints": learning_hints_fingerprint,
+                "creative_pilot": fingerprint_payload(validated_creative_context),
+            }
+        )
+        base_packet_id = compute_task_packet_id(
+            goal=goal,
+            task_class=task_class,
+            domain=canonical_domain,
+            candidate_paths=candidate_paths,
+            requested_agents=requested_agents,
+            pr_phase=pr_phase,
+            design_fingerprint=_design_fingerprint(
+                design_lane_mode=design_lane_mode,
+                design_lane_contract=design_lane_contract,
+            ),
+            creative_learning_hints_fingerprint=creative_identity_fingerprint,
+        )
+        expected_packet_id = _bind_invariant_review_packet_id(
+            base_packet_id,
+            invariant_review_fingerprint=",".join(change_classes),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(identity_error) from exc
+    if payload.get("task_packet_id") != expected_packet_id:
+        raise ValueError(identity_error)
+
+
 def _validate_current_native_subagent_bridge(
     payload: Dict[str, Any],
     bridge: Any,
-) -> None:
+) -> Optional[Dict[str, Any]]:
     """Reject lossy bridge projections for current invariant packet contracts."""
 
+    creative_context = payload.get("creative_pilot_context")
     if (
         payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
         and "invariant_review" not in payload
     ):
-        return
+        if creative_context is not None:
+            if not isinstance(creative_context, dict):
+                raise ValueError("legacy creative_pilot_context must be an object")
+            creative_phase = creative_context.get("phase")
+            if creative_phase not in {"independent", "rebuttal", "synthesis"}:
+                raise ValueError("legacy creative_pilot_context phase is unsupported")
+            if creative_phase == "synthesis":
+                raise ValueError("creative pilot synthesis requires task packet schema 3.1")
+        return None
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
 
@@ -1168,9 +1273,34 @@ def _validate_current_native_subagent_bridge(
         *binding_slugs["advisory"],
         reviewer_slug,
     ]
-    if len(assigned_roles) != len(set(assigned_roles)):
+    validated_synthesis_context: Optional[Dict[str, Any]] = None
+    if (
+        isinstance(creative_context, dict)
+        and creative_context.get("schema_version") == "creative_pilot_context.v2"
+        and creative_context.get("phase") == "synthesis"
+    ):
+        try:
+            validated_synthesis_context = validate_task_pilot_context(creative_context)
+        except CreativePilotContractError as exc:
+            raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
+    if validated_synthesis_context is not None:
+        if payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION:
+            raise ValueError("creative pilot synthesis requires task packet schema 3.1")
+        if (
+            assigned_primary != "agent-coordinator"
+            or assigned_reviewer != "agent-coordinator"
+            or assigned_secondaries != []
+            or primary_slug != "agent-coordinator"
+            or reviewer_slug != "agent-coordinator"
+            or binding_slugs["secondary"] != []
+            or binding_slugs["advisory"] != []
+        ):
+            raise ValueError(
+                "creative pilot synthesis requires exact coordinator compatibility aliases"
+            )
+    elif len(assigned_roles) != len(set(assigned_roles)):
         raise ValueError("current invariant packet assigned roles must be unique")
-    if len(bridge_roles) != len(set(bridge_roles)):
+    if validated_synthesis_context is None and len(bridge_roles) != len(set(bridge_roles)):
         raise ValueError("current native_subagent_bridge roles must be unique")
     if (
         primary_slug != assigned_primary
@@ -1232,6 +1362,7 @@ def _validate_current_native_subagent_bridge(
     )
     if canonical_bridge != canonical_expected_bridge:
         raise ValueError(canonical_error)
+    return validated_synthesis_context
 
 
 def _validate_current_role_dispatch_contract(
@@ -1283,10 +1414,210 @@ def _validate_current_role_dispatch_contract(
         raise ValueError(canonical_error)
 
 
+def _canonical_synthesis_candidate_paths(payload: Dict[str, Any]) -> List[str]:
+    """Delegate exact synthesis path recognition to the packet path authority."""
+
+    path_error = "creative pilot synthesis packet metadata requires canonical candidate_paths"
+    try:
+        canonical_paths: List[str] = canonical_task_candidate_paths(
+            payload.get("candidate_paths"),
+            mode="strict_wire",
+        )
+    except ValueError as exc:
+        raise ValueError(path_error) from exc
+    return canonical_paths
+
+
+def _validate_inactive_synthesis_judgment_metadata(
+    payload: Dict[str, Any],
+    *,
+    automation_flags: Dict[str, Any],
+    candidate_paths: List[str],
+) -> None:
+    """Reject synthesis packets that retain judgment-only required passes."""
+
+    judgment_error = "creative pilot synthesis packet metadata requires judgment lane disabled"
+    decision_contract = payload.get("decision_contract")
+    judgment_budget = payload.get("judgment_budget")
+    result_adjudication = payload.get("result_adjudication")
+    goal = payload.get("goal")
+    task_class = payload.get("task_class")
+    if not isinstance(goal, str) or not isinstance(task_class, str):
+        raise ValueError(judgment_error)
+    try:
+        judgment_required = _judgment_lane_enabled(
+            goal=goal,
+            task_class=task_class,
+            candidate_paths=candidate_paths,
+            activation=_validated_judgment_activation(
+                require_bootstrap_lane_activation(
+                    load_bootstrap_lane_activations(),
+                    REQUIRED_BOOTSTRAP_LANE,
+                )
+            ),
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(judgment_error) from exc
+    if judgment_required:
+        raise ValueError(judgment_error)
+    if automation_flags.get("judgment_lane_enabled") is not False:
+        raise ValueError(judgment_error)
+    if (
+        not isinstance(decision_contract, dict)
+        or set(decision_contract) != {"mode", "judgment_enabled", "claim_taxonomy", "flow"}
+        or decision_contract.get("mode") != "standard"
+        or decision_contract.get("judgment_enabled") is not False
+        or decision_contract.get("claim_taxonomy") != []
+        or decision_contract.get("flow") != []
+    ):
+        raise ValueError(judgment_error)
+    if (
+        not isinstance(judgment_budget, dict)
+        or set(judgment_budget)
+        != {
+            "skeptic_pass_required",
+            "verifier_pass_required",
+            "max_provider_calls",
+            "uncertainty_split_required",
+        }
+        or judgment_budget.get("skeptic_pass_required") is not False
+        or judgment_budget.get("verifier_pass_required") is not False
+        or judgment_budget.get("uncertainty_split_required") is not False
+        or not isinstance(judgment_budget.get("max_provider_calls"), int)
+        or isinstance(judgment_budget.get("max_provider_calls"), bool)
+        or judgment_budget.get("max_provider_calls") != 0
+    ):
+        raise ValueError(judgment_error)
+    adjudication_fields = {
+        "claim_evidence_fields",
+        "support_statuses",
+        "evidence_modes",
+        "uncertainty_fields",
+        "promotion_labels",
+    }
+    if (
+        not isinstance(result_adjudication, dict)
+        or set(result_adjudication) != adjudication_fields
+        or any(result_adjudication.get(field) != [] for field in adjudication_fields)
+    ):
+        raise ValueError(judgment_error)
+
+
+def _validate_single_coordinator_synthesis_packet_metadata(
+    payload: Dict[str, Any],
+    *,
+    validated_synthesis_context: Optional[Dict[str, Any]],
+    candidate_paths: Optional[List[str]],
+) -> None:
+    """Bind the synthesis-only alias projection to exact producer metadata."""
+
+    if validated_synthesis_context is None:
+        return
+    if candidate_paths is None:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires canonical candidate_paths"
+        )
+    if payload.get("requested_agents") != ["agent-coordinator"]:
+        raise ValueError("creative pilot synthesis packet metadata requires only agent-coordinator")
+    if payload.get("requested_agent_disposition") != []:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires empty requested disposition"
+        )
+    if payload.get("pr_phase") not in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}:
+        raise ValueError("creative pilot synthesis packet metadata requires an opening PR phase")
+    automation_flags = payload.get("automation_flags")
+    if (
+        not isinstance(automation_flags, dict)
+        or automation_flags.get("creative_pilot_enabled") is not True
+    ):
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        )
+    if automation_flags.get("security_review_required") is not False:
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        )
+    if requires_security_review(candidate_paths):
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        )
+    invariant_review = payload.get("invariant_review")
+    if (
+        automation_flags.get("invariant_class_review_required") is not False
+        or not isinstance(invariant_review, dict)
+        or invariant_review.get("state") != "not_required"
+    ):
+        raise ValueError(
+            "creative pilot synthesis packet metadata requires no invariant review pass"
+        )
+    _validate_inactive_synthesis_judgment_metadata(
+        payload,
+        automation_flags=automation_flags,
+        candidate_paths=candidate_paths,
+    )
+    _validate_single_coordinator_synthesis_task_packet_id(
+        payload,
+        validated_creative_context=validated_synthesis_context,
+        candidate_paths=candidate_paths,
+    )
+    _validate_single_coordinator_synthesis_workspace_source(
+        payload,
+        validated_synthesis_context=validated_synthesis_context,
+        candidate_paths=candidate_paths,
+    )
+
+
+def _validate_single_coordinator_synthesis_workspace_source(
+    payload: Dict[str, Any],
+    *,
+    validated_synthesis_context: Dict[str, Any],
+    candidate_paths: List[str],
+) -> None:
+    """Re-read and bind the synthesis-ready workspace behind one alias dispatch."""
+
+    source_error = (
+        "creative pilot synthesis packet must bind a validated " "synthesis-ready workspace source"
+    )
+    source = payload.get("creative_pilot_workspace_source")
+    if (
+        not isinstance(source, str)
+        or not source
+        or source != source.strip()
+        or any(ord(character) < 32 or ord(character) == 127 for character in source)
+    ):
+        raise ValueError(source_error)
+    try:
+        workspace, rebuilt_context = _read_creative_pilot_workspace(source, "synthesis")
+    except ValueError as exc:
+        raise ValueError(source_error) from exc
+    if workspace is None or rebuilt_context != validated_synthesis_context:
+        raise ValueError(source_error)
+    target_paths = canonical_task_candidate_paths(
+        [row["path"] for row in workspace["target_manifest"]["files"]],
+        mode="producer",
+    )
+    if candidate_paths != target_paths:
+        raise ValueError(
+            "creative pilot synthesis packet candidate_paths must match workspace targets"
+        )
+    expected_required_context = collect_context_pack(
+        candidate_paths,
+        include_orchestration=(payload["cluster"] == "ops" or len(candidate_paths) != 1),
+    )
+    if payload.get("required_context") != expected_required_context:
+        raise ValueError(
+            "creative pilot synthesis packet required_context must match canonical context"
+        )
+
+
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
-    _validate_current_native_subagent_bridge(payload, bridge)
+    validated_synthesis_context = _validate_current_native_subagent_bridge(payload, bridge)
+    synthesis_coordinator_aliases = validated_synthesis_context is not None
+    synthesis_candidate_paths = (
+        _canonical_synthesis_candidate_paths(payload) if synthesis_coordinator_aliases else None
+    )
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -1325,7 +1656,8 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
             if isinstance(advisory_items, list):
                 for item in advisory_items:
                     add_slug(item, default_when_unspecified=False)
-            add_slug(bridge.get("reviewer"))
+            if not synthesis_coordinator_aliases:
+                add_slug(bridge.get("reviewer"))
     dispatch_role_order = _validated_dispatch_role_order(
         payload,
         spawnable_roles=ordered,
@@ -1334,6 +1666,11 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         payload,
         bridge,
         dispatch_role_order,
+    )
+    _validate_single_coordinator_synthesis_packet_metadata(
+        payload,
+        validated_synthesis_context=validated_synthesis_context,
+        candidate_paths=synthesis_candidate_paths,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order
@@ -1409,10 +1746,10 @@ def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
     """Load one JSON object while rejecting duplicate keys."""
 
     try:
-        return cast(
-            Dict[str, Any],
-            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
+        payload: Dict[str, Any] = load_creative_pilot_json_strict(
+            packet_path.read_text(encoding="utf-8")
         )
+        return payload
     except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
         raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
@@ -1631,15 +1968,26 @@ def _packet_required_context_for_manifest(
     if not isinstance(payload, dict):
         return None
     invariant_review = payload.get("invariant_review")
-    if (
-        not isinstance(invariant_review, dict)
-        or invariant_review.get("schema_version") != INVARIANT_REVIEW_V2_SCHEMA_VERSION
-    ):
+    creative_context = payload.get("creative_pilot_context")
+    is_synthesis = (
+        isinstance(creative_context, dict)
+        and creative_context.get("schema_version") == "creative_pilot_context.v2"
+        and creative_context.get("phase") == "synthesis"
+    )
+    is_invariant_v2 = (
+        isinstance(invariant_review, dict)
+        and invariant_review.get("schema_version") == INVARIANT_REVIEW_V2_SCHEMA_VERSION
+    )
+    if not is_invariant_v2 and not is_synthesis:
         return None
     return list(
         _validate_string_list(
             payload.get("required_context"),
-            field="invariant_review.v2 required_context",
+            field=(
+                "invariant_review.v2 required_context"
+                if is_invariant_v2
+                else "creative synthesis required_context"
+            ),
         )
     )
 
@@ -2079,7 +2427,8 @@ def _load_creative_pilot_context(
             "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
         )
     try:
-        return cast(Dict[str, Any], validate_task_pilot_context(context))
+        validated_context: Dict[str, Any] = validate_task_pilot_context(context)
+        return validated_context
     except CreativePilotContractError as exc:
         raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
 

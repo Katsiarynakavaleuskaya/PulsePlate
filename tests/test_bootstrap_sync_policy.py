@@ -98,17 +98,24 @@ def test_invariant_review_classifier_merges_explicit_and_bounded_hints() -> None
         str(Path(__file__).resolve().parents[1] / "scripts/ci/check_policy.py"),
     ],
 )
-def test_invariant_review_classifier_normalizes_supported_repo_path_forms(path: str) -> None:
-    """Documented relative and absolute in-repo forms share canonical evidence."""
+def test_invariant_review_classifier_requires_canonical_wire_paths(path: str) -> None:
+    """Producer aliases must be normalized before strict policy consumers run."""
 
-    decision = classify_invariant_review(candidate_paths=[path])
+    with pytest.raises(ValueError, match="invariant review paths"):
+        classify_invariant_review(candidate_paths=[path])
 
+
+def test_invariant_review_root_scope_activates_all_closed_classes() -> None:
+    decision = classify_invariant_review(candidate_paths=["."])
+
+    assert decision.change_classes == INVARIANT_CHANGE_CLASSES
     assert [row.to_mapping() for row in decision.trigger_evidence] == [
         {
-            "change_class": "validator",
+            "change_class": change_class,
             "source": "bounded_path_hint",
-            "path": "scripts/ci/check_policy.py",
+            "path": ".",
         }
+        for change_class in INVARIANT_CHANGE_CLASSES
     ]
 
 
@@ -335,7 +342,7 @@ def test_bootstrap_sync_policy_detects_docs_and_agents_sync_signals() -> None:
     assert needs_docs_sync(["app/security/auth.py"]) is True
     assert needs_docs_sync(["app/security/auth.py", "docs/security/AUTH.md"]) is False
     assert needs_agents_sync([AGENTS_CONTRACT_FILE]) is True
-    assert needs_agents_sync([AGENTS_CURSOR_PREFIX]) is True
+    assert needs_agents_sync([f"{AGENTS_CURSOR_PREFIX}agent-coordinator.md"]) is True
     assert needs_agents_sync(["frontend/AGENTS.md"]) is True
     assert needs_agents_sync([f"skills/bootstrap/{SKILL_CONTRACT_FILE}"]) is True
     assert needs_agents_sync(["docs/orchestration/workflow.md"]) is False
@@ -389,18 +396,30 @@ def test_bootstrap_sync_policy_derives_docs_only_envelope_mode_for_contract_scop
     )
 
 
-def test_bootstrap_sync_policy_normalizes_whitespace_padded_docs_only_paths() -> None:
-    """Whitespace-only padding must not change docs-only envelope derivation."""
-
-    assert (
+def test_bootstrap_sync_policy_rejects_whitespace_padded_paths() -> None:
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
         resolve_analysis_envelope_mode(
             [
                 " CONTRIBUTING.md ",
                 "\tDEPLOYMENT.md\n",
             ]
         )
-        == DOCS_ONLY_ENVELOPE_MODE
+
+
+def test_bootstrap_sync_policy_root_scope_is_conservative() -> None:
+    assert requires_security_review(["."]) is True
+    assert privileged_review_surface_matches(["."]) == ()
+    assert needs_docs_sync(["."]) is True
+    assert needs_agents_sync(["."]) is True
+    assert (
+        needs_backlog_update(
+            goal="ordinary task",
+            task_class="Orchestration",
+            candidate_paths=["."],
+        )
+        is True
     )
+    assert resolve_analysis_envelope_mode(["."]) == ANALYSIS_ENVELOPE_MODE
 
 
 def test_bootstrap_sync_policy_fails_closed_to_analysis_for_mixed_scope() -> None:
@@ -568,10 +587,6 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["worker.js"]) is True
     assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
-    assert requires_security_review(["../Dockerfile"]) is False
-    assert requires_security_review(["../.github/workflows/ci.yml"]) is False
-    assert requires_security_review(["docs/../.github/workflows/ci.yml"]) is False
-    assert requires_security_review(["build/../Dockerfile"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
     assert requires_security_review(["tests/guarded/test_nosec_policy_guard.py"]) is False
     assert requires_security_review(["docs/pyproject.toml"]) is True
@@ -685,55 +700,70 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/wrangler.toml"]) is True
 
 
+@pytest.mark.parametrize(
+    "path",
+    (
+        "../Dockerfile",
+        "../.github/workflows/ci.yml",
+        "docs/../.github/workflows/ci.yml",
+        "build/../Dockerfile",
+    ),
+)
+def test_security_review_classifier_rejects_noncanonical_paths(path: str) -> None:
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
+        requires_security_review([path])
+
+
 def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:
     """Shared matcher labels must be stable because skill-router reasons expose them."""
 
     assert privileged_review_surface_matches(
-        [
-            "./.github/actions/setup/action.yml",
-            ".github/workflows/ci.yml",
-            ".github/actions/cache/action.yml",
-            ".github/agents/my-agent.md",
-            ".github/prompts/vibecoder.prompt.md",
-            ".github/scripts/parse-safety-report.py",
-            ".vscode/extensions.json",
-            "scripts/AGENTS.md",
-            " Dockerfile ",
-            ".env.example",
-            ".flake8",
-            ".markdownlint.json",
-            "build/../Dockerfile",
-            ".coveragerc",
-            ".kimi/mcp.json.example",
-            "alembic.ini",
-            ".gitmodules",
-            "codecov.yml",
-            ".yamllint",
-            "appstore/fitchef/appstore_review_checklist.md",
-            "deploy/docker-compose.production.selfhosted.yaml",
-            "deploy/metatron-lab/docker-compose.yaml",
-            "deploy/systemd/pulseplate-postgres-backup.timer.example",
-            "docs/security/vscode_extensions_allowlist.txt",
-            "frontend/package-lock.json",
-            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
-            "ios/PulsePlate/PulsePlate.entitlements",
-            "ios/PulsePlate/en.lproj/InfoPlist.strings",
-            "mcp_pulseplate_server.py",
-            "scripts/devcontainer/smoke.sh",
-            "scripts/metatron_lab/compose_guard.py",
-            "scripts/opencode/run_pulseplate_mcp.sh",
-            "scripts/validate-ci-environment.sh",
-            "scripts/verify_codex_skills_install.py",
-            "setup_custom_mcp.py",
-            "tests/test_install_codex_skills.py",
-            "tests/guards/test_nosec_policy_guard.py",
-            "tools/agentguard/scan_text.mjs",
-            "tools/codex_skills/pulseplate-gates/SKILL.md",
-            "update_api_key.py",
-            "mcp-setup.sh",
-            "requirements-ci-lite.txt",
-            "docs/review/PR_1325_FIXED_MAPPING.md",
-        ]
+        sorted(
+            [
+                ".github/actions/setup/action.yml",
+                ".github/workflows/ci.yml",
+                ".github/actions/cache/action.yml",
+                ".github/agents/my-agent.md",
+                ".github/prompts/vibecoder.prompt.md",
+                ".github/scripts/parse-safety-report.py",
+                ".vscode/extensions.json",
+                "scripts/AGENTS.md",
+                "Dockerfile",
+                ".env.example",
+                ".flake8",
+                ".markdownlint.json",
+                ".coveragerc",
+                ".kimi/mcp.json.example",
+                "alembic.ini",
+                ".gitmodules",
+                "codecov.yml",
+                ".yamllint",
+                "appstore/fitchef/appstore_review_checklist.md",
+                "deploy/docker-compose.production.selfhosted.yaml",
+                "deploy/metatron-lab/docker-compose.yaml",
+                "deploy/systemd/pulseplate-postgres-backup.timer.example",
+                "docs/security/vscode_extensions_allowlist.txt",
+                "frontend/package-lock.json",
+                "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
+                "ios/PulsePlate/PulsePlate.entitlements",
+                "ios/PulsePlate/en.lproj/InfoPlist.strings",
+                "mcp_pulseplate_server.py",
+                "scripts/devcontainer/smoke.sh",
+                "scripts/metatron_lab/compose_guard.py",
+                "scripts/opencode/run_pulseplate_mcp.sh",
+                "scripts/validate-ci-environment.sh",
+                "scripts/verify_codex_skills_install.py",
+                "setup_custom_mcp.py",
+                "tests/test_install_codex_skills.py",
+                "tests/guards/test_nosec_policy_guard.py",
+                "tools/agentguard/scan_text.mjs",
+                "tools/codex_skills/pulseplate-gates/SKILL.md",
+                "update_api_key.py",
+                "mcp-setup.sh",
+                "requirements-ci-lite.txt",
+                "docs/review/PR_1325_FIXED_MAPPING.md",
+            ]
+        )
     ) == (
         "agent-contract",
         ".github/workflows/",
@@ -760,7 +790,7 @@ def test_bootstrap_sync_policy_uses_reviewed_privileged_surface_matrix(
     is_privileged = bool(case["privileged"])
     assert requires_security_review([path]) is is_privileged
 
-    matches = privileged_review_surface_matches([f"  {path}  "])
+    matches = privileged_review_surface_matches([path])
     if is_privileged:
         assert case["reason"] in matches
     else:
@@ -776,10 +806,12 @@ def test_bootstrap_sync_policy_fails_closed_to_analysis_for_privileged_docs() ->
     assert requires_security_review(candidate_paths) is True
 
 
-def test_bootstrap_sync_policy_fails_closed_for_whitespace_padded_privileged_docs() -> None:
-    """Privileged docs must stay in analysis mode even when input paths contain padding."""
+def test_bootstrap_sync_policy_rejects_whitespace_padded_privileged_docs() -> None:
+    """Strict policy consumers reject producer spelling aliases."""
 
     candidate_paths = ["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "]
 
-    assert resolve_analysis_envelope_mode(candidate_paths) == ANALYSIS_ENVELOPE_MODE
-    assert requires_security_review(candidate_paths) is True
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
+        resolve_analysis_envelope_mode(candidate_paths)
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
+        requires_security_review(candidate_paths)
