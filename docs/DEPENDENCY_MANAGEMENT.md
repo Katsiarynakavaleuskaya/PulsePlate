@@ -497,11 +497,16 @@ truth or merge authority. The local closed ownership registry is exactly:
 | `bundler` | `/ios` | 1 | Group-free scheduled proposals |
 | `github-actions` | `/`, `/.github/actions/*` | 1 | Group-free scheduled proposals |
 
-Every block uses the exact weekly schedule, the same 7/30/7/3-day default,
-major, minor, and patch cooldowns, and the `deps`/`scope` commit-message policy.
-The caps apply to routine version-update proposals; they do not suppress or
-authorize security remediation. Major-version proposals remain separate
-architecture-review inputs. No updater has auto-merge or approval authority.
+Every block uses the exact weekly schedule and the `deps`/`scope`
+commit-message policy. The `pip`, `npm`, and `bundler` blocks use the
+7/30/7/3-day default, major, minor, and patch cooldown contract. The
+`github-actions` provider cooldown schema accepts `default-days` but rejected
+the semver major/minor/patch cooldown keys in this repository's provider job.
+PulsePlate fixes `default-days` at 7 and makes no 30-day Actions major-update
+claim. The caps apply to routine version-update proposals; they do
+not suppress or authorize security remediation. Major-version proposals remain
+separate architecture-review inputs. No updater has auto-merge or approval
+authority.
 
 Only the root `pip` block may reference the private `python-index`. It keeps
 `replaces-base: true`, the existing owner groups, and the four-PR routine cap.
@@ -517,7 +522,9 @@ For GitHub Actions, `/` locally denotes the workflow surface and the exact
 `/.github/actions/*` token admits current direct-child composite-action roots.
 This token is not proof that the deployed provider accepts the configuration,
 discovers every nested carrier, or produces an update. Repository action-pin
-guards remain independently mandatory for every generated proposal.
+guards remain independently mandatory for every generated proposal. Provider
+acceptance remains pending until a natural post-merge Actions updater job
+finishes against the corrected default-only cooldown configuration.
 
 `scripts/business_collateral/package.json` is a dependency-free CommonJS
 marker, not an admitted npm update root. Adding `dependencies`,
