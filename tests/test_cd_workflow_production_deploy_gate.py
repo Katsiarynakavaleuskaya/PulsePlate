@@ -263,7 +263,7 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     ):
         assert argument in scan_script
 
-    main_jobs = {"build", "release-control-plane-fixture-gate"}
+    main_jobs = {"main-push-admission", "release-control-plane-fixture-gate"}
     tag_jobs = {
         "production-gates",
         "build-production",
@@ -284,10 +284,18 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
         assert isinstance(job, dict)
         condition = job.get("if")
         assert isinstance(condition, str)
-        assert "github.event_name == 'push'" in condition
         assert "refs/tags/v" in condition
 
-    assert jobs["build"]["needs"] == "prometheus-image-security"
+    assert jobs["build"]["if"] == "github.ref == 'refs/heads/main'"
+    assert set(jobs["build"]["needs"]) == {
+        "prometheus-image-security",
+        "main-push-admission",
+    }
+    admission = jobs["main-push-admission"]
+    assert admission["permissions"] == {}
+    assert "actions/checkout" not in str(admission)
+    assert "GITHUB_EVENT_NAME" in str(admission)
+    assert "GITHUB_REF" in str(admission)
     assert jobs["production-gates"]["needs"] == "prometheus-image-security"
 
 

@@ -411,9 +411,20 @@ jobs:
             exit 1
           fi
 
-  build:
+  main-push-admission:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: prometheus-image-security
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Admit exact main push
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$GITHUB_REF" = "refs/heads/main"
+
+  build:
+    if: github.ref == 'refs/heads/main'
+    needs: [prometheus-image-security, main-push-admission]
     runs-on: ubuntu-latest
     env:
       PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -1040,7 +1051,7 @@ jobs:
 
   # Pre-production quality gates
   production-gates:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: prometheus-image-security
     runs-on: ubuntu-latest
     steps:
@@ -1113,7 +1124,7 @@ jobs:
           echo "✅ CI on main passed and covers tag commit $TAG_COMMIT"
 
   build-production:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
     env:
@@ -1259,7 +1270,7 @@ jobs:
           retention-days: 14
 
   production-deploy-config:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     outputs:
@@ -1391,7 +1402,7 @@ jobs:
           echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   release-control-plane-production-evidence:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
     needs: [build-production, production-deploy-config]
     runs-on: ubuntu-latest
     permissions:
@@ -1541,7 +1552,7 @@ jobs:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
     # The config is resolved inside production-deploy-config so environment-scoped vars
     # are visible before the deploy jobs decide whether to run.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: ubuntu-latest
     environment:
@@ -1640,7 +1651,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
   deploy-production-self-hosted:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:
