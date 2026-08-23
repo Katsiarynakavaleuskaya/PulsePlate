@@ -60,7 +60,8 @@ async def pro_nutrition_plate(req: PlateRequest) -> PlateResponse:
 )
 async def pro_nutrition_bmr(req: BMRRequest) -> BMRResponse:
     """Canonical BMR/TDEE endpoint for PRO tier."""
-    return await calculate_bmr_response(req)
+    response: BMRResponse = await calculate_bmr_response(req)
+    return response
 
 
 @router.post(
