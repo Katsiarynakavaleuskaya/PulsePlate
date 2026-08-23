@@ -211,7 +211,7 @@ approved research-only connector contract. Evidence:
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 - Run coordinator-owned PR self-review before external review-bot signals: `pulseplate-pr-review` (evidence: `tools/codex_skills/pulseplate-pr-review/SKILL.md:1`, `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md:1`)
-- Audit and close PulsePlate PRs through fixed mapping, exact-head CI, strict readiness, separately authorized merge, and bounded post-merge proof: `pulseplate-pr-closeout` (evidence: `tools/codex_skills/pulseplate-pr-closeout/SKILL.md:1`, `scripts/orchestration/skill_router.py`)
+- Use `pulseplate-pr-closeout` when a direct external operator instruction asks the agent to implement, execute, fix, complete, or otherwise carry an approved bounded PR task through routine implementation, review remediation, exact-head closeout, and safe post-merge proof; inspect-only, review-only, explain-only, status-only, informational, or ambiguous PR references remain non-mutating, and the exact-head squash merge remains separately human-authorized.
 - Analyze recurring review patterns with offline deterministic advisory oracles: `pulseplate-review-pattern-oracles`
 - Capture repeated agent-workflow lessons as redacted proposal-only records: `pulseplate-agent-learning-loop`
 - Run premortem risk analysis on high-downside plans before merge or launch: `pulseplate-premortem-risk-review` (evidence: `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:1`, `scripts/orchestration/skill_router.py`)
@@ -227,7 +227,7 @@ Recommended now for PulsePlate:
 - `pulseplate-web-launch-site` for launch-site pages, CTA funnels, waitlist/lead-capture paths, and wellness-safe public launch copy (evidence: `tools/codex_skills/pulseplate-web-launch-site/SKILL.md:8`, `tests/test_skill_router.py:657`)
 - `pulseplate-agent-product` for agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority (evidence: `tools/codex_skills/pulseplate-agent-product/SKILL.md:8`, `tests/test_skill_router.py:847`)
 - `pulseplate-pr-review` for passive, coordinator-owned PR self-review that stays advisory and preserves merge-readiness gates
-- `pulseplate-pr-closeout` for explicit fixed-mapping, exact-head readiness, authorized-merge, and post-merge-proof work; its default mode is read-only audit
+- `pulseplate-pr-closeout` uses `AUDIT` for explicit read-only requests; mutating lifecycle delegation exists only when a direct external operator instruction asks to implement, execute, fix, complete, or otherwise carry the approved bounded PR task, while the exact-head squash merge remains a separate human authorization.
 - `pulseplate-review-pattern-oracles` for offline recurring-review analysis without review or merge authority
 - `pulseplate-agent-learning-loop` for redacted proposal-only learning records that require reviewed repo promotion
 - `pulseplate-premortem-risk-review` for premortem risk analysis on high-downside plans (PR, epic, launch, security, CI/CD, AI/RAG, App Store, monetization, design decisions)

@@ -1,4 +1,4 @@
 interface:
   display_name: "PulsePlate PR Closeout"
   short_description: "Govern PulsePlate PR closeout evidence"
-  default_prompt: "Use $pulseplate-pr-closeout in audit-only mode by default. Treat every mutation and merge as blocked unless a mutating mode is explicitly selected and separate explicit human authorization binds each exact effect in a fresh closed bundle."
+  default_prompt: "Use $pulseplate-pr-closeout when a direct external operator instruction asks you to implement, execute, fix, complete, or otherwise carry an approved bounded PR task through routine implementation, review remediation, exact-head closeout, and safe post-merge proof; keep inspect/review/explain/status/informational or ambiguous references read-only, and stop for final exact-head merge approval or a real scope/high-impact boundary."
