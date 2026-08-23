@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import os
-from typing import Any
+import secrets
+import stat
+from typing import Any, Literal
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -36,6 +39,111 @@ _EXPORT_SIGNING_PLACEHOLDERS = frozenset(
         "replace_me_with_export_secret",
     }
 )
+
+METRICS_SCRAPE_KEY_FILE_ENV = "METRICS_SCRAPE_KEY_FILE"
+DEFAULT_METRICS_SCRAPE_KEY_FILE = "/run/secrets/pulseplate_metrics_scrape_key"
+METRICS_SCRAPE_KEY_AUTH_MARKER = "metrics-scrape-key"
+_METRICS_SCRAPE_KEY_MIN_BYTES = 32
+_METRICS_SCRAPE_KEY_MAX_BYTES = 256
+
+
+@dataclass(frozen=True)
+class MetricsScrapeKeyRecognition:
+    """Non-leaking result of descriptor-bound scrape-key recognition."""
+
+    marker: Literal["absent", "ready", "invalid"]
+    _secret: bytes | None = field(default=None, repr=False, compare=False)
+
+    def matches(self, candidate: str | None) -> bool:
+        """Compare a request credential without exposing the recognized secret."""
+
+        if self.marker != "ready" or self._secret is None or candidate is None:
+            return False
+        try:
+            candidate_bytes = candidate.encode("ascii", errors="strict")
+        except UnicodeEncodeError:
+            return False
+        return secrets.compare_digest(candidate_bytes, self._secret)
+
+
+def _read_metrics_scrape_key(file_name: str) -> bytes | None:
+    """Read one bounded regular file through a no-follow descriptor."""
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if not isinstance(no_follow, int) or no_follow <= 0:
+        return None
+
+    flags = os.O_RDONLY | no_follow
+    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(file_name, flags)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            return None
+
+        payload = bytearray()
+        while len(payload) <= _METRICS_SCRAPE_KEY_MAX_BYTES:
+            try:
+                chunk = os.read(
+                    descriptor,
+                    _METRICS_SCRAPE_KEY_MAX_BYTES + 1 - len(payload),
+                )
+            except InterruptedError:
+                continue
+            if not chunk:
+                break
+            payload.extend(chunk)
+        return bytes(payload)
+    finally:
+        os.close(descriptor)
+
+
+def _is_valid_metrics_scrape_key(payload: bytes) -> bool:
+    """Accept exactly 32..256 printable, non-whitespace ASCII bytes."""
+
+    if not _METRICS_SCRAPE_KEY_MIN_BYTES <= len(payload) <= _METRICS_SCRAPE_KEY_MAX_BYTES:
+        return False
+    return all(0x21 <= byte <= 0x7E for byte in payload)
+
+
+def recognize_metrics_scrape_key() -> MetricsScrapeKeyRecognition:
+    """Recognize the optional metrics-only credential without leaking its path."""
+
+    explicit_override = METRICS_SCRAPE_KEY_FILE_ENV in os.environ
+    file_name = (
+        os.environ.get(METRICS_SCRAPE_KEY_FILE_ENV, "")
+        if explicit_override
+        else DEFAULT_METRICS_SCRAPE_KEY_FILE
+    )
+    if not file_name or not os.path.isabs(file_name):
+        return MetricsScrapeKeyRecognition("invalid")
+
+    try:
+        payload = _read_metrics_scrape_key(file_name)
+    except FileNotFoundError:
+        marker: Literal["absent", "invalid"] = "invalid" if explicit_override else "absent"
+        return MetricsScrapeKeyRecognition(marker)
+    except (OSError, ValueError):
+        return MetricsScrapeKeyRecognition("invalid")
+
+    if payload is None or not _is_valid_metrics_scrape_key(payload):
+        return MetricsScrapeKeyRecognition("invalid")
+    return MetricsScrapeKeyRecognition("ready", payload)
+
+
+def _require_metrics_scrape_key_ready_for_production() -> None:
+    """Fail closed for invalid or app-key-equivalent production credentials."""
+
+    recognition = recognize_metrics_scrape_key()
+    if recognition.marker == "invalid":
+        raise RuntimeError(
+            "Metrics scrape credential configuration is invalid in production/staging."
+        )
+    if recognition.marker == "ready" and recognition.matches(os.getenv("API_KEY")):
+        raise RuntimeError(
+            "Metrics scrape credential must differ from the application API key in "
+            "production/staging."
+        )
 
 
 def _runtime_env_label() -> str:
@@ -116,6 +224,7 @@ def assert_production_runtime_invariants(app: Any | None = None) -> None:
     _reject_truthy_env_flags()
     _require_truthy_env_flags()
     validate_api_key_toggle_guard()
+    _require_metrics_scrape_key_ready_for_production()
     require_server_salt()
     validate_apple_receipt_verification_config()
     _require_private_exports_enabled()
@@ -124,7 +233,12 @@ def assert_production_runtime_invariants(app: Any | None = None) -> None:
 
 
 __all__ = [
+    "DEFAULT_METRICS_SCRAPE_KEY_FILE",
+    "METRICS_SCRAPE_KEY_AUTH_MARKER",
+    "METRICS_SCRAPE_KEY_FILE_ENV",
+    "MetricsScrapeKeyRecognition",
     "PRODUCTION_FALSE_FLAGS",
     "PRODUCTION_TRUE_FLAGS",
     "assert_production_runtime_invariants",
+    "recognize_metrics_scrape_key",
 ]
