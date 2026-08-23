@@ -2782,20 +2782,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: DEPSEC-2 multi-ecosystem dependency coverage and compatibility closure
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: DS-1 completed via PR #2318; DS-2 `codex/depsec2-non-python-dependabot-ownership` (PR #2323); DS-3 and reproduction-gated DS-4 remain separate PRs
-  - Status: 🟡 In progress via DS-2 bounded non-Python Dependabot ownership; the umbrella remains open
+  - Target PR: DS-1 completed via PR #2318; DS-2 repository carrier merged via PR #2323; corrective branch `codex/depsec2-actions-cooldown-provider-fix` (PR pending); DS-3 and reproduction-gated DS-4 remain separate PRs
+  - Status: 🟡 In progress. PR #2323 merged, but provider proof failed because `github-actions` rejects semver-major/minor/patch cooldown keys; the corrective lane narrows Actions to exact `default-days: 7`. Provider acceptance, DS-3, DS-4, and the umbrella remain open.
   - Area: dependency security / CI governance / runtime compatibility
   - Finding Type: multi-ecosystem automation and architecture-drift closure
   - Reason (EN): Dependency maintenance needs a finite current-main train with explicit ecosystem ownership, native resolvers, immutable lock or digest evidence, focused verification, rollback, and post-merge alert reconciliation. Configuration-authority PRs must not carry package updates; cross-ecosystem mega-updates and auto-merge are forbidden.
   - Links:
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2318`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2323`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-governance-pr-series`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
     - `.github/dependabot.yml`
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
   - Execution slices:
     - DS-1 (completed via PR #2318): require immutable digests for recognized `docker://` action references
-    - DS-2 (active carrier `codex/depsec2-non-python-dependabot-ownership`): automate weekly capped proposals for root/frontend npm, iOS Bundler, and workflow/direct-child composite GitHub Actions without package updates
+    - DS-2 (repository carrier merged via PR #2323; provider correction pending): automate weekly capped proposals for root/frontend npm, iOS Bundler, and workflow/direct-child composite GitHub Actions without package updates; Actions uses only `default-days: 7`, while pip/npm/bundler retain the full 7/30/7/3 cooldown contract
     - DS-2 manual owners: Docker/Docker Compose/devcontainers and SwiftPM/Xcode remain outside scheduled automation; the dependency-free business-collateral CommonJS marker requires a new ownership decision if dependency keys or an adjacent lock appear
     - DS-3 (open): reconcile fresh test-quality dependency and pre-commit hook parity without runtime dependency changes
     - DS-4 (open, reproduction-gated): fix FastAPI lifespan/test compatibility only after a preserved red reproduction identifies the owning defect class
