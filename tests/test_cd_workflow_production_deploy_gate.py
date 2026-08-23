@@ -203,7 +203,12 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
         if isinstance(step, dict)
         and step.get("name") == "Scan exact Prometheus image without suppressions"
     )
-    assert create_index < scan_index
+    install_index = next(
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == "Install exact Trivy CLI"
+    )
+    assert create_index < install_index < scan_index
 
     create_step = steps[create_index]
     assert create_step["id"] == "prometheus_trivy_ignore"
@@ -216,14 +221,47 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert '[ -s "$empty_ignore" ]' in create_script
     assert "path=%s" in create_script
 
+    install_step = steps[install_index]
+    assert install_step["id"] == "prometheus_trivy"
+    install_env = install_step.get("env")
+    assert install_env == {
+        "TRIVY_VERSION": "0.72.0",
+        "TRIVY_ARCHIVE_SHA256": (
+            "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea"  # pragma: allowlist secret
+        ),
+    }
+    install_script = install_step["run"]
+    assert "https://github.com/aquasecurity/trivy/releases/download/" in install_script
+    assert "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" in install_script
+    assert "sha256sum --check -" in install_script
+    assert 'tar -xzf "$archive_path"' in install_script
+    assert '"$trivy_path" --version' in install_script
+    assert "sudo" not in install_script
+
     scan_step = steps[scan_index]
-    scan_inputs = scan_step.get("with")
-    assert isinstance(scan_inputs, dict)
-    assert "/dev/null" not in str(scan_inputs)
-    assert scan_inputs["trivyignores"] == "${{ steps.prometheus_trivy_ignore.outputs.path }}"
-    assert scan_inputs["scanners"] == "vuln,secret"
-    assert scan_inputs["severity"] == "CRITICAL,HIGH"
-    assert scan_inputs["exit-code"] == "1"
+    assert "uses" not in scan_step
+    scan_env = scan_step.get("env")
+    assert scan_env == {
+        "TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db",
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.prometheus-image.outputs.runtime_ref }}",
+        "TRIVY_BIN": "${{ steps.prometheus_trivy.outputs.path }}",
+        "TRIVY_IGNORE_FILE": "${{ steps.prometheus_trivy_ignore.outputs.path }}",
+    }
+    scan_script = scan_step["run"]
+    assert "/dev/null" not in scan_script
+    assert '"$TRIVY_BIN" image' in scan_script
+    for argument in (
+        "--scanners vuln,secret",
+        "--format table",
+        "--pkg-types os,library",
+        "--severity CRITICAL,HIGH",
+        "--exit-code 1",
+        "--timeout 15m",
+        '--ignorefile "$TRIVY_IGNORE_FILE"',
+        "--cache-dir /tmp/trivy-cache-prometheus-image-security",
+        '"$PROMETHEUS_RUNTIME_REF"',
+    ):
+        assert argument in scan_script
 
     main_jobs = {"build", "release-control-plane-fixture-gate"}
     tag_jobs = {

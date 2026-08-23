@@ -57,9 +57,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
-
       - name: Validate closed Prometheus image record
         id: prometheus-image
         run: |
@@ -230,22 +227,63 @@ jobs:
           fi
           printf 'path=%s\n' "$empty_ignore" >> "$GITHUB_OUTPUT"
 
+      - name: Install exact Trivy CLI
+        id: prometheus_trivy
+        env:
+          TRIVY_VERSION: 0.72.0
+          TRIVY_ARCHIVE_SHA256: bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea # pragma: allowlist secret
+        run: |
+          set -euo pipefail
+          umask 077
+          install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-trivy.XXXXXX")"
+          archive_path="${install_dir}/trivy.tar.gz"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            --output "$archive_path"
+          printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$archive_path" | sha256sum --check -
+          tar -xzf "$archive_path" -C "$install_dir" trivy
+          trivy_path="${install_dir}/trivy"
+          if [ -L "$trivy_path" ] || [ ! -f "$trivy_path" ] || [ ! -x "$trivy_path" ]; then
+            echo "Failed to install the exact Trivy CLI" >&2
+            exit 1
+          fi
+          case "$("$trivy_path" --version)" in
+            "Version: ${TRIVY_VERSION}"*) ;;
+            *)
+              echo "Installed Trivy version does not match the pinned release" >&2
+              exit 1
+              ;;
+          esac
+          printf 'path=%s\n' "$trivy_path" >> "$GITHUB_OUTPUT"
+
       - name: Scan exact Prometheus image without suppressions
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
-        with:
-          scan-type: image
-          image-ref: ${{ steps.prometheus-image.outputs.runtime_ref }}
-          scanners: vuln,secret
-          format: table
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-          exit-code: '1'
-          timeout: 15m
-          trivyignores: ${{ steps.prometheus_trivy_ignore.outputs.path }}
-          version: v0.72.0
-          cache-dir: /tmp/trivy-cache-prometheus-image-security
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+          TRIVY_IGNORE_FILE: ${{ steps.prometheus_trivy_ignore.outputs.path }}
+        run: |
+          set -euo pipefail
+          if [ -L "$TRIVY_BIN" ] || [ ! -f "$TRIVY_BIN" ] || [ ! -x "$TRIVY_BIN" ]; then
+            echo "Exact Trivy executable is unavailable" >&2
+            exit 1
+          fi
+          if [ -L "$TRIVY_IGNORE_FILE" ] || [ ! -f "$TRIVY_IGNORE_FILE" ] || \
+             [ -s "$TRIVY_IGNORE_FILE" ]; then
+            echo "Prometheus Trivy ignore file must remain one empty regular file" >&2
+            exit 1
+          fi
+          "$TRIVY_BIN" image \
+            --scanners vuln,secret \
+            --format table \
+            --pkg-types os,library \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            --timeout 15m \
+            --ignorefile "$TRIVY_IGNORE_FILE" \
+            --cache-dir /tmp/trivy-cache-prometheus-image-security \
+            "$PROMETHEUS_RUNTIME_REF"
 
       - name: Prove synthetic non-root header and named-volume runtime
         env:
