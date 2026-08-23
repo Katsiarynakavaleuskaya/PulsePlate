@@ -487,21 +487,55 @@ For manual debugging outside the canonical shared installer path:
 
 ## Dependabot Configuration
 
-`.github/dependabot.yml` is a weekly intake surface, not dependency truth. Its
-single root `pip` block resolves exclusively through the private
-`python-index` registry, keeps automatic transitive security-update eligibility,
-and limits routine version-update traffic with owner groups, cooldowns, and a
-four-PR cap. Security updates are not grouped, suppressed, or counted against
-that version-update cap. PulsePlate's canonical Dependabot policy forbids the
-`insecure-external-code-execution` opt-in for this single root updater because
-it is configured with private registry credentials. The policy checker rejects
-that key at every mapping position. The single private `python-index` and
-`replaces-base: true` are a repository routing and checker contract, not proof
-of live service behavior, registry provenance, or candidate integrity. If
-Dependabot has no update path without executing manifest code, it must fail
-closed. Use an operator-owned manual dependency-update lane with independently
-evidenced admission and merge gates rather than restoring the opt-in; manual
-operation is not intrinsically safe.
+`.github/dependabot.yml` is a weekly proposal-intake surface, not dependency
+truth or merge authority. The local closed ownership registry is exactly:
+
+| Ecosystem | Admitted directories | Routine version-update cap | Ownership |
+| --- | --- | ---: | --- |
+| `pip` | `/` | 4 | Private `python-index`; existing version-update owner groups |
+| `npm` | `/`, `/frontend` | 1 | Group-free scheduled proposals |
+| `bundler` | `/ios` | 1 | Group-free scheduled proposals |
+| `github-actions` | `/`, `/.github/actions/*` | 1 | Group-free scheduled proposals |
+
+Every block uses the exact weekly schedule, the same 7/30/7/3-day default,
+major, minor, and patch cooldowns, and the `deps`/`scope` commit-message policy.
+The caps apply to routine version-update proposals; they do not suppress or
+authorize security remediation. Major-version proposals remain separate
+architecture-review inputs. No updater has auto-merge or approval authority.
+
+Only the root `pip` block may reference the private `python-index`. It keeps
+`replaces-base: true`, the existing owner groups, and the four-PR routine cap.
+The three non-Python blocks cannot use registries, groups, suppressions,
+target-branch routing, reviewer/assignee metadata, or automation authority.
+Security updates are not grouped, suppressed, or counted against the declared
+version-update caps. PulsePlate forbids `insecure-external-code-execution` at
+every mapping position. If an update requires manifest-code execution, the
+intake must fail closed; use a separately governed human-owned dependency lane
+instead. Manual operation is not intrinsically safe.
+
+For GitHub Actions, `/` locally denotes the workflow surface and the exact
+`/.github/actions/*` token admits current direct-child composite-action roots.
+This token is not proof that the deployed provider accepts the configuration,
+discovers every nested carrier, or produces an update. Repository action-pin
+guards remain independently mandatory for every generated proposal.
+
+`scripts/business_collateral/package.json` is a dependency-free CommonJS
+marker, not an admitted npm update root. Adding `dependencies`,
+`devDependencies`, `optionalDependencies`, or `peerDependencies`, or adding an
+adjacent package-manager lock, fails the local policy until a separate explicit
+ownership decision is reviewed.
+
+Dockerfiles, Docker Compose/devcontainer inputs, and SwiftPM/Xcode package
+surfaces remain manually owned. They are outside this scheduled Core-v1
+automation and retain their existing architecture, security, resolver, digest,
+and lockfile gates. Pre-commit dependency parity is a separate follow-up lane.
+
+The local checker proves only that the current repository material matches
+these four finite updater identities and bounded negative rules. It does not
+prove provider acceptance or execution, registry availability, update
+compatibility, vulnerability closure, candidate provenance, complete ecosystem
+coverage, review approval, or merge readiness. Those claims require their own
+current-head and, where applicable, post-merge provider evidence.
 
 Candidate admission remains review-controlled. Before accepting an update,
 confirm the approved source and version, provenance, hashes or mirror lineage,
@@ -512,9 +546,10 @@ merge readiness.
 
 Run `python scripts/ci/check_dependabot_python_policy.py --repo-root .` after
 changing the config, any root or one-directory-deep `.in`/`.txt` file,
-constraints, or this policy. That path-and-content class translates the pinned
-upstream snapshot below for the current root updater configuration rather than
-using an allowlist of familiar basenames:
+constraints, the business-collateral package marker or an adjacent lock, or
+this policy. The Python path-and-content class translates the pinned upstream
+snapshot below for the private root updater rather than using an allowlist of
+familiar basenames:
 
 ```text
 contract_version=dependabot-python-requirement-carriers/v1
