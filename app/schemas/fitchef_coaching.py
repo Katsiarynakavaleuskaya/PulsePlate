@@ -100,7 +100,7 @@ class FitChefSupportHandoffResponse(BaseModel):
 
     @field_validator("user_confirmation_required", mode="before")
     @classmethod
-    def require_exact_true(cls, value: object) -> object:
+    def require_exact_true(cls: type["FitChefSupportHandoffResponse"], value: object) -> object:
         """Reject numeric truthy values before Literal coercion."""
 
         if value is not True:
@@ -114,7 +114,7 @@ class FitChefSupportHandoffResponse(BaseModel):
         mode="before",
     )
     @classmethod
-    def require_exact_false(cls, value: object) -> object:
+    def require_exact_false(cls: type["FitChefSupportHandoffResponse"], value: object) -> object:
         """Reject numeric falsey values before Literal coercion."""
 
         if value is not False:
