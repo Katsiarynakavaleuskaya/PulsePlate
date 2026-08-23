@@ -240,6 +240,51 @@ Evidence: repaired meal ingredient bound
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3835928494 -> aa79b52ed0fb304fa1b223262209fc5773361b25
 
 Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: checked weekly-gap overflow raises exact error and preserves no partial map
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836046473 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: dead test-only mock-fallback switch and callers removed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836046478 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: weekly recipe ingredient amount and unit validate before synthesis
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836046480 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: manual suggestions use exact canonical nutrient keys
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836046482 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: numeric nutrient extras enforce and publish nonnegative number contract
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836089581 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: cached food names enforce exact 500-character admission bound
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836089584 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: fe312a1540c1972303e8d758014470d0236105ff
+Evidence: whole-plan governed baseline preflight blocks incomplete private cap paths
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836242710 -> fe312a1540c1972303e8d758014470d0236105ff
+
+Disposition: FIXED
+Commit: fe312a1540c1972303e8d758014470d0236105ff
+Evidence: foreign singleton fails startup and managed clients close by exact lease ownership
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836242714 -> fe312a1540c1972303e8d758014470d0236105ff
+
+Disposition: FIXED
+Commit: 8374902195e03a7f15b2b2d227b0ca9154c56c66
+Evidence: preexisting governed ceiling excess blocks catalog and mutation exactly
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836773983 -> 8374902195e03a7f15b2b2d227b0ca9154c56c66
+
+Disposition: FIXED
 Commit: 2d1655edd36a28f1bcc90f8749ca5f44723fbc92
 Evidence: two inline actionables fixed; finite-loop note dispositioned by frozen cohort evidence
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-4991484945 -> 2d1655edd36a28f1bcc90f8749ca5f44723fbc92
@@ -329,6 +374,31 @@ Commit: aa79b52ed0fb304fa1b223262209fc5773361b25
 Evidence: concrete payload typing and repaired ingredient bound fixed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-5000050615 -> aa79b52ed0fb304fa1b223262209fc5773361b25
 
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: all four actionable child findings fixed in bounded material
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-5000190060 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: 5833fe45218adca577b783852a4d9606b7dbb2b1
+Evidence: schema and cache child findings fixed; mapping-ref child separately dispositioned
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-5000228180 -> 5833fe45218adca577b783852a4d9606b7dbb2b1
+
+Disposition: FIXED
+Commit: fe312a1540c1972303e8d758014470d0236105ff
+Evidence: governed evidence and lifecycle ownership child findings fixed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-5000364712 -> fe312a1540c1972303e8d758014470d0236105ff
+
+Disposition: FIXED
+Commit: 8374902195e03a7f15b2b2d227b0ca9154c56c66
+Evidence: preexisting governed ceiling excess child finding fixed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-5000839674 -> 8374902195e03a7f15b2b2d227b0ca9154c56c66
+
+Disposition: NOT-A-BUG
+Evidence: authenticated GitHub Commit API and local graph contain no repository commit for cited reviewer SHA
+Reason: unavailable synthetic reviewer ref is not canonical PR ancestry; authenticated live graph is authoritative
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3836089577
+
 Disposition: NOT-A-BUG
 Evidence: Sourcery review guide contains no independent actionable defect
 Reason: Review-guide metadata is advisory summary only
@@ -415,6 +485,41 @@ Reason: Provider usage-limit notice requires no retry and is neither review nor 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5380390182
 
 Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5380507828
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5380864081
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5382034136
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5382245569
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5382330960
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5382427764
+
+Disposition: NOT-A-BUG
+Evidence: provider-neutral no-claim policy; notice contains no code or security finding
+Reason: provider usage-limit notice requires no retry and is neither review nor scan result
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#issuecomment-5382618949
+
+Disposition: NOT-A-BUG
 Evidence: Sourcery review explicitly reports the changes look good and contains no actionable finding
 Reason: Positive no-action review requires no code change
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#pullrequestreview-4991451769
@@ -422,5 +527,5 @@ Reason: Positive no-action review requires no code change
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:36cd845d6961309a029309d822fe96c6d5553b4a77df049f985de54925a79428","material_head_sha":"aa79b52ed0fb304fa1b223262209fc5773361b25","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","blocking":false,"head_revision":"aa79b52ed0fb304fa1b223262209fc5773361b25","material_digest":"sha256:36cd845d6961309a029309d822fe96c6d5553b4a77df049f985de54925a79428","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","digest":"sha256:36cd845d6961309a029309d822fe96c6d5553b4a77df049f985de54925a79428","material_head_sha":"aa79b52ed0fb304fa1b223262209fc5773361b25","merge_base_sha":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","policy_version":"pulseplate.material-classification/v1"},"pr_number":2312,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:36cd845d6961309a029309d822fe96c6d5553b4a77df049f985de54925a79428","material_head_sha":"aa79b52ed0fb304fa1b223262209fc5773361b25","report_payload":{"actionable_findings_count":0,"base_ref_oid":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","calibration":{"case_labels":["review-source-degraded","large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/f44282fa12b7.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"f44282fa12b7"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 10447 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","Add and fill docs/review/PR_<N>_FIXED_MAPPING.md before merge-ready loop","make test-fast","make validate-changed"],"generated_at_utc":"2026-08-22T12:24:41Z","material_digest":"sha256:36cd845d6961309a029309d822fe96c6d5553b4a77df049f985de54925a79428","material_head_sha":"aa79b52ed0fb304fa1b223262209fc5773361b25","merge_base_sha":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62..aa79b52ed0fb304fa1b223262209fc5773361b25","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2312_FIXED_MAPPING.md","fallback_required":true,"reason":"Fixed-mapping artifact unavailable","source":"fixed_mapping_artifact","source_degraded":true,"status":"unavailable"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":["app/bootstrap/lifespan.py","app/routers/vip.py","app/schemas/vip.py","core/auto_repair.py","core/food_apis/unified_db.py","core/menu_engine.py","core/targets.py","docs/roadmap/BACKLOG_LEDGER.md","frontend/src/api/openapi.json","frontend/src/api/schema.ts","tests/edges/test_auto_repair_partial.py","tests/test_auto_repair_comprehensive.py","tests/test_canonical_application_lifespan.py","tests/test_repo_policy_guards.py","tests/test_simple_coverage_fixed.py","tests/test_sprint_5_auto_repair.py","tests/test_total_coverage_boost_core_hotspots.py","tests/test_unified_db_basics.py","tests/test_vip_api.py","tests/test_vip_integration_97_extended.py","tests/test_vip_tier_guard_matrix.py","tests/vip/test_vip_diff_coverage.py"],"diff_summary":{"additions":9511,"changed_lines":10447,"deletions":936,"files":22},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","app/AGENTS.md","core/AGENTS.md","frontend/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:64d39bc5f7222289753ab2bdf2995a3350a2b43cfb3ac9d7cf59403b36bafde6","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
+{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:b31343569e1a18d2822ee7db168dd7a1267ded556684f9d617cccfaa15f1c070","material_head_sha":"6d050ffb79d960d18de936a56b87c8f2a4aedd03","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","blocking":false,"head_revision":"6d050ffb79d960d18de936a56b87c8f2a4aedd03","material_digest":"sha256:b31343569e1a18d2822ee7db168dd7a1267ded556684f9d617cccfaa15f1c070","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","digest":"sha256:b31343569e1a18d2822ee7db168dd7a1267ded556684f9d617cccfaa15f1c070","material_head_sha":"6d050ffb79d960d18de936a56b87c8f2a4aedd03","merge_base_sha":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","policy_version":"pulseplate.material-classification/v1"},"pr_number":2312,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:b31343569e1a18d2822ee7db168dd7a1267ded556684f9d617cccfaa15f1c070","material_head_sha":"6d050ffb79d960d18de936a56b87c8f2a4aedd03","report_payload":{"actionable_findings_count":0,"base_ref_oid":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","calibration":{"case_labels":["large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/f44282fa12b7.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"f44282fa12b7"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 12820 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast","make validate-changed"],"generated_at_utc":"2026-08-23T04:55:06Z","material_digest":"sha256:b31343569e1a18d2822ee7db168dd7a1267ded556684f9d617cccfaa15f1c070","material_head_sha":"6d050ffb79d960d18de936a56b87c8f2a4aedd03","merge_base_sha":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"1cad27ac461ac909e6719c94ce1ce44f0ee76a62..6d050ffb79d960d18de936a56b87c8f2a4aedd03","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2312_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":["app/bootstrap/lifespan.py","app/routers/vip.py","app/schemas/vip.py","core/auto_repair.py","core/food_apis/unified_db.py","core/menu_engine.py","core/targets.py","docs/roadmap/BACKLOG_LEDGER.md","frontend/src/api/openapi.json","frontend/src/api/schema.ts","tests/edges/test_auto_repair_partial.py","tests/edges/test_core_edge_branches.py","tests/test_auto_repair_comprehensive.py","tests/test_canonical_application_lifespan.py","tests/test_repo_policy_guards.py","tests/test_simple_coverage_fixed.py","tests/test_sprint_5_auto_repair.py","tests/test_total_coverage_boost_core_hotspots.py","tests/test_unified_db_basics.py","tests/test_vip_api.py","tests/test_vip_integration_97_extended.py","tests/test_vip_tier_guard_matrix.py","tests/vip/test_vip_diff_coverage.py"],"diff_summary":{"additions":11629,"changed_lines":12820,"deletions":1191,"files":23},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","app/AGENTS.md","core/AGENTS.md","frontend/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:cb46a52e1519d20d88bab85877589ce576f4acf51682e8f2c41871ff75b86ad7","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
