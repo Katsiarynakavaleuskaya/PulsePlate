@@ -24,32 +24,25 @@ PR_CLOSEOUT_METADATA = {
         "display_name": "PulsePlate PR Closeout",
         "short_description": "Govern PulsePlate PR closeout evidence",
         "default_prompt": (
-            "Use $pulseplate-pr-closeout in audit-only mode by default. Treat every "
-            "mutation and merge as blocked unless a mutating mode is explicitly "
-            "selected and separate explicit human authorization binds each exact "
-            "effect in a fresh closed bundle."
+            "Use $pulseplate-pr-closeout when a direct external operator instruction "
+            "asks you to implement, execute, fix, complete, or otherwise carry an "
+            "approved bounded PR task through routine implementation, review remediation, "
+            "exact-head closeout, and safe post-merge proof; keep inspect/review/explain/"
+            "status/informational or ambiguous references read-only, and stop for final "
+            "exact-head merge approval or a real scope/high-impact boundary."
         ),
     }
 }
-PR_CLOSEOUT_EFFECTS = frozenset(
-    {
-        "draft_init",
-        "draft_freeze",
-        "disposition_write",
-        "validation_write",
-        "mapping_write",
-        "pr_body_write",
-        "mapping_commit",
-        "push",
-        "thread_reply",
-        "thread_resolution",
-        "base_sync",
-        "merge",
-        "main_sync",
-        "branch_delete",
-        "worktree_delete",
-        "temporary_path_delete",
-    }
+PR_CLOSEOUT_DOC_PATH = REPO_ROOT / "docs" / "dev" / "CODEX_SKILLS.md"
+PR_CLOSEOUT_LEGACY_FRAGMENTS = (
+    "fresh closed bundle",
+    "consume the exact effect",
+    "separately authorized bundle entry",
+    "authority is consumed after the single attempt",
+    "default mode is read-only audit",
+    "require one closed effect bundle",
+    "consume it after the single attempt",
+    "| effect | exact scope |",
 )
 
 
@@ -725,18 +718,90 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             assert mirrored_skill.resolve() == source_skill
 
 
-def test_pr_closeout_skill_has_one_closed_effect_vocabulary() -> None:
-    """The passive closeout skill should enumerate one finite mutation vocabulary."""
+@pytest.mark.parametrize(
+    "required_clause",
+    (
+        pytest.param(
+            "A direct external operator instruction to implement, execute, fix, "
+            "complete, or otherwise carry one approved bounded PR task creates one "
+            "persistent lane-scoped lifecycle delegation.",
+            id="external-directive-creates-persistent-delegation",
+        ),
+        pytest.param(
+            "Inspect-only, review-only, explain-only, status-only, informational, or "
+            "ambiguous PR references do not create mutating lifecycle delegation.",
+            id="informational-pr-reference-does-not-activate-mutation",
+        ),
+        pytest.param(
+            "Merely naming or describing an approved lane is insufficient; an explicit "
+            "read-only request remains `AUDIT`.",
+            id="approved-lane-name-alone-is-not-authority",
+        ),
+        pytest.param(
+            "Bind the delegation to the repository, task or lane identity, PR or "
+            "target branch, approved goal, material paths, and explicit authority "
+            "boundaries.",
+            id="delegation-binds-finite-lane-identity",
+        ),
+        pytest.param(
+            "Loading this skill, selecting a mode, a coordinator packet, CI, review "
+            "evidence, a seal, readiness, or validator `PASS` never creates or expands "
+            "authority.",
+            id="evidence-never-self-authorizes",
+        ),
+        pytest.param(
+            "A descendant head invalidates stale local, CI, review, seal, and readiness "
+            "evidence; refresh the corresponding gates while the lifecycle delegation "
+            "remains active.",
+            id="descendant-head-refreshes-evidence-not-authority",
+        ),
+        pytest.param(
+            "A failed command or gate does not consume the lifecycle delegation.",
+            id="failed-attempt-does-not-consume-delegation",
+        ),
+        pytest.param(
+            "Require evidence that the canonical coordinator-first startup and task "
+            "packet already exist and that every required role pass has executed in "
+            "the packet-declared order for non-trivial work.",
+            id="required-role-passes-must-execute-in-packet-order",
+        ),
+        pytest.param(
+            "Before a coherent material diff exists, authorized same-lane implementation "
+            "proceeds under the active lifecycle delegation without forcing `AUDIT` or "
+            "requiring another mode selection; when the diff becomes coherent, transition "
+            "automatically to `PREPARE_CLOSEOUT`.",
+            id="pre-coherent-implementation-does-not-fall-into-audit",
+        ),
+        pytest.param(
+            "Routine current-surface review findings are fixed or given an "
+            "evidence-backed ordinary disposition in the same lane without another "
+            "human confirmation.",
+            id="routine-review-remediation-is-delegated",
+        ),
+        pytest.param(
+            "`READY_FOR_AUTHORIZED_MERGE` is a checkpoint, not the end of the lifecycle "
+            "delegation.",
+            id="ready-is-checkpoint",
+        ),
+        pytest.param(
+            "After the separately approved merge succeeds, the same lifecycle "
+            "delegation continues through bounded post-merge proof until `CLOSED`.",
+            id="delegation-continues-after-merge",
+        ),
+        pytest.param(
+            "Safe cleanup means one exact target, proven lane ownership, a clean target, "
+            "authenticated merge or equivalence proof, preservation of the sole "
+            "evidence copy, and no broad glob.",
+            id="safe-cleanup-is-bounded",
+        ),
+    ),
+)
+def test_pr_closeout_skill_has_lane_scoped_lifecycle_contract(required_clause: str) -> None:
+    """Static markers should cover the bounded lifecycle without parsing prose."""
 
     skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
-    authority_section = skill_text.split("## Require one closed effect bundle", 1)[1].split(
-        "## Admit the lane", 1
-    )[0]
-    table_effects = {
-        line.split("`")[1] for line in authority_section.splitlines() if line.startswith("| `")
-    }
 
-    assert table_effects == PR_CLOSEOUT_EFFECTS
+    assert required_clause in " ".join(skill_text.split())
 
 
 def test_mirror_file_inventory_excludes_only_root_source_marker(tmp_path: Path) -> None:
@@ -777,39 +842,173 @@ def test_mirror_file_inventory_rejects_nested_symlink(tmp_path: Path) -> None:
     "required_clause",
     (
         pytest.param(
-            "`AUDIT` always has an empty effect-instance list and denies every "
-            "effect in the table.",
-            id="audit-denies-all-mutations",
+            "Use `AUDIT` only when the operator explicitly requests read-only " "inspection.",
+            id="audit-is-explicit-read-only-only",
         ),
         pytest.param(
             "Interpret a pre-closeout `PASS` as procedural admission evidence only. "
-            "It is not user authorization for mapping write, mapping commit, push, "
-            "thread mutation, or merge",
+            "It is not lifecycle delegation, merge authorization, or merge-readiness "
+            "evidence.",
             id="pre-closeout-pass-is-not-authority",
         ),
         pytest.param(
-            "Without a fresh, post-readiness `merge` effect instance from a separate "
-            "human authority bundle, stop at `READY_FOR_AUTHORIZED_MERGE`.",
-            id="readiness-requires-fresh-merge-authority",
+            "The exact-head squash merge is the only ordinary human-only checkpoint.",
+            id="merge-is-only-ordinary-human-checkpoint",
         ),
         pytest.param(
-            "A `merge` effect never implies `branch_delete`, `main_sync`, "
-            "`worktree_delete`, or `temporary_path_delete`.",
-            id="merge-does-not-authorize-deletion",
+            "In the nominal unchanged-head path, request human merge authorization " "once.",
+            id="unchanged-head-requests-merge-once",
         ),
         pytest.param(
-            "If an effect is omitted, stale, already consumed, replayed, retargeted, "
-            "wildcarded, or not in the closed vocabulary, fail closed in every mode",
-            id="invalid-bundle-effects-fail-closed",
+            "If the head changes after approval, refresh readiness and request a new "
+            "exact-head merge approval because the approved action changed.",
+            id="post-approval-head-change-needs-new-approval",
+        ),
+        pytest.param(
+            "Route, schema, or product-behavior work already explicit in the approved "
+            "goal and authority boundaries remains inside the lane unless an "
+            "unconditional stop below applies.",
+            id="already-bound-product-decision-remains-in-lane",
+        ),
+        pytest.param(
+            "Stop when a route, schema, or product-behavior decision is newly introduced "
+            "outside the approved goal or materially expands its authority boundaries.",
+            id="new-or-expanded-product-decision-stops",
+        ),
+        pytest.param(
+            "Replacement PR, branch, or carrier; rebase, force push, or history rewrite; "
+            "release or deployment; secrets or access control; payments or billing; "
+            "legal, compliance, or medical-sensitive decisions; destructive data "
+            "operations; unsafe cleanup; and unrecoverable mapping topology remain "
+            "unconditional stops.",
+            id="high-impact-history-and-replacement-stops-remain-unconditional",
+        ),
+        pytest.param(
+            "Do not synthesize a rare OWNER-only reply or disposition that root "
+            "`AGENTS.md` reserves for the human owner.",
+            id="owner-only-exception-remains-human",
+        ),
+        pytest.param(
+            "Use `BLOCKED` also when a named required external fact cannot be restored "
+            "through bounded in-lane remediation, for example unavailable strict GitHub "
+            "authentication.",
+            id="unrestorable-required-external-fact-is-blocked",
+        ),
+        pytest.param(
+            "Do not use `BLOCKED` for recoverable gate failures, bounded in-lane "
+            "remediation, ordinary descendant-head evidence refresh, or pending "
+            "current-head evidence.",
+            id="recoverable-or-pending-evidence-is-not-blocked",
+        ),
+        pytest.param(
+            "Use `WAITING_CURRENT_HEAD` while either bounded remediation of a "
+            "recoverable same-lane gate or review failure is in progress, or "
+            "exact-current-head required CI or review-window evidence is nonterminal. "
+            "After remediation creates a successor head, refresh every affected "
+            "current-head evidence rail.",
+            id="recoverable-remediation-waits-for-current-head",
+        ),
+        pytest.param(
+            "Treat provider absence as neither review, scan, approval, PASS, nor " "no-findings.",
+            id="provider-absence-is-no-claim",
+        ),
+        pytest.param(
+            "Do not invoke, restart, retry, poll, wait for, substitute, or override an "
+            "absent provider.",
+            id="absent-provider-is-not-invoked-or-retried",
+        ),
+        pytest.param(
+            "Allow only `seal` to write `docs/review/PR_<N>_FIXED_MAPPING.md`.",
+            id="seal-is-sole-canonical-mapping-writer",
+        ),
+        pytest.param(
+            "Put exactly one rendered same-repository Markdown link to the canonical "
+            "mapping on its own bullet line in the live PR body. Bind the URL to the "
+            "authenticated exact `head.ref`.",
+            id="one-head-ref-bound-pr-body-link",
+        ),
+        pytest.param(
+            "After `PASS`, create the one direct, non-empty, non-trigger mapping-only "
+            "successor and non-force push it under the existing lifecycle delegation.",
+            id="one-direct-mapping-only-successor",
+        ),
+        pytest.param(
+            "Resolve an ordinary review thread only after its disposition and proof "
+            "are visible.",
+            id="ordinary-thread-resolution-requires-visible-disposition",
+        ),
+        pytest.param(
+            "Inspect required workflows and jobs by exact head SHA and job name.",
+            id="required-jobs-are-exact-current-head",
+        ),
+        pytest.param(
+            "Report `READY_FOR_AUTHORIZED_MERGE` only when the narrow local bundle, every "
+            "required current-head job, applicable security/governance checks, numeric "
+            "`diff-coverage >= 97%`, complete review and disposition inventory, mapping "
+            "topology, seal, full strict wrapper, and review wait window all have current "
+            "evidence.",
+            id="readiness-preserves-complete-current-evidence-rails",
         ),
     ),
 )
-def test_pr_closeout_skill_authority_contract_is_fail_closed(required_clause: str) -> None:
-    """Static scenarios should retain the fail-closed human-authority boundary."""
+def test_pr_closeout_skill_keeps_exact_merge_and_real_stop_boundaries(
+    required_clause: str,
+) -> None:
+    """Static scenarios should preserve the exact merge and high-impact boundaries."""
 
     skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
     normalized_skill = " ".join(skill_text.split())
-    merge_command = skill_text.split("gh pr merge <N>", 1)[1].split("```", 1)[0]
 
     assert required_clause in normalized_skill
+
+
+def test_pr_closeout_skill_merge_command_is_race_protected_squash() -> None:
+    """The one human merge action should stay exact-head and avoid implicit cleanup."""
+
+    skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
+    merge_command = skill_text.split("gh pr merge <N>", 1)[1].split("```", 1)[0]
+
+    assert "--squash" in merge_command
+    assert "--match-head-commit" in merge_command
     assert "--delete-branch" not in merge_command
+
+
+def test_pr_closeout_skill_removes_per_effect_approval_fragments() -> None:
+    """Bounded legacy fragments must not survive across skill, metadata, or docs."""
+
+    source_metadata = PR_CLOSEOUT_SKILL_PATH.parent / "agents" / "openai.yaml"
+    corpus = "\n".join(
+        (
+            PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8"),
+            source_metadata.read_text(encoding="utf-8"),
+            PR_CLOSEOUT_DOC_PATH.read_text(encoding="utf-8"),
+        )
+    ).lower()
+
+    for fragment in PR_CLOSEOUT_LEGACY_FRAGMENTS:
+        assert fragment not in corpus
+
+
+def test_pr_closeout_metadata_and_docs_match_lifecycle_delegation() -> None:
+    """UI and developer discovery prose should expose the same lifecycle boundary."""
+
+    source_metadata = PR_CLOSEOUT_SKILL_PATH.parent / "agents" / "openai.yaml"
+    metadata = yaml.safe_load(source_metadata.read_text(encoding="utf-8"))
+    docs_text = " ".join(PR_CLOSEOUT_DOC_PATH.read_text(encoding="utf-8").split())
+
+    assert metadata == PR_CLOSEOUT_METADATA
+    assert (
+        "Use `pulseplate-pr-closeout` when a direct external operator instruction asks "
+        "the agent to implement, execute, fix, complete, or otherwise carry an approved "
+        "bounded PR task through routine implementation, review remediation, exact-head "
+        "closeout, and safe post-merge proof; inspect-only, review-only, explain-only, "
+        "status-only, informational, or ambiguous PR references remain non-mutating, and "
+        "the exact-head squash merge remains separately human-authorized." in docs_text
+    )
+    assert (
+        "`pulseplate-pr-closeout` uses `AUDIT` for explicit read-only requests; mutating "
+        "lifecycle delegation exists only when a direct external operator instruction "
+        "asks to implement, execute, fix, complete, or otherwise carry the approved "
+        "bounded PR task, while the exact-head squash merge remains a separate human "
+        "authorization." in docs_text
+    )
