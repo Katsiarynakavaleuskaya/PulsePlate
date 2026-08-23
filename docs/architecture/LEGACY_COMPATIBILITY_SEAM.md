@@ -184,7 +184,7 @@ recognizer. All four versioned nutrition aliases and both root aliases remain
 callable; versioned-alias retirement, root-alias auth/sunset, and final legacy
 deletion remain separate ordered lanes behind their own evidence
 (canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
-`app/routers/pro_nutrition_contracts.py:71`; bounded registrar evidence:
+`app/routers/pro_nutrition_contracts.py:72`; bounded registrar evidence:
 `app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
 `frontend/src/api/premium/bmr.ts:4`).
 
