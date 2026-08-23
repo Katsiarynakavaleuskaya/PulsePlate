@@ -13,6 +13,15 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
     composite metadata filenames
   - current workflow evidence: `.github/workflows/codeql.yml:72`
   - current composite evidence: `.github/actions/python-setup/action.yml:52`
+- Dependabot may author scheduled GitHub Actions proposals only for the bounded
+  local `/` and `/.github/actions/*` updater tokens. Every proposal must retain
+  the immutable external Action SHA and Docker digest shapes enforced by
+  `scripts/ci/guard_actions_pin.py:11`; local `./` references remain local.
+  Proposal publication does not prove provider coverage, ref trust, artifact
+  existence, provenance, compatibility, vulnerability closure, review approval,
+  or merge readiness. The wildcard is a locally admitted token for current
+  direct-child composite roots, not a claim that nested carriers were discovered
+  or that GitHub accepted or ran the updater.
 - The guard deliberately retains a literal-line `uses:` recognizer. It handles
   the established unquoted single-line form with an optional list marker and
   trailing comment; it is not a general YAML, container, symlink, plugin, or
