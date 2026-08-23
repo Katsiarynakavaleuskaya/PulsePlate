@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import scripts.ci.check_pr_size_governance as size_gate
+from scripts.orchestration.bootstrap_sync_policy import requires_security_review
 
 TRUSTED_EMERGENCY = {"operator-approved", "scope/emergency-approved"}
 TRUSTED_PRIVILEGED = {"operator-approved", "scope/privileged-approved"}
@@ -336,6 +337,33 @@ def test_dotfile_privileged_paths_are_not_normalized_out_of_privileged_lane() ->
         "./.trivyignore",
     ):
         assert size_gate._is_privileged_path(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        ".github/dependabot.yml",
+        "./.github/dependabot.yml",
+        ".github/dependabot.yaml",
+        "./.github/dependabot.yaml",
+    ),
+)
+def test_dependabot_config_spellings_have_security_and_size_governance_parity(
+    path: str,
+) -> None:
+    assert size_gate._is_privileged_path(path)
+    assert requires_security_review([size_gate._normalize_path(path)]) is True
+
+    exit_code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1,
+        counted_files=1,
+        pr_body="",
+        changed_files=[path],
+    )
+
+    assert exit_code == 0
+    assert any("category: privileged_ci_security_workflow" in line for line in lines)
+    assert not any("OK (micro PR" in line for line in lines)
 
 
 def test_privileged_pr_cannot_mix_frontend_product_without_exception() -> None:
