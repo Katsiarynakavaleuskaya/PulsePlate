@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -1001,17 +1002,15 @@ def test_task_bootstrap_fails_closed_to_analysis_for_privileged_docs() -> None:
     assert packet["automation_flags"]["security_review_required"] is True
 
 
-def test_task_bootstrap_normalizes_whitespace_padded_privileged_docs() -> None:
-    """Whitespace-padded privileged docs must still force analysis mode."""
+def test_task_bootstrap_rejects_whitespace_padded_privileged_docs() -> None:
+    """Producer paths never strip ambiguous surrounding whitespace."""
 
-    packet = build_task_packet(
-        goal="Tighten agent message protocol wording",
-        task_class="Documentation",
-        candidate_paths=["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "],
-    )
-
-    assert packet["message_envelope"]["mode"] == "analysis"
-    assert packet["automation_flags"]["security_review_required"] is True
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
+        build_task_packet(
+            goal="Tighten agent message protocol wording",
+            task_class="Documentation",
+            candidate_paths=["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "],
+        )
 
 
 def test_task_bootstrap_keeps_requested_bug_hunter_executable_in_post_open_lane() -> None:
@@ -1271,6 +1270,121 @@ def test_task_bootstrap_enables_judgment_lane_for_relevant_work() -> None:
     assert packet["result_adjudication"]["evidence_modes"] == list(EVIDENCE_MODES)
     assert packet["result_adjudication"]["uncertainty_fields"] == list(UNCERTAINTY_FIELDS)
     assert packet["result_adjudication"]["promotion_labels"] == list(PROMOTION_LABELS)
+
+
+def test_task_bootstrap_candidate_path_aliases_share_canonical_packet_identity() -> None:
+    common = {
+        "goal": "Review canonical task candidate paths",
+        "task_class": "Orchestration",
+    }
+    canonical = build_task_packet(**common, candidate_paths=["docs/example.md"])
+    dot_alias = build_task_packet(**common, candidate_paths=["./docs/example.md"])
+    absolute_alias = build_task_packet(
+        **common,
+        candidate_paths=[f"{REPO_ROOT.as_posix()}/docs/example.md"],
+    )
+
+    assert canonical["candidate_paths"] == ["docs/example.md"]
+    assert dot_alias["candidate_paths"] == canonical["candidate_paths"]
+    assert absolute_alias["candidate_paths"] == canonical["candidate_paths"]
+    assert dot_alias["task_packet_id"] == canonical["task_packet_id"]
+    assert absolute_alias["task_packet_id"] == canonical["task_packet_id"]
+
+
+@pytest.mark.parametrize(
+    "candidate_path",
+    (
+        ".github/Attached HTML and CSS Context",
+        "ios/PulsePlate/Preview Content/.gitkeep",
+    ),
+)
+def test_task_bootstrap_preserves_internal_space_path_identity(candidate_path: str) -> None:
+    common = {
+        "goal": "Review a tracked path containing ordinary spaces",
+        "task_class": "Orchestration",
+    }
+    relative = build_task_packet(**common, candidate_paths=[candidate_path])
+    dot_alias = build_task_packet(**common, candidate_paths=[f"./{candidate_path}"])
+    absolute_alias = build_task_packet(
+        **common,
+        candidate_paths=[f"{REPO_ROOT.as_posix()}/{candidate_path}"],
+    )
+
+    assert relative["candidate_paths"] == [candidate_path]
+    assert dot_alias["candidate_paths"] == [candidate_path]
+    assert absolute_alias["candidate_paths"] == [candidate_path]
+    assert dot_alias["task_packet_id"] == relative["task_packet_id"]
+    assert absolute_alias["task_packet_id"] == relative["task_packet_id"]
+    assert any(
+        row["source_path"] == candidate_path
+        for row in relative["embedding_retrieval_admission"]["evidence_refs"]
+    )
+
+
+@pytest.mark.parametrize(
+    "candidate_paths",
+    (
+        ["./"],
+        [" docs/example.md"],
+        ["docs/example.md "],
+        ["docs/./example.md"],
+        ["docs/example.md/"],
+        ["docs/../example.md"],
+        [f"{REPO_ROOT.as_posix()}-other/docs/example.md"],
+        ["/tmp/outside.py"],
+        cast(list[str], [None]),
+    ),
+)
+def test_task_bootstrap_rejects_noncanonical_candidate_path_input(
+    candidate_paths: list[str],
+) -> None:
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
+        build_task_packet(
+            goal="Reject ambiguous task scope",
+            task_class="Orchestration",
+            candidate_paths=candidate_paths,
+        )
+
+
+def test_task_bootstrap_root_scope_preserves_authority_and_routing() -> None:
+    root_packet = build_task_packet(
+        goal="Inspect repository scope",
+        task_class="Orchestration",
+        candidate_paths=["."],
+    )
+    absorbed_packet = build_task_packet(
+        goal="Inspect repository scope",
+        task_class="Orchestration",
+        candidate_paths=["README.md", "."],
+    )
+    empty_packet = build_task_packet(
+        goal="Inspect repository scope",
+        task_class="Orchestration",
+        candidate_paths=[],
+    )
+
+    assert root_packet["candidate_paths"] == ["."]
+    assert absorbed_packet["candidate_paths"] == ["."]
+    assert absorbed_packet["task_packet_id"] == root_packet["task_packet_id"]
+    assert empty_packet["task_packet_id"] != root_packet["task_packet_id"]
+    assert root_packet["automation_flags"]["security_review_required"] is True
+    assert root_packet["automation_flags"]["invariant_class_review_required"] is True
+    assert root_packet["automation_flags"]["judgment_lane_enabled"] is False
+    assert "security-auditor" in root_packet["secondary_agents"]
+    assert root_packet["invariant_review"]["change_classes"] == list(INVARIANT_CHANGE_CLASSES)
+    assert root_packet["invariant_review"]["state"] == "required_pending"
+    assert root_packet["needs_backlog_update"] is True
+    assert root_packet["needs_docs_sync"] is True
+    assert root_packet["needs_agents_sync"] is True
+    assert root_packet["message_envelope"]["mode"] == "analysis"
+    assert "docs/orchestration/workflow.md" in root_packet["required_context"]
+    assert all(
+        node["path"] != "." for node in root_packet["context_pack_compression"]["graph_nodes"]
+    )
+    assert all(
+        evidence_ref["source_path"] != "."
+        for evidence_ref in root_packet["embedding_retrieval_admission"]["evidence_refs"]
+    )
 
 
 def test_task_bootstrap_enables_judgment_lane_for_underscore_triggers() -> None:
@@ -1768,7 +1882,7 @@ def test_task_bootstrap_does_not_mark_non_privileged_control_path_as_privileged(
 def test_task_bootstrap_rejects_parent_traversal_candidate_paths() -> None:
     """Parent traversal candidate paths must fail closed before routing."""
 
-    with pytest.raises(ValueError, match="path must stay inside repo"):
+    with pytest.raises(ValueError, match="canonical task candidate paths"):
         build_task_packet(
             goal="Review normalized workflow path",
             task_class="Orchestration",

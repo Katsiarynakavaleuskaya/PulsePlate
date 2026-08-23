@@ -9,15 +9,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 import re
 from typing import Any, Literal, cast
 
 from core.evidence.fingerprints import fingerprint_payload
-from scripts.orchestration.context_pack import compute_task_packet_id
+from scripts.orchestration.context_pack import (
+    canonical_task_candidate_paths,
+    compute_task_packet_id,
+)
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 InvariantChangeClass = Literal["parser", "validator", "guard", "authority"]
 
@@ -273,44 +274,13 @@ def compute_invariant_family_review_packet_id(
     return framed_fingerprint.removeprefix("sha256:")[:12]
 
 
-def _normalize_invariant_review_path(raw_path: str) -> str:
-    """Return a strict repo-relative POSIX path for bounded matching."""
-
-    if not isinstance(raw_path, str):
-        raise ValueError("invariant review paths must be strings")
-    candidate_text = raw_path.strip()
-    if not candidate_text:
-        return ""
-    if any(ord(character) < 32 or ord(character) == 127 for character in candidate_text):
-        raise ValueError("invariant review paths must not contain control characters")
-    if "\\" in candidate_text or "//" in candidate_text:
-        raise ValueError("invariant review paths must use unambiguous POSIX separators")
-    if candidate_text.startswith("~") or re.match(r"^[A-Za-z]:/", candidate_text):
-        raise ValueError("invariant review paths must stay under the repository root")
-
-    candidate = Path(candidate_text)
-    if candidate.is_absolute():
-        try:
-            return candidate.resolve().relative_to(REPO_ROOT).as_posix()
-        except ValueError as exc:
-            raise ValueError("invariant review paths must stay under the repository root") from exc
-
-    normalized = PurePosixPath(candidate_text)
-    if ".." in normalized.parts:
-        raise ValueError(
-            "invariant review paths: path must stay inside repo; parent traversal is forbidden"
-        )
-    normalized_text = normalized.as_posix()
-    while normalized_text.startswith("./"):
-        normalized_text = normalized_text[2:]
-    return "" if normalized_text == "." else normalized_text
-
-
 def _bounded_invariant_classes_for_path(
     normalized_path: str,
 ) -> tuple[InvariantChangeClass, ...]:
     """Return bounded positive matches without claiming semantic completeness."""
 
+    if normalized_path == ".":
+        return INVARIANT_CHANGE_CLASSES
     path = PurePosixPath(normalized_path)
     if any(component in _INVARIANT_REVIEW_EXCLUDED_COMPONENTS for component in path.parts):
         return ()
@@ -359,15 +329,19 @@ def classify_invariant_review(
             raise ValueError(
                 f"Unsupported invariant change class: {raw_change_class!r}. Supported: {supported}"
             )
-        explicit_set.add(cast(InvariantChangeClass, raw_change_class))
+        explicit_set.update(
+            change_class
+            for change_class in INVARIANT_CHANGE_CLASSES
+            if change_class == raw_change_class
+        )
 
-    normalized_paths = sorted(
-        {
-            normalized_path
-            for raw_path in candidate_paths
-            if (normalized_path := _normalize_invariant_review_path(raw_path))
-        }
-    )
+    try:
+        normalized_paths = canonical_task_candidate_paths(
+            candidate_paths,
+            mode="strict_wire",
+        )
+    except ValueError as exc:
+        raise ValueError("invariant review paths must be canonical") from exc
     evidence: list[InvariantReviewEvidence] = [
         InvariantReviewEvidence(change_class=change_class, source="explicit")
         for change_class in INVARIANT_CHANGE_CLASSES
@@ -686,17 +660,6 @@ ANALYSIS_ENVELOPE_MODE = "analysis"
 DOCS_ONLY_ENVELOPE_MODE = "docs_only"
 
 
-def _normalize_review_path(path: str) -> str:
-    normalized = path.strip().replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    return normalized
-
-
-def _contains_parent_traversal(path: str) -> bool:
-    return any(part == ".." for part in path.split("/"))
-
-
 def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     """Return True when a path matches a canonical prefix exactly or by subtree.
 
@@ -704,36 +667,31 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     EN: A match is valid for both the root directory and any nested path.
     """
 
-    normalized = _normalize_review_path(path)
-    if _contains_parent_traversal(normalized):
-        return False
+    normalized = canonical_task_candidate_paths([path], mode="strict_wire")[0]
     return any(
         normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in prefixes
     )
 
 
 def _matches_privileged_surface(path: str, surface: PrivilegedReviewSurface) -> bool:
-    normalized = _normalize_review_path(path)
-    if not normalized or _contains_parent_traversal(normalized):
+    if path == ".":
         return False
-    if normalized in surface.exact_paths:
+    if path in surface.exact_paths:
         return True
-    if any(
-        normalized == prefix.rstrip("/") or normalized.startswith(prefix)
-        for prefix in surface.prefixes
-    ):
+    if any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in surface.prefixes):
         return True
-    if any(re.fullmatch(pattern, normalized) for pattern in surface.regexes):
+    if any(re.fullmatch(pattern, path) for pattern in surface.regexes):
         return True
-    return any(normalized.endswith(suffix) for suffix in surface.suffixes)
+    return any(path.endswith(suffix) for suffix in surface.suffixes)
 
 
 def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:
     """Return stable privileged-surface reason labels matched by candidate paths."""
 
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
     matches: list[str] = []
     for surface in PRIVILEGED_REVIEW_SURFACES:
-        if any(_matches_privileged_surface(path, surface) for path in candidate_paths):
+        if any(_matches_privileged_surface(path, surface) for path in canonical_paths):
             matches.append(surface.reason)
     return tuple(matches)
 
@@ -745,7 +703,10 @@ def requires_security_review(candidate_paths: Sequence[str]) -> bool:
     EN: Privileged surfaces always force the security-review path.
     """
 
-    return bool(privileged_review_surface_matches(candidate_paths))
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
+    if canonical_paths == ["."]:
+        return True
+    return bool(privileged_review_surface_matches(canonical_paths))
 
 
 def needs_backlog_update(
@@ -760,16 +721,19 @@ def needs_backlog_update(
     EN: The signal is derived from text markers plus the explicit backlog ledger path.
     """
 
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
+    if canonical_paths == ["."]:
+        return True
     haystack = " ".join(
         [
             goal.strip().lower(),
             task_class.strip().lower(),
-            *(path.lower() for path in candidate_paths),
+            *(path.lower() for path in canonical_paths),
         ]
     )
     if any(term in haystack for term in BACKLOG_SIGNAL_TERMS):
         return True
-    return any(BACKLOG_LEDGER_PATH in path.lower() for path in candidate_paths)
+    return any(BACKLOG_LEDGER_PATH in path.lower() for path in canonical_paths)
 
 
 def needs_docs_sync(candidate_paths: Sequence[str]) -> bool:
@@ -779,11 +743,14 @@ def needs_docs_sync(candidate_paths: Sequence[str]) -> bool:
     EN: Code changes without a docs path must raise the deterministic docs sync flag.
     """
 
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
+    if canonical_paths == ["."]:
+        return True
     has_implementation_path = any(
-        matches_any_prefix(path, IMPLEMENTATION_PATH_PREFIXES) for path in candidate_paths
+        matches_any_prefix(path, IMPLEMENTATION_PATH_PREFIXES) for path in canonical_paths
     )
     has_docs_path = any(
-        path == "docs" or path.startswith(DOCS_PATH_PREFIX) for path in candidate_paths
+        path == "docs" or path.startswith(DOCS_PATH_PREFIX) for path in canonical_paths
     )
     return has_implementation_path and not has_docs_path
 
@@ -795,13 +762,16 @@ def needs_agents_sync(candidate_paths: Sequence[str]) -> bool:
     EN: The signal is intentionally limited to canonical agent-contract paths.
     """
 
+    canonical_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
+    if canonical_paths == ["."]:
+        return True
     return any(
         path == AGENTS_CONTRACT_FILE
         or path.endswith(f"/{AGENTS_CONTRACT_FILE}")
         or path.startswith(AGENTS_CURSOR_PREFIX)
         or path == SKILL_CONTRACT_FILE
         or path.endswith(f"/{SKILL_CONTRACT_FILE}")
-        for path in candidate_paths
+        for path in canonical_paths
     )
 
 
@@ -814,9 +784,7 @@ def is_docs_only_contract_path(path: str) -> bool:
     (stays fail-closed to ``analysis``) so envelope mode cannot downshift on app/core notes.
     """
 
-    normalized = path.strip()
-    if not normalized:
-        return False
+    normalized = canonical_task_candidate_paths([path], mode="strict_wire")[0]
 
     if normalized in DOCS_ONLY_ROOT_FILES:
         return True
@@ -846,7 +814,7 @@ def resolve_analysis_envelope_mode(candidate_paths: Sequence[str]) -> str:
     EN: Mixed or runtime scope always fails closed to analysis.
     """
 
-    normalized_paths = [path.strip() for path in candidate_paths if path.strip()]
+    normalized_paths = canonical_task_candidate_paths(candidate_paths, mode="strict_wire")
     if not normalized_paths or requires_security_review(normalized_paths):
         return ANALYSIS_ENVELOPE_MODE
     if all(is_docs_only_contract_path(path) for path in normalized_paths):

@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import Any, cast, Dict, List
 
 import pytest
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     qoder_dispatch_bridge,
     review_invariant_family_relations as relations,
     role_dispatch_bridge,
     task_bootstrap,
 )
+from scripts.orchestration.context_pack import compute_task_packet_id
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -25,6 +27,7 @@ from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contr
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 PACKET_PATH = REPO_ROOT / "docs" / "orchestration" / "PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md"
+_SYNTHETIC_WORKSPACE_SOURCE = "test://synthetic-synthesis-workspace"
 
 REQUIRED_TOP_LEVEL_KEYS = {
     "schema_version",
@@ -58,6 +61,153 @@ REQUIRED_ENTRY_KEYS = {
     "constraints",
     "depends_on_previous",
 }
+
+
+class _LegacyCandidatePathList(list[object]):
+    pass
+
+
+@pytest.fixture(autouse=True)
+def _isolate_synthetic_synthesis_workspace_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep metadata matrices synthetic while real CLI tests bind workspace artifacts."""
+
+    validate_source = qoder_dispatch_bridge._validate_single_coordinator_synthesis_workspace_source
+
+    def validate_or_stub(
+        payload: Dict[str, Any],
+        *,
+        validated_synthesis_context: Dict[str, Any],
+        candidate_paths: List[str],
+    ) -> None:
+        if payload.get("creative_pilot_workspace_source") == _SYNTHETIC_WORKSPACE_SOURCE:
+            return
+        validate_source(
+            payload,
+            validated_synthesis_context=validated_synthesis_context,
+            candidate_paths=candidate_paths,
+        )
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "_validate_single_coordinator_synthesis_workspace_source",
+        validate_or_stub,
+    )
+
+
+def _rebind_single_coordinator_synthesis_task_packet_id(packet: dict[str, object]) -> None:
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    creative_learning_hints = cast(dict[str, Any], packet["creative_learning_hints"])
+    invariant_review = cast(dict[str, Any], packet["invariant_review"])
+    creative_identity_fingerprint = fingerprint_payload(
+        {
+            "creative_learning_hints": creative_learning_hints["source_hints_fingerprint"],
+            "creative_pilot": fingerprint_payload(context),
+        }
+    )
+    base_packet_id = compute_task_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(list[str], packet["candidate_paths"]),
+        requested_agents=cast(list[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_fingerprint=task_bootstrap._design_fingerprint(
+            design_lane_mode=cast(str, packet["design_lane_mode"]),
+            design_lane_contract=cast(dict[str, Any], packet["design_lane_contract"]),
+        ),
+        creative_learning_hints_fingerprint=creative_identity_fingerprint,
+    )
+    packet["task_packet_id"] = task_bootstrap._bind_invariant_review_packet_id(
+        base_packet_id,
+        invariant_review_fingerprint=",".join(cast(list[str], invariant_review["change_classes"])),
+    )
+
+
+def _substitute_synthesis_context_identity(context: dict[str, Any]) -> None:
+    workspace_id = "workspace:substituted"
+    revision_fingerprint = "sha256:" + ("9" * 64)
+    context["workspace_id"] = workspace_id
+    context["workspace_intent_fingerprint"] = "sha256:" + ("8" * 64)
+    context["workspace_revision_fingerprint"] = revision_fingerprint
+    context["dispatch_input_fingerprint"] = revision_fingerprint
+    assignment = cast(dict[str, Any], cast(list[object], context["assignments"])[0])
+    assignment["input_fingerprint"] = revision_fingerprint
+    assignment["input_refs"] = [workspace_id, revision_fingerprint]
+
+
+def _single_coordinator_synthesis_packet(
+    *,
+    goal: str = "synthesize validated creative pilot results",
+    candidate_paths: list[str] | None = None,
+) -> dict[str, object]:
+    revision_fingerprint = "sha256:" + ("2" * 64)
+    workspace_id = "workspace:synthesis-test"
+    packet = task_bootstrap.build_task_packet(
+        goal=goal,
+        task_class="orchestration",
+        candidate_paths=["README.md"] if candidate_paths is None else candidate_paths,
+        requested_agents=["agent-coordinator"],
+    )
+    transport = packet["native_subagent_bridge"]["transport"]
+    assert isinstance(transport, str)
+    bridge = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=[],
+        reviewer="agent-coordinator",
+        advisory_agents=[],
+        transport=transport,
+    )
+    packet.update(
+        {
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": [],
+            "reviewer": "agent-coordinator",
+            "requested_agents": ["agent-coordinator"],
+            "requested_agent_disposition": [],
+            "creative_pilot_workspace_source": _SYNTHETIC_WORKSPACE_SOURCE,
+            "native_subagent_bridge": bridge,
+            "creative_pilot_context": {
+                "schema_version": "creative_pilot_context.v2",
+                "workspace_id": workspace_id,
+                "workspace_intent_fingerprint": "sha256:" + ("1" * 64),
+                "workspace_revision_fingerprint": revision_fingerprint,
+                "phase": "synthesis",
+                "dispatch_input_fingerprint": revision_fingerprint,
+                "assignments": [
+                    {
+                        "assignment_id": "synthesis:agent-coordinator",
+                        "role": "agent-coordinator",
+                        "phase": "synthesis",
+                        "review_mode": "specification_planning",
+                        "diff_expected": False,
+                        "review_question": (
+                            "Synthesize only validated role results using deterministic hard gates."
+                        ),
+                        "input_fingerprint": revision_fingerprint,
+                        "input_refs": [workspace_id, revision_fingerprint],
+                    }
+                ],
+                "authority": {
+                    "read_structured_inputs": True,
+                    "generate_patch": False,
+                    "write_repository": False,
+                    "call_provider": False,
+                },
+            },
+        }
+    )
+    automation_flags = packet["automation_flags"]
+    assert isinstance(automation_flags, dict)
+    automation_flags["creative_pilot_enabled"] = True
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase=cast(str, packet["pr_phase"]),
+    )
+    normalized_packet = cast(dict[str, object], packet)
+    _rebind_single_coordinator_synthesis_task_packet_id(normalized_packet)
+    return normalized_packet
 
 
 def test_role_dispatch_bridge_exports_compatibility_main() -> None:
@@ -94,6 +244,561 @@ def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixtu
     assert "usage: role_dispatch_bridge" in captured.out
     assert "Generate a JSON role dispatch manifest" in captured.out
     assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
+
+
+def test_single_coordinator_synthesis_aliases_parse_as_one_role() -> None:
+    packet = _single_coordinator_synthesis_packet()
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+def test_root_scope_packet_preserves_required_invariant_dispatch() -> None:
+    packet = task_bootstrap.build_task_packet(
+        goal="Inspect repository scope",
+        task_class="Orchestration",
+        candidate_paths=["."],
+    )
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    assert packet["candidate_paths"] == ["."]
+    assert roles[:3] == ["agent-coordinator", "logic-agent", "philosophy-agent"]
+    assert roles.count("security-auditor") == 1
+
+
+def test_root_scope_cannot_claim_single_coordinator_synthesis_alias() -> None:
+    packet = _single_coordinator_synthesis_packet()
+    packet["candidate_paths"] = ["."]
+
+    with pytest.raises(
+        ValueError,
+        match="invariant_review classes and evidence must match the canonical classifier",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_single_coordinator_synthesis_accepts_rebound_context_identity() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    _substitute_synthesis_context_identity(context)
+    _rebind_single_coordinator_synthesis_task_packet_id(packet)
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == ["agent-coordinator"]
+
+
+def test_single_coordinator_synthesis_rederives_domain_before_identity() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    forged_domain = "frontend"
+    forged_route = qoder_dispatch_bridge.load_routing_graph()[forged_domain]
+    packet["domain"] = forged_domain
+    packet["cluster"] = forged_route.cluster
+    _rebind_single_coordinator_synthesis_task_packet_id(packet)
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
+
+
+def test_single_coordinator_synthesis_rejects_noncanonical_cluster() -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    packet["cluster"] = "forged-cluster"
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    (
+        ("domain", None),
+        ("domain", 1),
+        ("cluster", None),
+        ("cluster", 1),
+        ("cluster", "unknown-cluster"),
+    ),
+)
+def test_single_coordinator_synthesis_requires_domain_cluster_shape(
+    field: str,
+    replacement: object,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    if replacement is None:
+        packet.pop(field)
+    else:
+        packet[field] = replacement
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis task_packet_id must match canonical packet identity"
+    )
+
+
+def test_synthesis_security_requirement_cannot_be_hidden_by_flag() -> None:
+    packet = _single_coordinator_synthesis_packet(candidate_paths=["deploy/example.yaml"])
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["security_review_required"] is True
+    automation_flags["security_review_required"] = False
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires security_review_required=false"
+    )
+
+
+@pytest.mark.parametrize(
+    "candidate_paths",
+    (
+        [str((REPO_ROOT / "deploy/example.yaml").resolve())],
+        ["./deploy/example.yaml"],
+        ["deploy/example.yaml", "deploy/example.yaml"],
+    ),
+)
+def test_synthesis_candidate_paths_must_use_canonical_spelling(
+    candidate_paths: list[str],
+) -> None:
+    packet = _single_coordinator_synthesis_packet(candidate_paths=["deploy/example.yaml"])
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["security_review_required"] is True
+    automation_flags["security_review_required"] = False
+    packet["candidate_paths"] = candidate_paths
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires canonical candidate_paths"
+    )
+
+
+def test_synthesis_judgment_requirement_cannot_be_hidden_by_projection() -> None:
+    packet = _single_coordinator_synthesis_packet(
+        goal="synthesize validated creative pilot adjudication results"
+    )
+    automation_flags = cast(dict[str, Any], packet["automation_flags"])
+    assert automation_flags["judgment_lane_enabled"] is True
+    automation_flags["judgment_lane_enabled"] = False
+    packet["decision_contract"] = {
+        "mode": "standard",
+        "judgment_enabled": False,
+        "claim_taxonomy": [],
+        "flow": [],
+    }
+    packet["judgment_budget"] = {
+        "skeptic_pass_required": False,
+        "verifier_pass_required": False,
+        "max_provider_calls": 0,
+        "uncertainty_split_required": False,
+    }
+    packet["result_adjudication"] = {
+        "claim_evidence_fields": [],
+        "support_statuses": [],
+        "evidence_modes": [],
+        "uncertainty_fields": [],
+        "promotion_labels": [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "extra_secondary",
+        "extra_advisory",
+        "altered_primary_alias",
+        "altered_reviewer_alias",
+        "empty_assignments",
+        "multiple_assignments",
+        "non_coordinator_assignment",
+        "tampered_assignment",
+        "wrong_phase",
+        "writable_authority",
+        "provider_authority",
+        "generate_patch_authority",
+        "structured_input_authority",
+        "numeric_structured_input_authority",
+        "numeric_generate_patch_authority",
+        "numeric_write_authority",
+        "numeric_provider_authority",
+        "implementation_owner_flags",
+        "dispatch_role_order",
+        "required_invariant_review",
+        "malformed_bridge_contract",
+        "malformed_dispatch_contract",
+        "task_packet_schema_drift",
+        "bridge_protocol_drift",
+        "requested_agents_empty",
+        "requested_agents_extra",
+        "nonempty_requested_disposition",
+        "post_open_phase",
+        "merge_ready_phase",
+        "creative_flag_false",
+        "creative_flag_missing",
+        "security_review_required",
+        "numeric_security_review_flag",
+        "invariant_review_required_flag",
+        "numeric_invariant_review_flag",
+        "stale_task_packet_id",
+        "legacy_schema_without_invariant",
+        "missing_schema_without_invariant",
+        "legacy_non_object_context",
+        "legacy_missing_phase_context",
+        "legacy_invalid_phase_context",
+    ),
+)
+def test_single_coordinator_synthesis_near_misses_fail_closed(mutation: str) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = packet["creative_pilot_context"]
+    bridge = packet["native_subagent_bridge"]
+    dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(context, dict)
+    assert isinstance(bridge, dict)
+    assert isinstance(dispatch_contract, dict)
+    assignments = context["assignments"]
+    assert isinstance(assignments, list)
+    assignment = assignments[0]
+    assert isinstance(assignment, dict)
+
+    if mutation == "extra_secondary":
+        bridge["secondary"].append(bridge["primary"])
+    elif mutation == "extra_advisory":
+        bridge["advisory"].append(bridge["primary"])
+    elif mutation == "altered_primary_alias":
+        packet["primary_agent"] = "architecture-specialist"
+    elif mutation == "altered_reviewer_alias":
+        packet["reviewer"] = "architecture-specialist"
+    elif mutation == "empty_assignments":
+        assignments.clear()
+    elif mutation == "multiple_assignments":
+        assignments.append(dict(assignment))
+    elif mutation == "non_coordinator_assignment":
+        assignment["role"] = "architecture-specialist"
+    elif mutation == "tampered_assignment":
+        assignment["input_refs"] = [context["workspace_id"]]
+    elif mutation == "wrong_phase":
+        context["phase"] = "independent"
+    elif mutation == "writable_authority":
+        context["authority"]["write_repository"] = True
+    elif mutation == "provider_authority":
+        context["authority"]["call_provider"] = True
+    elif mutation == "generate_patch_authority":
+        context["authority"]["generate_patch"] = True
+    elif mutation == "structured_input_authority":
+        context["authority"]["read_structured_inputs"] = False
+    elif mutation == "numeric_structured_input_authority":
+        context["authority"]["read_structured_inputs"] = 1
+    elif mutation == "numeric_generate_patch_authority":
+        context["authority"]["generate_patch"] = 0
+    elif mutation == "numeric_write_authority":
+        context["authority"]["write_repository"] = 0
+    elif mutation == "numeric_provider_authority":
+        context["authority"]["call_provider"] = 0
+    elif mutation == "implementation_owner_flags":
+        dispatch_contract["runtime_implementation_owner_flags_required"] = True
+        dispatch_contract["runtime_implementation_owners"] = ["security-auditor"]
+    elif mutation == "dispatch_role_order":
+        dispatch_contract["dispatch_role_order"] = ["agent-coordinator"]
+    elif mutation == "required_invariant_review":
+        packet["invariant_review"]["state"] = "required_pending"
+    elif mutation == "malformed_bridge_contract":
+        bridge["primary"]["dispatch_contract"] = "spawn"
+    elif mutation == "malformed_dispatch_contract":
+        dispatch_contract.pop("dispatch_manifest_entrypoint")
+    elif mutation == "task_packet_schema_drift":
+        packet["schema_version"] = "3.0"
+    elif mutation == "bridge_protocol_drift":
+        bridge["protocol_version"] = "2.0"
+    elif mutation == "requested_agents_empty":
+        packet["requested_agents"] = []
+    elif mutation == "requested_agents_extra":
+        packet["requested_agents"] = ["agent-coordinator", "architecture-specialist"]
+    elif mutation == "nonempty_requested_disposition":
+        packet["requested_agent_disposition"] = [
+            {
+                "agent": "agent-coordinator",
+                "status": "honored_primary",
+                "reason": "Compatibility metadata must still fail closed for synthesis.",
+            }
+        ]
+    elif mutation in {"post_open_phase", "merge_ready_phase"}:
+        packet["pr_phase"] = "post_open_review" if mutation == "post_open_phase" else "merge_ready"
+        packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+            native_subagent_bridge=bridge,
+            pr_phase=packet["pr_phase"],
+        )
+    elif mutation == "creative_flag_false":
+        packet["automation_flags"]["creative_pilot_enabled"] = False
+    elif mutation == "security_review_required":
+        packet["automation_flags"]["security_review_required"] = True
+    elif mutation == "numeric_security_review_flag":
+        packet["automation_flags"]["security_review_required"] = 0
+    elif mutation == "invariant_review_required_flag":
+        packet["automation_flags"]["invariant_class_review_required"] = True
+    elif mutation == "numeric_invariant_review_flag":
+        packet["automation_flags"]["invariant_class_review_required"] = 0
+    elif mutation == "stale_task_packet_id":
+        _substitute_synthesis_context_identity(context)
+    elif mutation in {"legacy_schema_without_invariant", "missing_schema_without_invariant"}:
+        if mutation == "legacy_schema_without_invariant":
+            packet["schema_version"] = "3.0"
+        else:
+            packet.pop("schema_version")
+        packet.pop("invariant_review")
+        packet["automation_flags"].pop("invariant_class_review_required")
+    elif mutation in {
+        "legacy_non_object_context",
+        "legacy_missing_phase_context",
+        "legacy_invalid_phase_context",
+    }:
+        packet["schema_version"] = "3.0"
+        packet.pop("invariant_review")
+        packet["automation_flags"].pop("invariant_class_review_required")
+        if mutation == "legacy_non_object_context":
+            packet["creative_pilot_context"] = []
+        elif mutation == "legacy_missing_phase_context":
+            packet["creative_pilot_context"] = {}
+        else:
+            packet["creative_pilot_context"] = {"phase": "unknown"}
+    else:
+        packet["automation_flags"].pop("creative_pilot_enabled")
+
+    exact_errors = {
+        "requested_agents_empty": (
+            "creative pilot synthesis packet metadata requires only agent-coordinator"
+        ),
+        "requested_agents_extra": (
+            "creative pilot synthesis packet metadata requires only agent-coordinator"
+        ),
+        "nonempty_requested_disposition": (
+            "creative pilot synthesis packet metadata requires empty requested disposition"
+        ),
+        "post_open_phase": (
+            "creative pilot synthesis packet metadata requires an opening PR phase"
+        ),
+        "merge_ready_phase": (
+            "creative pilot synthesis packet metadata requires an opening PR phase"
+        ),
+        "creative_flag_false": (
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        ),
+        "creative_flag_missing": (
+            "creative pilot synthesis packet metadata requires creative_pilot_enabled=true"
+        ),
+        "numeric_structured_input_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_generate_patch_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_write_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "numeric_provider_authority": (
+            "invalid creative_pilot_context: creative pilot task context authority is invalid"
+        ),
+        "security_review_required": (
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        ),
+        "numeric_security_review_flag": (
+            "creative pilot synthesis packet metadata requires security_review_required=false"
+        ),
+        "invariant_review_required_flag": (
+            "creative pilot synthesis packet metadata requires no invariant review pass"
+        ),
+        "numeric_invariant_review_flag": (
+            "creative pilot synthesis packet metadata requires no invariant review pass"
+        ),
+        "stale_task_packet_id": (
+            "creative pilot synthesis task_packet_id must match canonical packet identity"
+        ),
+        "legacy_schema_without_invariant": (
+            "creative pilot synthesis requires task packet schema 3.1"
+        ),
+        "missing_schema_without_invariant": (
+            "creative pilot synthesis requires task packet schema 3.1"
+        ),
+        "legacy_non_object_context": "legacy creative_pilot_context must be an object",
+        "legacy_missing_phase_context": ("legacy creative_pilot_context phase is unsupported"),
+        "legacy_invalid_phase_context": ("legacy creative_pilot_context phase is unsupported"),
+    }
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    if mutation in exact_errors:
+        assert str(exc_info.value) == exact_errors[mutation]
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "value"),
+    (
+        ("automation_flags", "judgment_lane_enabled", True),
+        ("automation_flags", "judgment_lane_enabled", 0),
+        ("decision_contract", "judgment_enabled", True),
+        ("decision_contract", "judgment_enabled", 0),
+        ("decision_contract", "mode", "verification_first"),
+        ("decision_contract", "claim_taxonomy", ["normative_claim"]),
+        ("decision_contract", "flow", ["skeptic"]),
+        ("judgment_budget", "skeptic_pass_required", True),
+        ("judgment_budget", "skeptic_pass_required", 0),
+        ("judgment_budget", "verifier_pass_required", True),
+        ("judgment_budget", "verifier_pass_required", 0),
+        ("judgment_budget", "uncertainty_split_required", True),
+        ("judgment_budget", "uncertainty_split_required", 0),
+        ("judgment_budget", "max_provider_calls", False),
+        ("judgment_budget", "max_provider_calls", 1),
+        ("result_adjudication", "claim_evidence_fields", ["claim_id"]),
+        ("result_adjudication", "support_statuses", ["supported"]),
+        ("result_adjudication", "evidence_modes", ["direct"]),
+        ("result_adjudication", "uncertainty_fields", ["confidence"]),
+        ("result_adjudication", "promotion_labels", ["promote"]),
+    ),
+)
+def test_single_coordinator_synthesis_judgment_near_misses_fail_closed(
+    section: str,
+    field: str,
+    value: object,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    projection = packet[section]
+    assert isinstance(projection, dict)
+    projection[field] = value
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "decision_missing_key",
+        "decision_extra_key",
+        "decision_non_object",
+        "budget_missing_key",
+        "budget_extra_key",
+        "budget_non_object",
+        "adjudication_missing_key",
+        "adjudication_extra_key",
+        "adjudication_non_object",
+        "goal_non_string",
+        "task_class_non_string",
+        "candidate_paths_non_list",
+        "candidate_path_non_string",
+    ),
+)
+def test_single_coordinator_synthesis_judgment_structure_fails_closed(
+    mutation: str,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    if mutation == "decision_missing_key":
+        packet["decision_contract"].pop("flow")
+    elif mutation == "decision_extra_key":
+        packet["decision_contract"]["extra"] = []
+    elif mutation == "decision_non_object":
+        packet["decision_contract"] = []
+    elif mutation == "budget_missing_key":
+        packet["judgment_budget"].pop("verifier_pass_required")
+    elif mutation == "budget_extra_key":
+        packet["judgment_budget"]["extra"] = False
+    elif mutation == "budget_non_object":
+        packet["judgment_budget"] = []
+    elif mutation == "adjudication_missing_key":
+        packet["result_adjudication"].pop("promotion_labels")
+    elif mutation == "adjudication_extra_key":
+        packet["result_adjudication"]["extra"] = []
+    elif mutation == "adjudication_non_object":
+        packet["result_adjudication"] = []
+    elif mutation == "goal_non_string":
+        packet["goal"] = 1
+    elif mutation == "task_class_non_string":
+        packet["task_class"] = 1
+    elif mutation == "candidate_paths_non_list":
+        packet["candidate_paths"] = "README.md"
+    else:
+        packet["candidate_paths"] = [1]
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    expected_error = (
+        "creative pilot synthesis packet metadata requires canonical candidate_paths"
+        if mutation in {"candidate_paths_non_list", "candidate_path_non_string"}
+        else "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+    assert str(exc_info.value) == expected_error
+
+
+@pytest.mark.parametrize("rebind_context", (False, True))
+def test_synthesis_judgment_error_precedes_packet_identity(
+    rebind_context: bool,
+) -> None:
+    packet = json.loads(json.dumps(_single_coordinator_synthesis_packet()))
+    context = cast(dict[str, Any], packet["creative_pilot_context"])
+    _substitute_synthesis_context_identity(context)
+    if rebind_context:
+        _rebind_single_coordinator_synthesis_task_packet_id(packet)
+    packet["automation_flags"]["judgment_lane_enabled"] = True
+
+    with pytest.raises(ValueError) as exc_info:
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    assert str(exc_info.value) == (
+        "creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
+
+
+@pytest.mark.parametrize("schema_version", ("3.0", None))
+@pytest.mark.parametrize("context_shape", ("absent", "null", "independent", "rebuttal"))
+def test_legacy_creative_context_preserves_existing_role_order(
+    schema_version: str | None,
+    context_shape: str,
+) -> None:
+    packet: dict[str, object] = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [{"repo_agent_slug": "security-auditor"}],
+            "advisory": [],
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+        }
+    }
+    if schema_version is not None:
+        packet["schema_version"] = schema_version
+    if context_shape == "null":
+        packet["creative_pilot_context"] = None
+    elif context_shape != "absent":
+        packet["creative_pilot_context"] = {"phase": context_shape}
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "security-auditor",
+        "architecture-specialist",
+    ]
+
+
+def test_single_coordinator_synthesis_cli_rejects_missing_coordinator_definition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_path = tmp_path / "task_packet.json"
+    packet_path.write_text(json.dumps(_single_coordinator_synthesis_packet()), encoding="utf-8")
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = role_dispatch_bridge.main(
+        ["--packet", str(packet_path), "--mode", "runtime", "--pretty"]
+    )
+
+    assert result == 1
+    assert "Agent definitions not found for: agent-coordinator" in capsys.readouterr().err
 
 
 def _v2_source_artifact(*, repeated: bool = True) -> dict[str, object]:
@@ -498,20 +1203,11 @@ def test_qoder_rejects_v2_noncanonical_candidate_path(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
-def test_qoder_rejects_v2_parent_traversal_with_recomputed_identity(
+def test_qoder_rejects_v2_parent_traversal_before_identity_recomputation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _v2_packet(monkeypatch)
     packet["candidate_paths"] = ["../outside.py"]
-    packet["required_context"] = sorted(
-        set(
-            qoder_dispatch_bridge.collect_context_pack(
-                ["../outside.py"],
-                include_orchestration=True,
-            )
-        ).union({task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT})
-    )
-    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
 
     with pytest.raises(ValueError, match="candidate_paths"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
@@ -3295,8 +3991,63 @@ def test_legacy_packet_with_malformed_path_fails_closed(
     else:
         packet["schema_version"] = schema_version
 
-    with pytest.raises(ValueError, match="must use unambiguous POSIX separators"):
+    with pytest.raises(ValueError, match="invariant review paths must be canonical"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+@pytest.mark.parametrize("pr_phase", ["none", "post_open_review"])
+@pytest.mark.parametrize(
+    "candidate_paths",
+    [
+        "scripts/ci/guard_actions_pin.py",
+        {"path": "scripts/ci/guard_actions_pin.py"},
+        1,
+        ("scripts/ci/guard_actions_pin.py",),
+        _LegacyCandidatePathList(["scripts/ci/guard_actions_pin.py"]),
+        ["./scripts/ci/guard_actions_pin.py"],
+    ],
+    ids=("scalar", "mapping", "integer", "tuple", "list-subclass", "noncanonical-list"),
+)
+def test_legacy_packet_rejects_every_present_noncanonical_candidate_path_carrier(
+    schema_version: str | None,
+    pr_phase: str,
+    candidate_paths: object,
+) -> None:
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = candidate_paths
+    packet["pr_phase"] = pr_phase
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    with pytest.raises(ValueError, match="invariant review paths must be canonical"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+@pytest.mark.parametrize("pr_phase", ["none", "post_open_review"])
+def test_legacy_packet_preserves_genuine_candidate_path_absence(
+    schema_version: str | None,
+    pr_phase: str,
+) -> None:
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["pr_phase"] = pr_phase
+    packet.pop("candidate_paths")
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    assert roles[0] == "agent-coordinator"
+    assert "architecture-specialist" in roles
 
 
 @pytest.mark.parametrize(

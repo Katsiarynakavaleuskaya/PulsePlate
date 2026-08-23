@@ -104,6 +104,59 @@ Reviewer rule:
 - reviewer bindings must use a read-only transport (`explorer`) even when the
   base repo role is normally implemented via a write-capable transport.
 
+Creative-pilot synthesis has one narrow compatibility projection. An exact
+validated `creative_pilot_context.v2` with `phase: synthesis` contains exactly
+one canonical `synthesis:agent-coordinator` assignment. Its non-null
+`primary_agent` and `reviewer` fields both remain `agent-coordinator` only as
+legacy packet-shape aliases; they do not represent two dispatches or an
+independent-review claim. The runtime-neutral bridge emits one read-only
+`agent-coordinator` dispatch with `implementation_owner_override: false`.
+
+This projection fails closed if the context has another phase or assignment,
+if either alias changes, if secondary or advisory roles are present, if
+authority permits repository writes or provider calls, or if the packet adds
+implementation-owner flags, `dispatch_role_order`, required invariant-review
+composition, or non-canonical bridge/dispatch contracts. It does not change
+task packet schema `3.1`, bridge protocol `1.0`, ordinary reviewer separation,
+or any other creative-pilot phase.
+
+The exact synthesis projection also requires a declared
+`creative_pilot_workspace_source`. Before dispatch, the neutral consumer uses
+the canonical producer workspace reader to re-read a nonterminal
+`synthesis_ready` workspace and requires its rebuilt task context to equal the
+validated packet context exactly. Missing, stale, malformed, out-of-root,
+symlinked, wrong-phase, or differently revised sources fail closed. A validated
+byte-identical copy under the admitted workspace root remains equivalent because
+authority is bound to workspace content and revision, not to a literal pathname.
+The packet's canonical candidate-path set must equal the workspace target-file
+set, and its required context must equal the producer-owned context pack derived
+from that bound set and canonical route. The validated packet context is then
+projected into each synthesis dispatch entry so scoped agent instructions cannot
+be omitted or replaced by unrelated context.
+The consumer also rederives the packet domain from the bound goal, task class,
+and canonical candidate paths, then requires the declared domain and cluster to
+match the canonical routing graph before packet identity is accepted.
+
+Task-packet `candidate_paths` have one shared lexical authority:
+`context_pack.canonical_task_candidate_paths`. Producer mode accepts only exact
+built-in lists or tuples, canonical relative POSIX paths, a leading `./` alias
+for a non-root path, and lexical absolute paths inside the repository. Strict
+wire mode accepts only an exact built-in list already equal to the sorted,
+unique canonical projection. The exact token `.` is the sole repository-root
+sentinel; after every raw element validates, it absorbs valid sibling paths.
+Ordinary U+0020 spaces are preserved as identity-bearing characters only inside
+nonempty path components; they are never stripped or collapsed. Component-edge
+U+0020 and every other whitespace character are rejected. Producer relative,
+leading-`./`, and lexical in-repository absolute spellings converge to the same
+canonical path, while strict wire accepts only that exact relative fixed point.
+Root scope conservatively requires security review and all bounded invariant
+classes, remains distinct in packet identity, and does not by itself activate
+the judgment lane. Consumers must use the shared result before identity,
+security, invariant, judgment, or dispatch comparison; they must not strip,
+deduplicate, resolve, enumerate, or otherwise reinterpret raw packet paths.
+This grammar is metadata-only and makes no existence, symlink, access, touched
+file, implementation-authority, or merge-authority claim.
+
 ---
 
 ## 5. Scope boundary
