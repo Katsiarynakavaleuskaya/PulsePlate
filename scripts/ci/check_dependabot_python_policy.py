@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 import stat
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 from packaging.requirements import InvalidRequirement, Requirement
 import yaml
@@ -266,6 +266,7 @@ BUSINESS_COLLATERAL_LOCK_PATHS = (
 )
 MAX_CONFIG_BYTES = 64 * 1024
 MAX_BUSINESS_PACKAGE_BYTES = 16 * 1024
+MAX_BUSINESS_JSON_INTEGER_DIGITS = 4300
 MAX_YAML_TOKENS = 4096
 MAX_YAML_NESTING = 32
 MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
@@ -737,8 +738,12 @@ def _validate_business_collateral_marker(repo_root: Path, errors: list[str]) -> 
         )
     else:
         try:
-            package_manifest = json.loads(package_text)
-        except (json.JSONDecodeError, RecursionError):
+            package_manifest = json.loads(
+                package_text,
+                parse_constant=_reject_nonstandard_json_constant,
+                parse_int=_parse_bounded_json_integer,
+            )
+        except (json.JSONDecodeError, ValueError, RecursionError):
             errors.append(
                 _source_error(
                     BUSINESS_COLLATERAL_PACKAGE_PATH,
@@ -785,6 +790,21 @@ def _validate_business_collateral_marker(repo_root: Path, errors: list[str]) -> 
                     "adjacent lock requires a separate explicit updater ownership decision",
                 )
             )
+
+
+def _reject_nonstandard_json_constant(_constant: str) -> NoReturn:
+    """Reject NaN and infinities without reflecting their untrusted spelling."""
+
+    raise ValueError
+
+
+def _parse_bounded_json_integer(raw_integer: str) -> int:
+    """Parse one JSON integer within an explicit non-reflecting digit budget."""
+
+    digits = raw_integer[1:] if raw_integer.startswith("-") else raw_integer
+    if len(digits) > MAX_BUSINESS_JSON_INTEGER_DIGITS:
+        raise ValueError
+    return int(raw_integer)
 
 
 def _scope_paths(

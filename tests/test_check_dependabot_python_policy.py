@@ -567,6 +567,56 @@ def test_business_collateral_marker_invalid_json_is_structurally_redacted(
     assert sentinel not in "\n".join(errors)
 
 
+@pytest.mark.parametrize(
+    ("invalid_document", "untrusted_fragment"),
+    (
+        pytest.param('{"type":"commonjs","value":NaN}', "NaN", id="nan"),
+        pytest.param(
+            '{"type":"commonjs","value":Infinity}',
+            "Infinity",
+            id="positive-infinity",
+        ),
+        pytest.param(
+            '{"type":"commonjs","value":-Infinity}',
+            "-Infinity",
+            id="negative-infinity",
+        ),
+        pytest.param(
+            '{"type":"commonjs","value":' + "9" * 5000 + "}",
+            "9" * 64,
+            id="oversized-integer",
+        ),
+    ),
+)
+def test_business_collateral_marker_rejects_nonstandard_or_oversized_numbers(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    invalid_document: str,
+    untrusted_fragment: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_text(invalid_document, encoding="utf-8")
+    expected_error = (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:" "must be valid bounded JSON"
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [expected_error]
+    assert untrusted_fragment not in "\n".join(errors)
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == f"{expected_error}\n"
+    assert captured.err == ""
+    assert untrusted_fragment not in captured.out
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
 @pytest.mark.parametrize("non_mapping", [[], "commonjs", 42, None])
 def test_business_collateral_marker_non_mapping_json_fails_closed(
     tmp_path: Path,
