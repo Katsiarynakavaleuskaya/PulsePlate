@@ -49,6 +49,16 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "bmi_endpoint",
         "plan_endpoint",
         "bmi_endpoint_v1",
+        "_resolve_build_targets_callable",
+        "PlateDependencies",
+        "_compute_premium_plate",
+        "api_premium_plate",
+        "build_fallback_plate",
+        "align_macros_with_targets",
+        "aggregate_day_micros",
+        "premium_targets_legacy",
+        "api_who_targets",
+        "api_nutrient_gaps",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(

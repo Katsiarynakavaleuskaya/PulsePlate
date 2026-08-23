@@ -564,12 +564,8 @@ def test_fallback_replaces_invalid_target_fiber_with_canonical_minimum(
     }
 
 
-@pytest.mark.parametrize("use_legacy_delegate", [False, True], ids=["canonical", "legacy"])
-def test_plate_alignment_propagates_canonical_target_safety_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    use_legacy_delegate: bool,
-) -> None:
-    """Canonical and legacy Python entrypoints preserve the safety failure."""
+def test_plate_alignment_propagates_canonical_target_safety_failure() -> None:
+    """The canonical Plate owner preserves the target-safety failure."""
 
     def _builder(_profile: object) -> object:
         return object()
@@ -589,23 +585,13 @@ def test_plate_alignment_propagates_canonical_target_safety_failure(
         }
     }
 
-    if use_legacy_delegate:
-        monkeypatch.setattr(legacy_app, "_resolve_build_targets_callable", lambda: _builder)
-        monkeypatch.setattr(
-            legacy_app,
-            "_generate_who_targets_response",
-            _reject_unsafe_targets,
+    with pytest.raises(HTTPException) as exc_info:
+        pro_nutrition_plate.align_macros_with_targets(
+            _request(),
+            plate_data,
+            targets_builder=_builder,
+            targets_response_factory=_reject_unsafe_targets,
         )
-        with pytest.raises(HTTPException) as exc_info:
-            legacy_app.align_macros_with_targets(_request(), plate_data)
-    else:
-        with pytest.raises(HTTPException) as exc_info:
-            pro_nutrition_plate.align_macros_with_targets(
-                _request(),
-                plate_data,
-                targets_builder=_builder,
-                targets_response_factory=_reject_unsafe_targets,
-            )
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
@@ -1643,27 +1629,6 @@ def test_value_error_caused_by_missing_nh3_is_exact_424(
     assert exc_info.value.detail["dependency"] == "nh3"
 
 
-def test_legacy_plate_delegates_cover_candidate_compatibility(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Legacy wrappers remain thin while honoring the documented aggregator seam."""
-
-    monkeypatch.setattr(legacy_app, "build_nutrition_targets", None)
-    assert legacy_app._resolve_build_targets_callable() is None
-    fallback = legacy_app.build_fallback_plate(_request(), candidates=[object()])
-    assert fallback.kcal >= 1200
-
-    class _Candidate:
-        @staticmethod
-        async def _aggregate_day_micronutrients(
-            _meals: list[dict[str, Any]],
-        ) -> dict[str, float]:
-            return {"iron_mg": 2.0}
-
-    day_micros = asyncio.run(legacy_app.aggregate_day_micros([], candidates=[_Candidate()]))
-    assert day_micros == {"iron_mg": 2.0}
-
-
 @pytest.mark.parametrize(
     "relative_path",
     [
@@ -1714,11 +1679,9 @@ def test_retained_plate_handler_has_no_legacy_imports() -> None:
     )
 
 
-def test_legacy_plate_exports_are_exact_canonical_aliases() -> None:
-    """Direct compatibility imports cannot become a second runtime owner."""
+def test_retained_legacy_plate_helpers_are_exact_canonical_aliases() -> None:
+    """Retained helper exports cannot become a second runtime owner."""
 
-    assert legacy_app._compute_premium_plate is generate_plate_response
-    assert legacy_app.api_premium_plate is generate_plate_response
     assert legacy_app.calculate_heuristic_macros is pro_nutrition_plate.calculate_heuristic_macros
     assert (
         legacy_app._aggregate_day_micronutrients
