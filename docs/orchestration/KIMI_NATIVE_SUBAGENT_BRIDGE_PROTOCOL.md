@@ -108,6 +108,13 @@ When the runtime is Kimi Code CLI:
 7. Execute required readonly/custom-role passes when `required_role_pass: true`;
    these are mandatory custom-role passes, not optional notes.
 
+The generic protocol's exact coordinator-only creative-pilot synthesis
+projection applies unchanged to Kimi: duplicate primary/reviewer compatibility
+aliases yield one read-only coordinator dispatch, not an independent reviewer
+or implementation owner. See `NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md` section 4.
+The same section's shared task-packet `candidate_paths` recognizer and root
+sentinel semantics also apply unchanged; Kimi introduces no path grammar.
+
 ---
 
 ## 5. Scope boundary

@@ -7264,6 +7264,251 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * AutoRepairDailyTargets
+                     * @description Explicit shared daily targets used by every admitted day.
+                     */
+                    daily_targets: {
+                        /**
+                         * AutoRepairActivityTargets
+                         * @description Explicit bounded weekly activity targets.
+                         */
+                        activity: {
+                            /** Moderate Aerobic Min */
+                            moderate_aerobic_min: number;
+                            /** Steps Daily */
+                            steps_daily: number;
+                            /** Strength Sessions */
+                            strength_sessions: number;
+                            /** Vigorous Aerobic Min */
+                            vigorous_aerobic_min: number;
+                        };
+                        /** Calculation Date */
+                        calculation_date: string;
+                        /** Kcal Daily */
+                        kcal_daily: number;
+                        /**
+                         * AutoRepairMacroTargets
+                         * @description Explicit daily macro targets using canonical 4/4/9 arithmetic.
+                         */
+                        macros: {
+                            /** Carbs G */
+                            carbs_g: number;
+                            /** Fat G */
+                            fat_g: number;
+                            /** Fiber G */
+                            fiber_g: number;
+                            /** Protein G */
+                            protein_g: number;
+                        };
+                        /** Water Ml Daily */
+                        water_ml_daily: number;
+                    };
+                    /**
+                     * AutoRepairProfile
+                     * @description Explicit profile used as NutritionTargets.calculated_for authority.
+                     */
+                    profile: {
+                        /**
+                         * Activity
+                         * @enum {string}
+                         */
+                        activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
+                        /** Age */
+                        age: number;
+                        /** Bodyfat */
+                        bodyfat: number | null;
+                        /** Deficit Pct */
+                        deficit_pct: number | null;
+                        /** Diet Flags */
+                        diet_flags: string[];
+                        /**
+                         * Goal
+                         * @enum {string}
+                         */
+                        goal: "loss" | "maintain" | "gain";
+                        /** Height Cm */
+                        height_cm: number;
+                        /**
+                         * Life Stage
+                         * @enum {string}
+                         */
+                        life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
+                        /** Medical Conditions */
+                        medical_conditions: string[];
+                        /** Region */
+                        region: string;
+                        /**
+                         * Sex
+                         * @enum {string}
+                         */
+                        sex: "female" | "male";
+                        /** Surplus Pct */
+                        surplus_pct: number | null;
+                        /** Timezone */
+                        timezone: string;
+                        /** Weight Kg */
+                        weight_kg: number;
+                    };
+                    /**
+                     * Strategy
+                     * @default balanced
+                     * @enum {string}
+                     */
+                    strategy?: "conservative" | "balanced" | "aggressive";
+                    /**
+                     * AutoRepairTargetRanges
+                     * @description Exact twelve positive monotonic micronutrient triplets.
+                     */
+                    targets: {
+                        /** B12 Ug */
+                        b12_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Calcium Mg */
+                        calcium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Folate Ug */
+                        folate_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Iodine Ug */
+                        iodine_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Iron Mg */
+                        iron_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Magnesium Mg */
+                        magnesium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Potassium Mg */
+                        potassium_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Selenium Ug */
+                        selenium_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin A Ug */
+                        vitamin_a_ug: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin C Mg */
+                        vitamin_c_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Vitamin D Iu */
+                        vitamin_d_iu: [
+                            number,
+                            number,
+                            number
+                        ];
+                        /** Zinc Mg */
+                        zinc_mg: [
+                            number,
+                            number,
+                            number
+                        ];
+                    };
+                    /**
+                     * User Preferences
+                     * @description Unsupported semantic preferences still receive bounded raw admission.
+                     */
+                    user_preferences?: {
+                        [key: string]: unknown;
+                    };
+                    /**
+                     * AutoRepairWeekPlan
+                     * @description Non-empty weekly plan admitted by the public auto-repair route.
+                     */
+                    week_plan: {
+                        /** Days */
+                        days: ({
+                            /** Meals */
+                            meals: ({
+                                /** Ingredients */
+                                ingredients: ({
+                                    /** Name */
+                                    name: string;
+                                } & {
+                                    [key: string]: unknown;
+                                })[];
+                                /**
+                                 * AutoRepairMealNutrients
+                                 * @description Complete explicit per-meal evidence required by bounded repair.
+                                 */
+                                nutrients: {
+                                    /** B12 Ug */
+                                    b12_ug: number;
+                                    /** Calcium Mg */
+                                    calcium_mg: number;
+                                    /** Carbs G */
+                                    carbs_g: number;
+                                    /** Fat G */
+                                    fat_g: number;
+                                    /** Fiber G */
+                                    fiber_g: number;
+                                    /** Folate Ug */
+                                    folate_ug: number;
+                                    /** Iodine Ug */
+                                    iodine_ug: number;
+                                    /** Iron Mg */
+                                    iron_mg: number;
+                                    /** Kcal */
+                                    kcal: number;
+                                    /** Magnesium Mg */
+                                    magnesium_mg: number;
+                                    /** Potassium Mg */
+                                    potassium_mg: number;
+                                    /** Protein G */
+                                    protein_g: number;
+                                    /** Selenium Ug */
+                                    selenium_ug: number;
+                                    /** Vitamin A Ug */
+                                    vitamin_a_ug: number;
+                                    /** Vitamin C Mg */
+                                    vitamin_c_mg: number;
+                                    /** Vitamin D Iu */
+                                    vitamin_d_iu: number;
+                                    /** Zinc Mg */
+                                    zinc_mg: number;
+                                } & {
+                                    [key: string]: number;
+                                };
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -7280,13 +7525,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request payload */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        detail: string;
+                    } | {
+                        detail: ({
+                            loc: (string | number)[];
+                            msg: string;
+                            type: string;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    };
                 };
             };
         };
@@ -7604,6 +7859,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * Recipes Per Day
+                     * @default 1
+                     */
+                    recipes_per_day?: number;
+                    /**
+                     * WeeklyRecipePlan
+                     * @description Non-empty weekly recipe plan.
+                     */
+                    week_plan: {
+                        /** Days */
+                        days: ({
+                            /** Day */
+                            day: string;
+                            /** Meals */
+                            meals: ({
+                                /** Ingredients */
+                                ingredients: ({
+                                    /** Amount */
+                                    amount: number;
+                                    /** Name */
+                                    name: string;
+                                    /** Unit */
+                                    unit: string;
+                                } & {
+                                    [key: string]: unknown;
+                                })[];
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -7620,13 +7912,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid request payload */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        detail: string;
+                    } | {
+                        detail: ({
+                            loc: (string | number)[];
+                            msg: string;
+                            type: string;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    };
                 };
             };
         };

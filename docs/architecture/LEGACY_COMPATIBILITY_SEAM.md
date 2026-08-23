@@ -27,9 +27,11 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. This bounded retirement does not prove that
-unknown external Python consumers of the removed compatibility symbols do not
-exist.
+`app.main`, and `legacy_app.py`. The later direct-call retirement removes only
+ten additional `legacy_app.py` Python bindings; it does not remove or redirect
+any HTTP path, change auth, alter OpenAPI, or change FastAPI object identity.
+This bounded retirement does not prove that unknown external or dynamic Python
+consumers of the removed compatibility symbols do not exist.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -67,6 +69,22 @@ module-table lookup are forbidden. This access cutover does not change routes,
 auth, methods, OpenAPI, scheduler lifecycle, or worker topology. Operational
 database-status, force-update, and update-check failures use stable generic 500
 details while technical exceptions remain server-log-only.
+
+The following direct-call Python bindings are retired from `legacy_app.py`:
+`admin_status`, `cleanup_expired_logs`, `debug_env`, `get_database_status`,
+`force_database_update`, `check_for_updates`, `rollback_database`,
+`bmi_endpoint`, `plan_endpoint`, and `bmi_endpoint_v1`. Their canonical
+implementations remain callable in `app/services/admin_operations.py:27` and
+`app/services/bmi_compat.py:138`; HTTP ownership remains in
+`app/routers/admin_operations.py:34` and `app/routers/bmi_compat.py:21`.
+The `BMIRequest` / `BMIRequestV1` schema compatibility exports and BMI
+visualization exports remain explicit in `legacy_app.py:49` and
+`legacy_app.py:126`. Unknown external or reflective callers remain residual
+compatibility risk; this lane makes no telemetry or consumer-census claim for
+them and grants no authority to retire HTTP aliases. Runtime-absence tests prove
+only the imported module state produced by the current checked source and test
+environment; they do not prove absence under external monkeypatching, import
+hooks, or another runtime environment.
 
 The former synchronous `legacy_app.start_background_updates` /
 `legacy_app.stop_background_updates` wrappers, their private scheduler bindings,
@@ -132,12 +150,16 @@ package module alias and legacy synchronous scheduler compatibility rail. The
 next bounded lane landed as PR #2309 at
 `f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the eight paid/BMI
 registration mirrors and the canonical reverse import without changing route
-registration. The current canonical-cutover lane adds PRO BMR and nutrient-gap
-routes and moves the repository-owned Web Nutrition Setup BMR consumer to the
-canonical namespace. All four versioned nutrition aliases and both root aliases
-remain callable; HTTP alias retirement and final legacy deletion remain separate
-ordered lanes behind production traffic and consumer evidence (canonical route
-evidence: `app/routers/pro_nutrition_contracts.py:61` and
+registration. PR #2314 then merged at
+`827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR and
+nutrient-gap routes and moving the repository-owned Web Nutrition Setup BMR
+consumer to the canonical namespace. The bounded
+`codex/retire-legacy-admin-bmi-python-shims` successor removes only the ten
+direct-call Python bindings enumerated above and adds a closed, exact-name
+regression guard. All four versioned nutrition aliases and both root aliases
+remain callable; versioned-alias retirement, root-alias auth/sunset, and final
+legacy deletion remain separate ordered lanes behind their own evidence
+(canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
 `app/routers/pro_nutrition_contracts.py:71`; bounded registrar evidence:
 `app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
 `frontend/src/api/premium/bmr.ts:4`).
@@ -174,10 +196,13 @@ Forbidden in `legacy_app.py`:
 | App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
 | Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
+| Hidden admin/debug routes | `app/routers/admin_operations.py` | Canonical HTTP owner; route methods, auth, hidden OpenAPI posture, and response contracts remain unchanged. |
+| Admin/debug operations | `app/services/admin_operations.py` | Canonical direct-call owner; the seven former `legacy_app.py` bindings are retired. |
 | Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
 | Scheduler startup/shutdown | `app/bootstrap/lifespan.py` + `core/food_apis/scheduler.py` | Direct typed hooks only; no legacy sync wrappers, helper resolver, module-table lookup, or caller-frame precedence. |
 | Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
 | Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
+| Legacy BMI routes and direct-call runtime | `app/routers/bmi_compat.py` + `app/services/bmi_compat.py` | HTTP routes remain unchanged; the three former `legacy_app.py` endpoint bindings are retired while schemas and visualization exports remain. |
 | Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership; legacy compatibility exports preserve exact class identity and wire shape. |
 | Insight compatibility routes | `app/routers/legacy_insight.py` | The two hidden VIP routes own route-level guards and consume canonical adapter attributes at request time; the legacy facade is not a runtime dependency. |
 | Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. Facade rebinding and reverse imports are forbidden. |
@@ -205,6 +230,28 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
+For the ten retired direct-call bindings, the guard has a deliberately bounded
+finite mechanical claim over the exact repo-relative `legacy_app.py` source
+only. It freezes the exact ten-name set, uses the existing `_assigned_names`
+collector for statically visible ordinary module-scope `Name` Store/Del
+bindings, rejects explicit `global` declarations for a protected name, rejects
+all star imports, and rejects a statically bound module-level `__getattr__`.
+Unreadable source and `SyntaxError` fail closed. Comments, strings, function or
+class locals without `global`, foreign object attributes, underscore/different
+names, and canonical owner modules outside `legacy_app.py` are outside this
+finite binding set.
+
+The containing `legacy_app.py` module is parsed into an AST, but the
+retired-binding rule does not recognize or interpret dynamic carrier families:
+`globals()` / `locals()` / `vars()`, `sys.modules`, module `__dict__`, `setattr`
+/ `delattr` in bare, imported, qualified, aliased, destructured, chained, or
+bound forms, mapping `update` / `__setitem__` / `__ior__`, `eval` / `exec`,
+import hooks, reflection, arbitrary helpers, and external monkeypatching. The
+rule neither accepts nor certifies those families and makes no completeness
+claim about them. Any new or changed dynamic namespace carrier in
+`legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
+ten protected names, requires manual STOP and review.
+
 The same guard now verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import
 the canonical OpenAPI lifecycle directly, the package facade cannot install OpenAPI,
@@ -218,12 +265,15 @@ growth while later extraction PRs move routes behind canonical routers.
 
 The legacy growth guard is an architectural regression detector for trusted,
 reviewed repository source. It detects explicit ownership violations, direct
-reverse imports and lookups, and bounded ordinary alias forms.
+reverse imports and lookups, and the finite ordinary module bindings described
+above.
 
 It is not a Python sandbox, abstract interpreter, or proof against intentionally
-obfuscated source. Descriptor, metaclass, closure, arbitrary container or data-flow,
-`eval` / `exec`, and equivalent reflective constructions remain subject to human
-review and repository security tooling.
+obfuscated source. Descriptor, metaclass, closure, arbitrary container or
+data-flow, `eval` / `exec`, dynamic import consumers, and equivalent reflective
+constructions remain residual risk subject to human review and repository
+security tooling. The exact-name binding guard must not be widened to imply a
+complete census of open-world namespace mutation or runtime consumers.
 
 Runtime contract tests, callable-identity tests, code review, targeted security
 review, and current-head CI remain authoritative.

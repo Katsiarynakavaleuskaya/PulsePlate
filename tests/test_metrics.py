@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
+from pathlib import Path
 import re
 
 import pytest
@@ -52,7 +54,7 @@ def _get_metrics_get_routes(app_instance: FastAPI) -> list[object]:
     ]
 
 
-def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
+def _metric_sample(text: str, *, method: str, route: str, status: str) -> float | None:
     """Extract metric value for specific labelset from Prometheus text format.
 
     Args:
@@ -62,7 +64,7 @@ def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
         status: HTTP status code (e.g., "200", "404")
 
     Returns:
-        Metric value (0.0 if not found)
+        Metric value, or None when the labelset is absent.
     """
     # Example line:
     # http_requests_total{method="GET",route="/api/v1/bmi/calculate",status="200"} 3.0
@@ -74,7 +76,14 @@ def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
     match = pattern.search(text)
     if match:
         return float(match.group("val"))
-    return 0.0
+    return None
+
+
+def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
+    """Compatibility helper for tests that treat an absent sample as zero."""
+
+    sample = _metric_sample(text, method=method, route=route, status=status)
+    return sample if sample is not None else 0.0
 
 
 def test_metrics_endpoint_format(client: TestClient) -> None:
@@ -444,8 +453,95 @@ def test_metrics_build_metrics_returns_none_on_duplicate_metric_registration(
     def _histogram(*_args: object, **_kwargs: object) -> object:
         raise ValueError("duplicate metric name")
 
-    monkeypatch.setattr(metrics_mod, "_import_prometheus", lambda: (_counter, _histogram))
+    class _UnusedRegistry:
+        def __init__(self, *, auto_describe: bool = False) -> None:
+            del auto_describe
+
+        def register(self, _collector: object) -> None:
+            raise AssertionError("constructor failure must occur before registration")
+
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (_counter, _histogram, _counter, _UnusedRegistry(), _UnusedRegistry),
+    )
     assert metrics_mod._build_metrics() is None
+
+
+def test_metrics_build_is_atomic_on_late_constructor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import prometheus_client
+
+    import app.middleware.metrics as metrics_mod
+
+    global_registry = prometheus_client.CollectorRegistry(auto_describe=True)
+
+    def _late_gauge_failure(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("synthetic late constructor failure")
+
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (
+            prometheus_client.Counter,
+            prometheus_client.Histogram,
+            _late_gauge_failure,
+            global_registry,
+            prometheus_client.CollectorRegistry,
+        ),
+    )
+
+    assert metrics_mod._build_metrics() is None
+    exposed = prometheus_client.generate_latest(global_registry).decode()
+    for metric_name in (
+        "http_requests_total",
+        "http_request_duration_seconds",
+        "ws_connect_total",
+        "ws_messages_total",
+        "ws_active_connections",
+    ):
+        assert metric_name not in exposed
+    assert "/api/v1/premium/bmr" not in exposed
+
+
+def test_metrics_atomic_global_registration_preserves_duplicate_owner_without_orphans(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import prometheus_client
+
+    import app.middleware.metrics as metrics_mod
+
+    global_registry = prometheus_client.CollectorRegistry(auto_describe=True)
+    prometheus_client.Gauge(
+        "ws_active_connections",
+        "Pre-existing owner",
+        labelnames=("path",),
+        registry=global_registry,
+    )
+    monkeypatch.setattr(
+        metrics_mod,
+        "_import_prometheus",
+        lambda: (
+            prometheus_client.Counter,
+            prometheus_client.Histogram,
+            prometheus_client.Gauge,
+            global_registry,
+            prometheus_client.CollectorRegistry,
+        ),
+    )
+
+    assert metrics_mod._build_metrics() is None
+    exposed = prometheus_client.generate_latest(global_registry).decode()
+    assert "ws_active_connections" in exposed
+    for metric_name in (
+        "http_requests_total",
+        "http_request_duration_seconds",
+        "ws_connect_total",
+        "ws_messages_total",
+    ):
+        assert metric_name not in exposed
+    assert "/api/v1/premium/bmr" not in exposed
 
 
 def test_metrics_route_template_unknown_without_router() -> None:
@@ -1070,3 +1166,454 @@ def test_metrics_guard_warns_when_bypass_leaks_in_non_test_environment(
 
     assert result == "test_key"
     assert "METRICS_TEST_BYPASS ignored outside explicit pytest test env" in caplog.text
+
+
+def test_premium_alias_zero_series_is_closed_numeric_census() -> None:
+    """The four versioned aliases exist as numeric zero, not inferred absence."""
+    from prometheus_client import CollectorRegistry, Counter
+
+    from app.middleware.metrics import (
+        PREMIUM_ALIAS_ZERO_SERIES,
+        _seed_premium_alias_zero_series,
+    )
+
+    registry = CollectorRegistry()
+    counter = Counter(
+        "http_requests_total",
+        "Total number of HTTP requests",
+        labelnames=("method", "route", "status"),
+        registry=registry,
+    )
+
+    _seed_premium_alias_zero_series(counter)
+    _seed_premium_alias_zero_series(counter)
+
+    assert PREMIUM_ALIAS_ZERO_SERIES == (
+        ("POST", "/api/v1/premium/bmr", "200"),
+        ("POST", "/api/v1/premium/targets", "200"),
+        ("POST", "/api/v1/premium/plate", "200"),
+        ("POST", "/api/v1/premium/gaps", "200"),
+    )
+    for method, route, status in PREMIUM_ALIAS_ZERO_SERIES:
+        assert (
+            registry.get_sample_value(
+                "http_requests_total",
+                {"method": method, "route": route, "status": status},
+            )
+            == 0.0
+        )
+
+    for unseeded_route in (
+        "/premium_bmr",
+        "/premium_targets",
+        "/api/v1/pro/nutrition/bmr",
+        "/api/v1/pro/nutrition/targets",
+        "/api/v1/pro/nutrition/plate",
+        "/api/v1/pro/nutrition/gaps",
+    ):
+        assert (
+            registry.get_sample_value(
+                "http_requests_total",
+                {"method": "POST", "route": unseeded_route, "status": "200"},
+            )
+            is None
+        )
+
+
+def test_premium_alias_request_records_exact_route_and_status(client: TestClient) -> None:
+    before = client.get("/metrics").text
+    response = client.post("/api/v1/premium/bmr", json={})
+    assert response.status_code == 422
+    after = client.get("/metrics").text
+
+    route = "/api/v1/premium/bmr"
+    assert _metric_sample(after, method="POST", route=route, status="200") is not None
+    assert _metric_value(after, method="POST", route=route, status="422") >= (
+        _metric_value(before, method="POST", route=route, status="422") + 1
+    )
+
+
+@pytest.mark.parametrize("status_code", [401, 403, 422, 500])
+def test_premium_alias_metrics_preserve_error_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+) -> None:
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    import app.middleware.metrics as metrics_mod
+
+    recorded: list[tuple[str, str, str]] = []
+
+    class _Child:
+        def inc(self, amount: float = 1.0) -> None:
+            assert amount == 1.0
+
+        def observe(self, amount: float) -> None:
+            assert amount >= 0.0
+
+    class _Counter:
+        def labels(self, *, method: str, route: str, status: str) -> _Child:
+            recorded.append((method, route, status))
+            return _Child()
+
+    class _Histogram:
+        def labels(self, *, method: str, route: str, status: str) -> _Child:
+            assert (method, route, status) == recorded[-1]
+            return _Child()
+
+    class _Metrics:
+        requests_total = _Counter()
+        request_duration_seconds = _Histogram()
+
+    async def _call_next(_request: Request) -> Response:
+        return Response(status_code=status_code)
+
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", _Metrics())
+    monkeypatch.setattr(
+        metrics_mod,
+        "_route_template",
+        lambda _request: "/api/v1/premium/bmr",
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/premium/bmr",
+            "raw_path": b"/api/v1/premium/bmr",
+            "query_string": b"",
+            "headers": [],
+            "client": ("testclient", 123),
+            "server": ("testserver", 80),
+            "scheme": "http",
+            "http_version": "1.1",
+            "app": app.app,
+        }
+    )
+
+    response = asyncio.run(metrics_mod.metrics_middleware(request, _call_next))
+
+    assert response.status_code == status_code
+    assert recorded == [("POST", "/api/v1/premium/bmr", str(status_code))]
+
+
+def _write_scrape_key(file_name: Path, token: str) -> None:
+    file_name.write_bytes(token.encode("ascii"))
+
+
+def test_metrics_scrape_key_default_absence_preserves_compatibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    monkeypatch.delenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, raising=False)
+    monkeypatch.setattr(
+        production_invariants,
+        "DEFAULT_METRICS_SCRAPE_KEY_FILE",
+        str(tmp_path / "not-present"),
+    )
+
+    assert production_invariants.recognize_metrics_scrape_key().marker == "absent"
+
+
+def test_metrics_scrape_key_explicit_missing_or_empty_is_invalid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    monkeypatch.setenv(
+        production_invariants.METRICS_SCRAPE_KEY_FILE_ENV,
+        str(tmp_path / "missing"),
+    )
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, "")
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+
+def test_metrics_scrape_key_accepts_partial_reads_and_matches_constant_time_seam(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "m" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    original_read = production_invariants.os.read
+
+    def _partial_read(descriptor: int, size: int) -> bytes:
+        return original_read(descriptor, min(size, 3))
+
+    monkeypatch.setattr(production_invariants.os, "read", _partial_read)
+    recognition = production_invariants.recognize_metrics_scrape_key()
+
+    assert recognition.marker == "ready"
+    assert recognition.matches(token) is True
+    assert recognition.matches("n" * 32) is False
+    assert recognition.matches("é" * 32) is False
+    assert token not in repr(recognition)
+
+
+def test_metrics_scrape_key_rejects_zero_nofollow_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "z" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    monkeypatch.setattr(production_invariants.os, "O_NOFOLLOW", 0, raising=False)
+
+    recognition = production_invariants.recognize_metrics_scrape_key()
+
+    assert recognition.marker == "invalid"
+    assert recognition.matches(token) is False
+
+
+def test_metrics_scrape_key_retries_one_interrupted_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "i" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    original_read = production_invariants.os.read
+    calls = {"total": 0, "interrupts": 0}
+
+    def _interrupt_once(descriptor: int, size: int) -> bytes:
+        calls["total"] += 1
+        if calls["interrupts"] == 0:
+            calls["interrupts"] += 1
+            raise InterruptedError
+        return original_read(descriptor, size)
+
+    monkeypatch.setattr(production_invariants.os, "read", _interrupt_once)
+    recognition = production_invariants.recognize_metrics_scrape_key()
+
+    assert calls["interrupts"] == 1
+    assert calls["total"] >= 2
+    assert recognition.marker == "ready"
+    assert recognition.matches(token) is True
+
+
+@pytest.mark.parametrize("length", [32, 256])
+def test_metrics_scrape_key_accepts_both_length_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    length: int,
+) -> None:
+    from app.security import production_invariants
+
+    token = "v" * length
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+
+    recognition = production_invariants.recognize_metrics_scrape_key()
+    assert recognition.marker == "ready"
+    assert recognition.matches(token) is True
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"x" * 31,
+        b"x" * 257,
+        b"x" * 31 + b"\n",
+        b"x" * 31 + b" ",
+        b"x" * 31 + b"\x00",
+        ("x" * 31 + "é").encode(),
+    ],
+)
+def test_metrics_scrape_key_rejects_invalid_byte_grammar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: bytes,
+) -> None:
+    from app.security import production_invariants
+
+    secret_file = tmp_path / "metrics-key"
+    secret_file.write_bytes(payload)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+
+def test_metrics_scrape_key_rejects_symlink_nonregular_and_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token_file = tmp_path / "token"
+    _write_scrape_key(token_file, "s" * 32)
+    symlink = tmp_path / "link"
+    symlink.symlink_to(token_file)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(symlink))
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(tmp_path))
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+    original_open = production_invariants.os.open
+
+    def _deny_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if os.fsdecode(path) == str(token_file):
+            raise PermissionError("denied")
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(production_invariants.os, "open", _deny_open)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(token_file))
+    assert production_invariants.recognize_metrics_scrape_key().marker == "invalid"
+
+
+def test_metrics_scrape_key_invalid_error_does_not_leak_path_or_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "private-metrics-token-should-not-leak"
+    secret_file = tmp_path / "private-location"
+    secret_file.write_text(token + "\n", encoding="ascii")
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+
+    with pytest.raises(RuntimeError) as caught:
+        production_invariants._require_metrics_scrape_key_ready_for_production()
+
+    message = str(caught.value)
+    assert token not in message
+    assert str(secret_file) not in message
+
+
+def test_present_invalid_default_metrics_key_fails_production_guard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    default_file = tmp_path / "default-key"
+    default_file.write_text("invalid with whitespace", encoding="ascii")
+    monkeypatch.delenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, raising=False)
+    monkeypatch.setattr(
+        production_invariants,
+        "DEFAULT_METRICS_SCRAPE_KEY_FILE",
+        str(default_file),
+    )
+
+    with pytest.raises(RuntimeError, match="configuration is invalid"):
+        production_invariants._require_metrics_scrape_key_ready_for_production()
+
+
+def test_production_invariant_rejects_metrics_key_equal_to_app_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    token = "e" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+    monkeypatch.setenv("API_KEY", token)
+
+    with pytest.raises(RuntimeError, match="must differ"):
+        production_invariants._require_metrics_scrape_key_ready_for_production()
+
+
+def test_production_runtime_invariant_invokes_metrics_scrape_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    called = {"metrics": False}
+    monkeypatch.setattr(production_invariants, "is_production_like_env", lambda: True)
+    monkeypatch.setattr(production_invariants, "_reject_truthy_env_flags", lambda: None)
+    monkeypatch.setattr(production_invariants, "_require_truthy_env_flags", lambda: None)
+    monkeypatch.setattr(production_invariants, "validate_api_key_toggle_guard", lambda: None)
+    monkeypatch.setattr(production_invariants, "require_server_salt", lambda: "salt")
+    monkeypatch.setattr(
+        production_invariants,
+        "validate_apple_receipt_verification_config",
+        lambda: None,
+    )
+    monkeypatch.setattr(production_invariants, "_require_private_exports_enabled", lambda: None)
+    monkeypatch.setattr(production_invariants, "_require_production_database_url", lambda: None)
+    monkeypatch.setattr(
+        production_invariants,
+        "require_rate_limiting_ready_for_production",
+        lambda *, app=None: None,
+    )
+
+    def _record_metrics_guard() -> None:
+        called["metrics"] = True
+
+    monkeypatch.setattr(
+        production_invariants,
+        "_require_metrics_scrape_key_ready_for_production",
+        _record_metrics_guard,
+    )
+
+    production_invariants.assert_production_runtime_invariants()
+
+    assert called == {"metrics": True}
+
+
+def test_metrics_only_key_authenticates_only_metrics_route(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    _configure_metrics_auth_env(monkeypatch)
+    token = "d" * 32
+    secret_file = tmp_path / "metrics-key"
+    _write_scrape_key(secret_file, token)
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(secret_file))
+
+    metrics_response = client.get("/metrics", headers={"X-API-Key": token})
+    protected_response = client.post(
+        "/api/v1/premium/bmr",
+        headers={"X-API-Key": token},
+        json={},
+    )
+
+    assert metrics_response.status_code == 200
+    assert metrics_response.headers["content-type"].startswith("text/plain")
+    assert protected_response.status_code == 403
+    assert token not in protected_response.text
+    assert str(secret_file) not in protected_response.text
+
+
+def test_invalid_explicit_metrics_key_does_not_block_valid_app_key(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.security import production_invariants
+
+    _configure_metrics_auth_env(monkeypatch)
+    invalid_file = tmp_path / "metrics-key"
+    invalid_file.write_text("short", encoding="ascii")
+    monkeypatch.setenv(production_invariants.METRICS_SCRAPE_KEY_FILE_ENV, str(invalid_file))
+
+    response = client.get("/metrics", headers={"X-API-Key": "test_key"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")

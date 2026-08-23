@@ -21,6 +21,7 @@ from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fi
 from scripts.orchestration import creative_code_artifact_inventory as inventory
 from scripts.orchestration import context_pack_compression
 from scripts.orchestration import creative_code_spec_pipeline
+from scripts.orchestration import role_dispatch_bridge
 from scripts.orchestration import creative_specification_skeptic_review as skeptic_review_cli
 from scripts.orchestration import creative_pilot_workspace as pilot_cli
 from scripts.orchestration import creative_pilot_workspace_contract as pilot_contract
@@ -2847,6 +2848,410 @@ def test_task_bootstrap_binds_explicit_pilot_phase(
     assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == [
         row["role"] for row in pilot["creative_pilot_context"]["assignments"]
     ]
+
+
+def _synthesis_ready_workspace_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    local_head_sha = subprocess.check_output(
+        [GIT, "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
+    ).strip()
+    assert re.fullmatch(r"[0-9a-f]{40}", local_head_sha)
+    current_module = sys.modules[__name__]
+    monkeypatch.setattr(current_module, "_sha", lambda: local_head_sha)
+    monkeypatch.setattr(pilot_contract, "current_origin_main_sha", lambda: local_head_sha)
+    monkeypatch.setattr(current_module, "_CHAIN_CACHE", None)
+    monkeypatch.setattr(current_module, "_SYNTHESIS_CASE_CACHE", {})
+    synthesis_ready, _synthesis, _workspace_after_synthesis = _synthesis_case("approve")
+    root = tmp_path / "adaptive_pilots"
+    workspace_path = root / "pilot-synthesis" / "workspace.json"
+    workspace_path.parent.mkdir(parents=True)
+    workspace_path.write_text(json.dumps(synthesis_ready), encoding="utf-8")
+    monkeypatch.setattr(task_bootstrap, "CREATIVE_PILOT_ROOT", root)
+    return workspace_path
+
+
+def _run_synthesis_packet_for_error(
+    packet: dict[str, Any],
+    *,
+    capsys: pytest.CaptureFixture[str],
+) -> tuple[int, str]:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-source-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        result = role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"])
+    return result, capsys.readouterr().err.strip()
+
+
+@pytest.mark.parametrize(
+    "native_bridge_transport",
+    ("codex-native-subagents", "kimi-native-subagents"),
+)
+def test_synthesis_task_packet_dispatches_one_read_only_coordinator(
+    native_bridge_transport: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+        native_bridge_transport=native_bridge_transport,
+    )
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-synthesis-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert (
+            role_dispatch_bridge.main(
+                ["--packet", str(packet_path), "--mode", "runtime", "--pretty"]
+            )
+            == 0
+        )
+        manifest = json.loads(capsys.readouterr().out)
+
+    assert packet["schema_version"] == "3.1"
+    assert packet["native_subagent_bridge"]["protocol_version"] == "1.0"
+    assert packet["native_subagent_bridge"]["transport"] == native_bridge_transport
+    assert packet["primary_agent"] == "agent-coordinator"
+    assert packet["secondary_agents"] == []
+    assert packet["reviewer"] == "agent-coordinator"
+    assert packet["automation_flags"]["security_review_required"] is False
+    assert packet["automation_flags"]["invariant_class_review_required"] is False
+    assert packet["automation_flags"]["judgment_lane_enabled"] is False
+    assert packet["decision_contract"] == {
+        "mode": "standard",
+        "judgment_enabled": False,
+        "claim_taxonomy": [],
+        "flow": [],
+    }
+    assert packet["judgment_budget"] == {
+        "skeptic_pass_required": False,
+        "verifier_pass_required": False,
+        "max_provider_calls": 0,
+        "uncertainty_split_required": False,
+    }
+    assert all(value == [] for value in packet["result_adjudication"].values())
+    assert [row["role"] for row in packet["creative_pilot_context"]["assignments"]] == [
+        "agent-coordinator"
+    ]
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
+    assert manifest["missing_agents"] == []
+    assert manifest["parallelizable_groups"] == []
+    assert manifest["parallel_execution_allowed"] is False
+    assert manifest["dispatch_sequence"][0]["readonly"] is True
+    assert manifest["dispatch_sequence"][0]["implementation_owner_override"] is False
+    assert set(packet["required_context"]).issubset(
+        manifest["dispatch_sequence"][0]["required_context_paths"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "replacement"),
+    (
+        ("missing", None),
+        ("replace", None),
+        ("replace", ""),
+        ("replace", 1),
+        ("replace", " workspace.json "),
+        ("replace", "workspace.json\n"),
+    ),
+)
+def test_synthesis_dispatch_requires_workspace_source_field(
+    mutation: str,
+    replacement: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    if mutation == "missing":
+        packet.pop("creative_pilot_workspace_source")
+    else:
+        packet["creative_pilot_workspace_source"] = replacement
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet must bind a validated "
+        "synthesis-ready workspace source"
+    )
+
+
+@pytest.mark.parametrize(
+    "source_kind",
+    ("missing", "outside", "malformed", "symlink", "modified_after_packet"),
+)
+def test_synthesis_dispatch_rejects_unbound_workspace_source_artifact(
+    source_kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    pilot_root = workspace_path.parents[1]
+    if source_kind == "missing":
+        source_path = pilot_root / "pilot-missing" / "workspace.json"
+    elif source_kind == "outside":
+        source_path = tmp_path / "outside" / "workspace.json"
+        source_path.parent.mkdir()
+        shutil.copyfile(workspace_path, source_path)
+    elif source_kind == "malformed":
+        source_path = pilot_root / "pilot-malformed" / "workspace.json"
+        source_path.parent.mkdir()
+        source_path.write_text("{", encoding="utf-8")
+    elif source_kind == "symlink":
+        source_path = pilot_root / "pilot-symlink" / "workspace.json"
+        source_path.parent.mkdir()
+        source_path.symlink_to(workspace_path)
+    else:
+        source_path = workspace_path
+        workspace_path.write_text("{}", encoding="utf-8")
+    packet["creative_pilot_workspace_source"] = str(source_path)
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet must bind a validated "
+        "synthesis-ready workspace source"
+    )
+
+
+def test_synthesis_dispatch_accepts_identical_workspace_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    copied_path = workspace_path.parents[1] / "pilot-copy" / "workspace.json"
+    copied_path.parent.mkdir()
+    shutil.copyfile(workspace_path, copied_path)
+    packet["creative_pilot_workspace_source"] = str(copied_path)
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-copy-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 0
+    manifest = json.loads(capsys.readouterr().out)
+
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == ["agent-coordinator"]
+
+
+def test_synthesis_dispatch_binds_candidate_paths_to_workspace_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["README.md"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet candidate_paths must match workspace targets"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_root_agents",
+        "missing_runbook",
+        "missing_scoped_agents",
+        "extra",
+        "duplicate",
+        "absolute",
+        "traversal",
+        "reversed",
+    ),
+)
+def test_synthesis_dispatch_binds_required_context_to_candidate_paths(
+    mutation: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    required_context = list(packet["required_context"])
+    if mutation == "missing_root_agents":
+        required_context.remove("AGENTS.md")
+    elif mutation == "missing_runbook":
+        required_context.remove("RUNBOOK_AGENT.md")
+    elif mutation == "missing_scoped_agents":
+        required_context.remove("core/AGENTS.md")
+    elif mutation == "extra":
+        required_context.append("docs/roadmap/BACKLOG_LEDGER.md")
+    elif mutation == "duplicate":
+        required_context.append(required_context[0])
+    elif mutation == "absolute":
+        required_context[0] = f"{REPO_ROOT.as_posix()}/AGENTS.md"
+    elif mutation == "traversal":
+        required_context.append("../AGENTS.md")
+    else:
+        required_context.reverse()
+    packet["required_context"] = required_context
+
+    result, error = _run_synthesis_packet_for_error(packet, capsys=capsys)
+
+    assert result == 1
+    assert error == (
+        "FAIL: creative pilot synthesis packet required_context must match canonical context"
+    )
+
+
+@pytest.mark.parametrize("hide_required_flag", (False, True))
+def test_synthesis_task_packet_with_security_review_requirement_fails_closed(
+    hide_required_flag: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot results",
+        task_class="orchestration",
+        candidate_paths=["AGENTS.md"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    assert packet["automation_flags"]["security_review_required"] is True
+    if hide_required_flag:
+        packet["automation_flags"]["security_review_required"] = False
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="pilot-synthesis-security-test-", dir=artifact_root
+    ) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 1
+
+    assert (
+        capsys.readouterr().err.strip()
+        == "FAIL: creative pilot synthesis packet metadata requires security_review_required=false"
+    )
+
+
+def test_synthesis_task_packet_rejects_explicit_invariant_change_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError) as exc_info:
+        task_bootstrap.build_task_packet(
+            goal="synthesize validated creative pilot results",
+            task_class="orchestration",
+            candidate_paths=["core/rag/orchestration.py"],
+            invariant_change_classes=["parser"],
+            creative_pilot_workspace_path=workspace_path,
+            creative_pilot_phase="synthesis",
+        )
+    assert str(exc_info.value) == (
+        "creative pilot dispatch cannot include a parser, validator, guard, "
+        "or authority mechanism change; create a separate ordinary pre-open "
+        "invariant-review packet without --creative-pilot-workspace"
+    )
+
+
+@pytest.mark.parametrize("hide_required_projection", (False, True))
+def test_synthesis_task_packet_with_judgment_requirement_fails_closed(
+    hide_required_projection: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace_path = _synthesis_ready_workspace_path(tmp_path, monkeypatch)
+    packet = task_bootstrap.build_task_packet(
+        goal="synthesize validated creative pilot adjudication results",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="synthesis",
+    )
+    assert packet["automation_flags"]["judgment_lane_enabled"] is True
+    assert packet["judgment_budget"]["skeptic_pass_required"] is True
+    assert packet["judgment_budget"]["verifier_pass_required"] is True
+    if hide_required_projection:
+        packet["automation_flags"]["judgment_lane_enabled"] = False
+        packet["decision_contract"] = {
+            "mode": "standard",
+            "judgment_enabled": False,
+            "claim_taxonomy": [],
+            "flow": [],
+        }
+        packet["judgment_budget"] = {
+            "skeptic_pass_required": False,
+            "verifier_pass_required": False,
+            "max_provider_calls": 0,
+            "uncertainty_split_required": False,
+        }
+        packet["result_adjudication"] = {
+            "claim_evidence_fields": [],
+            "support_statuses": [],
+            "evidence_modes": [],
+            "uncertainty_fields": [],
+            "promotion_labels": [],
+        }
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="pilot-synthesis-judgment-test-", dir=artifact_root
+    ) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        assert role_dispatch_bridge.main(["--packet", str(packet_path), "--pretty"]) == 1
+
+    assert (
+        capsys.readouterr().err.strip()
+        == "FAIL: creative pilot synthesis packet metadata requires judgment lane disabled"
+    )
 
 
 def test_terminal_and_wrong_phase_workspace_cannot_dispatch(

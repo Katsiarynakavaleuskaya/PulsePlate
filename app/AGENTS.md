@@ -52,6 +52,14 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 **Metrics collected:**
 - `http_requests_total{method, route, status}`: Total HTTP request count
 - `http_request_duration_seconds{method, route, status}`: Request latency histogram
+- `http_requests_total` materializes numeric `0` children for exactly the four
+  versioned `POST /api/v1/premium/{bmr,targets,plate,gaps}` aliases at
+  `status="200"`; absence is never interpreted as zero. Root aliases and
+  canonical `/api/v1/pro/nutrition/*` routes are not seeded.
+- Metric construction is transactional: build and seed every collector in one
+  private staging registry, then register that registry with the global registry
+  once; a late constructor or global-name conflict exposes none of the staged
+  metric names or zero-series.
 
 **Response format:**
 - **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
@@ -109,6 +117,45 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Observability security policy:**
 - `/metrics` MUST enforce application-level authentication via the shared API key guard.
+- `/metrics` additionally accepts the metrics-only credential from the regular,
+  non-symlink file selected by `METRICS_SCRAPE_KEY_FILE` (default
+  `/run/secrets/pulseplate_metrics_scrape_key`). The file contains exactly one
+  32..256-byte printable non-whitespace ASCII token. Default-file absence keeps
+  shared-key compatibility; explicit invalid configuration grants no dedicated
+  access and fails production-like startup. The dedicated token must differ
+  from `API_KEY` in production/staging and has no authority on other routes.
+  The OBS1B host contract is a mode-`0700` parent directory plus a mode-`0444`
+  leaf so the app and Prometheus containers can read one bind-mounted file as
+  different non-root UIDs; an owner-only leaf-mode check is forbidden in this
+  app-layer recognizer.
+- Premium-alias evidence must derive release/image/config/volume/topology and
+  retention from the live Compose containers through the absolute Docker
+  executable; CLI assertions are not evidence. The expected scrape target count
+  is the frozen literal `1`. Hash only the container-visible Prometheus config
+  from one bounded `docker cp <id>:/etc/prometheus/prometheus.yml -` tar with
+  exactly one safe regular member; host `Mounts.Source` bytes are not evidence.
+  Bind both the local image ID and the bounded digest-pinned `Config.Image`
+  reference. Container `promtool check service-discovery` is the delegated
+  config/target recognizer and must prove one `pulseplate-api` target at
+  `http://app:8000/metrics`, instance `app:8000`, interval `30s`, timeout `10s`,
+  with exact Compose services `app` and `prometheus` in one project. Cross-bind
+  that file-derived result to the loaded `/api/v1/targets?state=active` response
+  fetched through the bound app container on the private network; evidence stores
+  only its aggregate fingerprint, never raw target labels or config. Derive
+  `observed_at`/`T1` from one
+  live Prometheus `time()` anchor, pass that exact value through `--time=` to
+  every later query, bind promtool to the pre-census container ID, and require an
+  exact post-query container/process/runtime census match. Docker output must be
+  streamed under the bounded verifier limit; output overflow, timeout, JSON
+  depth exhaustion, or any runtime replacement is `HOLD`.
+  Except for the job-wide one-target census, every live, continuity, restart,
+  and alias current/increase/reset query is scoped to both
+  `job="pulseplate-api"` and `instance="app:8000"`; alias status stays unfiltered.
+  Each non-baseline window additionally requires a full-window sample canary for
+  the seeded `status="200"` alias series at the same target and range.
+  Bind observed retention days and the exact `/prometheus` storage argument into
+  runtime identity and ordered lineage. Checkpoint PASS independently requires
+  at least `duration_seconds // 30` declared and observed samples.
 - Protection of `/metrics` is defense-in-depth and includes infrastructure controls:
   - ingress ACLs (Cloudflare, Caddy)
   - firewall rules
@@ -124,6 +171,24 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Only assert prefix: `text/plain` for Prometheus; `application/json` for fallback.
 - JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
 - This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
+- Zero-series tests must use an isolated Prometheus registry and distinguish
+  `None` (absent labelset) from numeric `0.0`; auth tests must prove the
+  metrics-only token cannot authenticate an ordinary protected endpoint.
+- Every premium-alias evidence JSON is an asset with `asset_type`, ordered
+  fingerprint-only `upstream_assets`, `policy_version`, `idempotency_key`, and
+  explicit replay/admission behavior. Its deterministic `fingerprint` hashes the
+  canonical JSON projection excluding only the `fingerprint` field. First write
+  is new-only `0600` plus pinned file and directory `fsync`; an identical
+  same-idempotency replay is verified
+  without a write, while malformed, different-idempotency, or divergent existing
+  output fails closed. A failed direct `O_EXCL` write is never auto-unlinked: the
+  exact mode-`0600` canonical partial/complete file remains as evidence and a
+  retry fails closed unless it validates as an identical replay; identical replay
+  fsyncs the already-open file and pinned directory descriptor before returning.
+- Before publication or replay, validate the exact evidence schema and top-level
+  field set, mode/decision/reason vocabulary, static-false authority, and every
+  checks/identity/topology/retention/target/alias/window type and finite value;
+  recomputing a fingerprint never legitimizes an unknown or widened shape.
 
 **Metrics fallback contract (testability):**
 - `/metrics` happy-path returns Prometheus exposition (`text/plain*`).

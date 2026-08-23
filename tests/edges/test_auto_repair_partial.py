@@ -1,10 +1,13 @@
 from typing import Dict
 
+import pytest
+
 from core.auto_repair import AutoRepairEngine, RepairStrategy
-from core.targets import MicronutrientTargets
+from core.recommendations import build_nutrition_targets
+from core.targets import MicronutrientTargets, UserProfile
 
 
-def test_auto_repair_partial_status_when_no_progress():
+def test_auto_repair_partial_status_when_no_progress(monkeypatch: pytest.MonkeyPatch) -> None:
     # Week plan with simple gaps pattern that won't improve across iterations
     week_plan: Dict = {
         "days": [
@@ -14,7 +17,26 @@ def test_auto_repair_partial_status_when_no_progress():
                         "ingredients": [
                             {"name": "bread"},
                             {"name": "rice"},
-                        ]
+                        ],
+                        "nutrients": {
+                            "kcal": 0.0,
+                            "protein_g": 0.0,
+                            "fat_g": 0.0,
+                            "carbs_g": 0.0,
+                            "fiber_g": 0.0,
+                            "iron_mg": 0.0,
+                            "calcium_mg": 0.0,
+                            "magnesium_mg": 0.0,
+                            "zinc_mg": 0.0,
+                            "potassium_mg": 0.0,
+                            "iodine_ug": 0.0,
+                            "selenium_ug": 0.0,
+                            "folate_ug": 0.0,
+                            "b12_ug": 0.0,
+                            "vitamin_d_iu": 0.0,
+                            "vitamin_a_ug": 0.0,
+                            "vitamin_c_mg": 0.0,
+                        },
                     }
                 ]
             }
@@ -38,15 +60,24 @@ def test_auto_repair_partial_status_when_no_progress():
 
     engine = AutoRepairEngine(max_iterations=1)
 
-    # Force _analyze_nutrient_gaps to always return same dict so no progress
-    def _no_progress(plan, t):
-        return {"vitamin_c": 50.0, "folate": 30.0}
-
-    engine._analyze_nutrient_gaps = _no_progress  # type: ignore[attr-defined]
-
-    result = engine.auto_repair_week_plan(
-        week_plan, targets, initial_strategy=RepairStrategy.BALANCED
+    monkeypatch.setattr("core.auto_repair.repair_week_plan", lambda plan, *_args: plan)
+    nutrition_targets = build_nutrition_targets(
+        UserProfile(
+            sex="male",
+            age=30,
+            height_cm=175.0,
+            weight_kg=70.0,
+            activity="moderate",
+            goal="maintain",
+        )
     )
 
-    # With no progress and iterations exhausted, expect PARTIAL or FAILED depending on baseline
-    assert result.status.name in {"PARTIAL", "FAILED"}
+    result = engine.auto_repair_week_plan(
+        week_plan,
+        targets,
+        initial_strategy=RepairStrategy.BALANCED,
+        nutrition_targets=nutrition_targets,
+    )
+
+    assert result.status.name == "FAILED"
+    assert result.iterations == 1

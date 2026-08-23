@@ -2881,8 +2881,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TEST-HYGIENE-CLIENT-LIFECYCLE
-  - Status: 📋 Planned
+  - Target PR: PR #2312 (TC2-09 current slice); terminal TC2-10 remains TBD
+  - Status: 🟡 In progress — TC2-09 active; tracker remains open
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
   - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
@@ -2892,10 +2892,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_no_direct_testclient.py`
     - `tests/conftest.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - Progress:
+    - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
+    - Current slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts plus publishes the typed auto-repair request schema and generated client artifacts without changing shared fixtures, auth guards, or dependencies
+    - Residual boundary: the historical post-TC2-08 coarse AST census was 415 construction sites across 99 test files; after synchronizing `origin/main@f561d37b2`, the exact base census is 412 sites / 98 files (411 / 97 outside `tests/_client.py`) and the TC2-09 head census is 404 / 97 (403 / 96 outside the helper), with the target file reduced from eight sites to zero; therefore `TC2-09B REQUIRED`, while TC2-10 remains blocked until canonical callers reach zero
+    - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
   - DoD:
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
     - Closeable test resources have deterministic teardown
     - Targeted xdist smoke for touched files passes without stale client/session state
+
+<a id="ledger-p1-vip-auto-repair-request-contract"></a>
+- [ ] P1: Repair the VIP auto-repair request-to-domain contract before TC2-09 closeout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #2312 (combined TC2-09 correctness work-package)
+  - Status: 🟡 In progress — folded into PR #2312; no separate prerequisite PR
+  - Area: backend / VIP / auto-repair / request validation
+  - Finding Type: runtime type-contract mismatch and false-success envelope
+  - Reason (EN): PR #2312 proved that the authenticated VIP route passed a wire `dict` into a repair path whose menu engine requires `WeekMenu`; the structural exception was converted into three failed iterations with zero changes and then wrapped by the route's outer success envelope. The same request boundary accepted client-authored micronutrient triplets without finite, positive, cardinality, or monotonic validation. The operator selected one bounded PR #2312 work-package to repair these directly coupled contracts instead of creating a prerequisite PR.
+  - Links:
+    - `app/routers/vip.py`
+    - `core/auto_repair.py`
+    - `core/menu_engine.py`
+    - `core/targets.py`
+    - `tests/test_vip_integration_97_extended.py`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2312#discussion_r3828799711`
+  - DoD:
+    - One validated wire-dict-to-`WeekMenu` adapter delegates repair execution to the canonical menu engine; route code and `core/auto_repair.py` do not create a second nutrition-repair authority
+    - Canonical `boosters_first` applies at most one deterministic FoodItem-backed booster per day, bounded by explicit meal evidence, the primary gap, 100 g, and every applicable target maximum; other strategies remain no-op
+    - Structural type or dependency failures return the existing sanitized error envelope and are not collapsed into an ordinary no-progress repair result
+    - Malformed, non-finite, non-positive, wrong-cardinality, and non-monotonic micronutrient triplets fail deterministically with HTTP `422`
+    - Deterministic route/core tests cover valid conversion, legitimate no-progress, malformed plan input, malformed target ranges, and structural dependency failure
+    - PR #2312 integration scenarios prove truthful canonical no-progress, `needs_manual`, changed-partial, recipe capability, and ordinary managed-client VIP auth outcomes without accepting failed, malformed, or echo-only results as success
 
 <a id="ledger-p1-test-hygiene-env-isolation"></a>
 - [ ] P1: `os.environ` isolation and `setup_method` teardown migration
@@ -5952,11 +5981,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #594 remains closed on `main`
 
 <a id="ledger-p1-ruby-json-cve-2026-54696-release-tooling"></a>
-- [ ] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
+- [x] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
   - Owner: `app-store-release-agent`
   - Priority: P1 (release-tooling security)
   - Target PR: [PR #2316](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2316) (`codex/ios-ruby-json-security-remediation`)
-  - Status: In progress in PR #2316; canonical Bundler remediation and validation underway
+  - Status: Closed by merged PR #2316 at `99d94da720c04921ea270eba7fc4d5966fb563ac`; exact-main canonical CI run `32571072394` completed successfully and the post-merge proof is complete
   - Area: security / iOS release tooling / dependencies
   - Finding Type: application dependency vulnerability
   - Reason (EN): Authenticated Dependabot alert `#239` reports RubyGems `json`
@@ -7343,7 +7372,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> this PR (`codex/pro-nutrition-canonical-cutover`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7355,10 +7384,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`, removing the `app_module` alias
     and legacy synchronous scheduler resolver rail. PR #2309 merged at
     `f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the paid/BMI
-    registration mirrors. The current bounded successor adds canonical PRO
-    BMR/gaps and migrates the repository-owned Web BMR consumer without deleting
-    aliases. Product Owner sequencing keeps telemetry-admitted alias retirement,
-    root-alias auth/sunset, and final legacy deletion as separate later lanes.
+    registration mirrors. PR #2314 merged at
+    `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR/gaps
+    and migrating the repository-owned Web BMR consumer without deleting aliases.
+    PR #2317 is the current bounded successor and removes only ten legacy admin/BMI direct-call
+    Python bindings while preserving their canonical services and every HTTP,
+    auth, OpenAPI, and app-identity contract. Product Owner sequencing keeps
+    telemetry-admitted versioned-alias retirement, root-alias auth/sunset, and
+    final legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7375,7 +7408,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
-    - 🟡 Repository-owned Web BMR migration is implemented in the current PR; merge and staging verification remain
+    - 🟡 Repository-owned Web BMR migration merged in PR #2314; staging verification and the telemetry-window start remain unclaimed
     - 🟡 Versioned nutrition alias retirement requires the exact 30-day zero-hit production gate below
   - DoD:
     - All endpoints migrated to modular routers
@@ -7389,8 +7422,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical PRO nutrition cutover for BMR/gaps and Web Nutrition Setup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (product correctness / API contract / thin client)
-  - Target PR: this PR (`codex/pro-nutrition-canonical-cutover`)
-  - Status: 🛠 In implementation; keep unchecked until merge and deployment evidence exist
+  - Target PR: [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`)
+  - Status: 🟡 Runtime implementation merged at `827f8ea0ba5bf0432e011241d08553b01fa471b1`; keep unchecked because staging smoke and telemetry-window start evidence remain unclaimed
   - Reason (EN): BMR and nutrient-gap services already have canonical backend ownership, but their public HTTP contracts remain available only through the deprecated premium family, and Web Nutrition Setup still consumes the BMR alias with a client-side error-to-mock and TDEE-calculation fallback. This lane adds the missing canonical PRO routes and cuts the repository-owned Web consumer over without deleting compatibility routes. (RU: Добавляем canonical PRO BMR/gaps и переводим Web consumer, сохраняя aliases на период наблюдения.)
   - Links:
     - `app/routers/pro_nutrition_contracts.py`
@@ -7411,15 +7444,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT
-  - Status: ⏳ Blocked by the merged/deployed canonical cutover and a complete 30-day observation window
+  - Target PR: [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → PR-OBS1B internal Prometheus deploy contour → separate future alias-retirement PR
+  - Status: ⏳ PR #2319 implements only the application and evidence foundation; Prometheus activation, separately authorized staging/production deployment, human-authored `T₀`, the complete `30 × 24h` production window, and a future retirement PR remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
   - Links:
+    - `app/security/production_invariants.py`
     - `app/middleware/metrics.py`
+    - `scripts/verify_premium_alias_telemetry.py`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`
   - DoD:
-    - Record the verified deployment timestamp of the canonical-cutover PR and observe 30 consecutive calendar days after it
+    - After separately authorized production activation, record the human-approved `T₀` and evaluate only at `T₁ >= T₀ + 30 × 24h`; staging evidence never starts the production clock
     - For each exact route `/api/v1/premium/bmr`, `/api/v1/premium/targets`, `/api/v1/premium/plate`, and `/api/v1/premium/gaps`, preserve the query/result evidence for `sum(increase(http_requests_total{method="POST", route="<exact-path>"}[30d])) == 0`
     - Prove aggregation across every API replica/worker plus complete scrape coverage and retention for the whole window
     - Confirm there is no known supported consumer; no-data, partial retention, per-process-only evidence, or any hit blocks removal
@@ -11850,7 +11885,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
   - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1` -> terminal Evidence Eval projection `#2284` -> lifecycle transition analytics `#2290` -> shadow Bayesian lifecycle v1 `codex/creative-lifecycle-bayesian-shadow-v1`
-  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope, PR `#2284` Evidence Eval normalization, PR `#2290` deterministic lifecycle transition analytics, and PR `#2299` shadow forecast/start/score capability are merged continuations. ER-P5 was locally recorded `not_enrolled` after a pre-generation governance invocation stop; it produced no forecast, start, Runner execution, candidate patch, or product outcome. The active product pilot is operator-authorized ER-P6 in PR `#2308`. The umbrella remains open, but forecast values grant no product, GitHub/provider/runtime, routing/learning, prediction-quality, review, or merge authority.
+  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope, PR `#2284` Evidence Eval normalization, PR `#2290` deterministic lifecycle transition analytics, and PR `#2299` shadow forecast/start/score capability are merged continuations. ER-P5 was locally recorded `not_enrolled` after a pre-generation governance invocation stop; it produced no forecast, start, Runner execution, candidate patch, or product outcome. Operator-authorized ER-P6 PR `#2308` is merged and its PR lane is terminal (`586b0380c4c12baf9e431f2098849502a5705868`, August 21, 2026). PR `#2315` is the current coordinator-only synthesis-dispatch governance successor; it is not ER-P7, does not authorize a new Pilot, and leaves this umbrella open. Forecast values grant no product, GitHub/provider/runtime, routing/learning, prediction-quality, review, or merge authority.
   - Resolved carryover: PR `#2284` merged the sibling terminal Evidence Eval projection, and PR `#2290` preserved that triplet as one indivisible evidence bundle outside lifecycle transition counts.
   - Deterministic creative-code lifecycle transition analytics v1:
     - Priority: P1
@@ -11866,8 +11901,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Shadow Bayesian lifecycle forecast/scoring v1 and one prospective Pilot:
     - Priority: P1
     - Owner: @katsiaryna_kavaleuskaya
-    - Target PR: merged PR `#2299`; historical pre-generation ER-P5 `shadow-lifecycle-heterogeneous-pilot-5`; operator-authorized ER-P6 PR `#2308`
-    - Reason (EN): Merged PR `#2290` provides deterministic descriptive lifecycle analytics, while merged PR `#2299` added immutable local `forecast -> start -> outcome -> score` contracts and the mechanical pre-generation start hook. Operator-authorized PR `#2308` now exercises that rail prospectively for one exact ER-P6 product target without selecting, routing, promoting, opening, or merging on forecast values.
+    - Target PR: merged PR `#2299`; historical pre-generation ER-P5 `shadow-lifecycle-heterogeneous-pilot-5`; merged and terminal operator-authorized ER-P6 PR `#2308`
+    - Reason (EN): Merged PR `#2290` provides deterministic descriptive lifecycle analytics, while merged PR `#2299` added immutable local `forecast -> start -> outcome -> score` contracts and the mechanical pre-generation start hook. Operator-authorized PR `#2308` exercised that rail prospectively for one exact ER-P6 product target and merged as `586b0380c4c12baf9e431f2098849502a5705868` without selecting, routing, promoting, opening, or merging on forecast values. Coordinator-owned governance PR `#2315` is not ER-P7 and grants no new Pilot authority.
     - Links:
       - `scripts/orchestration/creative_code_lifecycle_bayesian_shadow_contract.py`
       - `scripts/orchestration/creative_code_lifecycle_bayesian_shadow.py`
