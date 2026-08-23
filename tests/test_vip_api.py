@@ -8,6 +8,7 @@ EN: Tests for VIP API endpoints
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -773,43 +774,325 @@ def test_vip_recipe_templates(client: TestClient, vip_headers: dict[str, str]) -
     assert data["total_templates"] > 0
 
 
-def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str]) -> None:
-    """Test VIP auto-repair weekly plan endpoint"""
+def test_vip_auto_repair_weekly_fails_without_nutrient_evidence(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Incomplete meal evidence is rejected before core repair execution."""
     payload = {
         "week_plan": {
             "days": [
                 {
                     "day": "Monday",
-                    "meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}],
+                    "meals": [
+                        {
+                            "ingredients": [{"name": "rice", "amount": 200, "unit": "g"}],
+                            "nutrients": {},
+                        }
+                    ],
                 }
             ]
         },
         "targets": {
-            "iron_mg": 18.0,
-            "calcium_mg": 1000.0,
-            "magnesium_mg": 400.0,
-            "zinc_mg": 11.0,
-            "potassium_mg": 3500.0,
-            "iodine_ug": 150.0,
-            "selenium_ug": 55.0,
-            "folate_ug": 400.0,
-            "b12_ug": 2.4,
-            "vitamin_d_iu": 20.0,
-            "vitamin_a_ug": 900.0,
-            "vitamin_c_mg": 90.0,
+            "iron_mg": [6.0, 8.0, 45.0],
+            "calcium_mg": [800.0, 1000.0, 2500.0],
+            "magnesium_mg": [300.0, 400.0, 700.0],
+            "zinc_mg": [8.0, 11.0, 40.0],
+            "potassium_mg": [3500.0, 4700.0, 5000.0],
+            "iodine_ug": [130.0, 150.0, 1100.0],
+            "selenium_ug": [45.0, 55.0, 400.0],
+            "folate_ug": [320.0, 400.0, 1000.0],
+            "b12_ug": [2.0, 2.4, 100.0],
+            "vitamin_d_iu": [400.0, 600.0, 4000.0],
+            "vitamin_a_ug": [600.0, 900.0, 3000.0],
+            "vitamin_c_mg": [75.0, 90.0, 2000.0],
         },
         "strategy": "balanced",
         "user_preferences": {},
     }
 
     r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
-    assert r.status_code == 200
+    assert r.status_code == 422
+    assert r.headers["content-type"].startswith("application/json")
     data = r.json()
-    assert data["status"] == "success"
-    assert "repair_result" in data
-    assert data["repair_result"] is not None
-    assert "status" in data["repair_result"]
-    assert "iterations" in data["repair_result"]
+    assert data == {"detail": "Invalid auto-repair request payload"}
+
+
+def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
+    """Expose the typed auto-repair request while preserving manual route validation."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    schema = response.json()
+    request_schema = schema["paths"]["/api/v1/vip/auto-repair/weekly"]["post"]["requestBody"][
+        "content"
+    ]["application/json"]["schema"]
+
+    assert set(request_schema["required"]) == {
+        "week_plan",
+        "targets",
+        "profile",
+        "daily_targets",
+    }
+    assert "$defs" not in request_schema
+    assert request_schema["maxProperties"] == 50
+    assert "depth 4" in request_schema["description"]
+    assert "4096 aggregate units" in request_schema["description"]
+    target_schema = request_schema["properties"]["targets"]
+    assert target_schema["additionalProperties"] is False
+    assert len(target_schema["required"]) == 12
+    assert target_schema["properties"]["iron_mg"]["minItems"] == 3
+    assert target_schema["properties"]["iron_mg"]["maxItems"] == 3
+    assert all(
+        item["exclusiveMinimum"] == 0
+        for item in target_schema["properties"]["iron_mg"]["prefixItems"]
+    )
+    assert request_schema["properties"]["strategy"]["enum"] == [
+        "conservative",
+        "balanced",
+        "aggressive",
+    ]
+    profile_age_schema = request_schema["properties"]["profile"]["properties"]["age"]
+    assert profile_age_schema == {
+        "maximum": 120,
+        "minimum": 1,
+        "title": "Age",
+        "type": "integer",
+    }
+    daily_schema = request_schema["properties"]["daily_targets"]
+    assert daily_schema["properties"]["kcal_daily"]["type"] == "integer"
+    assert daily_schema["properties"]["kcal_daily"]["exclusiveMinimum"] == 0
+    assert daily_schema["properties"]["kcal_daily"]["maximum"] == 10000
+    assert daily_schema["properties"]["water_ml_daily"]["type"] == "integer"
+    assert daily_schema["properties"]["water_ml_daily"]["exclusiveMinimum"] == 0
+    assert daily_schema["properties"]["water_ml_daily"]["maximum"] == 10000
+    macro_schema = daily_schema["properties"]["macros"]
+    for field_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
+        assert macro_schema["properties"][field_name]["type"] == "integer"
+    week_plan_schema = request_schema["properties"]["week_plan"]
+    assert week_plan_schema["maxProperties"] == 50
+    assert week_plan_schema["properties"]["days"]["maxItems"] == 7
+    day_schema = week_plan_schema["properties"]["days"]["items"]
+    assert day_schema["maxProperties"] == 50
+    assert day_schema["properties"]["meals"]["maxItems"] == 10
+    meal_schema = day_schema["properties"]["meals"]["items"]
+    assert meal_schema["maxProperties"] == 50
+    assert meal_schema["properties"]["ingredients"]["maxItems"] == 15
+    ingredient_schema = meal_schema["properties"]["ingredients"]["items"]
+    assert ingredient_schema["maxProperties"] == 50
+    assert ingredient_schema["properties"]["name"]["maxLength"] == 500
+    nutrient_schema = meal_schema["properties"]["nutrients"]
+    assert len(nutrient_schema["required"]) == 17
+    assert nutrient_schema["maxProperties"] == 50
+    assert all(
+        nutrient_schema["properties"][field_name]["minimum"] == 0
+        for field_name in nutrient_schema["required"]
+    )
+    assert nutrient_schema["additionalProperties"] == {
+        "minimum": 0,
+        "type": "number",
+    }
+    assert request_schema["properties"]["user_preferences"]["maxProperties"] == 50
+
+    recipe_operation = schema["paths"]["/api/v1/vip/recipes/weekly"]["post"]
+    recipe_schema = recipe_operation["requestBody"]["content"]["application/json"]["schema"]
+    assert set(recipe_schema["required"]) == {"week_plan"}
+    assert recipe_schema["maxProperties"] == 50
+    assert "depth 4" in recipe_schema["description"]
+    assert "4096 aggregate units" in recipe_schema["description"]
+    assert recipe_schema["properties"]["recipes_per_day"]["type"] == "integer"
+    assert recipe_schema["properties"]["recipes_per_day"]["exclusiveMinimum"] == 0
+    assert recipe_schema["properties"]["recipes_per_day"]["maximum"] == 20
+    recipe_day_schema = recipe_schema["properties"]["week_plan"]["properties"]["days"]["items"]
+    assert recipe_schema["properties"]["week_plan"]["properties"]["days"]["maxItems"] == 7
+    assert set(recipe_day_schema["required"]) == {"day", "meals"}
+    assert recipe_day_schema["properties"]["day"]["minLength"] == 1
+    assert recipe_day_schema["properties"]["day"]["maxLength"] == 500
+    assert recipe_day_schema["properties"]["meals"]["maxItems"] == 10
+    recipe_meal_schema = recipe_day_schema["properties"]["meals"]["items"]
+    assert recipe_meal_schema["properties"]["ingredients"]["maxItems"] == 15
+    recipe_ingredient_schema = recipe_meal_schema["properties"]["ingredients"]["items"]
+    assert set(recipe_ingredient_schema["required"]) == {"name", "amount", "unit"}
+    assert recipe_ingredient_schema["properties"]["name"]["maxLength"] == 500
+    assert recipe_ingredient_schema["properties"]["amount"]["exclusiveMinimum"] == 0
+    assert recipe_ingredient_schema["properties"]["amount"]["maximum"] == 1000
+    assert recipe_ingredient_schema["properties"]["unit"]["maxLength"] == 32
+    activity_schema = request_schema["properties"]["daily_targets"]["properties"]["activity"]
+    for field_name in (
+        "moderate_aerobic_min",
+        "vigorous_aerobic_min",
+        "strength_sessions",
+        "steps_daily",
+    ):
+        assert activity_schema["properties"][field_name]["type"] == "integer"
+    assert activity_schema["properties"]["moderate_aerobic_min"]["minimum"] == 0
+    assert activity_schema["properties"]["vigorous_aerobic_min"]["minimum"] == 0
+
+    generated_types = (
+        Path(__file__).resolve().parents[1] / "frontend/src/api/schema.ts"
+    ).read_text(encoding="utf-8")
+    nutrient_marker = generated_types.index("AutoRepairMealNutrients")
+    numeric_extra = generated_types.index("[key: string]: number;", nutrient_marker)
+    next_unknown_extra = generated_types.index("[key: string]: unknown;", nutrient_marker)
+    assert numeric_extra < next_unknown_extra
+    recipe_amount = generated_types.index("amount: number;", numeric_extra)
+    recipe_name = generated_types.index("name: string;", recipe_amount)
+    recipe_unit = generated_types.index("unit: string;", recipe_name)
+    assert recipe_amount < recipe_name < recipe_unit
+
+    for path in (
+        "/api/v1/vip/auto-repair/weekly",
+        "/api/v1/vip/recipes/weekly",
+    ):
+        validation_schema = schema["paths"][path]["post"]["responses"]["422"]["content"][
+            "application/json"
+        ]["schema"]
+        assert len(validation_schema["oneOf"]) == 2
+        detail_shapes = {
+            branch["properties"]["detail"]["type"] for branch in validation_schema["oneOf"]
+        }
+        assert detail_shapes == {"string", "array"}
+
+
+def test_vip_auto_repair_schema_admits_valid_and_rejects_ambiguous_values() -> None:
+    """Cover the typed schema's fail-closed pre-coercion branches."""
+    from pydantic import ValidationError
+
+    from app.schemas.vip import (
+        AutoRepairActivityTargets,
+        AutoRepairDailyTargets,
+        AutoRepairIngredient,
+        AutoRepairMacroTargets,
+        AutoRepairMeal,
+        AutoRepairMealNutrients,
+        AutoRepairProfile,
+        AutoRepairTargetRanges,
+    )
+
+    with pytest.raises(ValidationError):
+        AutoRepairIngredient.model_validate({"name": " "})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate({"ingredients": [{"name": "rice"}], "nutrients": []})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate({"ingredients": [{"name": "rice"}], "nutrients": {"": 1.0}})
+    with pytest.raises(ValidationError):
+        AutoRepairMeal.model_validate(
+            {"ingredients": [{"name": "rice"}], "nutrients": {"iron_mg": True}}
+        )
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate("not-an-object")
+
+    valid_targets = {
+        "iron_mg": [6.0, 8.0, 45.0],
+        "calcium_mg": [800.0, 1000.0, 2500.0],
+        "magnesium_mg": [300.0, 400.0, 700.0],
+        "zinc_mg": [8.0, 11.0, 40.0],
+        "potassium_mg": [3500.0, 4700.0, 5000.0],
+        "iodine_ug": [130.0, 150.0, 1100.0],
+        "selenium_ug": [45.0, 55.0, 400.0],
+        "folate_ug": [320.0, 400.0, 1000.0],
+        "b12_ug": [2.0, 2.4, 100.0],
+        "vitamin_d_iu": [400.0, 600.0, 4000.0],
+        "vitamin_a_ug": [600.0, 900.0, 3000.0],
+        "vitamin_c_mg": [75.0, 90.0, 2000.0],
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [6.0, 8.0]})
+    with pytest.raises(ValidationError):
+        AutoRepairTargetRanges.model_validate({**valid_targets, "iron_mg": [True, 8.0, 45.0]})
+
+    complete_nutrients = {
+        "kcal": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        **{field_name: 0.0 for field_name in valid_targets},
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairMealNutrients.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairMealNutrients.model_validate({**complete_nutrients, "kcal": -1.0})
+
+    valid_profile = {
+        "sex": "male",
+        "age": 30,
+        "height_cm": 175.0,
+        "weight_kg": 70.0,
+        "activity": "moderate",
+        "goal": "maintain",
+        "deficit_pct": None,
+        "surplus_pct": None,
+        "bodyfat": None,
+        "region": "BY",
+        "timezone": "UTC",
+        "diet_flags": [],
+        "life_stage": "adult",
+        "medical_conditions": [],
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate("not-an-object")
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate({**valid_profile, "age": True})
+    with pytest.raises(ValidationError):
+        AutoRepairProfile.model_validate({**valid_profile, "height_cm": float("inf")})
+
+    with pytest.raises(ValidationError):
+        AutoRepairMacroTargets.model_validate(
+            {"protein_g": True, "fat_g": 60, "carbs_g": 215, "fiber_g": 30}
+        )
+    with pytest.raises(ValidationError):
+        AutoRepairActivityTargets.model_validate(
+            {
+                "moderate_aerobic_min": True,
+                "vigorous_aerobic_min": 75,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            }
+        )
+    valid_daily_targets = {
+        "kcal_daily": 1800,
+        "macros": {"protein_g": 100, "fat_g": 60, "carbs_g": 215, "fiber_g": 30},
+        "water_ml_daily": 2000,
+        "activity": {
+            "moderate_aerobic_min": 150,
+            "vigorous_aerobic_min": 75,
+            "strength_sessions": 2,
+            "steps_daily": 8000,
+        },
+        "calculation_date": "2026-08-22",
+    }
+    with pytest.raises(ValidationError):
+        AutoRepairDailyTargets.model_validate({**valid_daily_targets, "kcal_daily": True})
+    assert (
+        AutoRepairDailyTargets.model_validate(
+            {**valid_daily_targets, "kcal_daily": 1801}
+        ).kcal_daily
+        == 1801
+    )
+    for moderate, vigorous in ((150, 0), (0, 75), (0, 0)):
+        activity = AutoRepairActivityTargets.model_validate(
+            {
+                "moderate_aerobic_min": moderate,
+                "vigorous_aerobic_min": vigorous,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            }
+        )
+        assert activity.moderate_aerobic_min == moderate
+        assert activity.vigorous_aerobic_min == vigorous
+    for invalid_value in (-1, True, 1.5, "0"):
+        with pytest.raises(ValidationError):
+            AutoRepairActivityTargets.model_validate(
+                {
+                    "moderate_aerobic_min": invalid_value,
+                    "vigorous_aerobic_min": 0,
+                    "strength_sessions": 2,
+                    "steps_daily": 8000,
+                }
+            )
 
 
 def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:

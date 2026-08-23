@@ -11,14 +11,31 @@ and physical activity guidelines.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Set
+from numbers import Real
+from typing import Any, Dict, List, Literal, Optional, Set, cast
 
 # Type definitions for user characteristics
 Sex = Literal["female", "male"]
 Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["loss", "maintain", "gain"]
 LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
+
+_MICRONUTRIENT_RANGE_FIELDS = (
+    "iron_mg",
+    "calcium_mg",
+    "magnesium_mg",
+    "zinc_mg",
+    "potassium_mg",
+    "iodine_ug",
+    "selenium_ug",
+    "folate_ug",
+    "b12_ug",
+    "vitamin_d_iu",
+    "vitamin_a_ug",
+    "vitamin_c_mg",
+)
 
 
 @dataclass(frozen=True)
@@ -136,6 +153,35 @@ class MicronutrientTargets:
             "selenium_ug": 1,
         }
     )
+
+    def __post_init__(self) -> None:
+        """Validate and canonicalize every ``(minimum, target, maximum)`` range."""
+        for field_name in _MICRONUTRIENT_RANGE_FIELDS:
+            raw_range = getattr(self, field_name)
+            if not isinstance(raw_range, (list, tuple)) or len(raw_range) != 3:
+                raise ValueError(f"{field_name} must contain exactly three values")
+
+            normalized_values: list[float] = []
+            for raw_value in raw_range:
+                if isinstance(raw_value, bool) or not isinstance(raw_value, Real):
+                    raise ValueError(f"{field_name} values must be real numbers")
+                value = float(raw_value)
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError(f"{field_name} values must be finite and nonnegative")
+                normalized_values.append(value)
+
+            minimum, target, maximum = normalized_values
+            if not minimum <= target <= maximum:
+                raise ValueError(f"{field_name} must satisfy minimum <= target <= maximum")
+
+            object.__setattr__(self, field_name, (minimum, target, maximum))
+
+    def validate_positive_ranges(self) -> None:
+        """Require strictly positive ranges at public request boundaries."""
+        for field_name in _MICRONUTRIENT_RANGE_FIELDS:
+            nutrient_range = getattr(self, field_name)
+            if any(value <= 0 for value in nutrient_range):
+                raise ValueError(f"{field_name} values must be positive")
 
     def get_target(self, nutrient: str) -> float:
         """Get target value for a nutrient."""
@@ -507,7 +553,8 @@ def calculate_bmr(age: int, gender: str, weight: float, height: float) -> Option
     sex: Literal["female", "male"] = "male" if gender_normalized in {"m", "male"} else "female"
 
     try:
-        return bmr_mifflin(weight, height, age, sex)
+        result: float = bmr_mifflin(weight, height, age, sex)
+        return result
     except (ValueError, TypeError):
         return None
 
@@ -536,9 +583,11 @@ def calculate_tdee(bmr: float, activity: str) -> Optional[float]:
     activity_lower = str(activity).lower().strip()
     if activity_lower not in valid_activities:
         return None
+    activity_value = cast(Activity, activity_lower)
 
     try:
-        return tdee(bmr, activity_lower)  # type: ignore[arg-type]
+        result: float = tdee(bmr, activity_value)
+        return result
     except (ValueError, TypeError, KeyError):
         return None
 
