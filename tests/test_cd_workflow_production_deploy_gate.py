@@ -5,6 +5,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
+from scripts import verify_premium_alias_telemetry as verifier
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 PROD_DEPLOY_MODE_ENV_FETCH = (
@@ -70,6 +74,8 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+frontend \\\n"
         r"\s+deploy/Caddyfile\.production \\\n"
         r"\s+deploy/docker-compose\.production\.yaml \\\n"
+        r"\s+deploy/prometheus/prometheus\.yml \\\n"
+        r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
         r"\s+scripts/redeploy_caddy\.sh",
         re.MULTILINE,
@@ -85,9 +91,8 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
     assert 'ssh-keyscan -H -t ed25519 "$SSH_HOST_PRODUCTION" > "$scan_path"' in workflow_text
     assert "SSH host fingerprint mismatch" in workflow_text
     assert 'ssh-keygen -lf "$scan_path"' in workflow_text
-    assert 'tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"' in workflow_text
-    assert 'rm -f "/tmp/${bundle_name}.tgz"' in workflow_text
-    assert 'export SHELL_BUNDLE_DIR="$tmp_bundle_dir"' in workflow_text
+    assert 'tar -xzf "/tmp/${bundle_name}.tgz"' not in workflow_text
+    assert 'export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"' in workflow_text
     assert 'export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"' in workflow_text
     assert "DEPLOY_DIR is required for production shell sync" not in workflow_text
     assert "StrictHostKeyChecking=no" not in workflow_text
@@ -144,8 +149,10 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     self_hosted_lines = self_hosted_section.splitlines()
 
     assert '"$tmp_script" --preflight-only' in ssh_section
-    assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
-        '            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"'
+    archive_export = '            export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"'
+    assert archive_export in ssh_lines
+    assert ssh_lines.index(archive_export) < ssh_lines.index(
+        '            "$tmp_script" --preflight-only'
     )
     assert ssh_lines.index('            "$tmp_script" --preflight-only') < ssh_lines.index(
         '            "$tmp_script"'
@@ -160,3 +167,116 @@ def test_production_deploy_jobs_run_preflight_before_live_deploy() -> None:
     assert self_hosted_lines.index(
         "          bash scripts/deploy_production.sh --preflight-only"
     ) < self_hosted_lines.index("          bash scripts/deploy_production.sh")
+
+
+def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    assert isinstance(workflow, dict)
+    triggers = workflow.get("on", workflow.get(True))
+    assert isinstance(triggers, dict)
+    assert triggers["pull_request"] == {}
+    assert triggers["schedule"] == [{"cron": "17 4 * * 1"}]
+
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    security_job = jobs.get("prometheus-image-security")
+    assert isinstance(security_job, dict)
+    assert security_job["permissions"] == {"contents": "read"}
+    assert "environment" not in security_job
+    security_text = str(security_job)
+    assert "secrets." not in security_text
+    assert "persist-credentials': False" in security_text
+    assert "trivyignores': '/dev/null'" in security_text
+
+    main_jobs = {"build", "release-control-plane-fixture-gate"}
+    tag_jobs = {
+        "production-gates",
+        "build-production",
+        "production-deploy-config",
+        "release-control-plane-production-evidence",
+        "deploy-production",
+        "deploy-production-self-hosted",
+    }
+    for name in main_jobs:
+        job = jobs.get(name)
+        assert isinstance(job, dict)
+        condition = job.get("if")
+        assert isinstance(condition, str)
+        assert "github.event_name == 'push'" in condition
+        assert "refs/heads/main" in condition
+    for name in tag_jobs:
+        job = jobs.get(name)
+        assert isinstance(job, dict)
+        condition = job.get("if")
+        assert isinstance(condition, str)
+        assert "github.event_name == 'push'" in condition
+        assert "refs/tags/v" in condition
+
+    assert jobs["build"]["needs"] == "prometheus-image-security"
+    assert jobs["production-gates"]["needs"] == "prometheus-image-security"
+
+
+def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    security_job = jobs.get("prometheus-image-security")
+    assert isinstance(security_job, dict)
+    steps = security_job.get("steps")
+    assert isinstance(steps, list)
+    smoke = next(
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == "Prove synthetic non-root header and named-volume runtime"
+    )
+    script = smoke.get("run")
+    assert isinstance(script, str)
+
+    assert 'scalar(up{job="pulseplate-obs1b-synthetic-self"})' in script
+    assert (
+        "from scripts.verify_premium_alias_telemetry import VerificationError, "
+        "_parse_promtool_sample" in script
+    )
+    assert "_parse_promtool_sample(Path(sys.argv[1]).read_bytes())" in script
+    assert "except VerificationError:" in script
+    assert "value != 1.0" in script
+    assert 'payload.get("data")' not in script
+    assert 'payload.get("status")' not in script
+    assert "resultType" not in script
+
+    native_scalar = b'[1787504507.565,"1"]'
+    native_vector = b'[{"metric":{},"value":[1787504507.821,"1"]}]'
+    assert verifier._parse_promtool_sample(native_scalar) == (1787504507.565, 1.0)
+    assert verifier._parse_promtool_sample(native_vector) == (1787504507.821, 1.0)
+
+
+def test_self_hosted_preflight_and_deploy_bind_same_exact_image_ref() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    job = jobs.get("deploy-production-self-hosted")
+    assert isinstance(job, dict)
+    steps = job.get("steps")
+    assert isinstance(steps, list)
+    named_steps = {
+        step.get("name"): step
+        for step in steps
+        if isinstance(step, dict) and isinstance(step.get("name"), str)
+    }
+    preflight = named_steps["Preflight production deploy on self-hosted runner"].get("run")
+    deploy = named_steps["Deploy on self-hosted runner (pinned digest)"].get("run")
+    assert isinstance(preflight, str)
+    assert isinstance(deploy, str)
+
+    exact_export = (
+        'export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@'
+        '${{ needs.build-production.outputs.digest }}"'
+    )
+    assert preflight.count(exact_export) == 1
+    assert deploy.count(exact_export) == 1
+    assert preflight.index(exact_export) < preflight.index(
+        "bash scripts/deploy_production.sh --preflight-only"
+    )
+    assert "${IMAGE_REF:-" not in preflight
+    assert "PROD_DEPLOY_MODE" not in preflight

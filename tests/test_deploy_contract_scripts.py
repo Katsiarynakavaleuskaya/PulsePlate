@@ -1,6 +1,10 @@
+import io
+import json
 import os
+import shutil
 import stat
 import subprocess
+import tarfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -10,6 +14,143 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.yaml"
 PRODUCTION_COMPOSE_TEXT = PRODUCTION_COMPOSE_PATH.read_text(encoding="utf-8")
+SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.selfhosted.yaml"
+STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
+PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
+PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
+PROMETHEUS_RUNTIME_REF = (
+    "prom/prometheus:v3.14.0-distroless@"
+    "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+)
+CANONICAL_MANAGED_COMPOSE = "deploy/docker-compose.production.yaml"
+CANONICAL_SELF_HOSTED_COMPOSE = "deploy/docker-compose.production.selfhosted.yaml"
+METRICS_SECRET_SENTINEL = "obs1b-test-metrics-token-12345678"  # pragma: allowlist secret
+
+
+def _write_production_host_contract(
+    project_dir: Path,
+    *,
+    compose_text: str = "services: {}\n",
+    self_hosted: bool = False,
+) -> Path:
+    deploy_dir = project_dir / "deploy"
+    prometheus_dir = deploy_dir / "prometheus"
+    secret_dir = deploy_dir / "secrets"
+    prometheus_dir.mkdir(parents=True, exist_ok=True)
+    secret_dir.mkdir(parents=True, exist_ok=True)
+    secret_dir.chmod(0o700)
+    secret_file = secret_dir / "pulseplate_metrics_scrape_key"
+    secret_file.write_text(METRICS_SECRET_SENTINEL, encoding="ascii")
+    secret_file.chmod(0o444)
+    (prometheus_dir / "prometheus.yml").write_text(
+        PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (prometheus_dir / "image-manifest.json").write_text(
+        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    compose_name = (
+        "docker-compose.production.selfhosted.yaml"
+        if self_hosted
+        else "docker-compose.production.yaml"
+    )
+    compose_path = deploy_dir / compose_name
+    compose_path.write_text(compose_text, encoding="utf-8")
+    return compose_path
+
+
+def _write_shell_bundle_contract(
+    shell_bundle_dir: Path,
+    *,
+    compose_text: str = PRODUCTION_COMPOSE_TEXT,
+    include_frontend: bool = True,
+    include_redeploy: bool = True,
+) -> None:
+    deploy_dir = shell_bundle_dir / "deploy"
+    prometheus_dir = deploy_dir / "prometheus"
+    scripts_dir = shell_bundle_dir / "scripts"
+    deploy_dir.mkdir(parents=True, exist_ok=True)
+    prometheus_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    if include_frontend:
+        (shell_bundle_dir / "frontend").mkdir(parents=True, exist_ok=True)
+    (deploy_dir / "Caddyfile.production").write_text(
+        'pulseplate.test {\n    respond "ok"\n}\n', encoding="utf-8"
+    )
+    (deploy_dir / "docker-compose.production.yaml").write_text(compose_text, encoding="utf-8")
+    (prometheus_dir / "prometheus.yml").write_text(
+        PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (prometheus_dir / "image-manifest.json").write_text(
+        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (scripts_dir / "diagnose_web.sh").write_text(
+        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
+    )
+    if include_redeploy:
+        (scripts_dir / "redeploy_caddy.sh").write_text(
+            "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
+        )
+
+
+def _canonical_test_archive_path(suffix: int) -> Path:
+    return Path("/tmp") / f"pulseplate-shell-bundle-{os.getpid()}-{suffix}.tgz"
+
+
+def _write_shell_bundle_archive(
+    archive_path: Path,
+    source_dir: Path,
+    *,
+    variant: str = "valid",
+) -> None:
+    required_paths = [
+        "frontend",
+        "deploy/Caddyfile.production",
+        "deploy/docker-compose.production.yaml",
+        "deploy/prometheus/prometheus.yml",
+        "deploy/prometheus/image-manifest.json",
+        "scripts/diagnose_web.sh",
+        "scripts/redeploy_caddy.sh",
+    ]
+    if archive_path.exists():
+        archive_path.unlink()
+    if variant == "oversized_archive":
+        with archive_path.open("wb") as handle:
+            handle.truncate(512 * 1024 * 1024 + 1)
+        return
+
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for relative_path in required_paths:
+            if variant == "missing_manifest" and relative_path.endswith("image-manifest.json"):
+                continue
+            archive.add(source_dir / relative_path, arcname=relative_path, recursive=True)
+
+        if variant == "duplicate":
+            archive.add(
+                source_dir / "deploy/Caddyfile.production",
+                arcname="deploy/Caddyfile.production",
+            )
+        elif variant in {"traversal", "absolute", "non_normalized", "unexpected"}:
+            names = {
+                "traversal": "../escape.txt",
+                "absolute": "/escape.txt",
+                "non_normalized": "frontend/../escape.txt",
+                "unexpected": "unexpected.txt",
+            }
+            payload = b"invalid\n"
+            member = tarfile.TarInfo(names[variant])
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
+        elif variant in {"symlink", "hardlink", "fifo"}:
+            member = tarfile.TarInfo(f"frontend/{variant}")
+            if variant == "symlink":
+                member.type = tarfile.SYMTYPE
+                member.linkname = "target"
+            elif variant == "hardlink":
+                member.type = tarfile.LNKTYPE
+                member.linkname = "frontend/bundle-marker.txt"
+            else:
+                member.type = tarfile.FIFOTYPE
+            archive.addfile(member)
 
 
 def test_production_compose_source_of_truth_matches_split_contract() -> None:
@@ -39,6 +180,129 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
     caddy_build_args = caddy_build.get("args")
     assert isinstance(caddy_build_args, dict), "caddy build must define build args"
     assert caddy_build_args["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
+
+
+def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
+    manifest = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert manifest == {
+        "schema": "pulseplate.prometheus_image_manifest.v1",
+        "repository": "prom/prometheus",
+        "tag": "v3.14.0-distroless",
+        "index_digest": ("sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a"),
+        "platform": "linux/amd64",
+        "platform_manifest_digest": (
+            "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+        ),
+        "runtime_ref": PROMETHEUS_RUNTIME_REF,
+    }
+
+
+def test_prometheus_config_has_one_private_exact_target() -> None:
+    config = yaml.safe_load(PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert config == {
+        "global": {"scrape_interval": "30s", "scrape_timeout": "10s"},
+        "scrape_configs": [
+            {
+                "job_name": "pulseplate-api",
+                "scheme": "http",
+                "metrics_path": "/metrics",
+                "http_headers": {
+                    "X-API-Key": {"files": ["/run/secrets/pulseplate_metrics_scrape_key"]}
+                },
+                "static_configs": [{"targets": ["app:8000"]}],
+            }
+        ],
+    }
+    config_text = PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8")
+    for forbidden in (
+        "remote_write",
+        "remote_read",
+        "rule_files",
+        "alerting",
+        "storage.tsdb.retention",
+        "web.enable-lifecycle",
+        "web.enable-admin-api",
+        "otlp",
+    ):
+        assert forbidden not in config_text
+
+
+@pytest.mark.parametrize(
+    "compose_path",
+    (STAGING_COMPOSE_PATH, PRODUCTION_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH),
+)
+def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
+    compose_path: Path,
+) -> None:
+    docker_bin = shutil.which("docker")
+    assert docker_bin is not None, "docker compose is required for normalized contract validation"
+    completed = subprocess.run(
+        [
+            docker_bin,
+            "compose",
+            "-f",
+            str(compose_path),
+            "config",
+            "--no-interpolate",
+            "--format",
+            "json",
+        ],
+        cwd=str(REPO_ROOT),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    normalized = json.loads(completed.stdout)
+    services = normalized["services"]
+    prometheus = services["prometheus"]
+
+    assert normalized["networks"]["observability"]["internal"] is True
+    assert set(services["app"]["networks"]) == {"web", "observability"}
+    assert set(prometheus["networks"]) == {"observability"}
+    assert prometheus["image"] == PROMETHEUS_RUNTIME_REF
+    assert prometheus["platform"] == "linux/amd64"
+    assert prometheus["user"] == "65532:65532"
+    assert prometheus["restart"] == "unless-stopped"
+    assert prometheus["cap_drop"] == ["ALL"]
+    assert prometheus["security_opt"] == ["no-new-privileges:true"]
+    assert prometheus["command"] == [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.path=/prometheus",
+        "--storage.tsdb.retention.time=45d",
+    ]
+    assert prometheus["depends_on"] == {"app": {"condition": "service_healthy", "required": True}}
+    assert prometheus["healthcheck"]["test"] == [
+        "CMD",
+        "/bin/promtool",
+        "check",
+        "ready",
+        "--url=http://localhost:9090",
+    ]
+    assert "ports" not in prometheus
+
+    volume_projection = {
+        (item["type"], item["target"], item.get("source"), item.get("read_only", False))
+        for item in prometheus["volumes"]
+    }
+    assert ("bind", "/etc/prometheus/prometheus.yml", str(PROMETHEUS_CONFIG_PATH), True) in (
+        volume_projection
+    )
+    assert ("volume", "/prometheus", "prometheus_data", False) in volume_projection
+    assert prometheus["secrets"] == [
+        {
+            "source": "pulseplate_metrics_scrape_key",
+            "target": "/run/secrets/pulseplate_metrics_scrape_key",
+        }
+    ]
+    assert services["app"]["secrets"] == prometheus["secrets"]
+    assert "prometheus" not in services["app"].get("depends_on", {})
+    for service_name in ("caddy", "worker", "postgres"):
+        service = services.get(service_name)
+        if isinstance(service, dict):
+            assert "observability" not in service.get("networks", {})
+            assert "secrets" not in service
+    assert "prometheus_data" in normalized["volumes"]
 
 
 @pytest.mark.parametrize(
@@ -84,24 +348,12 @@ def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    (shell_bundle_dir / "frontend").mkdir()
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
-    )
+    _write_shell_bundle_contract(shell_bundle_dir, include_redeploy=False)
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -118,7 +370,7 @@ set -euo pipefail
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -148,23 +400,12 @@ def test_deploy_production_preflight_rejects_shell_bundle_without_frontend(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
-    )
+    _write_shell_bundle_contract(shell_bundle_dir, include_frontend=False)
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -181,7 +422,7 @@ set -euo pipefail
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
     env["DATABASE_URL"] = (
         "postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate"  # pragma: allowlist secret
     )
@@ -216,6 +457,370 @@ def _assert_log_index(
     index = next((position for position, line in enumerate(log_lines) if predicate(line)), None)
     assert index is not None, message
     return index
+
+
+@pytest.mark.parametrize(
+    ("variant", "suffix", "expected_returncode"),
+    (
+        ("valid", 1, 0),
+        ("traversal", 2, 1),
+        ("absolute", 3, 1),
+        ("non_normalized", 4, 1),
+        ("duplicate", 5, 1),
+        ("symlink", 6, 1),
+        ("hardlink", 7, 1),
+        ("fifo", 8, 1),
+        ("unexpected", 9, 1),
+        ("missing_manifest", 10, 1),
+        ("oversized_archive", 11, 1),
+    ),
+)
+def test_production_archive_preflight_is_bounded_and_extracts_nothing(
+    tmp_path: Path,
+    variant: str,
+    suffix: int,
+    expected_returncode: int,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "bundle-source"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(project_dir)
+    _write_shell_bundle_contract(shell_bundle_dir)
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    archive_path = _canonical_test_archive_path(suffix)
+    _write_shell_bundle_archive(archive_path, shell_bundle_dir, variant=variant)
+    _write_executable(
+        bin_dir / "docker",
+        f'#!/usr/bin/env bash\nset -euo pipefail\nprintf \'docker %s\\n\' "$*" >> "{log_file}"\n',
+    )
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+            "SHELL_BUNDLE_ARCHIVE": str(archive_path),
+        }
+    )
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+            cwd=str(REPO_ROOT),
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == expected_returncode, completed.stderr
+        assert not (project_dir / "frontend").exists()
+        if expected_returncode == 0:
+            assert log_file.is_file()
+            assert "Production deploy preflight passed" in completed.stdout
+        else:
+            assert not log_file.exists()
+            assert "archive" in completed.stderr.lower()
+    finally:
+        if archive_path.exists():
+            archive_path.unlink()
+
+
+@pytest.mark.parametrize(
+    "destination_variant",
+    (
+        "compose-leaf-symlink",
+        "prometheus-directory-symlink",
+        "config-leaf-symlink",
+        "manifest-leaf-symlink",
+    ),
+)
+def test_production_contract_publication_rejects_destination_symlinks_before_docker(
+    tmp_path: Path,
+    destination_variant: str,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "bundle-source"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(project_dir)
+    _write_shell_bundle_contract(shell_bundle_dir)
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    deploy_dir = project_dir / "deploy"
+    compose_path = deploy_dir / "docker-compose.production.yaml"
+    prometheus_dir = deploy_dir / "prometheus"
+    config_path = prometheus_dir / "prometheus.yml"
+    manifest_path = prometheus_dir / "image-manifest.json"
+    external_referent = tmp_path / f"external-{destination_variant}"
+    expected_external_files: dict[str, bytes] = {}
+
+    if destination_variant == "compose-leaf-symlink":
+        compose_path.rename(external_referent)
+        expected_external_files[external_referent.name] = external_referent.read_bytes()
+        compose_path.symlink_to(external_referent)
+        symlink_path = compose_path
+    elif destination_variant == "prometheus-directory-symlink":
+        prometheus_dir.rename(external_referent)
+        expected_external_files["prometheus.yml"] = (
+            external_referent / "prometheus.yml"
+        ).read_bytes()
+        expected_external_files["image-manifest.json"] = (
+            external_referent / "image-manifest.json"
+        ).read_bytes()
+        prometheus_dir.symlink_to(external_referent, target_is_directory=True)
+        symlink_path = prometheus_dir
+    elif destination_variant == "config-leaf-symlink":
+        config_path.rename(external_referent)
+        expected_external_files[external_referent.name] = external_referent.read_bytes()
+        config_path.symlink_to(external_referent)
+        symlink_path = config_path
+    else:
+        manifest_path.rename(external_referent)
+        expected_external_files[external_referent.name] = external_referent.read_bytes()
+        manifest_path.symlink_to(external_referent)
+        symlink_path = manifest_path
+
+    _write_executable(
+        bin_dir / "docker",
+        f'#!/usr/bin/env bash\nprintf \'docker %s\\n\' "$*" >> "{log_file}"\n',
+    )
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
+    env = os.environ.copy()
+    env.update(
+        {
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
+        }
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "contract destination" in completed.stderr
+    assert symlink_path.is_symlink()
+    assert not log_file.exists()
+    if external_referent.is_dir():
+        for name, expected_bytes in expected_external_files.items():
+            assert (external_referent / name).read_bytes() == expected_bytes
+    else:
+        assert external_referent.read_bytes() == expected_external_files[external_referent.name]
+    assert list(deploy_dir.rglob(".pulseplate-*.tmp-*")) == []
+
+
+def test_production_archive_full_deploy_preserves_server_local_state_and_orders_prometheus_last(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "bundle-source"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    shell_bundle_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(project_dir)
+    _write_shell_bundle_contract(shell_bundle_dir)
+    (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+        "archive-shell\n", encoding="utf-8"
+    )
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    evidence_file = project_dir / "evidence" / "receipt.json"
+    backup_file = project_dir / "backups" / "backup.dump"
+    tsdb_sentinel = project_dir / "prometheus_data" / "sentinel"
+    for path, value in (
+        (evidence_file, "evidence\n"),
+        (backup_file, "backup\n"),
+        (tsdb_sentinel, "tsdb\n"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+    secret_file = project_dir / "deploy" / "secrets" / "pulseplate_metrics_scrape_key"
+    original_secret = secret_file.read_bytes()
+
+    archive_path = _canonical_test_archive_path(12)
+    _write_shell_bundle_archive(archive_path, shell_bundle_dir)
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"ps -q app"*) printf 'app-id\n' ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", "#!/usr/bin/env bash\nset -euo pipefail\n")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{bin_dir}:{env['PATH']}",
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+            "SHELL_BUNDLE_ARCHIVE": str(archive_path),
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+        }
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert METRICS_SECRET_SENTINEL not in completed.stdout
+    assert METRICS_SECRET_SENTINEL not in completed.stderr
+    assert not archive_path.exists()
+    assert secret_file.read_bytes() == original_secret
+    assert evidence_file.read_text(encoding="utf-8") == "evidence\n"
+    assert backup_file.read_text(encoding="utf-8") == "backup\n"
+    assert tsdb_sentinel.read_text(encoding="utf-8") == "tsdb\n"
+    assert (tmp_path / "frontend" / "bundle-marker.txt").read_text(
+        encoding="utf-8"
+    ) == "archive-shell\n"
+
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(METRICS_SECRET_SENTINEL not in line for line in log_lines)
+    guard_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "assert_production_runtime_invariants(app=app)" in line,
+        message="canonical app.main production invariant was not invoked",
+    )
+    migration_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "app alembic upgrade head" in line,
+        message="migration command missing",
+    )
+    caddy_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "up -d --remove-orphans caddy" in line,
+        message="Caddy start missing",
+    )
+    prometheus_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "up -d --pull never prometheus" in line,
+        message="Prometheus start missing",
+    )
+    assert guard_index < migration_index < caddy_index < prometheus_index
+    for forbidden in ("down -v", "volume rm", "volume prune", "prometheus_data rm"):
+        assert all(forbidden not in line for line in log_lines)
+
+
+def test_production_prometheus_failure_is_nonzero_after_product_and_preserves_state(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(project_dir)
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    tsdb_sentinel = project_dir / "prometheus_data" / "sentinel"
+    tsdb_sentinel.parent.mkdir()
+    tsdb_sentinel.write_text("preserve\n", encoding="utf-8")
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"ps -q app"*) printf 'app-id\n' ;;
+  *"up -d --pull never prometheus"*) exit 47 ;;
+esac
+"""
+    curl_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >> "{log_file}"
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", curl_stub)
+    _write_executable(bin_dir / "sleep", "#!/usr/bin/env bash\nset -euo pipefail\n")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{bin_dir}:{env['PATH']}",
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+        }
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 47
+    assert "Prometheus failed to start; app and Caddy remain running" in completed.stderr
+    assert tsdb_sentinel.read_text(encoding="utf-8") == "preserve\n"
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    app_index = next(
+        index for index, line in enumerate(log_lines) if "up -d --remove-orphans app" in line
+    )
+    caddy_index = next(
+        index for index, line in enumerate(log_lines) if "up -d --remove-orphans caddy" in line
+    )
+    prometheus_index = next(
+        index for index, line in enumerate(log_lines) if "up -d --pull never prometheus" in line
+    )
+    assert app_index < caddy_index < prometheus_index
+    for forbidden in ("down", "volume rm", "volume prune", "stop app", "stop caddy"):
+        assert all(forbidden not in line for line in log_lines[prometheus_index + 1 :])
 
 
 def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
@@ -366,7 +971,7 @@ def test_deploy_production_runs_migrations_before_caddy_and_external_ready(
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -381,7 +986,7 @@ def test_deploy_production_runs_migrations_before_caddy_and_external_ready(
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
@@ -406,7 +1011,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -463,7 +1069,7 @@ def test_deploy_production_preflight_only_exits_non_zero_when_default_env_file_i
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -475,7 +1081,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
 
     completed = subprocess.run(
         [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
@@ -487,7 +1093,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     )
 
     assert completed.returncode == 1
-    assert f"Missing production env file: {project_dir / '.env'}" in completed.stderr
+    assert f"Missing production env file: {project_dir / 'deploy' / '.env'}" in completed.stderr
     assert "GitHub Actions does not provision it." in completed.stderr
     assert "See deploy/PRODUCTION.md for the canonical bootstrap contract." in completed.stderr
     # RU: Неуспешный --preflight-only запуск не должен создавать deploy log.
@@ -501,6 +1107,7 @@ def test_deploy_production_fails_fast_when_resolved_compose_file_is_missing(tmp_
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
+    (project_dir / "deploy").mkdir()
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -523,7 +1130,7 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = str(project_dir / "missing-compose.yaml")
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
 
@@ -537,9 +1144,8 @@ printf 'docker %s\\n' "$*" >> "{log_file}"
     )
 
     assert completed.returncode == 1
-    assert (
-        f"RESOLVED_COMPOSE_FILE does not exist: {project_dir / 'missing-compose.yaml'}"
-        in completed.stderr
+    assert "RESOLVED_COMPOSE_FILE does not exist: deploy/docker-compose.production.yaml" in (
+        completed.stderr
     )
     assert not log_file.exists()
 
@@ -553,7 +1159,7 @@ def test_deploy_production_logs_in_to_ghcr_with_resolved_docker_binary(tmp_path:
     project_dir.mkdir()
     docker_dir.mkdir(parents=True)
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -573,7 +1179,7 @@ case "$*" in
   "login ghcr.io -u deploy-bot --password-stdin")
     cat >/dev/null
     ;;
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
@@ -598,7 +1204,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(docker_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -640,7 +1247,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -650,24 +1257,9 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
         + "\n",
         encoding="utf-8",
     )
-    (shell_bundle_dir / "frontend").mkdir()
+    _write_shell_bundle_contract(shell_bundle_dir)
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
     )
     (shell_root / "frontend").mkdir()
     (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
@@ -679,7 +1271,7 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
@@ -704,7 +1296,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -727,9 +1320,24 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         .read_text(encoding="utf-8")
         .startswith("pulseplate.test")
     )
-    assert (project_dir / "docker-compose.production.yaml").read_text(
+    assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
+    published_config = project_dir / "deploy" / "prometheus" / "prometheus.yml"
+    published_manifest = project_dir / "deploy" / "prometheus" / "image-manifest.json"
+    assert published_config.read_text(encoding="utf-8") == PROMETHEUS_CONFIG_PATH.read_text(
+        encoding="utf-8"
+    )
+    assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
+        encoding="utf-8"
+    )
+    for published_path in (
+        project_dir / "deploy" / "docker-compose.production.yaml",
+        published_config,
+        published_manifest,
+    ):
+        assert stat.S_IMODE(published_path.stat().st_mode) == 0o644
+    assert list((project_dir / "deploy").rglob(".pulseplate-*.tmp-*")) == []
     assert not (shell_root / "frontend" / "stale.txt").exists()
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
@@ -750,36 +1358,21 @@ def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    (shell_bundle_dir / "frontend").mkdir()
+    _write_shell_bundle_contract(shell_bundle_dir)
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
     )
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
@@ -805,6 +1398,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env.pop("COMPOSE_FILE", None)
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -819,7 +1413,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         check=True,
     )
 
-    assert (project_dir / "docker-compose.production.yaml").read_text(
+    assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
@@ -839,36 +1433,19 @@ def test_deploy_production_syncs_shell_bundle_with_relative_compose_subpath(
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
-    (project_dir / "deploy").mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        "services: {}\n",
-        encoding="utf-8",
-    )
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    (shell_bundle_dir / "frontend").mkdir()
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text="services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n",
+    )
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        "services:\n  app:\n    image: ghcr.io/example/pulseplate:test\n",
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
     )
 
     docker_stub = f"""#!/usr/bin/env bash
@@ -901,6 +1478,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = "deploy/docker-compose.production.yaml"
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -934,9 +1512,8 @@ def test_deploy_production_autodetects_deploy_subdir_compose_and_env_file(
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
-    deploy_dir.mkdir()
     bin_dir.mkdir()
-    (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (deploy_dir / ".env").write_text(
         "\n".join(
             [
@@ -978,6 +1555,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env.pop("COMPOSE_FILE", None)
     env.pop("ENV_FILE", None)
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
 
@@ -1013,9 +1591,8 @@ def test_deploy_production_uses_deploy_env_file_for_absolute_deploy_compose_path
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
-    deploy_dir.mkdir()
     bin_dir.mkdir()
-    compose_file.write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (deploy_dir / ".env").write_text(
         "\n".join(
             [
@@ -1057,6 +1634,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DEPLOY_DIR"] = str(project_dir)
     env["COMPOSE_FILE"] = str(compose_file)
     env.pop("ENV_FILE", None)
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
 
@@ -1166,7 +1744,9 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
     assert completed.returncode == 1
-    assert "COMPOSE_FILE must stay within DEPLOY_DIR" in completed.stderr
+    assert "COMPOSE_FILE must select one exact canonical production Compose identity" in (
+        completed.stderr
+    )
 
 
 def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -> None:
@@ -1175,7 +1755,7 @@ def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "\n".join(
             [
@@ -1190,13 +1770,13 @@ def test_deploy_production_exits_non_zero_when_migrations_fail(tmp_path: Path) -
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
     printf 'healthy\\n'
     ;;
-  *"compose --env-file "*"-f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
     printf 'migration failed\\n' >&2
     exit 1
     ;;
@@ -1219,7 +1799,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -1256,29 +1837,14 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
-    (shell_bundle_dir / "frontend").mkdir()
+    _write_shell_bundle_contract(shell_bundle_dir)
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "deploy").mkdir()
-    (shell_bundle_dir / "deploy" / "Caddyfile.production").write_text(
-        'pulseplate.test {\n    respond "ok"\n}\n',
-        encoding="utf-8",
-    )
-    (shell_bundle_dir / "deploy" / "docker-compose.production.yaml").write_text(
-        PRODUCTION_COMPOSE_TEXT, encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts").mkdir()
-    (shell_bundle_dir / "scripts" / "diagnose_web.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
-    )
-    (shell_bundle_dir / "scripts" / "redeploy_caddy.sh").write_text(
-        "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
     )
     (shell_root / "frontend").mkdir()
     (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
@@ -1290,7 +1856,7 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml run --rm --no-deps app alembic upgrade head"*)
     printf 'migration failed\\n' >&2
     exit 1
     ;;
@@ -1308,7 +1874,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -1350,7 +1917,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     bin_dir = tmp_path / "bin"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         f"DATABASE_URL={database_url}\n",
         encoding="utf-8",
@@ -1364,7 +1931,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -1387,16 +1954,24 @@ def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_pat
     bin_dir = tmp_path / "bin"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text(
-        "services:\n  app:\n    depends_on:\n      postgres:\n        condition: service_healthy\n  postgres:\n    image: postgres:16\n",
-        encoding="utf-8",
+    _write_production_host_contract(
+        project_dir,
+        compose_text=(
+            "services:\n  app:\n    depends_on:\n      postgres:\n"
+            "        condition: service_healthy\n  postgres:\n    image: postgres:16\n"
+        ),
     )
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
 
-    docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
+    docker_stub = """#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *"config --services"*) printf 'app\npostgres\n' ;;
+esac
+"""
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
@@ -1404,7 +1979,7 @@ def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_pat
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -1419,7 +1994,80 @@ def test_deploy_production_rejects_compose_with_local_postgres_reference(tmp_pat
     )
 
     assert completed.returncode == 1
-    assert "still references local postgres" in completed.stderr
+    assert "Managed production Compose must not contain a local postgres service" in (
+        completed.stderr
+    )
+
+
+def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_contour(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(
+        project_dir,
+        compose_text=SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8"),
+        self_hosted=True,
+    )
+    (project_dir / ".env").write_text(
+        "\n".join(
+            (
+                "DATABASE_URL=postgresql+psycopg://stale:managed@db.example.com/db",  # pragma: allowlist secret
+                "POSTGRES_DB=pulseplate",
+                "POSTGRES_USER=pulseplate",
+                "POSTGRES_PASSWORD=test-only",  # pragma: allowlist secret
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf 'app\ncaddy\npostgres\nprometheus\nworker\n' ;;
+esac
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_SELF_HOSTED_COMPOSE,
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+        }
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "Production deploy preflight passed" in completed.stdout
+
+    env.pop("COMPOSE_FILE")
+    env["PROD_DEPLOY_MODE"] = "self-hosted"
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    assert "RESOLVED_COMPOSE_FILE does not exist" in completed.stderr
 
 
 def test_deploy_production_does_not_require_home_when_docker_bin_is_explicit(
@@ -1430,7 +2078,7 @@ def test_deploy_production_does_not_require_home_when_docker_bin_is_explicit(
     log_file = tmp_path / "deploy.log"
     project_dir.mkdir()
     bin_dir.mkdir()
-    (project_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    _write_production_host_contract(project_dir)
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -1440,7 +2088,7 @@ def test_deploy_production_does_not_require_home_when_docker_bin_is_explicit(
 set -euo pipefail
 printf 'docker %s\\n' "$*" >> "{log_file}"
 case "$*" in
-  *"compose --env-file "*"-f docker-compose.production.yaml ps -q app"*)
+  *"compose --env-file "*"-f deploy/docker-compose.production.yaml ps -q app"*)
     printf 'app-id\\n'
     ;;
   *"inspect --format "*)
@@ -1466,7 +2114,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     env.pop("HOME", None)
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
-    env["COMPOSE_FILE"] = "docker-compose.production.yaml"
+    env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["IMAGE_REF"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test"
     env["TAG"] = "prod-vtest"
     env["PRODUCTION_DOMAIN"] = "pulseplate.test"
@@ -2211,11 +2860,24 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     project_dir.mkdir()
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
+    (project_dir / "prometheus").mkdir()
+    (project_dir / "secrets").mkdir()
+    (project_dir / "secrets").chmod(0o700)
     (project_dir / "backups").mkdir()
     (project_dir / "docker-compose.staging.yaml").write_text(
         "services: {app: {}, caddy: {}}\n", encoding="utf-8"
     )
     (project_dir / "Caddyfile").write_text(":80 { respond ok }\n", encoding="utf-8")
+    (project_dir / "prometheus" / "prometheus.yml").write_text(
+        PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "prometheus" / "image-manifest.json").write_text(
+        PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "secrets" / "pulseplate_metrics_scrape_key").write_text(
+        METRICS_SECRET_SENTINEL, encoding="ascii"
+    )
+    (project_dir / "secrets" / "pulseplate_metrics_scrape_key").chmod(0o444)
     (project_dir / ".attested-digest-deploy-v1").write_text(
         "pulseplate-staging-attested-digest-v1", encoding="utf-8"
     )
@@ -2271,6 +2933,8 @@ case "${*: -1}" in
   *.attested-digest-deploy-v1) printf '0:0:644\\n' ;;
   *.env) printf '%s\\n' "${STUB_ENV_MODE:-600}" ;;
   *postgres_backup.sh) printf '%s\\n' "${STUB_HELPER_MODE:-755}" ;;
+  */secrets) printf '%s\\n' "${STUB_SECRET_DIR_METADATA:-$EUID:700}" ;;
+  *pulseplate_metrics_scrape_key) printf '%s\\n' "${STUB_SECRET_FILE_METADATA:-$EUID:444}" ;;
   *) exit 1 ;;
 esac
 """,
@@ -2443,8 +3107,8 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     pull_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " pull app caddy" in line,
-        message="missing two-image pull",
+        predicate=lambda line: "compose " in line and " pull app caddy prometheus" in line,
+        message="missing exact app, Caddy, and Prometheus pull",
     )
     backup_index = _assert_log_index(
         log_lines, predicate=lambda line: line.startswith("backup "), message="missing backup"
@@ -2564,6 +3228,14 @@ def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
         "env-mode",
         "compose-symlink",
         "caddy-symlink",
+        "prometheus-config-symlink",
+        "prometheus-manifest-symlink",
+        "secret-dir-symlink",
+        "secret-file-symlink",
+        "secret-dir-mode",
+        "secret-file-mode",
+        "secret-dir-owner",
+        "secret-file-owner",
         "helper-symlink",
         "helper-mode",
     ),
@@ -2577,6 +3249,10 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
     env_file = project_dir / ".env"
     compose_file = project_dir / "docker-compose.staging.yaml"
     caddyfile = project_dir / "Caddyfile"
+    prometheus_config = project_dir / "prometheus" / "prometheus.yml"
+    prometheus_manifest = project_dir / "prometheus" / "image-manifest.json"
+    secret_dir = project_dir / "secrets"
+    secret_file = secret_dir / "pulseplate_metrics_scrape_key"
     backup_helper = Path(env["BACKUP_HELPER"])
 
     if invalid_boundary == "env-symlink":
@@ -2593,6 +3269,30 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
         real_caddyfile = caddyfile.with_suffix(".real")
         caddyfile.rename(real_caddyfile)
         caddyfile.symlink_to(real_caddyfile)
+    elif invalid_boundary == "prometheus-config-symlink":
+        real_config = prometheus_config.with_suffix(".real")
+        prometheus_config.rename(real_config)
+        prometheus_config.symlink_to(real_config)
+    elif invalid_boundary == "prometheus-manifest-symlink":
+        real_manifest = prometheus_manifest.with_suffix(".real")
+        prometheus_manifest.rename(real_manifest)
+        prometheus_manifest.symlink_to(real_manifest)
+    elif invalid_boundary == "secret-dir-symlink":
+        real_secret_dir = project_dir / "secrets.real"
+        secret_dir.rename(real_secret_dir)
+        secret_dir.symlink_to(real_secret_dir, target_is_directory=True)
+    elif invalid_boundary == "secret-file-symlink":
+        real_secret_file = secret_dir / "pulseplate_metrics_scrape_key.real"
+        secret_file.rename(real_secret_file)
+        secret_file.symlink_to(real_secret_file)
+    elif invalid_boundary == "secret-dir-mode":
+        env["STUB_SECRET_DIR_METADATA"] = f"{os.geteuid()}:755"
+    elif invalid_boundary == "secret-file-mode":
+        env["STUB_SECRET_FILE_METADATA"] = f"{os.geteuid()}:400"
+    elif invalid_boundary == "secret-dir-owner":
+        env["STUB_SECRET_DIR_METADATA"] = "999:700"
+    elif invalid_boundary == "secret-file-owner":
+        env["STUB_SECRET_FILE_METADATA"] = "999:444"
     elif invalid_boundary == "helper-symlink":
         real_helper = backup_helper.with_suffix(".real")
         backup_helper.rename(real_helper)
@@ -2620,3 +3320,30 @@ def test_staging_deploy_readiness_probe_has_per_request_timeout() -> None:
     deploy_script = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
 
     assert "urlopen('http://localhost:8000/ready', timeout=5).read()" in deploy_script
+
+
+def test_obs1b_deploy_scripts_keep_canonical_guard_product_first_and_non_destructive() -> None:
+    staging_script = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    production_script = (REPO_ROOT / "scripts" / "deploy_production.sh").read_text(encoding="utf-8")
+    canonical_guard = (
+        "from app.main import app; from app.security.production_invariants import "
+        "assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)"
+    )
+    for script in (staging_script, production_script):
+        assert canonical_guard in script
+        assert "assert_production_runtime_invariants()" not in script
+        assert "|| true" not in script
+        assert "down -v" not in script
+        assert "volume rm" not in script
+        assert "volume prune" not in script
+        assert 'cat "$METRICS_SECRET_FILE"' not in script
+        assert 'source "$METRICS_SECRET_FILE"' not in script
+        assert script.index(canonical_guard) < script.index("alembic upgrade head")
+        assert "/bin/promtool check ready" in script
+        assert "/bin/promtool check healthy" in script
+    assert staging_script.index("up -d --pull never caddy") < staging_script.index(
+        "up -d --pull never prometheus"
+    )
+    assert production_script.index("up -d --remove-orphans caddy") < production_script.index(
+        "up -d --pull never prometheus"
+    )

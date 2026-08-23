@@ -8,6 +8,7 @@ import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 import hashlib
 import io
 import json
@@ -73,6 +74,11 @@ _CONTAINER_ID_RE = re.compile(r"[0-9a-f]{12,64}\Z")
 _RELEASE_REVISION_RE = re.compile(r"[0-9a-f]{40}\Z")
 # Representation/resource bound only; this does not define retention policy authority.
 _MAX_RETENTION_DIGITS = 18
+_MAX_PROMTOOL_NUMBER_CHARS = 128
+_PROMTOOL_REAL_TOKEN_RE = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\Z")
+_PROMTOOL_NONFINITE_TOKENS = frozenset(
+    {"NaN", "Inf", "+Inf", "-Inf", "Infinity", "+Infinity", "-Infinity"}
+)
 _PINNED_IMAGE_REFERENCE_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9._/:+-]{0,191}@sha256:[0-9a-f]{64}\Z"
 )
@@ -361,42 +367,111 @@ def _normalize_finite_real(value: object) -> float | None:
     return normalized if math.isfinite(normalized) else None
 
 
+class _PromtoolJsonNumber(str):
+    """Lexically preserved JSON number emitted by native promtool output."""
+
+
+def _load_promtool_native_json(payload: bytes) -> object:
+    """Decode one bounded native promtool result without duplicate-key ambiguity."""
+
+    if not payload or len(payload) > MAX_JSON_BYTES:
+        raise VerificationError("promtool_result_invalid")
+
+    def _reject_constant(_value: str) -> object:
+        raise ValueError("non-finite JSON constant")
+
+    def _number_token(value: str) -> _PromtoolJsonNumber:
+        if len(value) > _MAX_PROMTOOL_NUMBER_CHARS:
+            raise ValueError("promtool JSON number exceeds the lexical bound")
+        return _PromtoolJsonNumber(value)
+
+    def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        decoded: dict[str, object] = {}
+        for key, value in pairs:
+            if key in decoded:
+                raise ValueError("duplicate JSON object key")
+            decoded[key] = value
+        return decoded
+
+    try:
+        text = payload.decode("utf-8", errors="strict")
+        return json.loads(
+            text,
+            parse_constant=_reject_constant,
+            parse_float=_number_token,
+            parse_int=_number_token,
+            object_pairs_hook=_reject_duplicate_keys,
+        )
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
+        raise VerificationError("promtool_result_invalid") from exc
+
+
+def _normalize_promtool_token(token: str, *, value_field: bool) -> float:
+    """Normalize one exact numeric token while preserving zero classification."""
+
+    if value_field and token in _PROMTOOL_NONFINITE_TOKENS:
+        raise VerificationError("promtool_value_nonfinite")
+    if (
+        len(token) > _MAX_PROMTOOL_NUMBER_CHARS
+        or token.isascii() is False
+        or _PROMTOOL_REAL_TOKEN_RE.fullmatch(token) is None
+    ):
+        raise VerificationError("promtool_result_invalid")
+    try:
+        exact = Decimal(token)
+        normalized = float(token)
+    except (InvalidOperation, OverflowError, ValueError) as exc:
+        raise VerificationError("promtool_result_invalid") from exc
+    if not exact.is_finite() or not math.isfinite(normalized):
+        error_code = "promtool_value_nonfinite" if value_field else "promtool_result_invalid"
+        raise VerificationError(error_code)
+    if normalized == 0.0 and not exact.is_zero():
+        raise VerificationError("promtool_result_invalid")
+    return normalized
+
+
 def _parse_promtool_sample(payload: bytes) -> tuple[float, float]:
-    decoded = _json_loads_object(payload, error_code="promtool_result_invalid")
-    if decoded.get("status") != "success":
-        raise VerificationError("promtool_result_invalid")
-    data = decoded.get("data")
-    if not isinstance(data, dict) or data.get("resultType") != "vector":
-        raise VerificationError("promtool_result_invalid")
-    result = data.get("result")
-    if not isinstance(result, list) or len(result) != 1:
-        raise VerificationError("promtool_vector_missing")
-    sample = result[0]
-    if not isinstance(sample, dict):
-        raise VerificationError("promtool_result_invalid")
-    value = sample.get("value")
+    """Parse exactly native v3.14 scalar or one-sample instant-vector JSON."""
+
+    decoded = _load_promtool_native_json(payload)
+    value: object
+    if (
+        isinstance(decoded, list)
+        and len(decoded) == 2
+        and isinstance(decoded[0], _PromtoolJsonNumber)
+        and type(decoded[1]) is str
+    ):
+        value = decoded
+    else:
+        if not isinstance(decoded, list):
+            raise VerificationError("promtool_result_invalid")
+        if not decoded or (len(decoded) > 1 and all(isinstance(item, dict) for item in decoded)):
+            raise VerificationError("promtool_vector_missing")
+        if len(decoded) != 1:
+            raise VerificationError("promtool_result_invalid")
+        sample = decoded[0]
+        if not isinstance(sample, dict) or set(sample) != {"metric", "value"}:
+            raise VerificationError("promtool_result_invalid")
+        metric = sample["metric"]
+        if not isinstance(metric, dict) or any(
+            type(key) is not str or type(label) is not str for key, label in metric.items()
+        ):
+            raise VerificationError("promtool_result_invalid")
+        value = sample["value"]
     if (
         not isinstance(value, list)
         or len(value) != 2
-        or isinstance(value[0], bool)
-        or not isinstance(value[0], (int, float))
-        or not isinstance(value[1], str)
+        or not isinstance(value[0], _PromtoolJsonNumber)
+        or type(value[1]) is not str
     ):
         raise VerificationError("promtool_result_invalid")
-    timestamp = _normalize_finite_real(value[0])
-    if timestamp is None:
-        raise VerificationError("promtool_result_invalid")
-    try:
-        numeric = float(value[1])
-    except (OverflowError, ValueError) as exc:
-        raise VerificationError("promtool_result_invalid") from exc
-    if not math.isfinite(numeric):
-        raise VerificationError("promtool_value_nonfinite")
+    timestamp = _normalize_promtool_token(value[0], value_field=False)
+    numeric = _normalize_promtool_token(value[1], value_field=True)
     return timestamp, numeric
 
 
 def _parse_promtool_vector(payload: bytes) -> float:
-    """Compatibility scalar parser over the strict timestamp/value sample parser."""
+    """Return the numeric component of one canonical native promtool sample."""
 
     return _parse_promtool_sample(payload)[1]
 

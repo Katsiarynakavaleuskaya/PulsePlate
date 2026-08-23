@@ -2,7 +2,7 @@
 # Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
-STAGING_DEPLOY_CONTRACT_VERSION="2"
+STAGING_DEPLOY_CONTRACT_VERSION="3"
 STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"
 CANONICAL_IMAGE_PATTERN='^ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[0-9a-f]{64}$'
 
@@ -49,6 +49,10 @@ CADDYFILE="${CADDYFILE:-${PROJECT_DIR}/Caddyfile}"
 BACKUP_DIR="${BACKUP_DIR:-${PROJECT_DIR}/backups}"
 BACKUP_HELPER="${BACKUP_HELPER:-${PROJECT_DIR}/scripts/ops/postgres_backup.sh}"
 STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-deploy-v1}"
+PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
+PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
+METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
+METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
 
 if [ -L "$STAGING_DEPLOY_MARKER" ] || [ ! -f "$STAGING_DEPLOY_MARKER" ]; then
   echo "❌ Missing regular non-symlink staging deploy marker: $STAGING_DEPLOY_MARKER" >&2
@@ -79,7 +83,12 @@ if [ "$marker_content" != "$STAGING_DEPLOY_MARKER_CONTENT" ] || \
   exit 1
 fi
 
-for required_path in "$ENV_FILE" "$COMPOSE_FILE" "$CADDYFILE"; do
+for required_path in \
+  "$ENV_FILE" \
+  "$COMPOSE_FILE" \
+  "$CADDYFILE" \
+  "$PROMETHEUS_CONFIG" \
+  "$PROMETHEUS_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
     echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
     exit 1
@@ -97,6 +106,25 @@ fi
 backup_helper_mode="$($STAT_BIN -c '%a' "$BACKUP_HELPER")"
 if (( (8#$backup_helper_mode & 8#22) != 0 )); then
   echo "❌ Postgres backup helper must not be group- or world-writable; got mode $backup_helper_mode" >&2
+  exit 1
+fi
+
+if [ -L "$METRICS_SECRET_DIR" ] || [ ! -d "$METRICS_SECRET_DIR" ]; then
+  echo "❌ Metrics scrape secret directory must be a regular non-symlink directory" >&2
+  exit 1
+fi
+if [ -L "$METRICS_SECRET_FILE" ] || [ ! -f "$METRICS_SECRET_FILE" ]; then
+  echo "❌ Metrics scrape secret must be a regular non-symlink file" >&2
+  exit 1
+fi
+secret_dir_metadata="$($STAT_BIN -c '%u:%a' "$METRICS_SECRET_DIR")"
+if [ "$secret_dir_metadata" != "${EUID}:700" ]; then
+  echo "❌ Metrics scrape secret directory must be owned by the Compose account with mode 0700" >&2
+  exit 1
+fi
+secret_file_metadata="$($STAT_BIN -c '%u:%a' "$METRICS_SECRET_FILE")"
+if [ "$secret_file_metadata" != "${EUID}:444" ]; then
+  echo "❌ Metrics scrape secret file must be owned by the Compose account with mode 0444" >&2
   exit 1
 fi
 
@@ -201,17 +229,25 @@ HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-30}"
 HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
 HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 
-echo "[1/5] Login to GHCR with temporary credentials"
+echo "[1/6] Login to GHCR with temporary credentials"
 printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin
 
-echo "[2/5] Pull exact backend and Caddy digests"
-"${COMPOSE[@]}" pull app caddy
+echo "[2/6] Pull exact backend, Caddy, and Prometheus digests"
+"${COMPOSE[@]}" pull app caddy prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
 "$DOCKER_BIN" logout ghcr.io >/dev/null
 rm -rf -- "$DOCKER_CONFIG"
 mkdir -m 700 -- "$DOCKER_CONFIG"
 unset GHCR_TOKEN GHCR_USER
+
+echo "Validating the exact Prometheus configuration before product mutation"
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint /bin/promtool prometheus \
+  check config --syntax-only /etc/prometheus/prometheus.yml
+
+echo "Invoking the canonical application production invariant before product mutation"
+"${COMPOSE[@]}" run --rm --no-deps app python -c \
+  'from app.main import app; from app.security.production_invariants import assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)'
 
 echo "Quiescing the previous scheduler worker before backup and migrations"
 "${COMPOSE[@]}" stop worker
@@ -220,7 +256,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
   "${COMPOSE[@]}" rm -f worker
 fi
 
-echo "[3/5] Start Postgres and create a pre-migration backup"
+echo "[3/6] Start Postgres and create a pre-migration backup"
 "${COMPOSE[@]}" up -d postgres
 
 max_wait=60
@@ -252,7 +288,7 @@ DOCKER_BIN="$DOCKER_BIN" PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" \
   COMPOSE_FILE="$COMPOSE_FILE" \
   "$BACKUP_HELPER"
 
-echo "[4/5] Quiesce public traffic and run migrations before starting the new app"
+echo "[4/6] Quiesce public traffic and run migrations before starting the new app"
 "${COMPOSE[@]}" stop caddy app
 
 echo "Running database migrations in a one-shot container"
@@ -297,7 +333,7 @@ else
   echo "Scheduler mode is disabled; worker container remains absent"
 fi
 
-echo "[5/5] Start Caddy after successful migrations"
+echo "[5/6] Start Caddy after successful migrations"
 "${COMPOSE[@]}" up -d --pull never caddy
 
 DOMAIN="$STAGING_DOMAIN"
@@ -335,6 +371,37 @@ done
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Confirming scheduler worker process is running"
   "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+fi
+
+echo "[6/6] Start Prometheus after complete product health"
+if "${COMPOSE[@]}" up -d --pull never prometheus; then
+  :
+else
+  prometheus_start_status=$?
+  echo "❌ Prometheus failed to start; app and Caddy remain running" >&2
+  exit "$prometheus_start_status"
+fi
+
+prometheus_attempt=0
+prometheus_ready=0
+while [ "$prometheus_attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; do
+  prometheus_attempt=$((prometheus_attempt + 1))
+  if "${COMPOSE[@]}" exec -T prometheus /bin/promtool check ready \
+      --url=http://localhost:9090 >/dev/null 2>&1 && \
+     "${COMPOSE[@]}" exec -T prometheus /bin/promtool check healthy \
+      --url=http://localhost:9090 >/dev/null 2>&1; then
+    prometheus_ready=1
+    break
+  fi
+  echo "Waiting for Prometheus readiness... ($prometheus_attempt/$HEALTH_MAX_ATTEMPTS)"
+  if [ "$prometheus_attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; then
+    sleep "$HEALTH_SLEEP_S"
+  fi
+done
+
+if [ "$prometheus_ready" -ne 1 ]; then
+  echo "❌ Prometheus telemetry readiness failed; app and Caddy remain running and prometheus_data is preserved" >&2
+  exit 1
 fi
 
 echo "✅ Staging deployed by attested digests"

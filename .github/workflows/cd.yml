@@ -28,6 +28,9 @@
 name: CD
 
 on:
+  pull_request: {}
+  schedule:
+    - cron: '17 4 * * 1'
   push:
     branches: [main]
     tags: ['v*']
@@ -41,13 +44,330 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-  PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 jobs:
-  build:
-    if: github.ref == 'refs/heads/main'
+  prometheus-image-security:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable Prometheus contracts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0 / Node 24
+
+      - name: Validate closed Prometheus image record
+        id: prometheus-image
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+
+          manifest_path = Path("deploy/prometheus/image-manifest.json")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          expected = {
+              "schema": "pulseplate.prometheus_image_manifest.v1",
+              "repository": "prom/prometheus",
+              "tag": "v3.14.0-distroless",
+              "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+              "platform": "linux/amd64",
+              "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+              "runtime_ref": "prom/prometheus:v3.14.0-distroless@sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+          }
+          if manifest != expected:
+              raise SystemExit("Prometheus image manifest must equal the closed canonical record")
+          digest_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          for field in ("index_digest", "platform_manifest_digest"):
+              if digest_pattern.fullmatch(manifest[field]) is None:
+                  raise SystemExit(f"Invalid canonical digest field: {field}")
+          expected_runtime = (
+              f"{manifest['repository']}:{manifest['tag']}@"
+              f"{manifest['platform_manifest_digest']}"
+          )
+          if manifest["runtime_ref"] != expected_runtime:
+              raise SystemExit("Prometheus runtime reference is not manifest-digest bound")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"tag_ref={manifest['repository']}:{manifest['tag']}", file=output)
+              print(f"index_digest={manifest['index_digest']}", file=output)
+              print(
+                  f"platform_manifest_digest={manifest['platform_manifest_digest']}",
+                  file=output,
+              )
+              print(f"runtime_ref={manifest['runtime_ref']}", file=output)
+          PY
+
+      - name: Cross-bind tag index, linux amd64 manifest, and local image config
+        env:
+          PROMETHEUS_INDEX_DIGEST: ${{ steps.prometheus-image.outputs.index_digest }}
+          PROMETHEUS_PLATFORM_MANIFEST_DIGEST: ${{ steps.prometheus-image.outputs.platform_manifest_digest }}
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+          PROMETHEUS_TAG_REF: ${{ steps.prometheus-image.outputs.tag_ref }}
+        run: |
+          set -euo pipefail
+          evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-obs1b-oci.XXXXXX")"
+          cleanup() {
+            local original_status=$?
+            trap - EXIT
+            if [ -d "$evidence_dir" ]; then
+              rm -rf -- "$evidence_dir"
+            fi
+            exit "$original_status"
+          }
+          trap cleanup EXIT
+
+          docker buildx imagetools inspect --raw "$PROMETHEUS_TAG_REF" \
+            > "$evidence_dir/index.json"
+          docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF" \
+            > "$evidence_dir/platform-manifest.json"
+          python3 - "$evidence_dir/index.json" "$evidence_dir/platform-manifest.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          index_bytes = Path(sys.argv[1]).read_bytes()
+          platform_bytes = Path(sys.argv[2]).read_bytes()
+          expected_index = os.environ["PROMETHEUS_INDEX_DIGEST"]
+          expected_platform = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
+          if f"sha256:{hashlib.sha256(index_bytes).hexdigest()}" != expected_index:
+              raise SystemExit("Prometheus tag index digest mismatch")
+          index = json.loads(index_bytes)
+          matches = [
+              item
+              for item in index.get("manifests", [])
+              if item.get("platform") == {"architecture": "amd64", "os": "linux"}
+          ]
+          if len(matches) != 1 or matches[0].get("digest") != expected_platform:
+              raise SystemExit("Prometheus linux/amd64 manifest binding mismatch")
+          if f"sha256:{hashlib.sha256(platform_bytes).hexdigest()}" != expected_platform:
+              raise SystemExit("Prometheus runtime manifest digest mismatch")
+          platform_manifest = json.loads(platform_bytes)
+          if not isinstance(platform_manifest.get("config"), dict):
+              raise SystemExit("Prometheus runtime manifest config descriptor missing")
+          PY
+
+          docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"
+          docker image inspect "$PROMETHEUS_RUNTIME_REF" > "$evidence_dir/image.json"
+          python3 - "$evidence_dir/image.json" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if len(payload) != 1:
+              raise SystemExit("Expected exactly one inspected Prometheus image")
+          image = payload[0]
+          config = image.get("Config")
+          if not isinstance(config, dict):
+              raise SystemExit("Prometheus image config missing")
+          expected = {
+              "Os": "linux",
+              "Architecture": "amd64",
+              "User": "65532",
+              "Entrypoint": ["/bin/prometheus"],
+              "Cmd": [
+                  "--config.file=/etc/prometheus/prometheus.yml",
+                  "--storage.tsdb.path=/prometheus",
+              ],
+              "WorkingDir": "/prometheus",
+          }
+          observed = {
+              "Os": image.get("Os"),
+              "Architecture": image.get("Architecture"),
+              "User": config.get("User"),
+              "Entrypoint": config.get("Entrypoint"),
+              "Cmd": config.get("Cmd"),
+              "WorkingDir": config.get("WorkingDir"),
+          }
+          if observed != expected:
+              raise SystemExit("Prometheus exact-image config mismatch")
+          digest = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
+          repositories = {"prom/prometheus", "docker.io/prom/prometheus"}
+          repo_digests = image.get("RepoDigests") or []
+          if not any(
+              isinstance(item, str)
+              and item.rsplit("@", 1) == [repository, digest]
+              for item in repo_digests
+              for repository in repositories
+          ):
+              raise SystemExit("Prometheus local image is not bound to the canonical repository digest")
+          PY
+
+      - name: Check canonical Prometheus config with exact-image promtool
+        env:
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --platform linux/amd64 \
+            --user 65532:65532 \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --entrypoint /bin/promtool \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/prometheus/prometheus.yml,target=/etc/prometheus/prometheus.yml,readonly" \
+            "$PROMETHEUS_RUNTIME_REF" \
+            check config --syntax-only /etc/prometheus/prometheus.yml
+
+      - name: Scan exact Prometheus image without suppressions
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          scan-type: image
+          image-ref: ${{ steps.prometheus-image.outputs.runtime_ref }}
+          scanners: vuln,secret
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          timeout: 15m
+          trivyignores: /dev/null
+          version: v0.72.0
+          cache-dir: /tmp/trivy-cache-prometheus-image-security
+
+      - name: Prove synthetic non-root header and named-volume runtime
+        env:
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          resource_prefix="pulseplate-obs1b-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ ! "$resource_prefix" =~ ^pulseplate-obs1b-ci-[0-9]+-[0-9]+$ ]]; then
+            echo "Invalid synthetic OBS1B resource prefix" >&2
+            exit 1
+          fi
+          container_name="${resource_prefix}-prometheus"
+          volume_name="${resource_prefix}-data"
+          synthetic_dir="$(mktemp -d "${RUNNER_TEMP}/${resource_prefix}.XXXXXX")"
+          synthetic_config="$synthetic_dir/prometheus.yml"
+          synthetic_header="$synthetic_dir/header-value"
+          query_result="$synthetic_dir/query.json"
+
+          cleanup() {
+            local original_status=$?
+            local cleanup_failed=0
+            trap - EXIT
+            if [[ ! "$container_name" =~ ^pulseplate-obs1b-ci-[0-9]+-[0-9]+-prometheus$ ]] || \
+               [[ ! "$volume_name" =~ ^pulseplate-obs1b-ci-[0-9]+-[0-9]+-data$ ]]; then
+              echo "Refusing cleanup for an unbounded OBS1B resource name" >&2
+              exit 1
+            fi
+            if docker container inspect "$container_name" >/dev/null 2>&1; then
+              if ! docker rm -f "$container_name" >/dev/null; then
+                echo "Failed to remove synthetic OBS1B container" >&2
+                cleanup_failed=1
+              fi
+            fi
+            if docker volume inspect "$volume_name" >/dev/null 2>&1; then
+              if ! docker volume rm "$volume_name" >/dev/null; then
+                echo "Failed to remove synthetic OBS1B volume" >&2
+                cleanup_failed=1
+              fi
+            fi
+            case "$synthetic_dir" in
+              "${RUNNER_TEMP}/${resource_prefix}."*)
+                rm -rf -- "$synthetic_dir"
+                ;;
+              *)
+                echo "Refusing cleanup for an unbounded OBS1B temporary directory" >&2
+                cleanup_failed=1
+                ;;
+            esac
+            if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              exit 1
+            fi
+            exit "$original_status"
+          }
+          trap cleanup EXIT
+
+          printf '%s' 'pulseplate-obs1b-ci-synthetic-header-value-0000000000000000' \
+            > "$synthetic_header"
+          chmod 0444 "$synthetic_header"
+          cat > "$synthetic_config" <<'YAML'
+          global:
+            scrape_interval: 1s
+            scrape_timeout: 1s
+          scrape_configs:
+            - job_name: pulseplate-obs1b-synthetic-self
+              http_headers:
+                X-API-Key:
+                  files:
+                    - /run/secrets/pulseplate_obs1b_synthetic_header
+              static_configs:
+                - targets:
+                    - 127.0.0.1:9090
+          YAML
+          chmod 0444 "$synthetic_config"
+
+          docker volume create "$volume_name" >/dev/null
+          docker run --detach \
+            --name "$container_name" \
+            --platform linux/amd64 \
+            --user 65532:65532 \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --mount "type=bind,source=${synthetic_config},target=/etc/prometheus/prometheus.yml,readonly" \
+            --mount "type=bind,source=${synthetic_header},target=/run/secrets/pulseplate_obs1b_synthetic_header,readonly" \
+            --mount "type=volume,source=${volume_name},target=/prometheus" \
+            "$PROMETHEUS_RUNTIME_REF" \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --storage.tsdb.path=/prometheus \
+            --storage.tsdb.retention.time=1h \
+            --web.listen-address=127.0.0.1:9090 >/dev/null
+
+          runtime_ready=0
+          attempt=1
+          while [ "$attempt" -le 30 ]; do
+            if docker exec "$container_name" /bin/promtool check ready \
+              --url=http://localhost:9090 >/dev/null 2>&1; then
+              if docker exec "$container_name" /bin/promtool query instant -o json \
+                http://localhost:9090 \
+                'scalar(up{job="pulseplate-obs1b-synthetic-self"})' > "$query_result"; then
+                if python3 - "$query_result" <<'PY'
+          from pathlib import Path
+          import sys
+
+          from scripts.verify_premium_alias_telemetry import VerificationError, _parse_promtool_sample
+
+          try:
+              _timestamp, value = _parse_promtool_sample(Path(sys.argv[1]).read_bytes())
+          except VerificationError:
+              raise SystemExit(1) from None
+          if value != 1.0:
+              raise SystemExit(1)
+          PY
+                then
+                  runtime_ready=1
+                  break
+                fi
+              fi
+            fi
+            attempt=$((attempt + 1))
+            sleep 1
+          done
+          if [ "$runtime_ready" -ne 1 ]; then
+            echo "Synthetic OBS1B Prometheus runtime did not become ready with up=1" >&2
+            docker logs --tail 100 "$container_name" >&2
+            exit 1
+          fi
+
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: prometheus-image-security
+    runs-on: ubuntu-latest
+    env:
+      PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     permissions:
       actions: read
       attestations: write
@@ -407,6 +727,8 @@ jobs:
           {
             echo "deploy_script_sha256=$(sha256sum scripts/deploy.sh | cut -d' ' -f1)"
             echo "staging_compose_sha256=$(sha256sum deploy/docker-compose.staging.yaml | cut -d' ' -f1)"
+            echo "prometheus_config_sha256=$(sha256sum deploy/prometheus/prometheus.yml | cut -d' ' -f1)"
+            echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
@@ -426,6 +748,8 @@ jobs:
           STAGING_CADDY_IMAGE_REF: ${{ steps.staging-image-refs.outputs.caddy_ref }}
           DEPLOY_SCRIPT_SHA256: ${{ steps.staging-contract.outputs.deploy_script_sha256 }}
           STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
+          PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
+          PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
         with:
@@ -433,7 +757,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -442,9 +766,13 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="2"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="3"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
+            [ ! -L ./prometheus/prometheus.yml ]
+            [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
+            [ ! -L ./prometheus/image-manifest.json ]
+            [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
@@ -468,6 +796,8 @@ jobs:
           STAGING_CADDY_IMAGE_REF: ${{ steps.staging-image-refs.outputs.caddy_ref }}
           DEPLOY_SCRIPT_SHA256: ${{ steps.staging-contract.outputs.deploy_script_sha256 }}
           STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
+          PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
+          PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
         with:
@@ -475,7 +805,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -484,9 +814,13 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="2"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="3"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
+            [ ! -L ./prometheus/prometheus.yml ]
+            [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
+            [ ! -L ./prometheus/image-manifest.json ]
+            [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
@@ -536,7 +870,7 @@ jobs:
           exit 1
 
   release-control-plane-fixture-gate:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -656,7 +990,8 @@ jobs:
 
   # Pre-production quality gates
   production-gates:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: prometheus-image-security
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -728,9 +1063,12 @@ jobs:
           echo "✅ CI on main passed and covers tag commit $TAG_COMMIT"
 
   build-production:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
+    env:
+      PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     permissions:
       actions: write
       attestations: write
@@ -749,7 +1087,12 @@ jobs:
 
       - name: Free disk space (Ubuntu hosted runner)
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          set -euo pipefail
+          for path in /usr/share/dotnet /usr/local/lib/android /opt/ghc; do
+            if [ -e "$path" ]; then
+              sudo rm -rf -- "$path"
+            fi
+          done
           df -h
 
       - name: Prepare Docker source artifacts
@@ -866,7 +1209,7 @@ jobs:
           retention-days: 14
 
   production-deploy-config:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     outputs:
@@ -998,7 +1341,7 @@ jobs:
           echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   release-control-plane-production-evidence:
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
     needs: [build-production, production-deploy-config]
     runs-on: ubuntu-latest
     permissions:
@@ -1148,7 +1491,7 @@ jobs:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
     # The config is resolved inside production-deploy-config so environment-scoped vars
     # are visible before the deploy jobs decide whether to run.
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: ubuntu-latest
     environment:
@@ -1164,6 +1507,7 @@ jobs:
       - name: Encode deploy script for SSH
         id: deploy-script
         run: |
+          set -euo pipefail
           echo "script_b64=$(base64 -w0 scripts/deploy_production.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Stage production shell bundle for SSH deploy
@@ -1197,6 +1541,8 @@ jobs:
             frontend \
             deploy/Caddyfile.production \
             deploy/docker-compose.production.yaml \
+            deploy/prometheus/prometheus.yml \
+            deploy/prometheus/image-manifest.json \
             scripts/diagnose_web.sh \
             scripts/redeploy_caddy.sh
 
@@ -1230,17 +1576,10 @@ jobs:
             tmp_script="/tmp/pulseplate_deploy_production.sh"
             echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
             chmod +x "$tmp_script"
-            "$tmp_script" --preflight-only
-
             bundle_name="pulseplate-shell-bundle-${{ github.run_id }}-${{ github.run_attempt }}"
-            tmp_bundle_dir="/tmp/${bundle_name}"
-            rm -rf "$tmp_bundle_dir"
-            mkdir -p "$tmp_bundle_dir"
-            tar -xzf "/tmp/${bundle_name}.tgz" -C "$tmp_bundle_dir"
-            export SHELL_BUNDLE_DIR="$tmp_bundle_dir"
+            export SHELL_BUNDLE_ARCHIVE="/tmp/${bundle_name}.tgz"
+            "$tmp_script" --preflight-only
             "$tmp_script"
-            rm -f "/tmp/${bundle_name}.tgz"
-            rm -rf "$tmp_bundle_dir"
         env:
           DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
@@ -1251,7 +1590,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
   deploy-production-self-hosted:
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:
@@ -1270,6 +1609,7 @@ jobs:
           set -euo pipefail
           export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
           export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
           export SHELL_BUNDLE_DIR="${GITHUB_WORKSPACE}"
           bash scripts/deploy_production.sh --preflight-only
 

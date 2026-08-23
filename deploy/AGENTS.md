@@ -70,6 +70,32 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Keep staging and production configs in sync with documented env vars.
 - Avoid changes that alter runtime ports without updating clients and docs.
 
+## Private Prometheus contour
+
+- Canonical image and scrape contracts live only in
+  `deploy/prometheus/image-manifest.json` and `deploy/prometheus/prometheus.yml`.
+  All three Compose contours must keep one equivalent `prometheus` service:
+  exact linux/amd64 manifest digest, user `65532:65532`, `cap_drop: ALL`,
+  `no-new-privileges`, named `prometheus_data`, and the sole retention carrier
+  `--storage.tsdb.retention.time=45d`.
+- `observability` is an internal network. Only `app` and `prometheus` join it;
+  Prometheus does not join `web`, publish port `9090`, or receive a Caddy route.
+  Only `app` and `prometheus` receive the
+  `pulseplate_metrics_scrape_key` Compose secret.
+- Compose file secrets are bind mounts and do not remap file ownership or mode.
+  The account running Compose owns a regular non-symlink `secrets/` directory
+  with mode `0700` and a regular non-symlink
+  `secrets/pulseplate_metrics_scrape_key` file with mode `0444`. Deploy tooling
+  validates metadata but must never source, print, archive, or independently
+  parse the value; semantic validation stays in
+  `app/security/production_invariants.py`.
+- Staging deploy contract version `3` cross-binds the deploy script, staging
+  Compose, Prometheus config, image manifest, Caddyfile, and backup helper.
+  Merge does not synchronize a host or enable
+  `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
+  activation remain human actions. Follow
+  `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
+
 ## Production tag gate
 - Semver production tags stay build-only until all three deploy inputs agree: `PROD_DEPLOY_MODE`,
   `WEB_IOS_RELEASE_READY=true`, and `PRODUCTION_ENV_READY=true`.
