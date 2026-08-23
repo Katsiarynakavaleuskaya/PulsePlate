@@ -6,12 +6,27 @@ EN: Module for auto-repair of weekly meal plans with UX loop.
 Sprint 5: Auto-repair недели (UX-петля)
 """
 
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+import math
+from numbers import Real
+from typing import Any, Dict, List, Optional, cast
 
-from core.menu_engine import repair_week_plan
-from core.targets import MicronutrientTargets
+from core.menu_engine import (
+    DayMenu,
+    WeekMenu,
+    _calculate_day_nutrients,
+    _governed_nutrient_names,
+    calculate_known_nutrient_gaps,
+    has_complete_nutrition_evidence,
+    repair_week_plan,
+)
+from core.targets import MicronutrientTargets, NutritionTargets
+
+_VEGETABLE_TERMS = ("vegetable",)
+_PROTEIN_TERMS = ("meat", "chicken", "fish", "beef")
 
 
 class RepairStrategy(Enum):
@@ -31,19 +46,218 @@ class RepairStatus(Enum):
     NEEDS_MANUAL = "needs_manual"
 
 
+_CANONICAL_STRATEGY_BY_REPAIR_STRATEGY = {
+    RepairStrategy.BALANCED: "boosters_first",
+    RepairStrategy.CONSERVATIVE: "replace_ingredients",
+    RepairStrategy.AGGRESSIVE: "add_snacks",
+}
+
+WirePlan = dict[str, object]
+ChangePayload = dict[str, object]
+UserPreferences = Mapping[str, object]
+
+
+def _ingredient_name(ingredient: Mapping[str, object]) -> str:
+    """Return one normalized ingredient name without coercing malformed values."""
+    name = ingredient.get("name")
+    return name.strip().lower() if isinstance(name, str) else ""
+
+
+def _is_vegetable(name: str) -> bool:
+    """Recognize only the finite ingredient vocabulary used by this repair seam."""
+    return any(term in name for term in _VEGETABLE_TERMS)
+
+
+def _is_protein(name: str) -> bool:
+    """Recognize only the finite ingredient vocabulary used by this repair seam."""
+    return any(term in name for term in _PROTEIN_TERMS)
+
+
+def _require_wire_mapping_list(
+    value: object,
+    *,
+    container_error: str,
+    item_error: str,
+) -> list[dict[str, object]]:
+    """Narrow one required non-empty wire list without interpreting metadata."""
+
+    if not isinstance(value, list) or not value:
+        raise ValueError(container_error)
+    mappings: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError(item_error)
+        mappings.append(cast(dict[str, object], item))
+    return mappings
+
+
+def validate_week_plan(week_plan: object) -> dict[str, object]:
+    """Validate the bounded dictionary plan consumed by VIP auto-repair."""
+    if not isinstance(week_plan, dict):
+        raise ValueError("week_plan must be an object")
+
+    wire_plan = cast(dict[str, object], week_plan)
+    days = _require_wire_mapping_list(
+        wire_plan.get("days"),
+        container_error="week_plan.days must be a non-empty list",
+        item_error="each week_plan day must be an object",
+    )
+
+    for day in days:
+        meals = _require_wire_mapping_list(
+            day.get("meals"),
+            container_error="each week_plan day must contain meals",
+            item_error="each meal must be an object",
+        )
+        for meal in meals:
+            ingredients = _require_wire_mapping_list(
+                meal.get("ingredients"),
+                container_error="each meal must contain ingredients",
+                item_error="each ingredient must contain a non-empty name",
+            )
+            for ingredient in ingredients:
+                if not _ingredient_name(ingredient):
+                    raise ValueError("each ingredient must contain a non-empty name")
+
+    return deepcopy(wire_plan)
+
+
+def _week_menu_from_wire(
+    week_plan: dict[str, object],
+    nutrition_targets: NutritionTargets,
+    governed_nutrients: frozenset[str],
+) -> WeekMenu:
+    """Adapt validated wire evidence into the existing canonical menu classes."""
+    days = _require_wire_mapping_list(
+        week_plan.get("days"),
+        container_error="week_plan.days must be a non-empty list",
+        item_error="each week_plan day must be an object",
+    )
+    daily_menus: List[DayMenu] = []
+    for day in days:
+        raw_date = day.get("date", day.get("day", day.get("name", "")))
+        date = raw_date if isinstance(raw_date, str) else ""
+        meals = deepcopy(
+            _require_wire_mapping_list(
+                day.get("meals"),
+                container_error="each week_plan day must contain meals",
+                item_error="each meal must be an object",
+            )
+        )
+        day_menu = DayMenu(
+            date=date,
+            meals=meals,
+            total_nutrients={},
+            targets=nutrition_targets,
+            coverage={},
+            recommendations=[],
+            estimated_cost=0.0,
+        )
+        day_menu.total_nutrients = _calculate_day_nutrients(
+            day_menu,
+            governed_nutrients=governed_nutrients,
+        )
+        daily_menus.append(day_menu)
+
+    raw_week_start = week_plan.get("week_start", "")
+    week_start = raw_week_start if isinstance(raw_week_start, str) else ""
+    return WeekMenu(
+        week_start=week_start,
+        daily_menus=daily_menus,
+        weekly_coverage={},
+        shopping_list={},
+        total_cost=0.0,
+        adherence_score=0.0,
+    )
+
+
+def _week_menu_to_wire(
+    plan: WeekMenu,
+    original_wire_plan: dict[str, object],
+) -> dict[str, object]:
+    """Project canonical changes onto a deep-copied wire template, preserving metadata."""
+    repaired_wire_plan = deepcopy(original_wire_plan)
+    original_days = repaired_wire_plan.get("days")
+    day_templates = original_days if isinstance(original_days, list) else []
+    repaired_days: list[dict[str, object]] = []
+    for index, day in enumerate(plan.daily_menus):
+        template = day_templates[index] if index < len(day_templates) else {}
+        repaired_day = deepcopy(template) if isinstance(template, dict) else {}
+        if "date" in repaired_day:
+            repaired_day["date"] = day.date
+        elif "day" in repaired_day:
+            repaired_day["day"] = day.date
+        elif "name" in repaired_day:
+            repaired_day["name"] = day.date
+        else:
+            repaired_day["day"] = day.date
+        repaired_day["meals"] = deepcopy(day.meals)
+        repaired_day["total_nutrients"] = deepcopy(day.total_nutrients)
+        for stale_field in ("coverage", "recommendations", "estimated_cost"):
+            repaired_day.pop(stale_field, None)
+        repaired_days.append(repaired_day)
+
+    repaired_wire_plan["week_start"] = plan.week_start
+    repaired_wire_plan["days"] = repaired_days
+    for stale_field in (
+        "weekly_coverage",
+        "shopping_list",
+        "total_cost",
+        "adherence_score",
+    ):
+        repaired_wire_plan.pop(stale_field, None)
+    return repaired_wire_plan
+
+
+def _known_nutrient_contributions(
+    before: WeekMenu,
+    after: WeekMenu,
+    targets: MicronutrientTargets,
+) -> dict[str, float]:
+    """Report only governed positive deltas explicitly present before repair."""
+    contributions: dict[str, float] = {}
+    governed_nutrients = _governed_nutrient_names(targets)
+    for before_day, after_day in zip(before.daily_menus, after.daily_menus):
+        for before_meal, after_meal in zip(before_day.meals, after_day.meals):
+            before_nutrients = before_meal.get("nutrients")
+            after_nutrients = after_meal.get("nutrients")
+            if not isinstance(before_nutrients, dict) or not isinstance(after_nutrients, dict):
+                continue
+            for nutrient, raw_before in before_nutrients.items():
+                if nutrient not in governed_nutrients:
+                    continue
+                raw_after = after_nutrients.get(nutrient)
+                if (
+                    isinstance(raw_before, bool)
+                    or not isinstance(raw_before, Real)
+                    or isinstance(raw_after, bool)
+                    or not isinstance(raw_after, Real)
+                ):
+                    continue
+                delta = float(raw_after) - float(raw_before)
+                if math.isfinite(delta) and delta > 0:
+                    contributions[nutrient] = contributions.get(nutrient, 0.0) + delta
+    return contributions
+
+
+def _changes_from_history(history: list["RepairIteration"]) -> list[ChangePayload]:
+    """Collect response changes from one invocation-local completed history."""
+    return [change for repair_iteration in history for change in repair_iteration.changes_applied]
+
+
 @dataclass
 class RepairResult:
     """Результат ремонта"""
 
     status: RepairStatus
-    repaired_plan: Dict
-    original_plan: Dict
-    changes_made: List[Dict]
-    remaining_gaps: Dict[str, float]
+    repaired_plan: WirePlan
+    original_plan: WirePlan
+    changes_made: list[ChangePayload]
+    remaining_gaps: dict[str, float]
     strategy_used: RepairStrategy
     iterations: int
     message: str
-    suggestions: List[str]
+    suggestions: list[str]
 
 
 @dataclass
@@ -52,9 +266,9 @@ class RepairIteration:
 
     iteration_number: int
     strategy: RepairStrategy
-    gaps_before: Dict[str, float]
-    gaps_after: Dict[str, float]
-    changes_applied: List[Dict]
+    gaps_before: dict[str, float]
+    gaps_after: dict[str, float]
+    changes_applied: list[ChangePayload]
     success: bool
 
 
@@ -63,14 +277,15 @@ class AutoRepairEngine:
 
     def __init__(self, max_iterations: int = 3):
         self.max_iterations = max_iterations
-        self.repair_history: List[RepairIteration] = []
+        self.repair_history: list[RepairIteration] = []
 
     def auto_repair_week_plan(
         self,
-        week_plan: Dict,
+        week_plan: WirePlan,
         targets: MicronutrientTargets,
         initial_strategy: RepairStrategy = RepairStrategy.BALANCED,
-        user_preferences: Optional[Dict] = None,
+        user_preferences: UserPreferences | None = None,
+        nutrition_targets: NutritionTargets | None = None,
     ) -> RepairResult:
         """
         Авто-ремонт недельного плана с UX-петлей
@@ -84,187 +299,228 @@ class AutoRepairEngine:
         Returns:
             Результат ремонта с историей итераций
         """
-        self.repair_history = []
-        original_plan = week_plan.copy()
+        if not isinstance(initial_strategy, RepairStrategy):
+            raise ValueError("Unknown repair strategy")
 
-        # Анализируем начальные дефициты
-        initial_gaps = self._analyze_nutrient_gaps(week_plan, targets)
+        validated_plan = validate_week_plan(week_plan)
+        original_plan = deepcopy(validated_plan)
+        if nutrition_targets is None:
+            raise ValueError("Explicit nutrition targets are required")
 
-        if not initial_gaps:
+        governed_nutrients = _governed_nutrient_names(targets)
+        canonical_initial_plan = _week_menu_from_wire(
+            validated_plan,
+            nutrition_targets,
+            governed_nutrients,
+        )
+        initial_known_gaps = calculate_known_nutrient_gaps(canonical_initial_plan, targets)
+        profile = nutrition_targets.calculated_for
+        if user_preferences or profile.diet_flags or profile.medical_conditions:
+            self._store_completed_history([])
             return RepairResult(
-                status=RepairStatus.SUCCESS,
-                repaired_plan=week_plan,
+                status=RepairStatus.NEEDS_MANUAL,
+                repaired_plan=deepcopy(validated_plan),
                 original_plan=original_plan,
                 changes_made=[],
-                remaining_gaps={},
+                remaining_gaps=initial_known_gaps,
                 strategy_used=initial_strategy,
                 iterations=0,
-                message="План уже соответствует целям",
+                message="Canonical auto-repair does not support these preferences",
+                suggestions=self._generate_manual_suggestions(initial_known_gaps),
+            )
+
+        if has_complete_nutrition_evidence(canonical_initial_plan, targets):
+            self._store_completed_history([])
+            return RepairResult(
+                status=RepairStatus.SUCCESS,
+                repaired_plan=deepcopy(validated_plan),
+                original_plan=original_plan,
+                changes_made=[],
+                remaining_gaps=initial_known_gaps,
+                strategy_used=initial_strategy,
+                iterations=0,
+                message="",
                 suggestions=[],
             )
 
-        # Начинаем итеративный процесс ремонта
-        current_plan = week_plan.copy()
-        current_strategy = initial_strategy
-        iteration = 0
-
-        while iteration < self.max_iterations:
-            iteration += 1
-
-            # Анализируем текущие дефициты
-            current_gaps = self._analyze_nutrient_gaps(current_plan, targets)
-
-            if not current_gaps:
-                # Успех! Все дефициты устранены
-                return RepairResult(
-                    status=RepairStatus.SUCCESS,
-                    repaired_plan=current_plan,
-                    original_plan=original_plan,
-                    changes_made=self._get_all_changes(),
-                    remaining_gaps={},
-                    strategy_used=current_strategy,
-                    iterations=iteration,
-                    message=f"План успешно отремонтирован за {iteration} итераций",
-                    suggestions=self._generate_success_suggestions(),
-                )
-
-            # Пытаемся отремонтировать с текущей стратегией
-            repair_iteration = self._attempt_repair(
-                current_plan, targets, current_strategy, iteration
+        if self.max_iterations <= 0:
+            self._store_completed_history([])
+            return RepairResult(
+                status=RepairStatus.FAILED,
+                repaired_plan=deepcopy(validated_plan),
+                original_plan=original_plan,
+                changes_made=[],
+                remaining_gaps=initial_known_gaps,
+                strategy_used=initial_strategy,
+                iterations=0,
+                message="Auto-repair did not execute",
+                suggestions=self._generate_manual_suggestions(initial_known_gaps),
             )
 
-            self.repair_history.append(repair_iteration)
-
+        invocation_history: list[RepairIteration] = []
+        current_plan = deepcopy(validated_plan)
+        current_strategy = initial_strategy
+        for iteration in range(1, self.max_iterations + 1):
+            repair_iteration = self._attempt_repair(
+                current_plan,
+                targets,
+                current_strategy,
+                iteration,
+                nutrition_targets,
+            )
+            invocation_history.append(repair_iteration)
             if repair_iteration.success:
-                current_plan = repair_iteration.changes_applied[0].get(
-                    "repaired_plan", current_plan
+                material_change = repair_iteration.changes_applied[0]
+                repaired_plan = cast(
+                    WirePlan,
+                    material_change.get(
+                        "repaired_plan",
+                        current_plan,
+                    ),
                 )
+                remaining_gaps = material_change.get("remaining_gaps", {})
+                self._store_completed_history(invocation_history)
+                return RepairResult(
+                    status=RepairStatus.PARTIAL,
+                    repaired_plan=repaired_plan,
+                    original_plan=original_plan,
+                    changes_made=_changes_from_history(invocation_history),
+                    remaining_gaps=cast(dict[str, float], remaining_gaps),
+                    strategy_used=current_strategy,
+                    iterations=iteration,
+                    message=(
+                        "Canonical repair produced a changed plan; nutritional completeness "
+                        "is not asserted"
+                    ),
+                    suggestions=[],
+                )
+            current_strategy = self._get_next_strategy(current_strategy)
 
-                # Проверяем, нужно ли изменить стратегию
-                new_gaps = self._analyze_nutrient_gaps(current_plan, targets)
-                if len(new_gaps) < len(current_gaps):
-                    # Прогресс есть, продолжаем с той же стратегией
-                    continue
-                else:
-                    # Прогресса нет, меняем стратегию
-                    current_strategy = self._get_next_strategy(current_strategy)
-            else:
-                # Ремонт не удался, пробуем другую стратегию
-                current_strategy = self._get_next_strategy(current_strategy)
-
-        # Достигли максимального количества итераций
-        final_gaps = self._analyze_nutrient_gaps(current_plan, targets)
-
-        if len(final_gaps) < len(initial_gaps):
-            status = RepairStatus.PARTIAL
-            fixed = len(initial_gaps) - len(final_gaps)
-            total = len(initial_gaps)
-            message = f"Частичный ремонт: устранено {fixed} из {total} дефицитов"
-        else:
-            status = RepairStatus.FAILED
-            message = "Не удалось устранить дефициты автоматически"
-
+        final_canonical_plan = _week_menu_from_wire(
+            validate_week_plan(current_plan),
+            nutrition_targets,
+            governed_nutrients,
+        )
+        final_remaining_gaps: dict[str, float] = calculate_known_nutrient_gaps(
+            final_canonical_plan,
+            targets,
+        )
+        self._store_completed_history(invocation_history)
         return RepairResult(
-            status=status,
+            status=RepairStatus.FAILED,
             repaired_plan=current_plan,
             original_plan=original_plan,
-            changes_made=self._get_all_changes(),
-            remaining_gaps=final_gaps,
-            strategy_used=current_strategy,
-            iterations=iteration,
-            message=message,
-            suggestions=self._generate_manual_suggestions(final_gaps),
+            changes_made=[],
+            remaining_gaps=final_remaining_gaps,
+            strategy_used=invocation_history[-1].strategy,
+            iterations=self.max_iterations,
+            message="Canonical repair made no changes",
+            suggestions=self._generate_manual_suggestions(final_remaining_gaps),
         )
 
     def _analyze_nutrient_gaps(
-        self, week_plan: Dict, targets: MicronutrientTargets
-    ) -> Dict[str, float]:
+        self, week_plan: WirePlan, targets: MicronutrientTargets
+    ) -> dict[str, float]:
         """Анализирует дефициты микронутриентов"""
         # Упрощенная логика анализа дефицитов
         # В реальном приложении здесь был бы полный анализ плана
 
+        validated_plan = validate_week_plan(week_plan)
         gaps = {}
 
         # Примерные дефициты для демонстрации
-        if "days" in week_plan:
-            # Анализируем каждый день
-            for day in week_plan["days"]:
-                if "meals" in day:
-                    for meal in day["meals"]:
-                        # Простая логика: если мало овощей, то дефицит витаминов
-                        if "ingredients" in meal:
-                            vegetables_count = sum(
-                                1
-                                for ing in meal["ingredients"]
-                                if "vegetable" in ing.get("name", "").lower()
-                            )
-                            if vegetables_count < 2:
-                                gaps["vitamin_c"] = 50.0
-                                gaps["folate"] = 30.0
+        days = _require_wire_mapping_list(
+            validated_plan.get("days"),
+            container_error="week_plan.days must be a non-empty list",
+            item_error="each week_plan day must be an object",
+        )
+        for day in days:
+            meals = _require_wire_mapping_list(
+                day.get("meals"),
+                container_error="each week_plan day must contain meals",
+                item_error="each meal must be an object",
+            )
+            for meal in meals:
+                ingredients = _require_wire_mapping_list(
+                    meal.get("ingredients"),
+                    container_error="each meal must contain ingredients",
+                    item_error="each ingredient must contain a non-empty name",
+                )
 
-                        # Если мало мяса/рыбы, то дефицит белка и железа
-                        protein_count = sum(
-                            1
-                            for ing in meal["ingredients"]
-                            if any(
-                                word in ing.get("name", "").lower()
-                                for word in ["meat", "chicken", "fish", "beef"]
-                            )
-                        )
-                        if protein_count == 0:
-                            gaps["iron"] = 40.0
-                            gaps["protein"] = 20.0
+                vegetables_count = sum(
+                    1 for ingredient in ingredients if _is_vegetable(_ingredient_name(ingredient))
+                )
+                if vegetables_count < 2:
+                    gaps["vitamin_c_mg"] = 50.0
+                    gaps["folate_ug"] = 30.0
 
+                protein_count = sum(
+                    1 for ingredient in ingredients if _is_protein(_ingredient_name(ingredient))
+                )
+                if protein_count == 0:
+                    gaps["iron_mg"] = 40.0
+                    gaps["protein_g"] = 20.0
+
+        _ = targets
         return gaps
 
     def _attempt_repair(
         self,
-        week_plan: Dict,
+        week_plan: WirePlan,
         targets: MicronutrientTargets,
         strategy: RepairStrategy,
         iteration: int,
+        nutrition_targets: NutritionTargets,
     ) -> RepairIteration:
-        """Пытается отремонтировать план с заданной стратегией"""
-        gaps_before = self._analyze_nutrient_gaps(week_plan, targets)
-
+        """Delegate one adapted plan to the canonical menu-engine repair function."""
         try:
-            # Используем существующую функцию ремонта
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore
+            canonical_strategy = _CANONICAL_STRATEGY_BY_REPAIR_STRATEGY[strategy]
+        except KeyError as exc:
+            raise ValueError("Unknown repair strategy") from exc
+        canonical_plan = _week_menu_from_wire(
+            validate_week_plan(week_plan),
+            nutrition_targets,
+            _governed_nutrient_names(targets),
+        )
+        repaired_canonical_plan = repair_week_plan(canonical_plan, targets, canonical_strategy)
+        if not isinstance(repaired_canonical_plan, WeekMenu):
+            raise TypeError("Canonical repair returned an invalid result")
 
-            gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)  # type: ignore
+        changed = repaired_canonical_plan != canonical_plan
+        repaired_plan = (
+            _week_menu_to_wire(repaired_canonical_plan, week_plan)
+            if changed
+            else deepcopy(week_plan)
+        )
 
-            changes = [
+        changes: list[ChangePayload] = []
+        if changed:
+            changes.append(
                 {
-                    "type": "repair",
+                    "type": "canonical_repair",
                     "strategy": strategy.value,
                     "iteration": iteration,
                     "repaired_plan": repaired_plan,
-                    "gaps_before": gaps_before,
-                    "gaps_after": gaps_after,
+                    "remaining_gaps": calculate_known_nutrient_gaps(
+                        repaired_canonical_plan,
+                        targets,
+                    ),
+                    "nutrient_contributions": _known_nutrient_contributions(
+                        canonical_plan,
+                        repaired_canonical_plan,
+                        targets,
+                    ),
                 }
-            ]
-
-            success = len(gaps_after) < len(gaps_before)
-
-            return RepairIteration(
-                iteration_number=iteration,
-                strategy=strategy,
-                gaps_before=gaps_before,
-                gaps_after=gaps_after,
-                changes_applied=changes,
-                success=success,
             )
 
-        except Exception:
-            # Если ремонт не удался
-            return RepairIteration(
-                iteration_number=iteration,
-                strategy=strategy,
-                gaps_before=gaps_before,
-                gaps_after=gaps_before,  # Дефициты не изменились
-                changes_applied=[],
-                success=False,
-            )
+        return RepairIteration(
+            iteration_number=iteration,
+            strategy=strategy,
+            gaps_before={},
+            gaps_after={},
+            changes_applied=changes,
+            success=changed,
+        )
 
     def _get_next_strategy(self, current_strategy: RepairStrategy) -> RepairStrategy:
         """Получает следующую стратегию ремонта"""
@@ -275,14 +531,18 @@ class AutoRepairEngine:
         else:  # AGGRESSIVE
             return RepairStrategy.CONSERVATIVE
 
-    def _get_all_changes(self) -> List[Dict]:
+    def _get_all_changes(self) -> list[ChangePayload]:
         """Получает все изменения из истории ремонта"""
-        all_changes = []
+        all_changes: list[ChangePayload] = []
         for iteration in self.repair_history:
             all_changes.extend(iteration.changes_applied)
         return all_changes
 
-    def _generate_success_suggestions(self) -> List[str]:
+    def _store_completed_history(self, history: list[RepairIteration]) -> None:
+        """Publish a completed diagnostic snapshot without using it for this response."""
+        self.repair_history = deepcopy(history)
+
+    def _generate_success_suggestions(self) -> list[str]:
         """Генерирует предложения при успешном ремонте"""
         return [
             "План успешно оптимизирован!",
@@ -291,38 +551,37 @@ class AutoRepairEngine:
             "Проверьте список покупок для новых ингредиентов",
         ]
 
-    def _generate_manual_suggestions(self, remaining_gaps: Dict[str, float]) -> List[str]:
+    def _generate_manual_suggestions(self, remaining_gaps: Mapping[str, float]) -> list[str]:
         """Генерирует предложения для ручного ремонта"""
         suggestions = [
             "Автоматический ремонт не смог устранить все дефициты",
             "Рекомендуется ручная корректировка плана",
         ]
 
-        if "iron" in remaining_gaps:
+        if "iron_mg" in remaining_gaps:
             suggestions.append("Добавьте больше мяса, рыбы или бобовых для железа")
 
-        if "vitamin_c" in remaining_gaps:
+        if "vitamin_c_mg" in remaining_gaps:
             suggestions.append("Увеличьте количество овощей и фруктов для витамина C")
 
-        if "folate" in remaining_gaps:
+        if "folate_ug" in remaining_gaps:
             suggestions.append("Добавьте листовые овощи для фолиевой кислоты")
-
-        if "protein" in remaining_gaps:
-            suggestions.append("Увеличьте порции белковых продуктов")
 
         return suggestions
 
-    def get_repair_history(self) -> List[RepairIteration]:
+    def get_repair_history(self) -> list[RepairIteration]:
         """Возвращает историю ремонта"""
         return self.repair_history
 
-    def suggest_manual_fixes(self, week_plan: Dict, targets: MicronutrientTargets) -> List[Dict]:
+    def suggest_manual_fixes(
+        self, week_plan: WirePlan, targets: MicronutrientTargets
+    ) -> list[ChangePayload]:
         """Предлагает ручные исправления для плана"""
         gaps = self._analyze_nutrient_gaps(week_plan, targets)
-        suggestions = []
+        suggestions: list[ChangePayload] = []
 
         for nutrient, deficit in gaps.items():
-            if nutrient == "iron":
+            if nutrient == "iron_mg":
                 suggestions.append(
                     {
                         "type": "add_ingredient",
@@ -335,7 +594,7 @@ class AutoRepairEngine:
                         "reason": f"Дефицит {nutrient}: {deficit}%",
                     }
                 )
-            elif nutrient == "vitamin_c":
+            elif nutrient == "vitamin_c_mg":
                 suggestions.append(
                     {
                         "type": "add_ingredient",
@@ -348,7 +607,7 @@ class AutoRepairEngine:
                         "reason": f"Дефицит {nutrient}: {deficit}%",
                     }
                 )
-            elif nutrient == "folate":
+            elif nutrient == "folate_ug":
                 suggestions.append(
                     {
                         "type": "add_ingredient",
@@ -366,7 +625,7 @@ class AutoRepairEngine:
 
 
 # Глобальный экземпляр движка ремонта
-_auto_repair_engine = None
+_auto_repair_engine: AutoRepairEngine | None = None
 
 
 def get_auto_repair_engine() -> AutoRepairEngine:
@@ -379,17 +638,27 @@ def get_auto_repair_engine() -> AutoRepairEngine:
 
 # Удобные функции для быстрого доступа
 def auto_repair_week_plan(
-    week_plan: Dict,
+    week_plan: WirePlan,
     targets: MicronutrientTargets,
     strategy: RepairStrategy = RepairStrategy.BALANCED,
-    user_preferences: Optional[Dict] = None,
+    user_preferences: UserPreferences | None = None,
+    nutrition_targets: NutritionTargets | None = None,
 ) -> RepairResult:
     """Авто-ремонт недельного плана"""
     engine = get_auto_repair_engine()
-    return engine.auto_repair_week_plan(week_plan, targets, strategy, user_preferences)
+    return engine.auto_repair_week_plan(
+        week_plan,
+        targets,
+        strategy,
+        user_preferences,
+        nutrition_targets,
+    )
 
 
-def suggest_manual_fixes(week_plan: Dict, targets: MicronutrientTargets) -> List[Dict]:
+def suggest_manual_fixes(
+    week_plan: WirePlan,
+    targets: MicronutrientTargets,
+) -> list[ChangePayload]:
     """Предлагает ручные исправления"""
     engine = get_auto_repair_engine()
     return engine.suggest_manual_fixes(week_plan, targets)

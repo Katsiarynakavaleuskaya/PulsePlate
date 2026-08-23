@@ -103,10 +103,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 48,
             "live_count": 48,
             "source_digest": _digest_literal(
-                "4ac1-3dc2-8dcd-6498-1592-8801-cdb9-2db3-eed2-bfba-a585-1f73-5546-2401-11e7-b63d"
+                "5601-d59d-71a7-2bf4-c73f-8cbb-e438-cd3f-739a-8326-2434-b48f-3f24-816e-c067-1614"
             ),
             "live_digest": _digest_literal(
-                "99e5-a0bf-e3d7-6cdc-bd74-fd40-54f9-8a74-fb73-1419-7dea-678a-6ee1-aa27-30b0-af9c"
+                "a79a-af95-65ea-4f90-7fe4-9fb2-5f73-a725-010a-0455-cf41-f5db-0a0b-6732-1353-e701"
             ),
         },
         "010": {
@@ -123,10 +123,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 48,
             "live_count": 48,
             "source_digest": _digest_literal(
-                "4ac1-3dc2-8dcd-6498-1592-8801-cdb9-2db3-eed2-bfba-a585-1f73-5546-2401-11e7-b63d"
+                "5601-d59d-71a7-2bf4-c73f-8cbb-e438-cd3f-739a-8326-2434-b48f-3f24-816e-c067-1614"
             ),
             "live_digest": _digest_literal(
-                "99e5-a0bf-e3d7-6cdc-bd74-fd40-54f9-8a74-fb73-1419-7dea-678a-6ee1-aa27-30b0-af9c"
+                "a79a-af95-65ea-4f90-7fe4-9fb2-5f73-a725-010a-0455-cf41-f5db-0a0b-6732-1353-e701"
             ),
         },
         "100": {
@@ -143,10 +143,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 51,
             "live_count": 51,
             "source_digest": _digest_literal(
-                "64c2-41ff-c33e-166f-2067-5cbf-4ec9-68d4-01ac-1f97-2eaf-9fca-627f-5892-5c58-8ce2"
+                "5e19-8e40-6984-d4d4-8ff3-364b-79c4-4c63-fac5-a354-6666-75fc-6dd3-7b9a-c39c-257c"
             ),
             "live_digest": _digest_literal(
-                "fbbd-1565-97b7-cad8-5115-9230-4886-f30a-c515-8fb2-d2d5-7464-fe96-fba9-f76a-adef"
+                "3419-b40e-b789-584c-552f-da2e-4ecf-2951-4df9-2f65-6420-b3c1-b68c-a91e-c273-e9e8"
             ),
         },
         "110": {
@@ -163,16 +163,16 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 51,
             "live_count": 51,
             "source_digest": _digest_literal(
-                "64c2-41ff-c33e-166f-2067-5cbf-4ec9-68d4-01ac-1f97-2eaf-9fca-627f-5892-5c58-8ce2"
+                "5e19-8e40-6984-d4d4-8ff3-364b-79c4-4c63-fac5-a354-6666-75fc-6dd3-7b9a-c39c-257c"
             ),
             "live_digest": _digest_literal(
-                "fbbd-1565-97b7-cad8-5115-9230-4886-f30a-c515-8fb2-d2d5-7464-fe96-fba9-f76a-adef"
+                "3419-b40e-b789-584c-552f-da2e-4ecf-2951-4df9-2f65-6420-b3c1-b68c-a91e-c273-e9e8"
             ),
         },
     },
 }
 _REGISTRATION_AUTHORITY_MANIFEST_SHA256 = _digest_literal(
-    "5fcc-707e-550b-4dd6-d5e5-6dcd-a873-3269-60d3-3bf0-3096-229f-8f7f-26d2-5c5b-b5a3"
+    "ab9c-0205-8371-7e4a-70b0-5b76-7fb1-bf17-fcad-4484-6db5-f377-c2bf-d9f7-9c6a-b844"
 )
 
 _REGISTRATION_AUTHORITY_MINIMAL_SOURCE = """
