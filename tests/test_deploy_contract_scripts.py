@@ -4,6 +4,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 from collections.abc import Callable
 from pathlib import Path
@@ -21,6 +22,30 @@ PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest
 PROMETHEUS_RUNTIME_REF = (
     "prom/prometheus:v3.14.0-distroless@"
     "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+)
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
+    "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+)
+FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
+    {
+        "services": {
+            "prometheus": {
+                "image": PROMETHEUS_RUNTIME_REF,
+                "platform": "linux/amd64",
+            }
+        }
+    },
+    separators=(",", ":"),
+)
+FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
+    [
+        {
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+        }
+    ],
+    separators=(",", ":"),
 )
 CANONICAL_MANAGED_COMPOSE = "deploy/docker-compose.production.yaml"
 CANONICAL_SELF_HOSTED_COMPOSE = "deploy/docker-compose.production.selfhosted.yaml"
@@ -444,6 +469,35 @@ set -euo pipefail
 
 
 def _write_executable(path: Path, content: str) -> None:
+    if path.name == "docker":
+        contract_responses = f"""case \"$*\" in
+  *\"config --format json\"*)
+    if [ \"${{STUB_COMPOSE_CONFIG_STATUS:-0}}\" -ne 0 ]; then
+      exit \"${{STUB_COMPOSE_CONFIG_STATUS}}\"
+    fi
+    if [ -n \"${{STUB_PROMETHEUS_COMPOSE_JSON+x}}\" ]; then
+      printf '%s\\n' \"$STUB_PROMETHEUS_COMPOSE_JSON\"
+    else
+      printf '%s\\n' '{FAKE_PROMETHEUS_COMPOSE_JSON}'
+    fi
+    ;;
+  image\\ inspect\\ *)
+    if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
+      exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
+    fi
+    if [ -n \"${{STUB_PROMETHEUS_IMAGE_INSPECT_JSON+x}}\" ]; then
+      printf '%s\\n' \"$STUB_PROMETHEUS_IMAGE_INSPECT_JSON\"
+    else
+      printf '%s\\n' '{FAKE_PROMETHEUS_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
+esac
+"""
+        marker = "set -euo pipefail\n"
+        if marker in content:
+            content = content.replace(marker, marker + contract_responses, 1)
+        else:
+            content = content.replace("\n", "\n" + contract_responses, 1)
     path.write_text(content, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
@@ -457,6 +511,574 @@ def _assert_log_index(
     index = next((position for position, line in enumerate(log_lines) if predicate(line)), None)
     assert index is not None, message
     return index
+
+
+def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
+    canonical = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    if variant == "malformed":
+        path.write_text("{", encoding="utf-8")
+        return
+    if variant == "duplicate":
+        canonical_text = json.dumps(canonical, separators=(",", ":"))
+        path.write_text(
+            '{"schema":"pulseplate.prometheus_image_manifest.v1",' + canonical_text[1:],
+            encoding="utf-8",
+        )
+        return
+    if variant == "missing":
+        canonical.pop("index_digest")
+    elif variant == "extra":
+        canonical["unexpected"] = "forbidden"
+    elif variant == "wrong-platform-digest":
+        canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+    elif variant == "wrong-runtime-ref":
+        canonical["runtime_ref"] = "prom/prometheus:v3.14.0-distroless@sha256:" + "b" * 64
+    elif variant == "wrong-type":
+        canonical["tag"] = 314
+    else:
+        raise AssertionError(f"unsupported manifest variant: {variant}")
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+
+
+def _production_preflight_fixture(
+    tmp_path: Path,
+    *,
+    with_bundle: bool,
+) -> tuple[dict[str, str], Path, Path, Path | None]:
+    project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "shell-bundle" if with_bundle else None
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    _write_production_host_contract(project_dir, compose_text=PRODUCTION_COMPOSE_TEXT)
+    (project_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    if shell_bundle_dir is not None:
+        shell_bundle_dir.mkdir()
+        _write_shell_bundle_contract(shell_bundle_dir)
+        (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
+            "bounded-frontend\n", encoding="utf-8"
+        )
+    _write_executable(
+        bin_dir / "docker",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf 'app\\nworker\\ncaddy\\nprometheus\\n' ;;
+esac
+""",
+    )
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
+    env = os.environ.copy()
+    env.update(
+        {
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
+            "CURL_BIN": str(bin_dir / "curl"),
+            "DEPLOY_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "PRODUCTION_DOMAIN": "pulseplate.test",
+        }
+    )
+    if shell_bundle_dir is not None:
+        env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
+    return env, project_dir, log_file, shell_bundle_dir
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "malformed",
+        "duplicate",
+        "missing",
+        "extra",
+        "wrong-platform-digest",
+        "wrong-runtime-ref",
+        "wrong-type",
+    ),
+)
+def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    manifest_path = Path(env["PROJECT_DIR"]) / "prometheus" / "image-manifest.json"
+    _write_prometheus_manifest_variant(manifest_path, variant)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "Prometheus manifest" in completed.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "malformed",
+        "duplicate",
+        "missing",
+        "extra",
+        "wrong-platform-digest",
+        "wrong-runtime-ref",
+        "wrong-type",
+    ),
+)
+def test_production_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=False,
+    )
+    _write_prometheus_manifest_variant(
+        project_dir / "deploy" / "prometheus" / "image-manifest.json",
+        variant,
+    )
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "Prometheus manifest" in completed.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    "rendered_compose",
+    (
+        "{",
+        "{}",
+        json.dumps(
+            {
+                "services": {
+                    "prometheus": {
+                        "image": "prom/prometheus:latest",
+                        "platform": "linux/amd64",
+                    }
+                }
+            }
+        ),
+        json.dumps(
+            {
+                "services": {
+                    "prometheus": {
+                        "image": PROMETHEUS_RUNTIME_REF,
+                        "platform": "linux/arm64",
+                    }
+                }
+            }
+        ),
+    ),
+)
+def test_staging_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
+    tmp_path: Path,
+    rendered_compose: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = rendered_compose
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("config --format json" in line for line in log_lines)
+    assert all(
+        " login " not in line and " pull " not in line and " up " not in line for line in log_lines
+    )
+
+
+@pytest.mark.parametrize(
+    "rendered_compose",
+    (
+        "{",
+        "{}",
+        json.dumps(
+            {
+                "services": {
+                    "prometheus": {
+                        "image": "prom/prometheus:latest",
+                        "platform": "linux/amd64",
+                    }
+                }
+            }
+        ),
+        json.dumps(
+            {
+                "services": {
+                    "prometheus": {
+                        "image": PROMETHEUS_RUNTIME_REF,
+                        "platform": "linux/arm64",
+                    }
+                }
+            }
+        ),
+    ),
+)
+def test_production_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
+    tmp_path: Path,
+    rendered_compose: str,
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=False,
+    )
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = rendered_compose
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("config --format json" in line for line in log_lines)
+    assert all(
+        " login " not in line and " pull " not in line and " up " not in line for line in log_lines
+    )
+
+
+IMAGE_INSPECT_REJECTIONS = (
+    "{",
+    "[]",
+    json.dumps(
+        [
+            {
+                "Os": "linux",
+                "Architecture": "amd64",
+                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            },
+            {
+                "Os": "linux",
+                "Architecture": "amd64",
+                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            },
+        ]
+    ),
+    json.dumps(
+        [
+            {
+                "Os": "windows",
+                "Architecture": "amd64",
+                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            }
+        ]
+    ),
+    json.dumps(
+        [
+            {
+                "Os": "linux",
+                "Architecture": "arm64",
+                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+            }
+        ]
+    ),
+    json.dumps([{"Os": "linux", "Architecture": "amd64", "RepoDigests": []}]),
+    json.dumps(
+        [
+            {
+                "Os": "linux",
+                "Architecture": "amd64",
+                "RepoDigests": [
+                    "prom/prometheus@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a"
+                ],
+            }
+        ]
+    ),
+    json.dumps(
+        [
+            {
+                "Os": "linux",
+                "Architecture": "amd64",
+                "RepoDigests": [
+                    f"example.invalid/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
+                ],
+            }
+        ]
+    ),
+)
+
+
+@pytest.mark.parametrize("inspect_payload", IMAGE_INSPECT_REJECTIONS)
+def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutation(
+    tmp_path: Path,
+    inspect_payload: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_PROMETHEUS_IMAGE_INSPECT_JSON"] = inspect_payload
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" pull app caddy prometheus" in line for line in log_lines)
+    assert any("image inspect" in line for line in log_lines)
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+@pytest.mark.parametrize("inspect_payload", IMAGE_INSPECT_REJECTIONS)
+def test_production_deploy_rejects_pulled_prometheus_identity_before_product_mutation(
+    tmp_path: Path,
+    inspect_payload: str,
+) -> None:
+    env, _project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=False,
+    )
+    env.update(
+        {
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "STUB_PROMETHEUS_IMAGE_INSPECT_JSON": inspect_payload,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" pull prometheus" in line for line in log_lines)
+    assert any("image inspect" in line for line in log_lines)
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+def test_production_env_cannot_override_manifest_derived_prometheus_digest(
+    tmp_path: Path,
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=False,
+    )
+    conflicting_digest = "sha256:" + "b" * 64
+    with (project_dir / ".env").open("a", encoding="utf-8") as env_file:
+        env_file.write(f"PROMETHEUS_PLATFORM_MANIFEST_DIGEST={conflicting_digest}\n")
+    env.update(
+        {
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "STUB_PROMETHEUS_IMAGE_INSPECT_JSON": json.dumps(
+                [
+                    {
+                        "Os": "linux",
+                        "Architecture": "amd64",
+                        "RepoDigests": [f"prom/prometheus@{conflicting_digest}"],
+                    }
+                ]
+            ),
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "canonical platform digest" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("image inspect" in line for line in log_lines)
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+
+
+@pytest.mark.parametrize(
+    "destination_variant",
+    (
+        "frontend-directory-symlink",
+        "caddy-leaf-symlink",
+        "scripts-directory-symlink",
+        "redeploy-leaf-symlink",
+    ),
+)
+def test_production_full_bundle_rejects_hostile_destination_before_docker(
+    tmp_path: Path,
+    destination_variant: str,
+) -> None:
+    env, project_dir, log_file, _bundle = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    external = tmp_path / f"external-{destination_variant}"
+    if destination_variant == "frontend-directory-symlink":
+        external.mkdir()
+        (external / "sentinel").write_text("external-frontend\n", encoding="utf-8")
+        hostile = project_dir / "frontend"
+        hostile.symlink_to(external, target_is_directory=True)
+        expected = (external / "sentinel").read_bytes()
+    elif destination_variant == "caddy-leaf-symlink":
+        external.write_text("external-caddy\n", encoding="utf-8")
+        hostile = project_dir / "deploy" / "Caddyfile.production"
+        hostile.symlink_to(external)
+        expected = external.read_bytes()
+    elif destination_variant == "scripts-directory-symlink":
+        external.mkdir()
+        (external / "sentinel").write_text("external-scripts\n", encoding="utf-8")
+        hostile = project_dir / "scripts"
+        hostile.symlink_to(external, target_is_directory=True)
+        expected = (external / "sentinel").read_bytes()
+    else:
+        scripts_dir = project_dir / "scripts"
+        scripts_dir.mkdir()
+        external.write_text("external-helper\n", encoding="utf-8")
+        hostile = scripts_dir / "redeploy_caddy.sh"
+        hostile.symlink_to(external)
+        expected = external.read_bytes()
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert hostile.is_symlink()
+    assert not log_file.exists()
+    if external.is_dir():
+        assert (external / "sentinel").read_bytes() == expected
+    else:
+        assert external.read_bytes() == expected
+    assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
+    assert list(project_dir.rglob(".pulseplate-*.old-*")) == []
+
+
+@pytest.mark.parametrize(
+    "source_variant",
+    (
+        "bundle-parent-symlink",
+        "frontend-nested-symlink",
+        "frontend-nested-hardlink",
+        "caddy-source-symlink",
+        "redeploy-source-symlink",
+    ),
+)
+def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
+    tmp_path: Path,
+    source_variant: str,
+) -> None:
+    env, project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    external = tmp_path / f"external-{source_variant}"
+    if source_variant == "bundle-parent-symlink":
+        real_bundle = tmp_path / "real-shell-bundle"
+        shell_bundle_dir.rename(real_bundle)
+        shell_bundle_dir.symlink_to(real_bundle, target_is_directory=True)
+        expected_path = real_bundle / "frontend" / "bundle-marker.txt"
+    elif source_variant == "frontend-nested-symlink":
+        external.write_text("external-frontend\n", encoding="utf-8")
+        (shell_bundle_dir / "frontend" / "hostile-link").symlink_to(external)
+        expected_path = external
+    elif source_variant == "frontend-nested-hardlink":
+        external.write_text("external-hardlink\n", encoding="utf-8")
+        os.link(external, shell_bundle_dir / "frontend" / "hostile-hardlink")
+        expected_path = external
+    elif source_variant == "caddy-source-symlink":
+        caddy = shell_bundle_dir / "deploy" / "Caddyfile.production"
+        caddy.rename(external)
+        caddy.symlink_to(external)
+        expected_path = external
+    else:
+        redeploy = shell_bundle_dir / "scripts" / "redeploy_caddy.sh"
+        redeploy.rename(external)
+        redeploy.symlink_to(external)
+        expected_path = external
+    expected = expected_path.read_bytes()
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert expected_path.read_bytes() == expected
+    if log_file.exists():
+        log_lines = log_file.read_text(encoding="utf-8").splitlines()
+        assert all(
+            " login " not in line
+            and " pull " not in line
+            and " stop " not in line
+            and " up " not in line
+            for line in log_lines
+        )
+    assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
+    assert list(project_dir.rglob(".pulseplate-*.old-*")) == []
 
 
 @pytest.mark.parametrize(
@@ -507,6 +1129,7 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
     env.update(
         {
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
@@ -624,7 +1247,7 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
         check=False,
     )
     assert completed.returncode != 0
-    assert "contract destination" in completed.stderr
+    assert "destination" in completed.stderr or "Prometheus contract directory" in completed.stderr
     assert symlink_path.is_symlink()
     assert not log_file.exists()
     if external_referent.is_dir():
@@ -717,12 +1340,27 @@ printf 'curl %s\n' "$*" >> "{log_file}"
     assert evidence_file.read_text(encoding="utf-8") == "evidence\n"
     assert backup_file.read_text(encoding="utf-8") == "backup\n"
     assert tsdb_sentinel.read_text(encoding="utf-8") == "tsdb\n"
-    assert (tmp_path / "frontend" / "bundle-marker.txt").read_text(
+    assert (project_dir / "frontend" / "bundle-marker.txt").read_text(
         encoding="utf-8"
     ) == "archive-shell\n"
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert all(METRICS_SECRET_SENTINEL not in line for line in log_lines)
+    prometheus_pull_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: " pull prometheus" in line,
+        message="exact Prometheus pull missing",
+    )
+    image_inspect_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line.startswith("docker image inspect "),
+        message="pulled Prometheus identity validation missing",
+    )
+    promtool_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "promtool prometheus" in line,
+        message="Prometheus config validation missing",
+    )
     guard_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "assert_production_runtime_invariants(app=app)" in line,
@@ -743,7 +1381,15 @@ printf 'curl %s\n' "$*" >> "{log_file}"
         predicate=lambda line: "up -d --pull never prometheus" in line,
         message="Prometheus start missing",
     )
-    assert guard_index < migration_index < caddy_index < prometheus_index
+    assert (
+        prometheus_pull_index
+        < image_inspect_index
+        < promtool_index
+        < guard_index
+        < migration_index
+        < caddy_index
+        < prometheus_index
+    )
     for forbidden in ("down -v", "volume rm", "volume prune", "prometheus_data rm"):
         assert all(forbidden not in line for line in log_lines)
 
@@ -1262,7 +1908,11 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
         "frontend-sync\n", encoding="utf-8"
     )
     (shell_root / "frontend").mkdir()
-    (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
+    (shell_root / "frontend" / "outside-sentinel.txt").write_text(
+        "outside-shell\n", encoding="utf-8"
+    )
+    (project_dir / "frontend").mkdir()
+    (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
     (project_dir / "scripts").mkdir()
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
@@ -1312,14 +1962,18 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         check=True,
     )
 
-    assert (shell_root / "frontend" / "bundle-marker.txt").read_text(
+    assert (project_dir / "frontend" / "bundle-marker.txt").read_text(
         encoding="utf-8"
     ) == "frontend-sync\n"
     assert (
-        (project_dir / "Caddyfile.production")
+        (project_dir / "deploy" / "Caddyfile.production")
         .read_text(encoding="utf-8")
         .startswith("pulseplate.test")
     )
+    assert not (project_dir / "Caddyfile.production").exists()
+    assert (shell_root / "frontend" / "outside-sentinel.txt").read_text(
+        encoding="utf-8"
+    ) == "outside-shell\n"
     assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
@@ -1335,16 +1989,79 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         project_dir / "deploy" / "docker-compose.production.yaml",
         published_config,
         published_manifest,
+        project_dir / "deploy" / "Caddyfile.production",
+        project_dir / "frontend" / "bundle-marker.txt",
     ):
         assert stat.S_IMODE(published_path.stat().st_mode) == 0o644
-    assert list((project_dir / "deploy").rglob(".pulseplate-*.tmp-*")) == []
-    assert not (shell_root / "frontend" / "stale.txt").exists()
+    for helper_path in (
+        project_dir / "scripts" / "diagnose_web.sh",
+        project_dir / "scripts" / "redeploy_caddy.sh",
+    ):
+        assert stat.S_IMODE(helper_path.stat().st_mode) == 0o755
+    assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
+    assert list(project_dir.rglob(".pulseplate-*.old-*")) == []
+    assert not (project_dir / "frontend" / "stale.txt").exists()
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
     assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
+
+
+def test_production_full_sync_cannot_republish_contracts_changed_after_validation(
+    tmp_path: Path,
+) -> None:
+    env, project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    source_manifest = shell_bundle_dir / "deploy" / "prometheus" / "image-manifest.json"
+    source_compose = shell_bundle_dir / "deploy" / "docker-compose.production.yaml"
+    bin_dir = Path(env["DOCKER_BIN"]).parent
+    tampered_manifest = '{"tampered":true}\n'
+    tampered_compose = "services:\n  prometheus:\n    image: prom/prometheus:latest\n"
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf 'app\\nworker\\ncaddy\\nprometheus\\n' ;;
+  *"run --rm --no-deps app alembic upgrade head"*)
+    printf '%s' '{tampered_manifest}' > "{source_manifest}"
+    printf '%s' '{tampered_compose}' > "{source_compose}"
+    ;;
+  *"ps -q app"*) printf 'app-id\\n' ;;
+esac
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+    env.update(
+        {
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert source_manifest.read_text(encoding="utf-8") == tampered_manifest
+    assert source_compose.read_text(encoding="utf-8") == tampered_compose
+    assert (project_dir / "deploy" / "prometheus" / "image-manifest.json").read_text(
+        encoding="utf-8"
+    ) == PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8")
+    assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
+        encoding="utf-8"
+    ) == PRODUCTION_COMPOSE_TEXT
 
 
 def test_deploy_production_syncs_shell_bundle_with_autodetected_compose_file(
@@ -1416,6 +2133,10 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
+    assert (project_dir / "frontend" / "bundle-marker.txt").read_text(
+        encoding="utf-8"
+    ) == "frontend-sync\n"
+    assert (project_dir / "deploy" / "Caddyfile.production").is_file()
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n"
@@ -1846,8 +2567,8 @@ def test_deploy_production_keeps_shell_bundle_untouched_when_migrations_fail(
     (shell_bundle_dir / "frontend" / "bundle-marker.txt").write_text(
         "frontend-sync\n", encoding="utf-8"
     )
-    (shell_root / "frontend").mkdir()
-    (shell_root / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
+    (project_dir / "frontend").mkdir()
+    (project_dir / "frontend" / "stale.txt").write_text("old-shell\n", encoding="utf-8")
     (project_dir / "scripts").mkdir()
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
@@ -1891,8 +2612,8 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     )
 
     assert completed.returncode == 1
-    assert (shell_root / "frontend" / "stale.txt").read_text(encoding="utf-8") == "old-shell\n"
-    assert not (shell_root / "frontend" / "bundle-marker.txt").exists()
+    assert (project_dir / "frontend" / "stale.txt").read_text(encoding="utf-8") == "old-shell\n"
+    assert not (project_dir / "frontend" / "bundle-marker.txt").exists()
     assert (project_dir / "scripts" / "diagnose_web.sh").read_text(
         encoding="utf-8"
     ) == "stale-diagnose\n"
@@ -2956,6 +3677,7 @@ esac
             "BACKUP_HELPER": str(project_dir / "scripts" / "ops" / "postgres_backup.sh"),
             "STAGING_DEPLOY_MARKER": str(project_dir / ".attested-digest-deploy-v1"),
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "STAT_BIN": str(bin_dir / "stat"),
             "STAGING_DOMAIN": "staging.example.com",
@@ -3110,6 +3832,11 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         predicate=lambda line: "compose " in line and " pull app caddy prometheus" in line,
         message="missing exact app, Caddy, and Prometheus pull",
     )
+    image_inspect_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line.startswith("docker image inspect "),
+        message="missing pulled Prometheus platform manifest validation",
+    )
     backup_index = _assert_log_index(
         log_lines, predicate=lambda line: line.startswith("backup "), message="missing backup"
     )
@@ -3142,6 +3869,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     assert (
         login_index
         < pull_index
+        < image_inspect_index
         < postgres_index
         < backup_index
         < quiesce_index

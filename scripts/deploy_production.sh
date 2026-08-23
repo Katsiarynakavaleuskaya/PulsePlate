@@ -371,11 +371,163 @@ validate_prometheus_contract_files() {
   validate_regular_non_symlink_file "$PROMETHEUS_IMAGE_MANIFEST" "Prometheus image manifest"
 }
 
+read_prometheus_runtime_ref() {
+  local manifest_path="$1"
+  "$PYTHON_BIN" - "$manifest_path" <<'PY'
+from __future__ import annotations
+
+import json
+import os
+import re
+import stat
+import sys
+
+manifest_path = sys.argv[1]
+expected = {
+    "schema": "pulseplate.prometheus_image_manifest.v1",
+    "repository": "prom/prometheus",
+    "tag": "v3.14.0-distroless",
+    "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+    "platform": "linux/amd64",
+    "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+    "runtime_ref": (
+        "prom/prometheus:v3.14.0-distroless@"
+        "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+    ),
+}
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate Prometheus manifest key")
+        result[key] = value
+    return result
+
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0 or not os.path.isabs(manifest_path):
+    raise SystemExit("Prometheus manifest path is not a safe absolute path")
+descriptor = os.open(
+    manifest_path,
+    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+)
+try:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > 64 * 1024
+    ):
+        raise SystemExit("Prometheus manifest must be one bounded regular file")
+    payload = os.read(descriptor, metadata.st_size + 1)
+    if len(payload) != metadata.st_size:
+        raise SystemExit("Prometheus manifest changed while being read")
+finally:
+    os.close(descriptor)
+
+try:
+    manifest = json.loads(
+        payload.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=lambda value: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON constant: {value}")
+        ),
+    )
+except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus manifest is malformed") from exc
+if type(manifest) is not dict or set(manifest) != set(expected):
+    raise SystemExit("Prometheus manifest fields do not match the closed contract")
+if any(type(manifest[key]) is not str for key in expected):
+    raise SystemExit("Prometheus manifest values must be strings")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
+    raise SystemExit("Prometheus index digest is malformed")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
+    raise SystemExit("Prometheus platform digest is malformed")
+derived_ref = (
+    f'{manifest["repository"]}:{manifest["tag"]}@{manifest["platform_manifest_digest"]}'
+)
+if manifest["runtime_ref"] != derived_ref or manifest != expected:
+    raise SystemExit("Prometheus manifest identity does not match the canonical record")
+print(manifest["runtime_ref"])
+PY
+}
+
+validate_prometheus_compose_identity() {
+  local compose_path="$1"
+  local runtime_ref="$2"
+  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" config --format json | \
+    "$PYTHON_BIN" -c '
+import json
+import sys
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+prometheus = services.get("prometheus") if type(services) is dict else None
+if type(prometheus) is not dict:
+    raise SystemExit("Rendered Compose must define exactly one Prometheus service")
+if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linux/amd64":
+    raise SystemExit("Rendered Compose Prometheus identity does not match the manifest")
+' "$runtime_ref"
+}
+
+validate_prometheus_contract_identity() {
+  local manifest_path="$1"
+  local compose_path="$2"
+  local runtime_ref
+  runtime_ref="$(read_prometheus_runtime_ref "$manifest_path")"
+  validate_prometheus_compose_identity "$compose_path" "$runtime_ref"
+}
+
+validate_pulled_prometheus_image() {
+  local runtime_ref="$1"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus image inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("Prometheus image inspect must return exactly one image")
+record = payload[0]
+repo_digests = record.get("RepoDigests")
+allowed = {
+    f"prom/prometheus@{sys.argv[1]}",
+    f"docker.io/prom/prometheus@{sys.argv[1]}",
+}
+if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
+    raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
+if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
+    raise SystemExit("Pulled Prometheus RepoDigests are malformed")
+if not allowed.intersection(repo_digests):
+    raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
+' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+}
+
 contract_destination_transaction() {
   local operation="$1"
   local source_compose="${2:-}"
   local source_prometheus_config="${3:-}"
   local source_prometheus_manifest="${4:-}"
+  local source_frontend="${5:-}"
+  local source_caddyfile="${6:-}"
+  local source_diagnose="${7:-}"
+  local source_redeploy="${8:-}"
 
   "$PYTHON_BIN" - \
     "$operation" \
@@ -385,7 +537,15 @@ contract_destination_transaction() {
     "$source_prometheus_config" \
     "deploy/prometheus/prometheus.yml" \
     "$source_prometheus_manifest" \
-    "deploy/prometheus/image-manifest.json" <<'PY'
+    "deploy/prometheus/image-manifest.json" \
+    "$source_frontend" \
+    "frontend" \
+    "$source_caddyfile" \
+    "deploy/Caddyfile.production" \
+    "$source_diagnose" \
+    "scripts/diagnose_web.sh" \
+    "$source_redeploy" \
+    "scripts/redeploy_caddy.sh" <<'PY'
 from __future__ import annotations
 
 import errno
@@ -403,8 +563,21 @@ source_config = sys.argv[5]
 config_target = sys.argv[6]
 source_manifest = sys.argv[7]
 manifest_target = sys.argv[8]
+source_frontend = sys.argv[9]
+frontend_target = sys.argv[10]
+source_caddy = sys.argv[11]
+caddy_target = sys.argv[12]
+source_diagnose = sys.argv[13]
+diagnose_target = sys.argv[14]
+source_redeploy = sys.argv[15]
+redeploy_target = sys.argv[16]
 
-if operation not in {"validate", "publish"}:
+if operation not in {
+    "validate-contracts",
+    "publish-contracts",
+    "validate-full",
+    "publish-full",
+}:
     raise SystemExit("unsupported contract destination transaction")
 if not os.path.isabs(requested_deploy_dir) or os.path.normpath(requested_deploy_dir) != requested_deploy_dir:
     raise SystemExit("DEPLOY_DIR must be one canonical absolute path")
@@ -419,35 +592,52 @@ if config_target != "deploy/prometheus/prometheus.yml":
     raise SystemExit("Prometheus configuration destination is not canonical")
 if manifest_target != "deploy/prometheus/image-manifest.json":
     raise SystemExit("Prometheus image manifest destination is not canonical")
+if frontend_target != "frontend":
+    raise SystemExit("frontend destination is not canonical")
+if caddy_target != "deploy/Caddyfile.production":
+    raise SystemExit("Caddy destination is not canonical")
+if diagnose_target != "scripts/diagnose_web.sh":
+    raise SystemExit("diagnose helper destination is not canonical")
+if redeploy_target != "scripts/redeploy_caddy.sh":
+    raise SystemExit("redeploy helper destination is not canonical")
 
 no_follow = getattr(os, "O_NOFOLLOW", 0)
 directory_flag = getattr(os, "O_DIRECTORY", 0)
 if no_follow <= 0 or directory_flag <= 0:
     raise SystemExit("descriptor no-follow directory validation is unavailable")
 directory_open_flags = os.O_RDONLY | directory_flag | no_follow | getattr(os, "O_CLOEXEC", 0)
+file_read_flags = os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0)
+max_contract_bytes = 4 * 1024 * 1024
+max_tree_members = 20_000
+max_tree_bytes = 512 * 1024 * 1024
+max_tree_depth = 32
 
 
-def open_existing_directory(parent_fd: int, component: str) -> int:
+def open_existing_directory(parent_fd: int, component: str, *, label: str) -> int:
     try:
         metadata = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError as exc:
-        raise SystemExit("contract destination parent is missing") from exc
+        raise SystemExit(f"{label} directory is missing") from exc
     if not stat.S_ISDIR(metadata.st_mode):
-        raise SystemExit("contract destination parent must be a real directory")
+        raise SystemExit(f"{label} must be a real directory")
     try:
         descriptor = os.open(component, directory_open_flags, dir_fd=parent_fd)
     except OSError as exc:
-        raise SystemExit("contract destination parent cannot be opened safely") from exc
+        raise SystemExit(f"{label} cannot be opened safely") from exc
     opened_metadata = os.fstat(descriptor)
-    if not stat.S_ISDIR(opened_metadata.st_mode):
+    if (
+        not stat.S_ISDIR(opened_metadata.st_mode)
+        or opened_metadata.st_dev != metadata.st_dev
+        or opened_metadata.st_ino != metadata.st_ino
+    ):
         os.close(descriptor)
-        raise SystemExit("contract destination parent identity changed")
+        raise SystemExit(f"{label} identity changed")
     return descriptor
 
 
-def ensure_directory(parent_fd: int, component: str, *, create: bool) -> int | None:
+def ensure_directory(parent_fd: int, component: str, *, create: bool, label: str) -> int | None:
     try:
-        return open_existing_directory(parent_fd, component)
+        return open_existing_directory(parent_fd, component, label=label)
     except SystemExit:
         try:
             metadata = os.stat(component, dir_fd=parent_fd, follow_symlinks=False)
@@ -458,20 +648,217 @@ def ensure_directory(parent_fd: int, component: str, *, create: bool) -> int | N
                 os.mkdir(component, 0o755, dir_fd=parent_fd)
                 os.fsync(parent_fd)
             except OSError as exc:
-                raise SystemExit("contract destination directory cannot be created safely") from exc
-            return open_existing_directory(parent_fd, component)
+                raise SystemExit(f"{label} cannot be created safely") from exc
+            return open_existing_directory(parent_fd, component, label=label)
         if not stat.S_ISDIR(metadata.st_mode):
-            raise SystemExit("contract destination parent must be a real directory")
+            raise SystemExit(f"{label} must be a real directory")
         raise
 
 
-def validate_leaf(parent_fd: int, leaf: str) -> None:
+def validate_regular_leaf(parent_fd: int, leaf: str, *, label: str) -> None:
     try:
         metadata = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
         return
-    if not stat.S_ISREG(metadata.st_mode):
-        raise SystemExit("contract destination leaf must be absent or a regular file")
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise SystemExit(f"{label} must be absent or one regular file")
+
+
+def open_absolute_directory(raw_path: str, *, label: str) -> int:
+    if not os.path.isabs(raw_path) or os.path.normpath(raw_path) != raw_path:
+        raise SystemExit(f"{label} path must be canonical and absolute")
+    root_fd = os.open("/", directory_open_flags)
+    walk_fd = root_fd
+    try:
+        for component in Path(raw_path).parts[1:]:
+            next_fd = open_existing_directory(walk_fd, component, label=label)
+            if walk_fd != root_fd:
+                os.close(walk_fd)
+            walk_fd = next_fd
+        if walk_fd == root_fd:
+            raise SystemExit(f"{label} cannot be the filesystem root")
+        return walk_fd
+    finally:
+        os.close(root_fd)
+
+
+def open_absolute_file(raw_path: str, *, label: str, max_bytes: int) -> tuple[int, os.stat_result]:
+    if not os.path.isabs(raw_path) or os.path.normpath(raw_path) != raw_path:
+        raise SystemExit(f"{label} path must be canonical and absolute")
+    parts = Path(raw_path).parts[1:]
+    if not parts:
+        raise SystemExit(f"{label} path is not a file")
+    root_fd = os.open("/", directory_open_flags)
+    walk_fd = root_fd
+    try:
+        for component in parts[:-1]:
+            next_fd = open_existing_directory(walk_fd, component, label=f"{label} parent")
+            if walk_fd != root_fd:
+                os.close(walk_fd)
+            walk_fd = next_fd
+        leaf = parts[-1]
+        try:
+            before = os.stat(leaf, dir_fd=walk_fd, follow_symlinks=False)
+            descriptor = os.open(leaf, file_read_flags, dir_fd=walk_fd)
+        except OSError as exc:
+            raise SystemExit(f"{label} cannot be opened safely") from exc
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_size <= 0
+            or opened.st_size > max_bytes
+            or opened.st_dev != before.st_dev
+            or opened.st_ino != before.st_ino
+        ):
+            os.close(descriptor)
+            raise SystemExit(f"{label} must be one bounded regular file")
+        return descriptor, opened
+    finally:
+        if walk_fd != root_fd:
+            os.close(walk_fd)
+        os.close(root_fd)
+
+
+def copy_open_file(
+    source_fd: int,
+    source_metadata: os.stat_result,
+    destination_fd: int,
+    *,
+    label: str,
+) -> None:
+    remaining = source_metadata.st_size
+    while remaining:
+        chunk = os.read(source_fd, min(1024 * 1024, remaining))
+        if not chunk:
+            raise SystemExit(f"{label} changed during publication")
+        view = memoryview(chunk)
+        while view:
+            written = os.write(destination_fd, view)
+            if written <= 0:
+                raise SystemExit(f"{label} destination write failed")
+            view = view[written:]
+        remaining -= len(chunk)
+    if os.read(source_fd, 1):
+        raise SystemExit(f"{label} grew during publication")
+    after = os.fstat(source_fd)
+    if (
+        after.st_size != source_metadata.st_size
+        or after.st_mtime_ns != source_metadata.st_mtime_ns
+        or after.st_ctime_ns != source_metadata.st_ctime_ns
+    ):
+        raise SystemExit(f"{label} identity changed during publication")
+
+
+def tree_walk(
+    source_fd: int,
+    *,
+    destination_fd: int | None,
+    state: dict[str, int],
+    depth: int,
+    label: str,
+) -> None:
+    if depth > max_tree_depth:
+        raise SystemExit(f"{label} tree depth is out of bounds")
+    entries = sorted(os.scandir(source_fd), key=lambda entry: entry.name)
+    for entry in entries:
+        name = entry.name
+        metadata = os.stat(name, dir_fd=source_fd, follow_symlinks=False)
+        state["members"] += 1
+        if state["members"] > max_tree_members:
+            raise SystemExit(f"{label} tree member count is out of bounds")
+        if stat.S_ISDIR(metadata.st_mode):
+            child_source = open_existing_directory(source_fd, name, label=f"{label} directory")
+            child_destination: int | None = None
+            try:
+                if destination_fd is not None:
+                    os.mkdir(name, 0o755, dir_fd=destination_fd)
+                    child_destination = open_existing_directory(
+                        destination_fd,
+                        name,
+                        label=f"{label} staging directory",
+                    )
+                tree_walk(
+                    child_source,
+                    destination_fd=child_destination,
+                    state=state,
+                    depth=depth + 1,
+                    label=label,
+                )
+                if child_destination is not None:
+                    os.fsync(child_destination)
+            finally:
+                if child_destination is not None:
+                    os.close(child_destination)
+                os.close(child_source)
+            continue
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise SystemExit(f"{label} tree contains a link or special file")
+        if metadata.st_size < 0 or metadata.st_size > max_tree_bytes:
+            raise SystemExit(f"{label} tree file size is out of bounds")
+        state["bytes"] += metadata.st_size
+        if state["bytes"] > max_tree_bytes:
+            raise SystemExit(f"{label} tree expanded size is out of bounds")
+        source_file = os.open(name, file_read_flags, dir_fd=source_fd)
+        try:
+            opened = os.fstat(source_file)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_nlink != 1
+                or opened.st_dev != metadata.st_dev
+                or opened.st_ino != metadata.st_ino
+                or opened.st_size != metadata.st_size
+            ):
+                raise SystemExit(f"{label} tree file identity changed")
+            if destination_fd is not None:
+                destination_file = os.open(
+                    name,
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | no_follow
+                    | getattr(os, "O_CLOEXEC", 0),
+                    0o600,
+                    dir_fd=destination_fd,
+                )
+                try:
+                    copy_open_file(
+                        source_file,
+                        opened,
+                        destination_file,
+                        label=f"{label} tree file",
+                    )
+                    os.fchmod(destination_file, 0o644)
+                    os.fsync(destination_file)
+                finally:
+                    os.close(destination_file)
+        finally:
+            os.close(source_file)
+
+
+def remove_tree_at(parent_fd: int, name: str, *, label: str) -> None:
+    try:
+        metadata = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise SystemExit(f"{label} cleanup target must be a real directory")
+    tree_fd = open_existing_directory(parent_fd, name, label=label)
+    try:
+        entries = sorted(os.scandir(tree_fd), key=lambda entry: entry.name)
+        for entry in entries:
+            metadata = os.stat(entry.name, dir_fd=tree_fd, follow_symlinks=False)
+            if stat.S_ISDIR(metadata.st_mode):
+                remove_tree_at(tree_fd, entry.name, label=label)
+            elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+                os.unlink(entry.name, dir_fd=tree_fd)
+            else:
+                raise SystemExit(f"{label} cleanup encountered a link or special file")
+        os.fsync(tree_fd)
+    finally:
+        os.close(tree_fd)
+    os.rmdir(name, dir_fd=parent_fd)
+    os.fsync(parent_fd)
 
 
 def split_target(raw_target: str) -> tuple[str, ...]:
@@ -483,22 +870,25 @@ def split_target(raw_target: str) -> tuple[str, ...]:
     return pure_path.parts
 
 
-root_fd = os.open("/", directory_open_flags)
-walk_fd = root_fd
-deploy_fd: int | None = None
-directory_fds: list[int] = []
+deploy_fd = open_absolute_directory(requested_deploy_dir, label="contract destination")
+directory_fds: list[int] = [deploy_fd]
 try:
-    for component in Path(requested_deploy_dir).parts[1:]:
-        next_fd = open_existing_directory(walk_fd, component)
-        if walk_fd != root_fd:
-            os.close(walk_fd)
-        walk_fd = next_fd
-    deploy_fd = walk_fd
-    directory_fds.append(deploy_fd)
-
-    targets = [compose_target, config_target, manifest_target]
+    targets = [
+        compose_target,
+        config_target,
+        manifest_target,
+        frontend_target,
+        caddy_target,
+        diagnose_target,
+        redeploy_target,
+    ]
     target_parts = {target: split_target(target) for target in targets}
-    deploy_contract_fd = ensure_directory(deploy_fd, "deploy", create=False)
+    deploy_contract_fd = ensure_directory(
+        deploy_fd,
+        "deploy",
+        create=False,
+        label="canonical deploy contract directory",
+    )
     if deploy_contract_fd is None:
         raise SystemExit("canonical deploy contract directory is missing")
     directory_fds.append(deploy_contract_fd)
@@ -506,128 +896,350 @@ try:
     prometheus_fd = ensure_directory(
         deploy_contract_fd,
         "prometheus",
-        create=operation == "publish",
+        create=operation == "publish-contracts",
+        label="Prometheus contract directory",
     )
     if prometheus_fd is not None:
         directory_fds.append(prometheus_fd)
+
+    scripts_fd = ensure_directory(
+        deploy_fd,
+        "scripts",
+        create=operation == "publish-full",
+        label="production scripts directory",
+    )
+    if scripts_fd is not None:
+        directory_fds.append(scripts_fd)
 
     parent_by_target: dict[str, int | None] = {
         compose_target: deploy_contract_fd,
         config_target: prometheus_fd,
         manifest_target: prometheus_fd,
+        caddy_target: deploy_contract_fd,
+        diagnose_target: scripts_fd,
+        redeploy_target: scripts_fd,
     }
-    for target in targets:
+    for target in (
+        compose_target,
+        config_target,
+        manifest_target,
+        caddy_target,
+        diagnose_target,
+        redeploy_target,
+    ):
         parent_fd = parent_by_target[target]
         if parent_fd is not None:
-            validate_leaf(parent_fd, target_parts[target][-1])
-
-    if operation == "validate":
-        raise SystemExit(0)
-    if prometheus_fd is None:
-        raise SystemExit("Prometheus contract directory was not created")
-
-    sources = {
-        compose_target: source_compose,
-        config_target: source_config,
-        manifest_target: source_manifest,
-    }
-    prepared: list[tuple[int, str, str]] = []
-    max_contract_bytes = 4 * 1024 * 1024
-    try:
-        for target in (config_target, manifest_target, compose_target):
-            source_path = sources[target]
-            if not os.path.isabs(source_path):
-                raise SystemExit("contract source path must be absolute")
-            source_fd = os.open(
-                source_path,
-                os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+            validate_regular_leaf(
+                parent_fd,
+                target_parts[target][-1],
+                label=f"{target} destination",
             )
-            try:
-                source_metadata = os.fstat(source_fd)
-                if (
-                    not stat.S_ISREG(source_metadata.st_mode)
-                    or source_metadata.st_nlink != 1
-                    or source_metadata.st_size <= 0
-                    or source_metadata.st_size > max_contract_bytes
-                ):
-                    raise SystemExit("contract source must be one bounded regular file")
 
-                parent_fd = parent_by_target[target]
-                if parent_fd is None:
-                    raise SystemExit("contract destination parent is unavailable")
-                leaf = target_parts[target][-1]
-                temp_name = f".pulseplate-{leaf}.tmp-{os.getpid()}-{secrets.token_hex(8)}"
-                temp_fd = os.open(
-                    temp_name,
-                    os.O_WRONLY
-                    | os.O_CREAT
-                    | os.O_EXCL
-                    | no_follow
-                    | getattr(os, "O_CLOEXEC", 0),
-                    0o600,
-                    dir_fd=parent_fd,
+    try:
+        frontend_metadata = os.stat(frontend_target, dir_fd=deploy_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        frontend_metadata = None
+    if frontend_metadata is not None:
+        if not stat.S_ISDIR(frontend_metadata.st_mode):
+            raise SystemExit("frontend destination must be absent or a real directory")
+        existing_frontend_fd = open_existing_directory(
+            deploy_fd,
+            frontend_target,
+            label="frontend destination",
+        )
+        try:
+            tree_walk(
+                existing_frontend_fd,
+                destination_fd=None,
+                state={"members": 0, "bytes": 0},
+                depth=0,
+                label="frontend destination",
+            )
+        finally:
+            os.close(existing_frontend_fd)
+
+    if operation == "validate-contracts":
+        raise SystemExit(0)
+
+    if operation == "publish-contracts":
+        if prometheus_fd is None:
+            raise SystemExit("Prometheus contract directory was not created")
+        sources = {
+            compose_target: source_compose,
+            config_target: source_config,
+            manifest_target: source_manifest,
+        }
+        prepared_contracts: list[tuple[int, str, str]] = []
+        try:
+            for target in (config_target, manifest_target, compose_target):
+                source_fd, source_metadata = open_absolute_file(
+                    sources[target],
+                    label=f"{target} source",
+                    max_bytes=max_contract_bytes,
                 )
                 try:
-                    remaining = source_metadata.st_size
-                    while remaining:
-                        chunk = os.read(source_fd, min(1024 * 1024, remaining))
-                        if not chunk:
-                            raise SystemExit("contract source changed during publication")
-                        view = memoryview(chunk)
-                        while view:
-                            written = os.write(temp_fd, view)
-                            if written <= 0:
-                                raise SystemExit("contract destination write failed")
-                            view = view[written:]
-                        remaining -= len(chunk)
-                    if os.read(source_fd, 1):
-                        raise SystemExit("contract source grew during publication")
-                    os.fchmod(temp_fd, 0o644)
-                    os.fsync(temp_fd)
+                    parent_fd = parent_by_target[target]
+                    if parent_fd is None:
+                        raise SystemExit("contract destination parent is unavailable")
+                    leaf = target_parts[target][-1]
+                    temp_name = (
+                        f".pulseplate-{leaf}.tmp-{os.getpid()}-{secrets.token_hex(8)}"
+                    )
+                    temp_fd = os.open(
+                        temp_name,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | no_follow
+                        | getattr(os, "O_CLOEXEC", 0),
+                        0o600,
+                        dir_fd=parent_fd,
+                    )
+                    try:
+                        copy_open_file(
+                            source_fd,
+                            source_metadata,
+                            temp_fd,
+                            label=f"{target} source",
+                        )
+                        os.fchmod(temp_fd, 0o644)
+                        os.fsync(temp_fd)
+                    finally:
+                        os.close(temp_fd)
+                    prepared_contracts.append((parent_fd, temp_name, leaf))
                 finally:
-                    os.close(temp_fd)
-                prepared.append((parent_fd, temp_name, leaf))
-            finally:
-                os.close(source_fd)
+                    os.close(source_fd)
 
-        for parent_fd, temp_name, leaf in prepared:
-            os.replace(
-                temp_name,
-                leaf,
-                src_dir_fd=parent_fd,
-                dst_dir_fd=parent_fd,
+            for parent_fd, temp_name, leaf in prepared_contracts:
+                os.replace(
+                    temp_name,
+                    leaf,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                )
+                os.fsync(parent_fd)
+        finally:
+            for parent_fd, temp_name, _leaf in prepared_contracts:
+                try:
+                    os.unlink(temp_name, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+        raise SystemExit(0)
+
+    frontend_source_fd = open_absolute_directory(source_frontend, label="frontend source")
+    try:
+        if operation == "validate-full":
+            tree_walk(
+                frontend_source_fd,
+                destination_fd=None,
+                state={"members": 0, "bytes": 0},
+                depth=0,
+                label="frontend source",
             )
-            os.fsync(parent_fd)
-    finally:
-        for parent_fd, temp_name, _leaf in prepared:
+            for source_path, label in (
+                (source_caddy, "Caddy source"),
+                (source_redeploy, "redeploy helper source"),
+            ):
+                source_fd, _metadata = open_absolute_file(
+                    source_path,
+                    label=label,
+                    max_bytes=max_contract_bytes,
+                )
+                os.close(source_fd)
+            if source_diagnose:
+                source_fd, _metadata = open_absolute_file(
+                    source_diagnose,
+                    label="diagnose helper source",
+                    max_bytes=max_contract_bytes,
+                )
+                os.close(source_fd)
+            raise SystemExit(0)
+
+        if scripts_fd is None:
+            raise SystemExit("production scripts directory was not created")
+
+        temp_frontend = (
+            f".pulseplate-frontend.tmp-{os.getpid()}-{secrets.token_hex(8)}"
+        )
+        os.mkdir(temp_frontend, 0o755, dir_fd=deploy_fd)
+        temp_frontend_fd = open_existing_directory(
+            deploy_fd,
+            temp_frontend,
+            label="frontend staging directory",
+        )
+        try:
+            tree_walk(
+                frontend_source_fd,
+                destination_fd=temp_frontend_fd,
+                state={"members": 0, "bytes": 0},
+                depth=0,
+                label="frontend source",
+            )
+            os.fsync(temp_frontend_fd)
+        finally:
+            os.close(temp_frontend_fd)
+
+        prepared_files: list[tuple[int, str, str]] = []
+        regular_sources = [
+            (source_caddy, deploy_contract_fd, "Caddyfile.production", 0o644, "Caddy source"),
+            (source_redeploy, scripts_fd, "redeploy_caddy.sh", 0o755, "redeploy helper source"),
+        ]
+        if source_diagnose:
+            regular_sources.append(
+                (source_diagnose, scripts_fd, "diagnose_web.sh", 0o755, "diagnose helper source")
+            )
+        backup_frontend = ""
+        try:
+            for source_path, parent_fd, leaf, mode, label in regular_sources:
+                source_fd, source_metadata = open_absolute_file(
+                    source_path,
+                    label=label,
+                    max_bytes=max_contract_bytes,
+                )
+                try:
+                    temp_name = (
+                        f".pulseplate-{leaf}.tmp-{os.getpid()}-{secrets.token_hex(8)}"
+                    )
+                    temp_fd = os.open(
+                        temp_name,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | no_follow
+                        | getattr(os, "O_CLOEXEC", 0),
+                        0o600,
+                        dir_fd=parent_fd,
+                    )
+                    try:
+                        copy_open_file(source_fd, source_metadata, temp_fd, label=label)
+                        os.fchmod(temp_fd, mode)
+                        os.fsync(temp_fd)
+                    finally:
+                        os.close(temp_fd)
+                    prepared_files.append((parent_fd, temp_name, leaf))
+                finally:
+                    os.close(source_fd)
+
+            for parent_fd, temp_name, leaf in prepared_files:
+                os.replace(
+                    temp_name,
+                    leaf,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                )
+                os.fsync(parent_fd)
+
+            if not source_diagnose:
+                try:
+                    os.unlink("diagnose_web.sh", dir_fd=scripts_fd)
+                except FileNotFoundError:
+                    pass
+                os.fsync(scripts_fd)
+
+            if frontend_metadata is not None:
+                backup_frontend = (
+                    f".pulseplate-frontend.old-{os.getpid()}-{secrets.token_hex(8)}"
+                )
+                os.rename(
+                    frontend_target,
+                    backup_frontend,
+                    src_dir_fd=deploy_fd,
+                    dst_dir_fd=deploy_fd,
+                )
+                os.fsync(deploy_fd)
             try:
-                os.unlink(temp_name, dir_fd=parent_fd)
-            except FileNotFoundError:
-                pass
+                os.rename(
+                    temp_frontend,
+                    frontend_target,
+                    src_dir_fd=deploy_fd,
+                    dst_dir_fd=deploy_fd,
+                )
+                os.fsync(deploy_fd)
+            except BaseException:
+                if backup_frontend:
+                    os.rename(
+                        backup_frontend,
+                        frontend_target,
+                        src_dir_fd=deploy_fd,
+                        dst_dir_fd=deploy_fd,
+                    )
+                    backup_frontend = ""
+                    os.fsync(deploy_fd)
+                raise
+
+            if backup_frontend:
+                remove_tree_at(deploy_fd, backup_frontend, label="previous frontend tree")
+                backup_frontend = ""
+        finally:
+            for parent_fd, temp_name, _leaf in prepared_files:
+                try:
+                    os.unlink(temp_name, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+            remove_tree_at(deploy_fd, temp_frontend, label="frontend staging tree")
+            if backup_frontend:
+                if frontend_target not in {
+                    entry.name for entry in os.scandir(deploy_fd)
+                }:
+                    os.rename(
+                        backup_frontend,
+                        frontend_target,
+                        src_dir_fd=deploy_fd,
+                        dst_dir_fd=deploy_fd,
+                    )
+                    os.fsync(deploy_fd)
+                else:
+                    raise SystemExit("previous frontend backup requires operator disposition")
+    finally:
+        os.close(frontend_source_fd)
 finally:
     for descriptor in reversed(directory_fds):
-        if descriptor != root_fd:
-            try:
-                os.close(descriptor)
-            except OSError as exc:
-                if exc.errno != errno.EBADF:
-                    raise
-    os.close(root_fd)
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if exc.errno != errno.EBADF:
+                raise
 PY
 }
 
 validate_contract_destinations_safely() {
-  contract_destination_transaction validate "" "" ""
+  contract_destination_transaction validate-contracts "" "" ""
 }
 
 publish_contract_files_safely() {
   local source_compose="$1"
   local source_prometheus_config="$2"
   local source_prometheus_manifest="$3"
-  contract_destination_transaction publish \
+  contract_destination_transaction publish-contracts \
     "$source_compose" \
     "$source_prometheus_config" \
     "$source_prometheus_manifest"
+}
+
+validate_full_bundle_safely() {
+  local source_frontend="$1"
+  local source_caddyfile="$2"
+  local source_diagnose="$3"
+  local source_redeploy="$4"
+  contract_destination_transaction validate-full \
+    "" "" "" \
+    "$source_frontend" \
+    "$source_caddyfile" \
+    "$source_diagnose" \
+    "$source_redeploy"
+}
+
+publish_full_bundle_safely() {
+  local source_frontend="$1"
+  local source_caddyfile="$2"
+  local source_diagnose="$3"
+  local source_redeploy="$4"
+  contract_destination_transaction publish-full \
+    "" "" "" \
+    "$source_frontend" \
+    "$source_caddyfile" \
+    "$source_diagnose" \
+    "$source_redeploy"
 }
 
 process_shell_bundle_archive() {
@@ -780,12 +1392,20 @@ validate_shell_bundle_archive() {
   local validation_root
   validation_root="$(mktemp -d /tmp/pulseplate-shell-bundle-validation.XXXXXX)"
   chmod 700 "$validation_root"
+  validation_root="$(cd "$validation_root" && pwd -P)"
   local validation_status=0
-  if process_shell_bundle_archive validate "$validation_root"; then
-    validation_status=0
+  local original_bundle_dir="$SHELL_BUNDLE_DIR"
+  if process_shell_bundle_archive extract "$validation_root"; then
+    SHELL_BUNDLE_DIR="$validation_root/payload"
+    if validate_shell_bundle_contract; then
+      validation_status=0
+    else
+      validation_status=$?
+    fi
   else
     validation_status=$?
   fi
+  SHELL_BUNDLE_DIR="$original_bundle_dir"
   rm -rf -- "$validation_root"
   return "$validation_status"
 }
@@ -797,14 +1417,17 @@ extract_shell_bundle_archive() {
 
   ARCHIVE_EXTRACT_DIR="$(mktemp -d /tmp/pulseplate-shell-bundle-extract.XXXXXX)"
   chmod 700 "$ARCHIVE_EXTRACT_DIR"
+  ARCHIVE_EXTRACT_DIR="$(cd "$ARCHIVE_EXTRACT_DIR" && pwd -P)"
   process_shell_bundle_archive extract "$ARCHIVE_EXTRACT_DIR"
   SHELL_BUNDLE_DIR="$ARCHIVE_EXTRACT_DIR/payload"
 }
 
 cleanup_shell_bundle_archive() {
   if [ -n "$ARCHIVE_EXTRACT_DIR" ]; then
+    local resolved_tmp
+    resolved_tmp="$(cd /tmp && pwd -P)"
     case "$ARCHIVE_EXTRACT_DIR" in
-      /tmp/pulseplate-shell-bundle-extract.*)
+      "$resolved_tmp"/pulseplate-shell-bundle-extract.*)
         rm -rf -- "$ARCHIVE_EXTRACT_DIR"
         ;;
       *)
@@ -848,9 +1471,6 @@ sync_shell_bundle() {
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
   local compose_relative_path="$COMPOSE_RELATIVE_IDENTITY"
-  local shell_root
-  local target_scripts_dir="$DEPLOY_DIR/scripts"
-  shell_root="$(cd "$DEPLOY_DIR/.." && pwd)"
 
   if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
     echo "❌ Could not resolve a compose filename for shell bundle sync" >&2
@@ -884,33 +1504,29 @@ sync_shell_bundle() {
     exit 1
   fi
 
-  publish_contract_files_safely \
-    "$source_compose" \
-    "$source_prometheus_config" \
-    "$source_prometheus_manifest"
+  if [ -L "$source_diagnose" ]; then
+    echo "❌ Optional diagnose helper must not be a symlink" >&2
+    exit 1
+  fi
+  if [ ! -f "$source_diagnose" ]; then
+    source_diagnose=""
+  fi
+
   if [ "$sync_mode" = "compose-only" ]; then
+    publish_contract_files_safely \
+      "$source_compose" \
+      "$source_prometheus_config" \
+      "$source_prometheus_manifest"
     echo "Synced production Compose and Prometheus contracts before worker operations"
     return 0
   fi
 
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
-  rm -rf "$shell_root/frontend"
-  mkdir -p "$shell_root/frontend" "$target_scripts_dir"
-  cp -R "$source_frontend/." "$shell_root/frontend/"
-  cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
-  rm -f "$target_scripts_dir/diagnose_web.sh" "$target_scripts_dir/redeploy_caddy.sh"
-
-  if [ -L "$source_diagnose" ]; then
-    echo "❌ Optional diagnose helper must not be a symlink" >&2
-    exit 1
-  fi
-  if [ -f "$source_diagnose" ]; then
-    cp "$source_diagnose" "$target_scripts_dir/diagnose_web.sh"
-    chmod +x "$target_scripts_dir/diagnose_web.sh"
-  fi
-
-  cp "$source_redeploy" "$target_scripts_dir/redeploy_caddy.sh"
-  chmod +x "$target_scripts_dir/redeploy_caddy.sh"
+  publish_full_bundle_safely \
+    "$source_frontend" \
+    "$source_caddyfile" \
+    "$source_diagnose" \
+    "$source_redeploy"
 }
 
 wait_for_app_ready() {
@@ -1017,6 +1633,7 @@ validate_shell_bundle_contract() {
   local source_prometheus_manifest=""
   local compose_relative_path=""
   local required_redeploy=""
+  local optional_diagnose=""
 
   if [ -z "$SHELL_BUNDLE_DIR" ]; then
     return 0
@@ -1088,6 +1705,22 @@ validate_shell_bundle_contract() {
     echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $required_redeploy" >&2
     exit 1
   fi
+
+  optional_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
+  if [ -L "$optional_diagnose" ]; then
+    echo "❌ Optional diagnose helper must not be a symlink" >&2
+    exit 1
+  fi
+  if [ ! -f "$optional_diagnose" ]; then
+    optional_diagnose=""
+  fi
+
+  validate_prometheus_contract_identity "$source_prometheus_manifest" "$source_compose"
+  validate_full_bundle_safely \
+    "$source_frontend" \
+    "$source_caddyfile" \
+    "$optional_diagnose" \
+    "$required_redeploy"
 }
 
 run_preflight() {
@@ -1099,6 +1732,9 @@ run_preflight() {
     validate_shell_bundle_contract
   elif [ -z "$SHELL_BUNDLE_ARCHIVE" ]; then
     validate_prometheus_contract_files
+    validate_prometheus_contract_identity \
+      "$PROMETHEUS_IMAGE_MANIFEST" \
+      "$COMPOSE_CONTRACT_PATH"
   fi
   validate_production_database_contract
   validate_scheduler_mode_contract
@@ -1121,6 +1757,11 @@ login_to_ghcr_if_configured
 sync_shell_bundle compose-only
 validate_prometheus_contract_files
 dc config --quiet
+PROMETHEUS_RUNTIME_REF="$(read_prometheus_runtime_ref "$PROMETHEUS_IMAGE_MANIFEST")"
+readonly PROMETHEUS_RUNTIME_REF
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
+readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+validate_prometheus_compose_identity "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_RUNTIME_REF"
 
 echo "Pulling production app image..."
 dc pull app
@@ -1130,6 +1771,9 @@ dc pull worker
 
 echo "Pulling exact production Prometheus image..."
 dc pull prometheus
+
+echo "Validating the pulled Prometheus platform manifest before product mutation..."
+validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
 
 echo "Validating the exact Prometheus configuration before product mutation..."
 dc run --rm --no-deps --entrypoint /bin/promtool prometheus \

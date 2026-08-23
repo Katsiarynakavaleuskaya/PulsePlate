@@ -218,6 +218,18 @@ jobs:
             "$PROMETHEUS_RUNTIME_REF" \
             check config --syntax-only /etc/prometheus/prometheus.yml
 
+      - name: Create empty Prometheus Trivy ignore file
+        id: prometheus_trivy_ignore
+        run: |
+          set -euo pipefail
+          umask 077
+          empty_ignore="$(mktemp "${RUNNER_TEMP}/pulseplate-prometheus-empty-trivyignore.XXXXXX")"
+          if [ ! -f "$empty_ignore" ] || [ -L "$empty_ignore" ] || [ -s "$empty_ignore" ]; then
+            echo "Failed to create an empty regular Prometheus Trivy ignore file" >&2
+            exit 1
+          fi
+          printf 'path=%s\n' "$empty_ignore" >> "$GITHUB_OUTPUT"
+
       - name: Scan exact Prometheus image without suppressions
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         env:
@@ -231,7 +243,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
           timeout: 15m
-          trivyignores: /dev/null
+          trivyignores: ${{ steps.prometheus_trivy_ignore.outputs.path }}
           version: v0.72.0
           cache-dir: /tmp/trivy-cache-prometheus-image-security
 

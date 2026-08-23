@@ -68,6 +68,20 @@ if [ -z "$STAT_BIN" ] || [ ! -x "$STAT_BIN" ]; then
   exit 1
 fi
 
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [ -z "$PYTHON_BIN" ]; then
+  for candidate in /usr/bin/python3 /usr/local/bin/python3; do
+    if [ -x "$candidate" ]; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
+if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
+  echo "❌ PYTHON_BIN must resolve to an absolute executable" >&2
+  exit 1
+fi
+
 marker_metadata="$($STAT_BIN -c '%u:%g:%a' "$STAGING_DEPLOY_MARKER")"
 if [ "$marker_metadata" != "0:0:644" ]; then
   echo "❌ Staging deploy marker must be root-owned with mode 0644; got $marker_metadata" >&2
@@ -127,6 +141,144 @@ if [ "$secret_file_metadata" != "${EUID}:444" ]; then
   echo "❌ Metrics scrape secret file must be owned by the Compose account with mode 0444" >&2
   exit 1
 fi
+
+validate_prometheus_image_manifest() {
+  local manifest_path="$1"
+  "$PYTHON_BIN" - "$manifest_path" <<'PY'
+from __future__ import annotations
+
+import json
+import os
+import re
+import stat
+import sys
+
+manifest_path = sys.argv[1]
+expected = {
+    "schema": "pulseplate.prometheus_image_manifest.v1",
+    "repository": "prom/prometheus",
+    "tag": "v3.14.0-distroless",
+    "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+    "platform": "linux/amd64",
+    "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+    "runtime_ref": (
+        "prom/prometheus:v3.14.0-distroless@"
+        "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+    ),
+}
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate Prometheus manifest key")
+        result[key] = value
+    return result
+
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0 or not os.path.isabs(manifest_path):
+    raise SystemExit("Prometheus manifest path is not a safe absolute path")
+descriptor = os.open(
+    manifest_path,
+    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+)
+try:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > 64 * 1024
+    ):
+        raise SystemExit("Prometheus manifest must be one bounded regular file")
+    payload = os.read(descriptor, metadata.st_size + 1)
+    if len(payload) != metadata.st_size:
+        raise SystemExit("Prometheus manifest changed while being read")
+finally:
+    os.close(descriptor)
+
+try:
+    manifest = json.loads(
+        payload.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=lambda value: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON constant: {value}")
+        ),
+    )
+except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus manifest is malformed") from exc
+if type(manifest) is not dict or set(manifest) != set(expected):
+    raise SystemExit("Prometheus manifest fields do not match the closed contract")
+if any(type(manifest[key]) is not str for key in expected):
+    raise SystemExit("Prometheus manifest values must be strings")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
+    raise SystemExit("Prometheus index digest is malformed")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
+    raise SystemExit("Prometheus platform digest is malformed")
+derived_ref = (
+    f'{manifest["repository"]}:{manifest["tag"]}@{manifest["platform_manifest_digest"]}'
+)
+if manifest["runtime_ref"] != derived_ref or manifest != expected:
+    raise SystemExit("Prometheus manifest identity does not match the canonical record")
+print(manifest["runtime_ref"])
+PY
+}
+
+validate_prometheus_compose_identity() {
+  local runtime_ref="$1"
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
+import json
+import sys
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+prometheus = services.get("prometheus") if type(services) is dict else None
+if type(prometheus) is not dict:
+    raise SystemExit("Rendered Compose must define exactly one Prometheus service")
+if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linux/amd64":
+    raise SystemExit("Rendered Compose Prometheus identity does not match the manifest")
+' "$runtime_ref"
+}
+
+validate_pulled_prometheus_image() {
+  local runtime_ref="$1"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus image inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("Prometheus image inspect must return exactly one image")
+record = payload[0]
+repo_digests = record.get("RepoDigests")
+allowed = {
+    f"prom/prometheus@{sys.argv[1]}",
+    f"docker.io/prom/prometheus@{sys.argv[1]}",
+}
+if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
+    raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
+if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
+    raise SystemExit("Pulled Prometheus RepoDigests are malformed")
+if not allowed.intersection(repo_digests):
+    raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
+' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+}
 
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
@@ -189,6 +341,11 @@ fi
 
 COMPOSE=("$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 
+PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_MANIFEST")"
+readonly PROMETHEUS_RUNTIME_REF
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
+readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+
 docker_architecture="$($DOCKER_BIN info --format '{{.Architecture}}')"
 case "$docker_architecture" in
   amd64|x86_64) ;;
@@ -199,6 +356,7 @@ case "$docker_architecture" in
 esac
 
 "${COMPOSE[@]}" config --quiet
+validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
 
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
   echo "✅ Staging deploy preflight passed (contract v${STAGING_DEPLOY_CONTRACT_VERSION})"
@@ -236,6 +394,8 @@ echo "[2/6] Pull exact backend, Caddy, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
+echo "Validating the pulled Prometheus platform manifest before product mutation"
+validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
 "$DOCKER_BIN" logout ghcr.io >/dev/null
 rm -rf -- "$DOCKER_CONFIG"
 mkdir -m 700 -- "$DOCKER_CONFIG"

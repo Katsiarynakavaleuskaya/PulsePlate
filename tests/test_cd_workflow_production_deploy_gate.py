@@ -186,7 +186,44 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     security_text = str(security_job)
     assert "secrets." not in security_text
     assert "persist-credentials': False" in security_text
-    assert "trivyignores': '/dev/null'" in security_text
+    assert ".trivyignore" not in security_text
+    assert "ignore-policy" not in security_text
+
+    steps = security_job.get("steps")
+    assert isinstance(steps, list)
+    create_index = next(
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        and step.get("name") == "Create empty Prometheus Trivy ignore file"
+    )
+    scan_index = next(
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        and step.get("name") == "Scan exact Prometheus image without suppressions"
+    )
+    assert create_index < scan_index
+
+    create_step = steps[create_index]
+    assert create_step["id"] == "prometheus_trivy_ignore"
+    create_script = create_step["run"]
+    assert "mktemp" in create_script
+    assert "${RUNNER_TEMP}/pulseplate-prometheus-empty-trivyignore.XXXXXX" in create_script
+    assert "umask 077" in create_script
+    assert '[ ! -f "$empty_ignore" ]' in create_script
+    assert '[ -L "$empty_ignore" ]' in create_script
+    assert '[ -s "$empty_ignore" ]' in create_script
+    assert "path=%s" in create_script
+
+    scan_step = steps[scan_index]
+    scan_inputs = scan_step.get("with")
+    assert isinstance(scan_inputs, dict)
+    assert "/dev/null" not in str(scan_inputs)
+    assert scan_inputs["trivyignores"] == "${{ steps.prometheus_trivy_ignore.outputs.path }}"
+    assert scan_inputs["scanners"] == "vuln,secret"
+    assert scan_inputs["severity"] == "CRITICAL,HIGH"
+    assert scan_inputs["exit-code"] == "1"
 
     main_jobs = {"build", "release-control-plane-fixture-gate"}
     tag_jobs = {
