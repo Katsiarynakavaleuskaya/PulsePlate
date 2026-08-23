@@ -2782,7 +2782,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: DEPSEC-2 multi-ecosystem dependency coverage and compatibility closure
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: DS-1 completed via PR #2318; DS-2 `codex/depsec2-non-python-dependabot-ownership` (PR pending); DS-3 and reproduction-gated DS-4 remain separate PRs
+  - Target PR: DS-1 completed via PR #2318; DS-2 `codex/depsec2-non-python-dependabot-ownership` (PR #2323); DS-3 and reproduction-gated DS-4 remain separate PRs
   - Status: 🟡 In progress via DS-2 bounded non-Python Dependabot ownership; the umbrella remains open
   - Area: dependency security / CI governance / runtime compatibility
   - Finding Type: multi-ecosystem automation and architecture-drift closure
