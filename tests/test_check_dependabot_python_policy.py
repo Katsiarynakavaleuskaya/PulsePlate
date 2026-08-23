@@ -1,10 +1,11 @@
-"""Tests for the production-governed Python Dependabot policy."""
+"""Tests for the production-governed Dependabot policy."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, asdict
 from itertools import product
+import json
 import os
 from pathlib import Path
 import re
@@ -56,6 +57,9 @@ def _copy_policy_repo(tmp_path: Path) -> Path:
     (repo / ".github").mkdir(parents=True)
     shutil.copy2(REPO_ROOT / ".gitignore", repo / ".gitignore")
     shutil.copy2(REPO_ROOT / policy.CONFIG_PATH, repo / policy.CONFIG_PATH)
+    business_package = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    business_package.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(REPO_ROOT / policy.BUSINESS_COLLATERAL_PACKAGE_PATH, business_package)
     requirement_files = {
         relative_path
         for surface in DEPENDENCY_SURFACES
@@ -86,11 +90,28 @@ def _write_config(repo: Path, config: dict[str, object]) -> None:
 
 
 def _pip_update(config: dict[str, object]) -> dict[str, object]:
+    return _update_by_ecosystem(config, "pip")
+
+
+def _update_by_ecosystem(
+    config: dict[str, object],
+    ecosystem: str,
+) -> dict[str, object]:
     updates = config["updates"]
     assert isinstance(updates, list)
-    update = updates[0]
-    assert isinstance(update, dict)
-    return update
+    matching = [
+        update
+        for update in updates
+        if isinstance(update, dict) and update.get("package-ecosystem") == ecosystem
+    ]
+    assert len(matching) == 1
+    return matching[0]
+
+
+def _update_index(config: dict[str, object], ecosystem: str) -> int:
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    return updates.index(_update_by_ecosystem(config, ecosystem))
 
 
 def _groups(config: dict[str, object]) -> dict[str, object]:
@@ -143,6 +164,424 @@ def _selector_path(selector: MappingSelector) -> str:
 
 def test_live_dependabot_policy_passes() -> None:
     assert policy.validate_repo(REPO_ROOT) == []
+
+
+def test_closed_updater_registry_is_order_independent(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.reverse()
+    npm_directories = _update_by_ecosystem(config, "npm")["directories"]
+    actions_directories = _update_by_ecosystem(config, "github-actions")["directories"]
+    assert isinstance(npm_directories, list)
+    assert isinstance(actions_directories, list)
+    npm_directories.reverse()
+    actions_directories.reverse()
+    _write_config(repo, config)
+
+    assert policy.validate_repo(repo) == []
+
+
+def test_closed_updater_registry_has_exact_core_v1_contract() -> None:
+    config = _load_config(REPO_ROOT)
+
+    assert {
+        ecosystem: {
+            key: value
+            for key, value in _update_by_ecosystem(config, ecosystem).items()
+            if key != "groups"
+        }
+        for ecosystem in policy.EXPECTED_UPDATER_ECOSYSTEMS
+    } == {
+        "pip": {
+            key: value
+            for key, value in policy.EXPECTED_UPDATE_EXACT_VALUES.items()
+            if key != "groups"
+        }
+        | {"cooldown": policy.EXPECTED_COOLDOWN},
+        "npm": {
+            "package-ecosystem": "npm",
+            "directories": ["/", "/frontend"],
+            **policy.EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+            "cooldown": policy.EXPECTED_COOLDOWN,
+        },
+        "bundler": {
+            "package-ecosystem": "bundler",
+            "directory": "/ios",
+            **policy.EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+            "cooldown": policy.EXPECTED_COOLDOWN,
+        },
+        "github-actions": {
+            "package-ecosystem": "github-actions",
+            "directories": ["/", "/.github/actions/*"],
+            **policy.EXPECTED_COMMON_UPDATE_EXACT_VALUES,
+            "cooldown": policy.EXPECTED_COOLDOWN,
+        },
+    }
+
+
+@pytest.mark.parametrize("ecosystem", sorted(policy.EXPECTED_UPDATER_ECOSYSTEMS))
+def test_every_required_updater_identity_fails_closed_when_missing(
+    tmp_path: Path,
+    ecosystem: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.remove(_update_by_ecosystem(config, ecosystem))
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f".github/dependabot.yml:updates:missing required {ecosystem!r} updater identity" in errors
+    )
+
+
+def test_duplicate_and_overlapping_updater_identity_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.append(_update_by_ecosystem(config, "npm").copy())
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert ".github/dependabot.yml:updates:duplicate 'npm' updater identity is forbidden" in errors
+    assert ".github/dependabot.yml:updates:overlapping 'npm' updater scopes are forbidden" in errors
+
+
+def test_unknown_updater_identity_fails_closed_without_rendering_value(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    npm = _update_by_ecosystem(config, "npm")
+    sentinel = "unknown-ecosystem-must-not-leak"
+    npm["package-ecosystem"] = sentinel
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    rendered = "\n".join(errors)
+    assert "must be one of the four exact governed ecosystems; got string" in rendered
+    assert sentinel not in rendered
+    assert "missing required 'npm' updater identity" in rendered
+
+
+@pytest.mark.parametrize(
+    ("ecosystem", "scope_key", "invalid_scope"),
+    [
+        ("npm", "directories", ["/"]),
+        ("npm", "directories", ["/", "/nested"]),
+        ("bundler", "directory", "/"),
+        ("github-actions", "directories", ["/"]),
+        ("github-actions", "directories", ["/", "/.github/actions/other"]),
+    ],
+)
+def test_every_bounded_updater_requires_exact_scope(
+    tmp_path: Path,
+    ecosystem: str,
+    scope_key: str,
+    invalid_scope: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    update = _update_by_ecosystem(config, ecosystem)
+    update[scope_key] = invalid_scope
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    update_index = _update_index(config, ecosystem)
+    assert any(
+        f"updates[{update_index}].{scope_key}:scope must be exactly" in error for error in errors
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_scope",
+    [
+        [],
+        ["/", "/"],
+        ["/", 1],
+        ["/", "frontend"],
+        ["/", "/frontend/"],
+        ["/", "/frontend//nested"],
+        ["/", "/frontend/../nested"],
+        ["/", "/front\\end"],
+        ["/", "/front end"],
+        ["/", "/front*"],
+    ],
+)
+def test_directory_scope_grammar_fails_closed(
+    tmp_path: Path,
+    invalid_scope: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, "npm")["directories"] = invalid_scope
+    _write_config(repo, config)
+
+    assert policy.validate_repo(repo)
+
+
+def test_directory_and_directories_cannot_coexist(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, "npm")["directory"] = "/"
+    update_index = _update_index(config, "npm")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    expected_keys = policy.EXPECTED_UPDATE_CONTRACTS["npm"].keys
+    expected_errors = [
+        f".github/dependabot.yml:updates[{update_index}]:keys must be exactly "
+        f"{policy._sorted_keys(expected_keys)!r}; got key_count={len(expected_keys) + 1}",
+        f".github/dependabot.yml:updates[{update_index}]:"
+        "must define exactly one of 'directory' or 'directories'",
+        f".github/dependabot.yml:updates[{update_index}]:"
+        "scope key must be exactly 'directories'",
+    ]
+    assert errors == expected_errors
+
+    probe = (
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "from scripts.ci.check_dependabot_python_policy import validate_repo\n"
+        "print(json.dumps(validate_repo(Path(sys.argv[1]))))\n"
+    )
+    for hash_seed in ("1", "2", "3", "random"):
+        result = subprocess.run(
+            [sys.executable, "-O", "-c", probe, str(repo)],
+            check=True,
+            capture_output=True,
+            cwd=REPO_ROOT,
+            env={**os.environ, "PYTHONHASHSEED": hash_seed},
+            text=True,
+            timeout=10,
+        )
+        assert json.loads(result.stdout) == expected_errors
+
+
+@pytest.mark.parametrize("ecosystem", ["npm", "bundler", "github-actions"])
+@pytest.mark.parametrize(
+    "forbidden_key",
+    sorted(policy.NON_PYTHON_FORBIDDEN_AUTHORITY_KEYS - policy.FORBIDDEN_UPDATE_KEYS),
+)
+def test_non_python_authority_keys_are_recursively_forbidden(
+    tmp_path: Path,
+    ecosystem: str,
+    forbidden_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    update = _update_by_ecosystem(config, ecosystem)
+    schedule = update["schedule"]
+    assert isinstance(schedule, dict)
+    schedule[forbidden_key] = {"nested": True}
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.endswith(
+            f".{forbidden_key}:key is forbidden for bounded non-Python updater authority"
+        )
+        for error in errors
+    )
+
+
+def test_multi_ecosystem_grouping_is_forbidden_at_root_and_update(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    config["multi-ecosystem-groups"] = {"all": {"schedule": {"interval": "weekly"}}}
+    _update_by_ecosystem(config, "npm")["multi-ecosystem-group"] = "all"
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any("root keys must be exactly" in error for error in errors)
+    assert any(
+        ".multi-ecosystem-group:key is forbidden by Mode A intake policy" in error
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize("ecosystem", ["npm", "bundler", "github-actions"])
+@pytest.mark.parametrize(
+    ("key", "invalid_value"),
+    [
+        ("schedule", {"interval": "daily"}),
+        ("open-pull-requests-limit", 0),
+        ("open-pull-requests-limit", -1),
+        ("open-pull-requests-limit", False),
+        ("open-pull-requests-limit", 1.0),
+        ("cooldown", {"default-days": 7}),
+        ("commit-message", {"prefix": "deps"}),
+    ],
+)
+def test_non_python_schedule_limit_cooldown_and_commit_policy_are_exact(
+    tmp_path: Path,
+    ecosystem: str,
+    key: str,
+    invalid_value: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _update_by_ecosystem(config, ecosystem)[key] = invalid_value
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    update_index = _update_index(config, ecosystem)
+    assert any(f"updates[{update_index}].{key}:" in error for error in errors)
+
+
+@pytest.mark.parametrize("dependency_key", sorted(policy.BUSINESS_COLLATERAL_DEPENDENCY_KEYS))
+def test_business_collateral_dependency_key_requires_new_ownership_decision(
+    tmp_path: Path,
+    dependency_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_text(
+        json.dumps({"type": "commonjs", dependency_key: {}}),
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:{dependency_key}:"
+        "dependency ownership is not admitted for this marker"
+    ) in errors
+
+
+@pytest.mark.parametrize("lock_path", policy.BUSINESS_COLLATERAL_LOCK_PATHS)
+def test_business_collateral_adjacent_lock_requires_new_ownership_decision(
+    tmp_path: Path,
+    lock_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / lock_path).write_text("{}\n", encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{lock_path.as_posix()}:$:"
+        "adjacent lock requires a separate explicit updater ownership decision"
+    ) in errors
+
+
+def test_business_collateral_marker_requires_commonjs_and_bounded_json(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_text('{"type": "module"}', encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        "dependency-free marker must declare exact string 'commonjs'" in error for error in errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_message"),
+    (
+        ("missing", "policy input could not be read"),
+        ("symlink", "policy input must be a regular non-symlink file"),
+        ("fifo", "policy input must be a regular non-symlink file"),
+    ),
+)
+def test_business_collateral_marker_input_shape_fails_closed(
+    tmp_path: Path,
+    mutation: str,
+    expected_message: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    if mutation == "missing":
+        package_path.unlink()
+    elif mutation == "symlink":
+        target_path = package_path.with_name("package-target.json")
+        package_path.replace(target_path)
+        package_path.symlink_to(target_path.name)
+    else:
+        package_path.unlink()
+        os.mkfifo(package_path)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:" f"{expected_message}"
+    ) in errors
+
+
+def test_business_collateral_marker_size_budget_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_bytes(b"x" * (policy.MAX_BUSINESS_PACKAGE_BYTES + 1))
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:policy input size "
+        f"exceeds limit {policy.MAX_BUSINESS_PACKAGE_BYTES} bytes"
+    ) in errors
+
+
+def test_business_collateral_marker_invalid_utf8_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_bytes(b'\xff{"type":"commonjs"}')
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:" "policy input must be UTF-8"
+    ) in errors
+
+
+def test_business_collateral_marker_invalid_json_is_structurally_redacted(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    sentinel = "invalid-json-value-must-not-leak"
+    package_path.write_text(f'{{"type":"commonjs","value":"{sentinel}"', encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:" "must be valid bounded JSON"
+    ) in errors
+    assert sentinel not in "\n".join(errors)
+
+
+@pytest.mark.parametrize("non_mapping", [[], "commonjs", 42, None])
+def test_business_collateral_marker_non_mapping_json_fails_closed(
+    tmp_path: Path,
+    non_mapping: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    package_path = repo / policy.BUSINESS_COLLATERAL_PACKAGE_PATH
+    package_path.write_text(json.dumps(non_mapping), encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        f"{policy.BUSINESS_COLLATERAL_PACKAGE_PATH.as_posix()}:$:"
+        "dependency-free marker must be a mapping"
+    ) in errors
 
 
 @pytest.mark.parametrize(
@@ -1252,7 +1691,7 @@ def test_all_untrusted_yaml_keys_and_values_are_structurally_redacted(
     assert value_sentinel not in rendered
     assert pattern_sentinel not in rendered
     assert "got key_count=" in rendered
-    assert "got string" in rendered
+    assert "must be a canonical absolute repository directory" in rendered
     assert "got list(len=1)" in rendered
 
     exit_code = policy.main(["--repo-root", str(repo)])
@@ -1438,7 +1877,6 @@ def test_external_code_execution_is_reported_before_invalid_update_shape_returns
 @pytest.mark.parametrize(
     ("unexpected_key", "unexpected_value"),
     [
-        ("directories", ["/", "/nested"]),
         ("versioning-strategy", "increase"),
         ("vendor", True),
     ],
@@ -1474,8 +1912,10 @@ def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
     errors = policy.validate_repo(repo)
 
     assert (
-        ".github/dependabot.yml:updates:" "must contain exactly one governed update block; got 2"
+        ".github/dependabot.yml:updates:must contain exactly four governed update blocks; got 5"
     ) in errors
+    assert ".github/dependabot.yml:updates:duplicate 'pip' updater identity is forbidden" in errors
+    assert ".github/dependabot.yml:updates:overlapping 'pip' updater scopes are forbidden" in errors
 
 
 @pytest.mark.parametrize(
@@ -1485,7 +1925,7 @@ def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
         {"package-ecosystem": "not-a-real-ecosystem"},
     ],
 )
-def test_non_python_update_siblings_are_outside_the_governed_config(
+def test_extra_update_siblings_fail_the_closed_registry(
     tmp_path: Path,
     invalid_sibling: dict[str, object],
 ) -> None:
@@ -1499,12 +1939,22 @@ def test_non_python_update_siblings_are_outside_the_governed_config(
     errors = policy.validate_repo(repo)
 
     assert (
-        ".github/dependabot.yml:updates:" "must contain exactly one governed update block; got 2"
+        ".github/dependabot.yml:updates:must contain exactly four governed update blocks; got 5"
     ) in errors
+    if invalid_sibling["package-ecosystem"] == "npm":
+        assert (
+            ".github/dependabot.yml:updates:duplicate 'npm' updater identity is forbidden" in errors
+        )
+    else:
+        assert any(
+            "updates[4].package-ecosystem:must be one of the four exact governed ecosystems"
+            in error
+            for error in errors
+        )
 
 
 @pytest.mark.parametrize("invalid_update", [42, None, ["pip"]])
-def test_single_governed_update_must_be_a_mapping(
+def test_update_entry_must_be_a_mapping(
     tmp_path: Path,
     invalid_update: object,
 ) -> None:
@@ -1515,11 +1965,14 @@ def test_single_governed_update_must_be_a_mapping(
 
     errors = policy.validate_repo(repo)
 
-    assert errors == [".github/dependabot.yml:updates[0]:must be a mapping"]
+    assert ".github/dependabot.yml:updates[0]:must be a mapping" in errors
+    assert (
+        ".github/dependabot.yml:updates:must contain exactly four governed update blocks; got 1"
+    ) in errors
 
 
-@pytest.mark.parametrize("package_ecosystem", [None, "", 42, "npm", "not-a-real-ecosystem"])
-def test_single_governed_update_requires_exact_pip_ecosystem(
+@pytest.mark.parametrize("package_ecosystem", [None, "", 42, "not-a-real-ecosystem"])
+def test_pip_update_rejects_unrecognized_ecosystem(
     tmp_path: Path,
     package_ecosystem: object,
 ) -> None:
@@ -1530,9 +1983,12 @@ def test_single_governed_update_requires_exact_pip_ecosystem(
 
     errors = policy.validate_repo(repo)
 
+    rendered = "\n".join(errors)
     assert (
-        ".github/dependabot.yml:updates[0].package-ecosystem:must be exactly 'pip'"
-    ) in "\n".join(errors)
+        ".github/dependabot.yml:updates[0].package-ecosystem:"
+        "must be one of the four exact governed ecosystems"
+    ) in rendered
+    assert "missing required 'pip' updater identity" in rendered
 
 
 @pytest.mark.parametrize(
@@ -1560,7 +2016,10 @@ def test_every_exact_update_field_is_value_validated(
 
     errors = policy.validate_repo(repo)
 
-    assert any(f"updates[0].{key}:must be exactly" in error for error in errors)
+    if key == "directory":
+        assert any("updates[0].directory:scope must be exactly ['/']" in error for error in errors)
+    else:
+        assert any(f"updates[0].{key}:must be exactly" in error for error in errors)
 
 
 def test_schedule_limit_and_cooldown_are_exact(tmp_path: Path) -> None:

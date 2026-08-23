@@ -59,6 +59,8 @@ PRIVILEGED_PREFIXES = (
     "docs/security/",
 )
 PRIVILEGED_EXACT_PATHS = {
+    ".github/dependabot.yaml",
+    ".github/dependabot.yml",
     ".trivyignore",
     "Dockerfile",
     "Makefile",
