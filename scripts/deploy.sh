@@ -387,10 +387,10 @@ HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-30}"
 HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
 HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 
-echo "[1/6] Login to GHCR with temporary credentials"
+echo "[1/5] Login to GHCR with temporary credentials"
 printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin
 
-echo "[2/6] Pull exact backend, Caddy, and Prometheus digests"
+echo "[2/5] Pull exact backend, Caddy, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
@@ -416,7 +416,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
   "${COMPOSE[@]}" rm -f worker
 fi
 
-echo "[3/6] Start Postgres and create a pre-migration backup"
+echo "[3/5] Start Postgres and create a pre-migration backup"
 "${COMPOSE[@]}" up -d postgres
 
 max_wait=60
@@ -448,7 +448,7 @@ DOCKER_BIN="$DOCKER_BIN" PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" \
   COMPOSE_FILE="$COMPOSE_FILE" \
   "$BACKUP_HELPER"
 
-echo "[4/6] Quiesce public traffic and run migrations before starting the new app"
+echo "[4/5] Quiesce public traffic and run migrations before starting the new app"
 "${COMPOSE[@]}" stop caddy app
 
 echo "Running database migrations in a one-shot container"
@@ -493,7 +493,7 @@ else
   echo "Scheduler mode is disabled; worker container remains absent"
 fi
 
-echo "[5/6] Start Caddy after successful migrations"
+echo "[5/5] Start Caddy after successful migrations"
 "${COMPOSE[@]}" up -d --pull never caddy
 
 DOMAIN="$STAGING_DOMAIN"
@@ -533,7 +533,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
 fi
 
-echo "[6/6] Start Prometheus after complete product health"
+echo "Starting Prometheus after complete product health"
 if "${COMPOSE[@]}" up -d --pull never prometheus; then
   :
 else
