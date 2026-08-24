@@ -1800,6 +1800,39 @@ class TestTC209VIPDiffCoverage:
             assert stale_patch_target not in string_constants
             assert snapshot_patch_target in string_constants
 
+    def test_menu_default_food_consumer_projects_admitted_snapshot(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The CI-selected contract suite executes the nonempty projection branch."""
+        cached_item = UnifiedFoodItem(
+            name="Cached spinach",
+            nutrients_per_100g={"iron_mg": 2.7},
+            cost_per_100g=1,
+            tags=["VEG"],
+            availability_regions=["BY"],
+            source="test",
+            source_id="spinach-1",
+        )
+        snapshot = Mock(return_value={"spinach": cached_item})
+        monkeypatch.setattr("core.menu_engine.get_cached_common_foods_snapshot", snapshot)
+
+        food_db = _get_default_food_db()
+
+        snapshot.assert_called_once_with()
+        assert food_db == {
+            "spinach": FoodItem(
+                name="Cached spinach",
+                nutrients_per_100g={"iron_mg": 2.7},
+                cost_per_100g=1.0,
+                tags=["VEG"],
+                availability_regions=["BY"],
+            )
+        }
+        assert food_db["spinach"].nutrients_per_100g is not cached_item.nutrients_per_100g
+        assert food_db["spinach"].tags is not cached_item.tags
+        assert food_db["spinach"].availability_regions is not cached_item.availability_regions
+
     def test_common_food_cache_publication_is_atomic_and_failure_safe(
         self,
         monkeypatch: pytest.MonkeyPatch,
