@@ -7,7 +7,10 @@ import runpy
 import pytest
 from fastapi.testclient import TestClient
 
-from tests._helpers.vip_contracts import assert_json_response_payload
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_weekly_recipes_request_payload,
+)
 
 
 class TestVIPCoverage97Final:
@@ -305,15 +308,18 @@ class TestVIPCoverage97Final:
     ) -> None:
         """Test VIP weekly recipes coverage for lines 656-660."""
         # Test weekly recipes endpoint
+        request_payload = build_weekly_recipes_request_payload()
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={"week_plan": {"days": []}},
+            json=request_payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
         data = assert_json_response_payload(response)
         assert data["status"] == "success"
-        assert "weekly_recipes" in data
+        assert data["total_recipes"] > 0
+        assert data["weekly_recipes"]
+        assert data["echo"] == request_payload
 
     def test_vip_weekly_plan_coverage_lines_873_905(
         self,

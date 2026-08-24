@@ -4,8 +4,13 @@
 
 import pytest
 
+from app.schemas.vip import WeeklyRecipesRequest
 from app.services import admin_operations
 from tests._client import open_test_client
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_weekly_recipes_request_payload,
+)
 
 
 class TestCoverage97FinalPush:
@@ -350,43 +355,33 @@ class TestCoverage97FinalPush:
 
         with open_test_client(app.app) as client:
             # Тест VIP recipes endpoint с различными данными
+            chicken_payload = build_weekly_recipes_request_payload()
+            WeeklyRecipesRequest.model_validate(chicken_payload)
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
-                json={
-                    "week_plan": {
-                        "days": [
-                            {
-                                "meals": [
-                                    {
-                                        "ingredients": [
-                                            {"name": "chicken", "amount": 100, "unit": "g"}
-                                        ]
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                },
+                json=chicken_payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            chicken_response = assert_json_response_payload(response)
+            assert chicken_response["status"] == "success"
+            assert chicken_response["total_recipes"] > 0
+            assert chicken_response["echo"] == chicken_payload
 
+            beef_payload = build_weekly_recipes_request_payload(
+                ingredient_name="beef",
+                amount=150.0,
+            )
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
-                json={
-                    "week_plan": {
-                        "days": [
-                            {
-                                "meals": [
-                                    {"ingredients": [{"name": "beef", "amount": 150, "unit": "g"}]}
-                                ]
-                            }
-                        ]
-                    }
-                },
+                json=beef_payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            beef_response = assert_json_response_payload(response)
+            assert beef_response["status"] == "success"
+            assert beef_response["total_recipes"] > 0
+            assert beef_response["echo"] == beef_payload
 
     def test_app_coverage_missing_lines_1505_1508_exit(self, test_environment: None) -> None:
         """Тест покрытия app.py строк 1505->exit, 1508->exit"""

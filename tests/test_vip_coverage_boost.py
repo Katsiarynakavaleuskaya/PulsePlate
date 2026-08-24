@@ -11,6 +11,10 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 from app.middleware import api_tiers
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+)
 
 
 class TestVIPCoverageBoost:
@@ -165,21 +169,42 @@ class TestVIPCoverageBoost:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_missing_function(self, vip_headers: dict[str, str]) -> None:
+    def test_vip_auto_repair_missing_function(
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест VIP auto repair когда get_auto_repair_engine недоступен"""
-        with patch("app.routers.vip.get_auto_repair_engine", None):
-            import app
+        request_payload = build_auto_repair_weekly_request_payload()
+        complete_success_result = {
+            "status": "success",
+            "repaired_plan": request_payload["week_plan"],
+            "original_plan": request_payload["week_plan"],
+            "changes_made": [],
+            "remaining_gaps": {},
+            "strategy_used": "balanced",
+            "iterations": 0,
+            "message": "Already compliant",
+            "suggestions": [],
+        }
+        fallback_auto_repair = MagicMock(return_value=complete_success_result)
 
-            client = TestClient(cast(ASGIApp, app.app))
+        with (
+            patch("app.routers.vip.get_auto_repair_engine", None),
+            patch("app.routers.vip.auto_repair_week_plan", fallback_auto_repair),
+        ):
 
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
-                json={"plan_id": "test123"},
+                json=request_payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "error"  # Exception handling path
+            data = assert_json_response_payload(response)
+            assert data["status"] == "success"
+            assert data["repair_result"] == complete_success_result
+            assert data["echo"] == request_payload
+            fallback_auto_repair.assert_called_once()
 
     def test_vip_with_all_functions_working(
         self,
@@ -201,9 +226,20 @@ class TestVIPCoverageBoost:
         }
         mock_get_recipe_synthesizer.return_value = mock_synthesizer
 
+        auto_repair_payload = build_auto_repair_weekly_request_payload()
         mock_get_auto_repair_engine = MagicMock()
         mock_repair_engine = MagicMock()
-        mock_repair_engine.auto_repair_week_plan.return_value = {"status": "success", "repairs": []}
+        mock_repair_engine.auto_repair_week_plan.return_value = {
+            "status": "success",
+            "repaired_plan": auto_repair_payload["week_plan"],
+            "original_plan": auto_repair_payload["week_plan"],
+            "changes_made": [],
+            "remaining_gaps": {},
+            "strategy_used": "balanced",
+            "iterations": 0,
+            "message": "Already compliant",
+            "suggestions": [],
+        }
         mock_get_auto_repair_engine.return_value = mock_repair_engine
 
         with (
@@ -307,10 +343,14 @@ class TestVIPCoverageBoost:
             # Тест auto repair
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
-                json={"plan_id": "test123"},
+                json=auto_repair_payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            repair_response = assert_json_response_payload(response)
+            assert repair_response["status"] == "success"
+            assert repair_response["echo"] == auto_repair_payload
+            assert repair_response["repair_result"]["status"] == "success"
 
     def test_vip_error_handling_paths(
         self,

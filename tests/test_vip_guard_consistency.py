@@ -9,17 +9,25 @@ via require_vip_tier() middleware, not api-key-only guards.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+    build_weekly_recipes_request_payload,
+)
 from tests.helpers.fitchef_runtime_helpers import make_mock_run_weekly_plan_task
+
+HeaderFactory = Callable[[str], dict[str, str]]
 
 
 @pytest.fixture
-def headers_for_tier():
+def headers_for_tier() -> HeaderFactory:
     """Return headers dict for tier.
 
     RU: Возвращает заголовки для указанного tier.
@@ -71,7 +79,7 @@ VIP_ENDPOINTS_GET = [
 )
 def test_vip_guard_get_denies_non_vip(
     client: TestClient,
-    headers_for_tier,
+    headers_for_tier: HeaderFactory,
     path: str,
     tier: str,
     expected: int,
@@ -92,7 +100,7 @@ def test_vip_guard_get_denies_non_vip(
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_GET)
 def test_vip_guard_get_allows_vip(
     client: TestClient,
-    headers_for_tier,
+    headers_for_tier: HeaderFactory,
     path: str,
 ) -> None:
     """Test that GET endpoints allow access to VIP tier."""
@@ -149,7 +157,7 @@ POST_PAYLOADS = {
 )
 def test_vip_guard_post_denies_non_vip(
     client: TestClient,
-    headers_for_tier,
+    headers_for_tier: HeaderFactory,
     path: str,
     tier: str,
     expected: int,
@@ -167,7 +175,7 @@ def test_vip_guard_post_denies_non_vip(
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_POST)
 def test_vip_guard_post_allows_vip_and_returns_2xx(
     client: TestClient,
-    headers_for_tier,
+    headers_for_tier: HeaderFactory,
     monkeypatch: pytest.MonkeyPatch,
     path: str,
 ) -> None:
@@ -175,6 +183,12 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
 
     Mocks internal business calls to ensure stable 200 responses.
     """
+    payload = POST_PAYLOADS[path]
+    if path == "/api/v1/vip/recipes/weekly":
+        payload = build_weekly_recipes_request_payload()
+    elif path == "/api/v1/vip/auto-repair/weekly":
+        payload = build_auto_repair_weekly_request_payload()
+
     # Mock internal calls for endpoints that require them
     if path == "/api/v1/vip/menu/weekly/plan":
         monkeypatch.setattr(
@@ -185,7 +199,36 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
         # Conditional mock: only return success for expected function name
         def mock_safe_call(func_name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
             if func_name == "synthesize_recipes_for_week":
-                return {"monday": [{"recipe_id": "test", "name": "Test Recipe"}]}
+                return {
+                    "Monday": [
+                        {
+                            "recipe_id": "guard-recipe",
+                            "title": "Guard Recipe",
+                            "description": "Deterministic guard contract recipe",
+                            "cuisine_type": "test",
+                            "difficulty_level": "easy",
+                            "prep_time_minutes": 0,
+                            "cook_time_minutes": 0,
+                            "total_time_minutes": 0,
+                            "servings": 1,
+                            "ingredients": [{"name": "rice", "amount": 100.0, "unit": "g"}],
+                            "steps": [
+                                {
+                                    "step_number": 1,
+                                    "instruction": "Serve the prepared ingredients",
+                                }
+                            ],
+                            "nutrition_per_serving": {
+                                "calories": 100.0,
+                                "protein": 2.0,
+                                "carbs": 20.0,
+                                "fat": 1.0,
+                            },
+                            "tags": [],
+                            "image_url": None,
+                        }
+                    ]
+                }
             return {
                 "status": "error",
                 "code": "unexpected_call",
@@ -194,27 +237,42 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
 
         monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/auto-repair/weekly":
-        # Mock MicronutrientTargets to avoid validation errors with empty dict
-        # Use simple lambda instead of MagicMock for guard tests
-        monkeypatch.setattr("core.targets.MicronutrientTargets", lambda **_: object())
+        auto_repair_payload = build_auto_repair_weekly_request_payload()
 
         # Mock auto_repair_week_plan function
         def mock_auto_repair(*args: Any, **kwargs: Any) -> dict[str, Any]:
             return {
-                "status": "repaired",
-                "repaired_plan": {},
-                "original_plan": {},
+                "status": "success",
+                "repaired_plan": auto_repair_payload["week_plan"],
+                "original_plan": auto_repair_payload["week_plan"],
                 "changes_made": [],
-                "remaining_gaps": [],
+                "remaining_gaps": {},
+                "strategy_used": "balanced",
+                "iterations": 0,
+                "message": "Already compliant",
+                "suggestions": [],
             }
 
+        monkeypatch.setattr("app.routers.vip.get_auto_repair_engine", None)
         monkeypatch.setattr("app.routers.vip.auto_repair_week_plan", mock_auto_repair)
     # Echo mode endpoints (/menu/weekly/repair, /recipes/synthesize, /auto-repair/suggestions)
     # don't need mocks - they return echo immediately
 
     headers = headers_for_tier("VIP")
-    payload = POST_PAYLOADS[path]
     resp = client.post(path, json=payload, headers=headers)
-    assert (
-        200 <= resp.status_code < 300
-    ), f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
+    if path in {
+        "/api/v1/vip/recipes/weekly",
+        "/api/v1/vip/auto-repair/weekly",
+    }:
+        assert resp.status_code == 200, resp.text
+        response_payload = assert_json_response_payload(resp)
+        assert response_payload["status"] == "success"
+        assert response_payload["echo"] == payload
+        if path == "/api/v1/vip/recipes/weekly":
+            assert response_payload["total_recipes"] == 1
+        else:
+            assert response_payload["repair_result"]["status"] == "success"
+    else:
+        assert (
+            200 <= resp.status_code < 300
+        ), f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
