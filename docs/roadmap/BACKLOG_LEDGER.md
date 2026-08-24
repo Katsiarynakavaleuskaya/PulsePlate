@@ -7429,13 +7429,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → PR-OBS1B internal Prometheus deploy contour → separate future alias-retirement PR
-  - Status: ⏳ PR #2319 implements only the application and evidence foundation; Prometheus activation, separately authorized staging/production deployment, human-authored `T₀`, the complete `30 × 24h` production window, and a future retirement PR remain required and unclaimed
+  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → PR-OBS1B `codex/internal-prometheus-deploy-contour` (repository contour only) → separate future alias-retirement PR
+  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B adds only the internal persistent Prometheus and deploy/evidence repository contour. Host synchronization, secret bootstrap, separately authorized staging and production deployment, baseline eligibility, human-authored `T₀`, the complete `30 × 24h` production window, consumer classification, and a future retirement PR remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
   - Links:
     - `app/security/production_invariants.py`
     - `app/middleware/metrics.py`
     - `scripts/verify_premium_alias_telemetry.py`
+    - `deploy/prometheus/prometheus.yml`
+    - `deploy/prometheus/image-manifest.json`
+    - `docs/deploy/OPERATIONAL_SIGNALS.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`
   - DoD:

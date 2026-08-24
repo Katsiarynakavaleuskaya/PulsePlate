@@ -2,7 +2,7 @@
 # Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
-STAGING_DEPLOY_CONTRACT_VERSION="2"
+STAGING_DEPLOY_CONTRACT_VERSION="3"
 STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"
 CANONICAL_IMAGE_PATTERN='^ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[0-9a-f]{64}$'
 
@@ -49,6 +49,10 @@ CADDYFILE="${CADDYFILE:-${PROJECT_DIR}/Caddyfile}"
 BACKUP_DIR="${BACKUP_DIR:-${PROJECT_DIR}/backups}"
 BACKUP_HELPER="${BACKUP_HELPER:-${PROJECT_DIR}/scripts/ops/postgres_backup.sh}"
 STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-deploy-v1}"
+PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
+PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
+METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
+METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
 
 if [ -L "$STAGING_DEPLOY_MARKER" ] || [ ! -f "$STAGING_DEPLOY_MARKER" ]; then
   echo "❌ Missing regular non-symlink staging deploy marker: $STAGING_DEPLOY_MARKER" >&2
@@ -61,6 +65,20 @@ if [ -z "$STAT_BIN" ]; then
 fi
 if [ -z "$STAT_BIN" ] || [ ! -x "$STAT_BIN" ]; then
   echo "❌ stat executable is required for staging marker validation" >&2
+  exit 1
+fi
+
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [ -z "$PYTHON_BIN" ]; then
+  for candidate in /usr/bin/python3 /usr/local/bin/python3; do
+    if [ -x "$candidate" ]; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
+if [[ "$PYTHON_BIN" != /* ]] || [ ! -x "$PYTHON_BIN" ]; then
+  echo "❌ PYTHON_BIN must resolve to an absolute executable" >&2
   exit 1
 fi
 
@@ -79,7 +97,12 @@ if [ "$marker_content" != "$STAGING_DEPLOY_MARKER_CONTENT" ] || \
   exit 1
 fi
 
-for required_path in "$ENV_FILE" "$COMPOSE_FILE" "$CADDYFILE"; do
+for required_path in \
+  "$ENV_FILE" \
+  "$COMPOSE_FILE" \
+  "$CADDYFILE" \
+  "$PROMETHEUS_CONFIG" \
+  "$PROMETHEUS_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
     echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
     exit 1
@@ -99,6 +122,163 @@ if (( (8#$backup_helper_mode & 8#22) != 0 )); then
   echo "❌ Postgres backup helper must not be group- or world-writable; got mode $backup_helper_mode" >&2
   exit 1
 fi
+
+if [ -L "$METRICS_SECRET_DIR" ] || [ ! -d "$METRICS_SECRET_DIR" ]; then
+  echo "❌ Metrics scrape secret directory must be a regular non-symlink directory" >&2
+  exit 1
+fi
+if [ -L "$METRICS_SECRET_FILE" ] || [ ! -f "$METRICS_SECRET_FILE" ]; then
+  echo "❌ Metrics scrape secret must be a regular non-symlink file" >&2
+  exit 1
+fi
+secret_dir_metadata="$($STAT_BIN -c '%u:%a' "$METRICS_SECRET_DIR")"
+if [ "$secret_dir_metadata" != "${EUID}:700" ]; then
+  echo "❌ Metrics scrape secret directory must be owned by the Compose account with mode 0700" >&2
+  exit 1
+fi
+secret_file_metadata="$($STAT_BIN -c '%u:%a' "$METRICS_SECRET_FILE")"
+if [ "$secret_file_metadata" != "${EUID}:444" ]; then
+  echo "❌ Metrics scrape secret file must be owned by the Compose account with mode 0444" >&2
+  exit 1
+fi
+
+validate_prometheus_image_manifest() {
+  local manifest_path="$1"
+  "$PYTHON_BIN" - "$manifest_path" <<'PY'
+from __future__ import annotations
+
+import json
+import os
+import re
+import stat
+import sys
+
+manifest_path = sys.argv[1]
+expected = {
+    "schema": "pulseplate.prometheus_image_manifest.v1",
+    "repository": "prom/prometheus",
+    "tag": "v3.14.0-distroless",
+    "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+    "platform": "linux/amd64",
+    "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+    "runtime_ref": (
+        "prom/prometheus:v3.14.0-distroless@"
+        "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+    ),
+}
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate Prometheus manifest key")
+        result[key] = value
+    return result
+
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0 or not os.path.isabs(manifest_path):
+    raise SystemExit("Prometheus manifest path is not a safe absolute path")
+descriptor = os.open(
+    manifest_path,
+    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+)
+try:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > 64 * 1024
+    ):
+        raise SystemExit("Prometheus manifest must be one bounded regular file")
+    payload = os.read(descriptor, metadata.st_size + 1)
+    if len(payload) != metadata.st_size:
+        raise SystemExit("Prometheus manifest changed while being read")
+finally:
+    os.close(descriptor)
+
+try:
+    manifest = json.loads(
+        payload.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=lambda value: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON constant: {value}")
+        ),
+    )
+except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus manifest is malformed") from exc
+if type(manifest) is not dict or set(manifest) != set(expected):
+    raise SystemExit("Prometheus manifest fields do not match the closed contract")
+if any(type(manifest[key]) is not str for key in expected):
+    raise SystemExit("Prometheus manifest values must be strings")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
+    raise SystemExit("Prometheus index digest is malformed")
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
+    raise SystemExit("Prometheus platform digest is malformed")
+derived_ref = (
+    f'{manifest["repository"]}:{manifest["tag"]}@{manifest["platform_manifest_digest"]}'
+)
+if manifest["runtime_ref"] != derived_ref or manifest != expected:
+    raise SystemExit("Prometheus manifest identity does not match the canonical record")
+print(manifest["runtime_ref"])
+PY
+}
+
+validate_prometheus_compose_identity() {
+  local runtime_ref="$1"
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
+import json
+import sys
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+prometheus = services.get("prometheus") if type(services) is dict else None
+if type(prometheus) is not dict:
+    raise SystemExit("Rendered Compose must define exactly one Prometheus service")
+if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linux/amd64":
+    raise SystemExit("Rendered Compose Prometheus identity does not match the manifest")
+' "$runtime_ref"
+}
+
+validate_pulled_prometheus_image() {
+  local runtime_ref="$1"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Prometheus image inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("Prometheus image inspect must return exactly one image")
+record = payload[0]
+repo_digests = record.get("RepoDigests")
+allowed = {
+    f"prom/prometheus@{sys.argv[1]}",
+    f"docker.io/prom/prometheus@{sys.argv[1]}",
+}
+if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
+    raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
+if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
+    raise SystemExit("Pulled Prometheus RepoDigests are malformed")
+if not allowed.intersection(repo_digests):
+    raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
+' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
+}
 
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
@@ -161,6 +341,11 @@ fi
 
 COMPOSE=("$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 
+PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_MANIFEST")"
+readonly PROMETHEUS_RUNTIME_REF
+PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
+readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+
 docker_architecture="$($DOCKER_BIN info --format '{{.Architecture}}')"
 case "$docker_architecture" in
   amd64|x86_64) ;;
@@ -171,6 +356,7 @@ case "$docker_architecture" in
 esac
 
 "${COMPOSE[@]}" config --quiet
+validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
 
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
   echo "✅ Staging deploy preflight passed (contract v${STAGING_DEPLOY_CONTRACT_VERSION})"
@@ -204,14 +390,24 @@ HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 echo "[1/5] Login to GHCR with temporary credentials"
 printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin
 
-echo "[2/5] Pull exact backend and Caddy digests"
-"${COMPOSE[@]}" pull app caddy
+echo "[2/5] Pull exact backend, Caddy, and Prometheus digests"
+"${COMPOSE[@]}" pull app caddy prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
+echo "Validating the pulled Prometheus platform manifest before product mutation"
+validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
 "$DOCKER_BIN" logout ghcr.io >/dev/null
 rm -rf -- "$DOCKER_CONFIG"
 mkdir -m 700 -- "$DOCKER_CONFIG"
 unset GHCR_TOKEN GHCR_USER
+
+echo "Validating the exact Prometheus configuration before product mutation"
+"${COMPOSE[@]}" run --rm --no-deps --entrypoint /bin/promtool prometheus \
+  check config --syntax-only /etc/prometheus/prometheus.yml
+
+echo "Invoking the canonical application production invariant before product mutation"
+"${COMPOSE[@]}" run --rm --no-deps app python -c \
+  'from app.main import app; from app.security.production_invariants import assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)'
 
 echo "Quiescing the previous scheduler worker before backup and migrations"
 "${COMPOSE[@]}" stop worker
@@ -335,6 +531,37 @@ done
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Confirming scheduler worker process is running"
   "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+fi
+
+echo "Starting Prometheus after complete product health"
+if "${COMPOSE[@]}" up -d --pull never prometheus; then
+  :
+else
+  prometheus_start_status=$?
+  echo "❌ Prometheus failed to start; app and Caddy remain running" >&2
+  exit "$prometheus_start_status"
+fi
+
+prometheus_attempt=0
+prometheus_ready=0
+while [ "$prometheus_attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; do
+  prometheus_attempt=$((prometheus_attempt + 1))
+  if "${COMPOSE[@]}" exec -T prometheus /bin/promtool check ready \
+      --url=http://localhost:9090 >/dev/null 2>&1 && \
+     "${COMPOSE[@]}" exec -T prometheus /bin/promtool check healthy \
+      --url=http://localhost:9090 >/dev/null 2>&1; then
+    prometheus_ready=1
+    break
+  fi
+  echo "Waiting for Prometheus readiness... ($prometheus_attempt/$HEALTH_MAX_ATTEMPTS)"
+  if [ "$prometheus_attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; then
+    sleep "$HEALTH_SLEEP_S"
+  fi
+done
+
+if [ "$prometheus_ready" -ne 1 ]; then
+  echo "❌ Prometheus telemetry readiness failed; app and Caddy remain running and prometheus_data is preserved" >&2
+  exit 1
 fi
 
 echo "✅ Staging deployed by attested digests"
