@@ -217,12 +217,15 @@ class TestCoverage97Targeted:
         # Validate response body structure for successful responses
         if expected_status == 200:
             response_data = assert_json_response_payload(response)
-            assert "status" in response_data
             if endpoint == "/api/v1/vip/menu/weekly/plan":
+                assert response_data["status"] == "success"
                 assert "echo" in response_data
                 assert "menu" in response_data
             elif endpoint == "/api/v1/vip/recipes/weekly":
-                assert "weekly_recipes" in response_data
+                assert response_data["status"] == "success"
+                assert response_data["weekly_recipes"]
+                assert response_data["total_recipes"] > 0
+                assert response_data["echo"] == payload
 
     def test_app_cors_middleware(self, app_client):
         """Test CORS middleware functionality"""
