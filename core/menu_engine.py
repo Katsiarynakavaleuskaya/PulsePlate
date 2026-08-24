@@ -11,7 +11,6 @@ considering dietary preferences, budget constraints, and food availability.
 
 from __future__ import annotations
 
-import asyncio
 from copy import deepcopy
 import logging
 import math
@@ -19,7 +18,7 @@ from dataclasses import dataclass
 from numbers import Real
 from typing import Any, Dict, List, Optional
 
-from .food_apis.unified_db import get_cached_common_foods_snapshot, get_unified_food_db
+from .food_apis.unified_db import get_cached_common_foods_snapshot
 from .plate import make_plate
 from .recommendations import (
     build_nutrition_targets,
@@ -31,11 +30,6 @@ from .targets import (
     NutritionTargets,
     UserProfile,
 )
-
-
-class EventLoopRunningError(Exception):
-    """Raised when an event loop is already running and async operations cannot be performed."""
-
 
 _logger = logging.getLogger(__name__)
 
@@ -232,50 +226,25 @@ def make_weekly_menu(
     )
 
 
-def _get_default_food_db() -> Dict[str, FoodItem]:
+def _get_default_food_db() -> dict[str, FoodItem]:
+    """Project an admitted local cache snapshot into menu-engine food items.
+
+    The menu engine is a synchronous, non-owning consumer. Lifecycle startup is
+    responsible for configuring the catalog; an unavailable snapshot uses the
+    static compatibility defaults below.
     """
-    RU: Получает реальную базу данных продуктов из USDA.
-    EN: Gets real food database from USDA.
-
-    This function now uses real USDA nutrition data instead of mock values.
-    """
-    # Try to get cached common foods first
-    try:
-        # If already in a running event loop (e.g., FastAPI TestClient), skip async calls
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop – safe to create a temporary event loop
-            loop = asyncio.new_event_loop()
-            try:
-                asyncio.set_event_loop(loop)
-                unified_db = loop.run_until_complete(get_unified_food_db())
-                common_foods = loop.run_until_complete(unified_db.get_common_foods_database())
-
-                # Convert to FoodItem format
-                foods_db: Dict[str, FoodItem] = {}
-                for key, unified_item in common_foods.items():
-                    foods_db[key] = FoodItem(
-                        name=unified_item.name,
-                        nutrients_per_100g=unified_item.nutrients_per_100g,
-                        cost_per_100g=unified_item.cost_per_100g,
-                        tags=unified_item.tags,
-                        availability_regions=unified_item.availability_regions,
-                    )
-
-                if foods_db:
-                    return foods_db
-            finally:
-                try:
-                    loop.close()
-                except Exception as cleanup_err:  # pragma: no cover
-                    _logger.debug("Event loop cleanup failed: %s", cleanup_err)  # pragma: no cover
-        else:
-            # Already inside a running loop – skip async DB load and let fallback handle it
-            raise EventLoopRunningError("Event loop already running; skipping async DB load")
-    except Exception as e:
-        # Fall back to basic mock data if API fails or loop is running
-        _logger.warning("Could not load USDA data, using fallback: %s", e)
+    cached_foods = get_cached_common_foods_snapshot()
+    if cached_foods:
+        return {
+            key: FoodItem(
+                name=item.name,
+                nutrients_per_100g=dict(item.nutrients_per_100g),
+                cost_per_100g=float(item.cost_per_100g),
+                tags=list(item.tags),
+                availability_regions=list(item.availability_regions),
+            )
+            for key, item in cached_foods.items()
+        }
 
     # Fallback mock data (reduced set)
     return {

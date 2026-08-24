@@ -318,16 +318,31 @@ class TestVIPCoverage97Clean:
         vip_headers: dict[str, str],
     ) -> None:
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
+        payload = {
+            "week_plan": {
+                "days": [
+                    {
+                        "day": "Monday",
+                        "meals": [{"ingredients": [{"name": "rice", "amount": 100, "unit": "g"}]}],
+                    }
+                ]
+            },
+            "recipes_per_day": 1,
+        }
+
         # Test weekly recipes endpoint
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={"week_plan": {"days": []}},
+            json=payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
         data = assert_json_response_payload(response)
         assert data["status"] == "success"
-        assert "weekly_recipes" in data
+        assert isinstance(data["weekly_recipes"], dict)
+        assert data["weekly_recipes"]
+        assert data["total_recipes"] == 1
+        assert data["echo"] == payload
 
     def test_vip_recipe_synthesis_coverage_lines_788_789_809(
         self,

@@ -143,15 +143,16 @@ class TestCoverageImprovement:
         rollback_database.assert_awaited_once_with("usda", "1.0")
 
     def test_menu_engine_uncovered_lines(self) -> None:
-        """Test uncovered lines in menu_engine.py."""
-        # Test get_default_food_db with API failure
-        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):
+        """Unexpected admitted-snapshot failures propagate without a false fallback."""
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            side_effect=RuntimeError("snapshot projection failed"),
+        ) as snapshot:
             from core.menu_engine import _get_default_food_db
 
-            result = _get_default_food_db()
-            # Should return fallback data
-            assert isinstance(result, dict)
-            assert len(result) > 0
+            with pytest.raises(RuntimeError, match="^snapshot projection failed$"):
+                _get_default_food_db()
+        snapshot.assert_called_once_with()
 
 
 if __name__ == "__main__":
