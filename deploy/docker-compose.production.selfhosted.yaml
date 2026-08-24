@@ -14,6 +14,12 @@ networks:
     ipam:
       config:
         - subnet: 172.30.100.0/24
+  observability:
+    internal: true
+
+secrets:
+  pulseplate_metrics_scrape_key:
+    file: ./secrets/pulseplate_metrics_scrape_key
 
 services:
   postgres:
@@ -37,7 +43,9 @@ services:
   app:
     image: ${IMAGE_REF:?IMAGE_REF is required}
     restart: unless-stopped
-    networks: [web]
+    networks: [web, observability]
+    secrets:
+      - pulseplate_metrics_scrape_key
     expose:
       - "8000"
     env_file:
@@ -91,6 +99,34 @@ services:
     healthcheck:
       disable: true
 
+  prometheus:
+    image: prom/prometheus:v3.14.0-distroless@sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049
+    platform: linux/amd64
+    user: "65532:65532"
+    restart: unless-stopped
+    networks: [observability]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=45d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    secrets:
+      - pulseplate_metrics_scrape_key
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/promtool", "check", "ready", "--url=http://localhost:9090"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   caddy:
     build:
       context: ../frontend
@@ -124,3 +160,4 @@ volumes:
   food_db_cache:
   caddy_data:
   caddy_config:
+  prometheus_data:

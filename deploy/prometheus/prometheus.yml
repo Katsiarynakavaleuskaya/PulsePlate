@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: pulseplate-api
+    scheme: http
+    metrics_path: /metrics
+    http_headers:
+      X-API-Key:
+        files:
+          - /run/secrets/pulseplate_metrics_scrape_key
+    static_configs:
+      - targets:
+          - app:8000

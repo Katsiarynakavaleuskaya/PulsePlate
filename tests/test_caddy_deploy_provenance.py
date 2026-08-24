@@ -14,6 +14,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
 STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
+PROMETHEUS_CONFIG = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
+PROMETHEUS_IMAGE_MANIFEST = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
 CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
@@ -174,18 +176,32 @@ def test_staging_compose_requires_two_digest_references_and_preserves_caddy_stat
 
     app = services.get("app")
     caddy = services.get("caddy")
+    prometheus = services.get("prometheus")
     assert isinstance(app, dict)
     assert isinstance(caddy, dict)
+    assert isinstance(prometheus, dict)
     assert app["image"] == "${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}"
     assert caddy["image"] == ("${STAGING_CADDY_IMAGE_REF:?STAGING_CADDY_IMAGE_REF is required}")
     assert "caddy_data:/data" in caddy["volumes"]
     assert "caddy_config:/config" in caddy["volumes"]
     assert caddy["depends_on"]["app"]["condition"] == "service_healthy"
+    assert compose["networks"]["observability"] == {"internal": True}
+    assert app["networks"] == ["web", "observability"]
+    assert app["secrets"] == ["pulseplate_metrics_scrape_key"]
+    assert prometheus["networks"] == ["observability"]
+    assert prometheus["secrets"] == ["pulseplate_metrics_scrape_key"]
+    assert "ports" not in prometheus
+    assert compose["secrets"] == {
+        "pulseplate_metrics_scrape_key": {"file": "./secrets/pulseplate_metrics_scrape_key"}
+    }
+    assert "prometheus_data" in compose["volumes"]
 
     text = STAGING_COMPOSE.read_text(encoding="utf-8")
     assert "${TAG:-latest}" not in text
     assert "caddy:2" not in text
     assert "staging-latest" not in text
+    assert PROMETHEUS_CONFIG.is_file()
+    assert PROMETHEUS_IMAGE_MANIFEST.is_file()
 
 
 def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
@@ -309,6 +325,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert preflight_with["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
+        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
 
@@ -324,6 +341,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert deploy_with["envs"] == (
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
+        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
 
@@ -377,15 +395,18 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert "GHCR_TOKEN" not in str(with_block)
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
-        "STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="2"' in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="3"' in script
     for filename in (
         "deploy.sh",
         "docker-compose.staging.yaml",
+        "prometheus/prometheus.yml",
+        "prometheus/image-manifest.json",
         "Caddyfile",
         "scripts/ops/postgres_backup.sh",
     ):
@@ -430,17 +451,25 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert env["BACKUP_HELPER_SHA256"] == (
         "${{ steps.staging-contract.outputs.backup_helper_sha256 }}"
     )
+    assert env["PROMETHEUS_CONFIG_SHA256"] == (
+        "${{ steps.staging-contract.outputs.prometheus_config_sha256 }}"
+    )
+    assert env["PROMETHEUS_IMAGE_MANIFEST_SHA256"] == (
+        "${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}"
+    )
     assert with_block["envs"].endswith(
-        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,"
-        "BACKUP_HELPER_SHA256"
+        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     deploy_call = './deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"'
     assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
-    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="2"') < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="3"') < script.index(deploy_call)
     for filename, expected_hash in (
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
+        ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
+        ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
         ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),
     ):
@@ -452,7 +481,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="2"' in text
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="3"' in text
     assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
     assert "0:0:644" in text
     assert "STAGING_IMAGE_REF" in text
