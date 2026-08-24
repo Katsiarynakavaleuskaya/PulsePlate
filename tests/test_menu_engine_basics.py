@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.food_apis.unified_db import UnifiedFoodItem
 from core.menu_engine import (
     DayMenu,
     FoodItem,
@@ -194,34 +195,66 @@ class TestDataClasses:
 class TestDefaultDatabases:
     """Test default database functions."""
 
-    def test_get_default_food_db_fallback(self):
-        """Test getting default food database with fallback data."""
-        # Mock the async functionality to force fallback
-        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Async error")):
-            food_db = _get_default_food_db()
+    def test_get_default_food_db_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An exact empty admitted snapshot selects the static compatibility data."""
+        snapshot = MagicMock(return_value={})
+        monkeypatch.setattr("core.menu_engine.get_cached_common_foods_snapshot", snapshot)
 
-            assert isinstance(food_db, dict)
-            assert len(food_db) > 0
-            assert "chicken_breast" in food_db
+        food_db = _get_default_food_db()
 
-            # Test food item structure
-            chicken = food_db["chicken_breast"]
-            assert isinstance(chicken, FoodItem)
-            assert chicken.name == "Chicken Breast (Mock)"
-            assert "protein_g" in chicken.nutrients_per_100g
-            assert chicken.cost_per_100g > 0
-            assert isinstance(chicken.tags, list)
-            assert isinstance(chicken.availability_regions, list)
+        snapshot.assert_called_once_with()
+        assert isinstance(food_db, dict)
+        assert len(food_db) == 2
+        assert "chicken_breast" in food_db
 
-    def test_get_default_food_db_with_running_loop(self):
-        """Test getting default food database when event loop is running."""
-        # Mock asyncio.get_running_loop to simulate running loop
-        with patch("asyncio.get_running_loop", return_value=MagicMock()):
-            food_db = _get_default_food_db()
+        chicken = food_db["chicken_breast"]
+        assert isinstance(chicken, FoodItem)
+        assert chicken.name == "Chicken Breast (Mock)"
+        assert "protein_g" in chicken.nutrients_per_100g
+        assert chicken.cost_per_100g > 0
+        assert isinstance(chicken.tags, list)
+        assert isinstance(chicken.availability_regions, list)
 
-            # Should fall back to mock data when loop is running
-            assert isinstance(food_db, dict)
-            assert "chicken_breast" in food_db
+    def test_get_default_food_db_projects_deep_independent_cached_items(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A nonempty admitted snapshot is copied into independent menu items."""
+        cached_item = UnifiedFoodItem(
+            name="Cached spinach",
+            nutrients_per_100g={"iron_mg": 2.7},
+            cost_per_100g=1,
+            tags=["VEG"],
+            availability_regions=["BY"],
+            source="test",
+            source_id="spinach-1",
+        )
+        snapshot = MagicMock(return_value={"spinach": cached_item})
+        monkeypatch.setattr("core.menu_engine.get_cached_common_foods_snapshot", snapshot)
+
+        food_db = _get_default_food_db()
+
+        snapshot.assert_called_once_with()
+        assert set(food_db) == {"spinach"}
+        projected = food_db["spinach"]
+        assert projected == FoodItem(
+            name="Cached spinach",
+            nutrients_per_100g={"iron_mg": 2.7},
+            cost_per_100g=1.0,
+            tags=["VEG"],
+            availability_regions=["BY"],
+        )
+        assert isinstance(projected.cost_per_100g, float)
+        assert projected.nutrients_per_100g is not cached_item.nutrients_per_100g
+        assert projected.tags is not cached_item.tags
+        assert projected.availability_regions is not cached_item.availability_regions
+
+        projected.nutrients_per_100g["iron_mg"] = 99.0
+        projected.tags.append("LOCAL")
+        projected.availability_regions.append("US")
+        assert cached_item.nutrients_per_100g == {"iron_mg": 2.7}
+        assert cached_item.tags == ["VEG"]
+        assert cached_item.availability_regions == ["BY"]
 
     def test_get_default_recipe_db(self):
         """Test getting default recipe database."""

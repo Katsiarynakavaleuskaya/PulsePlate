@@ -26,6 +26,9 @@ from app.bootstrap.lifespan import (
 import core.food_apis.unified_db as unified_db_module
 from core.food_apis.unified_db import UnifiedFoodDatabase
 from core.food_apis.scheduler_runtime import SchedulerMode
+from core.menu_engine import _get_default_food_db
+from tests._client import open_test_client
+from tests._helpers.vip_contracts import assert_json_response_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -499,6 +502,90 @@ def test_unified_food_foreign_preinit_fails_and_replacement_preserves_identity(
     assert unified_db_module._read_unified_db_instance() is replacement
     assert lifespan_module._managed_unified_food_instance is None
     assert lifespan_module._managed_unified_food_active_leases == 0
+
+
+def test_menu_default_food_consumer_yields_to_managed_testclient_lifespan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vip_headers: dict[str, str],
+) -> None:
+    """A direct menu read cannot preempt later canonical lifespan ownership."""
+    events: list[str] = []
+
+    class _OrderedClosingClient:
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+        async def close(self) -> None:
+            events.append(f"{self.label}-close")
+
+    previous = _replace_registered_unified_food(None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_instance", None)
+    monkeypatch.setattr(lifespan_module, "_managed_unified_food_active_leases", 0)
+
+    events.append("direct-default-consumer")
+    direct_defaults = _get_default_food_db()
+    assert set(direct_defaults) == {"chicken_breast", "lentils"}
+    assert unified_db_module._read_unified_db_instance() is None
+
+    usda_client = _OrderedClosingClient("usda")
+    off_client = _OrderedClosingClient("off")
+
+    def _initialize_managed_sentinel(
+        instance: UnifiedFoodDatabase,
+        cache_dir: str | None = None,
+        *,
+        create_cache_dir: bool = True,
+    ) -> None:
+        del cache_dir
+        assert create_cache_dir is False
+        events.append("managed-init")
+        instance.cache_dir = tmp_path / "managed-cache"
+        instance.usda_client = usda_client
+        instance.off_client = off_client
+
+    monkeypatch.setattr(
+        unified_db_module.UnifiedFoodDatabase,
+        "__init__",
+        _initialize_managed_sentinel,
+    )
+
+    with open_test_client() as client:
+        managed = unified_db_module._read_unified_db_instance()
+        assert managed is not None
+        assert managed is lifespan_module._managed_unified_food_instance
+        events.append("managed-active")
+        response = client.post(
+            "/api/v1/vip/menu/weekly/plan",
+            json={
+                "sex": "male",
+                "age": 30,
+                "height_cm": 175.0,
+                "weight_kg": 70.0,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers=vip_headers,
+        )
+        assert response.status_code == 200
+        assert assert_json_response_payload(response)["status"] == "success"
+        events.append("request-success")
+
+    assert unified_db_module._read_unified_db_instance() is None
+    assert lifespan_module._managed_unified_food_instance is None
+    assert lifespan_module._managed_unified_food_active_leases == 0
+    _replace_registered_unified_food(previous)
+    assert unified_db_module._read_unified_db_instance() is previous
+    events.append("prior-restored")
+    assert events == [
+        "direct-default-consumer",
+        "managed-init",
+        "managed-active",
+        "request-success",
+        "usda-close",
+        "off-close",
+        "prior-restored",
+    ]
 
 
 @pytest.mark.parametrize("release_owner_first", [True, False])
