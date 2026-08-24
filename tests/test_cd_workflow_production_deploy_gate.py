@@ -263,7 +263,12 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     ):
         assert argument in scan_script
 
-    main_jobs = {"main-push-admission", "release-control-plane-fixture-gate"}
+    # Both jobs are intentionally push-only. Pull requests and schedules may run the
+    # isolated Prometheus image check, but must not fan out into release fixture work.
+    push_only_main_jobs = {
+        "main-push-admission",
+        "release-control-plane-fixture-gate",
+    }
     tag_jobs = {
         "production-gates",
         "build-production",
@@ -272,7 +277,7 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
         "deploy-production",
         "deploy-production-self-hosted",
     }
-    for name in main_jobs:
+    for name in push_only_main_jobs:
         job = jobs.get(name)
         assert isinstance(job, dict)
         condition = job.get("if")
