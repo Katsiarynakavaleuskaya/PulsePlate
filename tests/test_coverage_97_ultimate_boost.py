@@ -7,6 +7,8 @@ from typing import Generator, cast
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._helpers.vip_contracts import assert_json_response_payload
+
 
 class TestCoverage97UltimateBoost:
     """Ультимативные тесты для достижения 97% покрытия"""
@@ -489,7 +491,7 @@ class TestCoverage97UltimateBoost:
 
     def test_app_coverage_ultimate_boost_missing_lines_1342_1365(
         self,
-        test_environment: Generator[None, None, None],
+        test_environment: None,
         vip_headers: dict[str, str],
     ) -> None:
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
@@ -499,54 +501,47 @@ class TestCoverage97UltimateBoost:
 
         # Тест VIP recipes endpoint с различными данными
         recipes_scenarios = [
-            {
+            ("chicken", 100),
+            ("beef", 150),
+            ("fish", 120),
+            ("pork", 130),
+            ("lamb", 110),
+        ]
+
+        for day_number, (ingredient_name, amount) in enumerate(recipes_scenarios, start=1):
+            payload = {
                 "week_plan": {
                     "days": [
                         {
+                            "day": f"scenario-{day_number}",
                             "meals": [
-                                {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
-                            ]
+                                {
+                                    "ingredients": [
+                                        {
+                                            "name": ingredient_name,
+                                            "amount": amount,
+                                            "unit": "g",
+                                        }
+                                    ]
+                                }
+                            ],
                         }
                     ]
-                }
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {"meals": [{"ingredients": [{"name": "beef", "amount": 150, "unit": "g"}]}]}
-                    ]
-                }
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {"meals": [{"ingredients": [{"name": "fish", "amount": 120, "unit": "g"}]}]}
-                    ]
-                }
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {"meals": [{"ingredients": [{"name": "pork", "amount": 130, "unit": "g"}]}]}
-                    ]
-                }
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {"meals": [{"ingredients": [{"name": "lamb", "amount": 110, "unit": "g"}]}]}
-                    ]
-                }
-            },
-        ]
-
-        for scenario in recipes_scenarios:
+                },
+                "recipes_per_day": 1,
+            }
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
-                json=scenario,
+                json=payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            data = assert_json_response_payload(response)
+            assert data["status"] == "success"
+            assert isinstance(data["weekly_recipes"], dict)
+            assert data["weekly_recipes"]
+            assert data["total_recipes"] == 1
+            assert data["echo"] == payload
 
     def test_app_coverage_ultimate_boost_missing_lines_1505_1508_exit(self, test_environment):
         """Тест покрытия app.py строк 1505->exit, 1508->exit - lifespan с различными сценариями"""

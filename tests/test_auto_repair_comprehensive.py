@@ -614,10 +614,14 @@ class TestAutoRepairComprehensive:
         assert conservative == plan and conservative is not plan
         assert aggressive == plan and aggressive is not plan
 
-    def test_paid_repair_real_db_failure_is_unchanged(self) -> None:
-        """Paid repair never consumes the mock fallback when real loading fails."""
-        with patch("core.menu_engine.get_unified_food_db", side_effect=RuntimeError("offline")):
+    def test_paid_repair_empty_cache_is_unchanged(self) -> None:
+        """Paid repair never consumes menu compatibility defaults when cache is empty."""
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            return_value={},
+        ) as default_snapshot:
             mock_fallback = _get_default_food_db()
+        default_snapshot.assert_called_once_with()
         assert {food.name for food in mock_fallback.values()} == {
             "Chicken Breast (Mock)",
             "Lentils (Mock)",

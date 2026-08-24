@@ -9,8 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app from the app package
-from app import app
 from app.services import admin_operations
 import legacy_app
 
@@ -18,18 +16,16 @@ import legacy_app
 class TestTargetedCoverageBoost:
     """Targeted tests to boost coverage for specific uncovered lines."""
 
-    def setup_method(self) -> None:
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app)
-
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-            del os.environ["FEATURE_PREMIUM_NUTRITION"]
+    @pytest.fixture(autouse=True)
+    def _managed_test_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        client: TestClient,
+    ) -> None:
+        """Use canonical managed client ownership and fixture-scoped environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        self.client = client
 
     def test_app_py_line_49(self) -> None:
         """Test line 49 in main.py (dotenv loading condition)."""
@@ -251,38 +247,25 @@ class TestTargetedCoverageBoost:
         # Add the synchronous wrapper method for testing
         import asyncio
 
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            errors = loop.run_until_complete(manager._validate_food_data(foods))
-            assert len(errors) >= 0  # Should not crash
-        except Exception as e:
-            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-            # Exception is expected, but the code should handle it gracefully
-            pass
+        errors = asyncio.run(manager._validate_food_data(foods))
+        assert errors == ["Food test_food missing required fields"]
 
-    def test_update_manager_py_line_394(self) -> None:
+    def test_update_manager_py_line_394(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
-        try:
-            with patch(
-                "core.food_apis.update_manager.Path.glob",
-                side_effect=Exception("Test error"),
-            ):
-                from core.food_apis.update_manager import DatabaseUpdateManager
+        import asyncio
 
-                manager = DatabaseUpdateManager()
-                # Test with async function properly
-                import asyncio
+        with patch(
+            "core.food_apis.update_manager.Path.glob",
+            side_effect=Exception("Test error"),
+        ):
+            from core.food_apis.update_manager import DatabaseUpdateManager
 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    manager._cleanup_old_backups("usda")
-                )  # Should not crash, just log error
-        except Exception as e:
-            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-            # Exception is expected, but the code should handle it gracefully
-            pass
+            manager = DatabaseUpdateManager()
+            with caplog.at_level(logging.ERROR):
+                result = asyncio.run(manager._cleanup_old_backups("usda"))
+
+        assert result is None
+        assert "Error cleaning up backups for usda: Test error" in caplog.text
 
     def test_update_manager_py_line_497(self) -> None:
         """Test line 497 in update_manager.py (get_database_status)."""
@@ -311,14 +294,16 @@ class TestTargetedCoverageBoost:
         assert isinstance(nutrients, dict)
 
     def test_menu_engine_py_line_421(self) -> None:
-        """Test line 421 in menu_engine.py (_get_default_food_db fallback)."""
-        with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):
+        """The default food projection reads its admitted snapshot exactly once."""
+        with patch(
+            "core.menu_engine.get_cached_common_foods_snapshot",
+            return_value={},
+        ) as snapshot:
             from core.menu_engine import _get_default_food_db
 
             result = _get_default_food_db()
-            # Should return fallback data
-            assert isinstance(result, dict)
-            assert len(result) > 0
+        snapshot.assert_called_once_with()
+        assert set(result) == {"chicken_breast", "lentils"}
 
     def test_menu_engine_py_line_423(self) -> None:
         """Test line 423 in menu_engine.py (_get_default_recipe_db)."""

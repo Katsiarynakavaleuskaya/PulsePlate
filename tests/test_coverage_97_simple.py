@@ -3,12 +3,11 @@
 """
 
 import os
-from typing import cast
 
 import pytest
-from starlette.types import ASGIApp
+from fastapi.testclient import TestClient
 
-from app.main import app as main_app
+from tests._helpers.vip_contracts import assert_json_response_payload
 
 
 class TestCoverage97Simple:
@@ -39,53 +38,28 @@ class TestCoverage97Simple:
         assert app.app is not None
         assert hasattr(app.app, "title")
 
-    def test_app_health_endpoint_coverage(self) -> None:
+    def test_app_health_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия health endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_app_root_endpoint_coverage(self) -> None:
+    def test_app_root_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия root endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/")
         assert response.status_code == 200
 
-    def test_app_docs_endpoint_coverage(self) -> None:
+    def test_app_docs_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия docs endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_app_openapi_endpoint_coverage(self) -> None:
+    def test_app_openapi_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия openapi endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/openapi.json")
         assert response.status_code == 200
 
-    def test_app_bmi_endpoint_coverage(self) -> None:
+    def test_app_bmi_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия BMI endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
@@ -93,13 +67,8 @@ class TestCoverage97Simple:
         )
         assert response.status_code == 200
 
-    def test_app_bodyfat_endpoint_coverage(self) -> None:
+    def test_app_bodyfat_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия bodyfat endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.post(
             "/api/v1/bodyfat",
             json={"weight_kg": 70, "height_cm": 170, "waist_cm": 80, "hip_cm": 90},
@@ -107,31 +76,22 @@ class TestCoverage97Simple:
         )
         assert response.status_code in [200, 422]
 
-    def test_app_metrics_endpoint_coverage(self) -> None:
+    def test_app_metrics_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия metrics endpoint"""
-        from fastapi.testclient import TestClient
-
-        client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
         assert response.status_code == 200
 
-    def test_app_admin_status_endpoint_coverage(self) -> None:
+    def test_app_admin_status_endpoint_coverage(self, client: TestClient) -> None:
         """Тест покрытия admin status endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 500, 503]
 
-    def test_vip_weekly_menu_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
+    def test_vip_weekly_menu_endpoint_coverage(
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест покрытия VIP weekly menu endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         payload = {
             "sex": "male",
             "age": 30,
@@ -144,50 +104,63 @@ class TestCoverage97Simple:
         response = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
-    def test_vip_recipes_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
+    def test_vip_recipes_endpoint_coverage(
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест покрытия VIP recipes endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         payload = {
             "week_plan": {
                 "days": [
-                    {"meals": [{"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}]}
+                    {
+                        "day": "Monday",
+                        "meals": [
+                            {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
+                        ],
+                    }
                 ]
-            }
+            },
+            "recipes_per_day": 1,
         }
 
         response = client.post("/api/v1/vip/recipes/weekly", json=payload, headers=vip_headers)
         assert response.status_code == 200
+        data = assert_json_response_payload(response)
+        assert data["status"] == "success"
+        assert isinstance(data["weekly_recipes"], dict)
+        assert data["weekly_recipes"]
+        assert data["total_recipes"] == 1
+        assert data["echo"] == payload
 
-    def test_vip_auto_repair_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
+    def test_vip_auto_repair_endpoint_coverage(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест покрытия VIP auto repair endpoint"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-        payload = {
-            "week_plan": {
-                "days": [
-                    {"meals": [{"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}]}
-                ]
-            }
+        # This node owns the explicit module-unavailable rail, which intentionally
+        # precedes strict request parsing in the route contract.
+        with monkeypatch.context() as repair_guard:
+            repair_guard.setattr("app.routers.vip.auto_repair_week_plan", None)
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json={"week_plan": {"days": []}},
+                headers=vip_headers,
+            )
+        assert response.status_code == 200
+        assert assert_json_response_payload(response) == {
+            "status": "error",
+            "code": "auto_repair_unavailable",
+            "message": "Auto-repair module not available",
+            "detail": "Auto-repair module not available",
+            "error": "auto_repair_unavailable",
+            "repair_result": {},
         }
 
-        response = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
-        assert response.status_code == 200
-
-    def test_app_error_handling_coverage(self) -> None:
+    def test_app_error_handling_coverage(self, client: TestClient) -> None:
         """Тест покрытия обработки ошибок"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Тест 404
         response = client.get("/nonexistent")
         assert response.status_code == 404
@@ -198,24 +171,13 @@ class TestCoverage97Simple:
         )
         assert response.status_code in [422, 400]
 
-    def test_app_cors_coverage(self) -> None:
+    def test_app_cors_coverage(self, client: TestClient) -> None:
         """Тест покрытия CORS"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
         response = client.options("/api/v1/bmi")
         assert response.status_code in [200, 405]
 
-    def test_app_middleware_coverage(self) -> None:
+    def test_app_middleware_coverage(self, client: TestClient) -> None:
         """Тест покрытия middleware"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Проверяем, что middleware работает
         response = client.get("/health")
         assert response.status_code == 200

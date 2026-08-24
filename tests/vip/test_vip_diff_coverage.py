@@ -12,6 +12,7 @@ These tests target specific lines that diff-cover reports as missing:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 from copy import deepcopy
 from dataclasses import asdict, replace
@@ -1752,6 +1753,53 @@ class TestTC209VIPDiffCoverage:
         assert "missing required fields" not in diagnostic_text
         assert "secret-exception-value" not in diagnostic_text
 
+    def test_menu_default_food_consumer_has_no_lifecycle_producer_rails(self) -> None:
+        """The bounded menu owner and four migrated carriers use only the snapshot seam."""
+        repo_root = Path(__file__).resolve().parents[2]
+        menu_path = repo_root / "core/menu_engine.py"
+        menu_source = menu_path.read_text(encoding="utf-8")
+        menu_tree = ast.parse(menu_source, filename=str(menu_path))
+        forbidden_names = {
+            "asyncio",
+            "EventLoopRunningError",
+            "get_unified_food_db",
+        }
+        referenced_names = {node.id for node in ast.walk(menu_tree) if isinstance(node, ast.Name)}
+        declared_names = {
+            node.name
+            for node in ast.walk(menu_tree)
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        imported_names = {
+            alias.asname or alias.name.split(".")[0]
+            for node in ast.walk(menu_tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for alias in node.names
+        }
+        assert forbidden_names.isdisjoint(referenced_names | declared_names | imported_names)
+        assert all(forbidden not in menu_source for forbidden in forbidden_names)
+
+        migrated_carriers = (
+            "tests/test_auto_repair_comprehensive.py",
+            "tests/test_coverage_improvement.py",
+            "tests/test_menu_engine_basics.py",
+            "tests/test_targeted_coverage_boost.py",
+        )
+        stale_patch_target = "core.menu_engine.get_unified_food_db"
+        snapshot_patch_target = "core.menu_engine.get_cached_common_foods_snapshot"
+        for relative_path in migrated_carriers:
+            carrier_path = repo_root / relative_path
+            carrier_source = carrier_path.read_text(encoding="utf-8")
+            carrier_tree = ast.parse(carrier_source, filename=str(carrier_path))
+            string_constants = {
+                node.value
+                for node in ast.walk(carrier_tree)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            }
+            assert stale_patch_target not in carrier_source
+            assert stale_patch_target not in string_constants
+            assert snapshot_patch_target in string_constants
+
     def test_common_food_cache_publication_is_atomic_and_failure_safe(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -2377,14 +2425,6 @@ class TestTC209VIPDiffCoverage:
         )
         with pytest.raises(ValueError, match="overflowed"):
             _calculate_day_nutrients(overflow_day)
-
-        async def _running_loop_default() -> dict[str, FoodItem]:
-            return _get_default_food_db()
-
-        assert {food.name for food in asyncio.run(_running_loop_default()).values()} == {
-            "Chicken Breast (Mock)",
-            "Lentils (Mock)",
-        }
 
     def test_repair_requires_whole_plan_governed_evidence_before_catalog(self) -> None:
         targets = _micronutrient_targets()

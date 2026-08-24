@@ -9,6 +9,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._helpers.vip_contracts import assert_json_response_payload
+
 
 class TestVIPCoverage97Integration:
     """Интеграционные тесты для покрытия VIP router до 97%"""
@@ -336,53 +338,70 @@ class TestVIPCoverage97Integration:
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_recipes(self, test_environment, vip_headers):
+    def test_vip_coverage_simple_mocks_recipes(
+        self,
+        test_environment: None,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест покрытия VIP recipes endpoint с простыми моками"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
+        payload = {
+            "week_plan": {
+                "days": [
+                    {
+                        "day": "Monday",
+                        "meals": [
+                            {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
+                        ],
+                    }
+                ]
+            },
+            "recipes_per_day": 1,
+        }
+
         # Тест recipes endpoint
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={
-                "week_plan": {
-                    "days": [
-                        {
-                            "meals": [
-                                {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
-                            ]
-                        }
-                    ]
-                }
-            },
+            json=payload,
             headers=vip_headers,
         )
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        data = assert_json_response_payload(response)
+        assert data["status"] == "success"
+        assert isinstance(data["weekly_recipes"], dict)
+        assert data["weekly_recipes"]
+        assert data["total_recipes"] == 1
+        assert data["echo"] == payload
 
-    def test_vip_coverage_simple_mocks_auto_repair(self, test_environment, vip_headers):
+    def test_vip_coverage_simple_mocks_auto_repair(
+        self,
+        test_environment: None,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Тест покрытия VIP auto repair endpoint с простыми моками"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест auto repair endpoint
-        response = client.post(
-            "/api/v1/vip/auto-repair/weekly",
-            json={
-                "week_plan": {
-                    "days": [
-                        {
-                            "meals": [
-                                {"ingredients": [{"name": "chicken", "amount": 100, "unit": "g"}]}
-                            ]
-                        }
-                    ]
-                }
-            },
-            headers=vip_headers,
-        )
-        assert response.status_code in [200, 404]
+        # The unavailable-module guard is the contract under test and precedes parsing.
+        with patch("app.routers.vip.auto_repair_week_plan", None):
+            response = client.post(
+                "/api/v1/vip/auto-repair/weekly",
+                json={"week_plan": {"days": []}},
+                headers=vip_headers,
+            )
+        assert response.status_code == 200
+        assert assert_json_response_payload(response) == {
+            "status": "error",
+            "code": "auto_repair_unavailable",
+            "message": "Auto-repair module not available",
+            "detail": "Auto-repair module not available",
+            "error": "auto_repair_unavailable",
+            "repair_result": {},
+        }
 
     def test_vip_coverage_simple_mocks_region_catalog(self, test_environment, vip_headers):
         """Тест покрытия VIP region catalog endpoint с простыми моками"""
