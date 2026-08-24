@@ -21,7 +21,19 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "bmi_endpoint",
     "plan_endpoint",
     "bmi_endpoint_v1",
+    "_resolve_build_targets_callable",
+    "PlateDependencies",
+    "_compute_premium_plate",
+    "api_premium_plate",
+    "build_fallback_plate",
+    "align_macros_with_targets",
+    "aggregate_day_micros",
+    "premium_targets_legacy",
+    "api_who_targets",
+    "api_nutrient_gaps",
 )
+
+NEW_RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:]
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -43,6 +55,30 @@ def test_legacy_growth_guard_rejects_each_retired_python_binding(
     binding_name: str,
 ) -> None:
     source = f"async def {binding_name}():\n    return None\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", NEW_RETIRED_PRO_NUTRITION_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from app.services.pro_nutrition_plate import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_legacy_growth_guard_rejects_each_new_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    source = source_template.format(name=binding_name)
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
         f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
@@ -163,10 +199,22 @@ def test_legacy_growth_guard_allows_out_of_scope_binding_shapes() -> None:
 
 @pytest.mark.parametrize(
     "filename",
-    ["app/services/admin_operations.py", "app/services/bmi_compat.py"],
+    [
+        "app/services/admin_operations.py",
+        "app/services/bmi_compat.py",
+        "app/services/pro_nutrition_plate.py",
+        "app/services/pro_nutrition_targets.py",
+        "app/routers/legacy_premium_nutrition.py",
+    ],
 )
 def test_retired_binding_guard_ignores_canonical_owner_modules(filename: str) -> None:
-    source = "async def admin_status():\n    return None\n"
+    source = textwrap.dedent("""
+        async def admin_status():
+            return None
+
+        async def api_premium_plate():
+            return None
+        """)
 
     assert (
         legacy_guard.validate_retired_legacy_python_bindings(

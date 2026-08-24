@@ -9,17 +9,12 @@ from typing import (
     Any,
     Callable,
     Dict,
-    List,
     Literal,
     Optional,
     cast,
 )
 
-from fastapi import Body, HTTPException
-from pydantic import (
-    BaseModel,
-    ValidationError,
-)
+from pydantic import BaseModel
 from app.application_metadata import build_application_metadata
 from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
 from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
@@ -207,12 +202,6 @@ bmi_logger = logging.getLogger("app.bmi")
 _log_retention_manager: Optional[LogRetentionManager] = None
 
 
-def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
-    if callable(build_nutrition_targets):
-        return build_nutrition_targets
-    return None
-
-
 # OpenAPI/Swagger metadata remains available here as exact compatibility values.
 _application_metadata = APPLICATION_METADATA
 tags_metadata = _application_metadata.openapi_tags_list()
@@ -357,38 +346,10 @@ class WeeklyPlanFlexibleRequest(BaseModel):
     lang: Optional[str] = "en"
 
 
-# Canonical Plate ownership. These assignments deliberately replace the former
-# local implementations with exact service callables while compatibility imports
-# remain. Canonical and retained HTTP handlers import the service directly.
+# Canonical Plate ownership. Retained schema and helper compatibility exports
+# remain exact service aliases. Canonical and retained HTTP handlers import the
+# service directly.
 DB_TO_ALIAS_NUTRIENT_MAP = _canonical_plate_service.DB_TO_ALIAS_NUTRIENT_MAP
-
-
-class PlateDependencies:
-    """Legacy direct-import dependency container retained for compatibility.
-
-    Canonical Plate execution uses ``PlateServiceDependencies`` directly. This
-    mutable shim preserves the historical constructor and attributes for Python
-    callers without recreating the former process-global dependency registry.
-    """
-
-    def __init__(
-        self,
-        make_plate_fn: Callable[..., Any] | None = None,
-        build_nutrition_targets_fn: Callable[..., Any] | None = None,
-        calculate_all_bmr_fn: Callable[..., Any] | None = None,
-        calculate_all_tdee_fn: Callable[..., Any] | None = None,
-        aggregate_day_micronutrients_fn: Callable[..., Any] | None = None,
-    ) -> None:
-        self.make_plate_fn = make_plate_fn
-        self.make_plate = make_plate_fn
-        self.build_nutrition_targets_fn = build_nutrition_targets_fn
-        self.build_nutrition_targets = build_nutrition_targets_fn
-        self.calculate_all_bmr_fn = calculate_all_bmr_fn
-        self.calculate_all_bmr = calculate_all_bmr_fn
-        self.calculate_all_tdee_fn = calculate_all_tdee_fn
-        self.calculate_all_tdee = calculate_all_tdee_fn
-        self.aggregate_day_micronutrients_fn = aggregate_day_micronutrients_fn
-        self._aggregate_day_micronutrients = aggregate_day_micronutrients_fn
 
 
 PlateServiceDependencies = _canonical_plate_service.PlateServiceDependencies
@@ -404,105 +365,6 @@ _iter_exception_chain = _canonical_plate_service._iter_exception_chain
 _is_missing_nh3_error = _canonical_plate_service._is_missing_nh3_error
 _raise_missing_nh3_http_error = _canonical_plate_service._raise_missing_nh3_http_error
 calculate_heuristic_macros = _canonical_plate_service.calculate_heuristic_macros
-_compute_premium_plate = _canonical_plate_service.generate_plate_response
-api_premium_plate = _canonical_plate_service.generate_plate_response
-
-
-def build_fallback_plate(
-    req: PlateRequest,
-    candidates: list[Any] | None = None,
-) -> PlateResponse:
-    """Compatibility delegate with explicit canonical target dependency."""
-
-    del candidates
-    return _canonical_plate_service.build_fallback_plate(
-        req,
-        targets_builder=_resolve_build_targets_callable(),
-    )
-
-
-def align_macros_with_targets(
-    req: PlateRequest,
-    plate_data: Dict[str, Any],
-    candidates: list[Any] | None = None,
-) -> tuple[Dict[str, Any], Optional[int], bool]:
-    """Compatibility delegate with explicit canonical target dependency."""
-
-    del candidates
-    return _canonical_plate_service.align_macros_with_targets(
-        req,
-        plate_data,
-        targets_builder=_resolve_build_targets_callable(),
-        targets_response_factory=_generate_who_targets_response,
-    )
-
-
-async def aggregate_day_micros(
-    meals: List[Dict[str, Any]],
-    candidates: list[Any] | None = None,
-) -> Dict[str, float]:
-    """Compatibility delegate for callers that still inject an aggregator."""
-
-    aggregator = _aggregate_day_micronutrients
-    for candidate in candidates or []:
-        candidate_aggregator = getattr(
-            candidate,
-            "_aggregate_day_micronutrients",
-            None,
-        )
-        if callable(candidate_aggregator):
-            aggregator = candidate_aggregator
-            break
-    return await _canonical_plate_service.aggregate_day_micros(
-        meals,
-        aggregator=aggregator,
-    )
-
-
-# Legacy Premium Endpoints (for backwards compatibility)
-async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
-    """Legacy endpoint for WHO targets (backwards compatibility).
-
-    Protected with API key authentication to match the new /api/v1/premium/targets endpoint.
-    """
-    return _generate_who_targets_response(req, allow_backend_fallback=False)
-
-
-# WHO-Based Nutrition Endpoints
-
-
-async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
-    """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.
-
-    Normal FastAPI route usage with Body(...) and dependency injection.
-    For direct test calls, use _generate_who_targets_response directly.
-    """
-    try:
-        req: WHOTargetsRequest
-        req = WHOTargetsRequest.model_validate(payload)
-    except ValidationError as exc:
-        from fastapi.encoders import jsonable_encoder
-
-        raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
-
-    return _generate_who_targets_response(req)
-
-
-async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
-    """
-    RU: Анализирует дефициты нутриентов и даёт рекомендации.
-    EN: Analyzes nutrient deficiencies and provides food recommendations.
-
-    Smart gap analysis:
-    - Compares actual intake vs WHO targets
-    - Identifies priority deficiencies (iron, calcium, folate, etc.)
-    - Suggests specific foods to close gaps
-    - Adapts recommendations for dietary restrictions
-    - No supplement recommendations (food-first approach)
-
-    Perfect for food diary analysis and meal optimization.
-    """
-    return analyze_nutrient_gaps_response(req)
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.
