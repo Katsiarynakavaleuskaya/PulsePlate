@@ -27,11 +27,12 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. The later direct-call retirement removes only
-ten additional `legacy_app.py` Python bindings; it does not remove or redirect
-any HTTP path, change auth, alter OpenAPI, or change FastAPI object identity.
-This bounded retirement does not prove that unknown external or dynamic Python
-consumers of the removed compatibility symbols do not exist.
+`app.main`, and `legacy_app.py`. Two bounded direct-call retirements remove only
+the exact twenty `legacy_app.py` Python bindings enumerated below; they do not
+remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
+object identity. Repository census found no tracked supported production
+consumer of the second ten-name cohort; it does not prove that no external or
+dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -78,13 +79,34 @@ implementations remain callable in `app/services/admin_operations.py:27` and
 `app/services/bmi_compat.py:138`; HTTP ownership remains in
 `app/routers/admin_operations.py:34` and `app/routers/bmi_compat.py:21`.
 The `BMIRequest` / `BMIRequestV1` schema compatibility exports and BMI
-visualization exports remain explicit in `legacy_app.py:49` and
-`legacy_app.py:126`. Unknown external or reflective callers remain residual
+visualization exports remain explicit in `legacy_app.py:44` and
+`legacy_app.py:121`. Unknown external or reflective callers remain residual
 compatibility risk; this lane makes no telemetry or consumer-census claim for
 them and grants no authority to retire HTTP aliases. Runtime-absence tests prove
 only the imported module state produced by the current checked source and test
 environment; they do not prove absence under external monkeypatching, import
 hooks, or another runtime environment.
+
+The following PRO nutrition direct-call Python bindings are also retired from
+`legacy_app.py`: `_resolve_build_targets_callable`, `PlateDependencies`,
+`_compute_premium_plate`, `api_premium_plate`, `build_fallback_plate`,
+`align_macros_with_targets`, `aggregate_day_micros`,
+`premium_targets_legacy`, `api_who_targets`, and `api_nutrient_gaps`.
+Canonical Plate direct callers use the typed dependency contract at
+`app/services/pro_nutrition_plate.py:257` and the operations at
+`app/services/pro_nutrition_plate.py:582`,
+`app/services/pro_nutrition_plate.py:768`,
+`app/services/pro_nutrition_plate.py:911`, and
+`app/services/pro_nutrition_plate.py:927`. Canonical targets/gaps direct callers
+use `app/services/pro_nutrition_targets.py:248` and
+`app/services/pro_nutrition_targets.py:360`. Retained HTTP aliases remain owned
+by the handlers at `app/routers/legacy_premium_nutrition.py:55`,
+`app/routers/legacy_premium_nutrition.py:86`,
+`app/routers/legacy_premium_nutrition.py:99`, and
+`app/routers/legacy_premium_nutrition.py:113`. Existing request/response schemas,
+Plate/targets helper compatibility aliases, auth, routes, and OpenAPI remain
+unchanged. Unknown external direct imports of the retired names are an explicit
+residual compatibility risk.
 
 The former synchronous `legacy_app.start_background_updates` /
 `legacy_app.stop_background_updates` wrappers, their private scheduler bindings,
@@ -154,13 +176,15 @@ registration. PR #2314 then merged at
 `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR and
 nutrient-gap routes and moving the repository-owned Web Nutrition Setup BMR
 consumer to the canonical namespace. The bounded
-`codex/retire-legacy-admin-bmi-python-shims` successor removes only the ten
-direct-call Python bindings enumerated above and adds a closed, exact-name
-regression guard. All four versioned nutrition aliases and both root aliases
-remain callable; versioned-alias retirement, root-alias auth/sunset, and final
-legacy deletion remain separate ordered lanes behind their own evidence
+PR #2317 removed only the first ten direct-call Python bindings enumerated
+above and added a closed, exact-name regression guard. The bounded
+`codex/retire-legacy-pro-nutrition-python-shims` successor removes only the
+second ten-name cohort and extends that exact-name set without changing the
+recognizer. All four versioned nutrition aliases and both root aliases remain
+callable; versioned-alias retirement, root-alias auth/sunset, and final legacy
+deletion remain separate ordered lanes behind their own evidence
 (canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
-`app/routers/pro_nutrition_contracts.py:71`; bounded registrar evidence:
+`app/routers/pro_nutrition_contracts.py:72`; bounded registrar evidence:
 `app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
 `frontend/src/api/premium/bmr.ts:4`).
 
@@ -207,10 +231,10 @@ Forbidden in `legacy_app.py`:
 | Insight compatibility routes | `app/routers/legacy_insight.py` | The two hidden VIP routes own route-level guards and consume canonical adapter attributes at request time; the legacy facade is not a runtime dependency. |
 | Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. Facade rebinding and reverse imports are forbidden. |
 | PRO targets/gaps API contracts | `app/schemas/premium_contracts.py` | Canonical request/response ownership; legacy imports preserve the existing wire shapes without parallel schema definitions. |
-| PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; legacy exports are exact aliases or thin route shims only. |
+| PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; retired facade callables stay absent while retained helpers remain exact aliases. |
 | PRO targets/gaps routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical targets/gaps and retained compatibility routes call the service directly; the canonical family uses `require_pro_tier`, while legacy API-key behavior remains unchanged. |
 | PRO Plate API contract | `app/schemas/premium_contracts.py` | The existing `PlateRequest` / `PlateResponse` wire shapes remain shared by canonical and retained routes. |
-| PRO Plate runtime | `app/services/pro_nutrition_plate.py` + `core/` nutrition modules | The service owns typed Plate orchestration, bounded fallbacks, required sanitization, and stable error envelopes through direct core dependencies resolved per call; facade lookup, module-table lookup, mutable dependency registries, and import-time callable caches are forbidden. Legacy Plate service exports are exact aliases or thin compatibility wrappers only. |
+| PRO Plate runtime | `app/services/pro_nutrition_plate.py` + `core/` nutrition modules | The service owns typed Plate orchestration, bounded fallbacks, required sanitization, and stable error envelopes through direct core dependencies resolved per call; facade lookup, module-table lookup, mutable dependency registries, and import-time callable caches are forbidden. Retired facade callables stay absent while retained helper exports remain exact aliases. |
 | PRO Plate routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical and retained Plate handlers call the canonical service directly. Existing PRO-tier/API-key divergence, deprecation metadata, response models, and OpenAPI visibility remain unchanged. |
 | Premium BMR API contract | `app/schemas/bmr.py` | Both retained request DTOs enforce the same finite core boundaries; the existing `BMRResponse` wire shape remains shared. |
 | Premium BMR runtime | `app/services/pro_nutrition_bmr.py` + `core/bmr.py` | The service owns request-time feature gating, defensive dependency validation, localization, response assembly, and stable fail-closed errors through direct core callables resolved per call. Dynamic facade/module lookup, synthetic success stubs, and fallback TDEE values are forbidden. |
@@ -230,9 +254,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the ten retired direct-call bindings, the guard has a deliberately bounded
+For the twenty retired direct-call bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact ten-name set, uses the existing `_assigned_names`
+only. It freezes the exact twenty-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -250,7 +274,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-ten protected names, requires manual STOP and review.
+twenty protected names, requires manual STOP and review.
 
 The same guard now verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import

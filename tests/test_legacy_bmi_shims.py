@@ -29,6 +29,16 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "bmi_endpoint",
     "plan_endpoint",
     "bmi_endpoint_v1",
+    "_resolve_build_targets_callable",
+    "PlateDependencies",
+    "_compute_premium_plate",
+    "api_premium_plate",
+    "build_fallback_plate",
+    "align_macros_with_targets",
+    "aggregate_day_micros",
+    "premium_targets_legacy",
+    "api_who_targets",
+    "api_nutrient_gaps",
 }
 
 
@@ -36,29 +46,44 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.schemas.bmi_compat as bmi_schemas
     import app.services.admin_operations as admin_operations
     import app.services.bmi_compat as bmi_compat
+    import app.services.pro_nutrition_plate as plate_service
+    import app.services.pro_nutrition_targets as targets_service
     import legacy_app
 
-    canonical_owners = {
-        "admin_status": admin_operations,
-        "cleanup_expired_logs": admin_operations,
-        "debug_env": admin_operations,
-        "get_database_status": admin_operations,
-        "force_database_update": admin_operations,
-        "check_for_updates": admin_operations,
-        "rollback_database": admin_operations,
-        "bmi_endpoint": bmi_compat,
-        "plan_endpoint": bmi_compat,
-        "bmi_endpoint_v1": bmi_compat,
+    canonical_migrations = {
+        "admin_status": admin_operations.admin_status,
+        "cleanup_expired_logs": admin_operations.cleanup_expired_logs,
+        "debug_env": admin_operations.debug_env,
+        "get_database_status": admin_operations.get_database_status,
+        "force_database_update": admin_operations.force_database_update,
+        "check_for_updates": admin_operations.check_for_updates,
+        "rollback_database": admin_operations.rollback_database,
+        "bmi_endpoint": bmi_compat.bmi_endpoint,
+        "plan_endpoint": bmi_compat.plan_endpoint,
+        "bmi_endpoint_v1": bmi_compat.bmi_endpoint_v1,
+        "_resolve_build_targets_callable": None,
+        "PlateDependencies": plate_service.PlateServiceDependencies,
+        "_compute_premium_plate": plate_service.generate_plate_response,
+        "api_premium_plate": plate_service.generate_plate_response,
+        "build_fallback_plate": plate_service.build_fallback_plate,
+        "align_macros_with_targets": plate_service.align_macros_with_targets,
+        "aggregate_day_micros": plate_service.aggregate_day_micros,
+        "premium_targets_legacy": targets_service.generate_who_targets_response,
+        "api_who_targets": targets_service.generate_who_targets_response,
+        "api_nutrient_gaps": targets_service.analyze_nutrient_gaps_response,
     }
 
-    assert canonical_owners.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
+    assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
-    for binding_name, owner in canonical_owners.items():
-        assert callable(getattr(owner, binding_name))
-        assert not hasattr(legacy_app, binding_name)
+    assert canonical_migrations["_resolve_build_targets_callable"] is None
+    for binding_name, canonical_migration in canonical_migrations.items():
+        if canonical_migration is not None:
+            assert callable(canonical_migration)
+        with pytest.raises(AttributeError):
+            getattr(legacy_app, binding_name)
 
 
 def test_bmi_endpoint_v1_uses_canonical_handler_via_shim(

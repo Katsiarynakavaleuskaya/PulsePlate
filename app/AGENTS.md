@@ -440,6 +440,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `sys.modules`/facade lookup, mutable dependency registries, patch-sensitive
   gate bypasses, synthetic success stubs, and fallback calorie values are
   forbidden.
+- PRO nutrition direct-call ownership belongs to
+  `app/services/pro_nutrition_plate.py` and
+  `app/services/pro_nutrition_targets.py`; retained HTTP aliases belong to
+  `app/routers/legacy_premium_nutrition.py`. The following ordinary
+  `legacy_app.py` bindings are retired and must not be recreated:
+  `_resolve_build_targets_callable`, `PlateDependencies`,
+  `_compute_premium_plate`, `api_premium_plate`, `build_fallback_plate`,
+  `align_macros_with_targets`, `aggregate_day_micros`,
+  `premium_targets_legacy`, `api_who_targets`, and `api_nutrient_gaps`.
+  Direct calculation tests import the canonical services; retained HTTP-adapter
+  tests import and patch the modular router. Existing schema and helper
+  compatibility exports remain unchanged. Repository source/runtime absence is
+  not proof that unknown external Python importers do not exist.
 - Legacy AI/insight routes must not own provider orchestration in
   `legacy_app.py`. `app/schemas/insight.py` owns the request/response models,
   `app/services/insight_compat.py` owns retained compatibility callables and

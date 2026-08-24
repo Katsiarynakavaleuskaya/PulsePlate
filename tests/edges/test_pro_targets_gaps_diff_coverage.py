@@ -18,6 +18,7 @@ from pydantic import ValidationError
 import legacy_app
 from app import app
 from app.middleware.api_tiers import TEST_KEY_PRO
+from app.routers import legacy_premium_nutrition
 from app.schemas.premium_contracts import (
     NutrientGapsRequest,
     NutrientGapsResponse,
@@ -575,7 +576,7 @@ def test_plate_alignment_uses_resolved_builder_override() -> None:
     assert aligned is True
 
 
-def test_legacy_compatibility_shims_delegate_exactly_once(
+def test_retained_legacy_route_handlers_delegate_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target_calls: list[tuple[WHOTargetsRequest, bool]] = []
@@ -596,21 +597,21 @@ def test_legacy_compatibility_shims_delegate_exactly_once(
         return gaps_marker
 
     monkeypatch.setattr(
-        legacy_app,
-        "_generate_who_targets_response",
+        legacy_premium_nutrition,
+        "generate_who_targets_response",
         _targets_delegate,
     )
     monkeypatch.setattr(
-        legacy_app,
+        legacy_premium_nutrition,
         "analyze_nutrient_gaps_response",
         _gaps_delegate,
     )
     request = _request()
     gaps_request = _gaps_request()
 
-    strict_result = asyncio.run(legacy_app.premium_targets_legacy(request))
-    alias_result = asyncio.run(legacy_app.api_who_targets(_payload()))
-    gaps_result = asyncio.run(legacy_app.api_nutrient_gaps(gaps_request))
+    strict_result = asyncio.run(legacy_premium_nutrition.premium_targets_legacy(request))
+    alias_result = asyncio.run(legacy_premium_nutrition.api_who_targets(_payload()))
+    gaps_result = asyncio.run(legacy_premium_nutrition.api_nutrient_gaps(gaps_request))
 
     assert strict_result is target_marker
     assert alias_result is target_marker
