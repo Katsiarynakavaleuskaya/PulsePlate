@@ -1,4 +1,5 @@
 import ast
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -253,6 +254,10 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         "wrong_dependency",
         "extra_dependency",
         "combined_methods",
+        "missing_openapi_extra",
+        "wrong_openapi_extra",
+        "extra_openapi_extra",
+        "extra_nested_request_body",
     ),
 )
 def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
@@ -287,6 +292,15 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         ]
         if state == "extra_dependency":
             dependencies.append(Depends(lambda: None))
+        openapi_extra = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA)
+        if state == "wrong_openapi_extra":
+            openapi_extra["requestBody"] = {"required": False}
+        if state == "extra_openapi_extra":
+            openapi_extra["unexpected"] = True
+        if state == "extra_nested_request_body":
+            request_body = openapi_extra["requestBody"]
+            assert isinstance(request_body, dict)
+            request_body["unexpected"] = True
         router.add_api_route(
             path,
             endpoint,
@@ -295,6 +309,7 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
             response_model=response_model,
             responses={code: {"description": str(code)} for code in status_codes},
             dependencies=dependencies,
+            openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
         )
         if state == "extra":
             router.add_api_route("/unexpected-support-source", lambda: None, methods=["GET"])
@@ -316,6 +331,10 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         "wrong_dependency",
         "extra_dependency",
         "combined_methods",
+        "missing_openapi_extra",
+        "wrong_openapi_extra",
+        "extra_openapi_extra",
+        "extra_nested_request_body",
     ),
 )
 def test_fitchef_support_handoff_existing_target_fails_unchanged(
@@ -343,6 +362,15 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
     ]
     if state == "extra_dependency":
         dependencies.append(Depends(lambda: None))
+    openapi_extra = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA)
+    if state == "wrong_openapi_extra":
+        openapi_extra["requestBody"] = {"required": False}
+    if state == "extra_openapi_extra":
+        openapi_extra["unexpected"] = True
+    if state == "extra_nested_request_body":
+        request_body = openapi_extra["requestBody"]
+        assert isinstance(request_body, dict)
+        request_body["unexpected"] = True
     target.add_api_route(
         main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH,
         endpoint,
@@ -351,6 +379,7 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
         response_model=response_model,
         responses={code: {"description": str(code)} for code in status_codes},
         dependencies=dependencies,
+        openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
     )
     if state == "duplicate":
         target.include_router(main.fitchef_support_handoff_router)

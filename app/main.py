@@ -6,6 +6,7 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 
 from __future__ import annotations
 
+from copy import deepcopy
 import logging
 import os
 import sys
@@ -69,6 +70,7 @@ from app.routers.catalog import (
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import (
+    _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI,
     fitchef_support_handoff,
     router as fitchef_structured_router,
     support_handoff_router as fitchef_support_handoff_router,
@@ -158,6 +160,9 @@ _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend"
 _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES: frozenset[int] = frozenset({200, 401, 403, 422, 503})
+_FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA: dict[str, object] = {
+    "requestBody": deepcopy(_FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI)
+}
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
@@ -559,6 +564,7 @@ def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
         and route.response_model is FitChefSupportHandoffResponse
         and dependencies == [require_pro_tier]
         and set(route_responses(route)) == _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES
+        and route.openapi_extra == _FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA
     )
 
 
