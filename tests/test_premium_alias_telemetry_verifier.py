@@ -275,26 +275,80 @@ def test_cli_default_output_uses_exact_microsecond_live_anchor(
     assert published_names == ["premium_alias_telemetry_baseline_20260822T120000654321Z.json"]
 
 
-def _promtool_payload(*, result_type: str = "vector", result: object = None) -> bytes:
-    if result is None:
-        result = [{"metric": {}, "value": [1_777_000_000.0, "0"]}]
+def _native_promtool_scalar(
+    *,
+    timestamp: int | float = 1_777_000_000.0,
+    value: str = "0",
+) -> bytes:
+    return json.dumps([timestamp, value], separators=(",", ":")).encode()
+
+
+def _native_promtool_vector(
+    *,
+    timestamp: int | float = 1_777_000_000.0,
+    value: str = "0",
+    metric: dict[str, str] | None = None,
+) -> bytes:
     return json.dumps(
-        {"status": "success", "data": {"resultType": result_type, "result": result}}
+        [{"metric": metric or {}, "value": [timestamp, value]}],
+        separators=(",", ":"),
     ).encode()
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        (_native_promtool_scalar(value="1.25"), (1_777_000_000.0, 1.25)),
+        (
+            _native_promtool_vector(value="-2.5e1", metric={"job": "pulseplate-api"}),
+            (1_777_000_000.0, -25.0),
+        ),
+    ],
+)
+def test_promtool_parser_accepts_exact_native_scalar_and_one_sample_vector(
+    payload: bytes,
+    expected: tuple[float, float],
+) -> None:
+    assert verifier._parse_promtool_sample(payload) == expected
+    assert verifier._parse_promtool_vector(payload) == expected[1]
+
+
+@pytest.mark.parametrize("value", ["0", "-0", "0.0", "0e-9999", "-0e9999"])
+def test_promtool_parser_preserves_genuine_exact_zero(value: str) -> None:
+    timestamp, parsed = verifier._parse_promtool_sample(
+        _native_promtool_vector(timestamp=-0.0, value=value)
+    )
+
+    assert timestamp == 0.0
+    assert parsed == 0.0
 
 
 @pytest.mark.parametrize(
     ("payload", "error"),
     [
         (b"not-json", "promtool_result_invalid"),
-        (_promtool_payload(result_type="matrix"), "promtool_result_invalid"),
-        (_promtool_payload(result=[]), "promtool_vector_missing"),
-        (_promtool_payload(result=[{"metric": {}, "value": [1.0, "NaN"]}]), "nonfinite"),
-        (_promtool_payload(result=[{"metric": {}, "value": [1.0, "+Inf"]}]), "nonfinite"),
-        (_promtool_payload(result=[{"metric": {}, "value": [1.0, 0]}]), "invalid"),
+        (b"\xff", "promtool_result_invalid"),
+        (b"", "promtool_result_invalid"),
+        (
+            b'{"status":"success","data":{"resultType":"vector","result":[]}}',
+            "promtool_result_invalid",
+        ),
+        (_native_promtool_vector(value="NaN"), "promtool_value_nonfinite"),
+        (_native_promtool_vector(value="+Inf"), "promtool_value_nonfinite"),
+        (_native_promtool_vector(value="-Inf"), "promtool_value_nonfinite"),
+        (_native_promtool_vector(value="1e9999"), "promtool_value_nonfinite"),
+        (_native_promtool_vector(value="1e-9999"), "promtool_result_invalid"),
+        (b'[1e-9999,"0"]', "promtool_result_invalid"),
+        (b'[NaN,"0"]', "promtool_result_invalid"),
+        (b'[[1],"0"]', "promtool_result_invalid"),
+        (b'[{"timestamp":1},"0"]', "promtool_result_invalid"),
+        (b'[true,"0"]', "promtool_result_invalid"),
+        (b'[null,"0"]', "promtool_result_invalid"),
+        (b'["1","0"]', "promtool_result_invalid"),
+        (b'[{"metric":{},"value":[1,0]}]', "promtool_result_invalid"),
     ],
 )
-def test_promtool_parser_rejects_malformed_missing_and_nonfinite_vectors(
+def test_promtool_parser_rejects_malformed_coercive_and_nonfinite_native_values(
     payload: bytes,
     error: str,
 ) -> None:
@@ -302,11 +356,62 @@ def test_promtool_parser_rejects_malformed_missing_and_nonfinite_vectors(
         verifier._parse_promtool_vector(payload)
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"[]",
+        b'[{"metric":{},"value":[1,"0"]},{"metric":{},"value":[1,"0"]}]',
+        b"[{},{}]",
+    ],
+)
+def test_promtool_parser_rejects_empty_and_multiple_vectors(payload: bytes) -> None:
+    with pytest.raises(verifier.VerificationError, match="promtool_vector_missing"):
+        verifier._parse_promtool_sample(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'[{"metric":{}}]',
+        b'[{"value":[1,"0"]}]',
+        b'[{"metric":{},"value":[1,"0"],"extra":true}]',
+        b'[{"metric":[],"value":[1,"0"]}]',
+        b'[{"metric":{"job":1},"value":[1,"0"]}]',
+        b'[{"metric":{},"value":[1,"0"],"value":[1,"1"]}]',
+        b'[{"metric":{"job":"a","job":"b"},"value":[1,"0"]}]',
+    ],
+)
+def test_promtool_parser_rejects_wrong_and_duplicate_sample_or_metric_keys(
+    payload: bytes,
+) -> None:
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(payload)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["+1", " 1", "1 ", "01", "00.1", ".1", "1.", "١", "", "--1"],
+)
+def test_promtool_parser_rejects_noncanonical_numeric_strings(value: str) -> None:
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(_native_promtool_vector(value=value))
+
+
 def test_promtool_parser_rejects_oversized_integer_timestamp() -> None:
-    payload = _promtool_payload(result=[{"metric": {}, "value": [10**400, "0"]}])
+    payload = _native_promtool_vector(timestamp=10**400)
 
     with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
         verifier._parse_promtool_sample(payload)
+
+
+def test_promtool_parser_rejects_oversized_payload_and_numeric_token() -> None:
+    oversized_payload = b" " * (verifier.MAX_JSON_BYTES + 1)
+    oversized_token = "9" * (verifier._MAX_PROMTOOL_NUMBER_CHARS + 1)
+
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(oversized_payload)
+    with pytest.raises(verifier.VerificationError, match="promtool_result_invalid"):
+        verifier._parse_promtool_sample(_native_promtool_vector(value=oversized_token))
 
 
 @pytest.mark.parametrize(
@@ -1683,13 +1788,15 @@ elif "/bin/promtool" in args and "query" in args:
     timestamp = {_T0.timestamp()!r}
     if expression == "time()":
         value = timestamp
+        print(json.dumps([timestamp, str(value)], separators=(",", ":")))
     elif expression.startswith("count(up") or expression.startswith("min(up"):
         value = 1.0
     elif expression.startswith("count_over_time"):
         value = {float(verifier.FINAL_MIN_SAMPLES)!r}
     else:
         value = 0.0
-    print(json.dumps({{"status": "success", "data": {{"resultType": "vector", "result": [{{"metric": {{}}, "value": [timestamp, str(value)]}}]}}}}, separators=(",", ":")))
+    if expression != "time()":
+        print(json.dumps([{{"metric": {{}}, "value": [timestamp, str(value)]}}], separators=(",", ":")))
 elif "/bin/promtool" in args:
     print("Prometheus is Healthy.")
 else:
