@@ -50,6 +50,7 @@ EXPECTED_COOLDOWN = {
     "semver-minor-days": 7,
     "semver-patch-days": 3,
 }
+EXPECTED_GITHUB_ACTIONS_COOLDOWN = {"default-days": 7}
 EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
     "runtime-security-sensitive": {
         "patterns": (
@@ -188,6 +189,7 @@ class UpdaterContract:
     scope_paths: tuple[str, ...]
     exact_values: Mapping[str, object]
     keys: frozenset[str]
+    cooldown: Mapping[str, object]
 
 
 EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
@@ -196,6 +198,7 @@ EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
         scope_paths=("/",),
         exact_values=EXPECTED_UPDATE_EXACT_VALUES,
         keys=frozenset(EXPECTED_UPDATE_KEYS),
+        cooldown=EXPECTED_COOLDOWN,
     ),
     "npm": UpdaterContract(
         scope_key="directories",
@@ -212,6 +215,7 @@ EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
                 "cooldown",
             }
         ),
+        cooldown=EXPECTED_COOLDOWN,
     ),
     "bundler": UpdaterContract(
         scope_key="directory",
@@ -228,6 +232,7 @@ EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
                 "cooldown",
             }
         ),
+        cooldown=EXPECTED_COOLDOWN,
     ),
     "github-actions": UpdaterContract(
         scope_key="directories",
@@ -244,6 +249,7 @@ EXPECTED_UPDATE_CONTRACTS: dict[str, UpdaterContract] = {
                 "cooldown",
             }
         ),
+        cooldown=EXPECTED_GITHUB_ACTIONS_COOLDOWN,
     ),
 }
 EXPECTED_UPDATER_ECOSYSTEMS = frozenset(EXPECTED_UPDATE_CONTRACTS)
@@ -957,7 +963,7 @@ def _validate_update_contract(
 
     _validate_exact_mapping(
         actual=update.get("cooldown"),
-        expected=EXPECTED_COOLDOWN,
+        expected=contract.cooldown,
         key_path=f"{update_path}.cooldown",
         errors=errors,
     )
