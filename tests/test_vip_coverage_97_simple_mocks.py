@@ -341,13 +341,10 @@ class TestVIPCoverage97Integration:
     def test_vip_coverage_simple_mocks_recipes(
         self,
         test_environment: None,
+        client: TestClient,
         vip_headers: dict[str, str],
     ) -> None:
         """Тест покрытия VIP recipes endpoint с простыми моками"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         payload = {
             "week_plan": {
                 "days": [
@@ -379,13 +376,10 @@ class TestVIPCoverage97Integration:
     def test_vip_coverage_simple_mocks_auto_repair(
         self,
         test_environment: None,
+        client: TestClient,
         vip_headers: dict[str, str],
     ) -> None:
         """Тест покрытия VIP auto repair endpoint с простыми моками"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # The unavailable-module guard is the contract under test and precedes parsing.
         with patch("app.routers.vip.auto_repair_week_plan", None):
             response = client.post(

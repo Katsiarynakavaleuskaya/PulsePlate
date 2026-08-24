@@ -308,13 +308,10 @@ class TestVIPCoverageComprehensive:
 
     def test_vip_auto_repair_coverage_lines_623_624_681(
         self,
+        client: TestClient,
         vip_headers: dict[str, str],
     ) -> None:
         """Test VIP auto-repair coverage for lines 623-624, 681."""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Test auto-repair weekly endpoint
         with patch("app.routers.vip.auto_repair_week_plan", None):
             response = client.post(
@@ -348,13 +345,11 @@ class TestVIPCoverageComprehensive:
         assert "strategies" in data
 
     def test_vip_weekly_recipes_coverage_lines_721_725_738_739_758(
-        self, vip_headers: dict[str, str]
+        self,
+        client: TestClient,
+        vip_headers: dict[str, str],
     ) -> None:
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         payload = {
             "week_plan": {
                 "days": [

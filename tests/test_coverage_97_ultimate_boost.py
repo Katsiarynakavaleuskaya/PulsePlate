@@ -492,13 +492,10 @@ class TestCoverage97UltimateBoost:
     def test_app_coverage_ultimate_boost_missing_lines_1342_1365(
         self,
         test_environment: None,
+        client: TestClient,
         vip_headers: dict[str, str],
     ) -> None:
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Тест VIP recipes endpoint с различными данными
         recipes_scenarios = [
             ("chicken", 100),
