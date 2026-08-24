@@ -21,7 +21,10 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
   existence, provenance, compatibility, vulnerability closure, review approval,
   or merge readiness. The wildcard is a locally admitted token for current
   direct-child composite roots, not a claim that nested carriers were discovered
-  or that GitHub accepted or ran the updater.
+  or that GitHub accepted or ran the updater. The Actions cooldown contract is
+  exactly `default-days: 7`; semver-major/minor/patch cooldown keys are not
+  supported for this provider. Acceptance of the corrected configuration remains
+  pending until a natural post-merge updater job completes.
 - The guard deliberately retains a literal-line `uses:` recognizer. It handles
   the established unquoted single-line form with an optional list marker and
   trailing comment; it is not a general YAML, container, symlink, plugin, or
