@@ -25,26 +25,33 @@ class TestUnifiedDBCoverage:
                 UnifiedFoodDatabase()
 
     @pytest.mark.asyncio
-    async def test_unified_db_cache_handling_coverage(self, monkeypatch):
-        """Тест покрытия unified_db.py cache handling - проверяем кэширование экземпляра
+    async def test_unified_db_cache_handling_coverage(self) -> None:
+        """Тест getter cache identity with exact test-owned cleanup."""
+        import core.food_apis.unified_db as unified_db_module
 
-        Uses monkeypatch to reset the singleton instance instead of reload to avoid
-        cross-module isinstance mismatches when other tests import UnifiedFoodItem
-        or UnifiedFoodDatabase.
-        """
-        import core.food_apis.unified_db as unified_db
+        prior: unified_db_module.UnifiedFoodDatabase | None = (
+            unified_db_module._read_unified_db_instance()
+        )
+        assert prior is None
 
-        # Reset the singleton instance in-place without reloading the module
-        monkeypatch.setattr(unified_db, "_unified_db_instance", None, raising=False)
-
-        get_unified_food_db = unified_db.get_unified_food_db
-
-        result1 = await get_unified_food_db()
-        result2 = await get_unified_food_db()
-
-        # Проверяем, что возвращается тот же объект (кэширование)
-        assert result1 is result2
-        assert result1 is not None
+        owned: unified_db_module.UnifiedFoodDatabase = await unified_db_module.get_unified_food_db()
+        try:
+            assert unified_db_module._read_unified_db_instance() is owned
+            second = await unified_db_module.get_unified_food_db()
+            assert second is owned
+        finally:
+            cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                owned,
+                prior,
+            )
+            try:
+                await unified_db_module.close_unified_food_clients(owned)
+            finally:
+                final = unified_db_module._read_unified_db_instance()
+                assert final is (prior if cleared else observed)
+                assert cleared
+                assert observed is prior
+                assert final is prior
 
     @pytest.mark.asyncio
     async def test_unified_db_data_processing_coverage(self):

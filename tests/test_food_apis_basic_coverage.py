@@ -224,13 +224,36 @@ class TestModuleFunctions:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
-    async def test_get_unified_food_db(self):
+    async def test_get_unified_food_db(self) -> None:
         """Test the get_unified_food_db function."""
-        with patch("core.food_apis.unified_db.USDAClient"):
-            from core.food_apis.unified_db import get_unified_food_db
+        import core.food_apis.unified_db as unified_db_module
 
-            db = await get_unified_food_db()
-            assert db is not None
+        with patch("core.food_apis.unified_db.USDAClient"):
+            prior: unified_db_module.UnifiedFoodDatabase | None = (
+                unified_db_module._read_unified_db_instance()
+            )
+            assert prior is None
+
+            owned: unified_db_module.UnifiedFoodDatabase = (
+                await unified_db_module.get_unified_food_db()
+            )
+            try:
+                assert unified_db_module._read_unified_db_instance() is owned
+                second = await unified_db_module.get_unified_food_db()
+                assert second is owned
+            finally:
+                cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                    owned,
+                    prior,
+                )
+                try:
+                    await unified_db_module.close_unified_food_clients(owned)
+                finally:
+                    final = unified_db_module._read_unified_db_instance()
+                    assert final is (prior if cleared else observed)
+                    assert cleared
+                    assert observed is prior
+                    assert final is prior
 
     def test_unified_food_item_conversion(self):
         """Test UnifiedFoodItem conversions."""

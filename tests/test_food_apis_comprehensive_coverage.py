@@ -515,23 +515,42 @@ class TestUnifiedFoodDatabaseComprehensive:
                 assert isinstance(foods_db, dict)
 
     @pytest.mark.asyncio
-    async def test_unified_db_global_functions(self):
+    async def test_unified_db_global_functions(self) -> None:
         """Test global unified database functions."""
-        from core.food_apis.unified_db import get_unified_food_db, search_foods_unified
+        import core.food_apis.unified_db as unified_db_module
 
         with patch("core.food_apis.unified_db.USDAClient"):
-            # Test get_unified_food_db
-            db1 = await get_unified_food_db()
-            db2 = await get_unified_food_db()
+            prior: unified_db_module.UnifiedFoodDatabase | None = (
+                unified_db_module._read_unified_db_instance()
+            )
+            assert prior is None
 
-            # Should return the same instance
-            assert db1 is db2
+            owned: unified_db_module.UnifiedFoodDatabase = (
+                await unified_db_module.get_unified_food_db()
+            )
+            try:
+                assert unified_db_module._read_unified_db_instance() is owned
+                second = await unified_db_module.get_unified_food_db()
+                assert second is owned
 
-            # Test search_foods_unified
-            with patch.object(db1, "search_food", new_callable=AsyncMock) as mock_search:
-                mock_search.return_value = []
-                results = await search_foods_unified("chicken", 5)
-                assert isinstance(results, list)
+                with patch.object(owned, "search_food", new_callable=AsyncMock) as mock_search:
+                    mock_search.return_value = []
+                    results = await unified_db_module.search_foods_unified("chicken", 5)
+                    assert results == []
+                    mock_search.assert_awaited_once_with("chicken")
+            finally:
+                cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                    owned,
+                    prior,
+                )
+                try:
+                    await unified_db_module.close_unified_food_clients(owned)
+                finally:
+                    final = unified_db_module._read_unified_db_instance()
+                    assert final is (prior if cleared else observed)
+                    assert cleared
+                    assert observed is prior
+                    assert final is prior
 
 
 # Test update_manager module comprehensively
