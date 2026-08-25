@@ -6,9 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 import textwrap
+from typing import cast
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.routing import APIRoute
 from starlette.routing import Route
 import app
 import app.main as main
@@ -459,6 +461,32 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
     _assert_atomic_bootstrap_failure(target, "Invalid existing FitChef support handoff route")
 
 
+def test_fitchef_support_handoff_effective_include_dependency_fails_unchanged() -> None:
+    """An include-level dependency is effective drift and blocks registration."""
+
+    def extra_guard() -> None:
+        return None
+
+    target = FastAPI()
+    target.include_router(
+        main.fitchef_support_handoff_router,
+        dependencies=[Depends(extra_guard)],
+    )
+    matching = [
+        route
+        for route in main._effective_app_routes(target)
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
+    assert len(matching) == 1
+    route = cast(APIRoute, matching[0])
+    assert [dependency.call for dependency in route.dependant.dependencies] == [
+        extra_guard,
+        main.require_pro_tier,
+    ]
+
+    _assert_atomic_bootstrap_failure(target, "Invalid existing FitChef support handoff route")
+
+
 def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() -> None:
     """Absent registration includes once; the exact live target is a no-op."""
 
@@ -474,7 +502,11 @@ def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() 
     ]
     assert tuple(target.routes) == first_routes
     assert len(matching) == 1
-    assert main._is_exact_fitchef_support_handoff_route(matching[0]) is True
+    route = cast(APIRoute, matching[0])
+    assert [dependency.call for dependency in route.dependant.dependencies] == [
+        main.require_pro_tier
+    ]
+    assert main._is_exact_fitchef_support_handoff_route(route) is True
 
 
 @pytest.mark.parametrize("s", _WS_STATES)

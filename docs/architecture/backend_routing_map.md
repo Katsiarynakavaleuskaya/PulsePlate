@@ -45,39 +45,58 @@ PR #2320 implements `POST /api/v1/pro/fitchef/recommend` as a merge-bound
 backend candidate. It is not public-main or deployed runtime truth and carries
 no product-value claim until merge and post-merge verification complete.
 
-Stable ownership and registration evidence:
+Ownership is split across three explicit layers:
 
-- `app/routers/fitchef_structured.py:98` — `support_handoff_router` is the
-  dedicated one-route source owner.
-- `app/routers/fitchef_structured.py:270-301` — `fitchef_support_handoff` owns
-  the full path, exact public responses, and sole immediate
-  `require_pro_tier` dependency.
-- `app/main.py:597-621` —
-  `_include_fitchef_support_handoff_router_if_needed` uses the existing
-  `RouteMemberContract` / `ensure_route_family_registered(...)` helper inside a
-  private exact source/live/postvalidation recognizer.
+- **Source ownership:** `support_handoff_router` is the dedicated one-route
+  source router (`app/routers/fitchef_structured.py:98`). Its manual
+  request-body projection, summary/description, and exact response registry are
+  frozen at `app/routers/fitchef_structured.py:104-129`.
+- **Registration ownership:**
+  `_is_exact_fitchef_support_handoff_route(...)` validates the complete effective
+  route contract (`app/main.py:558-585`), the source/target validators reject
+  zero, duplicate, foreign, or drifted owners before mutation
+  (`app/main.py:588-611`), and
+  `_include_fitchef_support_handoff_router_if_needed(...)` performs the one
+  guarded registration plus postvalidation (`app/main.py:620-640`).
+- **Effective runtime ownership:** after `include_router(...)`, validation reads
+  path, method, endpoint, visibility, response/serialization/OpenAPI metadata,
+  and `dependant.dependencies` from the effective candidate. The source
+  `original_route` proves only that the candidate has an `APIRoute` carrier.
+  The accepted dependency calls are exactly `[require_pro_tier]`; an added
+  include-context dependency is rejected atomically
+  (`tests/test_application_instance_ownership.py:464-509`).
 
 Request flow and contract evidence:
 
-1. `require_pro_tier` authenticates before the handler
-   (`app/routers/fitchef_structured.py:272`).
-2. `FEATURE_FITCHEF_STRUCTURED_COACH` is checked before body work
-   (`app/routers/fitchef_structured.py:53,117,294-298`).
+1. The route decorator declares the sole direct `require_pro_tier` dependency
+   before the handler (`app/routers/fitchef_structured.py:288-303`).
+2. `_is_fitchef_structured_enabled()` reads the shared
+   `FEATURE_FITCHEF_STRUCTURED_COACH` flag
+   (`app/routers/fitchef_structured.py:53,132-135`), and the handler checks it
+   before body work (`app/routers/fitchef_structured.py:303-309`).
 3. `_parse_fitchef_support_handoff_request` enforces the exact JSON media type,
    decodes JSON, and validates the closed DTO
-   (`app/routers/fitchef_structured.py:170-198`).
+   (`app/routers/fitchef_structured.py:188-216`).
 4. `build_fitchef_support_handoff` performs the pure two-value descriptor map
    (`app/services/fitchef_support_handoff.py:13-40`).
 5. `FitChefSupportHandoffResponse` enforces the required fields, compatible
    need/surface pair, and closed public schema
-   (`app/schemas/fitchef_coaching.py:39-104`).
+   (`app/schemas/fitchef_coaching.py:18-123`).
 
 Runtime contract:
 
-- Responses are exactly `200`, `401`, `403`, `422`, and `503`.
-- Public OpenAPI requires an `application/json` body, forbids extra request,
-  action, and response properties, retains literal constants, and constrains
-  the two valid need/surface pairs on the existing response component.
+- Responses and manual `requestBody` are declared at
+  `app/routers/fitchef_structured.py:104-129,288-301`; the handler returns the
+  typed response at `app/routers/fitchef_structured.py:303-310`. Responses are
+  exactly `200`, `401`, `403`, `422`, and `503`.
+- The source DTOs are closed at `app/schemas/fitchef_coaching.py:18-123`.
+  Generated OpenAPI exposes the response components at
+  `frontend/src/api/openapi.json:2550-2684` and the operation, security scheme,
+  exact JSON request body, and response set at
+  `frontend/src/api/openapi.json:8095-8189`. Generated TypeScript mirrors the
+  path at `frontend/src/api/schema.ts:301-320`, the response literals and two
+  compatible pairs at `frontend/src/api/schema.ts:2879-2954`, and the operation
+  request/response contract at `frontend/src/api/schema.ts:5820-5885`.
 - The route is descriptor-only: no execution, mutation, provider, RAG, rate
   limiter, persistence, planner, analytics, target invocation, or client
   navigation is owned by this path.

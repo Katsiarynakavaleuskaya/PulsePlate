@@ -558,15 +558,16 @@ def _effective_app_routes(target_app: FastAPI) -> tuple[object, ...]:
 def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
     """Return whether one effective route preserves the frozen handoff contract."""
 
-    route = getattr(candidate, "original_route", candidate)
-    if not isinstance(route, APIRoute):
+    carrier = getattr(candidate, "original_route", candidate)
+    if not isinstance(carrier, APIRoute):
         return False
+    route = cast(APIRoute, candidate)
     dependencies = [dependency.call for dependency in route.dependant.dependencies]
     return (
-        route_path(candidate) == _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        route_path(route) == _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
         and route_methods(route) == {"POST"}
-        and route_include_in_schema(candidate) is True
-        and route_endpoint(candidate) is fitchef_support_handoff
+        and route_include_in_schema(route) is True
+        and route_endpoint(route) is fitchef_support_handoff
         and route.response_model is FitChefSupportHandoffResponse
         and route.status_code is None
         and route.response_model_include is None
