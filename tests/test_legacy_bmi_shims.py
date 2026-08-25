@@ -8,6 +8,12 @@ PR-456 Commit 3: Verify that /bmi and /api/v1/bmi delegate to canonical handler.
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +23,8 @@ import scripts.ci.check_legacy_growth_guard as legacy_guard
 from core.bmi.engine import BMICalculateResult
 from core.bmi.risk import WaistRiskResult
 from core.i18n import t
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 RETIRED_LEGACY_PYTHON_BINDINGS = {
     "admin_status",
@@ -39,7 +47,90 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "premium_targets_legacy",
     "api_who_targets",
     "api_nutrient_gaps",
+    "analyze_nutrient_gaps",
+    "make_daily_menu",
+    "make_weekly_menu",
+    "repair_week_plan",
+    "make_plate",
+    "build_nutrition_targets",
+    "to_csv_day",
+    "to_pdf_day",
+    "to_csv_week",
+    "to_pdf_week",
+    "WeeklyPlanFlexibleRequest",
 }
+
+RETIRED_PLANNING_EXPORT_BINDINGS = (
+    "analyze_nutrient_gaps",
+    "make_daily_menu",
+    "make_weekly_menu",
+    "repair_week_plan",
+    "make_plate",
+    "build_nutrition_targets",
+    "to_csv_day",
+    "to_pdf_day",
+    "to_csv_week",
+    "to_pdf_week",
+    "WeeklyPlanFlexibleRequest",
+)
+
+_NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
+    import socket
+
+    def _deny_network(*_args, **_kwargs):
+        raise AssertionError("network access is disabled for this import probe")
+
+    class _NetworkDisabledSocket(socket.socket):
+        def connect(self, *_args, **_kwargs):
+            _deny_network()
+
+        def connect_ex(self, *_args, **_kwargs):
+            _deny_network()
+
+    socket.create_connection = _deny_network
+    socket.socket = _NetworkDisabledSocket
+    """)
+
+
+def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
+    env = os.environ.copy()
+    for name in (
+        "API_KEY",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "OPENAI_API_KEY",
+        "PERPLEXITY_API_KEY",
+    ):
+        env.pop(name, None)
+    env.update(
+        {
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "TESTING": "true",
+            "PYTEST_CURRENT_TEST": "legacy-planning-export-retirement-probe",
+            "PRIVATE_EXPORTS_ENABLED": "false",
+        }
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _NETWORK_DISABLED_PREAMBLE + scenario],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+        shell=False,
+    )
+    assert completed.returncode == 0, (
+        f"legacy retirement probe failed with returncode={completed.returncode}; "
+        f"stdout_tail={completed.stdout[-2000:]!r}; stderr_tail={completed.stderr[-2000:]!r}"
+    )
+    result_line = next(
+        line
+        for line in completed.stdout.splitlines()
+        if line.startswith("LEGACY_RETIREMENT_RESULT=")
+    )
+    return json.loads(result_line.removeprefix("LEGACY_RETIREMENT_RESULT="))
 
 
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
@@ -48,6 +139,10 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.bmi_compat as bmi_compat
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
+    import core.exports as exports
+    import core.menu_engine as menu_engine
+    import core.plate as plate
+    import core.recommendations as recommendations
     import legacy_app
 
     canonical_migrations = {
@@ -71,6 +166,17 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "premium_targets_legacy": targets_service.generate_who_targets_response,
         "api_who_targets": targets_service.generate_who_targets_response,
         "api_nutrient_gaps": targets_service.analyze_nutrient_gaps_response,
+        "analyze_nutrient_gaps": menu_engine.analyze_nutrient_gaps,
+        "make_daily_menu": menu_engine.make_daily_menu,
+        "make_weekly_menu": menu_engine.make_weekly_menu,
+        "repair_week_plan": menu_engine.repair_week_plan,
+        "make_plate": plate.make_plate,
+        "build_nutrition_targets": recommendations.build_nutrition_targets,
+        "to_csv_day": exports.to_csv_day,
+        "to_pdf_day": exports.to_pdf_day,
+        "to_csv_week": exports.to_csv_week,
+        "to_pdf_week": exports.to_pdf_week,
+        "WeeklyPlanFlexibleRequest": None,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
@@ -78,12 +184,92 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
-    assert canonical_migrations["_resolve_build_targets_callable"] is None
+    assert {
+        binding_name
+        for binding_name, canonical_migration in canonical_migrations.items()
+        if canonical_migration is None
+    } == {"_resolve_build_targets_callable", "WeeklyPlanFlexibleRequest"}
     for binding_name, canonical_migration in canonical_migrations.items():
         if canonical_migration is not None:
             assert callable(canonical_migration)
         with pytest.raises(AttributeError):
             getattr(legacy_app, binding_name)
+
+
+def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
+    import_failure_checks = "\n".join(textwrap.dedent(f"""
+            try:
+                from legacy_app import {binding_name}
+            except ImportError:
+                pass
+            else:
+                raise AssertionError("legacy from-import remains: {binding_name}")
+            """) for binding_name in RETIRED_PLANNING_EXPORT_BINDINGS)
+    scenario = textwrap.dedent(f"""
+        import json
+        import legacy_app
+
+        retired = {RETIRED_PLANNING_EXPORT_BINDINGS!r}
+        for binding_name in retired:
+            try:
+                getattr(legacy_app, binding_name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f"legacy attribute remains: {{binding_name}}")
+        """)
+    scenario += import_failure_checks
+    scenario += textwrap.dedent("""
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({"absent": list(retired)}))
+        """)
+
+    assert _run_legacy_retirement_probe(scenario) == {
+        "absent": list(RETIRED_PLANNING_EXPORT_BINDINGS)
+    }
+
+
+@pytest.mark.parametrize(
+    "import_sequence",
+    (
+        "import legacy_app\nimport app.routers.plan_export as canonical_plan_export\n",
+        "import app.routers.plan_export as canonical_plan_export\nimport legacy_app\n",
+        "import legacy_app\nimport app.routers.plan_export as canonical_plan_export\n"
+        "legacy_app = importlib.reload(legacy_app)\n",
+    ),
+    ids=("legacy-first", "router-first", "reload"),
+)
+def test_plan_export_canonical_module_has_no_legacy_synthetic_namespace(
+    import_sequence: str,
+) -> None:
+    scenario = textwrap.dedent("""
+        import importlib
+        import json
+        """)
+    scenario += import_sequence
+    scenario += textwrap.dedent("""
+        resolved = importlib.import_module("app.routers.plan_export")
+        assert resolved is canonical_plan_export
+        legacy_routers = getattr(legacy_app, "routers", None)
+        synthetic_surface_present = legacy_routers is not None and hasattr(
+            legacy_routers, "plan_export"
+        )
+        assert not synthetic_surface_present
+        print(
+            "LEGACY_RETIREMENT_RESULT="
+            + json.dumps(
+                {
+                    "canonical_module": resolved.__name__,
+                    "synthetic_surface_present": synthetic_surface_present,
+                },
+                sort_keys=True,
+            )
+        )
+        """)
+
+    assert _run_legacy_retirement_probe(scenario) == {
+        "canonical_module": "app.routers.plan_export",
+        "synthetic_surface_present": False,
+    }
 
 
 def test_bmi_endpoint_v1_uses_canonical_handler_via_shim(
