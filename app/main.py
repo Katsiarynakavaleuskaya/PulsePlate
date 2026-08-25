@@ -569,7 +569,12 @@ def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
         and route_endpoint(candidate) is fitchef_support_handoff
         and route.response_model is FitChefSupportHandoffResponse
         and route.status_code is None
+        and route.response_model_include is None
         and route.response_model_exclude is None
+        and route.response_model_by_alias is True
+        and route.response_model_exclude_unset is False
+        and route.response_model_exclude_defaults is False
+        and route.response_model_exclude_none is False
         and route.summary == _FITCHEF_SUPPORT_HANDOFF_SUMMARY
         and route.description == _FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
         and dependencies == [require_pro_tier]

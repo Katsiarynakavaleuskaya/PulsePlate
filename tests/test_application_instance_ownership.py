@@ -254,7 +254,12 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         "wrong_primary_status",
         "altered_response_description",
         "altered_response_model",
+        "wrong_response_model_include",
         "wrong_response_model_exclude",
+        "wrong_by_alias",
+        "wrong_exclude_unset",
+        "wrong_exclude_defaults",
+        "wrong_exclude_none",
         "wrong_summary",
         "wrong_description",
         "wrong_dependency",
@@ -318,9 +323,16 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
             include_in_schema=state != "wrong_visibility",
             response_model=response_model,
             status_code=201 if state == "wrong_primary_status" else None,
+            response_model_include=(
+                {"support_need", "action"} if state == "wrong_response_model_include" else None
+            ),
             response_model_exclude=(
                 {"execution_authority"} if state == "wrong_response_model_exclude" else None
             ),
+            response_model_by_alias=state != "wrong_by_alias",
+            response_model_exclude_unset=state == "wrong_exclude_unset",
+            response_model_exclude_defaults=state == "wrong_exclude_defaults",
+            response_model_exclude_none=state == "wrong_exclude_none",
             summary=(
                 "Substituted FitChef support summary"
                 if state == "wrong_summary"
@@ -355,7 +367,12 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         "wrong_primary_status",
         "altered_response_description",
         "altered_response_model",
+        "wrong_response_model_include",
         "wrong_response_model_exclude",
+        "wrong_by_alias",
+        "wrong_exclude_unset",
+        "wrong_exclude_defaults",
+        "wrong_exclude_none",
         "wrong_summary",
         "wrong_description",
         "wrong_dependency",
@@ -412,9 +429,16 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
         include_in_schema=state != "wrong_visibility",
         response_model=response_model,
         status_code=201 if state == "wrong_primary_status" else None,
+        response_model_include=(
+            {"support_need", "action"} if state == "wrong_response_model_include" else None
+        ),
         response_model_exclude=(
             {"execution_authority"} if state == "wrong_response_model_exclude" else None
         ),
+        response_model_by_alias=state != "wrong_by_alias",
+        response_model_exclude_unset=state == "wrong_exclude_unset",
+        response_model_exclude_defaults=state == "wrong_exclude_defaults",
+        response_model_exclude_none=state == "wrong_exclude_none",
         summary=(
             "Substituted FitChef support summary"
             if state == "wrong_summary"
