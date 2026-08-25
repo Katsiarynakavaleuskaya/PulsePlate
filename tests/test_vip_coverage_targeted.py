@@ -3,6 +3,11 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+)
+
 
 @pytest.fixture(autouse=True)
 def _vip_test_environment(
@@ -220,13 +225,17 @@ class TestVipCoverageTargeted:
         vip_headers: dict[str, str],
     ) -> None:
         """Test VIP auto repair weekly endpoint."""
-        payload = {"plan_id": "test_plan", "gaps": ["vitamin_d", "iron"]}
+        payload = build_auto_repair_weekly_request_payload()
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
+        response_payload = assert_json_response_payload(response)
+        assert response_payload["status"] == "success"
+        assert response_payload["repair_result"]["status"] == "success"
+        assert response_payload["echo"] == payload
 
     def test_vip_auto_repair_suggestions_endpoint(
         self,

@@ -9,6 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_weekly_recipes_request_payload,
+)
+
 
 @pytest.fixture(scope="session")
 def app_client():
@@ -191,40 +196,36 @@ class TestCoverage97Targeted:
             ),
             (
                 "/api/v1/vip/recipes/weekly",
-                {
-                    "week_plan": {
-                        "days": [
-                            {
-                                "meals": [
-                                    {
-                                        "ingredients": [
-                                            {"name": "chicken", "amount": 100, "unit": "g"}
-                                        ]
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                },
+                build_weekly_recipes_request_payload(),
                 200,
             ),
         ],
     )
-    def test_app_vip_endpoints(self, app_client, endpoint, payload, expected_status, vip_headers):
+    def test_app_vip_endpoints(
+        self,
+        app_client: TestClient,
+        endpoint: str,
+        payload: dict[str, object],
+        expected_status: int,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Test VIP endpoints with specific expected status codes and response validation"""
         response = app_client.post(endpoint, json=payload, headers=vip_headers)
 
-        assert response.status_code in [200, 422, 404, 401, 403]
+        assert response.status_code == expected_status
 
         # Validate response body structure for successful responses
         if expected_status == 200:
-            response_data = response.json()
-            assert "status" in response_data
+            response_data = assert_json_response_payload(response)
             if endpoint == "/api/v1/vip/menu/weekly/plan":
+                assert response_data["status"] == "success"
                 assert "echo" in response_data
                 assert "menu" in response_data
             elif endpoint == "/api/v1/vip/recipes/weekly":
-                assert "weekly_recipes" in response_data
+                assert response_data["status"] == "success"
+                assert response_data["weekly_recipes"]
+                assert response_data["total_recipes"] > 0
+                assert response_data["echo"] == payload
 
     def test_app_cors_middleware(self, app_client):
         """Test CORS middleware functionality"""

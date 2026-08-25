@@ -9,6 +9,11 @@ EN: VIP module tests with real endpoints (echo mode)
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+)
+
 
 @pytest.mark.smoke
 class TestVIPCoverageWorking:
@@ -120,20 +125,18 @@ class TestVIPCoverageWorking:
         client: TestClient,
         vip_headers: dict[str, str],
     ) -> None:
-        """Тест VIP auto repair endpoint в echo режиме"""
+        """Тест VIP auto repair endpoint с canonical strict request."""
+        request_payload = build_auto_repair_weekly_request_payload()
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
-            json={"plan_id": "test123", "gaps": ["vitamin_d", "iron"]},
+            json=request_payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("application/json")
-        data = response.json()
-        assert data["status"] in [
-            "success",
-            "error",
-        ]  # Allow either status depending on module availability
-        assert "echo" in data
+        data = assert_json_response_payload(response)
+        assert data["status"] == "success"
+        assert data["repair_result"]["status"] == "success"
+        assert data["echo"] == request_payload
 
     def test_vip_daily_shoplist_endpoint(
         self,
