@@ -4719,7 +4719,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     for the already-landed PRO Distortion Simulator lane. Future PRs that close
     ledger items should still update this ledger in the same PR or same/next-day
     follow-up.
-  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and remains merge-bound until its current implementation PR merges.
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and landed through PR #2320.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/cbt/cognitive_restructuring.md`
@@ -4734,11 +4734,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-fitchef-support-handoff"></a>
-- [ ] P1: FitChef deterministic PRO support handoff
+- [x] P1: FitChef deterministic PRO support handoff
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (bounded PRO contract / planning continuity)
-  - Target PR: PR #2320 (current E1-05 implementation PR)
-  - Status: Implementation is in progress on the current E1-05 lane and is not merged. Runtime and contract completion remain merge-bound; business utility is unmeasured and not admitted.
+  - Target PR: PR #2320 (`feat(fitchef): add deterministic PRO support handoff`)
+  - Status: Landed via PR #2320 on 2026-08-25 with merge commit `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. Business utility remains unmeasured and is not admitted.
   - Reason (EN): E1-05 adds one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
@@ -4752,6 +4752,45 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Business utility remains unmeasured and not admitted; no activation, retention, conversion, revenue, or LTV outcome is claimed by implementation or merge
     - Any future web/iOS thin-client consumer or measurement contract requires a separate explicit authorization and must not infer navigation, success, or value from this descriptor alone
     - Persisted weekly-plan adaptation, canonical principal/plan identity, a positive semantic verifier, N2/N3 work, and VIP week-repair remain separate unauthorized lanes and are not opened by E1-05
+
+
+<a id="ledger-p1-er-ios-2-fitchef-runtime-integration"></a>
+- [ ] P1: ER-IOS-2 FitChef support-handoff runtime integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (iOS product integration / entitlement-safe activation)
+  - Target PR: PR-TBD after the ER-IOS-1 terminal decision and a separate human GO
+  - Status: 📋 Planned; ER-IOS-1 preview selection grants no runtime-integration authority.
+  - Reason (EN): A later iOS lane may connect the landed support-handoff endpoint through the canonical APIClient transport, existing product navigation, and backend-authoritative entitlement state. That runtime work is deliberately separate from the preview-only ER-IOS-1 carrier and requires a new GO before any endpoint call, route registration, navigation, persistence, analytics, payment, or plan behavior is added.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/IOS_API_INTEGRATION.md`
+    - `ios/AGENTS.md`
+  - DoD:
+    - A separate human GO freezes the endpoint, APIClient, navigation, entitlement, confirmation, failure, measurement, and rollback boundaries before implementation
+    - All transport uses the canonical APIClient/HTTPClient seam and decodes the aligned backend DTO without local nutrition, routing, payment, or entitlement inference
+    - The selected descriptor remains non-executing; explicit user confirmation may only request an already-routed product flow and must not itself persist or mutate a plan
+    - Backend-authoritative entitlement verification remains fail-closed, with deterministic contract, transport, navigation, negative-auth, and no-side-effect tests
+    - Runtime reachability, analytics, StoreKit, TestFlight, and release scope remain closed unless each is explicitly authorized by the new GO and ordinary PR governance
+
+
+<a id="ledger-p1-er-web-1-free-acquisition-surface"></a>
+- [ ] P1: ER-WEB-1 free BMI, education, and iOS acquisition surface
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (free acquisition / channel clarity)
+  - Target PR: PR-TBD after a dedicated web audit and separate human GO
+  - Status: 📋 Planned; no web payment or paid nutrition implementation is authorized.
+  - Reason (EN): The current channel posture assigns web to the free backend-driven BMI calculator, wellness and nutrition education, bounded information-chat, acquisition content, and a transparent iOS/App Store referral. Existing web paid-flow affordances must be audited and either retired or explicitly dispositioned in a separate bounded lane; this item does not authorize web billing, entitlement truth, paid nutrition execution, or duplication of backend domain logic.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+    - `frontend/AGENTS.md`
+  - DoD:
+    - A dedicated audit inventories existing web BMI, education, chat, paid-flow, acquisition, and iOS-referral affordances before implementation
+    - The free BMI flow remains a thin client over canonical backend/OpenAPI truth and does not duplicate calculations, thresholds, categories, or entitlement logic
+    - Education and information-chat remain bounded, wellness-only, transparent about limitations, and separate from paid nutrition execution
+    - The iOS/App Store referral is transparent and measurable only under a separately approved analytics contract; it does not imply availability, purchase, entitlement, or outcome
+    - Web payment implementation remains absent, and every legacy paid-flow affordance receives an explicit retire, preserve-as-informational, or separately-authorized disposition
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>

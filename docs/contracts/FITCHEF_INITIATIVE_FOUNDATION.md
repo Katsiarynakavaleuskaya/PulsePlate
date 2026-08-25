@@ -52,6 +52,18 @@ The current runtime anchors are stable service symbols:
 - Template and fallback responses are mandatory whenever LLM execution is
   unavailable, disallowed, or disabled.
 
+## Client channel posture
+
+- iOS is the intended full nutrition and product surface, including daily plate,
+  weekly planning, FitChef, and future entitlement-gated and StoreKit-backed
+  experiences.
+- Web remains the free BMI, wellness and nutrition education, bounded
+  information-chat, acquisition, and transparent iOS/App Store referral surface.
+  Web payment and paid nutrition execution are not part of the current posture.
+
+This section records product placement intent only. It is not billing
+architecture, entitlement truth, runtime integration, or release authority.
+
 ## Rollout order
 
 ### PR-0 foundation
@@ -128,10 +140,9 @@ Status reconciliation:
 
 - `POST /api/v1/pro/fitchef/explain` is now the landed, feature-gated PRO
   Distortion Simulator runtime from PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
-- `POST /api/v1/pro/fitchef/recommend` is implemented by PR #2320 as a
-  feature-gated deterministic selector-only PRO descriptor. It remains
-  merge-bound and is not public-main runtime truth until merge and post-merge
-  verification complete.
+- `POST /api/v1/pro/fitchef/recommend` is the landed, feature-gated
+  deterministic selector-only PRO descriptor from PR #2320 /
+  `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`.
 - `POST /api/v1/vip/fitchef/insight` is now the landed, feature-gated VIP
   Identity Loop Mapper runtime from PR #1870 /
   `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
@@ -139,13 +150,14 @@ Status reconciliation:
   remain future-only VIP structured coach follow-ups until later reviewed
   runtime PRs register routes and update OpenAPI.
 
-The PR #2320 candidate accepts only a `Content-Type` whose untrimmed base token,
-compared case-insensitively before the first `;`, is exactly `application/json`.
-Missing, empty, whitespace-padded, `+json`, or other media types return the same
-stable JSON `422` envelope before body decoding, DTO validation, or mapping.
-The selector reads only the explicit `support_need` and returns a product-surface
-descriptor; it performs no execution, mutation, AI/provider/RAG work, client
-navigation, plan inspection, or value/outcome claim.
+The landed PR #2320 route accepts only a `Content-Type` whose untrimmed base
+token, compared case-insensitively before the first `;`, is exactly
+`application/json`. Missing, empty, whitespace-padded, `+json`, or other media
+types return the same stable JSON `422` envelope before body decoding, DTO
+validation, or mapping. The selector reads only the explicit `support_need` and
+returns a product-surface descriptor; it performs no execution, mutation,
+AI/provider/RAG work, client navigation, plan inspection, or value/outcome
+claim.
 
 ## Artifact and asset governance
 
@@ -180,8 +192,8 @@ mutation remain outside this foundation wave.
 - mutating Fastlane metadata/upload surfaces or App Store Connect draft state
 - adding new runtime behavior outside the already-landed, feature-gated PRO
   `POST /api/v1/pro/fitchef/explain` route, the bounded VIP Identity Loop Mapper
-  lane at `POST /api/v1/vip/fitchef/insight`, and the merge-bound PR #2320
-  selector-only `POST /api/v1/pro/fitchef/recommend` candidate
+  lane at `POST /api/v1/vip/fitchef/insight`, and the landed PR #2320
+  selector-only `POST /api/v1/pro/fitchef/recommend` route
 - adding any remaining structured coach routes before their dedicated reviewed
   runtime PRs
 

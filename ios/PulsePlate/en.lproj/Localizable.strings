@@ -205,3 +205,15 @@
 "ai_consent.point.voluntary" = "You may decline at any time. The AI insight will not run without your consent.";
 "ai_consent.accept" = "I Understand";
 "ai_consent.decline" = "Not Now";
+
+/* FitChef Support Choice Preview */
+"fitchef.support_choice.question" = "What kind of structure would help right now?";
+"fitchef.support_choice.daily.title" = "Today’s structure";
+"fitchef.support_choice.daily.detail" = "A direction for organizing the current day.";
+"fitchef.support_choice.weekly.title" = "Week’s structure";
+"fitchef.support_choice.weekly.detail" = "A direction for organizing the week.";
+"fitchef.support_choice.agency" = "FitChef suggests a direction. You choose.";
+"fitchef.support_choice.consequence" = "Confirming only returns your selected direction. Nothing will be opened, saved, or changed.";
+"fitchef.support_choice.wellness" = "For wellness planning only — not medical advice.";
+"fitchef.support_choice.confirm" = "Confirm direction";
+"fitchef.support_choice.dismiss" = "Not now";

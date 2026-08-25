@@ -221,3 +221,15 @@
 "ai_consent.point.voluntary" = "Puedes rechazar en cualquier momento. El análisis AI no se ejecutará sin tu consentimiento.";
 "ai_consent.accept" = "Entendido";
 "ai_consent.decline" = "Ahora no";
+
+/* FitChef Support Choice Preview */
+"fitchef.support_choice.question" = "¿Qué tipo de estructura te ayudaría ahora?";
+"fitchef.support_choice.daily.title" = "Estructura de hoy";
+"fitchef.support_choice.daily.detail" = "Una orientación para organizar el día de hoy.";
+"fitchef.support_choice.weekly.title" = "Estructura de la semana";
+"fitchef.support_choice.weekly.detail" = "Una orientación para organizar la semana.";
+"fitchef.support_choice.agency" = "FitChef sugiere una orientación. Tú eliges.";
+"fitchef.support_choice.consequence" = "Al confirmar, solo se comunicará la orientación elegida. No se abrirá, guardará ni cambiará nada.";
+"fitchef.support_choice.wellness" = "Solo para planificar el bienestar; no es asesoramiento médico.";
+"fitchef.support_choice.confirm" = "Confirmar orientación";
+"fitchef.support_choice.dismiss" = "Ahora no";
