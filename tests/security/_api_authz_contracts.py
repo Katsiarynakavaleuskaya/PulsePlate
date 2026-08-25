@@ -415,6 +415,7 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
     _contract("POST", "/api/v1/pro/bmi/calculate", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/cbt/insight", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/fitchef/explain", *PRO_SUBJECT),
+    _contract("POST", "/api/v1/pro/fitchef/recommend", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/meal/shopping-list", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/meal/weekly", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/nutrition/coverage", *PRO_SUBJECT),

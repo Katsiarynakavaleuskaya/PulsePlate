@@ -4719,7 +4719,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     for the already-landed PRO Distortion Simulator lane. Future PRs that close
     ledger items should still update this ledger in the same PR or same/next-day
     follow-up.
-  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. `POST /api/v1/pro/fitchef/recommend` remains a separate contract-frozen follow-up.
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and remains merge-bound until its current implementation PR merges.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/cbt/cognitive_restructuring.md`
@@ -4731,6 +4731,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PRO runtime remains wellness-only, request-scoped, non-clinical, feature-gated, and fail-closed
     - Response includes structured reframe fields plus `sources[]`, `confidence`, `warnings`, and transparency metadata
     - Deterministic tests cover auth, quota, rate limit, OpenAPI exposure, and structured response contract
+
+
+<a id="ledger-p1-fitchef-support-handoff"></a>
+- [ ] P1: FitChef deterministic PRO support handoff
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (bounded PRO contract / planning continuity)
+  - Target PR: PR #2320 (current E1-05 implementation PR)
+  - Status: Implementation is in progress on the current E1-05 lane and is not merged. Runtime and contract completion remain merge-bound; business utility is unmeasured and not admitted.
+  - Reason (EN): E1-05 adds one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - The PRO route enforces canonical auth before the shared `FEATURE_FITCHEF_STRUCTURED_COACH` flag, returns the frozen descriptor on `200`, uses canonical auth failures on `401`/`403`, returns stable `422` for malformed or invalid input, and returns `503` while the shared flag is unavailable
+    - `daily_structure` maps only to `pro_daily_plate`, `weekly_structure` maps only to `pro_weekly_plan`, the request echoes exactly, and the response requires user confirmation while setting execution, plan-mutation, and LLM authority to false
+    - The carrier performs no execution, mutation, AI/provider call, RAG, quota consumption, planner lookup, persistence, analytics emission, navigation, or downstream target invocation
+    - Backend OpenAPI, generated frontend types, the paid-route authz registry, canonical API/tier contract docs, focused tests, and required validation evidence are synchronized before merge
+    - A full squash revert is carrier-wide and also reverts the shared `resolve_pro_auth_context` empty-header precedence shipped by this carrier. A bounded route-only inverse must remove the `/recommend` runtime and contract surfaces while preserving that shared auth behavior, then regenerate and check OpenAPI with `make openapi` and `make openapi-check`. Disabling the shared structured-coach feature flag is a family-wide emergency rollback that disables PRO `/explain`, PRO `/recommend`, and VIP `/insight`; it is not a bounded E1-05-only rollback. No data migration or state repair is required
+    - Business utility remains unmeasured and not admitted; no activation, retention, conversion, revenue, or LTV outcome is claimed by implementation or merge
+    - Any future web/iOS thin-client consumer or measurement contract requires a separate explicit authorization and must not infer navigation, success, or value from this descriptor alone
+    - Persisted weekly-plan adaptation, canonical principal/plan identity, a positive semantic verifier, N2/N3 work, and VIP week-repair remain separate unauthorized lanes and are not opened by E1-05
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>

@@ -200,8 +200,12 @@ It aligns to the existing structured coach contract as follows:
 - `POST /api/v1/pro/fitchef/explain`
   - landed feature-gated PRO capability: Distortion Simulator
   - landed via PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`
+  - `FitChefDistortionSimulatorResponse.next_small_action` is the landed bounded post-reframe action carrier
 - `POST /api/v1/pro/fitchef/recommend`
-  - primary future capability: bounded action-oriented recommendation after reframing
+  - PR #2320 merge-bound candidate: deterministic descriptor-only support handoff
+  - maps only explicit `daily_structure` to `pro_daily_plate` and `weekly_structure` to `pro_weekly_plan`
+  - grants no execution, plan-mutation, navigation, or product-value authority; business utility remains unmeasured
+  - canonical details: [structured-coach contract](../contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md) and [merge-bound ledger entry](../roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-support-handoff)
 - `POST /api/v1/vip/fitchef/insight`
   - landed feature-gated VIP capability: Identity Loop Mapper
   - landed via PR #1870 / `7802ed25e99e0a4f346d14487270a037bb5ec97a`

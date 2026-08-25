@@ -1,13 +1,17 @@
 import ast
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import textwrap
+from typing import cast
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.responses import PlainTextResponse
+from fastapi.routing import APIRoute
 from starlette.routing import Route
 import app
 import app.main as main
@@ -29,7 +33,7 @@ _RETIRED_REGISTRATION_MIRRORS = (
 _IMPORT_SCENARIOS = """import app as package; import app.main as main; import legacy_app; from app.bootstrap import application as canonical
 import app.main as main; import app as package; import legacy_app; from app.bootstrap import application as canonical
 import legacy_app; import app.main as main; import app as package; from app.bootstrap import application as canonical""".splitlines()
-_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
+_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/pro/fitchef/recommend:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
 _HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
 _OPTIONAL_ENV = "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split()
@@ -200,7 +204,12 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
         else:
             endpoint = fn if owner == "c" else (lambda: None)
             target.add_api_route(path, endpoint, methods=[method])
-    _assert_atomic_bootstrap_failure(target, "Duplicate")
+    expected_error = (
+        "Invalid existing FitChef support handoff route"
+        if path == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        else "Duplicate"
+    )
+    _assert_atomic_bootstrap_failure(target, expected_error)
 
 
 @pytest.mark.parametrize(
@@ -231,6 +240,358 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         selected.add_api_route("/unexpected-source", lambda: None, methods=["GET"])
     monkeypatch.setattr(main, router_name, selected)
     _assert_atomic_bootstrap_failure(FastAPI(), "Invalid canonical HTTP source route")
+
+
+@pytest.mark.parametrize(
+    "state",
+    (
+        "zero",
+        "extra",
+        "wrong_path",
+        "wrong_method",
+        "wrong_visibility",
+        "wrong_endpoint",
+        "wrong_model",
+        "wrong_response_class",
+        "wrong_name",
+        "wrong_operation_id",
+        "wrong_generate_unique_id_function",
+        "wrong_unique_id",
+        "missing_status",
+        "extra_status",
+        "wrong_primary_status",
+        "altered_response_description",
+        "altered_response_model",
+        "wrong_response_model_include",
+        "wrong_response_model_exclude",
+        "wrong_by_alias",
+        "wrong_exclude_unset",
+        "wrong_exclude_defaults",
+        "wrong_exclude_none",
+        "wrong_summary",
+        "wrong_description",
+        "wrong_dependency",
+        "extra_dependency",
+        "combined_methods",
+        "missing_openapi_extra",
+        "wrong_openapi_extra",
+        "extra_openapi_extra",
+        "extra_nested_request_body",
+    ),
+)
+def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
+    state: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every malformed dedicated source is rejected before target mutation."""
+
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+
+    router = APIRouter()
+    if state != "zero":
+        path = (
+            "/api/v1/pro/fitchef/not-recommend"
+            if state == "wrong_path"
+            else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+        )
+        methods = (
+            ["POST", "DELETE"]
+            if state == "combined_methods"
+            else ["GET" if state == "wrong_method" else "POST"]
+        )
+        endpoint = (lambda: None) if state == "wrong_endpoint" else main.fitchef_support_handoff
+        response_model = (
+            dict[str, object] if state == "wrong_model" else main.FitChefSupportHandoffResponse
+        )
+        responses = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_RESPONSES)
+        if state == "missing_status":
+            responses.pop(503)
+        if state == "extra_status":
+            responses[418] = {"description": "Unexpected response"}
+        if state == "altered_response_description":
+            responses[503]["description"] = "Altered feature-disabled response"
+        if state == "altered_response_model":
+            responses[503]["model"] = main.FitChefSupportHandoffResponse
+        dependencies = [
+            Depends((lambda: None) if state == "wrong_dependency" else main.require_pro_tier)
+        ]
+        if state == "extra_dependency":
+            dependencies.append(Depends(lambda: None))
+        openapi_extra = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA)
+        if state == "wrong_openapi_extra":
+            openapi_extra["requestBody"] = {"required": False}
+        if state == "extra_openapi_extra":
+            openapi_extra["unexpected"] = True
+        if state == "extra_nested_request_body":
+            request_body = openapi_extra["requestBody"]
+            assert isinstance(request_body, dict)
+            request_body["unexpected"] = True
+        router.add_api_route(
+            path,
+            endpoint,
+            methods=methods,
+            include_in_schema=state != "wrong_visibility",
+            response_model=response_model,
+            status_code=201 if state == "wrong_primary_status" else None,
+            response_model_include=(
+                {"support_need", "action"} if state == "wrong_response_model_include" else None
+            ),
+            response_model_exclude=(
+                {"execution_authority"} if state == "wrong_response_model_exclude" else None
+            ),
+            response_model_by_alias=state != "wrong_by_alias",
+            response_model_exclude_unset=state == "wrong_exclude_unset",
+            response_model_exclude_defaults=state == "wrong_exclude_defaults",
+            response_model_exclude_none=state == "wrong_exclude_none",
+            response_class=(
+                PlainTextResponse if state == "wrong_response_class" else main.JSONResponse
+            ),
+            name=(
+                "wrong_fitchef_support_handoff"
+                if state == "wrong_name"
+                else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+            ),
+            operation_id=(
+                "wrong_fitchef_support_handoff_operation" if state == "wrong_operation_id" else None
+            ),
+            generate_unique_id_function=(
+                wrong_generate_unique_id
+                if state == "wrong_generate_unique_id_function"
+                else main.generate_unique_id
+            ),
+            summary=(
+                "Substituted FitChef support summary"
+                if state == "wrong_summary"
+                else main._FITCHEF_SUPPORT_HANDOFF_SUMMARY
+            ),
+            description=(
+                "Substituted FitChef support description"
+                if state == "wrong_description"
+                else main._FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
+            ),
+            responses=responses,
+            dependencies=dependencies,
+            openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
+        )
+        if state in {"wrong_name", "wrong_operation_id"}:
+            source_route = router.routes[-1]
+            assert isinstance(source_route, APIRoute)
+            source_route.unique_id = main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+        if state == "wrong_unique_id":
+            source_route = router.routes[-1]
+            assert isinstance(source_route, APIRoute)
+            source_route.unique_id = "wrong_fitchef_support_handoff_stored_id"
+        if state == "extra":
+            router.add_api_route("/unexpected-support-source", lambda: None, methods=["GET"])
+
+    monkeypatch.setattr(main, "fitchef_support_handoff_router", router)
+    _assert_atomic_bootstrap_failure(FastAPI(), "Invalid FitChef support handoff source route")
+
+
+@pytest.mark.parametrize(
+    "state",
+    (
+        "foreign",
+        "duplicate",
+        "wrong_method",
+        "wrong_visibility",
+        "wrong_model",
+        "wrong_response_class",
+        "wrong_name",
+        "wrong_operation_id",
+        "wrong_generate_unique_id_function",
+        "wrong_unique_id",
+        "missing_status",
+        "extra_status",
+        "wrong_primary_status",
+        "altered_response_description",
+        "altered_response_model",
+        "wrong_response_model_include",
+        "wrong_response_model_exclude",
+        "wrong_by_alias",
+        "wrong_exclude_unset",
+        "wrong_exclude_defaults",
+        "wrong_exclude_none",
+        "wrong_summary",
+        "wrong_description",
+        "wrong_dependency",
+        "extra_dependency",
+        "combined_methods",
+        "missing_openapi_extra",
+        "wrong_openapi_extra",
+        "extra_openapi_extra",
+        "extra_nested_request_body",
+    ),
+)
+def test_fitchef_support_handoff_existing_target_fails_unchanged(
+    state: str,
+) -> None:
+    """Foreign, duplicate, and metadata-drift live owners fail before mutation."""
+
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+
+    target = FastAPI()
+    responses = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_RESPONSES)
+    if state == "missing_status":
+        responses.pop(503)
+    if state == "extra_status":
+        responses[418] = {"description": "Unexpected response"}
+    if state == "altered_response_description":
+        responses[503]["description"] = "Altered feature-disabled response"
+    if state == "altered_response_model":
+        responses[503]["model"] = main.FitChefSupportHandoffResponse
+    endpoint = (lambda: None) if state == "foreign" else main.fitchef_support_handoff
+    methods = (
+        ["POST", "DELETE"]
+        if state == "combined_methods"
+        else ["GET" if state == "wrong_method" else "POST"]
+    )
+    response_model = (
+        dict[str, object] if state == "wrong_model" else main.FitChefSupportHandoffResponse
+    )
+    dependencies = [
+        Depends((lambda: None) if state == "wrong_dependency" else main.require_pro_tier)
+    ]
+    if state == "extra_dependency":
+        dependencies.append(Depends(lambda: None))
+    openapi_extra = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA)
+    if state == "wrong_openapi_extra":
+        openapi_extra["requestBody"] = {"required": False}
+    if state == "extra_openapi_extra":
+        openapi_extra["unexpected"] = True
+    if state == "extra_nested_request_body":
+        request_body = openapi_extra["requestBody"]
+        assert isinstance(request_body, dict)
+        request_body["unexpected"] = True
+    target.add_api_route(
+        main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH,
+        endpoint,
+        methods=methods,
+        include_in_schema=state != "wrong_visibility",
+        response_model=response_model,
+        status_code=201 if state == "wrong_primary_status" else None,
+        response_model_include=(
+            {"support_need", "action"} if state == "wrong_response_model_include" else None
+        ),
+        response_model_exclude=(
+            {"execution_authority"} if state == "wrong_response_model_exclude" else None
+        ),
+        response_model_by_alias=state != "wrong_by_alias",
+        response_model_exclude_unset=state == "wrong_exclude_unset",
+        response_model_exclude_defaults=state == "wrong_exclude_defaults",
+        response_model_exclude_none=state == "wrong_exclude_none",
+        response_class=(
+            PlainTextResponse if state == "wrong_response_class" else main.JSONResponse
+        ),
+        name=(
+            "wrong_fitchef_support_handoff"
+            if state == "wrong_name"
+            else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+        ),
+        operation_id=(
+            "wrong_fitchef_support_handoff_operation" if state == "wrong_operation_id" else None
+        ),
+        generate_unique_id_function=(
+            wrong_generate_unique_id
+            if state == "wrong_generate_unique_id_function"
+            else main.generate_unique_id
+        ),
+        summary=(
+            "Substituted FitChef support summary"
+            if state == "wrong_summary"
+            else main._FITCHEF_SUPPORT_HANDOFF_SUMMARY
+        ),
+        description=(
+            "Substituted FitChef support description"
+            if state == "wrong_description"
+            else main._FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
+        ),
+        responses=responses,
+        dependencies=dependencies,
+        openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
+    )
+    if state in {"wrong_name", "wrong_operation_id"}:
+        live_route = target.routes[-1]
+        assert isinstance(live_route, APIRoute)
+        live_route.unique_id = main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+    if state == "wrong_unique_id":
+        live_route = target.routes[-1]
+        assert isinstance(live_route, APIRoute)
+        live_route.unique_id = "wrong_fitchef_support_handoff_stored_id"
+    if state == "duplicate":
+        target.include_router(main.fitchef_support_handoff_router)
+
+    _assert_atomic_bootstrap_failure(target, "Invalid existing FitChef support handoff route")
+
+
+def test_fitchef_support_handoff_effective_include_dependency_fails_unchanged() -> None:
+    """An include-level dependency is effective drift and blocks registration."""
+
+    def extra_guard() -> None:
+        return None
+
+    target = FastAPI()
+    target.include_router(
+        main.fitchef_support_handoff_router,
+        dependencies=[Depends(extra_guard)],
+    )
+    matching = [
+        route
+        for route in main._effective_app_routes(target)
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
+    assert len(matching) == 1
+    route = cast(APIRoute, matching[0])
+    assert [dependency.call for dependency in route.dependant.dependencies] == [
+        extra_guard,
+        main.require_pro_tier,
+    ]
+
+    _assert_atomic_bootstrap_failure(target, "Invalid existing FitChef support handoff route")
+
+
+def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() -> None:
+    """The canonical source/effective publication identity is exact and idempotent."""
+
+    source_matching = [
+        route
+        for route in main.iter_effective_route_candidates(
+            main.fitchef_support_handoff_router.routes
+        )
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
+    target = FastAPI()
+    main._include_fitchef_support_handoff_router_if_needed(target)
+    first_routes = tuple(target.routes)
+    main._include_fitchef_support_handoff_router_if_needed(target)
+
+    matching = [
+        route
+        for route in main._effective_app_routes(target)
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
+    assert tuple(target.routes) == first_routes
+    assert len(source_matching) == 1
+    assert len(matching) == 1
+    for candidate in (*source_matching, *matching):
+        route = cast(APIRoute, candidate)
+        response_class = route.response_class
+        if isinstance(response_class, main.DefaultPlaceholder):
+            response_class = response_class.value
+        unique_id_generator = route.generate_unique_id_function
+        if isinstance(unique_id_generator, main.DefaultPlaceholder):
+            unique_id_generator = unique_id_generator.value
+        assert response_class is main.JSONResponse
+        assert route.name == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+        assert route.operation_id is None
+        assert unique_id_generator is main.generate_unique_id
+        assert route.unique_id == main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+        assert [dependency.call for dependency in route.dependant.dependencies] == [
+            main.require_pro_tier
+        ]
+        assert main._is_exact_fitchef_support_handoff_route(route) is True
 
 
 @pytest.mark.parametrize("s", _WS_STATES)
