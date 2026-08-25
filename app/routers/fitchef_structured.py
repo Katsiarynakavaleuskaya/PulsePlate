@@ -109,6 +109,24 @@ _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI: dict[str, object] = {
         }
     },
 }
+_FITCHEF_SUPPORT_HANDOFF_SUMMARY = "Select deterministic FitChef support handoff"
+_FITCHEF_SUPPORT_HANDOFF_DESCRIPTION = (
+    "POST /api/v1/pro/fitchef/recommend returns one deterministic, non-executing "
+    "product-surface handoff selected solely from the request's explicit support_need. "
+    "It does not inspect a plan, history, adherence, goal, or prior FitChef response; "
+    "infer friction or intent; call RAG, an AI provider, or an LLM; invoke the target "
+    "surface; or create or change a plan."
+)
+_FITCHEF_SUPPORT_HANDOFF_RESPONSES: dict[int | str, dict[str, object]] = {
+    200: {"description": "Deterministic FitChef support handoff selected"},
+    401: {"description": "API key required", "model": FitChefCoachingErrorResponse},
+    403: {"description": "PRO tier required", "model": FitChefCoachingErrorResponse},
+    422: {
+        "description": "Request validation failed",
+        "model": FitChefCoachingErrorResponse,
+    },
+    503: {"description": "Feature disabled", "model": FitChefCoachingErrorResponse},
+}
 
 
 def _is_fitchef_structured_enabled() -> bool:
@@ -271,24 +289,9 @@ async def fitchef_distortion_simulator(
     "/api/v1/pro/fitchef/recommend",
     dependencies=[Depends(require_pro_tier)],
     response_model=FitChefSupportHandoffResponse,
-    summary="Select deterministic FitChef support handoff",
-    description=(
-        "POST /api/v1/pro/fitchef/recommend returns one deterministic, non-executing "
-        "product-surface handoff selected solely from the request's explicit support_need. "
-        "It does not inspect a plan, history, adherence, goal, or prior FitChef response; "
-        "infer friction or intent; call RAG, an AI provider, or an LLM; invoke the target "
-        "surface; or create or change a plan."
-    ),
-    responses={
-        200: {"description": "Deterministic FitChef support handoff selected"},
-        401: {"description": "API key required", "model": FitChefCoachingErrorResponse},
-        403: {"description": "PRO tier required", "model": FitChefCoachingErrorResponse},
-        422: {
-            "description": "Request validation failed",
-            "model": FitChefCoachingErrorResponse,
-        },
-        503: {"description": "Feature disabled", "model": FitChefCoachingErrorResponse},
-    },
+    summary=_FITCHEF_SUPPORT_HANDOFF_SUMMARY,
+    description=_FITCHEF_SUPPORT_HANDOFF_DESCRIPTION,
+    responses=_FITCHEF_SUPPORT_HANDOFF_RESPONSES,
     openapi_extra={"requestBody": _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI},
 )
 async def fitchef_support_handoff(request: Request) -> FitChefSupportHandoffResponse:

@@ -70,7 +70,10 @@ from app.routers.catalog import (
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import (
+    _FITCHEF_SUPPORT_HANDOFF_DESCRIPTION,
     _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI,
+    _FITCHEF_SUPPORT_HANDOFF_RESPONSES,
+    _FITCHEF_SUPPORT_HANDOFF_SUMMARY,
     fitchef_support_handoff,
     router as fitchef_structured_router,
     support_handoff_router as fitchef_support_handoff_router,
@@ -160,6 +163,9 @@ _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend"
 _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES: frozenset[int] = frozenset({200, 401, 403, 422, 503})
+_FITCHEF_SUPPORT_HANDOFF_RESPONSES_SNAPSHOT: dict[int | str, dict[str, object]] = deepcopy(
+    _FITCHEF_SUPPORT_HANDOFF_RESPONSES
+)
 _FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA: dict[str, object] = {
     "requestBody": deepcopy(_FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI)
 }
@@ -562,8 +568,13 @@ def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
         and route_include_in_schema(candidate) is True
         and route_endpoint(candidate) is fitchef_support_handoff
         and route.response_model is FitChefSupportHandoffResponse
+        and route.status_code is None
+        and route.response_model_exclude is None
+        and route.summary == _FITCHEF_SUPPORT_HANDOFF_SUMMARY
+        and route.description == _FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
         and dependencies == [require_pro_tier]
         and set(route_responses(route)) == _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES
+        and route_responses(route) == _FITCHEF_SUPPORT_HANDOFF_RESPONSES_SNAPSHOT
         and route.openapi_extra == _FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA
     )
 

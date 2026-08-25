@@ -251,6 +251,12 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         "wrong_model",
         "missing_status",
         "extra_status",
+        "wrong_primary_status",
+        "altered_response_description",
+        "altered_response_model",
+        "wrong_response_model_exclude",
+        "wrong_summary",
+        "wrong_description",
         "wrong_dependency",
         "extra_dependency",
         "combined_methods",
@@ -282,11 +288,15 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         response_model = (
             dict[str, object] if state == "wrong_model" else main.FitChefSupportHandoffResponse
         )
-        status_codes = set(main._FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES)
+        responses = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_RESPONSES)
         if state == "missing_status":
-            status_codes.remove(503)
+            responses.pop(503)
         if state == "extra_status":
-            status_codes.add(418)
+            responses[418] = {"description": "Unexpected response"}
+        if state == "altered_response_description":
+            responses[503]["description"] = "Altered feature-disabled response"
+        if state == "altered_response_model":
+            responses[503]["model"] = main.FitChefSupportHandoffResponse
         dependencies = [
             Depends((lambda: None) if state == "wrong_dependency" else main.require_pro_tier)
         ]
@@ -307,7 +317,21 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
             methods=methods,
             include_in_schema=state != "wrong_visibility",
             response_model=response_model,
-            responses={code: {"description": str(code)} for code in status_codes},
+            status_code=201 if state == "wrong_primary_status" else None,
+            response_model_exclude=(
+                {"execution_authority"} if state == "wrong_response_model_exclude" else None
+            ),
+            summary=(
+                "Substituted FitChef support summary"
+                if state == "wrong_summary"
+                else main._FITCHEF_SUPPORT_HANDOFF_SUMMARY
+            ),
+            description=(
+                "Substituted FitChef support description"
+                if state == "wrong_description"
+                else main._FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
+            ),
+            responses=responses,
             dependencies=dependencies,
             openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
         )
@@ -328,6 +352,12 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         "wrong_model",
         "missing_status",
         "extra_status",
+        "wrong_primary_status",
+        "altered_response_description",
+        "altered_response_model",
+        "wrong_response_model_exclude",
+        "wrong_summary",
+        "wrong_description",
         "wrong_dependency",
         "extra_dependency",
         "combined_methods",
@@ -343,11 +373,15 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
     """Foreign, duplicate, and metadata-drift live owners fail before mutation."""
 
     target = FastAPI()
-    status_codes = set(main._FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES)
+    responses = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_RESPONSES)
     if state == "missing_status":
-        status_codes.remove(503)
+        responses.pop(503)
     if state == "extra_status":
-        status_codes.add(418)
+        responses[418] = {"description": "Unexpected response"}
+    if state == "altered_response_description":
+        responses[503]["description"] = "Altered feature-disabled response"
+    if state == "altered_response_model":
+        responses[503]["model"] = main.FitChefSupportHandoffResponse
     endpoint = (lambda: None) if state == "foreign" else main.fitchef_support_handoff
     methods = (
         ["POST", "DELETE"]
@@ -377,7 +411,21 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
         methods=methods,
         include_in_schema=state != "wrong_visibility",
         response_model=response_model,
-        responses={code: {"description": str(code)} for code in status_codes},
+        status_code=201 if state == "wrong_primary_status" else None,
+        response_model_exclude=(
+            {"execution_authority"} if state == "wrong_response_model_exclude" else None
+        ),
+        summary=(
+            "Substituted FitChef support summary"
+            if state == "wrong_summary"
+            else main._FITCHEF_SUPPORT_HANDOFF_SUMMARY
+        ),
+        description=(
+            "Substituted FitChef support description"
+            if state == "wrong_description"
+            else main._FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
+        ),
+        responses=responses,
         dependencies=dependencies,
         openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
     )
