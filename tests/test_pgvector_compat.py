@@ -227,7 +227,7 @@ def _redact_database_output(value: str, database_url: URL) -> str:
     return sanitized
 
 
-def _normalize_timeout_partial_output(value: str | bytes | None) -> str:
+def _normalize_timeout_partial_output(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -1804,6 +1804,7 @@ def test_pg_alembic_timeout_diagnostics_normalize_and_redact_partial_output(
     assert "decoded%40password" not in message
     assert "[REDACTED]" in message
     assert _normalize_timeout_partial_output(None) == ""
+    assert _normalize_timeout_partial_output(object()) == "[unsupported-timeout-output:object]"
 
 
 def test_database_failure_aggregation_preserves_primary_and_cleanup_errors() -> None:
