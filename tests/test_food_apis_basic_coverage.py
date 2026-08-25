@@ -2,12 +2,32 @@
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
+import asyncio
 import os
 import tempfile
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timedelta
+from functools import wraps
+from pathlib import Path
+from typing import ParamSpec, TypeVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _sync_async_test(
+    test_function: Callable[_P, Coroutine[object, object, _T]],
+) -> Callable[_P, _T]:
+    """Run one coroutine test in its own function-scoped event loop."""
+
+    @wraps(test_function)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return asyncio.run(test_function(*args, **kwargs))
+
+    return wrapped
 
 
 @pytest.fixture(autouse=True)
@@ -66,7 +86,7 @@ class TestUnifiedFoodDatabase:
             db2 = UnifiedFoodDatabase(cache_dir=temp_dir)
             assert "test" in db2._memory_cache
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     @patch("core.food_apis.unified_db.USDAClient")
     async def test_search_food_fallback(self, mock_usda_class):
         """Test food search with fallback."""
@@ -128,7 +148,7 @@ class TestDatabaseUpdateManager:
             manager2 = DatabaseUpdateManager(cache_dir=temp_dir)
             assert "test" in manager2.versions
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_check_for_updates_basic(self):
         """Test basic update checking."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -175,7 +195,7 @@ class TestDatabaseUpdateScheduler:
         assert scheduler.is_running is False
         assert scheduler._update_task is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_scheduler_start_stop(self):
         """Test starting and stopping scheduler."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -223,14 +243,88 @@ class TestModuleFunctions:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    @pytest.mark.asyncio
-    async def test_get_unified_food_db(self):
+    @_sync_async_test
+    async def test_get_unified_food_db(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test the get_unified_food_db function."""
-        with patch("core.food_apis.unified_db.USDAClient"):
-            from core.food_apis.unified_db import get_unified_food_db
+        import core.food_apis.unified_db as unified_db_module
 
-            db = await get_unified_food_db()
-            assert db is not None
+        monkeypatch.chdir(tmp_path)
+        with patch("core.food_apis.unified_db.USDAClient"):
+            prior: unified_db_module.UnifiedFoodDatabase | None = (
+                unified_db_module._read_unified_db_instance()
+            )
+            assert prior is None
+
+            foreign: unified_db_module.UnifiedFoodDatabase = (
+                unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
+            )
+            close_owned = AsyncMock(wraps=unified_db_module.close_unified_food_clients)
+            foreign_installed = False
+            close_attempted = False
+
+            owned: unified_db_module.UnifiedFoodDatabase = (
+                await unified_db_module.get_unified_food_db()
+            )
+            try:
+                assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
+                owned_usda_close = AsyncMock(wraps=owned.usda_client.close)
+                monkeypatch.setattr(owned.usda_client, "close", owned_usda_close)
+                owned_off_close: AsyncMock | None = None
+                if owned.off_client is not None:
+                    owned_off_close = AsyncMock(wraps=owned.off_client.close)
+                    monkeypatch.setattr(owned.off_client, "close", owned_off_close)
+
+                assert unified_db_module._read_unified_db_instance() is owned
+                second = await unified_db_module.get_unified_food_db()
+                assert second is owned
+
+                installed, installed_value = (
+                    unified_db_module._compare_exchange_unified_db_instance(
+                        owned,
+                        foreign,
+                    )
+                )
+                foreign_installed = installed
+                assert installed
+                assert installed_value is foreign
+                assert unified_db_module._read_unified_db_instance() is foreign
+
+                try:
+                    cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                        owned,
+                        prior,
+                    )
+                    assert not cleared
+                    assert observed is foreign
+                    assert unified_db_module._read_unified_db_instance() is foreign
+                finally:
+                    close_attempted = True
+                    await close_owned(owned)
+
+                close_owned.assert_awaited_once_with(owned)
+                owned_usda_close.assert_awaited_once_with()
+                if owned_off_close is not None:
+                    owned_off_close.assert_awaited_once_with()
+                assert unified_db_module._read_unified_db_instance() is foreign
+            finally:
+                try:
+                    expected_current = foreign if foreign_installed else owned
+                    restored, restore_value = (
+                        unified_db_module._compare_exchange_unified_db_instance(
+                            expected_current,
+                            prior,
+                        )
+                    )
+                    assert restored
+                    assert restore_value is prior
+                    assert unified_db_module._read_unified_db_instance() is prior
+                finally:
+                    if not close_attempted:
+                        await close_owned(owned)
 
     def test_unified_food_item_conversion(self):
         """Test UnifiedFoodItem conversions."""
@@ -280,7 +374,7 @@ class TestModuleFunctions:
         assert result.records_added == 50
         assert result.duration_seconds == 45.5
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_source_update_success(self):
         """Test successful source update."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -309,7 +403,7 @@ class TestModuleFunctions:
         # Should reset retry count on success
         assert scheduler.retry_counts.get("test", 0) == 0
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_source_update_failure(self):
         """Test failed source update."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
