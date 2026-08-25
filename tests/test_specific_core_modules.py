@@ -176,13 +176,14 @@ class TestAutoRepairModule:
         assert hasattr(RepairStrategy, "CONSERVATIVE")
         assert hasattr(RepairStrategy, "AGGRESSIVE")
 
-    def test_repair_suggestions(self):
+    def test_repair_suggestions(self) -> None:
         """Test repair suggestions."""
         from core.auto_repair import suggest_manual_fixes
         from core.targets import MicronutrientTargets
 
-        # Test with mock data
-        week_plan = {"day1": {"meals": []}}
+        week_plan: dict[str, object] = {
+            "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
+        }
         targets = MicronutrientTargets(
             iron_mg=(15.0, 18.0, 20.0),
             calcium_mg=(800.0, 1000.0, 1200.0),
@@ -200,6 +201,11 @@ class TestAutoRepairModule:
 
         result = suggest_manual_fixes(week_plan, targets)
         assert isinstance(result, list)
+        assert {suggestion["nutrient"] for suggestion in result} == {
+            "vitamin_c_mg",
+            "folate_ug",
+            "iron_mg",
+        }
 
 
 class TestMenuEngineModule:
