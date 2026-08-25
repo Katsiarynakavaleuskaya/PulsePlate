@@ -162,15 +162,56 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
     }
 }
 
+enum FitChefSupportHandoffChoicesError: Error, Equatable, Sendable {
+    case duplicateDescriptors
+    case invalidSlotAssignment
+}
+
+struct FitChefSupportHandoffChoices: Equatable, Hashable, Sendable {
+    let dailyDescriptor: FitChefSupportHandoffDescriptor
+    let weeklyDescriptor: FitChefSupportHandoffDescriptor
+
+    init(
+        dailyDescriptor: FitChefSupportHandoffDescriptor,
+        weeklyDescriptor: FitChefSupportHandoffDescriptor
+    ) throws {
+        guard dailyDescriptor != weeklyDescriptor else {
+            throw FitChefSupportHandoffChoicesError.duplicateDescriptors
+        }
+
+        let dailySlotIsValid = dailyDescriptor.supportNeed == .dailyStructure
+            && dailyDescriptor.action.targetSurface == .proDailyPlate
+        let weeklySlotIsValid = weeklyDescriptor.supportNeed == .weeklyStructure
+            && weeklyDescriptor.action.targetSurface == .proWeeklyPlan
+        guard dailySlotIsValid, weeklySlotIsValid else {
+            throw FitChefSupportHandoffChoicesError.invalidSlotAssignment
+        }
+
+        self.dailyDescriptor = dailyDescriptor
+        self.weeklyDescriptor = weeklyDescriptor
+    }
+
+    func descriptor(for supportNeed: FitChefSupportNeed) -> FitChefSupportHandoffDescriptor {
+        switch supportNeed {
+        case .dailyStructure:
+            return dailyDescriptor
+        case .weeklyStructure:
+            return weeklyDescriptor
+        }
+    }
+}
+
 struct FitChefSupportChoiceSelectionState: Equatable, Sendable {
+    private let choices: FitChefSupportHandoffChoices
     private(set) var selectedDescriptor: FitChefSupportHandoffDescriptor?
 
-    init() {
+    init(choices: FitChefSupportHandoffChoices) {
+        self.choices = choices
         selectedDescriptor = nil
     }
 
-    mutating func select(_ descriptor: FitChefSupportHandoffDescriptor) {
-        selectedDescriptor = descriptor
+    mutating func select(_ supportNeed: FitChefSupportNeed) {
+        selectedDescriptor = choices.descriptor(for: supportNeed)
     }
 
     var canConfirm: Bool {

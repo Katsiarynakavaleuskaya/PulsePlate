@@ -305,6 +305,77 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(Set([daily, equalDaily, weekly]).count, 2)
     }
 
+    func testValidatedChoicesAdmitCanonicalSlotsAndProvideTotalLookup() throws {
+        let daily = try decodeDescriptor(canonicalPayload())
+        let weekly = try decodeDescriptor(
+            canonicalPayload(
+                supportNeed: "weekly_structure",
+                targetSurface: "pro_weekly_plan"
+            )
+        )
+        let choices = try FitChefSupportHandoffChoices(
+            dailyDescriptor: daily,
+            weeklyDescriptor: weekly
+        )
+        let equalChoices = try FitChefSupportHandoffChoices(
+            dailyDescriptor: daily,
+            weeklyDescriptor: weekly
+        )
+
+        XCTAssertEqual(choices.dailyDescriptor, daily)
+        XCTAssertEqual(choices.weeklyDescriptor, weekly)
+        XCTAssertEqual(choices.descriptor(for: .dailyStructure), daily)
+        XCTAssertEqual(choices.descriptor(for: .weeklyStructure), weekly)
+        XCTAssertEqual(choices, equalChoices)
+        XCTAssertEqual(Set([choices, equalChoices]).count, 1)
+    }
+
+    func testChoicesRejectSwappedRoles() throws {
+        let daily = try decodeDescriptor(canonicalPayload())
+        let weekly = try decodeDescriptor(
+            canonicalPayload(
+                supportNeed: "weekly_structure",
+                targetSurface: "pro_weekly_plan"
+            )
+        )
+
+        XCTAssertThrowsError(
+            try FitChefSupportHandoffChoices(
+                dailyDescriptor: weekly,
+                weeklyDescriptor: daily
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? FitChefSupportHandoffChoicesError,
+                .invalidSlotAssignment
+            )
+        }
+    }
+
+    func testChoicesRejectDuplicateDailyAndWeeklyDescriptorsDeterministically() throws {
+        let daily = try decodeDescriptor(canonicalPayload())
+        let weekly = try decodeDescriptor(
+            canonicalPayload(
+                supportNeed: "weekly_structure",
+                targetSurface: "pro_weekly_plan"
+            )
+        )
+
+        for descriptor in [daily, weekly] {
+            XCTAssertThrowsError(
+                try FitChefSupportHandoffChoices(
+                    dailyDescriptor: descriptor,
+                    weeklyDescriptor: descriptor
+                )
+            ) { error in
+                XCTAssertEqual(
+                    error as? FitChefSupportHandoffChoicesError,
+                    .duplicateDescriptors
+                )
+            }
+        }
+    }
+
     func testSelectionStateStartsEmptyAndReturnsTheExactSelectedDescriptor() throws {
         let daily = try decodeDescriptor(canonicalPayload())
         let weekly = try decodeDescriptor(
@@ -313,24 +384,67 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 targetSurface: "pro_weekly_plan"
             )
         )
-        var state = FitChefSupportChoiceSelectionState()
+        let choices = try FitChefSupportHandoffChoices(
+            dailyDescriptor: daily,
+            weeklyDescriptor: weekly
+        )
+        var state = FitChefSupportChoiceSelectionState(choices: choices)
 
         XCTAssertNil(state.selectedDescriptor)
         XCTAssertNil(state.confirmationDescriptor)
         XCTAssertFalse(state.canConfirm)
 
-        state.select(daily)
+        state.select(.dailyStructure)
         XCTAssertEqual(state.selectedDescriptor, daily)
         XCTAssertEqual(state.confirmationDescriptor, daily)
         XCTAssertTrue(state.canConfirm)
 
-        state.select(daily)
+        state.select(.dailyStructure)
         XCTAssertEqual(state.confirmationDescriptor, daily)
 
-        state.select(weekly)
+        state.select(.weeklyStructure)
         XCTAssertEqual(state.selectedDescriptor, weekly)
         XCTAssertEqual(state.confirmationDescriptor, weekly)
         XCTAssertNotEqual(state.confirmationDescriptor, daily)
+    }
+
+    func testCatalogAndSelectionExposeOnlyClosedConstructionAndSelection() throws {
+        let source = try fitChefFoundationSource()
+        let catalogStart = try XCTUnwrap(
+            source.range(of: "struct FitChefSupportHandoffChoices:")?.lowerBound
+        )
+        let selectionStart = try XCTUnwrap(
+            source.range(of: "struct FitChefSupportChoiceSelectionState:")?.lowerBound
+        )
+        let codingKeyStart = try XCTUnwrap(
+            source.range(of: "private struct FitChefSupportDynamicCodingKey:")?.lowerBound
+        )
+        let catalogSource = String(source[catalogStart..<selectionStart])
+        let selectionSource = String(source[selectionStart..<codingKeyStart])
+
+        XCTAssertEqual(occurrenceCount(of: "init(", in: catalogSource), 1)
+        XCTAssertTrue(catalogSource.contains(") throws {"))
+        XCTAssertTrue(
+            catalogSource.contains(
+                "func descriptor(for supportNeed: FitChefSupportNeed)"
+            )
+        )
+        XCTAssertEqual(occurrenceCount(of: "init(", in: selectionSource), 1)
+        XCTAssertTrue(
+            selectionSource.contains("init(choices: FitChefSupportHandoffChoices)")
+        )
+        XCTAssertTrue(
+            selectionSource.contains("mutating func select(_ supportNeed: FitChefSupportNeed)")
+        )
+        XCTAssertTrue(
+            selectionSource.contains("selectedDescriptor = choices.descriptor(for: supportNeed)")
+        )
+        XCTAssertFalse(selectionSource.contains("init()"))
+        XCTAssertFalse(
+            selectionSource.contains(
+                "select(_ descriptor: FitChefSupportHandoffDescriptor)"
+            )
+        )
     }
 
     func testFitChefSupportChoiceLocalizationKeysMatchAndValuesAreFrozen() throws {
@@ -499,6 +613,18 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         }
 
         throw FitChefSupportChoiceTestError.repositoryRootNotFound
+    }
+
+    private func fitChefFoundationSource() throws -> String {
+        let url = try repositoryRoot()
+            .appendingPathComponent(
+                "ios/PulsePlate/Models/FitChef/FitChefSupportHandoffDescriptor.swift"
+            )
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func occurrenceCount(of needle: String, in source: String) -> Int {
+        source.components(separatedBy: needle).count - 1
     }
 }
 
