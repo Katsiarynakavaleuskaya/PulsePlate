@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.responses import PlainTextResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Route
 import app
@@ -251,6 +252,11 @@ def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) 
         "wrong_visibility",
         "wrong_endpoint",
         "wrong_model",
+        "wrong_response_class",
+        "wrong_name",
+        "wrong_operation_id",
+        "wrong_generate_unique_id_function",
+        "wrong_unique_id",
         "missing_status",
         "extra_status",
         "wrong_primary_status",
@@ -278,6 +284,9 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Every malformed dedicated source is rejected before target mutation."""
+
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
 
     router = APIRouter()
     if state != "zero":
@@ -335,6 +344,22 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
             response_model_exclude_unset=state == "wrong_exclude_unset",
             response_model_exclude_defaults=state == "wrong_exclude_defaults",
             response_model_exclude_none=state == "wrong_exclude_none",
+            response_class=(
+                PlainTextResponse if state == "wrong_response_class" else main.JSONResponse
+            ),
+            name=(
+                "wrong_fitchef_support_handoff"
+                if state == "wrong_name"
+                else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+            ),
+            operation_id=(
+                "wrong_fitchef_support_handoff_operation" if state == "wrong_operation_id" else None
+            ),
+            generate_unique_id_function=(
+                wrong_generate_unique_id
+                if state == "wrong_generate_unique_id_function"
+                else main.generate_unique_id
+            ),
             summary=(
                 "Substituted FitChef support summary"
                 if state == "wrong_summary"
@@ -349,6 +374,14 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
             dependencies=dependencies,
             openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
         )
+        if state in {"wrong_name", "wrong_operation_id"}:
+            source_route = router.routes[-1]
+            assert isinstance(source_route, APIRoute)
+            source_route.unique_id = main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+        if state == "wrong_unique_id":
+            source_route = router.routes[-1]
+            assert isinstance(source_route, APIRoute)
+            source_route.unique_id = "wrong_fitchef_support_handoff_stored_id"
         if state == "extra":
             router.add_api_route("/unexpected-support-source", lambda: None, methods=["GET"])
 
@@ -364,6 +397,11 @@ def test_fitchef_support_handoff_source_fails_before_bootstrap_mutation(
         "wrong_method",
         "wrong_visibility",
         "wrong_model",
+        "wrong_response_class",
+        "wrong_name",
+        "wrong_operation_id",
+        "wrong_generate_unique_id_function",
+        "wrong_unique_id",
         "missing_status",
         "extra_status",
         "wrong_primary_status",
@@ -390,6 +428,9 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
     state: str,
 ) -> None:
     """Foreign, duplicate, and metadata-drift live owners fail before mutation."""
+
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
 
     target = FastAPI()
     responses = deepcopy(main._FITCHEF_SUPPORT_HANDOFF_RESPONSES)
@@ -441,6 +482,22 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
         response_model_exclude_unset=state == "wrong_exclude_unset",
         response_model_exclude_defaults=state == "wrong_exclude_defaults",
         response_model_exclude_none=state == "wrong_exclude_none",
+        response_class=(
+            PlainTextResponse if state == "wrong_response_class" else main.JSONResponse
+        ),
+        name=(
+            "wrong_fitchef_support_handoff"
+            if state == "wrong_name"
+            else main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+        ),
+        operation_id=(
+            "wrong_fitchef_support_handoff_operation" if state == "wrong_operation_id" else None
+        ),
+        generate_unique_id_function=(
+            wrong_generate_unique_id
+            if state == "wrong_generate_unique_id_function"
+            else main.generate_unique_id
+        ),
         summary=(
             "Substituted FitChef support summary"
             if state == "wrong_summary"
@@ -455,6 +512,14 @@ def test_fitchef_support_handoff_existing_target_fails_unchanged(
         dependencies=dependencies,
         openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
     )
+    if state in {"wrong_name", "wrong_operation_id"}:
+        live_route = target.routes[-1]
+        assert isinstance(live_route, APIRoute)
+        live_route.unique_id = main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+    if state == "wrong_unique_id":
+        live_route = target.routes[-1]
+        assert isinstance(live_route, APIRoute)
+        live_route.unique_id = "wrong_fitchef_support_handoff_stored_id"
     if state == "duplicate":
         target.include_router(main.fitchef_support_handoff_router)
 
@@ -488,8 +553,15 @@ def test_fitchef_support_handoff_effective_include_dependency_fails_unchanged() 
 
 
 def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() -> None:
-    """Absent registration includes once; the exact live target is a no-op."""
+    """The canonical source/effective publication identity is exact and idempotent."""
 
+    source_matching = [
+        route
+        for route in main.iter_effective_route_candidates(
+            main.fitchef_support_handoff_router.routes
+        )
+        if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
+    ]
     target = FastAPI()
     main._include_fitchef_support_handoff_router_if_needed(target)
     first_routes = tuple(target.routes)
@@ -501,12 +573,25 @@ def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() 
         if main.route_path(route) == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
     ]
     assert tuple(target.routes) == first_routes
+    assert len(source_matching) == 1
     assert len(matching) == 1
-    route = cast(APIRoute, matching[0])
-    assert [dependency.call for dependency in route.dependant.dependencies] == [
-        main.require_pro_tier
-    ]
-    assert main._is_exact_fitchef_support_handoff_route(route) is True
+    for candidate in (*source_matching, *matching):
+        route = cast(APIRoute, candidate)
+        response_class = route.response_class
+        if isinstance(response_class, main.DefaultPlaceholder):
+            response_class = response_class.value
+        unique_id_generator = route.generate_unique_id_function
+        if isinstance(unique_id_generator, main.DefaultPlaceholder):
+            unique_id_generator = unique_id_generator.value
+        assert response_class is main.JSONResponse
+        assert route.name == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+        assert route.operation_id is None
+        assert unique_id_generator is main.generate_unique_id
+        assert route.unique_id == main._FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
+        assert [dependency.call for dependency in route.dependant.dependencies] == [
+            main.require_pro_tier
+        ]
+        assert main._is_exact_fitchef_support_handoff_route(route) is True
 
 
 @pytest.mark.parametrize("s", _WS_STATES)

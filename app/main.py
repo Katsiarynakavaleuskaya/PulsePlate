@@ -13,8 +13,10 @@ import sys
 from typing import Callable, cast
 
 from fastapi import Depends, FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.datastructures import DefaultPlaceholder
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
+from fastapi.utils import generate_unique_id
 from settings import get_runtime_env_name
 
 from app.bootstrap.application import app
@@ -162,6 +164,10 @@ _HEALTH_ROUTE_PATHS: tuple[str, str, str, str] = (
 _CBT_INSIGHT_ROUTE_PATH: str = "/api/v1/pro/cbt/insight"
 _FITCHEF_STRUCTURED_ROUTE_PATH: str = "/api/v1/pro/fitchef/explain"
 _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend"
+_FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME: str = "fitchef_support_handoff"
+_FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID: str = (
+    "fitchef_support_handoff_api_v1_pro_fitchef_recommend_post"
+)
 _FITCHEF_SUPPORT_HANDOFF_RESPONSE_CODES: frozenset[int] = frozenset({200, 401, 403, 422, 503})
 _FITCHEF_SUPPORT_HANDOFF_RESPONSES_SNAPSHOT: dict[int | str, dict[str, object]] = deepcopy(
     _FITCHEF_SUPPORT_HANDOFF_RESPONSES
@@ -562,6 +568,12 @@ def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
     if not isinstance(carrier, APIRoute):
         return False
     route = cast(APIRoute, candidate)
+    response_class = route.response_class
+    if isinstance(response_class, DefaultPlaceholder):
+        response_class = response_class.value
+    unique_id_generator = route.generate_unique_id_function
+    if isinstance(unique_id_generator, DefaultPlaceholder):
+        unique_id_generator = unique_id_generator.value
     dependencies = [dependency.call for dependency in route.dependant.dependencies]
     return (
         route_path(route) == _FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
@@ -576,6 +588,11 @@ def _is_exact_fitchef_support_handoff_route(candidate: object) -> bool:
         and route.response_model_exclude_unset is False
         and route.response_model_exclude_defaults is False
         and route.response_model_exclude_none is False
+        and response_class is JSONResponse
+        and route.name == _FITCHEF_SUPPORT_HANDOFF_ROUTE_NAME
+        and route.operation_id is None
+        and unique_id_generator is generate_unique_id
+        and route.unique_id == _FITCHEF_SUPPORT_HANDOFF_UNIQUE_ID
         and route.summary == _FITCHEF_SUPPORT_HANDOFF_SUMMARY
         and route.description == _FITCHEF_SUPPORT_HANDOFF_DESCRIPTION
         and dependencies == [require_pro_tier]

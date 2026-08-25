@@ -53,18 +53,23 @@ Ownership is split across three explicit layers:
   frozen at `app/routers/fitchef_structured.py:104-129`.
 - **Registration ownership:**
   `_is_exact_fitchef_support_handoff_route(...)` validates the complete effective
-  route contract (`app/main.py:558-585`), the source/target validators reject
+  route contract (`app/main.py:564-602`), the source/target validators reject
   zero, duplicate, foreign, or drifted owners before mutation
-  (`app/main.py:588-611`), and
+  (`app/main.py:605-628`), and
   `_include_fitchef_support_handoff_router_if_needed(...)` performs the one
-  guarded registration plus postvalidation (`app/main.py:620-640`).
+  guarded registration plus postvalidation (`app/main.py:637-657`).
 - **Effective runtime ownership:** after `include_router(...)`, validation reads
   path, method, endpoint, visibility, response/serialization/OpenAPI metadata,
-  and `dependant.dependencies` from the effective candidate. The source
+  effective `JSONResponse` class, publication identity, and
+  `dependant.dependencies` from the effective candidate. The source
   `original_route` proves only that the candidate has an `APIRoute` carrier.
-  The accepted dependency calls are exactly `[require_pro_tier]`; an added
-  include-context dependency is rejected atomically
-  (`tests/test_application_instance_ownership.py:464-509`).
+  Publication identity is frozen as route name `fitchef_support_handoff`, no
+  explicit `operation_id`, canonical `generate_unique_id`, and unique ID
+  `fitchef_support_handoff_api_v1_pro_fitchef_recommend_post`
+  (`app/main.py:166-170,571-601`). The accepted dependency calls are exactly
+  `[require_pro_tier]`; the symmetric source/live malformed matrices, added
+  include-context rejection, and canonical source/effective positive proof are
+  at `tests/test_application_instance_ownership.py:245-594`.
 
 Request flow and contract evidence:
 
@@ -89,6 +94,10 @@ Runtime contract:
   `app/routers/fitchef_structured.py:104-129,288-301`; the handler returns the
   typed response at `app/routers/fitchef_structured.py:303-310`. Responses are
   exactly `200`, `401`, `403`, `422`, and `503`.
+- The effective response class is exactly `JSONResponse`. The route keeps
+  `operation_id=None`; FastAPI publishes the exact OpenAPI `operationId` from
+  the frozen generated `unique_id`. Neither value may be a caller-supplied or
+  include-context override.
 - The source DTOs are closed at `app/schemas/fitchef_coaching.py:18-123`.
   Generated OpenAPI exposes the response components at
   `frontend/src/api/openapi.json:2550-2684` and the operation, security scheme,
