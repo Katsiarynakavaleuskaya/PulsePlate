@@ -3,16 +3,35 @@
 Покрывает различные сценарии работы с unified_db
 """
 
+import asyncio
+from collections.abc import Callable, Coroutine
+from functools import wraps
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import ParamSpec, TypeVar
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _sync_async_test(
+    test_function: Callable[_P, Coroutine[object, object, _T]],
+) -> Callable[_P, _T]:
+    """Run one coroutine test in its own function-scoped event loop."""
+
+    @wraps(test_function)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return asyncio.run(test_function(*args, **kwargs))
+
+    return wrapped
 
 
 class TestUnifiedDBCoverage:
     """Тесты для покрытия unified_db.py"""
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_error_handling_coverage(self):
         """Тест покрытия unified_db.py error handling при инициализации USDAClient"""
         # Патчим USDAClient, чтобы вызвать ошибку при инициализации
@@ -24,29 +43,83 @@ class TestUnifiedDBCoverage:
             with pytest.raises(Exception, match="Database connection failed"):
                 UnifiedFoodDatabase()
 
-    @pytest.mark.asyncio
-    async def test_unified_db_cache_handling_coverage(self, monkeypatch):
-        """Тест покрытия unified_db.py cache handling - проверяем кэширование экземпляра
+    @_sync_async_test
+    async def test_unified_db_cache_handling_coverage(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Тест getter cache identity with exact test-owned cleanup."""
+        import core.food_apis.unified_db as unified_db_module
 
-        Uses monkeypatch to reset the singleton instance instead of reload to avoid
-        cross-module isinstance mismatches when other tests import UnifiedFoodItem
-        or UnifiedFoodDatabase.
-        """
-        import core.food_apis.unified_db as unified_db
+        monkeypatch.chdir(tmp_path)
+        prior: unified_db_module.UnifiedFoodDatabase | None = (
+            unified_db_module._read_unified_db_instance()
+        )
+        assert prior is None
 
-        # Reset the singleton instance in-place without reloading the module
-        monkeypatch.setattr(unified_db, "_unified_db_instance", None, raising=False)
+        foreign: unified_db_module.UnifiedFoodDatabase = (
+            unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
+        )
+        close_owned = AsyncMock(wraps=unified_db_module.close_unified_food_clients)
+        foreign_installed = False
+        close_attempted = False
 
-        get_unified_food_db = unified_db.get_unified_food_db
+        owned: unified_db_module.UnifiedFoodDatabase = await unified_db_module.get_unified_food_db()
+        try:
+            assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
+            owned_usda_close = AsyncMock(wraps=owned.usda_client.close)
+            monkeypatch.setattr(owned.usda_client, "close", owned_usda_close)
+            owned_off_close: AsyncMock | None = None
+            if owned.off_client is not None:
+                owned_off_close = AsyncMock(wraps=owned.off_client.close)
+                monkeypatch.setattr(owned.off_client, "close", owned_off_close)
 
-        result1 = await get_unified_food_db()
-        result2 = await get_unified_food_db()
+            assert unified_db_module._read_unified_db_instance() is owned
+            second = await unified_db_module.get_unified_food_db()
+            assert second is owned
 
-        # Проверяем, что возвращается тот же объект (кэширование)
-        assert result1 is result2
-        assert result1 is not None
+            installed, installed_value = unified_db_module._compare_exchange_unified_db_instance(
+                owned,
+                foreign,
+            )
+            foreign_installed = installed
+            assert installed
+            assert installed_value is foreign
+            assert unified_db_module._read_unified_db_instance() is foreign
 
-    @pytest.mark.asyncio
+            try:
+                cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                    owned,
+                    prior,
+                )
+                assert not cleared
+                assert observed is foreign
+                assert unified_db_module._read_unified_db_instance() is foreign
+            finally:
+                close_attempted = True
+                await close_owned(owned)
+
+            close_owned.assert_awaited_once_with(owned)
+            owned_usda_close.assert_awaited_once_with()
+            if owned_off_close is not None:
+                owned_off_close.assert_awaited_once_with()
+            assert unified_db_module._read_unified_db_instance() is foreign
+        finally:
+            try:
+                expected_current = foreign if foreign_installed else owned
+                restored, restore_value = unified_db_module._compare_exchange_unified_db_instance(
+                    expected_current,
+                    prior,
+                )
+                assert restored
+                assert restore_value is prior
+                assert unified_db_module._read_unified_db_instance() is prior
+            finally:
+                if not close_attempted:
+                    await close_owned(owned)
+
+    @_sync_async_test
     async def test_unified_db_data_processing_coverage(self):
         """Тест покрытия unified_db.py data processing - тестируем поиск продуктов"""
         # Патчим USDAClient для тестирования обработки данных
@@ -76,7 +149,7 @@ class TestUnifiedDBCoverage:
             assert results is not None
             assert len(results) >= 0  # Может быть пустой список
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_cleanup_coverage(self):
         """Тест покрытия unified_db.py cleanup - тестируем метод close"""
         # Патчим USDAClient для тестирования очистки
@@ -101,7 +174,7 @@ class TestUnifiedDBCoverage:
                 # DB API гарантирует, что close возвращает None
                 assert result is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_true(self, tmp_path):
         """Test search_food with save_cache=True creates/updates cache file."""
         import json
@@ -153,7 +226,7 @@ class TestUnifiedDBCoverage:
             assert "search_chicken" in cache_data
             assert "chicken" in cache_data["search_chicken"]["name"].lower()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_false(self, tmp_path):
         """Test search_food with save_cache=False doesn't create cache file."""
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda:
@@ -192,7 +265,7 @@ class TestUnifiedDBCoverage:
             # Verify cache file was NOT created
             assert not cache_file.exists()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_default(self, tmp_path):
         """Test search_food without save_cache arg uses default (True)."""
         import json
@@ -232,7 +305,7 @@ class TestUnifiedDBCoverage:
                 cache_data = json.load(f)
             assert "search_broccoli" in cache_data
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_sequence(self, tmp_path):
         """Test save_cache behavior in sequences (True->False, False->True)."""
         import json
@@ -309,7 +382,7 @@ class TestUnifiedDBCoverage:
             # which persists the entire _memory_cache (including banana)
             assert "search_banana" in cache_final
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_preserves_existing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
