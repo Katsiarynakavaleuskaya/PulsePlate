@@ -9,20 +9,23 @@ from __future__ import annotations
 
 import ast
 import asyncio
+from hashlib import sha256
 import inspect
+from itertools import chain
 import json
 import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable, Iterator, Mapping
+import time
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
-from typing import NoReturn
+from typing import Any, NoReturn
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -90,6 +93,20 @@ FORBIDDEN_ALEMBIC_ENV_KEYS = (
     "PYTHONSTARTUP",
     "PYTHONUSERBASE",
 )
+PG_PROJECTION_VERSION = "pulseplate.postgres-resource-bounded-migration-state.v1"
+PROJECTION_TABLE_CAP = 256
+PROJECTION_COLUMN_CAP = 256
+PG_DESCRIPTOR_AGGREGATE_CAP = 8192
+PG_SEQUENCE_CAP = 256
+PG_EXTENSION_CAP = 32
+PROJECTION_ROWS_PER_TABLE_CAP = 10_000
+PROJECTION_TOTAL_ROWS_CAP = 100_000
+PROJECTION_SCALAR_BYTES_CAP = 1 * 1024 * 1024
+PROJECTION_RECORD_BYTES_CAP = 4 * 1024 * 1024
+PROJECTION_TOTAL_FRAMED_BYTES_CAP = 64 * 1024 * 1024
+PROJECTION_FETCH_BATCH = 256
+PG_STATEMENT_TIMEOUT_MAX_MS = 30_000
+PROJECTION_DEADLINE_SECONDS = 120.0
 
 
 def require_feature(feature_key: str, reason: str) -> NoReturn:
@@ -153,7 +170,7 @@ def _required_ci_pgvector_url(environment: Mapping[str, str] | None = None) -> U
         if environment is None:
             require_feature(
                 PGVECTOR_DATABASE_FEATURE,
-                "full migration proof requires PGVECTOR_COMPAT_REQUIRED=1",
+                "resource-bounded migration projection requires PGVECTOR_COMPAT_REQUIRED=1",
             )
         pytest.fail(f"{PGVECTOR_COMPAT_REQUIRED} must equal 1")
     if source.get("CI", "").strip() != "true":
@@ -233,15 +250,1021 @@ def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProc
     return completed
 
 
-def _postgres_application_tables(engine: Engine) -> tuple[tuple[str, str], ...]:
-    with engine.connect() as connection:
-        rows = connection.execute(text("""
-                SELECT schemaname, tablename
-                FROM pg_tables
-                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-                ORDER BY schemaname, tablename
-                """)).all()
-    return tuple((str(row.schemaname), str(row.tablename)) for row in rows)
+def _frame_postgres_payload(payload: bytes) -> bytes:
+    return len(payload).to_bytes(8, byteorder="big", signed=False) + payload
+
+
+def _require_pg_cap(label: str, observed: int, cap: int) -> None:
+    if observed > cap:
+        raise ValueError(f"{label} exceeds fixed resource bound: observed={observed}, cap={cap}")
+
+
+def _pg_remaining_statement_ms(
+    started_at: float,
+    *,
+    now: Callable[[], float] = time.monotonic,
+    deadline_seconds: float = PROJECTION_DEADLINE_SECONDS,
+) -> int:
+    remaining_ms = int((deadline_seconds - (now() - started_at)) * 1000)
+    if remaining_ms <= 0:
+        raise TimeoutError("Resource-bounded migration-state projection deadline exceeded")
+    return min(PG_STATEMENT_TIMEOUT_MAX_MS, remaining_ms)
+
+
+def _encode_pg_scalar(value: object, *, cap: int = PROJECTION_SCALAR_BYTES_CAP) -> bytes:
+    if value is None:
+        encoded = b"null:"
+    elif type(value) is bool:
+        encoded = b"bool:true" if value else b"bool:false"
+    elif type(value) is int:
+        encoded = b"int:" + str(value).encode("ascii")
+    elif isinstance(value, str):
+        encoded = b"text:" + value.encode("utf-8")
+    else:
+        raise TypeError(f"Unsupported PostgreSQL projection scalar type: {type(value).__name__}")
+    _require_pg_cap("PostgreSQL encoded scalar bytes", len(encoded), cap)
+    return encoded
+
+
+@dataclass
+class _PostgresProjectionHasher:
+    scalar_cap: int = PROJECTION_SCALAR_BYTES_CAP
+    record_cap: int = PROJECTION_RECORD_BYTES_CAP
+    total_cap: int = PROJECTION_TOTAL_FRAMED_BYTES_CAP
+    total_framed_bytes: int = 0
+    _hasher: Any = field(default_factory=sha256, init=False, repr=False)
+
+    def _add_framed_record(self, record: bytes) -> None:
+        _require_pg_cap("PostgreSQL encoded record bytes", len(record), self.record_cap)
+        framed = _frame_postgres_payload(record)
+        _require_pg_cap(
+            "PostgreSQL total framed bytes",
+            self.total_framed_bytes + len(framed),
+            self.total_cap,
+        )
+        self._hasher.update(framed)
+        self.total_framed_bytes += len(framed)
+
+    def add_record(self, parts: Iterable[bytes]) -> None:
+        record = bytearray()
+        for part in parts:
+            _require_pg_cap("PostgreSQL encoded scalar bytes", len(part), self.scalar_cap)
+            record.extend(_frame_postgres_payload(part))
+            _require_pg_cap("PostgreSQL encoded record bytes", len(record), self.record_cap)
+        self._add_framed_record(bytes(record))
+
+    def add_projected_payload(
+        self,
+        payload: object,
+        max_scalar_octets: object,
+        framed_record_octets: object,
+    ) -> None:
+        if not isinstance(payload, str):
+            raise TypeError(
+                f"PostgreSQL projected payload must be text, got {type(payload).__name__}"
+            )
+        if type(max_scalar_octets) is not int or type(framed_record_octets) is not int:
+            raise TypeError("PostgreSQL projected byte metadata must be exact integers")
+        payload_bytes = payload.encode("utf-8")
+        if len(payload_bytes) + 8 != framed_record_octets:
+            raise ValueError("PostgreSQL projected framed-byte metadata mismatch")
+        _require_pg_cap(
+            "PostgreSQL projected maximum scalar bytes",
+            max_scalar_octets,
+            self.scalar_cap,
+        )
+        _require_pg_cap(
+            "PostgreSQL projected framed record bytes",
+            framed_record_octets,
+            self.record_cap,
+        )
+        self._add_framed_record(payload_bytes)
+
+    def hexdigest(self) -> str:
+        return self._hasher.hexdigest()
+
+    def remaining_bytes(self) -> int:
+        return self.total_cap - self.total_framed_bytes
+
+
+@dataclass(frozen=True)
+class _PgPayloadPreflight:
+    count: int
+    max_scalar_bytes: int
+    max_record_bytes: int
+    total_bytes: int
+    fetch_batch: int
+
+
+def _derive_pg_fetch_batch(total_remaining: int, max_record_bytes: int) -> int:
+    return max(
+        1,
+        min(
+            PROJECTION_FETCH_BATCH,
+            total_remaining // max(1, max_record_bytes),
+        ),
+    )
+
+
+def _pg_synthetic_projection_digest(
+    records: Iterable[Sequence[object]],
+    *,
+    record_cap: int,
+) -> tuple[str, int]:
+    hasher = _PostgresProjectionHasher(total_cap=64 * 1024)
+    hasher.add_record((b"postgres-synthetic-migration-projection.v1",))
+    observed = 0
+    for record in records:
+        observed += 1
+        _require_pg_cap("synthetic PostgreSQL records", observed, record_cap)
+        hasher.add_record(_encode_pg_scalar(value, cap=1024) for value in record)
+    return hasher.hexdigest(), observed
+
+
+def _pg_synthetic_sequence_digest(
+    states: Iterable[tuple[str, str, object, object]],
+    *,
+    sequence_cap: int,
+) -> tuple[str, int]:
+    hasher = _PostgresProjectionHasher(total_cap=64 * 1024)
+    hasher.add_record((b"postgres-synthetic-sequence-projection.v1",))
+    observed = 0
+    for schema_name, sequence_name, last_value, is_called in states:
+        observed += 1
+        _require_pg_cap("synthetic PostgreSQL sequences", observed, sequence_cap)
+        if type(last_value) is not int:
+            raise TypeError(
+                f"PostgreSQL sequence last_value type is {type(last_value).__name__}, expected int"
+            )
+        if type(is_called) is not bool:
+            raise TypeError(
+                f"PostgreSQL sequence is_called type is {type(is_called).__name__}, expected bool"
+            )
+        hasher.add_record(
+            (
+                _encode_pg_scalar(schema_name, cap=1024),
+                _encode_pg_scalar(sequence_name, cap=1024),
+                _encode_pg_scalar(last_value, cap=1024),
+                _encode_pg_scalar(is_called, cap=1024),
+            )
+        )
+    return hasher.hexdigest(), observed
+
+
+def _quote_pg_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _pg_execute_bounded(
+    connection: Connection,
+    statement: str,
+    parameters: Mapping[str, object],
+    *,
+    started_at: float,
+    stream_batch: int | None = None,
+) -> Any:
+    timeout_ms = _pg_remaining_statement_ms(started_at)
+    connection.exec_driver_sql(f"SET LOCAL statement_timeout = {timeout_ms}")
+    statement_object = text(statement)
+    if stream_batch is not None:
+        statement_object = statement_object.execution_options(
+            stream_results=True,
+            yield_per=stream_batch,
+            max_row_buffer=stream_batch,
+        )
+    return connection.execute(statement_object, parameters)
+
+
+def _validate_pg_payload_preflight(
+    row: Sequence[object],
+    *,
+    expected_count: int,
+    hasher: _PostgresProjectionHasher,
+) -> _PgPayloadPreflight:
+    if len(row) != 4 or any(type(value) is not int for value in row):
+        raise ValueError("PostgreSQL payload preflight metadata must be exact integers")
+    count, max_scalar, max_record, total = row
+    if count != expected_count:
+        raise ValueError("PostgreSQL payload preflight count does not match census")
+    _require_pg_cap("PostgreSQL preflight scalar bytes", max_scalar, hasher.scalar_cap)
+    _require_pg_cap("PostgreSQL preflight record bytes", max_record, hasher.record_cap)
+    _require_pg_cap(
+        "PostgreSQL preflight total bytes",
+        total,
+        hasher.remaining_bytes(),
+    )
+    return _PgPayloadPreflight(
+        count=count,
+        max_scalar_bytes=max_scalar,
+        max_record_bytes=max_record,
+        total_bytes=total,
+        fetch_batch=_derive_pg_fetch_batch(hasher.remaining_bytes(), max_record),
+    )
+
+
+def _pg_typed_payload_query(
+    kind: str,
+    raw_query: str,
+    *,
+    passthrough_aliases: Sequence[str] = (),
+) -> str:
+    kind_literal = _quote_pg_literal(kind)
+    passthrough = "".join(f", raw_projection.{alias}" for alias in passthrough_aliases)
+    projected_passthrough = "".join(
+        f", payload_projection.{alias}" for alias in passthrough_aliases
+    )
+    return f"""
+        WITH raw_projection AS ({raw_query}),
+        payload_projection AS (
+            SELECT
+                jsonb_build_array({kind_literal}, to_jsonb(raw_projection))::text AS payload,
+                GREATEST(
+                    octet_length(to_jsonb({kind_literal}::text)::text),
+                    COALESCE((
+                        SELECT MAX(GREATEST(
+                            octet_length(to_jsonb(entry.key)::text),
+                            octet_length(entry.value::text)
+                        ))
+                        FROM jsonb_each(to_jsonb(raw_projection)) AS entry
+                    ), 0)
+                )::bigint AS max_scalar_octets
+                {passthrough}
+            FROM raw_projection
+        )
+        SELECT payload,
+               max_scalar_octets,
+               (8 + octet_length(payload))::bigint AS framed_record_octets
+               {projected_passthrough}
+        FROM payload_projection
+    """
+
+
+def _pg_projected_payload_preflight(
+    connection: Connection,
+    projected_query: str,
+    parameters: Mapping[str, object],
+    *,
+    expected_count: int,
+    hasher: _PostgresProjectionHasher,
+    started_at: float,
+) -> _PgPayloadPreflight:
+    result = _pg_execute_bounded(
+        connection,
+        f"""
+        WITH exact_projection AS ({projected_query})
+        SELECT COUNT(*)::bigint,
+               COALESCE(MAX(max_scalar_octets), 0)::bigint,
+               COALESCE(MAX(framed_record_octets), 0)::bigint,
+               COALESCE(SUM(framed_record_octets), 0)::bigint
+        FROM exact_projection
+        """,
+        parameters,
+        started_at=started_at,
+    )
+    batch = result.fetchmany(PROJECTION_FETCH_BATCH)
+    if len(batch) != 1:
+        raise ValueError("PostgreSQL payload preflight returned invalid metadata rows")
+    preflight = _validate_pg_payload_preflight(
+        batch[0],
+        expected_count=expected_count,
+        hasher=hasher,
+    )
+    _pg_remaining_statement_ms(started_at)
+    return preflight
+
+
+def _pg_stream_projected_content(
+    connection: Connection,
+    projected_query: str,
+    parameters: Mapping[str, object],
+    *,
+    expected_count: int,
+    cap: int,
+    hasher: _PostgresProjectionHasher,
+    started_at: float,
+) -> tuple[Any, _PgPayloadPreflight]:
+    preflight = _pg_projected_payload_preflight(
+        connection,
+        projected_query,
+        parameters,
+        expected_count=expected_count,
+        hasher=hasher,
+        started_at=started_at,
+    )
+    result = _pg_execute_bounded(
+        connection,
+        f"""
+        SELECT *
+        FROM ({projected_query}) AS admitted_projection
+        WHERE max_scalar_octets <= {PROJECTION_SCALAR_BYTES_CAP}
+          AND framed_record_octets <= {PROJECTION_RECORD_BYTES_CAP}
+        ORDER BY payload COLLATE "C"
+        LIMIT {cap + 1}
+        """,
+        parameters,
+        started_at=started_at,
+        stream_batch=preflight.fetch_batch,
+    )
+    return result, preflight
+
+
+def _pg_census(
+    connection: Connection,
+    inner_query: str,
+    parameters: Mapping[str, object],
+    *,
+    cap: int,
+    started_at: float,
+) -> int:
+    result = _pg_execute_bounded(
+        connection,
+        f"SELECT COUNT(*) FROM ({inner_query} LIMIT {cap + 1}) AS bounded_census",
+        parameters,
+        started_at=started_at,
+    )
+    batch = result.fetchmany(PROJECTION_FETCH_BATCH)
+    if len(batch) != 1 or len(batch[0]) != 1 or type(batch[0][0]) is not int:
+        raise ValueError("PostgreSQL bounded census returned invalid metadata")
+    observed = int(batch[0][0])
+    _require_pg_cap("PostgreSQL census", observed, cap)
+    _pg_remaining_statement_ms(started_at)
+    return observed
+
+
+def _project_pg_descriptor_query(
+    connection: Connection,
+    hasher: _PostgresProjectionHasher,
+    *,
+    kind: str,
+    inner_query: str,
+    ordered_query: str,
+    parameters: Mapping[str, object],
+    cap: int,
+    started_at: float,
+) -> int:
+    expected = _pg_census(
+        connection,
+        inner_query,
+        parameters,
+        cap=cap,
+        started_at=started_at,
+    )
+    projected_query = _pg_typed_payload_query(kind, ordered_query)
+    result, preflight = _pg_stream_projected_content(
+        connection,
+        projected_query,
+        parameters,
+        expected_count=expected,
+        cap=cap,
+        hasher=hasher,
+        started_at=started_at,
+    )
+    observed = 0
+    while True:
+        _pg_remaining_statement_ms(started_at)
+        batch = result.fetchmany(preflight.fetch_batch)
+        if not batch:
+            break
+        for row in batch:
+            observed += 1
+            if len(row) != 3:
+                raise ValueError("PostgreSQL descriptor payload metadata is invalid")
+            hasher.add_projected_payload(row[0], row[1], row[2])
+        _pg_remaining_statement_ms(started_at)
+    if observed != expected:
+        raise ValueError(f"PostgreSQL {kind} census/content count mismatch")
+    return observed
+
+
+def _project_postgres_migration_state(engine: Engine) -> _PostgresMigrationProjectionReceipt:
+    caps = (
+        ("tables", PROJECTION_TABLE_CAP),
+        ("columns_per_table", PROJECTION_COLUMN_CAP),
+        ("descriptor_aggregate", PG_DESCRIPTOR_AGGREGATE_CAP),
+        ("sequences", PG_SEQUENCE_CAP),
+        ("extensions", PG_EXTENSION_CAP),
+        ("rows_per_table", PROJECTION_ROWS_PER_TABLE_CAP),
+        ("total_rows", PROJECTION_TOTAL_ROWS_CAP),
+        ("scalar_bytes", PROJECTION_SCALAR_BYTES_CAP),
+        ("record_bytes", PROJECTION_RECORD_BYTES_CAP),
+        ("total_framed_bytes", PROJECTION_TOTAL_FRAMED_BYTES_CAP),
+        ("fetch_batch", PROJECTION_FETCH_BATCH),
+        ("statement_timeout_ms", PG_STATEMENT_TIMEOUT_MAX_MS),
+        ("deadline_seconds", int(PROJECTION_DEADLINE_SECONDS)),
+    )
+    started_at = time.monotonic()
+    hasher = _PostgresProjectionHasher()
+    hasher.add_record((PG_PROJECTION_VERSION.encode("ascii"),))
+    for cap_name, cap_value in caps:
+        hasher.add_record((cap_name.encode("ascii"), str(cap_value).encode("ascii")))
+
+    descriptor_count = 0
+    table_count = 0
+    total_rows = 0
+    sequence_count = 0
+    extension_count = 0
+    head = ""
+    try:
+        with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
+            transaction = connection.begin()
+            try:
+                connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+
+                head_expected = _pg_census(
+                    connection,
+                    "SELECT version_num FROM alembic_version",
+                    {},
+                    cap=1,
+                    started_at=started_at,
+                )
+                head_result = _pg_execute_bounded(
+                    connection,
+                    "SELECT version_num FROM alembic_version "
+                    'ORDER BY version_num COLLATE "C" LIMIT 2',
+                    {},
+                    started_at=started_at,
+                )
+                head_observed = 0
+                while True:
+                    _pg_remaining_statement_ms(started_at)
+                    batch = head_result.fetchmany(PROJECTION_FETCH_BATCH)
+                    if not batch:
+                        break
+                    for row in batch:
+                        head_observed += 1
+                        if len(row) != 1 or not isinstance(row[0], str) or not row[0]:
+                            raise ValueError("PostgreSQL Alembic head has invalid bounded metadata")
+                        head = row[0]
+                    _pg_remaining_statement_ms(started_at)
+                if head_expected != 1 or head_observed != head_expected:
+                    raise ValueError("PostgreSQL migration projection requires exactly one head")
+                hasher.add_record((b"head", _encode_pg_scalar(head)))
+
+                relation_from = """
+                    FROM pg_class AS relation
+                    JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                    WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+                      AND namespace.nspname !~ '^pg_'
+                      AND relation.relkind IN ('r', 'p')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pg_depend AS extension_dependency
+                          WHERE extension_dependency.classid = 'pg_class'::regclass
+                            AND extension_dependency.objid = relation.oid
+                            AND extension_dependency.deptype = 'e'
+                      )
+                """
+                table_count = _pg_census(
+                    connection,
+                    f"SELECT 1 {relation_from}",
+                    {},
+                    cap=PROJECTION_TABLE_CAP,
+                    started_at=started_at,
+                )
+                relation_content_query = f"""
+                    SELECT
+                        namespace.nspname AS schema_name,
+                        relation.relname AS table_name,
+                        relation.relkind::text AS relation_kind,
+                        relation.relpersistence::text AS persistence_kind,
+                        relation.relrowsecurity AS row_security_enabled,
+                        relation.relforcerowsecurity AS row_security_forced
+                    {relation_from}
+                    ORDER BY namespace.nspname COLLATE "C", relation.relname COLLATE "C"
+                """
+                relation_projection = _pg_typed_payload_query(
+                    "relation",
+                    relation_content_query,
+                    passthrough_aliases=("schema_name", "table_name"),
+                )
+                table_result, relation_preflight = _pg_stream_projected_content(
+                    connection,
+                    relation_projection,
+                    {},
+                    expected_count=table_count,
+                    cap=PROJECTION_TABLE_CAP,
+                    hasher=hasher,
+                    started_at=started_at,
+                )
+                tables_observed = 0
+                while True:
+                    _pg_remaining_statement_ms(started_at)
+                    table_batch = table_result.fetchmany(relation_preflight.fetch_batch)
+                    if not table_batch:
+                        break
+                    for relation_row in table_batch:
+                        tables_observed += 1
+                        if len(relation_row) != 5:
+                            raise ValueError("PostgreSQL relation payload metadata is invalid")
+                        schema_name = relation_row[3]
+                        table_name = relation_row[4]
+                        if not isinstance(schema_name, str) or not isinstance(table_name, str):
+                            raise ValueError("PostgreSQL relation identity is not bounded text")
+                        table_identity = f"{schema_name}.{table_name}"
+                        hasher.add_projected_payload(
+                            relation_row[0], relation_row[1], relation_row[2]
+                        )
+                        descriptor_count += 1
+                        _require_pg_cap(
+                            "PostgreSQL descriptor aggregate",
+                            descriptor_count,
+                            PG_DESCRIPTOR_AGGREGATE_CAP,
+                        )
+                        quoted_schema = _quote_identifier(engine, schema_name)
+                        quoted_table = _quote_identifier(engine, table_name)
+                        table_parameters = {"schema_name": schema_name, "table_name": table_name}
+
+                        column_from = """
+                            FROM pg_attribute AS attribute
+                            JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+                            JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                            LEFT JOIN pg_attrdef AS default_record
+                              ON default_record.adrelid = relation.oid
+                             AND default_record.adnum = attribute.attnum
+                            WHERE namespace.nspname = :schema_name
+                              AND relation.relname = :table_name
+                              AND attribute.attnum > 0
+                              AND NOT attribute.attisdropped
+                        """
+                        descriptor_remaining = PG_DESCRIPTOR_AGGREGATE_CAP - descriptor_count
+                        column_cap = min(PROJECTION_COLUMN_CAP, descriptor_remaining)
+                        column_count = _pg_census(
+                            connection,
+                            f"SELECT 1 {column_from}",
+                            table_parameters,
+                            cap=column_cap,
+                            started_at=started_at,
+                        )
+                        if column_count == 0:
+                            raise ValueError("PostgreSQL admitted relation has zero columns")
+                        column_content_query = f"""
+                            SELECT
+                                CAST(:schema_name AS text) AS relation_schema,
+                                CAST(:table_name AS text) AS relation_name,
+                                attribute.attnum AS attribute_number,
+                                attribute.attname AS column_name,
+                                format_type(attribute.atttypid, attribute.atttypmod)
+                                  AS type_name,
+                                attribute.attnotnull AS not_null,
+                                pg_get_expr(default_record.adbin, default_record.adrelid)
+                                  AS default_expression,
+                                attribute.attidentity::text AS identity_kind,
+                                attribute.attgenerated::text AS generated_kind
+                            {column_from}
+                            ORDER BY attribute.attnum
+                        """
+                        column_projection = _pg_typed_payload_query(
+                            "column",
+                            column_content_query,
+                            passthrough_aliases=(
+                                "attribute_number",
+                                "column_name",
+                                "type_name",
+                            ),
+                        )
+                        column_result, column_preflight = _pg_stream_projected_content(
+                            connection,
+                            column_projection,
+                            table_parameters,
+                            expected_count=column_count,
+                            cap=column_cap,
+                            hasher=hasher,
+                            started_at=started_at,
+                        )
+                        columns_observed = 0
+                        cell_expressions = ""
+                        scalar_octet_expressions = ""
+                        while True:
+                            _pg_remaining_statement_ms(started_at)
+                            column_batch = column_result.fetchmany(column_preflight.fetch_batch)
+                            if not column_batch:
+                                break
+                            for column_row in column_batch:
+                                columns_observed += 1
+                                if len(column_row) != 6:
+                                    raise ValueError(
+                                        "PostgreSQL column payload metadata is invalid"
+                                    )
+                                attnum, column_name, type_name = column_row[3:6]
+                                if (
+                                    type(attnum) is not int
+                                    or not isinstance(column_name, str)
+                                    or not isinstance(type_name, str)
+                                ):
+                                    raise ValueError(
+                                        "PostgreSQL column descriptor has invalid types"
+                                    )
+                                hasher.add_projected_payload(
+                                    column_row[0], column_row[1], column_row[2]
+                                )
+                                descriptor_count += 1
+                                _require_pg_cap(
+                                    "PostgreSQL descriptor aggregate",
+                                    descriptor_count,
+                                    PG_DESCRIPTOR_AGGREGATE_CAP,
+                                )
+                                quoted_column = _quote_identifier(engine, column_name)
+                                column_literal = _quote_pg_literal(column_name)
+                                type_literal = _quote_pg_literal(type_name)
+                                type_tag_literal = _quote_pg_literal(f"pg:{type_name}")
+                                cell_expressions += (", " if cell_expressions else "") + (
+                                    f"jsonb_build_array({attnum}, {column_literal}, {type_literal}, "
+                                    f"{type_tag_literal}, to_jsonb(row_value.{quoted_column}))"
+                                )
+                                scalar_octet_expressions += (
+                                    ", " if scalar_octet_expressions else ""
+                                ) + (
+                                    "GREATEST("
+                                    f"octet_length(to_jsonb({attnum})::text), "
+                                    f"octet_length(to_jsonb({column_literal}::text)::text), "
+                                    f"octet_length(to_jsonb({type_literal}::text)::text), "
+                                    f"octet_length(to_jsonb({type_tag_literal}::text)::text), "
+                                    "octet_length(COALESCE("
+                                    f"to_jsonb(row_value.{quoted_column})::text, 'null')))"
+                                )
+                            _pg_remaining_statement_ms(started_at)
+                        if columns_observed != column_count:
+                            raise ValueError("PostgreSQL column census/content count mismatch")
+
+                        descriptor_specs = (
+                            (
+                                "constraint",
+                                """
+                                FROM pg_constraint AS descriptor
+                                JOIN pg_class AS relation ON relation.oid = descriptor.conrelid
+                                JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                                WHERE namespace.nspname = :schema_name
+                                  AND relation.relname = :table_name
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM pg_depend AS extension_dependency
+                                      WHERE extension_dependency.classid = 'pg_constraint'::regclass
+                                        AND extension_dependency.objid = descriptor.oid
+                                        AND extension_dependency.deptype = 'e'
+                                  )
+                                """,
+                                """
+                                SELECT CAST(:schema_name AS text) AS relation_schema,
+                                       CAST(:table_name AS text) AS relation_name,
+                                       descriptor.conname AS constraint_name,
+                                       descriptor.contype::text AS constraint_kind,
+                                       descriptor.condeferrable AS is_deferrable,
+                                       descriptor.condeferred AS initially_deferred,
+                                       descriptor.convalidated AS is_validated,
+                                       pg_get_constraintdef(descriptor.oid, true)
+                                         AS constraint_definition
+                                """,
+                                'ORDER BY descriptor.conname COLLATE "C"',
+                            ),
+                            (
+                                "index",
+                                """
+                                FROM pg_index AS index_record
+                                JOIN pg_class AS index_relation
+                                  ON index_relation.oid = index_record.indexrelid
+                                JOIN pg_class AS relation ON relation.oid = index_record.indrelid
+                                JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                                WHERE namespace.nspname = :schema_name
+                                  AND relation.relname = :table_name
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM pg_depend AS extension_dependency
+                                      WHERE extension_dependency.classid = 'pg_class'::regclass
+                                        AND extension_dependency.objid = index_relation.oid
+                                        AND extension_dependency.deptype = 'e'
+                                  )
+                                """,
+                                """
+                                SELECT CAST(:schema_name AS text) AS relation_schema,
+                                       CAST(:table_name AS text) AS relation_name,
+                                       index_relation.relname AS index_name,
+                                       index_record.indisunique AS is_unique,
+                                       index_record.indisprimary AS is_primary,
+                                       index_record.indisvalid AS is_valid,
+                                       index_record.indisready AS is_ready,
+                                       pg_get_indexdef(index_record.indexrelid)
+                                         AS index_definition
+                                """,
+                                'ORDER BY index_relation.relname COLLATE "C"',
+                            ),
+                            (
+                                "policy",
+                                """
+                                FROM pg_policy AS descriptor
+                                JOIN pg_class AS relation ON relation.oid = descriptor.polrelid
+                                JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                                WHERE namespace.nspname = :schema_name
+                                  AND relation.relname = :table_name
+                                  AND NOT EXISTS (
+                                      SELECT 1 FROM pg_depend AS extension_dependency
+                                      WHERE extension_dependency.classid = 'pg_policy'::regclass
+                                        AND extension_dependency.objid = descriptor.oid
+                                        AND extension_dependency.deptype = 'e'
+                                  )
+                                """,
+                                """
+                                SELECT CAST(:schema_name AS text) AS relation_schema,
+                                       CAST(:table_name AS text) AS relation_name,
+                                       descriptor.polname AS policy_name,
+                                       descriptor.polpermissive AS is_permissive,
+                                       descriptor.polcmd::text AS policy_command,
+                                       ARRAY(
+                                           SELECT role.rolname
+                                           FROM pg_roles AS role
+                                           WHERE role.oid = ANY(descriptor.polroles)
+                                           ORDER BY role.rolname COLLATE "C"
+                                       )::text AS role_names,
+                                       pg_get_expr(descriptor.polqual, descriptor.polrelid)
+                                         AS using_expression,
+                                       pg_get_expr(descriptor.polwithcheck, descriptor.polrelid)
+                                         AS check_expression
+                                """,
+                                'ORDER BY descriptor.polname COLLATE "C"',
+                            ),
+                        )
+                        for (
+                            kind,
+                            descriptor_from,
+                            descriptor_select,
+                            descriptor_order,
+                        ) in descriptor_specs:
+                            descriptor_remaining = PG_DESCRIPTOR_AGGREGATE_CAP - descriptor_count
+                            observed = _project_pg_descriptor_query(
+                                connection,
+                                hasher,
+                                kind=kind,
+                                inner_query=f"SELECT 1 {descriptor_from}",
+                                ordered_query=(
+                                    f"{descriptor_select} {descriptor_from} {descriptor_order}"
+                                ),
+                                parameters=table_parameters,
+                                cap=descriptor_remaining,
+                                started_at=started_at,
+                            )
+                            descriptor_count += observed
+
+                        row_count = _pg_census(
+                            connection,
+                            f"SELECT 1 FROM ONLY {quoted_schema}.{quoted_table}",
+                            {},
+                            cap=PROJECTION_ROWS_PER_TABLE_CAP,
+                            started_at=started_at,
+                        )
+                        _require_pg_cap(
+                            "PostgreSQL total rows",
+                            total_rows + row_count,
+                            PROJECTION_TOTAL_ROWS_CAP,
+                        )
+                        row_raw_query = f"""
+                            SELECT
+                                jsonb_build_array({cell_expressions}) AS row_cells,
+                                GREATEST({scalar_octet_expressions})::bigint
+                                  AS value_max_scalar_octets
+                            FROM ONLY {quoted_schema}.{quoted_table} AS row_value
+                        """
+                        row_kind_literal = _quote_pg_literal("row")
+                        table_identity_literal = _quote_pg_literal(table_identity)
+                        row_projection = f"""
+                            WITH raw_projection AS ({row_raw_query}),
+                            payload_projection AS (
+                                SELECT
+                                    jsonb_build_array(
+                                        {row_kind_literal},
+                                        {table_identity_literal},
+                                        raw_projection.row_cells
+                                    )::text AS payload,
+                                    GREATEST(
+                                        octet_length(to_jsonb({row_kind_literal}::text)::text),
+                                        octet_length(
+                                            to_jsonb({table_identity_literal}::text)::text
+                                        ),
+                                        raw_projection.value_max_scalar_octets
+                                    )::bigint AS max_scalar_octets
+                                FROM raw_projection
+                            )
+                            SELECT payload, max_scalar_octets,
+                                   (8 + octet_length(payload))::bigint
+                                     AS framed_record_octets
+                            FROM payload_projection
+                        """
+                        row_result, row_preflight = _pg_stream_projected_content(
+                            connection,
+                            row_projection,
+                            {},
+                            expected_count=row_count,
+                            cap=PROJECTION_ROWS_PER_TABLE_CAP,
+                            hasher=hasher,
+                            started_at=started_at,
+                        )
+                        rows_observed = 0
+                        while True:
+                            _pg_remaining_statement_ms(started_at)
+                            row_batch = row_result.fetchmany(row_preflight.fetch_batch)
+                            if not row_batch:
+                                break
+                            for row in row_batch:
+                                rows_observed += 1
+                                if len(row) != 3:
+                                    raise ValueError(
+                                        "PostgreSQL row projection metadata is invalid"
+                                    )
+                                hasher.add_projected_payload(row[0], row[1], row[2])
+                            _pg_remaining_statement_ms(started_at)
+                        if rows_observed != row_count:
+                            raise ValueError("PostgreSQL row census/content count mismatch")
+                        total_rows += rows_observed
+                        hasher.add_record(
+                            (
+                                b"table-counts",
+                                _encode_pg_scalar(table_identity),
+                                str(column_count).encode("ascii"),
+                                str(row_count).encode("ascii"),
+                            )
+                        )
+                    _pg_remaining_statement_ms(started_at)
+                if tables_observed != table_count:
+                    raise ValueError("PostgreSQL table census/content count mismatch")
+
+                sequence_from = """
+                    FROM pg_class AS sequence_relation
+                    JOIN pg_namespace AS namespace
+                      ON namespace.oid = sequence_relation.relnamespace
+                    JOIN pg_sequence AS definition
+                      ON definition.seqrelid = sequence_relation.oid
+                    WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+                      AND namespace.nspname !~ '^pg_'
+                      AND sequence_relation.relkind = 'S'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pg_depend AS extension_dependency
+                          WHERE extension_dependency.classid = 'pg_class'::regclass
+                            AND extension_dependency.objid = sequence_relation.oid
+                            AND extension_dependency.deptype = 'e'
+                      )
+                """
+                sequence_count = _pg_census(
+                    connection,
+                    f"SELECT 1 {sequence_from}",
+                    {},
+                    cap=PG_SEQUENCE_CAP,
+                    started_at=started_at,
+                )
+                sequence_content_query = f"""
+                    SELECT namespace.nspname AS sequence_schema,
+                           sequence_relation.relname AS sequence_name,
+                           format_type(definition.seqtypid, NULL) AS sequence_type,
+                           definition.seqstart AS start_value,
+                           definition.seqincrement AS increment_value,
+                           definition.seqmax AS maximum_value,
+                           definition.seqmin AS minimum_value,
+                           definition.seqcycle AS cycles
+                    {sequence_from}
+                    ORDER BY namespace.nspname COLLATE "C",
+                             sequence_relation.relname COLLATE "C"
+                """
+                sequence_projection = _pg_typed_payload_query(
+                    "sequence-definition",
+                    sequence_content_query,
+                    passthrough_aliases=("sequence_schema", "sequence_name"),
+                )
+                sequence_result, sequence_preflight = _pg_stream_projected_content(
+                    connection,
+                    sequence_projection,
+                    {},
+                    expected_count=sequence_count,
+                    cap=PG_SEQUENCE_CAP,
+                    hasher=hasher,
+                    started_at=started_at,
+                )
+                sequences_observed = 0
+                while True:
+                    _pg_remaining_statement_ms(started_at)
+                    sequence_batch = sequence_result.fetchmany(sequence_preflight.fetch_batch)
+                    if not sequence_batch:
+                        break
+                    for sequence_row in sequence_batch:
+                        sequences_observed += 1
+                        if len(sequence_row) != 5:
+                            raise ValueError("PostgreSQL sequence payload metadata is invalid")
+                        schema_name, sequence_name = sequence_row[3:5]
+                        if not isinstance(schema_name, str) or not isinstance(sequence_name, str):
+                            raise ValueError("PostgreSQL sequence identity is not bounded text")
+                        quoted_schema = _quote_identifier(engine, schema_name)
+                        quoted_sequence = _quote_identifier(engine, sequence_name)
+                        runtime_query = (
+                            f"SELECT last_value AS logical_last_value, "
+                            f"is_called AS has_been_called, "
+                            f"pg_typeof(last_value)::text AS last_value_type, "
+                            f"pg_typeof(is_called)::text AS is_called_type "
+                            f"FROM {quoted_schema}.{quoted_sequence} "
+                            "WHERE pg_typeof(last_value)::text = 'bigint' "
+                            "AND pg_typeof(is_called)::text = 'boolean'"
+                        )
+                        runtime_projection = _pg_typed_payload_query(
+                            "sequence-runtime",
+                            runtime_query,
+                        )
+                        runtime_result, runtime_preflight = _pg_stream_projected_content(
+                            connection,
+                            runtime_projection,
+                            {},
+                            expected_count=1,
+                            cap=1,
+                            hasher=hasher,
+                            started_at=started_at,
+                        )
+                        runtime_batch = runtime_result.fetchmany(runtime_preflight.fetch_batch)
+                        if len(runtime_batch) != 1 or len(runtime_batch[0]) != 3:
+                            raise ValueError("PostgreSQL sequence runtime metadata is invalid")
+                        hasher.add_projected_payload(
+                            sequence_row[0], sequence_row[1], sequence_row[2]
+                        )
+                        hasher.add_projected_payload(
+                            runtime_batch[0][0], runtime_batch[0][1], runtime_batch[0][2]
+                        )
+                    _pg_remaining_statement_ms(started_at)
+                if sequences_observed != sequence_count:
+                    raise ValueError("PostgreSQL sequence census/content count mismatch")
+
+                extension_from = """
+                    FROM pg_extension AS extension_record
+                    JOIN pg_namespace AS namespace
+                      ON namespace.oid = extension_record.extnamespace
+                    WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+                      AND namespace.nspname !~ '^pg_'
+                """
+                extension_count = _pg_census(
+                    connection,
+                    f"SELECT 1 {extension_from}",
+                    {},
+                    cap=PG_EXTENSION_CAP,
+                    started_at=started_at,
+                )
+                extension_content_query = f"""
+                    SELECT extension_record.extname AS extension_name,
+                           extension_record.extversion AS extension_version,
+                           namespace.nspname AS extension_schema,
+                           extension_record.extrelocatable AS is_relocatable
+                    {extension_from}
+                    ORDER BY extension_record.extname COLLATE "C"
+                """
+                extension_projection = _pg_typed_payload_query(
+                    "extension",
+                    extension_content_query,
+                )
+                extension_result, extension_preflight = _pg_stream_projected_content(
+                    connection,
+                    extension_projection,
+                    {},
+                    expected_count=extension_count,
+                    cap=PG_EXTENSION_CAP,
+                    hasher=hasher,
+                    started_at=started_at,
+                )
+                extensions_observed = 0
+                while True:
+                    _pg_remaining_statement_ms(started_at)
+                    extension_batch = extension_result.fetchmany(extension_preflight.fetch_batch)
+                    if not extension_batch:
+                        break
+                    for extension_row in extension_batch:
+                        extensions_observed += 1
+                        if len(extension_row) != 3:
+                            raise ValueError("PostgreSQL extension payload metadata is invalid")
+                        hasher.add_projected_payload(
+                            extension_row[0], extension_row[1], extension_row[2]
+                        )
+                    _pg_remaining_statement_ms(started_at)
+                if extensions_observed != extension_count:
+                    raise ValueError("PostgreSQL extension census/content count mismatch")
+
+                hasher.add_record(
+                    (
+                        b"receipt-counts",
+                        str(descriptor_count).encode("ascii"),
+                        str(table_count).encode("ascii"),
+                        str(total_rows).encode("ascii"),
+                        str(sequence_count).encode("ascii"),
+                        str(extension_count).encode("ascii"),
+                    )
+                )
+                _pg_remaining_statement_ms(started_at)
+                receipt = _PostgresMigrationProjectionReceipt(
+                    projection_version=PG_PROJECTION_VERSION,
+                    head=head,
+                    descriptor_count=descriptor_count,
+                    table_count=table_count,
+                    row_count=total_rows,
+                    sequence_count=sequence_count,
+                    extension_count=extension_count,
+                    caps=caps,
+                    digest=hasher.hexdigest(),
+                )
+                transaction.rollback()
+                return receipt
+            finally:
+                if transaction.is_active:
+                    transaction.rollback()
+    except SQLAlchemyError as exc:
+        raise AssertionError(
+            f"PostgreSQL resource-bounded migration-state projection failed: {type(exc).__name__}"
+        ) from None
 
 
 def _database_oid(connection: Connection, database_name: str) -> int | None:
@@ -268,6 +1291,19 @@ def _raise_preserved_failures(
 class _CreatedDatabaseReceipt:
     database_name: str
     oid: int
+
+
+@dataclass(frozen=True)
+class _PostgresMigrationProjectionReceipt:
+    projection_version: str
+    head: str
+    descriptor_count: int
+    table_count: int
+    row_count: int
+    sequence_count: int
+    extension_count: int
+    caps: tuple[tuple[str, int], ...]
+    digest: str
 
 
 @dataclass(frozen=True)
@@ -556,12 +1592,16 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "requirements-test.txt",
         "scripts/ci/emergency_python_wheels.json",
         "scripts/ci/install_locked_python_requirements.py",
+        "alembic.ini",
+        "alembic/env.py",
+        "alembic/versions/**",
         "tests/test_pgvector_compat.py",
         "tests/test_pgvector_embedding_migration.py",
         "tests/test_vector_rag.py",
         "tests/test_db_rls.py",
     )
     assert all(f"'{path}'" in filter_contract for path in direct_proof_inputs)
+    assert "'alembic/**'" not in filter_contract
     executable_proof_inputs = (
         "tests/test_pgvector_compat.py",
         "tests/test_pgvector_embedding_migration.py",
@@ -606,7 +1646,7 @@ def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]
 
 
 @pytest.mark.parametrize("query_key", ("host", "dbname", "port", "options", "arbitrary"))
-def test_full_graph_authority_rejects_every_query_parameter(query_key: str) -> None:
+def test_bounded_projection_authority_rejects_every_query_parameter(query_key: str) -> None:
     database_url = URL.create(
         "postgresql+psycopg",
         username="pgvector_compat",
@@ -622,7 +1662,7 @@ def test_full_graph_authority_rejects_every_query_parameter(query_key: str) -> N
 
 
 @pytest.mark.parametrize("marker", ("CI", "GITHUB_ACTIONS"))
-def test_full_graph_authority_requires_exact_ci_markers(marker: str) -> None:
+def test_bounded_projection_authority_requires_exact_ci_markers(marker: str) -> None:
     environment = _ci_authority_environment()
     environment[marker] = "TRUE"
 
@@ -699,8 +1739,294 @@ def test_database_failure_aggregation_preserves_primary_and_cleanup_errors() -> 
     assert grouped.value.exceptions == (primary, cleanup)
 
 
-def test_full_graph_database_receipt_cleanup_contract_is_fail_closed() -> None:
-    source = inspect.getsource(test_full_alembic_graph_upgrades_dedicated_postgres_then_is_noop)
+def test_pg_synthetic_projection_is_content_identity_and_multiplicity_sensitive() -> None:
+    base = _pg_synthetic_projection_digest((("public.sample", "alpha"),), record_cap=2)
+    changed = _pg_synthetic_projection_digest((("public.sample", "beta"),), record_cap=2)
+    rebound = _pg_synthetic_projection_digest((("public.other", "alpha"),), record_cap=2)
+    duplicated = _pg_synthetic_projection_digest(
+        (("public.sample", "alpha"), ("public.sample", "alpha")),
+        record_cap=2,
+    )
+
+    assert len({base[0], changed[0], rebound[0], duplicated[0]}) == 4
+    assert base[1] == changed[1] == rebound[1] == 1
+    assert duplicated[1] == 2
+
+
+def test_pg_sequence_projection_is_value_and_multiplicity_sensitive() -> None:
+    base = _pg_synthetic_sequence_digest((("public", "sample_id_seq", 1, False),), sequence_cap=2)
+    advanced = _pg_synthetic_sequence_digest(
+        (("public", "sample_id_seq", 2, False),), sequence_cap=2
+    )
+    called = _pg_synthetic_sequence_digest((("public", "sample_id_seq", 1, True),), sequence_cap=2)
+    duplicated = _pg_synthetic_sequence_digest(
+        (
+            ("public", "sample_id_seq", 1, False),
+            ("public", "sample_id_seq", 1, False),
+        ),
+        sequence_cap=2,
+    )
+
+    assert len({base[0], advanced[0], called[0], duplicated[0]}) == 4
+    assert base[1] == advanced[1] == called[1] == 1
+    assert duplicated[1] == 2
+
+
+@pytest.mark.parametrize(
+    ("last_value", "is_called", "expected_type"),
+    (
+        (True, False, "bool"),
+        (1.0, False, "float"),
+        (1, 0, "int"),
+    ),
+)
+def test_pg_projection_rejects_unsupported_scalar_types(
+    last_value: object,
+    is_called: object,
+    expected_type: str,
+) -> None:
+    with pytest.raises(TypeError, match=expected_type):
+        _pg_synthetic_sequence_digest(
+            (("public", "sample_id_seq", last_value, is_called),),
+            sequence_cap=1,
+        )
+
+
+def test_pg_extension_identity_is_projection_sensitive() -> None:
+    base = _pg_synthetic_projection_digest((("vector", "0.8.2", "public", True),), record_cap=1)
+    version_changed = _pg_synthetic_projection_digest(
+        (("vector", "0.8.3", "public", True),), record_cap=1
+    )
+    schema_changed = _pg_synthetic_projection_digest(
+        (("vector", "0.8.2", "extensions", True),), record_cap=1
+    )
+    relocatable_changed = _pg_synthetic_projection_digest(
+        (("vector", "0.8.2", "public", False),), record_cap=1
+    )
+    assert len({base[0], version_changed[0], schema_changed[0], relocatable_changed[0]}) == 4
+
+
+def test_pg_projection_caps_bytes_and_deadline_boundaries() -> None:
+    _require_pg_cap("synthetic", 2, 2)
+    with pytest.raises(ValueError, match="fixed resource bound"):
+        _require_pg_cap("synthetic", 3, 2)
+    with pytest.raises(ValueError, match="synthetic PostgreSQL records"):
+        _pg_synthetic_projection_digest((("one",), ("two",)), record_cap=1)
+
+    encoded = _encode_pg_scalar("x", cap=6)
+    assert encoded == b"text:x"
+    with pytest.raises(ValueError, match="encoded scalar bytes"):
+        _encode_pg_scalar("x", cap=5)
+
+    passing = _PostgresProjectionHasher(scalar_cap=1, record_cap=9, total_cap=17)
+    passing.add_record((b"x",))
+    assert passing.total_framed_bytes == 17
+    with pytest.raises(ValueError, match="record bytes"):
+        _PostgresProjectionHasher(scalar_cap=1, record_cap=8, total_cap=17).add_record((b"x",))
+    with pytest.raises(ValueError, match="total framed bytes"):
+        _PostgresProjectionHasher(scalar_cap=1, record_cap=9, total_cap=16).add_record((b"x",))
+
+    row_hasher = _PostgresProjectionHasher(scalar_cap=8, record_cap=64, total_cap=128)
+    row_hasher.add_projected_payload("[]", 1, 10)
+    with pytest.raises(ValueError, match="framed-byte metadata mismatch"):
+        row_hasher.add_projected_payload("[]", 1, 11)
+    with pytest.raises(ValueError, match="maximum scalar bytes"):
+        row_hasher.add_projected_payload("[]", 9, 10)
+
+    payload = '["surface",{"field":1}]'
+    framed_octets = len(payload.encode("utf-8")) + 8
+    equality_hasher = _PostgresProjectionHasher(
+        scalar_cap=64,
+        record_cap=framed_octets,
+        total_cap=framed_octets,
+    )
+    equality_preflight = _validate_pg_payload_preflight(
+        (1, 8, framed_octets, framed_octets),
+        expected_count=1,
+        hasher=equality_hasher,
+    )
+    equality_hasher.add_projected_payload(payload, 8, framed_octets)
+    assert equality_hasher.total_framed_bytes == equality_preflight.total_bytes
+
+    assert _derive_pg_fetch_batch(1024, 4) == 256
+    assert _derive_pg_fetch_batch(10, 3) == 3
+    assert _derive_pg_fetch_batch(0, 8) == 1
+    preflight_hasher = _PostgresProjectionHasher(scalar_cap=1, record_cap=1, total_cap=1)
+    preflight = _validate_pg_payload_preflight(
+        (1, 1, 1, 1),
+        expected_count=1,
+        hasher=preflight_hasher,
+    )
+    assert preflight.max_scalar_bytes == preflight.max_record_bytes == 1
+    with pytest.raises(ValueError, match="preflight scalar bytes"):
+        _validate_pg_payload_preflight(
+            (1, 2, 1, 1),
+            expected_count=1,
+            hasher=preflight_hasher,
+        )
+    with pytest.raises(ValueError, match="preflight record bytes"):
+        _validate_pg_payload_preflight(
+            (1, 1, 2, 1),
+            expected_count=1,
+            hasher=preflight_hasher,
+        )
+    with pytest.raises(ValueError, match="preflight total bytes"):
+        _validate_pg_payload_preflight(
+            (1, 1, 1, 2),
+            expected_count=1,
+            hasher=preflight_hasher,
+        )
+
+    assert _pg_remaining_statement_ms(10.0, now=lambda: 10.0, deadline_seconds=30.0) == 30_000
+    assert _pg_remaining_statement_ms(10.0, now=lambda: 39.998, deadline_seconds=30.0) == 2
+    with pytest.raises(TimeoutError, match="deadline exceeded"):
+        _pg_remaining_statement_ms(10.0, now=lambda: 40.0, deadline_seconds=30.0)
+
+
+def test_pg_resource_bounded_projection_contract() -> None:
+    assert (
+        PROJECTION_TABLE_CAP,
+        PROJECTION_COLUMN_CAP,
+        PG_DESCRIPTOR_AGGREGATE_CAP,
+        PG_SEQUENCE_CAP,
+        PG_EXTENSION_CAP,
+        PROJECTION_ROWS_PER_TABLE_CAP,
+        PROJECTION_TOTAL_ROWS_CAP,
+        PROJECTION_SCALAR_BYTES_CAP,
+        PROJECTION_RECORD_BYTES_CAP,
+        PROJECTION_TOTAL_FRAMED_BYTES_CAP,
+        PROJECTION_FETCH_BATCH,
+        PG_STATEMENT_TIMEOUT_MAX_MS,
+        PROJECTION_DEADLINE_SECONDS,
+    ) == (
+        256,
+        256,
+        8192,
+        256,
+        32,
+        10_000,
+        100_000,
+        1_048_576,
+        4_194_304,
+        67_108_864,
+        256,
+        30_000,
+        120.0,
+    )
+    source = "\n".join(
+        inspect.getsource(function)
+        for function in (
+            _pg_execute_bounded,
+            _pg_typed_payload_query,
+            _pg_projected_payload_preflight,
+            _pg_stream_projected_content,
+            _pg_census,
+            _project_pg_descriptor_query,
+            _project_postgres_migration_state,
+        )
+    )
+
+    for required_fragment in (
+        "relation.relrowsecurity",
+        "relation.relforcerowsecurity",
+        "relation.relkind IN ('r', 'p')",
+        "pg_get_constraintdef(descriptor.oid, true)",
+        "pg_get_indexdef(index_record.indexrelid)",
+        "FROM pg_policy AS descriptor",
+        "JOIN pg_sequence AS definition",
+        "SELECT last_value AS logical_last_value",
+        "is_called AS has_been_called",
+        "quoted_sequence = _quote_identifier(engine, sequence_name)",
+        "jsonb_build_array",
+        "to_jsonb(row_value.",
+        "FROM ONLY",
+        "pg_depend AS extension_dependency",
+        "extension_dependency.deptype = 'e'",
+        "FROM pg_extension AS extension_record",
+        "extension_record.extname",
+        "extension_record.extversion",
+        "extension_record.extrelocatable",
+        'isolation_level="REPEATABLE READ"',
+        "SET TRANSACTION READ ONLY",
+        "SET LOCAL statement_timeout",
+        "stream_results=True",
+        "yield_per=stream_batch",
+        "max_row_buffer=stream_batch",
+        "jsonb_build_array({kind_literal}, to_jsonb(raw_projection))::text",
+        "(8 + octet_length(payload))::bigint AS framed_record_octets",
+        "_pg_projected_payload_preflight(",
+        "_pg_stream_projected_content(",
+        "stream_batch=",
+        "MAX(max_scalar_octets)",
+        "MAX(framed_record_octets)",
+        "SUM(framed_record_octets)",
+        "max_scalar_octets <=",
+        "framed_record_octets <=",
+        "fetchmany(PROJECTION_FETCH_BATCH)",
+        "LIMIT {",
+        'COLLATE "C"',
+    ):
+        assert required_fragment in source
+    for forbidden_fragment in (
+        "FROM pg_stat",
+        "JOIN pg_stat",
+        "reltuples",
+        "relpages",
+        "relfilenode",
+        "SELECT oid",
+        " AS relation_oid",
+        " AS namespace_oid",
+        " AS constraint_oid",
+        " AS sequence_oid",
+        "log_cnt",
+        "page_lsn",
+        "CURRENT_TIMESTAMP",
+        "pg_trigger",
+        "pg_proc",
+        "information_schema.routines",
+        "aclexplode",
+        "os.environ",
+        "getenv(",
+        "relkind IN ('r', 'p', 'v'",
+        ".all(",
+        ".scalars",
+        "tuple(",
+        "list(",
+        ".sort(",
+        "sorted(",
+    ):
+        assert forbidden_fragment.lower() not in source.lower()
+    assert ("cano" + "nical") not in source.lower()
+    assert ("database" + "-state") not in source.lower()
+    projector_source = inspect.getsource(_project_postgres_migration_state)
+    assert "AS using_expression" in projector_source
+    assert "AS check_expression" in projector_source
+    assert projector_source.count("AS using_expression") == 1
+    assert projector_source.count("AS check_expression") == 1
+    for projection_name, streaming_name in (
+        ("relation_projection =", "table_result, relation_preflight ="),
+        ("column_projection =", "column_result, column_preflight ="),
+        ("row_projection =", "row_result, row_preflight ="),
+        ("sequence_projection =", "sequence_result, sequence_preflight ="),
+        ("runtime_projection =", "runtime_result, runtime_preflight ="),
+        ("extension_projection =", "extension_result, extension_preflight ="),
+    ):
+        assert projector_source.index(projection_name) < projector_source.index(streaming_name)
+    for dynamic_fetch in (
+        "fetchmany(relation_preflight.fetch_batch)",
+        "fetchmany(column_preflight.fetch_batch)",
+        "fetchmany(row_preflight.fetch_batch)",
+        "fetchmany(sequence_preflight.fetch_batch)",
+        "fetchmany(runtime_preflight.fetch_batch)",
+        "fetchmany(extension_preflight.fetch_batch)",
+    ):
+        assert dynamic_fetch in projector_source
+
+
+def test_bounded_projection_database_receipt_cleanup_contract_is_fail_closed() -> None:
+    source = inspect.getsource(
+        test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
+    )
 
     absence_index = source.index("assert _database_oid(connection, database_name) is None")
     create_index = source.index('connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")')
@@ -719,7 +2045,7 @@ def test_full_graph_database_receipt_cleanup_contract_is_fail_closed() -> None:
     assert "pg_terminate_backend" not in source
 
 
-def test_full_alembic_graph_upgrades_dedicated_postgres_then_is_noop() -> None:
+def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop() -> None:
     parsed_url = _required_ci_pgvector_url()
     admin_engine = create_engine(
         parsed_url,
@@ -760,21 +2086,12 @@ def test_full_alembic_graph_upgrades_dedicated_postgres_then_is_noop() -> None:
         heads = tuple(scripts.get_heads())
         assert len(heads) == 1
         assert heads[0]
-        with target_engine.connect() as connection:
-            versions = tuple(
-                connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-            )
-        assert versions == heads
-        first_tables = _postgres_application_tables(target_engine)
+        first_projection = _project_postgres_migration_state(target_engine)
+        assert first_projection.head == heads[0]
 
         _run_alembic(target_url, "current", "--check-heads")
         _run_alembic(target_url, "upgrade", "head")
-        with target_engine.connect() as connection:
-            repeated_versions = tuple(
-                connection.scalars(text("SELECT version_num FROM alembic_version")).all()
-            )
-        assert repeated_versions == versions
-        assert _postgres_application_tables(target_engine) == first_tables
+        assert _project_postgres_migration_state(target_engine) == first_projection
     except BaseException as exc:
         primary_failure = exc
     finally:

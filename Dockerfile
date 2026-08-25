@@ -439,17 +439,10 @@ PY
 # EN: Final runtime stays non-root, matching the runtime-base contract.
 USER pulseplate
 
-# ALEMBIC-IMPORT-OWNERSHIP-GUARD-START
+# ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-START
 RUN /opt/venv/bin/python - <<'PY'
-import importlib
-import importlib.metadata
-import importlib.util
 from pathlib import Path
 import sys
-import sysconfig
-
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 
 literal_app_root = Path("/app")
 literal_migration_root = Path("/app/alembic")
@@ -483,7 +476,23 @@ if forbidden_paths:
     rendered = ", ".join(str(path) for path in forbidden_paths[:5])
     sys.stderr.write(f"Repository Alembic package/bytecode carrier detected: {rendered}\n")
     raise SystemExit(1)
+PY
+# ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-END
 
+# ALEMBIC-INSTALLED-OWNERSHIP-GUARD-START
+RUN /opt/venv/bin/python - <<'PY'
+import importlib
+import importlib.metadata
+import importlib.util
+from pathlib import Path
+import sys
+import sysconfig
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+app_root = Path("/app").resolve()
+migration_root = Path("/app/alembic").resolve()
 venv_root = Path(sys.prefix).resolve()
 if venv_root != Path("/opt/venv"):
     sys.stderr.write(f"Production interpreter prefix mismatch: {venv_root}\n")
@@ -545,8 +554,11 @@ if len(heads) != 1 or not heads[0].strip():
     sys.stderr.write(f"Alembic migration graph must have one non-empty head, got {heads!r}\n")
     raise SystemExit(1)
 PY
+# ALEMBIC-INSTALLED-OWNERSHIP-GUARD-END
+
+# ALEMBIC-CLI-HEADS-GUARD-START
 RUN /opt/venv/bin/alembic -c /app/alembic.ini heads
-# ALEMBIC-IMPORT-OWNERSHIP-GUARD-END
+# ALEMBIC-CLI-HEADS-GUARD-END
 
 # Stage 4: Staging stage
 # Extends production with staging-specific configurations
