@@ -13,7 +13,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.effective_routes import route_endpoint_for_path_method
-from tests._helpers.vip_contracts import assert_json_response_payload
+from app.schemas.vip import AutoRepairWeeklyRequest
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+)
 
 
 class TestVIPCoverageBoostFixed:
@@ -150,7 +154,26 @@ class TestVIPCoverageBoostFixed:
         vip_headers: dict[str, str],
     ) -> None:
         """Тест deterministic fallback когда get_auto_repair_engine недоступен."""
-        fallback_auto_repair = MagicMock(return_value={"status": "fallback", "repairs": []})
+        mutation_probe = build_auto_repair_weekly_request_payload()
+        request_payload = build_auto_repair_weekly_request_payload()
+        mutation_probe["targets"]["iron_mg"][0] = 999.0
+        mutation_probe["week_plan"]["days"][0]["meals"][0]["nutrients"]["iron_mg"] = 999.0
+        assert request_payload["targets"]["iron_mg"] == [6.0, 8.0, 45.0]
+        assert request_payload["week_plan"]["days"][0]["meals"][0]["nutrients"]["iron_mg"] == 8.0
+        AutoRepairWeeklyRequest.model_validate(request_payload)
+
+        complete_success_result = {
+            "status": "success",
+            "repaired_plan": request_payload["week_plan"],
+            "original_plan": request_payload["week_plan"],
+            "changes_made": [],
+            "remaining_gaps": {},
+            "strategy_used": "balanced",
+            "iterations": 0,
+            "message": "Already compliant",
+            "suggestions": [],
+        }
+        fallback_auto_repair = MagicMock(return_value=complete_success_result)
 
         with (
             patch("app.routers.vip.get_auto_repair_engine", None),
@@ -158,32 +181,15 @@ class TestVIPCoverageBoostFixed:
         ):
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
-                json={
-                    "week_plan": {"days": []},
-                    "targets": {
-                        "iron_mg": [6.0, 8.0, 45.0],
-                        "calcium_mg": [800.0, 1000.0, 2500.0],
-                        "magnesium_mg": [300.0, 400.0, 350.0],
-                        "zinc_mg": [8.0, 11.0, 40.0],
-                        "potassium_mg": [3500.0, 4700.0, 5000.0],
-                        "iodine_ug": [130.0, 150.0, 1100.0],
-                        "selenium_ug": [45.0, 55.0, 400.0],
-                        "folate_ug": [320.0, 400.0, 1000.0],
-                        "b12_ug": [2.0, 2.4, 100.0],
-                        "vitamin_d_iu": [400.0, 600.0, 4000.0],
-                        "vitamin_a_ug": [600.0, 900.0, 3000.0],
-                        "vitamin_c_mg": [75.0, 90.0, 2000.0],
-                    },
-                    "strategy": "balanced",
-                    "user_preferences": {},
-                },
+                json=request_payload,
                 headers=vip_headers,
             )
 
             assert response.status_code == 200
             payload = assert_json_response_payload(response)
             assert payload["status"] == "success"
-            assert payload["repair_result"] == {"status": "fallback", "repairs": []}
+            assert payload["repair_result"] == complete_success_result
+            assert payload["echo"] == request_payload
             fallback_auto_repair.assert_called_once()
             assert fallback_auto_repair.call_args.args[1].get_target("iron_mg") == 8.0
 
@@ -201,9 +207,21 @@ class TestVIPCoverageBoostFixed:
         mock_get_available_regions = MagicMock()
         mock_get_available_regions.return_value = ["BY", "RU"]
 
+        auto_repair_payload = build_auto_repair_weekly_request_payload()
         mock_get_auto_repair_engine = MagicMock()
         mock_repair_engine = MagicMock()
-        mock_repair_engine.auto_repair_week_plan.return_value = {"status": "success", "repairs": []}
+        complete_success_result = {
+            "status": "success",
+            "repaired_plan": auto_repair_payload["week_plan"],
+            "original_plan": auto_repair_payload["week_plan"],
+            "changes_made": [],
+            "remaining_gaps": {},
+            "strategy_used": "balanced",
+            "iterations": 0,
+            "message": "Already compliant",
+            "suggestions": [],
+        }
+        mock_repair_engine.auto_repair_week_plan.return_value = complete_success_result
         mock_get_auto_repair_engine.return_value = mock_repair_engine
 
         with (
@@ -291,31 +309,14 @@ class TestVIPCoverageBoostFixed:
             # Тест auto repair
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
-                json={
-                    "week_plan": {"days": []},
-                    "targets": {
-                        "iron_mg": [6.0, 8.0, 45.0],
-                        "calcium_mg": [800.0, 1000.0, 2500.0],
-                        "magnesium_mg": [300.0, 400.0, 350.0],
-                        "zinc_mg": [8.0, 11.0, 40.0],
-                        "potassium_mg": [3500.0, 4700.0, 5000.0],
-                        "iodine_ug": [130.0, 150.0, 1100.0],
-                        "selenium_ug": [45.0, 55.0, 400.0],
-                        "folate_ug": [320.0, 400.0, 1000.0],
-                        "b12_ug": [2.0, 2.4, 100.0],
-                        "vitamin_d_iu": [400.0, 600.0, 4000.0],
-                        "vitamin_a_ug": [600.0, 900.0, 3000.0],
-                        "vitamin_c_mg": [75.0, 90.0, 2000.0],
-                    },
-                    "strategy": "balanced",
-                    "user_preferences": {},
-                },
+                json=auto_repair_payload,
                 headers=vip_headers,
             )
             assert response.status_code == 200
             repair_payload = assert_json_response_payload(response)
             assert repair_payload["status"] == "success"
-            assert repair_payload["repair_result"] == {"status": "success", "repairs": []}
+            assert repair_payload["repair_result"] == complete_success_result
+            assert repair_payload["echo"] == auto_repair_payload
             mock_get_auto_repair_engine.assert_called_once_with()
             mock_repair_engine.auto_repair_week_plan.assert_called_once()
             repair_targets = mock_repair_engine.auto_repair_week_plan.call_args.args[1]
