@@ -7872,13 +7872,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR #986 or PR-TBD
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Reason: Make disposition check always-on by calling `check_review_threads_disposition.py` from `scripts/orchestration/check_preflight.py` and documenting in `workflow.md`.
+  - Reason: Make disposition check always-on by calling `check_review_threads_disposition.py` from `scripts/orchestration/check_preflight.py` and documenting in `workflow.md`. PR #2320 provided a fresh failure witness: a resolved root that had been covered by an epoch-sensitive reply-only disposition lost that eligibility after later material changes and was absent from the sole final mapping commit until the strict wrapper caught it.
   - Links:
     - `scripts/orchestration/check_review_threads_disposition.py`
     - `scripts/orchestration/check_preflight.py`
     - `docs/orchestration/workflow.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2320#discussion_r3846893060`
   - DoD:
     - Pre-flight runs disposition guard when in PR context (or always)
+    - The final local mapping is checked against the current resolved-thread inventory before the sole mapping-only closeout commit
     - workflow.md updated with required step
     - No regression in pre-flight runtime
 
