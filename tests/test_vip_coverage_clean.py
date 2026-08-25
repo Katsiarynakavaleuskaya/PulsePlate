@@ -7,6 +7,11 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_weekly_recipes_request_payload,
+)
+
 
 @pytest.fixture(autouse=True)
 def _vip_test_environment(
@@ -176,16 +181,18 @@ class TestVIPCoverageClean:
     ) -> None:
         """Test VIP weekly recipes coverage with proper isolation."""
         # Test weekly recipes endpoint
+        request_payload = build_weekly_recipes_request_payload()
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={"week_plan": {"days": []}},
+            json=request_payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("application/json")
-        data = response.json()
+        data = assert_json_response_payload(response)
         assert data["status"] == "success"
-        assert "weekly_recipes" in data
+        assert data["total_recipes"] > 0
+        assert data["weekly_recipes"]
+        assert data["echo"] == request_payload
 
     def test_vip_weekly_plan_coverage(
         self,

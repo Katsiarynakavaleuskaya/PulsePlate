@@ -5,6 +5,12 @@ Fixed VIP coverage tests with proper environment isolation.
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+    build_weekly_recipes_request_payload,
+)
+
 
 @pytest.fixture(autouse=True)
 def _vip_test_environment(
@@ -258,16 +264,17 @@ class TestVIPCoverageFixed:
     ) -> None:
         """Test VIP auto-repair coverage for lines 623-624, 681."""
         # Test auto-repair weekly endpoint
+        request_payload = build_auto_repair_weekly_request_payload()
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
-            json={"menu": {"days": []}},
+            json=request_payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("application/json")
-        data = response.json()
-        assert data["status"] == "error"  # Returns error when auto_repair_menu is None
-        assert "repair_result" in data
+        data = assert_json_response_payload(response)
+        assert data["status"] == "success"
+        assert data["repair_result"]["status"] == "success"
+        assert data["echo"] == request_payload
 
     def test_vip_auto_repair_strategies_coverage_lines_695_702_716(
         self,
@@ -290,16 +297,18 @@ class TestVIPCoverageFixed:
     ) -> None:
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
         # Test weekly recipes endpoint
+        request_payload = build_weekly_recipes_request_payload()
         response = client.post(
             "/api/v1/vip/recipes/weekly",
-            json={"week_plan": {"days": []}},
+            json=request_payload,
             headers=vip_headers,
         )
         assert response.status_code == 200
-        assert response.headers["content-type"].startswith("application/json")
-        data = response.json()
+        data = assert_json_response_payload(response)
         assert data["status"] == "success"
-        assert "weekly_recipes" in data
+        assert data["total_recipes"] > 0
+        assert data["weekly_recipes"]
+        assert data["echo"] == request_payload
 
     def test_vip_recipe_synthesis_coverage_lines_788_789_809(
         self,
