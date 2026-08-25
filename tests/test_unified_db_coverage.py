@@ -58,16 +58,16 @@ class TestUnifiedDBCoverage:
         )
         assert prior is None
 
-        owned: unified_db_module.UnifiedFoodDatabase = await unified_db_module.get_unified_food_db()
-        assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
-
         foreign: unified_db_module.UnifiedFoodDatabase = (
             unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
         )
         close_owned = AsyncMock(wraps=unified_db_module.close_unified_food_clients)
         foreign_installed = False
         close_attempted = False
+
+        owned: unified_db_module.UnifiedFoodDatabase = await unified_db_module.get_unified_food_db()
         try:
+            assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
             assert unified_db_module._read_unified_db_instance() is owned
             second = await unified_db_module.get_unified_food_db()
             assert second is owned
