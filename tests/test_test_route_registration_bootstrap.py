@@ -6,7 +6,6 @@ from collections import Counter
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.routing import APIRoute
-from fastapi.testclient import TestClient
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
@@ -17,6 +16,7 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from tests._client import open_test_client
 
 _EXPECTED_TEST_ROUTE_KEYS = {
     (path, method) for path, method, _include_in_schema in app_main._TEST_ROUTE_SPECS
@@ -173,9 +173,8 @@ def test_registered_local_test_routes_fail_closed_after_production_env_flip(
     app_main._include_test_router_if_enabled(target_app)
 
     monkeypatch.setenv("APP_ENV", "production")
-    client = TestClient(target_app)
-
-    response = client.get("/api/v1/test/health")
+    with open_test_client(target_app) as client:
+        response = client.get("/api/v1/test/health")
 
     assert response.status_code == 404
 
@@ -188,9 +187,8 @@ def test_registered_local_test_routes_fail_closed_after_staging_flag_removed(
 
     monkeypatch.setenv("ENVIRONMENT", "staging")
     monkeypatch.delenv("ENABLE_TEST_ROUTES", raising=False)
-    client = TestClient(target_app)
-
-    response = client.post("/api/v1/test/rate-limit")
+    with open_test_client(target_app) as client:
+        response = client.post("/api/v1/test/rate-limit")
 
     assert response.status_code == 404
 
