@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import inspect
 import json
 import os
-from collections.abc import Callable, Iterator
+import re
+import subprocess
+import sys
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib import import_module
@@ -19,9 +23,12 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from types import ModuleType
 from typing import NoReturn
+from urllib.parse import quote
 from uuid import uuid4
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import (
     BigInteger,
     Column,
@@ -36,7 +43,8 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.engine import Connection, Engine, make_url
+from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
@@ -54,6 +62,34 @@ EXPECTED_EXTENSION_VERSION = "0.8.2"
 OWNER_PASSWORD = "pgvector_compat_owner_password"  # pragma: allowlist secret
 TENANT_ONE = 101
 TENANT_TWO = 202
+ALEMBIC_DATABASE_PREFIX = "pulseplate_alembic_"
+CONTROLLED_ALEMBIC_ENV = {
+    "APP_ENV": "test",
+    "ENVIRONMENT": "test",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "PATH": "/usr/bin:/bin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHASHSEED": "0",
+    "PYTHONNOUSERSITE": "1",
+    "TESTING": "true",
+    "TZ": "UTC",
+}
+FORBIDDEN_ALEMBIC_ENV_KEYS = (
+    "BASH_ENV",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "ENV",
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "PULSEPLATE_SENTINEL_SECRET",
+    "PYTHONHOME",
+    "PYTHONINSPECT",
+    "PYTHONPATH",
+    "PYTHONPLATLIBDIR",
+    "PYTHONSTARTUP",
+    "PYTHONUSERBASE",
+)
 
 
 def require_feature(feature_key: str, reason: str) -> NoReturn:
@@ -107,6 +143,131 @@ def _quote_identifier(engine: Engine, identifier: str) -> str:
     """Quote an internally generated PostgreSQL identifier."""
 
     return engine.dialect.identifier_preparer.quote_identifier(identifier)
+
+
+def _required_ci_pgvector_url(environment: Mapping[str, str] | None = None) -> URL:
+    source = os.environ if environment is None else environment
+    required = source.get(PGVECTOR_COMPAT_REQUIRED, "").strip()
+    database_url = source.get(PGVECTOR_COMPAT_DATABASE_URL, "").strip()
+    if required != "1":
+        if environment is None:
+            require_feature(
+                PGVECTOR_DATABASE_FEATURE,
+                "full migration proof requires PGVECTOR_COMPAT_REQUIRED=1",
+            )
+        pytest.fail(f"{PGVECTOR_COMPAT_REQUIRED} must equal 1")
+    if source.get("CI", "").strip() != "true":
+        pytest.fail("CI must equal true for the dedicated migration proof")
+    if source.get("GITHUB_ACTIONS", "").strip() != "true":
+        pytest.fail("GITHUB_ACTIONS must equal true for the dedicated migration proof")
+    if not database_url:
+        pytest.fail(f"{PGVECTOR_COMPAT_DATABASE_URL} is required")
+
+    parsed_url = make_url(database_url)
+    if parsed_url.query:
+        pytest.fail(f"{PGVECTOR_COMPAT_DATABASE_URL} must not include query parameters")
+    actual_contract = (
+        parsed_url.drivername,
+        parsed_url.host,
+        parsed_url.port,
+        parsed_url.username,
+        parsed_url.database,
+    )
+    expected_contract = (
+        "postgresql+psycopg",
+        "localhost",
+        5432,
+        "pgvector_compat",
+        "pgvector_compat",
+    )
+    if actual_contract != expected_contract:
+        pytest.fail(f"{PGVECTOR_COMPAT_DATABASE_URL} must match the dedicated CI service tuple")
+    return parsed_url
+
+
+def _alembic_subprocess_env(database_url: URL) -> dict[str, str]:
+    env = dict(CONTROLLED_ALEMBIC_ENV)
+    env["DATABASE_URL"] = database_url.render_as_string(hide_password=False)
+    return env
+
+
+def _redact_database_output(value: str, database_url: URL) -> str:
+    decoded_password = database_url.password or ""
+    redactions = tuple(
+        candidate
+        for candidate in dict.fromkeys(
+            (
+                database_url.render_as_string(hide_password=False),
+                quote(decoded_password, safe=""),
+                decoded_password,
+            )
+        )
+        if candidate
+    )
+    sanitized = value
+    for redaction in sorted(redactions, key=len, reverse=True):
+        sanitized = sanitized.replace(redaction, "[REDACTED]")
+    return sanitized
+
+
+def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProcess[str]:
+    env = _alembic_subprocess_env(database_url)
+    completed = subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", str(REPO_ROOT / "alembic.ini"), *arguments],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stdout = _redact_database_output(completed.stdout, database_url)
+        stderr = _redact_database_output(completed.stderr, database_url)
+        pytest.fail(
+            "Alembic PostgreSQL subprocess failed "
+            f"(rc={completed.returncode})\n"
+            f"stdout tail:\n{stdout[-4000:]}\n"
+            f"stderr tail:\n{stderr[-4000:]}"
+        )
+    return completed
+
+
+def _postgres_application_tables(engine: Engine) -> tuple[tuple[str, str], ...]:
+    with engine.connect() as connection:
+        rows = connection.execute(text("""
+                SELECT schemaname, tablename
+                FROM pg_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                ORDER BY schemaname, tablename
+                """)).all()
+    return tuple((str(row.schemaname), str(row.tablename)) for row in rows)
+
+
+def _database_oid(connection: Connection, database_name: str) -> int | None:
+    value = connection.scalar(
+        text("SELECT oid FROM pg_database WHERE datname = :database_name"),
+        {"database_name": database_name},
+    )
+    return int(value) if value is not None else None
+
+
+def _raise_preserved_failures(
+    primary_failure: BaseException | None,
+    cleanup_failures: list[BaseException],
+) -> None:
+    failures = ([primary_failure] if primary_failure is not None else []) + cleanup_failures
+    if not failures:
+        return
+    if len(failures) == 1:
+        raise failures[0]
+    raise BaseExceptionGroup("PostgreSQL migration proof and cleanup failures", failures)
+
+
+@dataclass(frozen=True)
+class _CreatedDatabaseReceipt:
+    database_name: str
+    oid: int
 
 
 @dataclass(frozen=True)
@@ -425,6 +586,231 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
     assert "scripts/ci/install_locked_python_requirements.py" in compat_job
     assert "--requirements-profile ci-test" in compat_job
     assert "--install-mode direct-proxy" in compat_job
+
+
+def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]:
+    selected_url = database_url or URL.create(
+        "postgresql+psycopg",
+        username="pgvector_compat",
+        password="ephemeral-test-password",  # pragma: allowlist secret
+        host="localhost",
+        port=5432,
+        database="pgvector_compat",
+    )
+    return {
+        "CI": "true",
+        "GITHUB_ACTIONS": "true",
+        PGVECTOR_COMPAT_DATABASE_URL: selected_url.render_as_string(hide_password=False),
+        PGVECTOR_COMPAT_REQUIRED: "1",
+    }
+
+
+@pytest.mark.parametrize("query_key", ("host", "dbname", "port", "options", "arbitrary"))
+def test_full_graph_authority_rejects_every_query_parameter(query_key: str) -> None:
+    database_url = URL.create(
+        "postgresql+psycopg",
+        username="pgvector_compat",
+        password="ephemeral-test-password",  # pragma: allowlist secret
+        host="localhost",
+        port=5432,
+        database="pgvector_compat",
+        query={query_key: "override"},
+    )
+
+    with pytest.raises(pytest.fail.Exception, match="must not include query parameters"):
+        _required_ci_pgvector_url(_ci_authority_environment(database_url))
+
+
+@pytest.mark.parametrize("marker", ("CI", "GITHUB_ACTIONS"))
+def test_full_graph_authority_requires_exact_ci_markers(marker: str) -> None:
+    environment = _ci_authority_environment()
+    environment[marker] = "TRUE"
+
+    with pytest.raises(pytest.fail.Exception, match=f"{marker} must equal true"):
+        _required_ci_pgvector_url(environment)
+
+
+@pytest.mark.parametrize("variable", FORBIDDEN_ALEMBIC_ENV_KEYS)
+def test_pg_alembic_subprocess_environment_does_not_inherit_host_carriers(
+    variable: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(variable, "sentinel-value")
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+
+    env = _alembic_subprocess_env(database_url)
+
+    assert variable not in env
+    assert env["PYTHONNOUSERSITE"] == "1"
+    assert env["PYTHONHASHSEED"] == "0"
+    assert env["APP_ENV"] == "test"
+    assert env["ENVIRONMENT"] == "test"
+    assert env["TESTING"] == "true"
+
+
+def test_pg_alembic_failure_diagnostics_redact_url_and_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = URL.create(
+        "postgresql+psycopg",
+        username="pgvector_compat",
+        password="decoded@password",  # pragma: allowlist secret
+        host="localhost",
+        port=5432,
+        database="pulseplate_alembic_test",
+    )
+    credentialed_url = database_url.render_as_string(hide_password=False)
+    captured_env: dict[str, str] = {}
+    captured_command: list[str] = []
+
+    def failed_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured_command.extend(command)
+        raw_env = kwargs["env"]
+        assert isinstance(raw_env, dict)
+        captured_env.update({str(key): str(value) for key, value in raw_env.items()})
+        return subprocess.CompletedProcess(
+            command,
+            9,
+            stdout=credentialed_url,
+            stderr="decoded@password decoded%40password",
+        )
+
+    monkeypatch.setattr(subprocess, "run", failed_run)
+
+    with pytest.raises(pytest.fail.Exception) as failure:
+        _run_alembic(database_url, "upgrade", "head")
+
+    message = str(failure.value)
+    assert captured_command[0] == sys.executable
+    assert captured_env == _alembic_subprocess_env(database_url)
+    assert credentialed_url not in message
+    assert "decoded@password" not in message
+    assert "decoded%40password" not in message
+    assert "[REDACTED]" in message
+
+
+def test_database_failure_aggregation_preserves_primary_and_cleanup_errors() -> None:
+    primary = AssertionError("primary migration failure")
+    cleanup = RuntimeError("cleanup receipt failure")
+
+    with pytest.raises(BaseExceptionGroup) as grouped:
+        _raise_preserved_failures(primary, [cleanup])
+
+    assert grouped.value.exceptions == (primary, cleanup)
+
+
+def test_full_graph_database_receipt_cleanup_contract_is_fail_closed() -> None:
+    source = inspect.getsource(test_full_alembic_graph_upgrades_dedicated_postgres_then_is_noop)
+
+    absence_index = source.index("assert _database_oid(connection, database_name) is None")
+    create_index = source.index('connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")')
+    receipt_index = source.index("receipt = _CreatedDatabaseReceipt")
+    oid_recheck_index = source.index("current_oid = _database_oid")
+    drop_index = source.index('connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")')
+    absence_after_drop_index = source.index(
+        "if _database_oid(connection, receipt.database_name) is not None"
+    )
+
+    assert absence_index < create_index < receipt_index < oid_recheck_index
+    assert oid_recheck_index < drop_index < absence_after_drop_index
+    assert "if receipt is not None and target_disposed" in source
+    assert "DROP DATABASE IF EXISTS" not in source
+    assert "FORCE" not in source
+    assert "pg_terminate_backend" not in source
+
+
+def test_full_alembic_graph_upgrades_dedicated_postgres_then_is_noop() -> None:
+    parsed_url = _required_ci_pgvector_url()
+    admin_engine = create_engine(
+        parsed_url,
+        isolation_level="AUTOCOMMIT",
+        poolclass=NullPool,
+    )
+    database_name = f"{ALEMBIC_DATABASE_PREFIX}{uuid4().hex}"
+    assert re.fullmatch(r"pulseplate_alembic_[0-9a-f]{32}", database_name)
+    quoted_database = _quote_identifier(admin_engine, database_name)
+    receipt: _CreatedDatabaseReceipt | None = None
+    target_engine: Engine | None = None
+    primary_failure: BaseException | None = None
+    cleanup_failures: list[BaseException] = []
+
+    try:
+        with admin_engine.connect() as connection:
+            identity = connection.execute(text("""
+                    SELECT
+                        current_database() AS database_name,
+                        current_user AS user_name,
+                        inet_server_port() AS server_port
+                    """)).one()
+            assert identity.database_name == "pgvector_compat"
+            assert identity.user_name == "pgvector_compat"
+            assert identity.server_port == 5432
+            assert _database_oid(connection, database_name) is None
+            connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
+            created_oid = _database_oid(connection, database_name)
+            if created_oid is None or created_oid <= 0:
+                pytest.fail("Created database has no unambiguous positive OID receipt")
+            receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
+
+        target_url = parsed_url.set(database=database_name)
+        target_engine = create_engine(target_url, poolclass=NullPool)
+        _run_alembic(target_url, "upgrade", "head")
+
+        scripts = ScriptDirectory.from_config(Config(str(REPO_ROOT / "alembic.ini")))
+        heads = tuple(scripts.get_heads())
+        assert len(heads) == 1
+        assert heads[0]
+        with target_engine.connect() as connection:
+            versions = tuple(
+                connection.scalars(text("SELECT version_num FROM alembic_version")).all()
+            )
+        assert versions == heads
+        first_tables = _postgres_application_tables(target_engine)
+
+        _run_alembic(target_url, "current", "--check-heads")
+        _run_alembic(target_url, "upgrade", "head")
+        with target_engine.connect() as connection:
+            repeated_versions = tuple(
+                connection.scalars(text("SELECT version_num FROM alembic_version")).all()
+            )
+        assert repeated_versions == versions
+        assert _postgres_application_tables(target_engine) == first_tables
+    except BaseException as exc:
+        primary_failure = exc
+    finally:
+        target_disposed = True
+        if target_engine is not None:
+            try:
+                target_engine.dispose()
+            except BaseException as exc:
+                target_disposed = False
+                cleanup_failures.append(exc)
+        try:
+            if receipt is not None and target_disposed:
+                with admin_engine.connect() as connection:
+                    current_oid = _database_oid(connection, receipt.database_name)
+                    if current_oid != receipt.oid:
+                        raise AssertionError(
+                            "Created database cleanup receipt no longer matches the server OID"
+                        )
+                    connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")
+                    if _database_oid(connection, receipt.database_name) is not None:
+                        raise AssertionError("Created database remains present after exact DROP")
+            elif receipt is not None:
+                cleanup_failures.append(
+                    RuntimeError(
+                        "Exact database cleanup was withheld because target disposal was not proven"
+                    )
+                )
+        except BaseException as exc:
+            cleanup_failures.append(exc)
+        finally:
+            try:
+                admin_engine.dispose()
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+
+    _raise_preserved_failures(primary_failure, cleanup_failures)
 
 
 def test_database_uses_exact_extension_and_non_bypass_table_owner(

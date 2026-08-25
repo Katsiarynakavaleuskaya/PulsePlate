@@ -19,6 +19,16 @@
 - **No dynamic import hacks**: Do not use `spec_from_file_location`, `exec_module`,
   or sys.path hacks to load the app/models for migrations. If env.py needs imports,
   use normal package imports only.
+- **Migration-data ownership**: `alembic/` is ScriptDirectory data and must not
+  define a top-level regular-package carrier. Never add `alembic/__init__.py`;
+  the installed regular Alembic distribution must uniquely own `alembic`,
+  `alembic.config`, `alembic.context`, and `alembic.op` even when the repository
+  root is on `PYTHONPATH`.
+- **Declarative repository imports**: standalone migration commands receive the
+  repository root through `alembic.ini` (`prepend_sys_path = %(here)s` and
+  `path_separator = os`). Do not restore imperative path mutation in `env.py`.
+- **Single-head graph**: the migration tree must resolve through
+  `ScriptDirectory` and expose exactly one non-empty head.
 - **No reload patterns**: never use `importlib.reload`, `Base.metadata.clear()`,
   or similar in migration context; it can desync mapper/metadata and break autogenerate.
 
