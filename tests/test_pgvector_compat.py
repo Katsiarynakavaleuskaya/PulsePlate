@@ -227,17 +227,50 @@ def _redact_database_output(value: str, database_url: URL) -> str:
     return sanitized
 
 
+def _normalize_timeout_partial_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str):
+        return value
+    return f"[unsupported-timeout-output:{type(value).__name__}]"
+
+
 def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProcess[str]:
     env = _alembic_subprocess_env(database_url)
-    completed = subprocess.run(
-        [sys.executable, "-m", "alembic", "-c", str(REPO_ROOT / "alembic.ini"), *arguments],
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
+    command = [
+        sys.executable,
+        "-m",
+        "alembic",
+        "-c",
+        str(REPO_ROOT / "alembic.ini"),
+        *arguments,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = _redact_database_output(
+            _normalize_timeout_partial_output(exc.stdout),
+            database_url,
+        )
+        stderr = _redact_database_output(
+            _normalize_timeout_partial_output(exc.stderr),
+            database_url,
+        )
+        pytest.fail(
+            f"Alembic PostgreSQL subprocess timed out after {exc.timeout} seconds\n"
+            f"stdout tail:\n{stdout[-4000:]}\n"
+            f"stderr tail:\n{stderr[-4000:]}"
+        )
     if completed.returncode != 0:
         stdout = _redact_database_output(completed.stdout, database_url)
         stderr = _redact_database_output(completed.stderr, database_url)
@@ -1727,6 +1760,50 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
     assert "decoded@password" not in message
     assert "decoded%40password" not in message
     assert "[REDACTED]" in message
+
+
+@pytest.mark.parametrize("partial_kind", ("str", "bytes"))
+def test_pg_alembic_timeout_diagnostics_normalize_and_redact_partial_output(
+    partial_kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = URL.create(
+        "postgresql+psycopg",
+        username="pgvector_compat",
+        password="decoded@password",  # pragma: allowlist secret
+        host="localhost",
+        port=5432,
+        database="pulseplate_alembic_timeout_test",
+    )
+    credentialed_url = database_url.render_as_string(hide_password=False)
+    stdout_text = f"partial stdout {credentialed_url} decoded%40password"
+    stderr_text = "partial stderr decoded@password"
+    captured_command: list[str] = []
+
+    def timed_out_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        captured_command.extend(command)
+        stdout: str | bytes = stdout_text if partial_kind == "str" else stdout_text.encode()
+        stderr: str | bytes = stderr_text if partial_kind == "str" else stderr_text.encode()
+        raise subprocess.TimeoutExpired(
+            command,
+            180,
+            output=stdout,
+            stderr=stderr,
+        )
+
+    monkeypatch.setattr(subprocess, "run", timed_out_run)
+
+    with pytest.raises(pytest.fail.Exception) as failure:
+        _run_alembic(database_url, "upgrade", "head")
+
+    message = str(failure.value)
+    assert captured_command[0] == sys.executable
+    assert "timed out after 180 seconds" in message
+    assert credentialed_url not in message
+    assert "decoded@password" not in message
+    assert "decoded%40password" not in message
+    assert "[REDACTED]" in message
+    assert _normalize_timeout_partial_output(None) == ""
 
 
 def test_database_failure_aggregation_preserves_primary_and_cleanup_errors() -> None:
