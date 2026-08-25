@@ -220,7 +220,8 @@ def _compat_paid_expires_at(
         return None
     if not is_legacy_manual_compat_row(created_at=created_at):
         return None
-    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    compat_expires_at: datetime = manual_monthly_entitlement_expires_at(activated_at=activated_at)
+    return compat_expires_at
 
 
 def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
@@ -476,6 +477,8 @@ def resolve_pro_auth_context(
     """Resolve PRO auth using header-first precedence, then cookie fallback."""
 
     request_obj = _as_request(request)
+    if x_api_key is None and request_obj is not None:
+        x_api_key = request_obj.headers.get(api_key_header.model.name)
     if x_api_key is not None:
         normalized_api_key = x_api_key.strip()
         if not normalized_api_key:
@@ -586,8 +589,8 @@ def require_pro_tier(
         str: Validated API key
 
     Raises:
-        HTTPException: 401 if API key is missing or invalid
-        HTTPException: 403 if API key tier is insufficient
+        HTTPException: 401 when no header and no valid session cookie exist
+        HTTPException: 403 when a presented header is empty, invalid, or below PRO tier
 
     Usage:
         @router.post("/pro/feature", dependencies=[Depends(require_pro_tier)])

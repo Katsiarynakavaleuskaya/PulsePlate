@@ -4,6 +4,7 @@ RU: Тесты для промежуточного ПО проверки уро�
 EN: Tests for API tier validation middleware.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -23,7 +24,6 @@ from app.middleware.api_tiers import (
     TEST_KEY_VIP,
     _validate_api_key_tier,
     derive_subject_id_from_api_key,
-    get_current_user,
     get_pro_subject_id,
     get_subscription_tier,
     require_valid_api_key,
@@ -909,14 +909,11 @@ class TestGetSubscriptionTier:
 class TestGetCurrentUser:
     """Test get_current_user dependency."""
 
-    @pytest.mark.asyncio
-    async def test_get_current_user_returns_derived_user(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_current_user_returns_derived_user(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_current_user returns CurrentUser with derived subject_id and api_key."""
         monkeypatch.setenv("APP_ENV", "local")
         monkeypatch.setenv("DEBUG", "true")
-        user = await get_current_user(api_key=TEST_KEY_PRO)
+        user = asyncio.run(api_tiers_mod.get_current_user(api_key=TEST_KEY_PRO))
         assert user.api_key == TEST_KEY_PRO
         assert user.user_id == derive_subject_id_from_api_key(TEST_KEY_PRO)
 
@@ -924,11 +921,10 @@ class TestGetCurrentUser:
 class TestGetProSubjectId:
     """Test get_pro_subject_id helper."""
 
-    @pytest.mark.asyncio
-    async def test_get_pro_subject_id_returns_current_user_id(self) -> None:
+    def test_get_pro_subject_id_returns_current_user_id(self) -> None:
         """Test helper returns subject ID from current user."""
         current_user = CurrentUser(user_id=123, api_key="test_key")
-        assert await get_pro_subject_id(current_user=current_user) == 123
+        assert asyncio.run(get_pro_subject_id(current_user=current_user)) == 123
 
 
 class TestDeriveSubjectIdFromApiKey:
