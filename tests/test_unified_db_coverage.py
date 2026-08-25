@@ -3,16 +3,35 @@
 Покрывает различные сценарии работы с unified_db
 """
 
+import asyncio
+from collections.abc import Callable, Coroutine
+from functools import wraps
 from pathlib import Path
+from typing import ParamSpec, TypeVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _sync_async_test(
+    test_function: Callable[_P, Coroutine[object, object, _T]],
+) -> Callable[_P, _T]:
+    """Run one coroutine test in its own function-scoped event loop."""
+
+    @wraps(test_function)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return asyncio.run(test_function(*args, **kwargs))
+
+    return wrapped
 
 
 class TestUnifiedDBCoverage:
     """Тесты для покрытия unified_db.py"""
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_error_handling_coverage(self):
         """Тест покрытия unified_db.py error handling при инициализации USDAClient"""
         # Патчим USDAClient, чтобы вызвать ошибку при инициализации
@@ -24,7 +43,7 @@ class TestUnifiedDBCoverage:
             with pytest.raises(Exception, match="Database connection failed"):
                 UnifiedFoodDatabase()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_cache_handling_coverage(
         self,
         tmp_path: Path,
@@ -90,7 +109,7 @@ class TestUnifiedDBCoverage:
                 if not close_attempted:
                     await close_owned(owned)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_data_processing_coverage(self):
         """Тест покрытия unified_db.py data processing - тестируем поиск продуктов"""
         # Патчим USDAClient для тестирования обработки данных
@@ -120,7 +139,7 @@ class TestUnifiedDBCoverage:
             assert results is not None
             assert len(results) >= 0  # Может быть пустой список
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_cleanup_coverage(self):
         """Тест покрытия unified_db.py cleanup - тестируем метод close"""
         # Патчим USDAClient для тестирования очистки
@@ -145,7 +164,7 @@ class TestUnifiedDBCoverage:
                 # DB API гарантирует, что close возвращает None
                 assert result is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_true(self, tmp_path):
         """Test search_food with save_cache=True creates/updates cache file."""
         import json
@@ -197,7 +216,7 @@ class TestUnifiedDBCoverage:
             assert "search_chicken" in cache_data
             assert "chicken" in cache_data["search_chicken"]["name"].lower()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_false(self, tmp_path):
         """Test search_food with save_cache=False doesn't create cache file."""
         with patch("core.food_apis.unified_db.USDAClient") as mock_usda:
@@ -236,7 +255,7 @@ class TestUnifiedDBCoverage:
             # Verify cache file was NOT created
             assert not cache_file.exists()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_default(self, tmp_path):
         """Test search_food without save_cache arg uses default (True)."""
         import json
@@ -276,7 +295,7 @@ class TestUnifiedDBCoverage:
                 cache_data = json.load(f)
             assert "search_broccoli" in cache_data
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_sequence(self, tmp_path):
         """Test save_cache behavior in sequences (True->False, False->True)."""
         import json
@@ -353,7 +372,7 @@ class TestUnifiedDBCoverage:
             # which persists the entire _memory_cache (including banana)
             assert "search_banana" in cache_final
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_save_cache_preserves_existing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

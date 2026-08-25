@@ -2,13 +2,32 @@
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
+import asyncio
 import os
 import tempfile
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
+from typing import ParamSpec, TypeVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _sync_async_test(
+    test_function: Callable[_P, Coroutine[object, object, _T]],
+) -> Callable[_P, _T]:
+    """Run one coroutine test in its own function-scoped event loop."""
+
+    @wraps(test_function)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return asyncio.run(test_function(*args, **kwargs))
+
+    return wrapped
 
 
 @pytest.fixture(autouse=True)
@@ -67,7 +86,7 @@ class TestUnifiedFoodDatabase:
             db2 = UnifiedFoodDatabase(cache_dir=temp_dir)
             assert "test" in db2._memory_cache
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     @patch("core.food_apis.unified_db.USDAClient")
     async def test_search_food_fallback(self, mock_usda_class):
         """Test food search with fallback."""
@@ -129,7 +148,7 @@ class TestDatabaseUpdateManager:
             manager2 = DatabaseUpdateManager(cache_dir=temp_dir)
             assert "test" in manager2.versions
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_check_for_updates_basic(self):
         """Test basic update checking."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -176,7 +195,7 @@ class TestDatabaseUpdateScheduler:
         assert scheduler.is_running is False
         assert scheduler._update_task is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_scheduler_start_stop(self):
         """Test starting and stopping scheduler."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -224,7 +243,7 @@ class TestModuleFunctions:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_unified_food_db(
         self,
         tmp_path: Path,
@@ -345,7 +364,7 @@ class TestModuleFunctions:
         assert result.records_added == 50
         assert result.duration_seconds == 45.5
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_source_update_success(self):
         """Test successful source update."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -374,7 +393,7 @@ class TestModuleFunctions:
         # Should reset retry count on success
         assert scheduler.retry_counts.get("test", 0) == 0
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_source_update_failure(self):
         """Test failed source update."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler

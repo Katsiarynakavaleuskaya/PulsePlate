@@ -7,12 +7,30 @@ import asyncio
 import json
 import os
 import tempfile
+from collections.abc import Callable, Coroutine
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
+from typing import ParamSpec, TypeVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
+def _sync_async_test(
+    test_function: Callable[_P, Coroutine[object, object, _T]],
+) -> Callable[_P, _T]:
+    """Run one coroutine test in its own function-scoped event loop."""
+
+    @wraps(test_function)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return asyncio.run(test_function(*args, **kwargs))
+
+    return wrapped
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +64,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
             scheduler._setup_signal_handlers()
             # Should log warning (we can't easily test logging, but at least it shouldn't crash)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_loop_cancelled_error(self):
         """Test update loop handling of CancelledError."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -70,7 +88,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
                 # Should not crash
                 await scheduler._update_loop()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_loop_general_exception(self):
         """Test update loop handling of general exceptions."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -104,7 +122,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
                 except asyncio.CancelledError:
                     pass
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_update_check_exception(self):
         """Test run_update_check handling of exceptions."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -117,7 +135,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         # Should not crash
         await scheduler._run_update_check()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_source_update_exception(self):
         """Test _run_source_update handling of exceptions."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -194,7 +212,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         # Should not crash
         scheduler._on_update_complete(failure_result)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_force_update_specific_source(self):
         """Test force_update with specific source."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -222,7 +240,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         assert "test_source" in results
         assert results["test_source"].success is True
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_force_update_all_sources(self):
         """Test force_update with all sources."""
         from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -296,7 +314,7 @@ class TestDatabaseUpdateSchedulerComprehensive:
         assert status["scheduler"]["is_running"] is False
         assert status["scheduler"]["retry_counts"]["test_source"] == 2
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_global_scheduler_functions(self):
         """Test global scheduler functions."""
         from core.food_apis.scheduler import (
@@ -338,7 +356,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_prefer_openfoodfacts(self):
         """Test search_food with prefer_source='openfoodfacts'."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -357,7 +375,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 results = await db.search_food("chicken", prefer_source="openfoodfacts")
                 assert isinstance(results, list)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_search_food_with_results(self):
         """Test search_food with actual results."""
         from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
@@ -388,7 +406,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 assert isinstance(results[0], UnifiedFoodItem)
                 assert results[0].name == "Chicken Breast"
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_food_by_id_invalid_usda_id(self):
         """Test get_food_by_id with invalid USDA ID."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -404,7 +422,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 result = await db.get_food_by_id("usda", "invalid_id")
                 assert result is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_food_by_id_usda_exception(self):
         """Test get_food_by_id with USDA client exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -425,7 +443,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                     # If an exception is raised, that's also acceptable behavior
                     assert True
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_food_by_id_non_usda_source(self):
         """Test get_food_by_id with non-USDA source."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -448,7 +466,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 result = await db.get_food_by_id("openfoodfacts", "12345")
                 assert result is None
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_common_foods_database_cache_load_exception(self):
         """Test get_common_foods_database with cache load exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -471,7 +489,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 foods_db = await db.get_common_foods_database()
                 assert isinstance(foods_db, dict)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_common_foods_database_cache_save_exception(self):
         """Test get_common_foods_database with cache save exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -497,7 +515,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                     foods_db = await db.get_common_foods_database()
                     assert isinstance(foods_db, dict)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_get_common_foods_database_search_exception(self):
         """Test get_common_foods_database with search exception."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
@@ -515,7 +533,7 @@ class TestUnifiedFoodDatabaseComprehensive:
                 foods_db = await db.get_common_foods_database()
                 assert isinstance(foods_db, dict)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_unified_db_global_functions(
         self,
         tmp_path: Path,
@@ -645,7 +663,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 # Should not crash
                 manager._save_versions()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_check_for_updates_usda_exception(self):
         """Test check_for_updates with USDA exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -699,7 +717,7 @@ class TestDatabaseUpdateManagerComprehensive:
             result = asyncio.run(manager._check_usda_updates())
             assert result is False
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_database_unknown_source(self):
         """Test update_database with unknown source."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -713,7 +731,7 @@ class TestDatabaseUpdateManagerComprehensive:
             assert result.source == "unknown_source"
             assert "Unknown source" in result.errors[0]
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_database_callback_exception(self):
         """Test update_database with callback exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
@@ -744,7 +762,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 result = await manager.update_database("usda")
                 assert result.success is True
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_usda_database_create_backup_exception(self):
         """Test _update_usda_database with backup creation exception."""
         from core.food_apis.update_manager import (
@@ -782,7 +800,7 @@ class TestDatabaseUpdateManagerComprehensive:
                     # The result might be success=False due to the error, but should not crash
                     assert isinstance(result, UpdateResult)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_usda_database_no_change(self):
         """Test _update_usda_database when no data change."""
         from core.food_apis.unified_db import UnifiedFoodItem
@@ -831,7 +849,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 # For no change, new_version should equal old_version
                 assert result.new_version == "1.0"  # Same version
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_usda_database_validation_errors(self):
         """Test _update_usda_database with validation errors."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -853,7 +871,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 assert result.success is False
                 assert len(result.errors) > 0
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_usda_database_load_backup_exception(self):
         """Test _update_usda_database with backup load exception."""
         from core.food_apis.update_manager import (
@@ -888,7 +906,7 @@ class TestDatabaseUpdateManagerComprehensive:
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_update_usda_database_exception(self):
         """Test _update_usda_database with general exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -1070,7 +1088,7 @@ class TestDatabaseUpdateManagerComprehensive:
             # Both should pass validation (no errors)
             assert len(errors) == 0, f"Unexpected validation errors: {errors}"
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_create_backup_exception(self):
         """Test _create_backup with exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -1087,7 +1105,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 # Should handle the exception
                 await manager._create_backup("usda", "1.0")
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_load_backup(self):
         """Test _load_backup method."""
         from core.food_apis.unified_db import UnifiedFoodItem
@@ -1120,7 +1138,7 @@ class TestDatabaseUpdateManagerComprehensive:
             assert "chicken" in foods
             assert isinstance(foods["chicken"], UnifiedFoodItem)
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_cleanup_old_backups_exception(self):
         """Test _cleanup_old_backups with exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -1151,7 +1169,7 @@ class TestDatabaseUpdateManagerComprehensive:
                 # Should handle the exception gracefully
                 await manager._cleanup_old_backups("usda")
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_rollback_database_exception(self):
         """Test rollback_database with exception."""
         from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
@@ -1220,7 +1238,7 @@ class TestDatabaseUpdateManagerComprehensive:
             assert db_status["checksum"] == "abc123de..."
             assert db_status["metadata"]["test"] == "data"
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_close(self):
         """Test close method."""
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -1237,7 +1255,7 @@ class TestDatabaseUpdateManagerComprehensive:
             manager.usda_client.close.assert_called_once()
             manager.unified_db.close.assert_called_once()
 
-    @pytest.mark.asyncio
+    @_sync_async_test
     async def test_run_scheduled_update(self):
         """Test run_scheduled_update convenience function."""
         from core.food_apis.update_manager import DatabaseUpdateManager, run_scheduled_update
