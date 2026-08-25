@@ -5,6 +5,7 @@ These tests focus on exercising the main functions to quickly improve coverage p
 import os
 import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -224,10 +225,15 @@ class TestModuleFunctions:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
-    async def test_get_unified_food_db(self) -> None:
+    async def test_get_unified_food_db(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test the get_unified_food_db function."""
         import core.food_apis.unified_db as unified_db_module
 
+        monkeypatch.chdir(tmp_path)
         with patch("core.food_apis.unified_db.USDAClient"):
             prior: unified_db_module.UnifiedFoodDatabase | None = (
                 unified_db_module._read_unified_db_instance()
@@ -237,23 +243,59 @@ class TestModuleFunctions:
             owned: unified_db_module.UnifiedFoodDatabase = (
                 await unified_db_module.get_unified_food_db()
             )
+            assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
+
+            foreign: unified_db_module.UnifiedFoodDatabase = (
+                unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
+            )
+            close_owned = AsyncMock(wraps=unified_db_module.close_unified_food_clients)
+            foreign_installed = False
+            close_attempted = False
             try:
                 assert unified_db_module._read_unified_db_instance() is owned
                 second = await unified_db_module.get_unified_food_db()
                 assert second is owned
-            finally:
-                cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
-                    owned,
-                    prior,
+
+                installed, installed_value = (
+                    unified_db_module._compare_exchange_unified_db_instance(
+                        owned,
+                        foreign,
+                    )
                 )
+                foreign_installed = installed
+                assert installed
+                assert installed_value is foreign
+                assert unified_db_module._read_unified_db_instance() is foreign
+
                 try:
-                    await unified_db_module.close_unified_food_clients(owned)
+                    cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                        owned,
+                        prior,
+                    )
+                    assert not cleared
+                    assert observed is foreign
+                    assert unified_db_module._read_unified_db_instance() is foreign
                 finally:
-                    final = unified_db_module._read_unified_db_instance()
-                    assert final is (prior if cleared else observed)
-                    assert cleared
-                    assert observed is prior
-                    assert final is prior
+                    close_attempted = True
+                    await close_owned(owned)
+
+                close_owned.assert_awaited_once_with(owned)
+                assert unified_db_module._read_unified_db_instance() is foreign
+            finally:
+                try:
+                    expected_current = foreign if foreign_installed else owned
+                    restored, restore_value = (
+                        unified_db_module._compare_exchange_unified_db_instance(
+                            expected_current,
+                            prior,
+                        )
+                    )
+                    assert restored
+                    assert restore_value is prior
+                    assert unified_db_module._read_unified_db_instance() is prior
+                finally:
+                    if not close_attempted:
+                        await close_owned(owned)
 
     def test_unified_food_item_conversion(self):
         """Test UnifiedFoodItem conversions."""

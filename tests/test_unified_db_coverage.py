@@ -4,7 +4,7 @@
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -25,33 +25,70 @@ class TestUnifiedDBCoverage:
                 UnifiedFoodDatabase()
 
     @pytest.mark.asyncio
-    async def test_unified_db_cache_handling_coverage(self) -> None:
+    async def test_unified_db_cache_handling_coverage(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Тест getter cache identity with exact test-owned cleanup."""
         import core.food_apis.unified_db as unified_db_module
 
+        monkeypatch.chdir(tmp_path)
         prior: unified_db_module.UnifiedFoodDatabase | None = (
             unified_db_module._read_unified_db_instance()
         )
         assert prior is None
 
         owned: unified_db_module.UnifiedFoodDatabase = await unified_db_module.get_unified_food_db()
+        assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
+
+        foreign: unified_db_module.UnifiedFoodDatabase = (
+            unified_db_module.UnifiedFoodDatabase.__new__(unified_db_module.UnifiedFoodDatabase)
+        )
+        close_owned = AsyncMock(wraps=unified_db_module.close_unified_food_clients)
+        foreign_installed = False
+        close_attempted = False
         try:
             assert unified_db_module._read_unified_db_instance() is owned
             second = await unified_db_module.get_unified_food_db()
             assert second is owned
-        finally:
-            cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+
+            installed, installed_value = unified_db_module._compare_exchange_unified_db_instance(
                 owned,
-                prior,
+                foreign,
             )
+            foreign_installed = installed
+            assert installed
+            assert installed_value is foreign
+            assert unified_db_module._read_unified_db_instance() is foreign
+
             try:
-                await unified_db_module.close_unified_food_clients(owned)
+                cleared, observed = unified_db_module._compare_exchange_unified_db_instance(
+                    owned,
+                    prior,
+                )
+                assert not cleared
+                assert observed is foreign
+                assert unified_db_module._read_unified_db_instance() is foreign
             finally:
-                final = unified_db_module._read_unified_db_instance()
-                assert final is (prior if cleared else observed)
-                assert cleared
-                assert observed is prior
-                assert final is prior
+                close_attempted = True
+                await close_owned(owned)
+
+            close_owned.assert_awaited_once_with(owned)
+            assert unified_db_module._read_unified_db_instance() is foreign
+        finally:
+            try:
+                expected_current = foreign if foreign_installed else owned
+                restored, restore_value = unified_db_module._compare_exchange_unified_db_instance(
+                    expected_current,
+                    prior,
+                )
+                assert restored
+                assert restore_value is prior
+                assert unified_db_module._read_unified_db_instance() is prior
+            finally:
+                if not close_attempted:
+                    await close_owned(owned)
 
     @pytest.mark.asyncio
     async def test_unified_db_data_processing_coverage(self):
