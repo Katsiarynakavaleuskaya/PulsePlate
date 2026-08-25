@@ -24,6 +24,7 @@ from app.security import production_invariants, rate_limit, web_session
 from scripts.ci.check_production_runtime_invariants import (
     _UNSAFE_FALSE_FLAG_OVERRIDES,
     _UNSAFE_TRUE_FLAG_OVERRIDES,
+    _safe_production_env,
     run_synthetic_production_checks,
 )
 from settings import is_explicit_developer_env, is_raw_explicit_developer_env
@@ -59,6 +60,13 @@ def _set_safe_production_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "0")
     monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "false")
     monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
+
+
+def test_synthetic_production_env_emits_expected_fixture_values() -> None:
+    env = _safe_production_env()
+
+    assert env["APPLE_SHARED_SECRET"] == "synthetic-apple-shared-secret"  # pragma: allowlist secret
+    assert env["EXPORT_TOKEN_SECRET"] == "synthetic-export-token-secret"  # pragma: allowlist secret
 
 
 def _set_rate_limit_ready(monkeypatch: pytest.MonkeyPatch) -> None:

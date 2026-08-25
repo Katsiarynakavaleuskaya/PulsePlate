@@ -691,12 +691,14 @@ def _agent_feedback(bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
         role = str(review["reviewer_role"])
         row = rows.setdefault(
             role,
-            {
-                "reviewer_role": role,
-                "pass_count": 0,
-                "revise_count": 0,
-                "reject_count": 0,
-            },
+            dict(
+                (
+                    ("reviewer_role", role),
+                    ("pass_count", 0),
+                    ("revise_count", 0),
+                    ("reject_count", 0),
+                )
+            ),
         )
         decision = str(review["decision"])
         if decision in decisions:

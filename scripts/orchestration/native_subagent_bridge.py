@@ -200,18 +200,21 @@ def build_native_subagent_bridge(
             agent_slug=agent_slug,
             role="advisory",
         )
+        dispatch_contract = dict(
+            (
+                *advisory_binding["dispatch_contract"].items(),
+                ("spawn_with_native_subagent", True),
+                ("advisory_only", False),
+                ("required_role_pass", True),
+                ("write_capability", "disabled_for_advisory_review"),
+            )
+        )
         advisory_bindings.append(
             {
                 **advisory_binding,
                 "native_agent_type": "explorer",
                 "execution_mode": "advisory_review",
-                "dispatch_contract": {
-                    **advisory_binding["dispatch_contract"],
-                    "spawn_with_native_subagent": True,
-                    "advisory_only": False,
-                    "required_role_pass": True,
-                    "write_capability": "disabled_for_advisory_review",
-                },
+                "dispatch_contract": dispatch_contract,
             }
         )
     return {
