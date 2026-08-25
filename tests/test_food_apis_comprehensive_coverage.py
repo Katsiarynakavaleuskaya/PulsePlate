@@ -561,6 +561,13 @@ class TestUnifiedFoodDatabaseComprehensive:
             )
             try:
                 assert owned.cache_dir.resolve() == tmp_path / "cache/food_db"
+                owned_usda_close = AsyncMock(wraps=owned.usda_client.close)
+                monkeypatch.setattr(owned.usda_client, "close", owned_usda_close)
+                owned_off_close: AsyncMock | None = None
+                if owned.off_client is not None:
+                    owned_off_close = AsyncMock(wraps=owned.off_client.close)
+                    monkeypatch.setattr(owned.off_client, "close", owned_off_close)
+
                 assert unified_db_module._read_unified_db_instance() is owned
                 second = await unified_db_module.get_unified_food_db()
                 assert second is owned
@@ -595,6 +602,9 @@ class TestUnifiedFoodDatabaseComprehensive:
                     await close_owned(owned)
 
                 close_owned.assert_awaited_once_with(owned)
+                owned_usda_close.assert_awaited_once_with()
+                if owned_off_close is not None:
+                    owned_off_close.assert_awaited_once_with()
                 assert unified_db_module._read_unified_db_instance() is foreign
             finally:
                 try:
