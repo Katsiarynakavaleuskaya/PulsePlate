@@ -201,6 +201,7 @@ class TestAutoRepairModule:
 
         result = suggest_manual_fixes(week_plan, targets)
         assert isinstance(result, list)
+        assert len(result) == 3
         assert {suggestion["nutrient"] for suggestion in result} == {
             "vitamin_c_mg",
             "folate_ug",
