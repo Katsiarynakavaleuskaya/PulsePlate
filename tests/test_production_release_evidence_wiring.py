@@ -204,7 +204,7 @@ def test_pr_and_main_fixture_path_is_not_used_on_production_tags() -> None:
         sort_keys=True,
     )
 
-    assert fixture_job["if"] == "github.ref == 'refs/heads/main'"
+    assert fixture_job["if"] == "github.event_name == 'push' && github.ref == 'refs/heads/main'"
     assert "release-control-plane-fixture" not in production_job_text
     assert "tests/fixtures" not in production_job_text
     assert "fixture_root" not in production_job_text

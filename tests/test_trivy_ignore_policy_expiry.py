@@ -1183,9 +1183,9 @@ def _write_expiry_wrapper_policy(repo_root: Path) -> None:
     (repo_root / ".trivyignore").write_text("", encoding="utf-8")
     lines = [
         "package trivy",
-        "# Suppression expires: 2026-10-07 (manual removal)",
+        "# Suppression expires: 2099-01-01 (manual removal)",
         "default ignore := false",
-        "# Review-by: 2026-08-24 (manual removal)",
+        "# Review-by: 2099-01-01 (manual removal)",
         "ignore if {",
         '\tinput.VulnerabilityID == "CVE-2026-27171"',
         '\tinput.PkgName == "zlib1g"',
