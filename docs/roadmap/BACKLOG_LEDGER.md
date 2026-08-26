@@ -7441,7 +7441,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> `codex/retire-legacy-planning-export-python-shims` -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7457,12 +7457,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR/gaps
     and migrating the repository-owned Web BMR consumer without deleting aliases.
     PR #2317 merged at `5a53fe8d0e0200866afe817f0f6073f5008b0f6a`, retiring the first
-    ten legacy admin/BMI direct-call Python bindings. PR #2322 is the current
-    bounded successor and removes only the second ten-name PRO nutrition cohort
-    while preserving canonical services and every HTTP, auth, OpenAPI, and
-    app-identity contract. Product Owner sequencing keeps
-    telemetry-admitted versioned-alias retirement, root-alias auth/sunset, and
-    final legacy deletion as separate later lanes.
+    ten legacy admin/BMI direct-call Python bindings. PR #2322 merged at
+    `d96314454935862bc2a694c1e594648c011081ba`, retiring only the second
+    ten-name PRO nutrition cohort. The current bounded child
+    `codex/retire-legacy-planning-export-python-shims` retires only the third
+    eleven-name planning/export cohort plus the exact synthetic
+    `legacy_app.routers.plan_export` namespace while preserving canonical
+    services and every HTTP, auth, signed-token, rate-limit, OpenAPI, and
+    app-identity contract. This parent stays open: telemetry-admitted HTTP alias
+    retirement, Insight retirement, root-alias auth/sunset, and final facade
+    deletion remain separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)

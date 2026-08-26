@@ -27,12 +27,12 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Two bounded direct-call retirements remove only
-the exact twenty `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Three bounded direct-call retirements remove
+only the exact 31 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
-consumer of the second ten-name cohort; it does not prove that no external or
-dynamic Python consumer exists.
+consumer of the second ten-name cohort or the third eleven-name cohort; it does
+not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -108,6 +108,29 @@ Plate/targets helper compatibility aliases, auth, routes, and OpenAPI remain
 unchanged. Unknown external direct imports of the retired names are an explicit
 residual compatibility risk.
 
+The following planning/export direct-call Python bindings are also retired from
+`legacy_app.py`: `analyze_nutrient_gaps`, `make_daily_menu`,
+`make_weekly_menu`, `repair_week_plan`, `make_plate`,
+`build_nutrition_targets`, `to_csv_day`, `to_pdf_day`, `to_csv_week`,
+`to_pdf_week`, and `WeeklyPlanFlexibleRequest`. Planning implementations remain
+owned by `core/menu_engine.py:114`, `core/menu_engine.py:179`,
+`core/menu_engine.py:562`, and `core/menu_engine.py:589`; Plate and target
+implementations remain owned by `core/plate.py:268` and
+`core/recommendations.py:39`. All four byte-returning export implementations
+remain owned by `core/exports.py:54`, `core/exports.py:104`,
+`core/exports.py:170`, and `core/exports.py:263`.
+`WeeklyPlanFlexibleRequest` is removed without substituting the distinct
+`LegacyWeekPlanRequest` or `WeeklyMenuResponse` contracts in
+`app/schemas/legacy_premium_weekly_plan.py:14` and
+`app/schemas/legacy_premium_weekly_plan.py:83`. The exact synthetic
+`legacy_app.routers.plan_export` namespace is retired separately from those
+eleven ordinary bindings; `app/routers/plan_export.py:61` and
+`app/routers/plan_export.py:62` remain the canonical module/router owners.
+These removals do not change the sign, weekly CSV, weekly PDF, or retained
+premium weekly-plan HTTP paths; their auth, signed-token, rate-limit, response,
+OpenAPI, and FastAPI-identity contracts remain unchanged. Unknown external
+direct imports remain an explicit residual compatibility risk.
+
 The former synchronous `legacy_app.start_background_updates` /
 `legacy_app.stop_background_updates` wrappers, their private scheduler bindings,
 the `app.scheduler_helpers` resolver module, and the implicit `app_module`
@@ -124,11 +147,13 @@ exact callable through the lazy, uncached access seam in
 `app`/`legacy_app` facade state or reads the module table. The service also owns
 legacy response normalization, while `app/routers/legacy_premium_weekly_plan.py`
 owns the hidden HTTP compatibility boundary. Public `app.make_weekly_menu` and
-`legacy_app.make_weekly_menu` symbols remain import compatibility only. Exact
-canonical-module absence retains the existing unavailable `503`; broken imports
-and unknown downstream errors are logged server-side and exposed only through
-the stable generic `500` envelope. Route auth, VIP/FitChef execution, OpenAPI,
-and application identity remain unchanged.
+`app.build_nutrition_targets` remain exact package compatibility exports; the
+`legacy_app.make_weekly_menu` and `legacy_app.build_nutrition_targets` bindings
+are retired and must not be recreated. Exact canonical-module absence retains
+the existing unavailable `503`; broken imports and unknown downstream errors
+are logged server-side and exposed only through the stable generic `500`
+envelope. Route auth, VIP/FitChef execution, OpenAPI, and application identity
+remain unchanged.
 
 Legacy matplotlib/base64 BMI rendering remains owned by
 `bmi_visualization.py`. `app/services/bmi_compat.py` is the sole runtime
@@ -177,12 +202,17 @@ registration. PR #2314 then merged at
 nutrient-gap routes and moving the repository-owned Web Nutrition Setup BMR
 consumer to the canonical namespace. The bounded
 PR #2317 removed only the first ten direct-call Python bindings enumerated
-above and added a closed, exact-name regression guard. The bounded
-`codex/retire-legacy-pro-nutrition-python-shims` successor removes only the
-second ten-name cohort and extends that exact-name set without changing the
-recognizer. All four versioned nutrition aliases and both root aliases remain
-callable; versioned-alias retirement, root-alias auth/sunset, and final legacy
-deletion remain separate ordered lanes behind their own evidence
+above and added a closed, exact-name regression guard. PR #2322 merged at
+`d96314454935862bc2a694c1e594648c011081ba`, removing only the second ten-name
+PRO nutrition cohort and extending that exact-name set without changing the
+recognizer. The bounded
+`codex/retire-legacy-planning-export-python-shims` successor removes only the
+third eleven-name planning/export cohort plus the exact synthetic
+`legacy_app.routers.plan_export` namespace, and extends the same exact-name set
+without changing the recognizer. All four versioned nutrition aliases and both
+root aliases remain callable; versioned-alias retirement, root-alias
+auth/sunset, Insight retirement, and final legacy deletion remain separate
+ordered lanes behind their own evidence
 (canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
 `app/routers/pro_nutrition_contracts.py:72`; bounded registrar evidence:
 `app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
@@ -225,6 +255,9 @@ Forbidden in `legacy_app.py`:
 | Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
 | Scheduler startup/shutdown | `app/bootstrap/lifespan.py` + `core/food_apis/scheduler.py` | Direct typed hooks only; no legacy sync wrappers, helper resolver, module-table lookup, or caller-frame precedence. |
 | Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
+| Planning direct-call runtime | `core/menu_engine.py` + `core/plate.py` + `core/recommendations.py` | Canonical implementations remain callable; the eleven-name planning/export cohort stays absent from `legacy_app.py`, while the finite `app` package facade retains only its reviewed exports. |
+| Export direct-call runtime | `core/exports.py` | All four byte-returning CSV/PDF implementations remain canonical; no `legacy_app.py` placeholders or aliases. |
+| Plan-export HTTP routes | `app/routers/plan_export.py` + `app/main.py` | Canonical routers retain exact endpoint, auth, signed-token, rate-limit, response, operation-identity, and public-OpenAPI behavior; no synthetic `legacy_app.routers.plan_export` namespace. |
 | Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
 | Legacy BMI routes and direct-call runtime | `app/routers/bmi_compat.py` + `app/services/bmi_compat.py` | HTTP routes remain unchanged; the three former `legacy_app.py` endpoint bindings are retired while schemas and visualization exports remain. |
 | Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership; legacy compatibility exports preserve exact class identity and wire shape. |
@@ -254,9 +287,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the twenty retired direct-call bindings, the guard has a deliberately bounded
+For the 31 retired direct-call bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact twenty-name set, uses the existing `_assigned_names`
+only. It freezes the exact 31-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -274,7 +307,10 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-twenty protected names, requires manual STOP and review.
+31 protected names, requires manual STOP and review. The existing router-import
+recognizer separately rejects reintroduction of the former exact dynamic
+`app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
+binding rule or certify arbitrary namespace mutation.
 
 The same guard now verifies application-metadata/OpenAPI ownership: extracted
 functions cannot be redefined or rebound in legacy, `app/main.py` must import
