@@ -4183,8 +4183,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `CVE-2026-14456` in `libcrypto3 3.5.7-r0` and `libssl3 3.5.7-r0`, both
     fixed by `3.5.8-r0`. The Caddy Go binary itself reported zero vulnerabilities.
     This carrier adds only the two fixed runtime floors to the existing
-    final-stage `apk add --no-cache` transaction and a bounded source-contract
-    regression test; source conformance is not exact-image admission evidence.
+    final-stage `apk add --no-cache` transaction and binds the complete current
+    final-stage recipe with a closed readable source snapshot; source
+    conformance is not exact-image admission evidence and makes no general
+    shell-semantic completeness claim.
   - Scope boundary: Caddy `2.11.4`, Go `1.26.6`, both pinned base digests, module
     parity, file capabilities, existing package floors, the empty Caddy ignore
     policy, and the suppression-free Trivy workflow remain unchanged. No
@@ -4198,13 +4200,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [`ledger-p1-caddy-attested-staging-digests`](#ledger-p1-caddy-attested-staging-digests)
     - [`ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456`](#ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456)
   - DoD:
-    - The existing final-stage `apk add --no-cache` transaction requires both
-      exact floors `libcrypto3>=3.5.8-r0` and `libssl3>=3.5.8-r0` while
-      preserving every existing package floor and hardened Caddy invariant
-    - Deterministic source tests reject absent, partial, lower, comment-only,
-      other-stage, other-`RUN`, broad-upgrade, later-mutation, and substitute
-      forms without weakening existing workflow, digest, empty-ignore, or Trivy
-      assertions
+    - A closed readable source snapshot binds the complete current final Caddy
+      stage, including both exact floors `libcrypto3>=3.5.8-r0` and
+      `libssl3>=3.5.8-r0`, every existing package floor, and every current
+      hardened Caddy instruction
+    - Deterministic source tests reject any byte drift in the current final-stage
+      recipe and cover representative lower, partial, substitute, before-floor,
+      and after-floor mutations without claiming to interpret arbitrary shell
+      semantics or weakening workflow, digest, empty-ignore, or Trivy assertions
     - A GitHub runner builds a new immutable linux/amd64 Caddy digest, verifies
       provenance and SPDX SBOM, proves the installed Alpine package identities,
       and completes a suppression-free Trivy v0.72 `vuln,secret` scan with zero
