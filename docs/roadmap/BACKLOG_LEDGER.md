@@ -4758,7 +4758,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef support-choice thin web consumer
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (planning continuity / bounded frontend activation)
-  - Target PR: PR-TBD (current E1-05B carrier `codex/e1-05b-fitchef-support-choice-consumer`)
+  - Target PR: PR #2337 (current E1-05B carrier `codex/e1-05b-fitchef-support-choice-consumer`)
   - Status: E1-05B implementation is merge-bound. No production counts, causal result, navigation, execution, or plan mutation is claimed before or by this carrier.
   - Reason (EN): The landed E1-05 descriptor needs one thin, explicit web consumer so a user can choose daily or weekly scope, submit that exact choice, inspect the backend-owned product-area pointer, and acknowledge it without opening a route or changing a plan. The carrier also defines a local-only measurement schema while leaving transport and product-value inference closed.
   - Links:
