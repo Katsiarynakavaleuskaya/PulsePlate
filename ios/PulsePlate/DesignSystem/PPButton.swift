@@ -55,6 +55,8 @@ struct PPButton: View {
     let fullWidth: Bool
     let isLoading: Bool
     let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var scaledTitleFontSize =
+        PPDesignTokens.Typography.sizeBase
 
     init(
         _ title: String,
@@ -81,7 +83,7 @@ struct PPButton: View {
                         .scaleEffect(0.8)
                 }
                 Text(title)
-                    .font(size.font)
+                    .font(.system(size: scaledTitleFontSize))
                     .fontWeight(.semibold)
             }
             .frame(maxWidth: fullWidth ? .infinity : nil)
