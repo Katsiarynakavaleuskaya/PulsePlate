@@ -46,25 +46,26 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
     @MainActor
     func testPPButtonRenderedMatrixScalesAtAccessibilityFiveWithoutBreakingBounds() throws {
         let compactWidth: CGFloat = 220
-        let sizes: [(name: String, value: PPButtonSize)] = [
-            ("sm", .sm),
-            ("md", .md),
-            ("lg", .lg),
-        ]
-        let variants: [(name: String, value: PPButtonVariant)] = [
-            ("primary", .primary),
-            ("secondary", .secondary),
-            ("ghost", .ghost),
-        ]
-        let labels: [(locale: String, title: String)] = [
-            ("en", "Confirm direction"),
-            ("ru", "Подтвердить направление"),
-            ("es", "Confirmar orientación"),
-        ]
 
-        for sizeCase in sizes {
-            for variantCase in variants {
-                for label in labels {
+        for sizeCase in buttonSizes {
+            for variantCase in buttonVariants {
+                let shortControl = try renderedButtonSize(
+                    title: "OK",
+                    localeIdentifier: "en",
+                    variant: variantCase.value,
+                    size: sizeCase.value,
+                    isLoading: false,
+                    dynamicTypeSize: .accessibility5,
+                    proposedWidth: compactWidth
+                )
+                assertRenderedButtonBounds(
+                    shortControl,
+                    size: sizeCase.value,
+                    proposedWidth: compactWidth,
+                    caseName: "\(sizeCase.name)/\(variantCase.name)/short-control"
+                )
+
+                for label in longLabels {
                     let caseName =
                         "\(sizeCase.name)/\(variantCase.name)/\(label.locale)"
                     let large = try renderedButtonSize(
@@ -103,6 +104,11 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
                         large.height,
                         "Expected Dynamic Type height growth for \(caseName)"
                     )
+                    XCTAssertGreaterThan(
+                        accessibility.height,
+                        shortControl.height,
+                        "Expected multiline long-label growth for \(caseName)"
+                    )
                 }
             }
         }
@@ -111,49 +117,50 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
     @MainActor
     func testPPButtonLoadingRenderPreservesAccessibleBoundsAcrossFiniteMatrix() throws {
         let compactWidth: CGFloat = 220
-        let cases: [(
-            name: String,
-            title: String,
-            locale: String,
-            variant: PPButtonVariant,
-            size: PPButtonSize
-        )] = [
-            ("sm/primary/en", "Confirm direction", "en", .primary, .sm),
-            ("md/secondary/ru", "Подтвердить направление", "ru", .secondary, .md),
-            ("lg/ghost/es", "Confirmar orientación", "es", .ghost, .lg),
-        ]
 
-        for testCase in cases {
-            let idle = try renderedButtonSize(
-                title: testCase.title,
-                localeIdentifier: testCase.locale,
-                variant: testCase.variant,
-                size: testCase.size,
-                isLoading: false,
-                dynamicTypeSize: .accessibility5,
-                proposedWidth: compactWidth
-            )
-            let loading = try renderedButtonSize(
-                title: testCase.title,
-                localeIdentifier: testCase.locale,
-                variant: testCase.variant,
-                size: testCase.size,
-                isLoading: true,
-                dynamicTypeSize: .accessibility5,
-                proposedWidth: compactWidth
-            )
+        for sizeCase in buttonSizes {
+            for variantCase in buttonVariants {
+                for label in longLabels {
+                    let caseName =
+                        "\(sizeCase.name)/\(variantCase.name)/\(label.locale)"
+                    let idle = try renderedButtonSize(
+                        title: label.title,
+                        localeIdentifier: label.locale,
+                        variant: variantCase.value,
+                        size: sizeCase.value,
+                        isLoading: false,
+                        dynamicTypeSize: .accessibility5,
+                        proposedWidth: compactWidth
+                    )
+                    let loading = try renderedButtonSize(
+                        title: label.title,
+                        localeIdentifier: label.locale,
+                        variant: variantCase.value,
+                        size: sizeCase.value,
+                        isLoading: true,
+                        dynamicTypeSize: .accessibility5,
+                        proposedWidth: compactWidth
+                    )
 
-            assertRenderedButtonBounds(
-                loading,
-                size: testCase.size,
-                proposedWidth: compactWidth,
-                caseName: "\(testCase.name)/loading"
-            )
-            XCTAssertGreaterThanOrEqual(
-                loading.height,
-                idle.height,
-                "Loading state must not reduce accessible height for \(testCase.name)"
-            )
+                    assertRenderedButtonBounds(
+                        idle,
+                        size: sizeCase.value,
+                        proposedWidth: compactWidth,
+                        caseName: "\(caseName)/idle"
+                    )
+                    assertRenderedButtonBounds(
+                        loading,
+                        size: sizeCase.value,
+                        proposedWidth: compactWidth,
+                        caseName: "\(caseName)/loading"
+                    )
+                    XCTAssertGreaterThanOrEqual(
+                        loading.height,
+                        idle.height,
+                        "Loading state must not reduce accessible height for \(caseName)"
+                    )
+                }
+            }
         }
     }
 
@@ -228,7 +235,6 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         )
         .environment(\.locale, Locale(identifier: localeIdentifier))
         .dynamicTypeSize(dynamicTypeSize)
-        .frame(width: proposedWidth)
 
         let renderer = ImageRenderer(content: content)
         renderer.scale = 1
@@ -263,6 +269,30 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    private var buttonSizes: [(name: String, value: PPButtonSize)] {
+        [
+            ("sm", .sm),
+            ("md", .md),
+            ("lg", .lg),
+        ]
+    }
+
+    private var buttonVariants: [(name: String, value: PPButtonVariant)] {
+        [
+            ("primary", .primary),
+            ("secondary", .secondary),
+            ("ghost", .ghost),
+        ]
+    }
+
+    private var longLabels: [(locale: String, title: String)] {
+        [
+            ("en", "Confirm direction"),
+            ("ru", "Подтвердить направление"),
+            ("es", "Confirmar orientación"),
+        ]
     }
 
     private func designSystemSource(named fileName: String) throws -> String {
