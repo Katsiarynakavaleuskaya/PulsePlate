@@ -51,3 +51,8 @@
 !nutrition_core.py
 !signed_links.py
 !bodyfat.py
+
+# Exclude local Python bytecode after the runtime allowlist has been reopened.
+**/__pycache__/
+**/*.pyc
+**/*.pyo
