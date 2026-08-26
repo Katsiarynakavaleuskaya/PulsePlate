@@ -2,11 +2,17 @@
 Ультимативные интеграционные тесты для VIP endpoints для достижения 97% покрытия
 """
 
-import pytest
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+from tests._helpers.vip_contracts import (
+    assert_json_response_payload,
+    build_auto_repair_weekly_request_payload,
+    build_weekly_recipes_request_payload,
+)
 
 
 @pytest.mark.slow
@@ -405,192 +411,37 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_integration_ultimate_scenarios(self, test_environment, vip_headers):
+    def test_vip_auto_repair_integration_ultimate_scenarios(
+        self,
+        test_environment: None,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Ультимативные интеграционные тесты VIP auto repair endpoint"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест 1: Проблемный week_plan с множественными проблемами
-        problems_scenarios = [
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "monday",
-                            "meals": [
-                                {
-                                    "meal_type": "breakfast",
-                                    "ingredients": [
-                                        {"name": "chicken", "amount": 100, "unit": "g"}
-                                    ],
-                                    "nutrition_gaps": ["protein", "vitamin_c", "fiber"],
-                                },
-                                {
-                                    "meal_type": "lunch",
-                                    "ingredients": [{"name": "rice", "amount": 150, "unit": "g"}],
-                                    "nutrition_gaps": ["vitamin_a", "calcium"],
-                                },
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "add_supplements": True,
-                    "adjust_portions": True,
-                    "suggest_alternatives": True,
-                    "balance_macros": True,
-                    "add_micronutrients": True,
-                },
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "tuesday",
-                            "meals": [
-                                {
-                                    "meal_type": "dinner",
-                                    "ingredients": [{"name": "beef", "amount": 150, "unit": "g"}],
-                                    "nutrition_gaps": ["iron", "zinc"],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "add_supplements": True,
-                    "adjust_portions": False,
-                    "suggest_alternatives": True,
-                },
-            },
-        ]
-
-        for scenario in problems_scenarios:
+        for day, ingredient_name in (
+            ("Monday", "chicken"),
+            ("Tuesday", "beef"),
+            ("Wednesday", "fish"),
+            ("Thursday", "salmon"),
+            ("Friday", "quinoa"),
+            ("Saturday", "spinach"),
+        ):
+            scenario = build_auto_repair_weekly_request_payload()
+            scenario["week_plan"]["days"][0]["day"] = day
+            scenario["week_plan"]["days"][0]["meals"][0]["ingredients"][0]["name"] = ingredient_name
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=scenario,
                 headers=vip_headers,
             )
             assert response.status_code == 200
-            data = response.json()
-            assert data["status"] in ["success", "error"]
-
-        # Тест 2: Простой проблемный week_plan
-        simple_problems_scenarios = [
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "monday",
-                            "meals": [
-                                {
-                                    "meal_type": "breakfast",
-                                    "ingredients": [
-                                        {"name": "chicken", "amount": 100, "unit": "g"}
-                                    ],
-                                    "nutrition_gaps": ["protein"],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "add_supplements": True,
-                },
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "tuesday",
-                            "meals": [
-                                {
-                                    "meal_type": "lunch",
-                                    "ingredients": [{"name": "fish", "amount": 120, "unit": "g"}],
-                                    "nutrition_gaps": ["omega_3"],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "adjust_portions": True,
-                },
-            },
-        ]
-
-        for scenario in simple_problems_scenarios:
-            response = client.post(
-                "/api/v1/vip/auto-repair/weekly",
-                json=scenario,
-                headers=vip_headers,
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] in ["success", "error"]
-
-        # Тест 3: Week_plan без проблем
-        no_problems_scenarios = [
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "monday",
-                            "meals": [
-                                {
-                                    "meal_type": "breakfast",
-                                    "ingredients": [
-                                        {"name": "chicken", "amount": 100, "unit": "g"},
-                                        {"name": "rice", "amount": 150, "unit": "g"},
-                                        {"name": "broccoli", "amount": 100, "unit": "g"},
-                                    ],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "add_supplements": False,
-                    "adjust_portions": False,
-                    "suggest_alternatives": False,
-                },
-            },
-            {
-                "week_plan": {
-                    "days": [
-                        {
-                            "day": "tuesday",
-                            "meals": [
-                                {
-                                    "meal_type": "lunch",
-                                    "ingredients": [
-                                        {"name": "salmon", "amount": 120, "unit": "g"},
-                                        {"name": "quinoa", "amount": 100, "unit": "g"},
-                                        {"name": "spinach", "amount": 150, "unit": "g"},
-                                    ],
-                                }
-                            ],
-                        }
-                    ],
-                },
-                "repair_options": {
-                    "add_supplements": False,
-                    "adjust_portions": False,
-                    "suggest_alternatives": False,
-                },
-            },
-        ]
-
-        for scenario in no_problems_scenarios:
-            response = client.post(
-                "/api/v1/vip/auto-repair/weekly",
-                json=scenario,
-                headers=vip_headers,
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] in ["success", "error"]
+            data = assert_json_response_payload(response)
+            assert data["status"] == "success"
+            assert data["repair_result"]["status"] == "success"
+            assert data["echo"] == scenario
 
     def test_vip_shoplist_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты VIP shoplist endpoint"""
@@ -930,8 +781,10 @@ class TestVIPIntegration97Ultimate:
         assert response.status_code == 200
 
     def test_vip_comprehensive_workflow_integration_ultimate_scenarios(
-        self, test_environment, vip_headers
-    ):
+        self,
+        test_environment: None,
+        vip_headers: dict[str, str],
+    ) -> None:
         """Ультимативные интеграционные тесты полного workflow VIP функций"""
         import app
 
@@ -956,22 +809,22 @@ class TestVIPIntegration97Ultimate:
         menu_data = menu_response.json()
         assert menu_data["status"] == "success"
 
-        # 2. Генерация рецептов (если endpoint существует)
-        if "menu" in menu_data and menu_data["menu"] != {"mode": "echo"}:
-            recipes_payload = {"week_plan": menu_data.get("menu", {})}
+        # 2. Генерация рецептов по canonical strict request contract
+        recipes_payload = build_weekly_recipes_request_payload()
+        recipes_response = client.post(
+            "/api/v1/vip/recipes/weekly",
+            json=recipes_payload,
+            headers=vip_headers,
+        )
+        assert recipes_response.status_code == 200
+        recipes_data = assert_json_response_payload(recipes_response)
+        assert recipes_data["status"] == "success"
+        assert recipes_data["weekly_recipes"]
+        assert recipes_data["total_recipes"] == 1
+        assert recipes_data["echo"] == recipes_payload
 
-            recipes_response = client.post(
-                "/api/v1/vip/recipes/weekly",
-                json=recipes_payload,
-                headers=vip_headers,
-            )
-            assert recipes_response.status_code == 200
-
-        # 3. Авто-ремонт плана (если endpoint существует)
-        repair_payload = {
-            "week_plan": menu_data.get("menu", {}),
-            "repair_options": {"add_supplements": True},
-        }
+        # 3. Авто-ремонт плана по canonical strict request contract
+        repair_payload = build_auto_repair_weekly_request_payload()
 
         repair_response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -979,6 +832,10 @@ class TestVIPIntegration97Ultimate:
             headers=vip_headers,
         )
         assert repair_response.status_code == 200
+        repair_data = assert_json_response_payload(repair_response)
+        assert repair_data["status"] == "success"
+        assert repair_data["repair_result"]["status"] == "success"
+        assert repair_data["echo"] == repair_payload
 
         # 4. Генерация списка покупок (если endpoint существует)
         shoplist_payload = {
