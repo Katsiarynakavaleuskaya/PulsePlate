@@ -68,6 +68,12 @@ interface SupportChoiceCardViewProps {
   onDismiss: () => void;
 }
 
+interface SubmittedSupportLifecycle {
+  supportNeed: FitChefSupportNeed;
+  targetSurface?: FitChefSupportTargetSurface;
+  terminated: boolean;
+}
+
 const INTRO_COPY =
   'Choose whether you want a pointer for today or for the week. FitChef uses only the option you select; it does not inspect or create a plan.';
 
@@ -136,14 +142,6 @@ function classifyError(
     return 'feature_unavailable';
   }
   return 'network_error';
-}
-
-function targetSurfaceFromState(
-  state: SupportChoiceViewState
-): FitChefSupportTargetSurface | undefined {
-  return state.status === 'success' || state.status === 'confirmed'
-    ? state.result.action.target_surface
-    : undefined;
 }
 
 export function SupportChoiceCardView({
@@ -292,6 +290,7 @@ export function SupportChoiceCard({
   const viewedRef = useRef(false);
   const confirmationRecordedRef = useRef(false);
   const submittedAuthStateRef = useRef<'authenticated'>('authenticated');
+  const submittedLifecycleRef = useRef<SubmittedSupportLifecycle | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -308,6 +307,7 @@ export function SupportChoiceCard({
       requestSequenceRef.current += 1;
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
+      submittedLifecycleRef.current = null;
     };
   }, []);
 
@@ -325,20 +325,25 @@ export function SupportChoiceCard({
     abortControllerRef.current = null;
   }
 
-  function trackExit(
-    outcome: FitChefSupportExitOutcome,
-    sourceState: SupportChoiceViewState
-  ): void {
-    const targetSurface = targetSurfaceFromState(sourceState);
+  function terminateSubmittedLifecycle(outcome: FitChefSupportExitOutcome): boolean {
+    const lifecycle = submittedLifecycleRef.current;
+    if (lifecycle === null || lifecycle.terminated) {
+      return false;
+    }
+
+    lifecycle.terminated = true;
     trackFitChefSupportChoiceEvent({
       name: 'fitchef_support_handoff_exited',
       payload: {
         ...BASE_EVENT_PAYLOAD,
         outcome,
-        ...(sourceState.selectedNeed === null ? {} : { supportNeed: sourceState.selectedNeed }),
-        ...(targetSurface === undefined ? {} : { targetSurface }),
+        supportNeed: lifecycle.supportNeed,
+        ...(lifecycle.targetSurface === undefined
+          ? {}
+          : { targetSurface: lifecycle.targetSurface }),
       },
     });
+    return true;
   }
 
   function selectSupportNeed(supportNeed: FitChefSupportNeed): void {
@@ -347,9 +352,10 @@ export function SupportChoiceCard({
     }
 
     if (state.status === 'pending' || state.status === 'success' || state.status === 'confirmed') {
-      trackExit('changed_selection', state);
+      terminateSubmittedLifecycle('changed_selection');
     }
     stopCurrentRequest();
+    submittedLifecycleRef.current = null;
     confirmationRecordedRef.current = false;
     setState({
       status: 'ready',
@@ -377,6 +383,10 @@ export function SupportChoiceCard({
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
     confirmationRecordedRef.current = false;
+    submittedLifecycleRef.current = {
+      supportNeed: submittedNeed,
+      terminated: false,
+    };
 
     trackFitChefSupportChoiceEvent({
       name: 'fitchef_support_need_selected',
@@ -407,6 +417,14 @@ export function SupportChoiceCard({
       }
 
       abortControllerRef.current = null;
+      const lifecycle = submittedLifecycleRef.current;
+      if (
+        lifecycle !== null &&
+        !lifecycle.terminated &&
+        lifecycle.supportNeed === submittedNeed
+      ) {
+        lifecycle.targetSurface = result.action.target_surface;
+      }
       setState({
         status: 'success',
         selectedNeed: submittedNeed,
@@ -441,7 +459,7 @@ export function SupportChoiceCard({
         errorCategory,
       };
       setState(errorState);
-      trackExit(errorCategory, errorState);
+      terminateSubmittedLifecycle(errorCategory);
     }
   }
 
@@ -466,7 +484,8 @@ export function SupportChoiceCard({
   function dismissSupportChoice(): void {
     stopCurrentRequest();
     confirmationRecordedRef.current = false;
-    trackExit('dismissed', state);
+    terminateSubmittedLifecycle('dismissed');
+    submittedLifecycleRef.current = null;
     setState({
       status: 'dismissed',
       selectedNeed: null,

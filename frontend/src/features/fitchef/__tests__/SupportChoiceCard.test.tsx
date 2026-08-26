@@ -230,6 +230,26 @@ describe('SupportChoiceCard', () => {
     expect(within(screen.getByTestId('fitchef-support-choice')).queryAllByRole('link')).toEqual([]);
   });
 
+  it.each(['idle', 'ready'] as const)(
+    'dismisses from %s without emitting an exit before accepted submit',
+    async (startingState) => {
+      const requester = vi.fn();
+      const user = userEvent.setup();
+      renderCard(requester);
+      if (startingState === 'ready') {
+        await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+      }
+
+      await user.click(screen.getByRole('button', { name: 'Not now' }));
+
+      expect(screen.getByText('Next-step pointer dismissed')).toBeVisible();
+      expect(requester).not.toHaveBeenCalled();
+      expect(
+        events.filter((event) => event.name === 'fitchef_support_handoff_exited')
+      ).toHaveLength(0);
+    }
+  );
+
   it.each([401, 403] as const)(
     'keeps a stale authenticated HTTP %s failure inline without redirecting',
     async (status) => {
@@ -304,6 +324,45 @@ describe('SupportChoiceCard', () => {
       )
     ).toHaveLength(1);
     expect(events.some((event) => event.name === 'fitchef_support_handoff_received')).toBe(false);
+  });
+
+  it('dismisses a pending submitted lifecycle once and aborts the request', async () => {
+    const pending = deferred<FitChefSupportHandoffResponse>();
+    const requester = vi.fn().mockReturnValue(pending.promise);
+    const user = userEvent.setup();
+    renderCard(requester);
+
+    await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+    await user.click(screen.getByRole('button', { name: 'Show my next step' }));
+    const signal = requester.mock.calls[0]?.[1]?.signal as AbortSignal;
+    const dismiss = screen.getByRole('button', { name: 'Not now' });
+    let reenteredDismiss = false;
+    setFitChefSupportChoiceEventSink((event) => {
+      events.push(event);
+      if (
+        event.name === 'fitchef_support_handoff_exited' &&
+        event.payload.outcome === 'dismissed' &&
+        !reenteredDismiss
+      ) {
+        reenteredDismiss = true;
+        fireEvent.click(dismiss);
+      }
+    });
+
+    fireEvent.click(dismiss);
+
+    expect(signal.aborted).toBe(true);
+    expect(screen.getByText('Next-step pointer dismissed')).toBeVisible();
+    expect(events.filter((event) => event.name === 'fitchef_support_handoff_exited')).toEqual([
+      {
+        name: 'fitchef_support_handoff_exited',
+        payload: {
+          ...BASE_EVENT_PAYLOAD,
+          outcome: 'dismissed',
+          supportNeed: 'daily_structure',
+        },
+      },
+    ]);
   });
 
   it('aborts on unmount and keeps AbortError silent', async () => {
@@ -408,6 +467,38 @@ describe('SupportChoiceCard', () => {
     }
   );
 
+  it.each(['selection change', 'dismiss'] as const)(
+    'keeps one failure exit when error is followed by %s',
+    async (followUp) => {
+      const requester = vi.fn().mockRejectedValue(new ApiHttpError(500));
+      const user = userEvent.setup();
+      renderCard(requester);
+
+      await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+      await user.click(screen.getByRole('button', { name: 'Show my next step' }));
+      await screen.findByText(/FitChef could not load a next-step pointer right now/);
+
+      if (followUp === 'selection change') {
+        await user.click(screen.getByRole('radio', { name: /Help me structure my week/i }));
+        expect(screen.getByRole('button', { name: 'Show my next step' })).toBeEnabled();
+      } else {
+        await user.click(screen.getByRole('button', { name: 'Not now' }));
+        expect(screen.getByText('Next-step pointer dismissed')).toBeVisible();
+      }
+
+      expect(events.filter((event) => event.name === 'fitchef_support_handoff_exited')).toEqual([
+        {
+          name: 'fitchef_support_handoff_exited',
+          payload: {
+            ...BASE_EVENT_PAYLOAD,
+            outcome: 'network_error',
+            supportNeed: 'daily_structure',
+          },
+        },
+      ]);
+    }
+  );
+
   it('uses the submit-time auth snapshot and records confirmation exactly once', async () => {
     const pending = deferred<FitChefSupportHandoffResponse>();
     const requester = vi.fn().mockReturnValue(pending.promise);
@@ -471,6 +562,31 @@ describe('SupportChoiceCard', () => {
     expect(screen.getByRole('button', { name: 'Show my next step' })).toBeEnabled();
   });
 
+  it('dismisses a confirmed submitted lifecycle once with its validated target', async () => {
+    const requester = vi.fn().mockResolvedValue(validResponse('weekly_structure'));
+    const user = userEvent.setup();
+    renderCard(requester);
+
+    await user.click(screen.getByRole('radio', { name: /Help me structure my week/i }));
+    await user.click(screen.getByRole('button', { name: 'Show my next step' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'I understand this next step' })
+    );
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+
+    expect(events.filter((event) => event.name === 'fitchef_support_handoff_exited')).toEqual([
+      {
+        name: 'fitchef_support_handoff_exited',
+        payload: {
+          ...BASE_EVENT_PAYLOAD,
+          outcome: 'dismissed',
+          supportNeed: 'weekly_structure',
+          targetSurface: 'pro_weekly_plan',
+        },
+      },
+    ]);
+  });
+
   it('dismisses explicitly, resets the local flow, and creates no interactive target', async () => {
     const storageSpy = vi.spyOn(Storage.prototype, 'setItem');
     const requester = vi.fn().mockResolvedValue(validResponse());
@@ -488,19 +604,17 @@ describe('SupportChoiceCard', () => {
     expect(screen.getByText('Next-step pointer dismissed')).toBeVisible();
     screen.getAllByRole('radio').forEach((radio) => expect(radio).not.toBeChecked());
     expect(storageSpy).not.toHaveBeenCalled();
-    expect(events).toEqual(
-      expect.arrayContaining([
-        {
-          name: 'fitchef_support_handoff_exited',
-          payload: {
-            ...BASE_EVENT_PAYLOAD,
-            outcome: 'dismissed',
-            supportNeed: 'daily_structure',
-            targetSurface: 'pro_daily_plate',
-          },
+    expect(events.filter((event) => event.name === 'fitchef_support_handoff_exited')).toEqual([
+      {
+        name: 'fitchef_support_handoff_exited',
+        payload: {
+          ...BASE_EVENT_PAYLOAD,
+          outcome: 'dismissed',
+          supportNeed: 'daily_structure',
+          targetSurface: 'pro_daily_plate',
         },
-      ])
-    );
+      },
+    ]);
   });
 
   it('passes targeted axe checks in the complete success state', async () => {
@@ -595,13 +709,6 @@ describe('FitChef support choice local event contract', () => {
           ...BASE_EVENT_PAYLOAD,
           outcome: 'changed_selection',
           supportNeed: 'weekly_structure',
-        },
-      },
-      {
-        name: 'fitchef_support_handoff_exited',
-        payload: {
-          ...BASE_EVENT_PAYLOAD,
-          outcome: 'dismissed',
         },
       },
       {
@@ -760,6 +867,10 @@ describe('FitChef support choice local event contract', () => {
       {
         name: 'fitchef_support_handoff_exited',
         payload: { ...BASE_EVENT_PAYLOAD, outcome: 'unknown_outcome' },
+      },
+      {
+        name: 'fitchef_support_handoff_exited',
+        payload: { ...BASE_EVENT_PAYLOAD, outcome: 'dismissed' },
       },
       {
         name: 'fitchef_support_handoff_exited',

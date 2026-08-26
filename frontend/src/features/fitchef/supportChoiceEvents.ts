@@ -51,7 +51,7 @@ export type FitChefSupportChoiceEvent =
       name: 'fitchef_support_handoff_exited';
       payload: FitChefSupportChoiceEventBase & {
         outcome: FitChefSupportExitOutcome;
-        supportNeed?: FitChefSupportNeed;
+        supportNeed: FitChefSupportNeed;
         targetSurface?: FitChefSupportTargetSurface;
       };
     };
@@ -61,8 +61,7 @@ type FitChefSupportChoiceEventSink = (event: FitChefSupportChoiceEvent) => void;
 const BASE_KEYS = ['surface', 'componentId', 'routePath'] as const;
 const SELECTED_KEYS = [...BASE_KEYS, 'supportNeed', 'authState'] as const;
 const RECEIVED_KEYS = [...BASE_KEYS, 'supportNeed', 'targetSurface', 'authState'] as const;
-const EXIT_KEYS = [...BASE_KEYS, 'outcome'] as const;
-const EXIT_NEED_KEYS = [...EXIT_KEYS, 'supportNeed'] as const;
+const EXIT_NEED_KEYS = [...BASE_KEYS, 'outcome', 'supportNeed'] as const;
 const EXIT_RESULT_KEYS = [...EXIT_NEED_KEYS, 'targetSurface'] as const;
 
 let fitChefSupportChoiceEventSink: FitChefSupportChoiceEventSink | null = null;
@@ -222,30 +221,22 @@ function recognizeFitChefSupportChoiceEvent(candidate: unknown): FitChefSupportC
     return null;
   }
 
-  const hasBaseExit = hasExactOwnEnumerableKeys(payload, EXIT_KEYS);
   const hasNeedExit = hasExactOwnEnumerableKeys(payload, EXIT_NEED_KEYS);
   const hasResultExit = hasExactOwnEnumerableKeys(payload, EXIT_RESULT_KEYS);
   if (
-    (!hasBaseExit && !hasNeedExit && !hasResultExit) ||
+    (!hasNeedExit && !hasResultExit) ||
     !isBasePayload(payload) ||
-    !isExitOutcome(payload.outcome)
+    !isExitOutcome(payload.outcome) ||
+    !isSupportNeed(payload.supportNeed)
   ) {
     return null;
   }
 
-  let supportNeed: FitChefSupportNeed | undefined;
   let targetSurface: FitChefSupportTargetSurface | undefined;
-  if (hasNeedExit || hasResultExit) {
-    if (!isSupportNeed(payload.supportNeed)) {
-      return null;
-    }
-    supportNeed = payload.supportNeed;
-  }
   if (hasResultExit) {
     if (
-      supportNeed === undefined ||
       !isTargetSurface(payload.targetSurface) ||
-      !isCompatiblePair(supportNeed, payload.targetSurface)
+      !isCompatiblePair(payload.supportNeed, payload.targetSurface)
     ) {
       return null;
     }
@@ -259,7 +250,7 @@ function recognizeFitChefSupportChoiceEvent(candidate: unknown): FitChefSupportC
       componentId: 'fitchef-support-choice',
       routePath: '/app',
       outcome: payload.outcome,
-      ...(supportNeed === undefined ? {} : { supportNeed }),
+      supportNeed: payload.supportNeed,
       ...(targetSurface === undefined ? {} : { targetSurface }),
     },
   };

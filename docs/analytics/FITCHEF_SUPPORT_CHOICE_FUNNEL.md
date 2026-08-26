@@ -40,10 +40,10 @@ Implementation anchors:
 | Event | Emission point | Required event-specific fields |
 | --- | --- | --- |
 | `fitchef_support_choice_viewed` | Once per mounted component instance | Base fields only |
-| `fitchef_support_need_selected` | Immediately before an accepted explicit submit | `supportNeed`, submit-time `authState` |
-| `fitchef_support_handoff_received` | Latest request only, after complete response validation | `supportNeed`, `targetSurface`, submit-time `authState` |
-| `fitchef_support_handoff_confirmed` | First acknowledgement of the current validated descriptor | `supportNeed`, `targetSurface`, submit-time `authState` |
-| `fitchef_support_handoff_exited` | Explicit dismiss, active selection change, or a classified request failure | closed `outcome`; only already-known `supportNeed` and `targetSurface` |
+| `fitchef_support_need_selected` | Immediately before an accepted explicit submit | `supportNeed`, submit-time `authState=authenticated` |
+| `fitchef_support_handoff_received` | Latest request only, after complete response validation | `supportNeed`, `targetSurface`, submit-time `authState=authenticated` |
+| `fitchef_support_handoff_confirmed` | First acknowledgement of the current validated descriptor | `supportNeed`, `targetSurface`, submit-time `authState=authenticated` |
+| `fitchef_support_handoff_exited` | At most once after an accepted submit, when its unterminated lifecycle is dismissed, its selection changes, or a classified request failure occurs | closed `outcome`, required `supportNeed`, and `targetSurface` only after validated receipt |
 
 Every payload also requires exactly:
 
@@ -59,6 +59,16 @@ The closed exit outcomes are:
 - `auth_error`
 - `feature_unavailable`
 - `validation_error`
+
+An accepted submit starts one lifecycle at `fitchef_support_need_selected`.
+Idle or ready dismissal occurs before that boundary and emits no exit. Each
+accepted submit may emit zero or one terminal exit: the first classified
+failure, active selection change, or eligible dismissal terminates it before
+the event reaches the sink. A failure is already terminal, so selection change
+or dismissal after an error emits no second exit. Pending, successful, and
+confirmed lifecycles remain eligible for one dismiss exit while unterminated.
+Every exit therefore carries the submitted `supportNeed`; a base-only exit is
+invalid.
 
 Unknown names, keys, values, incompatible need/surface pairs, and extra or
 sensitive fields are rejected before the local sink. Sink failures never alter
@@ -84,10 +94,13 @@ inputs are unavailable today:
 selection_rate = fitchef_support_need_selected / fitchef_support_choice_viewed
 delivery_rate = fitchef_support_handoff_received / fitchef_support_need_selected
 confirmation_rate = fitchef_support_handoff_confirmed / fitchef_support_handoff_received
-failure_mix(outcome) = fitchef_support_handoff_exited{outcome} / fitchef_support_need_selected
+terminal_exit_rate = fitchef_support_handoff_exited / fitchef_support_need_selected
+terminal_outcome_mix(outcome) = fitchef_support_handoff_exited{outcome} / fitchef_support_handoff_exited
 ```
 
-No denominator is inferred when it is zero or unavailable. A future transport
+`terminal_exit_rate` is bounded to `[0, 1]` by the one-terminal-exit invariant;
+the outcome mix uses only the same six closed literals above. No denominator is
+inferred when it is zero or unavailable. A future transport
 must add consent, retention, aggregation, replay/deduplication, monitoring, and
 causal-analysis contracts in its own reviewed carrier before any product-value
 claim is allowed.
