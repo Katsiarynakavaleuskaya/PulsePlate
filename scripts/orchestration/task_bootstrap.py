@@ -659,23 +659,22 @@ def _normalize_pr_phase(pr_phase: str) -> str:
 def _provider_no_claim_policy() -> dict[str, Any]:
     """Return the closed provider-neutral no-claim policy."""
 
-    return dict(
-        (
-            ("output_required", False),
-            ("seal_without_provider_flags", True),
-            ("provider_invocation_required", False),
-            ("provider_retry_required", False),
-            ("provider_wait_required", False),
-            ("substitute_provider_required", False),
-            ("operator_override_required", False),
-            ("ttl_required", False),
-            ("absence_is_pass", False),
-            ("absence_is_review", False),
-            ("absence_is_scan", False),
-            ("absence_is_approval", False),
-            ("absence_is_no_findings", False),
-        )
-    )
+    provider_absence_claim = False
+    return {
+        "output_required": False,
+        "seal_without_provider_flags": True,
+        "provider_invocation_required": False,
+        "provider_retry_required": False,
+        "provider_wait_required": False,
+        "substitute_provider_required": False,
+        "operator_override_required": False,
+        "ttl_required": False,
+        "absence_is_pass": provider_absence_claim,
+        "absence_is_review": False,
+        "absence_is_scan": False,
+        "absence_is_approval": False,
+        "absence_is_no_findings": False,
+    }
 
 
 def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:

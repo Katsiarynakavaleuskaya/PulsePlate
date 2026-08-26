@@ -908,22 +908,21 @@ def _normalize_reviewed_run(raw_run: Any, *, label: str) -> dict[str, Any]:
 
 
 def _normalize_attachment_coverage(raw_counts: Any, *, label: str) -> dict[str, int]:
+    review_count_limit = 15
     counts = _normalize_counts(
         raw_counts,
         expected_keys=ATTACHMENT_COVERAGE_KEYS,
         label=label,
-        maxima=dict(
-            (
-                ("variant_count", 5),
-                ("required_reviewer_count", len(REQUIRED_SKEPTIC_REVIEWERS)),
-                ("review_count", 15),
-                ("pass_review_count", 15),
-                ("revise_review_count", 15),
-                ("reject_review_count", 15),
-                ("unsafe_authority_flag_count", MAX_TOTAL_REVIEW_TOKEN_COUNT),
-                ("blocker_count", MAX_TOTAL_REVIEW_TOKEN_COUNT),
-            )
-        ),
+        maxima={
+            "variant_count": 5,
+            "required_reviewer_count": len(REQUIRED_SKEPTIC_REVIEWERS),
+            "review_count": review_count_limit,
+            "pass_review_count": review_count_limit,
+            "revise_review_count": review_count_limit,
+            "reject_review_count": review_count_limit,
+            "unsafe_authority_flag_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
+            "blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
+        },
         minima={
             "variant_count": 1,
             "review_count": 1,

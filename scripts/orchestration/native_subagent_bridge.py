@@ -194,21 +194,20 @@ def build_native_subagent_bridge(
 
     validate_native_subagent_bridge_profiles()
     normalized_advisory_agents = advisory_agents or []
+    required_role_execution = True
     advisory_bindings: list[dict[str, Any]] = []
     for agent_slug in normalized_advisory_agents:
         advisory_binding = build_native_subagent_binding(
             agent_slug=agent_slug,
             role="advisory",
         )
-        dispatch_contract = dict(
-            (
-                *advisory_binding["dispatch_contract"].items(),
-                ("spawn_with_native_subagent", True),
-                ("advisory_only", False),
-                ("required_role_pass", True),
-                ("write_capability", "disabled_for_advisory_review"),
-            )
-        )
+        dispatch_contract = {
+            **advisory_binding["dispatch_contract"],
+            "spawn_with_native_subagent": True,
+            "advisory_only": False,
+            "required_role_pass": required_role_execution,
+            "write_capability": "disabled_for_advisory_review",
+        }
         advisory_bindings.append(
             {
                 **advisory_binding,

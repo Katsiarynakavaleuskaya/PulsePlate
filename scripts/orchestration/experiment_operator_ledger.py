@@ -1620,6 +1620,7 @@ def build_operator_observability_report(
         repo_root=effective_root,
         manual_smoke_operations=manual_smoke_operations,
     )
+    redaction_value_stored = False
     return {
         "authority_boundary": {
             "claimed_merge_readiness": False,
@@ -1661,20 +1662,18 @@ def build_operator_observability_report(
         "private_pilot_activation_summary": list(latest_activation_projection["summary"]),
         "private_pilot_manual_smoke_operations": manual_smoke_operations,
         "redaction_version": REDACTION_VERSION,
-        "redaction_summary": dict(
-            (
-                ("approval_digests_stored", False),
-                ("health_data_stored", False),
-                ("local_paths_stored", False),
-                ("patch_text_stored", False),
-                ("provider_logs_stored", False),
-                ("raw_branch_refs_stored", False),
-                ("raw_hypotheses_stored", False),
-                ("raw_slack_text_stored", False),
-                ("slack_ids_stored", False),
-                ("token_prefixes_stored", False),
-            )
-        ),
+        "redaction_summary": {
+            "approval_digests_stored": False,
+            "health_data_stored": False,
+            "local_paths_stored": False,
+            "patch_text_stored": False,
+            "provider_logs_stored": False,
+            "raw_branch_refs_stored": False,
+            "raw_hypotheses_stored": False,
+            "raw_slack_text_stored": False,
+            "slack_ids_stored": False,
+            "token_prefixes_stored": redaction_value_stored,
+        },
         "report_scope": "local_operator_plane_only",
         "result_artifacts": result_artifacts,
         "schema_version": SCHEMA_VERSION,
