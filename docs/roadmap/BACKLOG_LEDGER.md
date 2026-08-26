@@ -4719,7 +4719,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     for the already-landed PRO Distortion Simulator lane. Future PRs that close
     ledger items should still update this ledger in the same PR or same/next-day
     follow-up.
-  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and remains merge-bound until its current implementation PR merges.
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and landed via PR #2320.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/cbt/cognitive_restructuring.md`
@@ -4734,12 +4734,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-fitchef-support-handoff"></a>
-- [ ] P1: FitChef deterministic PRO support handoff
+- [x] P1: FitChef deterministic PRO support handoff
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (bounded PRO contract / planning continuity)
-  - Target PR: PR #2320 (current E1-05 implementation PR)
-  - Status: Implementation is in progress on the current E1-05 lane and is not merged. Runtime and contract completion remain merge-bound; business utility is unmeasured and not admitted.
-  - Reason (EN): E1-05 adds one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
+  - Target PR: PR #2320 (`feat(fitchef): add deterministic PRO support handoff`)
+  - Status: Landed on 2026-08-25 at 2026-08-25T13:55:28Z with merge commit `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. Business utility remains unmeasured and not admitted; merge proves no client navigation, execution, or plan mutation.
+  - Reason (EN): E1-05 added one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
@@ -4752,6 +4752,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Business utility remains unmeasured and not admitted; no activation, retention, conversion, revenue, or LTV outcome is claimed by implementation or merge
     - Any future web/iOS thin-client consumer or measurement contract requires a separate explicit authorization and must not infer navigation, success, or value from this descriptor alone
     - Persisted weekly-plan adaptation, canonical principal/plan identity, a positive semantic verifier, N2/N3 work, and VIP week-repair remain separate unauthorized lanes and are not opened by E1-05
+
+
+<a id="ledger-p1-fitchef-support-choice-consumer"></a>
+- [ ] P1: FitChef support-choice thin web consumer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (planning continuity / bounded frontend activation)
+  - Target PR: PR-TBD (current E1-05B carrier `codex/e1-05b-fitchef-support-choice-consumer`)
+  - Status: E1-05B implementation is merge-bound. No production counts, causal result, navigation, execution, or plan mutation is claimed before or by this carrier.
+  - Reason (EN): The landed E1-05 descriptor needs one thin, explicit web consumer so a user can choose daily or weekly scope, submit that exact choice, inspect the backend-owned product-area pointer, and acknowledge it without opening a route or changing a plan. The carrier also defines a local-only measurement schema while leaving transport and product-value inference closed.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/FITCHEF_SUPPORT_CHOICE_FUNNEL.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
+  - DoD:
+    - The adapter derives request/response types from generated OpenAPI, uses the shared cookie-session client exactly once, and validates the complete frozen response with no fallback, target repair, or response-body parsing in UI
+    - `/app` renders exactly one two-option support-choice card after the planning preview and before the tier-value rail; selection alone sends nothing, submit is explicit, and unknown auth blocks submit
+    - Latest-request, abort, stale-response, unmount, retry, acknowledgement, and dismiss states are deterministic; displayed targets are non-interactive product-area labels and no route, setting, storage, or plan action is invoked
+    - Local events use exactly the five names and six exit outcomes in `FITCHEF_SUPPORT_CHOICE_FUNNEL.md`, reject extra/sensitive fields, and keep `transport=none`, `production_counts=unavailable`, and `causal_status=not_assessed`
+    - Focused client/adapter/component tests cover valid and fail-closed branches, targeted accessibility has zero violations, Storybook covers the frozen states without live backend access, and generated OpenAPI artifacts remain unchanged
+    - Business utility remains explicitly unmeasured after implementation; terminal merge and post-merge outcome evidence are recorded through the next governed evidence carrier rather than inferred from local events
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>

@@ -2,6 +2,7 @@
 import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from 'vitest';
 import bmrFixture from '../../../public/mock/bmr.json';
 import type { BmrApiResponse, BmrRequest } from '../premium/bmr';
+import type { ApiHttpError as ApiHttpErrorInstance } from '../client';
 
 // Mock auth storage functions
 const testStorage = {
@@ -225,6 +226,44 @@ describe('API Client Auth', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(onAuthError).toHaveBeenCalledTimes(status === 403 ? 1 : 0);
     });
+
+    it('preserves the legacy ordinary Error and response-body message by default', async () => {
+      const { api, ApiHttpError } = await import('../client');
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ detail: 'legacy response detail' }, { ok: false, status: 500 })
+      );
+
+      const error = await api('/test-endpoint').catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(ApiHttpError);
+      expect((error as Error).message).toBe(
+        'API /test-endpoint failed: HTTP 500\nResponse body: {"detail":"legacy response detail"}'
+      );
+    });
+
+    it.each([422, 503, 500])(
+      'returns a structured ApiHttpError for non-auth HTTP %s without exposing the body',
+      async (status) => {
+        const { api, ApiHttpError } = await import('../client');
+        fetchMock.mockResolvedValueOnce(
+          createMockResponse(
+            { detail: 'raw backend detail must stay at the HTTP boundary' },
+            { ok: false, status }
+          )
+        );
+
+        const error = await api('/test-endpoint', undefined, {
+          structuredHttpErrors: true,
+        }).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ApiHttpError);
+        expect(error).toMatchObject({ status });
+        expect((error as Error).message).toBe(`API request failed with HTTP ${status}.`);
+        expect((error as Error).message).not.toContain('raw backend detail');
+        expectTypeOf<ApiHttpErrorInstance['status']>().toEqualTypeOf<number>();
+      }
+    );
 
     it('propagates malformed JSON without requesting a fixture', async () => {
       const { api } = await import('../client');
