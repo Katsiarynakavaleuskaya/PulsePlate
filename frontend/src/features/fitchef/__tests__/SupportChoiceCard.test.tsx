@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -159,6 +161,124 @@ describe('SupportChoiceCard', () => {
       'fitchef_support_handoff_received',
     ]);
   });
+
+  it('rejects selected-sink reentrant submit with admission set before controller creation', async () => {
+    const pending = deferred<FitChefSupportHandoffResponse>();
+    const requester = vi.fn().mockReturnValue(pending.promise);
+    const user = userEvent.setup();
+    renderCard(requester);
+
+    await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+    const submit = screen.getByRole('button', { name: 'Show my next step' });
+    let reenteredSelected = false;
+    setFitChefSupportChoiceEventSink((event) => {
+      events.push(event);
+      if (event.name === 'fitchef_support_need_selected' && !reenteredSelected) {
+        reenteredSelected = true;
+        fireEvent.click(submit);
+      }
+    });
+
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(requester).toHaveBeenCalledTimes(1));
+    expect(
+      events.filter((event) => event.name === 'fitchef_support_need_selected')
+    ).toHaveLength(1);
+    const admittedSignal = requester.mock.calls[0]?.[1]?.signal as AbortSignal;
+    expect(admittedSignal.aborted).toBe(false);
+    expect(screen.getByRole('button', { name: 'Loading next step…' })).toBeDisabled();
+  });
+
+  it.each(['dismiss', 'selection change'] as const)(
+    'honors a synchronous selected-sink %s without calling the requester',
+    async (reentrantAction) => {
+      const requester = vi.fn();
+      const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
+      const user = userEvent.setup();
+      renderCard(requester);
+
+      await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+      const submit = screen.getByRole('button', { name: 'Show my next step' });
+      const dismiss = screen.getByRole('button', { name: 'Not now' });
+      const weekly = screen.getByRole('radio', { name: /Help me structure my week/i });
+      setFitChefSupportChoiceEventSink((event) => {
+        events.push(event);
+        if (event.name === 'fitchef_support_need_selected') {
+          fireEvent.click(reentrantAction === 'dismiss' ? dismiss : weekly);
+        }
+      });
+
+      fireEvent.click(submit);
+
+      expect(requester).not.toHaveBeenCalled();
+      expect(abortSpy).toHaveBeenCalledTimes(1);
+      expect(
+        events.filter((event) => event.name === 'fitchef_support_need_selected')
+      ).toHaveLength(1);
+      expect(events.filter((event) => event.name === 'fitchef_support_handoff_exited')).toEqual([
+        {
+          name: 'fitchef_support_handoff_exited',
+          payload: {
+            ...BASE_EVENT_PAYLOAD,
+            outcome: reentrantAction === 'dismiss' ? 'dismissed' : 'changed_selection',
+            supportNeed: 'daily_structure',
+          },
+        },
+      ]);
+      expect(screen.queryByRole('button', { name: 'Loading next step…' })).not.toBeInTheDocument();
+      if (reentrantAction === 'dismiss') {
+        expect(screen.getByText('Next-step pointer dismissed')).toBeVisible();
+      } else {
+        expect(weekly).toBeChecked();
+        expect(screen.getByRole('button', { name: 'Show my next step' })).toBeEnabled();
+      }
+    }
+  );
+
+  it.each(['received', 'failure'] as const)(
+    'keeps %s-sink submit reentrancy inside the admitted callback boundary',
+    async (terminalCallback) => {
+      const requester =
+        terminalCallback === 'received'
+          ? vi.fn().mockResolvedValue(validResponse())
+          : vi.fn().mockRejectedValue(new ApiHttpError(500));
+      const user = userEvent.setup();
+      renderCard(requester);
+
+      await user.click(screen.getByRole('radio', { name: /Help me structure today/i }));
+      const submit = screen.getByRole('button', { name: 'Show my next step' });
+      let reenteredTerminalCallback = false;
+      setFitChefSupportChoiceEventSink((event) => {
+        events.push(event);
+        const isTargetCallback =
+          (terminalCallback === 'received' &&
+            event.name === 'fitchef_support_handoff_received') ||
+          (terminalCallback === 'failure' &&
+            event.name === 'fitchef_support_handoff_exited' &&
+            event.payload.outcome === 'network_error');
+        if (isTargetCallback && !reenteredTerminalCallback) {
+          reenteredTerminalCallback = true;
+          fireEvent.click(submit);
+        }
+      });
+
+      fireEvent.click(submit);
+
+      if (terminalCallback === 'received') {
+        await screen.findByTestId('fitchef-support-result-copy');
+      } else {
+        await screen.findByText(/FitChef could not load a next-step pointer right now/);
+      }
+      expect(reenteredTerminalCallback).toBe(true);
+      expect(requester).toHaveBeenCalledTimes(1);
+      expect(
+        events.filter((event) => event.name === 'fitchef_support_need_selected')
+      ).toHaveLength(1);
+      const admittedSignal = requester.mock.calls[0]?.[1]?.signal as AbortSignal;
+      expect(admittedSignal.aborted).toBe(false);
+    }
+  );
 
   it('keeps the requester-supplied auth callback inline and inert', async () => {
     const authCallbackInvoked = vi.fn();
@@ -669,6 +789,22 @@ describe('FitChef support choice local event contract', () => {
       'fitchef_support_handoff_confirmed',
       'fitchef_support_handoff_exited',
     ]);
+  });
+
+  it('keeps accepted submits per view classified as an unbounded frequency', () => {
+    const funnel = readFileSync(
+      resolve(process.cwd(), '../docs/analytics/FITCHEF_SUPPORT_CHOICE_FUNNEL.md'),
+      'utf8'
+    );
+
+    expect(funnel).toContain(
+      'accepted_submits_per_view = fitchef_support_need_selected / fitchef_support_choice_viewed'
+    );
+    expect(funnel).not.toContain('selection_rate =');
+    expect(funnel).toMatch(/frequency, not a probability or bounded rate,[\s\S]*may exceed `1`/);
+    expect(funnel).toContain(
+      'terminal_exit_rate = fitchef_support_handoff_exited / fitchef_support_need_selected'
+    );
   });
 
   it('accepts each event-specific schema and rejects unknown, extra, and sensitive fields', () => {

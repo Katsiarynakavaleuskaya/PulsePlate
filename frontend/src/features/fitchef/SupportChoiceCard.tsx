@@ -291,6 +291,7 @@ export function SupportChoiceCard({
   const confirmationRecordedRef = useRef(false);
   const submittedAuthStateRef = useRef<'authenticated'>('authenticated');
   const submittedLifecycleRef = useRef<SubmittedSupportLifecycle | null>(null);
+  const submitAdmissionRef = useRef<number | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -308,6 +309,7 @@ export function SupportChoiceCard({
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       submittedLifecycleRef.current = null;
+      submitAdmissionRef.current = null;
     };
   }, []);
 
@@ -323,6 +325,13 @@ export function SupportChoiceCard({
     requestSequenceRef.current += 1;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    submitAdmissionRef.current = null;
+  }
+
+  function releaseSubmitAdmission(requestSequence: number): void {
+    if (submitAdmissionRef.current === requestSequence) {
+      submitAdmissionRef.current = null;
+    }
   }
 
   function terminateSubmittedLifecycle(outcome: FitChefSupportExitOutcome): boolean {
@@ -351,9 +360,7 @@ export function SupportChoiceCard({
       return;
     }
 
-    if (state.status === 'pending' || state.status === 'success' || state.status === 'confirmed') {
-      terminateSubmittedLifecycle('changed_selection');
-    }
+    terminateSubmittedLifecycle('changed_selection');
     stopCurrentRequest();
     submittedLifecycleRef.current = null;
     confirmationRecordedRef.current = false;
@@ -369,18 +376,20 @@ export function SupportChoiceCard({
     if (
       state.selectedNeed === null ||
       authState !== 'authenticated' ||
-      (state.status !== 'ready' && state.status !== 'error')
+      (state.status !== 'ready' && state.status !== 'error') ||
+      submitAdmissionRef.current !== null
     ) {
       return;
     }
 
     const submittedNeed = state.selectedNeed;
     const submittedAuthState = authState;
+    const requestSequence = requestSequenceRef.current + 1;
+    submitAdmissionRef.current = requestSequence;
     submittedAuthStateRef.current = submittedAuthState;
     const controller = new AbortController();
     abortControllerRef.current?.abort();
     abortControllerRef.current = controller;
-    const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
     confirmationRecordedRef.current = false;
     submittedLifecycleRef.current = {
@@ -396,6 +405,15 @@ export function SupportChoiceCard({
         authState: submittedAuthState,
       },
     });
+    if (
+      !mountedRef.current ||
+      controller.signal.aborted ||
+      requestSequence !== requestSequenceRef.current ||
+      submitAdmissionRef.current !== requestSequence
+    ) {
+      releaseSubmitAdmission(requestSequence);
+      return;
+    }
     setState({
       status: 'pending',
       selectedNeed: submittedNeed,
@@ -413,6 +431,7 @@ export function SupportChoiceCard({
         controller.signal.aborted ||
         requestSequence !== requestSequenceRef.current
       ) {
+        releaseSubmitAdmission(requestSequence);
         return;
       }
 
@@ -440,6 +459,7 @@ export function SupportChoiceCard({
           authState: submittedAuthState,
         },
       });
+      releaseSubmitAdmission(requestSequence);
     } catch (error) {
       if (
         !mountedRef.current ||
@@ -447,6 +467,7 @@ export function SupportChoiceCard({
         requestSequence !== requestSequenceRef.current ||
         isAbortError(error)
       ) {
+        releaseSubmitAdmission(requestSequence);
         return;
       }
 
@@ -460,6 +481,7 @@ export function SupportChoiceCard({
       };
       setState(errorState);
       terminateSubmittedLifecycle(errorCategory);
+      releaseSubmitAdmission(requestSequence);
     }
   }
 

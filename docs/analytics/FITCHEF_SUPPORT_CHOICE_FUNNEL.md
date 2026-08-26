@@ -91,16 +91,19 @@ These formulas are definitions for a separately admitted transport. Their
 inputs are unavailable today:
 
 ```text
-selection_rate = fitchef_support_need_selected / fitchef_support_choice_viewed
+accepted_submits_per_view = fitchef_support_need_selected / fitchef_support_choice_viewed
 delivery_rate = fitchef_support_handoff_received / fitchef_support_need_selected
 confirmation_rate = fitchef_support_handoff_confirmed / fitchef_support_handoff_received
 terminal_exit_rate = fitchef_support_handoff_exited / fitchef_support_need_selected
 terminal_outcome_mix(outcome) = fitchef_support_handoff_exited{outcome} / fitchef_support_handoff_exited
 ```
 
-`terminal_exit_rate` is bounded to `[0, 1]` by the one-terminal-exit invariant;
-the outcome mix uses only the same six closed literals above. No denominator is
-inferred when it is zero or unavailable. A future transport
+`accepted_submits_per_view` is a frequency, not a probability or bounded rate,
+and may exceed `1` when one mounted view contains multiple accepted submits.
+Each accepted submit still emits exactly one selected event and remains the
+denominator for the one-terminal-exit invariant. `terminal_exit_rate` is
+bounded to `[0, 1]`; the outcome mix uses only the same six closed literals
+above. No denominator is inferred when it is zero or unavailable. A future transport
 must add consent, retention, aggregation, replay/deduplication, monitoring, and
 causal-analysis contracts in its own reviewed carrier before any product-value
 claim is allowed.
