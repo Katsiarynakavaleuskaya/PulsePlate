@@ -4169,7 +4169,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remediate CVE-2026-14456 in the staged Caddy Alpine image
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1 (exact-main recovery / staging image integrity)
-  - Target PR: PR-TBD-CADDY-ALPINE-CVE-2026-14456-REMEDIATION
+  - Target PR: [PR #2338](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2338)
+    (`codex/fix-caddy-openssl-cve-2026-14456`)
   - Status: In progress; the bounded repository/image prerequisite is being fixed.
     Exact-image post-fix proof is still pending, and main recovery remains HOLD while
     the approved Python proxy is unstable.
