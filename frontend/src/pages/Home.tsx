@@ -10,6 +10,7 @@ import {
   type PlanningIntentId,
   type PlanningTimeId,
 } from '../features/guidedPlanning/planningPreview';
+import { SupportChoiceCard } from '../features/fitchef/SupportChoiceCard';
 import { useAuth } from '../lib/auth';
 import { trackGuidedPlanningEvent, type GuidedPlanningEventPayload } from '../lib/mvpObservability';
 import { useSettings } from '../lib/settings';
@@ -497,6 +498,8 @@ export default function Home(): JSX.Element {
                 </div>
               </CardContent>
             </Card>
+
+            <SupportChoiceCard authState={authState} />
 
             <section className="grid gap-3" data-testid="tier-value-rail" aria-label="FREE PRO VIP value ladder">
               <ValueRailCard

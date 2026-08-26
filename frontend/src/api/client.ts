@@ -64,6 +64,22 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/**
+ * Structured error for non-auth HTTP failures returned by api().
+ *
+ * Keep only the status code at this boundary. Feature adapters must not parse
+ * or surface arbitrary response bodies in order to classify a failure.
+ */
+export class ApiHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`API request failed with HTTP ${status}.`);
+    this.name = 'ApiHttpError';
+    this.status = status;
+  }
+}
+
 // Get API base from injected dependencies (computed dynamically)
 export const getApiBase = () => getDependencies().apiBase;
 
@@ -436,6 +452,7 @@ function mergeHeaders(init?: RequestInit, forceJson?: boolean): Headers {
 
 export type ApiOptions = {
   onAuthError?: (code: 401 | 403, helpers: { clearApiKey: () => void }) => void;
+  structuredHttpErrors?: boolean;
 };
 
 export type ApiRequestInit = Omit<RequestInit, "body"> & {
@@ -517,6 +534,10 @@ export async function api<T = unknown>(
         logError(new UnauthorizedError(`Session invalid or expired (${res.status}).`));
         // Throw specific UnauthorizedError so callers can detect auth errors
         throw new UnauthorizedError(`Session invalid or expired (${res.status}).`);
+      }
+
+      if (options?.structuredHttpErrors) {
+        throw new ApiHttpError(res.status);
       }
 
       const errorBody = await res.text().catch(() => "<response body unavailable>");

@@ -6,7 +6,7 @@
 
 - [Canonical entrypoint](#canonical-entrypoint)
 - [Routing map](#routing-map-source-of-truth)
-- [FitChef support handoff](#fitchef-support-handoff-pr-2320-merge-bound)
+- [FitChef support handoff](#fitchef-support-handoff-pr-2320-landed)
 - [OpenAPI generation mode](#openapi-generation-mode-current)
 
 ## Containers / Modules (high level)
@@ -34,13 +34,15 @@
 
 See: `docs/architecture/backend_routing_map.md` (evidence-driven router registration map).
 
-## FitChef support handoff (PR #2320 merge-bound)
+## FitChef support handoff (PR #2320 landed)
 
-PR #2320 contains a dedicated PRO descriptor-only handoff route and exact
-bootstrap registrar. It is not public-main, deployed, or value evidence until
-merge and post-merge verification complete. See the
-[canonical FitChef support-handoff routing subsection](backend_routing_map.md#canonical-fitchef-support-handoff-pr-2320-merge-bound)
-for its backend ownership, guard order, OpenAPI, and no-execution boundaries.
+PR #2320 landed the dedicated PRO descriptor-only handoff route and exact
+bootstrap registrar on 2026-08-25 at
+`f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. This is repository runtime and
+OpenAPI truth, not deployment or value evidence; utility remains unmeasured and
+the descriptor grants no navigation, execution, or plan-mutation authority. See
+the [canonical FitChef support-handoff routing subsection](backend_routing_map.md#canonical-fitchef-support-handoff-pr-2320-landed)
+for backend ownership, guard order, OpenAPI, and no-execution boundaries.
 
 ## Architecture diagram (Mermaid)
 

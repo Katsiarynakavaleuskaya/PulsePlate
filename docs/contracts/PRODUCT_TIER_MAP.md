@@ -130,10 +130,10 @@
 | Функция | Endpoint | Статус | Требует tier | Canonical reference |
 | --- | --- | --- | --- | --- |
 | FitChef explain | `/api/v1/pro/fitchef/explain` | ✅ feature-gated runtime | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
-| FitChef recommend | `/api/v1/pro/fitchef/recommend` | PR #2320 merge-bound deterministic candidate | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
+| FitChef recommend | `/api/v1/pro/fitchef/recommend` | ✅ feature-gated deterministic runtime | PRO | `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md` |
 
 > `POST /api/v1/pro/fitchef/explain` is the landed first bounded structured runtime for the CBT Coaching Wave: `Distortion Simulator` (PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`).
-> `POST /api/v1/pro/fitchef/recommend` is implemented in PR #2320 as a descriptor-only support-handoff candidate and remains merge-bound until merge and post-merge verification: `daily_structure` maps to `pro_daily_plate`, while `weekly_structure` maps to `pro_weekly_plan`. It accepts only the exact case-insensitive `application/json` base media type before the first `;`, uses canonical PRO auth and the shared structured-coach flag, grants no execution or plan-mutation authority, implements no VIP planning logic, and has unmeasured product utility.
+> `POST /api/v1/pro/fitchef/recommend` landed via PR #2320 on 2026-08-25 at `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`: `daily_structure` maps to `pro_daily_plate`, while `weekly_structure` maps to `pro_weekly_plan`. It accepts only the exact case-insensitive `application/json` base media type before the first `;`, uses canonical PRO auth and the shared structured-coach flag, grants no navigation, execution, or plan-mutation authority, implements no VIP planning logic, and has unmeasured product utility.
 
 ---
 
