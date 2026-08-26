@@ -4165,6 +4165,64 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing SQLite 3.53.2 source URL and SHA3-256 are revalidated and the bounded source-artifact review window is current
     - No live deploy occurs in the PR; rollout and database-aware rollback remain human-approved
 
+<a id="ledger-p1-caddy-alpine-cve-2026-14456-remediation"></a>
+- [ ] P1: Remediate CVE-2026-14456 in the staged Caddy Alpine image
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (exact-main recovery / staging image integrity)
+  - Target PR: PR-TBD-CADDY-ALPINE-CVE-2026-14456-REMEDIATION
+  - Status: In progress; the bounded repository/image prerequisite is being fixed.
+    Exact-image post-fix proof is still pending, and main recovery remains HOLD while
+    the approved Python proxy is unstable.
+  - Area: security / frontend Caddy image / container supply chain
+  - Finding Type: fixed-upstream Alpine runtime vulnerability
+  - Reason: Exact-main CD run `32948599821`, job `98114831067`, scanned immutable
+    staged Caddy digest
+    `sha256:5df03414572d3414ef49495f1acfbc67f479016e24b96238c82824f6b72df55b`
+    and failed on one HIGH CVE represented by two Alpine package rows:
+    `CVE-2026-14456` in `libcrypto3 3.5.7-r0` and `libssl3 3.5.7-r0`, both
+    fixed by `3.5.8-r0`. The Caddy Go binary itself reported zero vulnerabilities.
+    This carrier adds only the two fixed runtime floors to the existing
+    final-stage `apk add --no-cache` transaction and a bounded source-contract
+    regression test; source conformance is not exact-image admission evidence.
+  - Scope boundary: Caddy `2.11.4`, Go `1.26.6`, both pinned base digests, module
+    parity, file capabilities, existing package floors, the empty Caddy ignore
+    policy, and the suppression-free Trivy workflow remain unchanged. No
+    `openssl` substitute, broad `apk upgrade`, workflow change, suppression,
+    deploy, secret, staging, or production action is authorized here; this
+    carrier introduces no additional package transaction.
+  - Links:
+    - `frontend/Dockerfile.caddy-spa`
+    - `tests/test_caddy_deploy_provenance.py`
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32948599821/job/98114831067>
+    - [`ledger-p1-caddy-attested-staging-digests`](#ledger-p1-caddy-attested-staging-digests)
+    - [`ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456`](#ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456)
+  - DoD:
+    - The existing final-stage `apk add --no-cache` transaction requires both
+      exact floors `libcrypto3>=3.5.8-r0` and `libssl3>=3.5.8-r0` while
+      preserving every existing package floor and hardened Caddy invariant
+    - Deterministic source tests reject absent, partial, lower, comment-only,
+      other-stage, other-`RUN`, broad-upgrade, later-mutation, and substitute
+      forms without weakening existing workflow, digest, empty-ignore, or Trivy
+      assertions
+    - A GitHub runner builds a new immutable linux/amd64 Caddy digest, verifies
+      provenance and SPDX SBOM, proves the installed Alpine package identities,
+      and completes a suppression-free Trivy v0.72 `vuln,secret` scan with zero
+      HIGH/CRITICAL findings
+    - Close only after terminal exact-main CD evidence binds the merged source,
+      immutable image digest, attestations, installed package versions, and scan
+      result; repository tests alone do not satisfy this gate
+  - Rollback: If Alpine cannot resolve the exact fixed floors or the rebuilt
+    image fails Caddy parity, capability, provenance, SBOM, or scan checks, stop
+    before publication/deploy and retain the last known image only as rollback
+    material. Do not restore the vulnerable floor, add a suppression, run a
+    broad upgrade, or call the prior staged digest admitted.
+  - Residual risk: Exact-image evidence is pending until the canonical runner
+    rebuilds the image, and unstable private-proxy health independently keeps
+    exact-main recovery on HOLD. The Debian Bookworm OpenSSL 3.0 scanner
+    disposition remains open and unchanged because it is a separate image,
+    package branch, and evidence context; this Alpine remediation does not close
+    or modify that item.
+
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

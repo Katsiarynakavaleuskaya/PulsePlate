@@ -28,6 +28,18 @@ GO_BUILDER = (
 CADDY_BASE = (
     "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
 )
+CADDY_BASE_APK_TRANSACTION = """    apk add --no-cache \\
+      "c-ares>=1.34.8-r0" \\
+      "curl>=8.20.0-r0" \\
+      "libcurl>=8.20.0-r0"; \\
+"""
+CADDY_OPENSSL_APK_TRANSACTION = """    apk add --no-cache \\
+      "c-ares>=1.34.8-r0" \\
+      "curl>=8.20.0-r0" \\
+      "libcurl>=8.20.0-r0" \\
+      "libcrypto3>=3.5.8-r0" \\
+      "libssl3>=3.5.8-r0"; \\
+"""
 
 
 def _workflow(path: Path) -> dict[str, object]:
@@ -63,6 +75,35 @@ def _named_step(steps: list[dict[str, object]], name: str) -> dict[str, object]:
 
 def _step_index(steps: list[dict[str, object]], name: str) -> int:
     return steps.index(_named_step(steps, name))
+
+
+def _assert_caddy_openssl_runtime_floor_contract(text: str) -> None:
+    final_stage_marker = f"FROM {CADDY_BASE}\n"
+    assert text.count(final_stage_marker) == 1
+    _, final_stage = text.split(final_stage_marker, maxsplit=1)
+    assert "\nFROM " not in final_stage
+
+    hardening_run_start = "RUN set -eux; \\\n    set -o pipefail; \\\n"
+    hardening_run_end = '\n\nRUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]'
+    assert final_stage.count(hardening_run_start) == 1
+    assert final_stage.count(hardening_run_end) == 1
+    hardening_run = final_stage.split(hardening_run_start, maxsplit=1)[1].split(
+        hardening_run_end, maxsplit=1
+    )[0]
+
+    assert hardening_run.count(CADDY_OPENSSL_APK_TRANSACTION) == 1
+    later_final_stage = final_stage.split(CADDY_OPENSSL_APK_TRANSACTION, maxsplit=1)[1]
+    normalized_tail = later_final_stage.replace("\\\n", " ")
+    command_segments = re.split(r"&&|\|\||[;|\n]", normalized_tail)
+    for segment in command_segments:
+        command = segment.strip()
+        broad_upgrade = re.fullmatch(r"(?:RUN\s+)?apk\s+upgrade(?:\s+--[a-z0-9-]+)*", command)
+        assert broad_upgrade is None
+        for package in ("libcrypto3", "libssl3"):
+            later_package_mutation = re.search(
+                rf"\bapk\s+(?:add|del|fix|upgrade)\b.*\b{package}\b", command
+            )
+            assert later_package_mutation is None
 
 
 def test_frontend_workflow_routes_quick_fix_through_caddy_contract() -> None:
@@ -165,6 +206,118 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert re.search(r"(?m)^\s*replace(?:\s|=)", text) is None
     assert "CVE-2026-56852" not in (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
     assert 'rm -rf "$build_dir"' in text
+
+
+def test_caddy_dockerfile_keeps_fixed_openssl_floors_in_final_hardening_transaction() -> None:
+    _assert_caddy_openssl_runtime_floor_contract(DOCKERFILE.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "absent",
+        "partial",
+        "lower",
+        "comment-only",
+        "other-stage",
+        "other-run",
+        "broad-upgrade",
+        "chained-broad-upgrade",
+        "later-mutation",
+        "substitute",
+    ),
+)
+def test_caddy_openssl_runtime_floor_contract_rejects_bypass_forms(case: str) -> None:
+    source = DOCKERFILE.read_text(encoding="utf-8")
+    assert source.count(CADDY_OPENSSL_APK_TRANSACTION) == 1
+
+    if case == "absent":
+        candidate = source.replace(CADDY_OPENSSL_APK_TRANSACTION, CADDY_BASE_APK_TRANSACTION, 1)
+    elif case == "partial":
+        partial_transaction = CADDY_BASE_APK_TRANSACTION.replace(
+            '      "libcurl>=8.20.0-r0"; \\\n',
+            '      "libcurl>=8.20.0-r0" \\\n      "libcrypto3>=3.5.8-r0"; \\\n',
+            1,
+        )
+        candidate = source.replace(CADDY_OPENSSL_APK_TRANSACTION, partial_transaction, 1)
+    elif case == "lower":
+        candidate = source.replace("3.5.8-r0", "3.5.7-r0")
+    elif case == "comment-only":
+        candidate = source.replace(
+            CADDY_OPENSSL_APK_TRANSACTION,
+            CADDY_BASE_APK_TRANSACTION + '# "libcrypto3>=3.5.8-r0" and "libssl3>=3.5.8-r0"\n',
+            1,
+        )
+    elif case == "other-stage":
+        other_stage_run = 'RUN apk add --no-cache "libcrypto3>=3.5.8-r0" ' '"libssl3>=3.5.8-r0"\n'
+        candidate = source.replace(
+            CADDY_OPENSSL_APK_TRANSACTION, CADDY_BASE_APK_TRANSACTION, 1
+        ).replace(
+            f"FROM {GO_BUILDER} AS caddy-build\n",
+            f"FROM {GO_BUILDER} AS caddy-build\n\n{other_stage_run}",
+            1,
+        )
+    elif case == "other-run":
+        other_run = 'RUN apk add --no-cache "libcrypto3>=3.5.8-r0" ' '"libssl3>=3.5.8-r0"\n\n'
+        candidate = source.replace(
+            CADDY_OPENSSL_APK_TRANSACTION, CADDY_BASE_APK_TRANSACTION, 1
+        ).replace(
+            'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            other_run + 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            1,
+        )
+    elif case == "broad-upgrade":
+        candidate = source.replace(
+            'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            "RUN apk upgrade --no-cache\n\n" 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            1,
+        )
+    elif case == "chained-broad-upgrade":
+        candidate = source.replace(
+            'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            "RUN true && apk upgrade --no-cache\n\n"
+            'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            1,
+        )
+    elif case == "later-mutation":
+        later_mutation = 'RUN apk add --no-cache "libcrypto3=3.5.7-r0" ' '"libssl3=3.5.7-r0"\n\n'
+        candidate = source.replace(
+            'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            later_mutation + 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+            1,
+        )
+    else:
+        assert case == "substitute"
+        substitute_transaction = CADDY_BASE_APK_TRANSACTION.replace(
+            '      "libcurl>=8.20.0-r0"; \\\n',
+            '      "libcurl>=8.20.0-r0" \\\n      "openssl>=3.5.8-r0"; \\\n',
+            1,
+        )
+        candidate = source.replace(CADDY_OPENSSL_APK_TRANSACTION, substitute_transaction, 1)
+
+    with pytest.raises(AssertionError):
+        _assert_caddy_openssl_runtime_floor_contract(candidate)
+
+
+@pytest.mark.parametrize(
+    "later_command",
+    (
+        "RUN apk info -e libcrypto3 && apk info -e libssl3\n\n",
+        "RUN apk upgrade --no-cache busybox\n\n",
+        "RUN apk add --no-cache busybox && apk info -e libssl3\n\n",
+    ),
+)
+def test_caddy_openssl_runtime_floor_contract_allows_noncompeting_later_commands(
+    later_command: str,
+) -> None:
+    source = DOCKERFILE.read_text(encoding="utf-8")
+    candidate = source.replace(
+        'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+        later_command + 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]',
+        1,
+    )
+
+    _assert_caddy_openssl_runtime_floor_contract(candidate)
 
 
 def test_staging_compose_requires_two_digest_references_and_preserves_caddy_state() -> None:
