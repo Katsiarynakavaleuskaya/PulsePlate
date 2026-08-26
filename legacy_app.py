@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-import importlib
 import logging
-import sys
-from contextlib import suppress
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
-    Literal,
     Optional,
     cast,
 )
 
-from pydantic import BaseModel
 from app.application_metadata import build_application_metadata
 from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
 from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
@@ -130,11 +124,15 @@ _BMI_SCHEMA_COMPAT_REEXPORTS = (
 )
 
 _LEGACY_IMPORT_COMPAT_REEXPORTS = (
+    Activity,
     DataClass,
+    DietFlag,
     get_retention_manager,
     get_session,
+    Goal,
     Language,
     normalize_lang,
+    Sex,
     _short_git_sha,
     _is_truthy,
 )
@@ -217,28 +215,6 @@ _api_description = _application_metadata.description
 # Premium week router registration is now handled in
 # app.routers.pro_registration.register_pro_routes() for centralized registration.
 
-# Provide a stable alias for plan_export to support tests that reload it dynamically
-with suppress(Exception):
-    import importlib as _importlib
-    import types as _types
-
-    # Try to import plan_export module through the package path
-    _plan_mod: Any = None
-    try:
-        _plan_mod = _importlib.import_module("app.routers.plan_export")
-    except ImportError:
-        # Module not available, continue without it
-        pass
-    except Exception:
-        # Log unexpected errors during import
-        logging.debug("Unexpected error importing plan_export module", exc_info=True)
-    # Expose a lightweight 'routers' attribute on this module for direct access
-    if not hasattr(sys.modules[__name__], "routers"):
-        setattr(sys.modules[__name__], "routers", _types.SimpleNamespace())
-    if _plan_mod is not None:
-        setattr(sys.modules[__name__].routers, "plan_export", _plan_mod)
-        sys.modules.setdefault("app.routers.plan_export", _plan_mod)
-
 # Legacy event handlers - replaced with lifespan
 # @app.on_event("startup")
 # @app.on_event("shutdown")
@@ -252,72 +228,6 @@ with suppress(Exception):
 # ---------- Core logic ----------
 
 
-MenuEngineCallable = Callable[..., Any]
-
-analyze_nutrient_gaps: Optional[MenuEngineCallable] = None
-make_daily_menu: Optional[MenuEngineCallable] = None
-make_weekly_menu: Optional[MenuEngineCallable] = None
-repair_week_plan: Optional[MenuEngineCallable] = None
-make_plate: Optional[MenuEngineCallable] = None
-build_nutrition_targets: Optional[MenuEngineCallable] = None
-
-ExportCallable = Callable[..., Any]
-to_csv_day: Optional[ExportCallable] = None
-to_pdf_day: Optional[ExportCallable] = None
-to_csv_week: Optional[ExportCallable] = None
-to_pdf_week: Optional[ExportCallable] = None
-
-try:
-    from core.menu_engine import analyze_nutrient_gaps as _analyze_nutrient_gaps
-    from core.menu_engine import make_daily_menu as _make_daily_menu
-    from core.menu_engine import make_weekly_menu as _make_weekly_menu
-    from core.menu_engine import repair_week_plan as _repair_week_plan
-    from core.plate import make_plate as _make_plate
-    from core.recommendations import build_nutrition_targets as _build_nutrition_targets
-except ImportError:
-    pass
-else:
-    analyze_nutrient_gaps = _analyze_nutrient_gaps
-    make_daily_menu = _make_daily_menu
-    make_weekly_menu = _make_weekly_menu
-    repair_week_plan = _repair_week_plan
-    make_plate = _make_plate
-    build_nutrition_targets = _build_nutrition_targets
-
-
-try:
-    from core.exports import to_csv_day as _to_csv_day_fn
-    from core.exports import to_csv_week as _to_csv_week_fn
-except ImportError:
-    pass
-else:
-    to_csv_day = _to_csv_day_fn
-    to_csv_week = _to_csv_week_fn
-
-
-if "to_pdf_day" not in globals():
-    to_pdf_day = None
-if "to_pdf_week" not in globals():
-    to_pdf_week = None
-
-# Ensure analyze_nutrient_gaps is available at module level for tests
-if "analyze_nutrient_gaps" not in globals():
-    with suppress(Exception):
-        from core.menu_engine import analyze_nutrient_gaps
-
-        globals()["analyze_nutrient_gaps"] = analyze_nutrient_gaps
-# Ensure make_weekly_menu is available at module level for tests
-if "make_weekly_menu" not in globals():
-    with suppress(Exception):
-        from core.menu_engine import make_weekly_menu
-
-        globals()["make_weekly_menu"] = make_weekly_menu
-# Ensure repair_week_plan is available at module level for tests
-if "repair_week_plan" not in globals():
-    with suppress(Exception):
-        from core.menu_engine import repair_week_plan
-
-        globals()["repair_week_plan"] = repair_week_plan
 # WHO-Based Nutrition Models
 #
 # NOTE (PR-633): `TargetsIn` is canonical in `app.schemas.nutrition_targets` (import-safe).
@@ -325,25 +235,6 @@ if "repair_week_plan" not in globals():
 #
 # NOTE: Legacy weekly-plan contracts are now owned by
 # `app.schemas.legacy_premium_weekly_plan`; `legacy_app` only re-exports them.
-
-
-class WeeklyPlanFlexibleRequest(BaseModel):
-    # Either 'targets' or a lightweight user profile
-    targets: Optional[Dict[str, Any]] = None
-    sex: Optional[Sex] = None
-    age: Optional[int] = None
-    height_cm: Optional[float] = None
-    weight_kg: Optional[float] = None
-    activity: Optional[Activity] = "moderate"
-    goal: Optional[Goal] = "maintain"
-    deficit_pct: Optional[float] = None
-    surplus_pct: Optional[float] = None
-    bodyfat: Optional[float] = None
-    diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Optional[Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]] = (
-        "adult"
-    )
-    lang: Optional[str] = "en"
 
 
 # Canonical Plate ownership. Retained schema and helper compatibility exports

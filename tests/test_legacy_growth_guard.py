@@ -31,9 +31,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "premium_targets_legacy",
     "api_who_targets",
     "api_nutrient_gaps",
+    "analyze_nutrient_gaps",
+    "make_daily_menu",
+    "make_weekly_menu",
+    "repair_week_plan",
+    "make_plate",
+    "build_nutrition_targets",
+    "to_csv_day",
+    "to_pdf_day",
+    "to_csv_week",
+    "to_pdf_week",
+    "WeeklyPlanFlexibleRequest",
 )
 
-NEW_RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:]
+RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
+RETIRED_PLANNING_EXPORT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[20:31]
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -61,7 +73,7 @@ def test_legacy_growth_guard_rejects_each_retired_python_binding(
     ]
 
 
-@pytest.mark.parametrize("binding_name", NEW_RETIRED_PRO_NUTRITION_BINDINGS)
+@pytest.mark.parametrize("binding_name", RETIRED_PRO_NUTRITION_BINDINGS)
 @pytest.mark.parametrize(
     "source_template",
     [
@@ -74,7 +86,7 @@ def test_legacy_growth_guard_rejects_each_retired_python_binding(
     ],
     ids=["assignment", "import-alias", "function", "class", "delete", "global"],
 )
-def test_legacy_growth_guard_rejects_each_new_binding_carrier(
+def test_legacy_growth_guard_rejects_each_pro_nutrition_binding_carrier(
     binding_name: str,
     source_template: str,
 ) -> None:
@@ -82,6 +94,43 @@ def test_legacy_growth_guard_rejects_each_new_binding_carrier(
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
         f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_PLANNING_EXPORT_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from core.menu_engine import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_legacy_growth_guard_rejects_each_planning_export_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    source = source_template.format(name=binding_name)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+def test_legacy_growth_guard_rejects_retired_plan_export_dynamic_import_fact() -> None:
+    source = textwrap.dedent("""
+        import importlib
+
+        _plan_mod = importlib.import_module("app.routers.plan_export")
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected app.routers import growth: "
+        "router_import:dynamic:app.routers.plan_export -> _plan_mod"
     ]
 
 
