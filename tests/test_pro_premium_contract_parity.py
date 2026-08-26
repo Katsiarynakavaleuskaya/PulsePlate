@@ -92,12 +92,7 @@ def test_premium_plate_matches_pro_plate(
 ) -> None:
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "1")
 
-    # Keep test deterministic and fast: force fallback path by disabling backend helpers.
-    import legacy_app
-
-    monkeypatch.setattr(legacy_app, "make_plate", None, raising=False)
-    monkeypatch.setattr(legacy_app, "calculate_all_bmr", None, raising=False)
-    monkeypatch.setattr(legacy_app, "calculate_all_tdee", None, raising=False)
+    # Exercise both retained and canonical routes through their shared production service.
 
     payload = {
         "sex": "female",
@@ -116,6 +111,8 @@ def test_premium_plate_matches_pro_plate(
     r_pro = client.post("/api/v1/pro/nutrition/plate", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
 
+    assert r_premium.headers.get("content-type", "").startswith("application/json")
+    assert r_pro.headers.get("content-type", "").startswith("application/json")
     assert r_premium.json() == r_pro.json()
 
 
@@ -229,12 +226,7 @@ def test_guard_divergence_plate_premium_is_legacy_guarded_pro_is_pro_tier_guarde
 ) -> None:
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "1")
 
-    # Keep deterministic/fast: force fallback path for the plate implementation.
-    import legacy_app
-
-    monkeypatch.setattr(legacy_app, "make_plate", None, raising=False)
-    monkeypatch.setattr(legacy_app, "calculate_all_bmr", None, raising=False)
-    monkeypatch.setattr(legacy_app, "calculate_all_tdee", None, raising=False)
+    # Exercise guard divergence without replacing the shared production service.
 
     payload = {
         "sex": "female",

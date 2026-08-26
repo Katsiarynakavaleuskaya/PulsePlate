@@ -59,6 +59,17 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "premium_targets_legacy",
         "api_who_targets",
         "api_nutrient_gaps",
+        "analyze_nutrient_gaps",
+        "make_daily_menu",
+        "make_weekly_menu",
+        "repair_week_plan",
+        "make_plate",
+        "build_nutrition_targets",
+        "to_csv_day",
+        "to_pdf_day",
+        "to_csv_week",
+        "to_pdf_week",
+        "WeeklyPlanFlexibleRequest",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
@@ -158,7 +169,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         ),
         LegacyFact("router_import", "app.routers.api_key", "get_api_key", "get_api_key"),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
-        LegacyFact("router_import", "dynamic", "app.routers.plan_export", "_plan_mod"),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
         ),
