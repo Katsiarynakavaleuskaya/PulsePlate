@@ -439,6 +439,127 @@ PY
 # EN: Final runtime stays non-root, matching the runtime-base contract.
 USER pulseplate
 
+# ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-START
+RUN /opt/venv/bin/python - <<'PY'
+from pathlib import Path
+import sys
+
+literal_app_root = Path("/app")
+literal_migration_root = Path("/app/alembic")
+for path in (literal_app_root, literal_migration_root):
+    if path.is_symlink() or not path.is_dir():
+        sys.stderr.write(f"Required repository directory is not a real directory: {path}\n")
+        raise SystemExit(1)
+app_root = literal_app_root.resolve()
+migration_root = literal_migration_root.resolve()
+if app_root != literal_app_root:
+    sys.stderr.write(f"Repository root must resolve exactly to /app, got {app_root}\n")
+    raise SystemExit(1)
+if migration_root != literal_migration_root or not migration_root.is_relative_to(app_root):
+    sys.stderr.write(
+        f"Migration root must resolve exactly to /app/alembic under /app, got {migration_root}\n"
+    )
+    raise SystemExit(1)
+symlink_paths = [path for path in migration_root.rglob("*") if path.is_symlink()]
+if symlink_paths:
+    rendered = ", ".join(str(path) for path in symlink_paths[:5])
+    sys.stderr.write(f"Repository migration tree contains symlink carriers: {rendered}\n")
+    raise SystemExit(1)
+forbidden_paths = []
+package_carrier = migration_root / "__init__.py"
+if package_carrier.exists() or package_carrier.is_symlink():
+    forbidden_paths.append(package_carrier)
+forbidden_paths.extend(migration_root.rglob("__pycache__"))
+forbidden_paths.extend(migration_root.rglob("*.pyc"))
+forbidden_paths.extend(migration_root.rglob("*.pyo"))
+if forbidden_paths:
+    rendered = ", ".join(str(path) for path in forbidden_paths[:5])
+    sys.stderr.write(f"Repository Alembic package/bytecode carrier detected: {rendered}\n")
+    raise SystemExit(1)
+PY
+# ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-END
+
+# ALEMBIC-INSTALLED-OWNERSHIP-GUARD-START
+RUN /opt/venv/bin/python - <<'PY'
+import importlib
+import importlib.metadata
+import importlib.util
+from pathlib import Path
+import sys
+import sysconfig
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
+app_root = Path("/app").resolve()
+migration_root = Path("/app/alembic").resolve()
+venv_root = Path(sys.prefix).resolve()
+if venv_root != Path("/opt/venv"):
+    sys.stderr.write(f"Production interpreter prefix mismatch: {venv_root}\n")
+    raise SystemExit(1)
+purelib_root = Path(sysconfig.get_path("purelib")).resolve()
+if not purelib_root.is_relative_to(venv_root):
+    sys.stderr.write(f"Production purelib is outside /opt/venv: {purelib_root}\n")
+    raise SystemExit(1)
+distribution = importlib.metadata.distribution("alembic")
+distribution_root = Path(distribution.locate_file("")).resolve()
+installed_alembic_root = Path(distribution.locate_file("alembic")).resolve()
+if distribution_root != purelib_root or not installed_alembic_root.is_relative_to(purelib_root):
+    sys.stderr.write("Installed Alembic distribution is outside the production venv purelib\n")
+    raise SystemExit(1)
+print(f"Alembic distribution root: {distribution_root}")
+
+for module_name in ("alembic", "alembic.config", "alembic.context", "alembic.op"):
+    module = importlib.import_module(module_name)
+    origin_path = Path(module.__file__ or "")
+    if not origin_path.is_file() or origin_path.is_symlink():
+        sys.stderr.write(f"{module_name} is not a regular installed module: {origin_path}\n")
+        raise SystemExit(1)
+    origin = origin_path.resolve()
+    if not origin.is_relative_to(installed_alembic_root):
+        sys.stderr.write(f"{module_name} resolved outside installed Alembic: {origin}\n")
+        raise SystemExit(1)
+    if origin.is_relative_to(migration_root):
+        sys.stderr.write(f"{module_name} resolved from repository migration data: {origin}\n")
+        raise SystemExit(1)
+
+expected_repo_origins = {
+    "app": app_root / "app" / "__init__.py",
+    "core": app_root / "core" / "__init__.py",
+    "settings": app_root / "settings.py",
+}
+for module_name, expected_origin in expected_repo_origins.items():
+    if not expected_origin.is_file() or expected_origin.is_symlink():
+        sys.stderr.write(f"{module_name} repository carrier is not a regular file: {expected_origin}\n")
+        raise SystemExit(1)
+    if not expected_origin.resolve().is_relative_to(app_root):
+        sys.stderr.write(f"{module_name} repository carrier escaped /app: {expected_origin}\n")
+        raise SystemExit(1)
+    spec = importlib.util.find_spec(module_name)
+    origin_path = Path(spec.origin or "") if spec is not None else None
+    origin = origin_path.resolve() if origin_path is not None else None
+    if origin_path != expected_origin or origin != expected_origin.resolve():
+        sys.stderr.write(
+            f"{module_name} repository ownership mismatch: expected {expected_origin}, got {origin}\n"
+        )
+        raise SystemExit(1)
+
+config = Config("/app/alembic.ini")
+scripts = ScriptDirectory.from_config(config)
+if Path(scripts.dir).resolve() != migration_root:
+    sys.stderr.write(f"Alembic script directory mismatch: {scripts.dir}\n")
+    raise SystemExit(1)
+heads = scripts.get_heads()
+if len(heads) != 1 or not heads[0].strip():
+    sys.stderr.write(f"Alembic migration graph must have one non-empty head, got {heads!r}\n")
+    raise SystemExit(1)
+PY
+# ALEMBIC-INSTALLED-OWNERSHIP-GUARD-END
+
+# ALEMBIC-CLI-HEADS-GUARD-START
+RUN /opt/venv/bin/alembic -c /app/alembic.ini heads
+# ALEMBIC-CLI-HEADS-GUARD-END
+
 # Stage 4: Staging stage
 # Extends production with staging-specific configurations
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
