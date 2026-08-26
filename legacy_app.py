@@ -43,10 +43,14 @@ from app.schemas.insight import (  # noqa: F401 - compatibility re-exports
     RAGSourceItem,
 )
 from app.schemas.premium_contracts import (
+    Activity,
+    DietFlag,
+    Goal,
     NutrientGapsRequest,
     NutrientGapsResponse,
     PlateRequest,
     PlateResponse,
+    Sex,
     VisualShape,
     WHOTargetsRequest,
     WHOTargetsResponse,
@@ -120,11 +124,15 @@ _BMI_SCHEMA_COMPAT_REEXPORTS = (
 )
 
 _LEGACY_IMPORT_COMPAT_REEXPORTS = (
+    Activity,
     DataClass,
+    DietFlag,
     get_retention_manager,
     get_session,
+    Goal,
     Language,
     normalize_lang,
+    Sex,
     _short_git_sha,
     _is_truthy,
 )

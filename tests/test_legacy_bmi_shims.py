@@ -135,6 +135,7 @@ def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
 
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
     import app.schemas.bmi_compat as bmi_schemas
+    import app.schemas.premium_contracts as premium_contracts
     import app.services.admin_operations as admin_operations
     import app.services.bmi_compat as bmi_compat
     import app.services.pro_nutrition_plate as plate_service
@@ -184,6 +185,10 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
+    assert legacy_app.Activity is premium_contracts.Activity
+    assert legacy_app.DietFlag is premium_contracts.DietFlag
+    assert legacy_app.Goal is premium_contracts.Goal
+    assert legacy_app.Sex is premium_contracts.Sex
     assert {
         binding_name
         for binding_name, canonical_migration in canonical_migrations.items()
@@ -194,6 +199,32 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
             assert callable(canonical_migration)
         with pytest.raises(AttributeError):
             getattr(legacy_app, binding_name)
+
+
+def test_retained_premium_schema_bindings_remain_importable_in_fresh_process() -> None:
+    scenario = textwrap.dedent("""
+        import json
+        import app.schemas.premium_contracts as premium_contracts
+        import legacy_app
+        from legacy_app import Activity, DietFlag, Goal, Sex
+
+        retained = {
+            "Activity": Activity,
+            "DietFlag": DietFlag,
+            "Goal": Goal,
+            "Sex": Sex,
+        }
+        for binding_name, imported_object in retained.items():
+            canonical_object = getattr(premium_contracts, binding_name)
+            assert getattr(legacy_app, binding_name) is canonical_object
+            assert imported_object is canonical_object
+
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({"retained": sorted(retained)}))
+        """)
+
+    assert _run_legacy_retirement_probe(scenario) == {
+        "retained": ["Activity", "DietFlag", "Goal", "Sex"]
+    }
 
 
 def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
