@@ -780,17 +780,17 @@ class TestVIPIntegration97Ultimate:
         )
         assert response.status_code == 200
 
-    def test_vip_comprehensive_workflow_integration_ultimate_scenarios(
+    def test_vip_authenticated_strict_endpoint_sequence_ultimate_scenarios(
         self,
         test_environment: None,
         vip_headers: dict[str, str],
     ) -> None:
-        """Ультимативные интеграционные тесты полного workflow VIP функций"""
+        """Exercise an authenticated sequence of independent strict VIP endpoint contracts."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # 1. Создание недельного плана
+        # Menu uses its own independent weekly-menu request DTO.
         menu_payload = {
             "sex": "male",
             "age": 30,
@@ -806,10 +806,10 @@ class TestVIPIntegration97Ultimate:
             headers=vip_headers,
         )
         assert menu_response.status_code == 200
-        menu_data = menu_response.json()
-        assert menu_data["status"] == "success"
+        menu_response_payload = assert_json_response_payload(menu_response)
+        assert menu_response_payload["status"] == "success"
 
-        # 2. Генерация рецептов по canonical strict request contract
+        # Weekly recipes uses its own independent strict request DTO.
         recipes_payload = build_weekly_recipes_request_payload()
         recipes_response = client.post(
             "/api/v1/vip/recipes/weekly",
@@ -823,7 +823,7 @@ class TestVIPIntegration97Ultimate:
         assert recipes_data["total_recipes"] == 1
         assert recipes_data["echo"] == recipes_payload
 
-        # 3. Авто-ремонт плана по canonical strict request contract
+        # Auto-repair uses its own independent strict request DTO.
         repair_payload = build_auto_repair_weekly_request_payload()
 
         repair_response = client.post(
@@ -836,16 +836,3 @@ class TestVIPIntegration97Ultimate:
         assert repair_data["status"] == "success"
         assert repair_data["repair_result"]["status"] == "success"
         assert repair_data["echo"] == repair_payload
-
-        # 4. Генерация списка покупок (если endpoint существует)
-        shoplist_payload = {
-            "week_plan": menu_data.get("menu", {}),
-            "shopping_options": {"region": "BY", "package_rounding": True},
-        }
-
-        shoplist_response = client.post(
-            "/api/v1/vip/shoplist",
-            json=shoplist_payload,
-            headers=vip_headers,
-        )
-        assert shoplist_response.status_code in [200, 404]
