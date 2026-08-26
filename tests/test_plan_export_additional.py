@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.routers.api_key import _get_api_key_dynamic
+from app.routers.api_key import _get_api_key_dynamic, api_key_header
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_endpoint,
@@ -195,28 +195,54 @@ def test_export_routes_are_registered_but_hidden_from_public_openapi() -> None:
         for path, method, include_in_schema in plan_export.PLAN_EXPORT_ROUTE_SPECS
     }
     public_paths = app.openapi()["paths"]
+    source_routes = [*plan_export.export_router.routes, *plan_export.plan_router.routes]
 
     for (method, path), include_in_schema in expected_routes.items():
-        matching_routes = [
+        matching_source_routes = [
+            route
+            for route in source_routes
+            if route_path(route) == path and method in route_methods(route)
+        ]
+        matching_effective_routes = [
             route
             for route in iter_effective_route_candidates(app.routes)
             if route_path(route) == path and method in route_methods(route)
         ]
-        assert len(matching_routes) == 1
-        route = matching_routes[0]
-        source_route = getattr(route, "original_route", route)
+        assert len(matching_source_routes) == 1
+        assert len(matching_effective_routes) == 1
+        source_route = matching_source_routes[0]
+        route = matching_effective_routes[0]
         assert isinstance(source_route, APIRoute)
+        assert getattr(route, "original_route", route) is source_route
         endpoint = route_endpoint(route)
+        source_endpoint = route_endpoint(source_route)
+        source_dependency_calls = tuple(_flatten_dependency_calls(source_route))
         flattened_calls = _flatten_dependency_calls(route)
 
+        assert endpoint is source_endpoint
         assert getattr(endpoint, "__module__", None) == "app.routers.plan_export"
+        assert route_path(source_route) == route_path(route) == path
+        assert route_methods(source_route) == route_methods(route) == frozenset({method})
+        assert getattr(route, "name", None) == source_route.name
+        assert getattr(route, "operation_id", None) == source_route.operation_id
+        assert getattr(route, "unique_id", None) == source_route.unique_id
+        assert route_include_in_schema(source_route) is include_in_schema
         assert route_include_in_schema(route) is include_in_schema
+        assert route_responses(source_route) == route_responses(route)
         assert 429 in route_responses(route)
         assert "request" in inspect.signature(endpoint).parameters
         assert _contains_dependency(flattened_calls, _get_api_key_dynamic)
         if path in {plan_export.WEEK_EXPORT_CSV_PATH, plan_export.WEEK_EXPORT_PDF_PATH}:
+            assert source_dependency_calls == (plan_export._require_valid_token,)
+            assert tuple(flattened_calls) == (
+                _get_api_key_dynamic,
+                api_key_header,
+                plan_export._require_valid_token,
+            )
             assert _contains_dependency(flattened_calls, plan_export._require_valid_token)
         else:
+            assert source_dependency_calls == ()
+            assert tuple(flattened_calls) == (_get_api_key_dynamic, api_key_header)
             assert not _contains_dependency(flattened_calls, plan_export._require_valid_token)
         assert path not in public_paths
 

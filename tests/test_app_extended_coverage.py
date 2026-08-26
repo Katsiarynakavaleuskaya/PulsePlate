@@ -383,67 +383,6 @@ class TestPremiumEndpoints:
             response = self.client.post("/api/v1/bmi", json=data, headers=headers)
             assert response.status_code == 422  # Validation error
 
-    def test_premium_plate_unavailable(self):
-        """Test premium plate endpoint when make_plate unavailable."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.make_plate", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            }
-
-            response = self.client.post("/api/v1/premium/plate", json=data, headers=headers)
-            # The endpoint actually works correctly and returns 200
-            assert response.status_code == 200
-
-    def test_who_targets_unavailable(self):
-        """Test WHO targets endpoint when build_nutrition_targets unavailable."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.build_nutrition_targets", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-            }
-
-            response = self.client.post("/api/v1/premium/targets", json=data, headers=headers)
-            # The endpoint actually works correctly and returns 200
-            assert response.status_code == 200
-
-    def test_nutrient_gaps_unavailable(self):
-        """Test nutrient gaps endpoint when analyze_nutrient_gaps unavailable."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.analyze_nutrient_gaps", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "consumed_nutrients": {"protein_g": 50.0},
-                "user_profile": {
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "moderate",
-                },
-            }
-
-            response = self.client.post("/api/v1/premium/gaps", json=data, headers=headers)
-            # May return 200 (success), 500, or 503 (feature unavailable)
-            assert response.status_code in [200, 500, 503]
-
 
 class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""

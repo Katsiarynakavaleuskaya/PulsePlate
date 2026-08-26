@@ -1,12 +1,12 @@
-"""Guard test: ensure app module maintains legacy public API surface.
+"""Guard test: keep the finite app facade distinct from retired legacy bindings.
 
-This test prevents accidental removal of backward-compatible exports that
-6000+ tests depend on. Only modify if intentionally breaking the public API.
+The package-level ``app`` facade retains its reviewed compatibility exports even
+when the transitional ``legacy_app`` module intentionally shrinks.
 """
 
 
 def test_app_public_surface_smoke() -> None:
-    """Verify app module exports core legacy API symbols."""
+    """Verify the finite app package facade exports its supported symbols."""
     import app
 
     # Core FastAPI instance
@@ -62,13 +62,16 @@ def test_scheduler_access_is_an_exact_compatibility_export() -> None:
     assert legacy_app.get_update_scheduler is scheduler_access.get_update_scheduler
 
 
-def test_weekly_menu_builder_remains_an_exact_public_compatibility_export() -> None:
+def test_planning_exports_remain_canonical_only_on_the_app_package_facade() -> None:
     import app
     import legacy_app
     from core.menu_engine import make_weekly_menu
+    from core.recommendations import build_nutrition_targets
 
     assert app.make_weekly_menu is make_weekly_menu
-    assert legacy_app.make_weekly_menu is make_weekly_menu
+    assert app.build_nutrition_targets is build_nutrition_targets
+    assert not hasattr(legacy_app, "make_weekly_menu")
+    assert not hasattr(legacy_app, "build_nutrition_targets")
 
 
 def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
