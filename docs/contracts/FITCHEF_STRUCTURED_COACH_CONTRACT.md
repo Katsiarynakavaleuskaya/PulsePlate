@@ -55,8 +55,8 @@ envelope rules.
 ### PRO structured coach surfaces
 
 - `POST /api/v1/pro/fitchef/explain`
-- `POST /api/v1/pro/fitchef/recommend` — implemented in PR #2320 but
-  merge-bound until merge and post-merge verification
+- `POST /api/v1/pro/fitchef/recommend` — landed via PR #2320 /
+  `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`
 
 ### Landed VIP structured coach surface
 
@@ -81,7 +81,7 @@ without changing route naming or public mascot canon.
   - landed first bounded capability: `Distortion Simulator`
   - shape direction: structured thought-record style reframing tool
 - `POST /api/v1/pro/fitchef/recommend`
-  - PR #2320 merge-bound capability: deterministic support handoff
+  - landed via PR #2320: deterministic support handoff
   - closed request needs: `daily_structure` and `weekly_structure`
   - shape: one descriptor-only product-surface action, not open-ended chat,
     plan adaptation, navigation, or downstream execution
@@ -195,7 +195,7 @@ The landed VIP Identity Loop Mapper runtime is schema-frozen by
 `confidence`, `warnings`, `quota_state`, `transparency_notice_id`, and
 `wellness_boundary`.
 
-The PR #2320 merge-bound deterministic PRO support handoff is schema-frozen by
+The deterministic PRO support handoff landed via PR #2320 / `f95a329d899d5ac4fa73f198e90cfed44d0fc45c` and is schema-frozen by
 `FitChefSupportHandoffRequest`, `FitChefSupportHandoffActionV1`, and
 `FitChefSupportHandoffResponse`:
 
@@ -373,10 +373,11 @@ Future structured coach implementation must:
 - PR #1870 landed the feature-gated VIP Identity Loop Mapper runtime at
   `POST /api/v1/vip/fitchef/insight` with the frozen
   `FitChefIdentityLoopMapperResponse` envelope.
-- PR #2320 implements the feature-gated deterministic PRO support handoff at
-  `POST /api/v1/pro/fitchef/recommend` with frozen DTOs and deterministic route
-  tests. It remains merge-bound until merge and post-merge verification, emits
-  no analytics, and executes no action.
+- PR #2320 landed the feature-gated deterministic PRO support handoff at
+  `POST /api/v1/pro/fitchef/recommend` on 2026-08-25 at
+  `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`, with frozen DTOs and deterministic
+  route tests. Business utility remains unmeasured; the route emits no analytics,
+  navigates nowhere, mutates no plan, and executes no action.
 
 ### Later VIP structured follow-ups
 
@@ -387,10 +388,11 @@ Future structured coach implementation must:
 ## Explicit non-goals
 
 - renaming or migrating `/api/v1/insight/fitchef*`
-- adding any new runtime surface beyond the landed PRO explain route, the
-  merge-bound PR #2320 support-handoff candidate, and the bounded VIP Identity
+- adding any new backend runtime surface beyond the landed PRO explain route, the
+  landed PR #2320 support-handoff route, and the bounded VIP Identity
   Loop Mapper route
-- adding frontend or iOS FitChef runtime consumers
+- adding iOS FitChef consumers or frontend behavior beyond the separately
+  governed E1-05B descriptor consumer
 - mixing website brand rollout or App Store assets into this contract lane
 
 ## Evidence anchors
