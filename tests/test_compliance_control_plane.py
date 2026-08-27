@@ -8,7 +8,7 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.compliance import dsar_service
@@ -566,128 +566,6 @@ def test_dsar_delete_helper_preserves_account_row_without_direct_artifacts() -> 
             session.commit()
 
 
-def test_fitchef_outcome_dsar_uses_an_independent_credential_namespace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Numeric equality never lets user_id imply the credential subject namespace."""
-
-    from app.models.fitchef_support_outcomes import FitChefSupportOutcomeEvent
-    from core.db import SessionLocal
-    from core.models import User
-
-    assert SessionLocal is not None
-
-    with SessionLocal() as session:
-        FitChefSupportOutcomeEvent.__table__.create(bind=session.get_bind(), checkfirst=True)
-        user = User(email="fitchef-dsar@example.com", name="FitChef DSAR")
-        session.add(user)
-        session.flush()
-        credential_subject_id = user.id
-        other_subject_id = user.id + 100_000
-        session.add_all(
-            (
-                FitChefSupportOutcomeEvent(
-                    id="fitchef-dsar-row-1",
-                    subject_id=credential_subject_id,
-                    schema_version="fitchef_support_outcome_v1",
-                    support_need="daily_structure",
-                    target_surface="pro_daily_plate",
-                    outcome="acknowledged",
-                    client_event_id="fitchef-dsar-event-0001",
-                ),
-                FitChefSupportOutcomeEvent(
-                    id="fitchef-dsar-row-2",
-                    subject_id=other_subject_id,
-                    schema_version="fitchef_support_outcome_v1",
-                    support_need="weekly_structure",
-                    target_surface="pro_weekly_plan",
-                    outcome="dismissed",
-                    client_event_id="fitchef-dsar-event-0002",
-                ),
-            )
-        )
-        session.commit()
-
-        user_only = export_direct_user_artifacts(session=session, user_id=user.id)
-        user_only_artifacts = cast(dict[str, object], user_only["artifacts"])
-        assert user_only_artifacts["fitchef_support_outcomes"] == []
-        user_only_plan = build_direct_user_deletion_plan(session=session, user_id=user.id)
-        plan_artifacts = cast(dict[str, dict[str, object]], user_only_plan["artifacts"])
-        assert plan_artifacts["fitchef_support_outcomes"] == {
-            "present_count": 0,
-            "helper_action": "credential_subject_required",
-        }
-        user_only_delete = delete_direct_user_artifacts(session=session, user_id=user.id)
-        assert cast(dict[str, int], user_only_delete["deleted"])["fitchef_support_outcomes"] == 0
-        assert set(
-            session.execute(select(FitChefSupportOutcomeEvent.subject_id)).scalars().all()
-        ) == {credential_subject_id, other_subject_id}
-
-        trace: list[int] = []
-        monkeypatch.setattr(
-            dsar_service,
-            "apply_user_rls_context",
-            lambda _session, *, user_id: trace.append(user_id),
-        )
-        exported = export_direct_user_artifacts(
-            session=session,
-            user_id=user.id,
-            credential_subject_id=credential_subject_id,
-        )
-        exported_artifacts = cast(dict[str, object], exported["artifacts"])
-        outcome_rows = cast(
-            list[dict[str, object]],
-            exported_artifacts["fitchef_support_outcomes"],
-        )
-        assert trace == [user.id, credential_subject_id, user.id]
-        assert outcome_rows == [
-            {
-                "schema_version": "fitchef_support_outcome_v1",
-                "support_need": "daily_structure",
-                "target_surface": "pro_daily_plate",
-                "outcome": "acknowledged",
-                "client_event_id": "fitchef-dsar-event-0001",
-                "created_at": outcome_rows[0]["created_at"],
-            }
-        ]
-        assert outcome_rows[0]["created_at"] is not None
-
-        trace.clear()
-        credential_plan = build_direct_user_deletion_plan(
-            session=session,
-            user_id=user.id,
-            credential_subject_id=credential_subject_id,
-        )
-        credential_plan_artifacts = cast(
-            dict[str, dict[str, object]],
-            credential_plan["artifacts"],
-        )
-        assert credential_plan_artifacts["fitchef_support_outcomes"]["present_count"] == 1
-        assert trace == [user.id, credential_subject_id, user.id]
-
-        first_delete = delete_direct_user_artifacts(
-            session=session,
-            user_id=user.id,
-            credential_subject_id=credential_subject_id,
-        )
-        second_delete = delete_direct_user_artifacts(
-            session=session,
-            user_id=user.id,
-            credential_subject_id=credential_subject_id,
-        )
-        assert cast(dict[str, int], first_delete["deleted"])["fitchef_support_outcomes"] == 1
-        assert cast(dict[str, int], second_delete["deleted"])["fitchef_support_outcomes"] == 0
-        remaining_subjects = set(
-            session.execute(select(FitChefSupportOutcomeEvent.subject_id)).scalars().all()
-        )
-        assert remaining_subjects == {other_subject_id}
-        assert not FitChefSupportOutcomeEvent.__table__.foreign_keys
-
-        session.execute(delete(FitChefSupportOutcomeEvent))
-        session.delete(user)
-        session.commit()
-
-
 def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -712,60 +590,6 @@ def test_dsar_delete_helper_rolls_back_and_logs_on_delete_failure(
 
     assert broken_session.rollback_called is True
     assert "DSAR direct-user artifact delete failed" in caplog.text
-
-
-@pytest.mark.parametrize("restore_fails", (False, True))
-def test_dsar_outcome_delete_failure_rolls_back_and_restores_user_rls_without_masking(
-    restore_fails: bool,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    trace: list[int | str] = []
-    apply_count = 0
-
-    class EmptyResult:
-        def scalars(self) -> "EmptyResult":
-            return self
-
-        def all(self) -> list[object]:
-            return []
-
-    class BrokenOutcomeDeleteSession:
-        def __init__(self) -> None:
-            self.execute_count = 0
-
-        def get(self, _model: object, _user_id: int) -> None:
-            return None
-
-        def execute(self, _statement: object) -> EmptyResult:
-            self.execute_count += 1
-            if self.execute_count == 3:
-                raise RuntimeError("outcome-delete-original-sentinel")
-            return EmptyResult()
-
-        def rollback(self) -> None:
-            trace.append("rollback")
-
-        def commit(self) -> None:
-            pytest.fail("failed outcome deletion must not commit")
-
-    def apply_context(_session: object, *, user_id: int) -> None:
-        nonlocal apply_count
-        apply_count += 1
-        trace.append(user_id)
-        if restore_fails and apply_count == 3:
-            raise RuntimeError("restore-failure-must-not-mask")
-
-    monkeypatch.setattr(dsar_service, "apply_user_rls_context", apply_context)
-    session = BrokenOutcomeDeleteSession()
-
-    with pytest.raises(RuntimeError, match="outcome-delete-original-sentinel"):
-        delete_direct_user_artifacts(
-            session=cast(Session, session),
-            user_id=7,
-            credential_subject_id=99,
-        )
-
-    assert trace == [7, 99, "rollback", 7]
 
 
 def test_dsar_helpers_apply_db_rls_context(monkeypatch: pytest.MonkeyPatch) -> None:

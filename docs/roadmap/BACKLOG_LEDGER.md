@@ -4884,17 +4884,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (storage safety / privacy operations / release truth)
   - Target PR: PR-TBD before any staging or production flag activation
   - Status: Planned and blocking for activation; the implementation flag remains default-off.
-  - Reason (EN): The backend intake is bounded and subject-isolated, but enabling writes outside local/test environments requires explicit capacity, abuse/storage, retention-operation, and rollback evidence. Code merge alone is not staging or production activation authority, and this checkpoint must not be replaced by generic HTTP rate-limit evidence.
+  - Reason (EN): The backend intake is bounded and subject-isolated, but enabling writes outside local/test environments still requires outcome-table-specific capacity, growth-query/alert, deletion-exercise, and rollback-threshold evidence. Merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) already provides the private persistent Prometheus foundation, authenticated scrape boundary, and 30-day retention contour; this item must reuse that foundation rather than add another Prometheus stack, dashboard, TTL, scheduler, quota, or deployment-wiring lane. Code merge alone is not staging or production activation authority.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract`
     - `docs/compliance/DSAR_AND_DELETION_MAP.md`
     - `docs/analytics/METRICS_CATALOG.md#fitchef-support-outcome-writes`
   - DoD:
-    - Record a bounded capacity forecast for expected rows/day, retained-row growth, index/storage overhead, and observation window; install or prove an actionable table-growth alert before activation
-    - Make and document an explicit per-subject abuse/storage decision, including the maximum acceptable event-id growth posture and the operational response when it is exceeded; do not infer that the shared request rate limit alone bounds retained storage
-    - Complete one retention checkpoint and support-led deletion exercise against subject-isolated representative data, proving export, first delete, repeated delete, cross-subject preservation, and evidence retention without exposing row contents
-    - Freeze rollback and disable criteria for write-error rate, unexpected growth, isolation failure, deletion failure, or privacy-policy drift; prove that disabling the existing feature flag stops new intake without claiming that it deletes retained rows
-    - Obtain a separate exact human activation decision after these checks; no TTL, scheduler, deployment wiring, new quota system, public history, or automatic deletion is introduced by this readiness item
+    - Record a bounded outcome-table capacity forecast for expected rows/day, per-subject contribution assumptions, retained-row growth, and index/storage overhead across the existing 30-day observation contour
+    - Define and prove the exact authenticated query plus actionable threshold for `fitchef_support_outcome_events` table growth using the merged PR #2324 monitoring foundation
+    - Complete one representative support-led export/delete/repeated-delete exercise, proving exact-subject export, first delete, idempotent second delete, and cross-subject preservation without exposing row contents
+    - Freeze outcome-specific rollback/disable thresholds for write-error rate, unexpected table growth, isolation failure, deletion failure, or privacy-policy drift; disabling the existing feature flag must stop new intake without claiming deletion of retained rows
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>

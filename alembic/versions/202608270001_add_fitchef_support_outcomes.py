@@ -74,26 +74,27 @@ def upgrade() -> None:
     )
 
     if op.get_bind().dialect.name == "postgresql":
-        op.execute(f"ALTER TABLE {_TABLE} ENABLE ROW LEVEL SECURITY")
-        op.execute(f"ALTER TABLE {_TABLE} FORCE ROW LEVEL SECURITY")
-        op.execute(f"""
-            CREATE POLICY {_POLICY} ON {_TABLE}
-            USING (
-                subject_id = NULLIF(current_setting('app.current_user_id', true), '')::bigint
-            )
-            WITH CHECK (
-                subject_id = NULLIF(current_setting('app.current_user_id', true), '')::bigint
-            )
-        """)
+        op.execute("ALTER TABLE fitchef_support_outcome_events ENABLE ROW LEVEL SECURITY")
+        op.execute("ALTER TABLE fitchef_support_outcome_events FORCE ROW LEVEL SECURITY")
+        op.execute(
+            "CREATE POLICY fitchef_support_outcome_subject_isolation "
+            "ON fitchef_support_outcome_events "
+            "USING (subject_id = NULLIF(current_setting('app.current_user_id', true), '')::bigint) "
+            "WITH CHECK (subject_id = "
+            "NULLIF(current_setting('app.current_user_id', true), '')::bigint)"
+        )
 
 
 def downgrade() -> None:
     """Remove only the outcome ledger and its own isolation policy."""
 
     if op.get_bind().dialect.name == "postgresql":
-        op.execute(f"DROP POLICY IF EXISTS {_POLICY} ON {_TABLE}")
-        op.execute(f"ALTER TABLE {_TABLE} NO FORCE ROW LEVEL SECURITY")
-        op.execute(f"ALTER TABLE {_TABLE} DISABLE ROW LEVEL SECURITY")
+        op.execute(
+            "DROP POLICY IF EXISTS fitchef_support_outcome_subject_isolation "
+            "ON fitchef_support_outcome_events"
+        )
+        op.execute("ALTER TABLE fitchef_support_outcome_events NO FORCE ROW LEVEL SECURITY")
+        op.execute("ALTER TABLE fitchef_support_outcome_events DISABLE ROW LEVEL SECURITY")
 
     op.drop_index(
         "ix_fitchef_support_outcomes_subject_created_at",
