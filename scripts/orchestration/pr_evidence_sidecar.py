@@ -84,7 +84,7 @@ def _strict_json_bytes(raw: bytes, *, limit: int) -> Any:
             parse_constant=lambda _value: (_ for _ in ()).throw(SidecarError("INVALID_INPUT")),
         )
         value, end = decoder.raw_decode(text)
-    except (UnicodeDecodeError, json.JSONDecodeError, SidecarError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, SidecarError) as exc:
         raise SidecarError("INVALID_INPUT") from exc
     if text[end:].strip():
         raise SidecarError("INVALID_INPUT")

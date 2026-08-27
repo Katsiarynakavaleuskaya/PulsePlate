@@ -251,6 +251,42 @@ def test_prepare_rejects_nonfinite_packet_json(isolated_store: Path) -> None:
             sidecar.prepare(packet, SHA_A, ["experiment_runner"])
 
 
+def test_prepare_cli_maps_deep_json_recursion_to_category_only_error(
+    isolated_store: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep size-bounded JSON cannot escape the stable CLI error contract."""
+
+    packet = _packet(isolated_store)
+
+    def recurse(_decoder: json.JSONDecoder, _text: str) -> tuple[object, int]:
+        raise RecursionError
+
+    monkeypatch.setattr(
+        sidecar.json.JSONDecoder,
+        "raw_decode",
+        recurse,
+    )
+
+    result = sidecar.main(
+        [
+            "prepare",
+            "--packet",
+            str(packet.relative_to(isolated_store)),
+            "--base-sha",
+            SHA_A,
+            "--applicable-rail",
+            "experiment_runner",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert captured.out == ""
+    assert captured.err == "INVALID_INPUT\n"
+
+
 def test_finalize_binds_start_and_enforces_rail_truth(isolated_store: Path) -> None:
     """Terminal applicability mirrors start and referenced rails require full hashes."""
 
