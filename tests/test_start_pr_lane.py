@@ -176,11 +176,25 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "automatically start" not in result.stdout.lower()
 
 
-def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
-    """The real post-task-bootstrap path should emit the packet-backed Codex prompt."""
+def _valid_sidecar_prepare_payload() -> dict[str, object]:
+    sidecar_id = "sha256:" + ("d" * 64)
+    return {
+        "schema_version": "pr_evidence_sidecar.start.v1",
+        "command": "prepare",
+        "sidecar_id": sidecar_id,
+        "sidecar_path": (
+            f"artifacts/orchestration/pr_evidence_sidecars/{sidecar_id[7:]}/start.json"
+        ),
+        "created": True,
+    }
 
+
+def _run_execute_path_with_sidecar_payload(
+    tmp_path: Path,
+    sidecar_payload: dict[str, object],
+) -> tuple[subprocess.CompletedProcess[str], Path]:
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(parents=True)
     packet_path = tmp_path / "packet with space.json"
     packet_payload = {
         "goal": "Start governed PR lane",
@@ -237,6 +251,7 @@ esac
 
     python_stub = bin_dir / "python3"
     real_python = sys.executable
+    sidecar_output = shlex.quote(json.dumps(sidecar_payload, separators=(",", ":"), sort_keys=True))
     python_stub.write_text(
         f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -250,7 +265,7 @@ case "$1" in
     exit 0
     ;;
   *pr_evidence_sidecar.py)
-    printf '{{"schema_version":"pr_evidence_sidecar.start.v1","command":"prepare","sidecar_id":"sha256:{'d' * 64}","sidecar_path":"artifacts/orchestration/pr_evidence_sidecars/{'d' * 64}/start.json","created":true}}\n'
+    printf '%s\\n' {sidecar_output}
     exit 0
     ;;
   *render_codex_start_prompt.py)
@@ -283,6 +298,16 @@ esac
         env=env,
     )
     shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
+    return result, packet_path
+
+
+def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
+    """The real post-task-bootstrap path should emit the packet-backed Codex prompt."""
+
+    result, packet_path = _run_execute_path_with_sidecar_payload(
+        tmp_path,
+        _valid_sidecar_prepare_payload(),
+    )
 
     assert result.returncode == 0, result.stderr
     assert "Authoritative bootstrap already ran" in result.stdout
@@ -358,16 +383,36 @@ def test_start_pr_lane_dry_run_deduplicates_sidecar_rails_without_writing() -> N
     assert "pr_evidence_sidecars/" not in result.stdout
 
 
-def test_start_pr_lane_handshake_contract_rejects_schema_and_hex_drift() -> None:
-    """Inline handshake validation pins literal schema and lowercase id grammar."""
+def test_start_pr_lane_handshake_contract_rejects_schema_and_hex_drift(
+    tmp_path: Path,
+) -> None:
+    """Execute-path handshake validation rejects schema, lowercase-id, and key drift."""
 
-    source = START_SCRIPT.read_text(encoding="utf-8")
-    assert 'payload["schema_version"] != "pr_evidence_sidecar.start.v1"' in source
-    assert 'any(char not in "0123456789abcdef" for char in sidecar_id[7:])' in source
-    assert (
-        'expected_keys = {"schema_version", "command", "sidecar_id", "sidecar_path", "created"}'
-        in source
-    )
+    valid = _valid_sidecar_prepare_payload()
+    uppercase_id = "sha256:" + ("D" * 64)
+    cases = {
+        "wrong-schema": {**valid, "schema_version": "pr_evidence_sidecar.start.v2"},
+        "uppercase-id": {
+            **valid,
+            "sidecar_id": uppercase_id,
+            "sidecar_path": (
+                "artifacts/orchestration/pr_evidence_sidecars/" f"{uppercase_id[7:]}/start.json"
+            ),
+        },
+        "extra-key": {**valid, "unexpected": True},
+    }
+
+    for case_name, payload in cases.items():
+        case_path = tmp_path / f"{tmp_path.name}-{case_name}"
+        result, _packet_path = _run_execute_path_with_sidecar_payload(case_path, payload)
+
+        assert result.returncode == 0, result.stderr
+        assert "PR evidence sidecar v1: state=invalid; id=<none>." in result.stdout
+        assert "PR evidence sidecar v1: state=prepared" not in result.stdout
+        assert (
+            "WARNING: evidence sidecar invalid; structural receipt only, no authority granted."
+            in result.stderr
+        )
 
 
 def test_start_pr_lane_allows_dirty_launcher_for_synced_origin_main_lane(

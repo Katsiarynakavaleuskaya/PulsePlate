@@ -909,9 +909,7 @@ def _report_unlocked() -> dict[str, Any]:
 
 
 def report() -> dict[str, Any]:
-    with _store_lock(exclusive=False, create_store=False) as store_exists:
-        if not store_exists:
-            return _report_unlocked()
+    with _store_lock(exclusive=False, create_store=False):
         return _report_unlocked()
 
 

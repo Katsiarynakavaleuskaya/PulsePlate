@@ -621,6 +621,7 @@ def test_packet_prompt_renders_nonprepared_sidecar_without_commands(state: str) 
         (None, "sha256:" + "d" * 64),
         ("prepared", ""),
         ("prepared", "sha256:short"),
+        ("prepared", "sha256:" + "D" * 64),
         ("invalid", "sha256:" + "d" * 64),
         ("mystery", ""),
     ],

@@ -566,6 +566,23 @@ def test_report_cli_emits_no_partial_stdout_on_malformed_store(
     assert captured.err == "INVALID_INPUT\n"
 
 
+def test_kernel_rename_noreplace_fails_closed_without_platform_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing platform no-replace rename support never falls back to hardlinks."""
+
+    class MissingLibc:
+        pass
+
+    def missing_libc(*_args: object, **_kwargs: object) -> MissingLibc:
+        return MissingLibc()
+
+    monkeypatch.setattr(sidecar.ctypes, "CDLL", missing_libc)
+
+    with pytest.raises(sidecar.SidecarError, match="STORAGE_UNAVAILABLE"):
+        sidecar._kernel_rename_noreplace(-1, "stage", -1, "start.json")
+
+
 def test_concurrent_prepare_has_one_creator_and_identical_replays(isolated_store: Path) -> None:
     """No-replace publication has a single creator under a bounded race."""
 

@@ -41,6 +41,10 @@ opened directory descriptors. The destination directory is fsynced. A crash
 before rename can leave only that out-of-store stage; a crash after rename
 leaves a canonical link-count-one receipt. Finalization removes only its own
 inode-bound remaining stage and never sweeps arbitrary residue.
+V1 deliberately has no link/unlink fallback: if the platform no-replace rename
+symbol is unavailable, publication fails closed as `STORAGE_UNAVAILABLE` because
+a crash between link and unlink could expose a canonical receipt plus an extra
+stage alias.
 Prepare accepts only the canonical packet path
 `artifacts/orchestration/task_packets/<task_packet_id>.json`; the filename must
 match the parsed id. Packet, terminal-input, and receipt reads use bounded
@@ -115,7 +119,9 @@ before directory creation.
 Validation reports only `receipt_state=start_recorded|terminal_recorded`.
 Aggregate keys are qualified as `start_receipts`, `terminal_receipts`,
 `start_only_receipts`, `observed_merged`, and
-`observed_closed_unmerged`; these names do not authenticate external state.
+`observed_closed_unmerged`, plus `operator_minutes_unknown`. Totals are
+`operator_minutes_known`, `review_cycles`, and `repair_cycles`; these names do
+not authenticate external state.
 
 The filesystem boundary covers at-rest aliases and cooperating local sidecar
 processes. It does not claim protection against a hostile same-UID process that
