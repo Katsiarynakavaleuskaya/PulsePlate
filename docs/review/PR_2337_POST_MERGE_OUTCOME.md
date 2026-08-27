@@ -2,7 +2,7 @@
 
 **Status:** Historical evidence record; no runtime or release authority
 **Owner:** @katsiaryna_kavaleuskaya
-**Recorded at:** 2026-08-26T23:10:59Z
+**Recorded at:** 2026-08-27T03:53:59Z
 
 ## Record identity
 
@@ -20,7 +20,7 @@
   "base_sha_at_merge": "235d1f8e5ed76da498350e25240c86f64bdc788\u0064",
   "merge_sha": "d5ef261473bb76fcaa57a6a982013a2424263df\u0061",
   "merged_at": "2026-08-26T22:19:41Z",
-  "recorded_at": "2026-08-26T23:10:59Z",
+  "recorded_at": "2026-08-27T03:53:59Z",
   "idempotency_key": "pulseplate:fitchef:e1-05b:pr-2337:d5ef261473bb76fcaa57a6a982013a2424263dfa:outcome:v1",
   "upstream_assets": [
     "github_pr:Katsiarynakavaleuskaya/PulsePlate#2337",
@@ -59,9 +59,12 @@ lineage, policy, replay, and admission fields are outside that projection; their
 content integrity comes from the committed Git blob and commit plus independent
 validation. This record does not claim a full-content cryptographic fingerprint.
 
-This v1 record is immutable and unique for the named merge. Replay verifies it
-only. Any correction or refresh must create a new schema/revision and a new
-idempotency key; it cannot silently rewrite v1.
+`recorded_at` is the candidate finalization time. This v1 record becomes
+immutable and unique for the named merge only when the exact record blob is
+merged into `main`. Before that merge, review corrections are candidate edits,
+not replay. After merge, replay verifies only. Any correction or refresh must
+create a new schema/revision and a new idempotency key; it cannot silently
+rewrite v1.
 
 The five commit-identity fields use semantically equivalent JSON Unicode escapes
 only to prevent non-secret commit identifiers from matching the quoted-hex
@@ -311,9 +314,33 @@ The exact-merge scan covered only:
 - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
 - `frontend/src/features/fitchef/supportChoiceEvents.ts`
 
-It checked the closed pattern family for direct route/navigation APIs, direct
-fetch, browser storage/cookies/beacons, and plan create/update/save/mutate/delete
-calls. Raw result:
+The exact command used at the post-merge observation was:
+
+```bash
+set -euo pipefail
+FILES=(
+  frontend/src/api/fitchefSupportHandoff.ts
+  frontend/src/features/fitchef/SupportChoiceCard.tsx
+  frontend/src/features/fitchef/supportChoiceEvents.ts
+)
+FORBIDDEN='useNavigate|navigate[[:space:]]*\(|window\.location|location\.(assign|replace)[[:space:]]*\(|href[[:space:]]*=|localStorage|sessionStorage|document\.cookie|navigator\.sendBeacon|fetch[[:space:]]*\(|createPlan[[:space:]]*\(|updatePlan[[:space:]]*\(|savePlan[[:space:]]*\(|mutatePlan[[:space:]]*\(|setPlan[[:space:]]*\(|updateSettings[[:space:]]*\(|setSettings[[:space:]]*\('
+set +e
+MATCHES="$(rg -n "$FORBIDDEN" "${FILES[@]}" 2>&1)"
+RC=$?
+set -e
+if [[ "$RC" -eq 0 ]]; then
+  printf '%s\n' "$MATCHES"
+  printf 'ERROR: forbidden execution/navigation/storage/mutation carrier found\n' >&2
+  exit 1
+fi
+if [[ "$RC" -ne 1 ]]; then
+  printf '%s\n' "$MATCHES" >&2
+  exit "$RC"
+fi
+printf 'NONE\n'
+```
+
+Raw result:
 
 ```text
 NONE
@@ -424,4 +451,9 @@ grants no current or future authority.
   authenticated backup/digest/append/re-read verification with an exact-prefix
   append. This records no terminal-state or merge claim for PR #2341; its live
   state must be read from authenticated GitHub state.
+- Any restore of the pre-append PR #2337 body is allowed only after the
+  authenticated live body digest still equals
+  `sha256:0bdb456350c34f6ff61cbb3b26e6330828b7a1113ec331c30c0db89e2b0d107f`.
+  On mismatch, stop and rebuild from current live state or append a corrective
+  clarification; never blindly overwrite live metadata.
 - No deployment or release is claimed by this record.
