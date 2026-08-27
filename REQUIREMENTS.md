@@ -80,10 +80,22 @@ change:
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
-LOCK_PROFILES="test dev aggregate" \
-  UPGRADE_PACKAGES="coverage==7.15.1 faker==40.31.0" \
+LOCK_PROFILES="ci-lite" \
+  UPGRADE_PACKAGES="coverage==7.15.4" \
+  make requirements-locks
+
+LOCK_PROFILES="test" \
+  UPGRADE_PACKAGES="coverage==7.15.4 faker==40.37.0 hypothesis==6.165.10" \
+  make requirements-locks
+
+LOCK_PROFILES="dev aggregate" \
+  UPGRADE_PACKAGES="coverage==7.15.4 faker==40.37.0 hypothesis==6.165.10 mypy==2.3.1 ruff==0.16.4 types-pyyaml==6.0.12.20260815" \
   make requirements-locks
 ```
+
+For this DS-3 transaction, record SHA-256 for the four generated locks, then
+repeat the same three commands in the same order. The second replay must
+produce identical lock bytes and no additional diff.
 
 `LOCK_PROFILES` is required. `UPGRADE_PACKAGES` is optional and accepts only
 exact existing `package==version` targets. The compiler seeds existing locks,
