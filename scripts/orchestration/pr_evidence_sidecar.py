@@ -11,7 +11,7 @@ import stat
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STORE_ROOT = REPO_ROOT / "artifacts/orchestration/pr_evidence_sidecars"
@@ -198,7 +198,7 @@ def _start_identity(
 def _exact_object(value: Any, keys: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != keys:
         raise SidecarError("INVALID_INPUT")
-    return value
+    return cast(dict[str, Any], value)
 
 
 def _lower_sha(value: Any) -> str:
@@ -324,7 +324,7 @@ def _validate_receipt_fingerprint(value: dict[str, Any]) -> None:
 
 def _load_start(sidecar_id: str) -> dict[str, Any]:
     path = _sidecar_dir(sidecar_id) / "start.json"
-    value = _strict_json_bytes(
+    parsed = _strict_json_bytes(
         _read_regular(
             path,
             limit=MAX_RECEIPT_BYTES,
@@ -334,7 +334,7 @@ def _load_start(sidecar_id: str) -> dict[str, Any]:
     )
     _require_mode(path, 0o600)
     value = _exact_object(
-        value,
+        parsed,
         {
             "schema_version",
             "policy_version",
@@ -470,7 +470,7 @@ def _repo_input_path(raw_path: str) -> Path:
 
 
 def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any]:
-    value = _exact_object(
+    document = _exact_object(
         value,
         {
             "schema_version",
@@ -482,23 +482,23 @@ def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any
             "operator_observations",
         },
     )
-    if value["schema_version"] != TERMINAL_INPUT_SCHEMA:
+    if document["schema_version"] != TERMINAL_INPUT_SCHEMA:
         raise SidecarError("INVALID_INPUT")
     if (
-        isinstance(value["pr_number"], bool)
-        or not isinstance(value["pr_number"], int)
-        or value["pr_number"] <= 0
+        isinstance(document["pr_number"], bool)
+        or not isinstance(document["pr_number"], int)
+        or document["pr_number"] <= 0
     ):
         raise SidecarError("INVALID_INPUT")
-    if value["observed_pr_terminal_state"] not in {"merged", "closed_unmerged"}:
+    if document["observed_pr_terminal_state"] not in {"merged", "closed_unmerged"}:
         raise SidecarError("INVALID_INPUT")
-    _lower_sha(value["material_head_sha"])
-    merge_sha = value["merge_commit_sha"]
-    if value["observed_pr_terminal_state"] == "merged":
+    _lower_sha(document["material_head_sha"])
+    merge_sha = document["merge_commit_sha"]
+    if document["observed_pr_terminal_state"] == "merged":
         _lower_sha(merge_sha)
     elif merge_sha is not None:
         raise SidecarError("INVALID_INPUT")
-    rails = _exact_object(value["rails"], set(RAILS))
+    rails = _exact_object(document["rails"], set(RAILS))
     applicable = set(start["applicable_rails"])
     for rail in RAILS:
         record = _exact_object(rails[rail], {"applicable", "status", "reference_fingerprint"})
@@ -515,7 +515,7 @@ def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any
         if record["status"] == "referenced":
             _sha256_id(record["reference_fingerprint"])
     operator_observations = _exact_object(
-        value["operator_observations"],
+        document["operator_observations"],
         {
             "operator_minutes",
             "review_cycles",
@@ -533,7 +533,7 @@ def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any
         observation = operator_observations[key]
         if isinstance(observation, bool) or not isinstance(observation, int) or observation < 0:
             raise SidecarError("INVALID_INPUT")
-    return value
+    return document
 
 
 def finalize(sidecar_id: str, terminal_input_path: str) -> dict[str, Any]:
@@ -582,7 +582,7 @@ def _load_terminal(sidecar_id: str, start: dict[str, Any]) -> dict[str, Any] | N
     path = _sidecar_dir(sidecar_id) / "terminal.json"
     if not path.exists() and not path.is_symlink():
         return None
-    value = _strict_json_bytes(
+    parsed = _strict_json_bytes(
         _read_regular(
             path,
             limit=MAX_RECEIPT_BYTES,
@@ -607,7 +607,7 @@ def _load_terminal(sidecar_id: str, start: dict[str, Any]) -> dict[str, Any] | N
         "disclaimer",
         "receipt_fingerprint",
     }
-    value = _exact_object(value, keys)
+    value = _exact_object(parsed, keys)
     if value["schema_version"] != TERMINAL_SCHEMA or value["policy_version"] != POLICY_VERSION:
         raise SidecarError("INVALID_INPUT")
     if (
