@@ -135,6 +135,37 @@ If it is not recorded here — it does not exist.
     enforcement requires its own reviewed follow-up PR and an update to this
     umbrella. This shadow contract alone opens none of those gates.
 
+<a id="ledger-p1-pr-evidence-sidecar-v1"></a>
+- [ ] P1: TELO-OPS-1 local PR evidence sidecar v1 umbrella
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1 (bounded orchestration evidence and operator-effort visibility)
+  - Target PR: PR-TBD (`codex/pr-evidence-sidecar-v1`)
+  - Status: Implementation lane; first fresh receipt is deferred to the next
+    lane after merge, with no retrospective receipt for this PR
+  - Reason (EN): TaskNormative and the existing Euler and Experiment Runner
+    rails need one local structural start/terminal carrier for bounded counts
+    without creating a second orchestration authority or interpreting external
+    terminal semantics.
+  - Links:
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `scripts/orchestration/pr_evidence_sidecar.py`
+    - PR #2341 remains a distinct docs-only work result and is not sidecar evidence
+  - DoD:
+    - fixed private gitignored store capped at 128 sidecars, strict finite JSON,
+      immutable no-replace receipts, replay checks, and sorted whole-store
+      prevalidation are deterministic
+    - starter prepares only after bootstrap and renders prepared, unavailable,
+      or invalid state without changing packet bytes or dispatch commands
+    - terminal rails preserve exact applicability and reference truth; operator
+      observations contain only minutes plus review/repair cycle counts, and
+      aggregate output makes no GO, causality, or external-terminal claim
+    - first production-of-evidence exercise occurs on the next fresh lane
+    - TaskNormative N1 `p1-05`, future N2, and Euler enrollment/admission remain
+      unchanged and require their own authority
+  - Rollback (EN): Remove the tool, starter/renderer integration, tests, and
+    contract before any downstream consumer exists; local receipts remain
+    non-canonical and may be discarded by the operator.
+
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
   - Owner: backend-engineer

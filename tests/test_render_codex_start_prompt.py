@@ -570,6 +570,76 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "auto-start" not in prompt.lower()
 
 
+def test_packet_prompt_renders_prepared_evidence_sidecar_without_dispatch_drift() -> None:
+    """Prepared local evidence renders one bounded marker and exact follow-up commands."""
+
+    sidecar_id = "sha256:" + ("d" * 64)
+    packet = _packet()
+    baseline = render_packet_prompt(packet, packet_path="packet.json")
+    prompt = render_packet_prompt(
+        packet,
+        packet_path="packet.json",
+        evidence_sidecar_state="prepared",
+        evidence_sidecar_id=sidecar_id,
+    )
+
+    dispatch = (
+        "Next role-agent dispatch command: "
+        + baseline.split("Next role-agent dispatch command: ", maxsplit=1)[1].splitlines()[0]
+    )
+    assert dispatch in prompt
+    assert prompt.count("PR evidence sidecar v1:") == 1
+    assert f"state=prepared; id={sidecar_id}" in prompt
+    assert ("artifacts/orchestration/pr_evidence_sidecars/" f"{'d' * 64}/start.json") in prompt
+    assert f"finalize --sidecar-id {sidecar_id}" in prompt
+    assert f"validate --sidecar-id {sidecar_id}" in prompt
+    assert "pr_evidence_sidecar.py report" in prompt
+    assert "false -> not_applicable + null" in prompt
+    assert "true -> referenced + full sha256 fingerprint" in prompt
+    assert "true -> unknown + null" in prompt
+    assert "no review, CI, merge, release" in prompt
+
+
+@pytest.mark.parametrize("state", ["unavailable", "invalid"])
+def test_packet_prompt_renders_nonprepared_sidecar_without_commands(state: str) -> None:
+    """Unavailable/invalid advisory state carries no invented identifier or receipt path."""
+
+    prompt = render_packet_prompt(
+        _packet(), packet_path="packet.json", evidence_sidecar_state=state
+    )
+
+    assert f"PR evidence sidecar v1: state={state}; id=<none>." in prompt
+    assert "pr_evidence_sidecar.py finalize" not in prompt
+    assert "Structural local receipt only" in prompt
+    assert "Manual recovery prepare:" in prompt
+    assert "--packet packet.json --base-sha <lowercase-40-sha>" in prompt
+
+
+@pytest.mark.parametrize(
+    ("state", "sidecar_id"),
+    [
+        (None, "sha256:" + "d" * 64),
+        ("prepared", ""),
+        ("prepared", "sha256:short"),
+        ("invalid", "sha256:" + "d" * 64),
+        ("mystery", ""),
+    ],
+)
+def test_packet_prompt_rejects_invalid_sidecar_pairing(
+    state: str | None,
+    sidecar_id: str,
+) -> None:
+    """State/id pairing is fail-closed before rendering a prompt."""
+
+    with pytest.raises(ValueError, match="evidence sidecar"):
+        render_packet_prompt(
+            _packet(),
+            packet_path="packet.json",
+            evidence_sidecar_state=state,
+            evidence_sidecar_id=sidecar_id,
+        )
+
+
 def test_packet_prompt_shell_quotes_dispatch_packet_path() -> None:
     """The rendered dispatch command must be safe to copy for shell paths."""
 

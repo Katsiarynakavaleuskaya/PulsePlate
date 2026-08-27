@@ -117,6 +117,9 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Would run in worktree:" in result.stdout
     assert "scripts/orchestration/check_preflight.py" in result.stdout
     assert "scripts/orchestration/task_bootstrap.py" in result.stdout
+    assert "Would run in worktree after bootstrap:" in result.stdout
+    assert "scripts/orchestration/pr_evidence_sidecar.py prepare" in result.stdout
+    assert "--applicable-rail experiment_runner" in result.stdout
     assert "Repo Python:" in result.stdout
     assert "avoid bare python3 -m pytest when .venv exists" in result.stdout
     assert "--path docs/dev/CODEX_SKILLS.md" in result.stdout
@@ -220,7 +223,11 @@ case "$1" in
     exit 0
     ;;
   rev-list) printf '0\\t0\\n'; exit 0 ;;
-  worktree) mkdir -p "$5"; exit 0 ;;
+  worktree)
+    mkdir -p "$5/scripts/orchestration"
+    touch "$5/scripts/orchestration/pr_evidence_sidecar.py"
+    exit 0
+    ;;
   *) exit 0 ;;
 esac
 """,
@@ -240,6 +247,10 @@ case "$1" in
     ;;
   *task_bootstrap.py)
     printf '{{"output": "{packet_path}", "primary_agent": "agent-coordinator", "reviewer": "qa-engineer-agent", "recommended_skills": ["pulseplate-premortem-risk-review"]}}\\n'
+    exit 0
+    ;;
+  *pr_evidence_sidecar.py)
+    printf '{{"schema_version":"pr_evidence_sidecar.start.v1","command":"prepare","sidecar_id":"sha256:{'d' * 64}","sidecar_path":"artifacts/orchestration/pr_evidence_sidecars/{'d' * 64}/start.json","created":true}}\n'
     exit 0
     ;;
   *render_codex_start_prompt.py)
@@ -275,6 +286,10 @@ esac
 
     assert result.returncode == 0, result.stderr
     assert "Authoritative bootstrap already ran" in result.stdout
+    assert "PR evidence sidecar v1: state=prepared" in result.stdout
+    assert f"sha256:{'d' * 64}" in result.stdout
+    assert "Structural local receipt only; no review, CI, merge" in result.stdout
+    assert "Rail truth table: false -> not_applicable + null" in result.stdout
     assert f"Task packet: {packet_path}" in result.stdout
     assert "packet_creation_executes_roles=false" in result.stdout
     assert "role_agent_dispatch_required=true" in result.stdout
@@ -320,6 +335,39 @@ def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:
         assert f"  - {plugin}" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
     assert "PR open mode: non-draft by default" in result.stdout
+
+
+def test_start_pr_lane_dry_run_deduplicates_sidecar_rails_without_writing() -> None:
+    """Dry-run prints the post-bootstrap plan once per applicability rail."""
+
+    result = run_start(
+        *_required_args(),
+        "--evidence-sidecar-rail",
+        "teleology",
+        "--evidence-sidecar-rail",
+        "experiment_runner",
+        "--dry-run",
+    )
+
+    assert result.returncode == 0, result.stderr
+    planned = next(
+        line for line in result.stdout.splitlines() if "pr_evidence_sidecar.py prepare" in line
+    )
+    assert planned.count("--applicable-rail experiment_runner") == 1
+    assert planned.count("--applicable-rail teleology") == 1
+    assert "pr_evidence_sidecars/" not in result.stdout
+
+
+def test_start_pr_lane_handshake_contract_rejects_schema_and_hex_drift() -> None:
+    """Inline handshake validation pins literal schema and lowercase id grammar."""
+
+    source = START_SCRIPT.read_text(encoding="utf-8")
+    assert 'payload["schema_version"] != "pr_evidence_sidecar.start.v1"' in source
+    assert 'any(char not in "0123456789abcdef" for char in sidecar_id[7:])' in source
+    assert (
+        'expected_keys = {"schema_version", "command", "sidecar_id", "sidecar_path", "created"}'
+        in source
+    )
 
 
 def test_start_pr_lane_allows_dirty_launcher_for_synced_origin_main_lane(
