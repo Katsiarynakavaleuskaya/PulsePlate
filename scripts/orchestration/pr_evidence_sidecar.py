@@ -84,7 +84,7 @@ def _strict_json_bytes(raw: bytes, *, limit: int) -> Any:
             parse_constant=lambda _value: (_ for _ in ()).throw(SidecarError("INVALID_INPUT")),
         )
         value, end = decoder.raw_decode(text)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, SidecarError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError, SidecarError) as exc:
         raise SidecarError("INVALID_INPUT") from exc
     if text[end:].strip():
         raise SidecarError("INVALID_INPUT")
@@ -503,6 +503,7 @@ def _load_start(sidecar_id: str) -> dict[str, Any]:
     if (
         not isinstance(rails, list)
         or not rails
+        or any(not isinstance(item, str) for item in rails)
         or rails != sorted(set(rails))
         or any(item not in RAILS for item in rails)
     ):
@@ -663,11 +664,15 @@ def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any
         or document["pr_number"] <= 0
     ):
         raise SidecarError("INVALID_INPUT")
-    if document["observed_pr_terminal_state"] not in {"merged", "closed_unmerged"}:
+    terminal_state = document["observed_pr_terminal_state"]
+    if not isinstance(terminal_state, str) or terminal_state not in {
+        "merged",
+        "closed_unmerged",
+    }:
         raise SidecarError("INVALID_INPUT")
     _lower_sha(document["material_head_sha"])
     merge_sha = document["merge_commit_sha"]
-    if document["observed_pr_terminal_state"] == "merged":
+    if terminal_state == "merged":
         _lower_sha(merge_sha)
     elif merge_sha is not None:
         raise SidecarError("INVALID_INPUT")
@@ -861,19 +866,10 @@ def validate(sidecar_id: str) -> dict[str, Any]:
         return _validate_unlocked(sidecar_id)
 
 
-def _report_unlocked() -> dict[str, Any]:
-    if not STORE_ROOT.exists() and not STORE_ROOT.is_symlink():
-        entries: list[Path] = []
-    else:
-        entries = _validate_root_index()
-    starts: list[dict[str, Any]] = []
-    terminals: list[dict[str, Any]] = []
-    for directory in entries:
-        sidecar_id = "sha256:" + directory.name
-        start, terminal = _validate_sidecar_container(sidecar_id)
-        starts.append(start)
-        if terminal is not None:
-            terminals.append(terminal)
+def _report_payload(
+    starts: list[dict[str, Any]],
+    terminals: list[dict[str, Any]],
+) -> dict[str, Any]:
     totals = {
         "operator_minutes_known": 0,
         "review_cycles": 0,
@@ -908,8 +904,26 @@ def _report_unlocked() -> dict[str, Any]:
     }
 
 
+def _report_unlocked() -> dict[str, Any]:
+    if not STORE_ROOT.exists() and not STORE_ROOT.is_symlink():
+        entries: list[Path] = []
+    else:
+        entries = _validate_root_index()
+    starts: list[dict[str, Any]] = []
+    terminals: list[dict[str, Any]] = []
+    for directory in entries:
+        sidecar_id = "sha256:" + directory.name
+        start, terminal = _validate_sidecar_container(sidecar_id)
+        starts.append(start)
+        if terminal is not None:
+            terminals.append(terminal)
+    return _report_payload(starts, terminals)
+
+
 def report() -> dict[str, Any]:
-    with _store_lock(exclusive=False, create_store=False):
+    with _store_lock(exclusive=False, create_store=False) as store_exists:
+        if not store_exists:
+            return _report_payload([], [])
         return _report_unlocked()
 
 

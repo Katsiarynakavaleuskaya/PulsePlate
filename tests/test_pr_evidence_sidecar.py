@@ -7,7 +7,9 @@ import json
 import os
 import stat
 import threading
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -144,6 +146,7 @@ def test_prepare_is_content_bound_private_and_replay_safe(isolated_store: Path) 
         b"\xff",
         b"[]",
         b'{"schema_version":"3.0","task_packet_id":"111111111111"}',
+        b'{"schema_version":' + (b"9" * 4301) + b',"task_packet_id":"111111111111"}',
     ],
 )
 def test_prepare_rejects_noncanonical_or_wrong_packet(raw: bytes, isolated_store: Path) -> None:
@@ -346,6 +349,23 @@ def test_finalize_rejects_path_traversal_unknown_keys_and_bad_observations(
     value.pop("unknown")
     value["operator_observations"]["review_cycles"] = True
     terminal_input.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
+        sidecar.finalize(str(prepared["sidecar_id"]), terminal_input.name)
+
+
+@pytest.mark.parametrize("bad_state", [["merged"], {"state": "merged"}])
+def test_finalize_rejects_nonstring_terminal_state(
+    bad_state: object,
+    isolated_store: Path,
+) -> None:
+    """Terminal state type errors remain inside the stable INVALID_INPUT contract."""
+
+    prepared = _prepare(isolated_store)
+    terminal_input = _terminal(isolated_store, prepared)
+    value = json.loads(terminal_input.read_text())
+    value["observed_pr_terminal_state"] = bad_state
+    terminal_input.write_text(json.dumps(value), encoding="utf-8")
+
     with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
         sidecar.finalize(str(prepared["sidecar_id"]), terminal_input.name)
 
@@ -740,6 +760,59 @@ def test_read_only_operations_do_not_create_missing_store(isolated_store: Path) 
     with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
         sidecar.validate("sha256:" + ("d" * 64))
     assert not sidecar.STORE_ROOT.exists()
+
+
+@pytest.mark.parametrize(
+    "bad_rail",
+    [["experiment_runner"], {"rail": "experiment_runner"}],
+)
+def test_validate_rejects_nonstring_applicable_rails(
+    bad_rail: object,
+    isolated_store: Path,
+) -> None:
+    """Stored rail type errors remain inside the stable INVALID_INPUT contract."""
+
+    prepared = _prepare(isolated_store)
+    path = isolated_store / str(prepared["sidecar_path"])
+    value = json.loads(path.read_text())
+    value["applicable_rails"] = [bad_rail]
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
+        sidecar.validate(str(prepared["sidecar_id"]))
+
+
+def test_report_linearizes_empty_snapshot_before_concurrent_store_creation(
+    isolated_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing-store observation never falls through to an unlocked store read."""
+
+    @contextmanager
+    def concurrent_create(*, exclusive: bool, create_store: bool) -> Iterator[bool]:
+        assert exclusive is False
+        assert create_store is False
+        sidecar.STORE_ROOT.mkdir(parents=True)
+        (sidecar.STORE_ROOT / "partial-sidecar").mkdir()
+        yield False
+
+    monkeypatch.setattr(sidecar, "_store_lock", concurrent_create)
+
+    report = sidecar.report()
+
+    assert report["counts"] == {
+        "start_receipts": 0,
+        "terminal_receipts": 0,
+        "start_only_receipts": 0,
+        "observed_merged": 0,
+        "observed_closed_unmerged": 0,
+        "operator_minutes_unknown": 0,
+    }
+    assert report["totals"] == {
+        "operator_minutes_known": 0,
+        "review_cycles": 0,
+        "repair_cycles": 0,
+    }
 
 
 def test_validate_rejects_tampering_and_nonregular_receipts(isolated_store: Path) -> None:
