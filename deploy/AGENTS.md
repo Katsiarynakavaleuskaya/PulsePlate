@@ -134,10 +134,34 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `DHI_ACCESS_TOKEN`, reproduce the frozen digest twice, scan exact bases,
   builder, and final image with Trivy 0.74 and an empty ignore file, publish to
   the existing GHCR PulsePlate package, and attach derived provenance/SBOM.
+- DHI Community is the only admitted Docker entitlement. Docker documents its
+  Community core as free to use, share, and build on under Apache 2.0. The
+  existing `pulseplate` GHCR package was authenticated in the GitHub UI as
+  `public` on 2026-08-27; workflow publication must require that exact existing
+  owner/name/source/visibility before and after writes and must never create a
+  package, change visibility, purchase a subscription, or claim Select,
+  Enterprise, Docker support, official DHI, or mirror status.
+- Treat the output only as a PulsePlate-owned incorporated deployment
+  component built from DHI Community. Preserve inherited notices and upstream
+  PostgreSQL/pgvector attribution. The bounded public-package disposition is
+  tied to Docker's DHI Community docs and Terms observed on 2026-08-27; any
+  terms, tier, source-image, package, or topology drift is `HOLD`.
+- Install Docker Scout from the exact checksum-pinned official `v1.24.0`
+  archive and require its exact binary build identity. Source-attestation
+  verification must bind the two exact DHI linux/amd64 subjects. Docker's
+  documented `--skip-tlog` path verifies the Docker signature without public
+  Rekor/transparency proof; it is source-subject-only and never a scanner,
+  VEX, derived-attestation, provenance, or security-gate suppression.
 - Deploy scripts must validate the manifest and rendered Compose first, pull
   the exact PostgreSQL digest under temporary GHCR credentials, inspect its
-  platform/config/labels, remove credentials, and use `--pull never` before
-  database health, backup, or migrations. Hosts never receive DHI credentials.
+  platform/config/labels, and remove credentials. An existing self-hosted
+  transition then captures container/image/volume identity, quiesces worker,
+  Caddy, and app, and requires the closed predecessor/current image identity,
+  UID 70, exact PGDATA, PostgreSQL 15.19, stable runtime identity, and a
+  mode-0600 custom dump accepted by `pg_restore --list` from the still-running
+  old database before stopping it. Only then may the candidate use
+  `--pull never`; orphan or ambiguous identities/volumes fail closed. Hosts
+  never receive DHI credentials.
 - The checked main workflow must prove the exact four-directory mountpoint
   layer inventory and then attach a uniquely named fresh empty volume with a
   non-initializing command. The mounted root must be empty `70:70:0700` before

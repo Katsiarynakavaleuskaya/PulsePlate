@@ -97,9 +97,12 @@ initialization precondition for the tested Docker engine while preserving the
 inherited non-root UID 70 entrypoint. A mounted existing volume hides that
 image directory; therefore the layer cannot repair, chown, migrate, inspect,
 or prove any existing staging or production volume. Host activation still
-requires a read-only volume/UID/PGDATA census and backup. Any ownership or data
-drift is `HOLD`, not permission for an automatic host `chown`, copy, restore,
-replacement, or deletion.
+requires one exact legacy-or-current image/config identity, UID 70, one exact
+`PGDATA`/named-volume target, live PostgreSQL `15.19`, stable container/runtime
+identity across the quiesced backup, and a mode-0600 custom dump that
+`pg_restore --list` can parse before the old database stops. Any identity,
+ownership, receipt, or data drift is `HOLD`, not permission for an automatic
+host `chown`, copy, restore, replacement, or deletion.
 
 Pull requests validate only repository contracts and the public pinned
 pgvector semantic oracle; they receive no DHI credentials and write no image.
@@ -109,6 +112,37 @@ scan exact runtime/dev/builder/final images, publish into the existing
 `ghcr.io/katsiarynakavaleuskaya/pulseplate` package, attach derived
 provenance/SPDX evidence, and verify pullback. That publication still performs
 no staging or production deployment.
+
+Docker DHI Community remains the only admitted entitlement and adds no Docker
+hosting resource. [Docker's current DHI documentation](https://docs.docker.com/dhi/#community-features)
+states that Community core images are free to use, share, and build on under Apache 2.0. Authenticated
+GitHub package settings showed the existing `pulseplate` GHCR package as
+`public` on 2026-08-27. The exact-main workflow therefore verifies this
+existing public owner/name/source/visibility before candidate publication and
+after canonical promotion, but never creates a package or changes visibility.
+Any terms, entitlement, package identity, or visibility drift is `HOLD`; no
+subscription purchase or automatic registry substitution is authorized.
+This bounded engineering disposition was rechecked at `2026-08-27T17:41:16Z`
+against the [DHI usage guide](https://docs.docker.com/dhi/how-to/use/), the
+[Docker Terms effective 2026-08-26](https://www.docker.com/legal/docker-terms-use/),
+and Docker's separate [Select/Enterprise mirror contract](https://docs.docker.com/dhi/how-to/mirror/).
+The resulting image is a PulsePlate-owned incorporated deployment component,
+not an unmodified DHI redistribution, official DHI, Docker-managed mirror,
+customized Select/Enterprise artifact, certification, SLA, or support claim.
+Preserve inherited notices and upstream PostgreSQL/pgvector attribution; any
+terms, tier, source-image, package, or artifact-topology drift returns this
+disposition to `HOLD`.
+
+Exact DHI source provenance uses Docker Scout CLI `v1.24.0` from the official
+release archive, with its Linux-amd64 SHA-256 and binary build commit pinned in
+`.github/workflows/cd.yml`. Each receipt must name the exact runtime or builder
+linux/amd64 platform subject. Docker's
+[DHI verification guide](https://docs.docker.com/dhi/how-to/verify/) documents
+that some DHI attestations lack a public Rekor entry and permits
+`--verify --skip-tlog` with Scout `>=1.18.2`; here it means Docker-key signature
+verification without transparency-log proof. It is limited to the two frozen
+DHI source subjects and is not a Trivy suppression, VEX exception, derived
+attestation bypass, or permission to weaken GitHub attestation verification.
 
 ## Host secret contract
 
@@ -173,9 +207,13 @@ change is merged. It never starts the production clock.
    complete may the human re-enable `STAGING_ATTESTED_DIGEST_READY`.
 6. Run the separately authorized staging deploy. It pulls and inspects the
    exact PostgreSQL image under temporary GHCR credentials, removes those
-   credentials, starts PostgreSQL with `--pull never`, verifies health, and
-   only then performs backup/migrations. Product migration, app, worker, Caddy,
-   and external readiness complete before Prometheus starts.
+   credentials, and performs a current-container/image/volume census. For an
+   existing database it quiesces worker, Caddy, and app, creates and verifies a
+   backup from the still-running healthy old PostgreSQL container, then stops
+   it and starts the candidate with `--pull never`. An orphan/ambiguous volume
+   is `HOLD`; only proven volume absence is a fresh path. PostgreSQL health,
+   migration, app, worker, Caddy, and external readiness complete before
+   Prometheus starts.
 7. Run canonical BMR and gaps API smoke plus Web Nutrition Setup smoke.
 8. Create a private mode-`0700` staging evidence directory and run the
    verifier in `baseline` mode.
@@ -215,8 +253,10 @@ deploy occur. The deploy sequence must remain:
 1. validate incoming archive/contracts and host secret metadata;
 2. normalize Compose and pull exact images; for self-hosted PostgreSQL, inspect
    its platform/config/labels under temporary GHCR credentials, then remove
-   credentials and start it only with `--pull never`;
-3. require self-hosted PostgreSQL health before any migration, and run
+   credentials, census the existing container/image/volume, quiesce every
+   writer, and verify a pre-transition backup before stopping the old database;
+3. start the already-pulled self-hosted candidate only with `--pull never`,
+   require PostgreSQL health before any migration, and run
    exact-image promtool plus the canonical `app.main` production invariant;
 4. preserve migrations, app, worker, Caddy, and product readiness order;
 5. start Prometheus last and require both promtool ready and healthy checks.

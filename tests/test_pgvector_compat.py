@@ -192,7 +192,7 @@ def _required_ci_pgvector_url(environment: Mapping[str, str] | None = None) -> U
     )
     expected_contract = (
         "postgresql+psycopg",
-        "localhost",
+        "127.0.0.1",
         5432,
         "pgvector_compat",
         "pgvector_compat",
@@ -1695,7 +1695,7 @@ def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]
         "postgresql+psycopg",
         username="pgvector_compat",
         password="ephemeral-test-password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pgvector_compat",
     )
@@ -1713,7 +1713,7 @@ def test_bounded_projection_authority_rejects_every_query_parameter(query_key: s
         "postgresql+psycopg",
         username="pgvector_compat",
         password="ephemeral-test-password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pgvector_compat",
         query={query_key: "override"},
@@ -1757,7 +1757,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
         "postgresql+psycopg",
         username="pgvector_compat",
         password="decoded@password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pulseplate_alembic_test",
     )
@@ -1800,7 +1800,7 @@ def test_pg_alembic_timeout_diagnostics_normalize_and_redact_partial_output(
         "postgresql+psycopg",
         username="pgvector_compat",
         password="decoded@password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pulseplate_alembic_timeout_test",
     )

@@ -47,6 +47,27 @@ env:
 
 jobs:
   prometheus-image-security:
+    if: >-
+      always()
+      && needs.postgres-pgvector-contract.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-admission.result == 'success'
+        )
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || (
+          github.event_name == 'schedule'
+          && needs.postgres-pgvector-reuse.result == 'success'
+        )
+        || github.event_name == 'pull_request'
+      )
+    needs: [postgres-pgvector-contract, postgres-pgvector-admission, postgres-pgvector-reuse]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -111,9 +132,24 @@ jobs:
           evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-obs1b-oci.XXXXXX")"
           cleanup() {
             local original_status=$?
+            local cleanup_failed=0
             trap - EXIT
-            if [ -d "$evidence_dir" ]; then
-              rm -rf -- "$evidence_dir"
+            case "$evidence_dir" in
+              "${RUNNER_TEMP}"/pulseplate-obs1b-oci.*)
+                if [ -d "$evidence_dir" ] && [ ! -L "$evidence_dir" ]; then
+                  if ! rm -rf -- "$evidence_dir"; then
+                    cleanup_failed=1
+                  fi
+                else
+                  cleanup_failed=1
+                fi
+                ;;
+              *) cleanup_failed=1 ;;
+            esac
+            if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              exit 1
+            elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              echo "Prometheus OCI cleanup also failed; preserving primary exit $original_status" >&2
             fi
             exit "$original_status"
           }
@@ -125,12 +161,10 @@ jobs:
             > "$evidence_dir/platform-manifest.json"
           python3 - "$evidence_dir/index.json" "$evidence_dir/platform-manifest.json" <<'PY'
           import hashlib
-          import io
           import json
           import os
           from pathlib import Path
           import sys
-          import tarfile
 
           index_bytes = Path(sys.argv[1]).read_bytes()
           platform_bytes = Path(sys.argv[2]).read_bytes()
@@ -232,8 +266,8 @@ jobs:
       - name: Install exact Trivy CLI
         id: prometheus_trivy
         env:
-          TRIVY_VERSION: 0.74.0
-          TRIVY_ARCHIVE_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a # pragma: allowlist secret
+          TRIVY_VERSION: 0.72.0
+          TRIVY_ARCHIVE_SHA256: bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea # pragma: allowlist secret
         run: |
           set -euo pipefail
           umask 077
@@ -327,7 +361,9 @@ jobs:
             fi
             case "$synthetic_dir" in
               "${RUNNER_TEMP}/${resource_prefix}."*)
-                rm -rf -- "$synthetic_dir"
+                if ! rm -rf -- "$synthetic_dir"; then
+                  cleanup_failed=1
+                fi
                 ;;
               *)
                 echo "Refusing cleanup for an unbounded OBS1B temporary directory" >&2
@@ -336,6 +372,8 @@ jobs:
             esac
             if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
               exit 1
+            elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              echo "OBS1B cleanup also failed; preserving primary exit $original_status" >&2
             fi
             exit "$original_status"
           }
@@ -429,6 +467,14 @@ jobs:
       source_sha256: ${{ steps.postgres-contract.outputs.source_sha256 }}
       trivy_version: ${{ steps.postgres-contract.outputs.trivy_version }}
       trivy_archive_sha256: ${{ steps.postgres-contract.outputs.trivy_archive_sha256 }}
+      mountpoint_layer_digest: ${{ steps.postgres-contract.outputs.mountpoint_layer_digest }}
+      mountpoint_layer_size: ${{ steps.postgres-contract.outputs.mountpoint_layer_size }}
+      mountpoint_layer_diff_id: ${{ steps.postgres-contract.outputs.mountpoint_layer_diff_id }}
+      mountpoint_layer_entry_count: ${{ steps.postgres-contract.outputs.mountpoint_layer_entry_count }}
+      mountpoint_uid: ${{ steps.postgres-contract.outputs.mountpoint_uid }}
+      mountpoint_gid: ${{ steps.postgres-contract.outputs.mountpoint_gid }}
+      mountpoint_mode: ${{ steps.postgres-contract.outputs.mountpoint_mode }}
+      mountpoint_path: ${{ steps.postgres-contract.outputs.mountpoint_path }}
     steps:
       - name: Checkout immutable PostgreSQL image contracts
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -554,6 +600,14 @@ jobs:
               "trivy_archive_sha256": manifest["trivy_linux_archive_sha256"].removeprefix(
                   "sha256:"
               ),
+              "mountpoint_layer_digest": manifest["mountpoint_layer_digest"],
+              "mountpoint_layer_size": manifest["mountpoint_layer_size"],
+              "mountpoint_layer_diff_id": manifest["mountpoint_layer_diff_id"],
+              "mountpoint_layer_entry_count": manifest["mountpoint_layer_entry_count"],
+              "mountpoint_uid": manifest["mountpoint_uid"],
+              "mountpoint_gid": manifest["mountpoint_gid"],
+              "mountpoint_mode": manifest["mountpoint_mode"],
+              "mountpoint_path": manifest["mountpoint_path"],
           }
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               for key, value in outputs.items():
@@ -571,11 +625,68 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "push"
           test "$GITHUB_REF" = "refs/heads/main"
 
-  postgres-pgvector-publish:
+  postgres-pgvector-material-change:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [main-push-admission, postgres-pgvector-contract]
+    needs: main-push-admission
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.classify.outputs.changed }}
+    steps:
+      - name: Checkout exact main history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify the closed PostgreSQL image material set
+        id: classify
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$GITHUB_REF" = "refs/heads/main"
+          digest_pattern='^[0-9a-f]{40}$'
+          if [[ ! "$BEFORE_SHA" =~ $digest_pattern ]] || [[ ! "$AFTER_SHA" =~ $digest_pattern ]]; then
+            echo "Main push boundaries must be lowercase full Git SHAs" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$AFTER_SHA"
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git cat-file -e "${BEFORE_SHA}^{commit}"
+          git merge-base --is-ancestor "$BEFORE_SHA" "$AFTER_SHA"
+          changed=false
+          while IFS= read -r path; do
+            case "$path" in
+              deploy/postgres-pgvector/Containerfile | \
+              deploy/postgres-pgvector/image-manifest.json)
+                changed=true
+                ;;
+            esac
+          done < <(git diff --name-only --diff-filter=ACDMRTUXB "$BEFORE_SHA" "$AFTER_SHA")
+          printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
+
+  postgres-pgvector-publish:
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.postgres-pgvector-material-change.outputs.changed == 'true'
+    needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: postgres-pgvector-canonical-tag-promotion
+      cancel-in-progress: false
+    env:
+      PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     permissions:
       attestations: write
       contents: read
@@ -587,11 +698,22 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install locked canonical migration test runtime
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
+          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
+        with:
+          python-version: "3.13.14"
+          requirements-profile: ci-test
+          install-mode: direct-proxy
+
       - name: Reassert exact main publication predicate
         run: |
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = "push"
           test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Authenticate DHI read and existing GHCR package write rails
@@ -612,21 +734,108 @@ jobs:
               exit 1
               ;;
           esac
+          if [ "$DHI_USER" = "$DHI_TOKEN" ]; then
+            echo "DHI username and access token must be distinct opaque credentials" >&2
+            exit 1
+          fi
           umask 077
           credential_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-docker-config.XXXXXX")"
-          chmod 700 "$credential_dir"
           printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
+          chmod 700 "$credential_dir"
           printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
           printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
           docker buildx version
           builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
           docker buildx create \
             --name "$builder_name" \
             --driver docker-container \
             --use >/dev/null
           docker buildx inspect --bootstrap >/dev/null
-          printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
+
+      - name: Install exact Docker Scout 1.24.0 CLI
+        id: docker-scout
+        env:
+          SCOUT_VERSION: 1.24.0
+          SCOUT_ARCHIVE_SHA256: f4e2814bd61040365153d5b964b144cb2dc6ee536a68b5bac4cadf00fc0ec34b # pragma: allowlist secret
+          SCOUT_BUILD_COMMIT: b1c9331b2166aef7ec690aa16fd655b8798ea4c6 # pragma: allowlist secret
+        run: |
+          set -euo pipefail
+          umask 077
+          install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-docker-scout.XXXXXX")"
+          printf 'PGVECTOR_SCOUT_DIR=%s\n' "$install_dir" >> "$GITHUB_ENV"
+          archive_path="$install_dir/docker-scout.tar.gz"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/docker/scout-cli/releases/download/v${SCOUT_VERSION}/docker-scout_${SCOUT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive_path"
+          printf '%s  %s\n' "$SCOUT_ARCHIVE_SHA256" "$archive_path" | sha256sum --check -
+          tar -xzf "$archive_path" -C "$install_dir" docker-scout
+          scout_path="$install_dir/docker-scout"
+          test -f "$scout_path" && test ! -L "$scout_path" && test -x "$scout_path"
+          version_output="$("$scout_path" version)"
+          printf '%s\n' "$version_output" | \
+            grep -Fx "version: v${SCOUT_VERSION} (go1.26.3 - linux/amd64)"
+          printf '%s\n' "$version_output" | grep -Fx "git commit: ${SCOUT_BUILD_COMMIT}"
+          printf 'path=%s\n' "$scout_path" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact DHI source provenance separately
+        env:
+          SCOUT_BIN: ${{ steps.docker-scout.outputs.path }}
+        run: |
+          set -euo pipefail
+          test -f "$SCOUT_BIN" && test ! -L "$SCOUT_BIN" && test -x "$SCOUT_BIN"
+          runtime_base='registry://dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee'
+          builder_base='registry://dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a'
+          "$SCOUT_BIN" attestation get \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --verify \
+            --skip-tlog \
+            --output dhi-postgres-runtime-provenance.json \
+            "$runtime_base"
+          "$SCOUT_BIN" attestation get \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --verify \
+            --skip-tlog \
+            --output dhi-postgres-builder-provenance.json \
+            "$builder_base"
+          for predicate in \
+            dhi-postgres-runtime-provenance.json \
+            dhi-postgres-builder-provenance.json; do
+            test -f "$predicate"
+            test ! -L "$predicate"
+            test -s "$predicate"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = (
+              (
+                  Path("dhi-postgres-runtime-provenance.json"),
+                  "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
+                  "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+              ),
+              (
+                  Path("dhi-postgres-builder-provenance.json"),
+                  "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
+                  "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",
+              ),
+          )
+          for path, expected_name, expected_digest in expected:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              if payload.get("_type") != "https://in-toto.io/Statement/v1":
+                  raise SystemExit(f"{path} is not one in-toto v1 statement")
+              if payload.get("predicateType") != "https://slsa.dev/provenance/v1":
+                  raise SystemExit(f"{path} predicate type drifted")
+              if payload.get("subject") != [
+                  {"name": expected_name, "digest": {"sha256": expected_digest}}
+              ]:
+                  raise SystemExit(f"{path} exact DHI platform subject drifted")
+              if not isinstance(payload.get("predicate"), dict):
+                  raise SystemExit(f"{path} provenance predicate is malformed")
+          PY
 
       - name: Prepare exact verified pgvector source context
         id: pgvector-context
@@ -637,6 +846,8 @@ jobs:
           set -euo pipefail
           umask 077
           context_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-context.XXXXXX")"
+          printf 'context_dir=%s\n' "$context_dir" >> "$GITHUB_OUTPUT"
+          printf 'PGVECTOR_CONTEXT_DIR=%s\n' "$context_dir" >> "$GITHUB_ENV"
           archive_path="$context_dir/pgvector-v0.8.6.tar.gz"
           cp deploy/postgres-pgvector/Containerfile "$context_dir/Containerfile"
           curl --fail --location --silent --show-error \
@@ -645,8 +856,6 @@ jobs:
             --output "$archive_path"
           printf '%s  %s\n' "$PGVECTOR_SOURCE_SHA256" "$archive_path" | sha256sum --check -
           chmod 0600 "$context_dir/Containerfile" "$archive_path"
-          printf 'context_dir=%s\n' "$context_dir" >> "$GITHUB_OUTPUT"
-          printf 'PGVECTOR_CONTEXT_DIR=%s\n' "$context_dir" >> "$GITHUB_ENV"
 
       - name: Reproduce the exact platform manifest twice
         id: pgvector-build
@@ -655,9 +864,32 @@ jobs:
           EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
           SOURCE_DATE_EPOCH: ${{ needs.postgres-pgvector-contract.outputs.source_date_epoch }}
           SOURCE_CONTEXT: ${{ steps.pgvector-context.outputs.context_dir }}
+          EXPECTED_MOUNTPOINT_LAYER_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_layer_digest }}
+          EXPECTED_MOUNTPOINT_LAYER_SIZE: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_layer_size }}
+          EXPECTED_MOUNTPOINT_LAYER_DIFF_ID: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_layer_diff_id }}
+          EXPECTED_MOUNTPOINT_LAYER_ENTRY_COUNT: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_layer_entry_count }}
+          EXPECTED_MOUNTPOINT_UID: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_uid }}
+          EXPECTED_MOUNTPOINT_GID: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_gid }}
+          EXPECTED_MOUNTPOINT_MODE: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_mode }}
+          EXPECTED_MOUNTPOINT_PATH: ${{ needs.postgres-pgvector-contract.outputs.mountpoint_path }}
         run: |
           set -euo pipefail
           output_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-oci.XXXXXX")"
+          resource_prefix="pulseplate-pgvector-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          final_tag="${resource_prefix}-final"
+          builder_tag="${resource_prefix}-builder"
+          {
+            printf 'output_dir=%s\n' "$output_dir"
+            printf 'final_tag=%s\n' "$final_tag"
+            printf 'builder_tag=%s\n' "$builder_tag"
+            printf 'resource_prefix=%s\n' "$resource_prefix"
+          } >> "$GITHUB_OUTPUT"
+          {
+            printf 'PGVECTOR_OCI_OUTPUT_DIR=%s\n' "$output_dir"
+            printf 'PGVECTOR_FINAL_LOCAL_TAG=%s\n' "$final_tag"
+            printf 'PGVECTOR_BUILDER_LOCAL_TAG=%s\n' "$builder_tag"
+            printf 'PGVECTOR_RESOURCE_PREFIX=%s\n' "$resource_prefix"
+          } >> "$GITHUB_ENV"
           chmod 700 "$output_dir"
           for build_number in 1 2; do
             docker buildx build \
@@ -677,11 +909,14 @@ jobs:
           python3 - "$output_dir/oci-1" <<'PY'
           from __future__ import annotations
 
+          import gzip
           import hashlib
+          import io
           import json
           import os
           from pathlib import Path
           import sys
+          import tarfile
 
           root = Path(sys.argv[1])
           index_bytes = (root / "index.json").read_bytes()
@@ -705,10 +940,10 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL layer count drifted")
           mountpoint_descriptor = layers[-1]
           expected_mountpoint_descriptor = {
-              "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
-              "digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
+              "annotations": {"buildkit/rewritten-timestamp": os.environ["SOURCE_DATE_EPOCH"]},
+              "digest": os.environ["EXPECTED_MOUNTPOINT_LAYER_DIGEST"],
               "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-              "size": 154,
+              "size": int(os.environ["EXPECTED_MOUNTPOINT_LAYER_SIZE"]),
           }
           if mountpoint_descriptor != expected_mountpoint_descriptor:
               raise SystemExit("PostgreSQL mountpoint layer descriptor drifted")
@@ -723,19 +958,36 @@ jobs:
               or len(mountpoint_bytes) != mountpoint_descriptor["size"]
           ):
               raise SystemExit("PostgreSQL mountpoint layer bytes drifted")
-          with tarfile.open(fileobj=io.BytesIO(mountpoint_bytes), mode="r:gz") as archive:
+          try:
+              mountpoint_tar_bytes = gzip.decompress(mountpoint_bytes)
+          except (OSError, EOFError) as exc:
+              raise SystemExit("PostgreSQL mountpoint layer compression is malformed") from exc
+          expected_mountpoint_diff_id = os.environ["EXPECTED_MOUNTPOINT_LAYER_DIFF_ID"]
+          if "sha256:" + hashlib.sha256(mountpoint_tar_bytes).hexdigest() != expected_mountpoint_diff_id:
+              raise SystemExit("PostgreSQL mountpoint layer diff ID bytes drifted")
+          with tarfile.open(fileobj=io.BytesIO(mountpoint_tar_bytes), mode="r:") as archive:
               members = archive.getmembers()
-          expected_paths = ["var", "var/lib", "var/lib/postgresql", "var/lib/postgresql/data"]
+          mountpoint_parts = os.environ["EXPECTED_MOUNTPOINT_PATH"].strip("/").split("/")
+          expected_paths = [
+              "/".join(mountpoint_parts[:index])
+              for index in range(1, len(mountpoint_parts) + 1)
+          ]
+          if len(expected_paths) != int(os.environ["EXPECTED_MOUNTPOINT_LAYER_ENTRY_COUNT"]):
+              raise SystemExit("PostgreSQL mountpoint layer entry count drifted")
           if [member.name for member in members] != expected_paths:
               raise SystemExit("PostgreSQL mountpoint layer path inventory drifted")
+          expected_uid = int(os.environ["EXPECTED_MOUNTPOINT_UID"])
+          expected_gid = int(os.environ["EXPECTED_MOUNTPOINT_GID"])
+          expected_mode = int(os.environ["EXPECTED_MOUNTPOINT_MODE"], 8)
+          expected_mtime = int(os.environ["SOURCE_DATE_EPOCH"])
           for member in members:
               if (
                   not member.isdir()
-                  or member.uid != 70
-                  or member.gid != 70
-                  or member.mode != 0o700
+                  or member.uid != expected_uid
+                  or member.gid != expected_gid
+                  or member.mode != expected_mode
                   or member.size != 0
-                  or member.mtime != 1785349734
+                  or member.mtime != expected_mtime
                   or member.linkname
                   or member.pax_headers
               ):
@@ -749,9 +1001,6 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL config bytes have the wrong digest")
           config = json.loads(config_bytes)
           rootfs = config.get("rootfs")
-          expected_mountpoint_diff_id = (
-              "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
-          )
           if (
               not isinstance(rootfs, dict)
               or not isinstance(rootfs.get("diff_ids"), list)
@@ -792,9 +1041,6 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL runtime config drifted")
           PY
 
-          resource_prefix="pulseplate-pgvector-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          final_tag="${resource_prefix}-final"
-          builder_tag="${resource_prefix}-builder"
           docker buildx build \
             --platform linux/amd64 \
             --file "$SOURCE_CONTEXT/Containerfile" \
@@ -816,23 +1062,24 @@ jobs:
             "$SOURCE_CONTEXT"
           test "$(docker image inspect "$final_tag" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
+          test "$(docker image inspect "$final_tag" --format '{{.Id}}')" = \
+            "$EXPECTED_CONFIG_DIGEST"
+          loaded_rootfs="$(docker image inspect "$final_tag" --format '{{json .RootFS.Layers}}')"
+          python3 - "$loaded_rootfs" "$EXPECTED_MOUNTPOINT_LAYER_DIFF_ID" <<'PY'
+          import json
+          import sys
+
+          layers = json.loads(sys.argv[1])
+          if not isinstance(layers, list) or len(layers) != 12:
+              raise SystemExit("Loaded PostgreSQL image rootfs cardinality drifted")
+          if layers[-1] != sys.argv[2]:
+              raise SystemExit("Loaded PostgreSQL image mountpoint diff ID drifted")
+          PY
           test "$(docker image inspect "$final_tag" --format '{{.Config.User}}')" = "70"
           test "$(docker image inspect "$final_tag" --format '{{json .Config.Entrypoint}}')" = \
             '["/usr/local/bin/docker-entrypoint.sh"]'
           test "$(docker image inspect "$final_tag" \
             --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
-          {
-            printf 'output_dir=%s\n' "$output_dir"
-            printf 'final_tag=%s\n' "$final_tag"
-            printf 'builder_tag=%s\n' "$builder_tag"
-            printf 'resource_prefix=%s\n' "$resource_prefix"
-          } >> "$GITHUB_OUTPUT"
-          {
-            printf 'PGVECTOR_OCI_OUTPUT_DIR=%s\n' "$output_dir"
-            printf 'PGVECTOR_FINAL_LOCAL_TAG=%s\n' "$final_tag"
-            printf 'PGVECTOR_BUILDER_LOCAL_TAG=%s\n' "$builder_tag"
-            printf 'PGVECTOR_RESOURCE_PREFIX=%s\n' "$resource_prefix"
-          } >> "$GITHUB_ENV"
 
       - name: Install exact Trivy 0.74 CLI
         id: pgvector-trivy
@@ -843,6 +1090,7 @@ jobs:
           set -euo pipefail
           umask 077
           install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-trivy.XXXXXX")"
+          printf 'PGVECTOR_TRIVY_DIR=%s\n' "$install_dir" >> "$GITHUB_ENV"
           archive_path="$install_dir/trivy.tar.gz"
           curl --fail --location --silent --show-error \
             --proto '=https' --tlsv1.2 --retry 3 \
@@ -864,7 +1112,6 @@ jobs:
           chmod 0600 "$empty_ignore"
           printf 'path=%s\n' "$trivy_path" >> "$GITHUB_OUTPUT"
           printf 'ignore=%s\n' "$empty_ignore" >> "$GITHUB_OUTPUT"
-          printf 'PGVECTOR_TRIVY_DIR=%s\n' "$install_dir" >> "$GITHUB_ENV"
 
       - name: Scan exact bases, post-APK builder, and final image without suppressions
         env:
@@ -921,9 +1168,9 @@ jobs:
           legacy_container_name="${prefix}-legacy-postgres"
           legacy_volume_name="${prefix}-legacy-data"
           legacy_image='postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181'
-          database_name="pulseplate_pgvector_ci"
-          database_user="pulseplate_pgvector_ci"
-          database_password="pulseplate-pgvector-ci-password" # pragma: allowlist secret
+          database_name="pgvector_compat"
+          database_user="pgvector_compat"
+          database_password="pgvector_compat_test_password" # pragma: allowlist secret
           start_postgres() {
             local target_container="$1"
             local target_volume="$2"
@@ -936,6 +1183,7 @@ jobs:
               --env "POSTGRES_USER=$database_user" \
               --env "POSTGRES_PASSWORD=$database_password" \
               --env PGDATA=/var/lib/postgresql/data \
+              --publish 127.0.0.1:5432:5432 \
               --mount "type=volume,source=${target_volume},target=/var/lib/postgresql/data" \
               "$target_image" >/dev/null
             ready=0
@@ -971,6 +1219,14 @@ jobs:
             "$PGVECTOR_FINAL_LOCAL_TAG" \
             -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
           start_postgres "$container_name" "$volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+          CI=true \
+          GITHUB_ACTIONS=true \
+          APP_ENV=test \
+          ENVIRONMENT=test \
+          PGVECTOR_COMPAT_REQUIRED=1 \
+          PGVECTOR_COMPAT_DATABASE_URL="postgresql+psycopg://${database_user}:${database_password}@127.0.0.1:5432/${database_name}" \
+            python -m pytest -q \
+              tests/test_pgvector_compat.py::test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
           docker exec "$container_name" psql \
             --username "$database_user" --dbname "$database_name" \
             --set ON_ERROR_STOP=1 \
@@ -1050,7 +1306,36 @@ jobs:
           test "$transitioned_vector" = "0.8.6"
           test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"
 
-      - name: Publish only the reproduced exact manifest to existing GHCR package
+      - name: Verify existing public GHCR package identity before candidate write
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          visibility_payload="${RUNNER_TEMP}/pulseplate-pgvector-package-before.json"
+          gh api /user/packages/container/pulseplate > "$visibility_payload"
+          python3 - "$visibility_payload" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          observed = {
+              "name": payload.get("name"),
+              "package_type": payload.get("package_type"),
+              "visibility": payload.get("visibility"),
+              "repository": (payload.get("repository") or {}).get("full_name"),
+          }
+          expected = {
+              "name": "pulseplate",
+              "package_type": "container",
+              "visibility": "public",
+              "repository": "Katsiarynakavaleuskaya/PulsePlate",
+          }
+          if observed != expected:
+              raise SystemExit("Existing GHCR package identity or public visibility drifted")
+          PY
+
+      - name: Publish reproduced manifest under one unadmitted candidate tag
         id: publish-pgvector
         env:
           EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
@@ -1059,7 +1344,9 @@ jobs:
           SOURCE_DATE_EPOCH: ${{ needs.postgres-pgvector-contract.outputs.source_date_epoch }}
         run: |
           set -euo pipefail
-          tag_ref="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+          candidate_tag="${IMAGE_TAG}-candidate-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          candidate_tag_ref="${IMAGE_REPOSITORY}:${candidate_tag}"
+          canonical_tag_ref="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
           metadata_path="${RUNNER_TEMP}/pulseplate-pgvector-publish-metadata.json"
           docker buildx build \
             --platform linux/amd64 \
@@ -1067,12 +1354,12 @@ jobs:
             --provenance=false \
             --sbom=false \
             --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
-            --tag "$tag_ref" \
+            --tag "$candidate_tag_ref" \
             --metadata-file "$metadata_path" \
             --output type=registry,rewrite-timestamp=true \
             "$PGVECTOR_CONTEXT_DIR"
           raw_manifest="${RUNNER_TEMP}/pulseplate-pgvector-published-manifest.json"
-          docker buildx imagetools inspect --raw "$tag_ref" > "$raw_manifest"
+          docker buildx imagetools inspect --raw "$candidate_tag_ref" > "$raw_manifest"
           python3 - "$raw_manifest" <<'PY'
           import hashlib
           import json
@@ -1102,20 +1389,207 @@ jobs:
           if observed != expected:
               raise SystemExit("Published PostgreSQL platform digest differs from the frozen manifest")
           PY
-          runtime_ref="${tag_ref}@${EXPECTED_PLATFORM_DIGEST}"
-          test "$runtime_ref" = "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
-          printf 'runtime_ref=%s\n' "$runtime_ref" >> "$GITHUB_OUTPUT"
+          candidate_runtime_ref="${candidate_tag_ref}@${EXPECTED_PLATFORM_DIGEST}"
+          {
+            printf 'candidate_tag_ref=%s\n' "$candidate_tag_ref"
+            printf 'candidate_runtime_ref=%s\n' "$candidate_runtime_ref"
+            printf 'canonical_tag_ref=%s\n' "$canonical_tag_ref"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Attest PostgreSQL pgvector image provenance
-        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+      - name: Generate material-bound PostgreSQL pgvector provenance predicate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("deploy/postgres-pgvector/image-manifest.json").read_text(encoding="utf-8")
+          )
+          materials = [
+              ("dhi.io/postgres:runtime-index", manifest["runtime_base_index_digest"]),
+              ("dhi.io/postgres:runtime-platform", manifest["runtime_base_platform_manifest_digest"]),
+              ("dhi.io/postgres:runtime-config", manifest["runtime_base_config_digest"]),
+              ("dhi.io/postgres:builder-index", manifest["builder_base_index_digest"]),
+              ("dhi.io/postgres:builder-platform", manifest["builder_base_platform_manifest_digest"]),
+              ("dhi.io/postgres:builder-config", manifest["builder_base_config_digest"]),
+              (manifest["pgvector_source_url"], manifest["pgvector_source_sha256"]),
+              (
+                  "git+https://github.com/pgvector/pgvector",
+                  "sha1:" + manifest["pgvector_source_commit"],
+              ),
+              (
+                  "git+https://github.com/Katsiarynakavaleuskaya/PulsePlate#deploy/postgres-pgvector/Containerfile",
+                  manifest["containerfile_sha256"],
+              ),
+              ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
+              (
+                  "pulseplate:runtime-artifact-inventory",
+                  manifest["runtime_artifact_inventory_sha256"],
+              ),
+              ("pulseplate:mountpoint-layer", manifest["mountpoint_layer_digest"]),
+              ("pulseplate:mountpoint-layer-diff-id", manifest["mountpoint_layer_diff_id"]),
+          ]
+          resolved_dependencies = []
+          for uri, digest in materials:
+              algorithm, value = digest.split(":", 1)
+              resolved_dependencies.append({"uri": uri, "digest": {algorithm: value}})
+          predicate = {
+              "buildDefinition": {
+                  "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
+                  "externalParameters": {
+                      "repository": os.environ["GITHUB_REPOSITORY"],
+                      "source_ref": os.environ["GITHUB_REF"],
+                      "source_sha": os.environ["GITHUB_SHA"],
+                      "platform": manifest["platform"],
+                      "source_date_epoch": manifest["source_date_epoch"],
+                      "builder_packages": manifest["builder_packages"],
+                      "builder_apk_closure_count": manifest["builder_apk_closure_count"],
+                      "runtime_artifact_count": manifest["runtime_artifact_count"],
+                      "mountpoint_layer_entry_count": manifest["mountpoint_layer_entry_count"],
+                      "final_platform_manifest_digest": manifest["platform_manifest_digest"],
+                      "final_config_digest": manifest["config_digest"],
+                  },
+                  "internalParameters": {
+                      "buildx_provenance": False,
+                      "buildx_sbom": False,
+                      "oci_rewrite_timestamp": True,
+                  },
+                  "resolvedDependencies": resolved_dependencies,
+              },
+              "runDetails": {
+                  "builder": {
+                      "id": (
+                          "https://github.com/"
+                          + os.environ["GITHUB_REPOSITORY"]
+                          + "/.github/workflows/cd.yml@refs/heads/main"
+                      )
+                  },
+                  "metadata": {
+                      "invocationId": (
+                          "https://github.com/"
+                          + os.environ["GITHUB_REPOSITORY"]
+                          + "/actions/runs/"
+                          + os.environ["GITHUB_RUN_ID"]
+                          + "/attempts/"
+                          + os.environ["GITHUB_RUN_ATTEMPT"]
+                      )
+                  },
+              },
+          }
+          Path("postgres-pgvector-provenance.json").write_text(
+              json.dumps(predicate, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Classify existing exact-digest PostgreSQL attestations
+        id: pgvector-attestation-inventory
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+        run: |
+          set -euo pipefail
+          response_path="$(mktemp "${RUNNER_TEMP}/pulseplate-pgvector-attestations.XXXXXX")"
+          http_status="$(curl --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            --output "$response_path" \
+            --write-out '%{http_code}' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/attestations/${PLATFORM_DIGEST}?per_page=100")"
+          case "$http_status" in
+            200) ;;
+            404) printf '{"attestations":[]}\n' > "$response_path" ;;
+            *)
+              echo "Unable to classify existing exact-digest attestations (HTTP ${http_status})" >&2
+              exit 1
+              ;;
+          esac
+          python3 - "$response_path" <<'PY'
+          import base64
+          import copy
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          records = payload.get("attestations") if isinstance(payload, dict) else None
+          if not isinstance(records, list) or len(records) >= 100:
+              raise SystemExit("Attestation inventory is malformed or pagination-ambiguous")
+          expected_predicate = json.loads(
+              Path("postgres-pgvector-provenance.json").read_text(encoding="utf-8")
+          )
+          expected_subject = [
+              {
+                  "name": os.environ["REPOSITORY"],
+                  "digest": {"sha256": os.environ["PLATFORM_DIGEST"].removeprefix("sha256:")},
+              }
+          ]
+
+          def normalize_provenance(predicate):
+              normalized = copy.deepcopy(predicate)
+              metadata = normalized.get("runDetails", {}).get("metadata", {})
+              if isinstance(metadata, dict):
+                  metadata.pop("invocationId", None)
+              return normalized
+
+          expected_normalized = normalize_provenance(expected_predicate)
+          provenance_matches = 0
+          provenance_conflicts = 0
+          spdx_matches = 0
+          for record in records:
+              bundle = record.get("bundle") if isinstance(record, dict) else None
+              envelope = bundle.get("dsseEnvelope") if isinstance(bundle, dict) else None
+              encoded = envelope.get("payload") if isinstance(envelope, dict) else None
+              if not isinstance(encoded, str):
+                  raise SystemExit("Attestation bundle lacks one DSSE payload")
+              try:
+                  statement = json.loads(base64.b64decode(encoded, validate=True))
+              except (ValueError, json.JSONDecodeError) as exc:
+                  raise SystemExit("Attestation DSSE payload is malformed") from exc
+              if statement.get("subject") != expected_subject:
+                  continue
+              predicate_type = statement.get("predicateType")
+              predicate = statement.get("predicate")
+              if predicate_type == "https://slsa.dev/provenance/v1":
+                  definition = predicate.get("buildDefinition") if isinstance(predicate, dict) else None
+                  if isinstance(definition, dict) and definition.get("buildType") == (
+                      "https://pulseplate.app/buildtypes/postgres-pgvector/v1"
+                  ):
+                      if normalize_provenance(predicate) == expected_normalized:
+                          provenance_matches += 1
+                      else:
+                          provenance_conflicts += 1
+              elif predicate_type == "https://spdx.dev/Document/v2.3":
+                  if not isinstance(predicate, dict):
+                      raise SystemExit("Existing SPDX predicate is malformed")
+                  spdx_matches += 1
+          if provenance_conflicts or provenance_matches > 1 or spdx_matches > 1:
+              raise SystemExit("Existing PostgreSQL attestation inventory is conflicting or duplicated")
+          provenance_mode = "create" if provenance_matches == 0 else "reuse"
+          spdx_mode = "create" if spdx_matches == 0 else "reuse"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"provenance_mode={provenance_mode}", file=output)
+              print(f"spdx_mode={spdx_mode}", file=output)
+          PY
+
+      - name: Attest PostgreSQL pgvector material-bound provenance
+        if: steps.pgvector-attestation-inventory.outputs.provenance_mode == 'create'
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
           subject-digest: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: postgres-pgvector-provenance.json
           push-to-registry: true
 
       - name: Generate PostgreSQL pgvector SPDX SBOM with exact Trivy
         env:
-          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.runtime_ref }}
+          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
           TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
           TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
         run: |
@@ -1135,6 +1609,7 @@ jobs:
           test -s postgres-pgvector-image-sbom.spdx.json
 
       - name: Attest PostgreSQL pgvector SPDX SBOM
+        if: steps.pgvector-attestation-inventory.outputs.spdx_mode == 'create'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
@@ -1143,11 +1618,11 @@ jobs:
           predicate-path: postgres-pgvector-image-sbom.spdx.json
           push-to-registry: true
 
-      - name: Verify GHCR pullback, provenance, SBOM, and runtime identity
+      - name: Verify candidate pullback, material provenance, SBOM, and runtime identity
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.runtime_ref }}
+          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
           PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
           REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
         run: |
@@ -1163,10 +1638,65 @@ jobs:
             --markdown-out postgres-pgvector-provenance-attestation-check.md
           gh attestation verify "oci://${RUNTIME_REF}" \
             --repo "$GITHUB_REPOSITORY" \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --format json > postgres-pgvector-provenance-verified.json
+          python3 - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          expected = json.loads(
+              Path("postgres-pgvector-provenance.json").read_text(encoding="utf-8")
+          )
+          verified = json.loads(
+              Path("postgres-pgvector-provenance-verified.json").read_text(encoding="utf-8")
+          )
+          def normalize(predicate):
+              result = copy.deepcopy(predicate)
+              metadata = result.get("runDetails", {}).get("metadata", {})
+              if isinstance(metadata, dict):
+                  metadata.pop("invocationId", None)
+              return result
+
+          expected_normalized = normalize(expected)
+          matches = []
+          for item in verified:
+              predicate = (
+                  item.get("verificationResult", {}).get("statement", {}).get("predicate")
+              )
+              if isinstance(predicate, dict) and normalize(predicate) == expected_normalized:
+                  matches.append(item)
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one material-bound provenance predicate")
+          PY
+          gh attestation verify "oci://${RUNTIME_REF}" \
+            --repo "$GITHUB_REPOSITORY" \
             --predicate-type https://spdx.dev/Document/v2.3 \
             --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
             --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA"
+            --source-digest "$GITHUB_SHA" \
+            --format json > postgres-pgvector-spdx-verified.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          verified = json.loads(
+              Path("postgres-pgvector-spdx-verified.json").read_text(encoding="utf-8")
+          )
+          matches = [
+              item
+              for item in verified
+              if item.get("verificationResult", {})
+              .get("statement", {})
+              .get("predicateType")
+              == "https://spdx.dev/Document/v2.3"
+          ]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
+          PY
           inspected_digest="$(docker image inspect "$RUNTIME_REF" \
             --format '{{join .RepoDigests "\n"}}')"
           printf '%s\n' "$inspected_digest" | \
@@ -1177,6 +1707,89 @@ jobs:
           docker run --rm --platform linux/amd64 "$RUNTIME_REF" postgres --version | \
             grep -Fx 'postgres (PostgreSQL) 15.19'
 
+      - name: Recheck public GHCR package identity after candidate admission
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api /user/packages/container/pulseplate --jq \
+            '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
+            grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
+
+      - name: Promote verified candidate digest to canonical tag without rebuild
+        id: promote-pgvector
+        env:
+          CANDIDATE_RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
+          CANONICAL_TAG_REF: ${{ steps.publish-pgvector.outputs.canonical_tag_ref }}
+          EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune --depth=1 origin \
+            +refs/heads/main:refs/remotes/origin/main
+          current_main_sha="$(git rev-parse refs/remotes/origin/main)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          for material_path in \
+            deploy/postgres-pgvector/Containerfile \
+            deploy/postgres-pgvector/image-manifest.json; do
+            git cat-file -e "${GITHUB_SHA}:${material_path}"
+            git cat-file -e "${current_main_sha}:${material_path}"
+          done
+          if ! git diff --quiet "$GITHUB_SHA" "$current_main_sha" -- \
+              deploy/postgres-pgvector/Containerfile \
+              deploy/postgres-pgvector/image-manifest.json; then
+            echo "Current main PostgreSQL image material superseded this publishing run" >&2
+            exit 1
+          fi
+          docker buildx imagetools create \
+            --tag "$CANONICAL_TAG_REF" \
+            "$CANDIDATE_RUNTIME_REF"
+          canonical_raw="${RUNNER_TEMP}/pulseplate-pgvector-canonical-manifest.json"
+          docker buildx imagetools inspect --raw "$CANONICAL_TAG_REF" > "$canonical_raw"
+          python3 - "$canonical_raw" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          raw = Path(sys.argv[1]).read_bytes()
+          payload = json.loads(raw)
+          expected = os.environ["EXPECTED_PLATFORM_DIGEST"]
+          media_type = payload.get("mediaType", "")
+          if media_type.endswith("image.manifest.v1+json"):
+              observed = "sha256:" + hashlib.sha256(raw).hexdigest()
+          else:
+              matches = [
+                  item
+                  for item in payload.get("manifests", [])
+                  if item.get("platform") == {"architecture": "amd64", "os": "linux"}
+              ]
+              if len(matches) != 1:
+                  raise SystemExit("Canonical PostgreSQL tag lacks one linux/amd64 manifest")
+              observed = matches[0].get("digest")
+          if observed != expected:
+              raise SystemExit("Canonical PostgreSQL tag does not select the verified candidate")
+          PY
+          canonical_runtime_ref="${CANONICAL_TAG_REF}@${EXPECTED_PLATFORM_DIGEST}"
+          test "$canonical_runtime_ref" = "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
+          printf 'runtime_ref=%s\n' "$canonical_runtime_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Verify canonical pullback and unchanged public package visibility
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUNTIME_REF: ${{ steps.promote-pgvector.outputs.runtime_ref }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+        run: |
+          set -euo pipefail
+          gh api /user/packages/container/pulseplate --jq \
+            '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
+            grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
+          docker pull --platform linux/amd64 "$RUNTIME_REF"
+          inspected_digest="$(docker image inspect "$RUNTIME_REF" \
+            --format '{{join .RepoDigests "\n"}}')"
+          printf '%s\n' "$inspected_digest" | \
+            grep -Fx "ghcr.io/katsiarynakavaleuskaya/pulseplate@${PLATFORM_DIGEST}"
+
       - name: Upload PostgreSQL pgvector admission evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
@@ -1184,13 +1797,20 @@ jobs:
           name: postgres-pgvector-image-admission
           path: |
             postgres-pgvector-image-sbom.spdx.json
+            postgres-pgvector-provenance.json
+            postgres-pgvector-provenance-verified.json
+            postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
             postgres-pgvector-provenance-attestation-check.md
+            dhi-postgres-runtime-provenance.json
+            dhi-postgres-builder-provenance.json
           if-no-files-found: warn
           retention-days: 30
 
       - name: Remove synthetic resources and temporary registry credentials
         if: ${{ always() }}
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
         run: |
           set -u
           cleanup_failed=0
@@ -1248,6 +1868,7 @@ jobs:
             "${PGVECTOR_CONTEXT_DIR:-}" \
             "${PGVECTOR_OCI_OUTPUT_DIR:-}" \
             "${PGVECTOR_TRIVY_DIR:-}" \
+            "${PGVECTOR_SCOUT_DIR:-}" \
             "${PGVECTOR_DOCKER_CONFIG:-}"; do
             if [ -z "$temp_dir" ]; then
               continue
@@ -1255,7 +1876,9 @@ jobs:
             case "$temp_dir" in
               "${RUNNER_TEMP}"/pulseplate-pgvector-*)
                 if [ -d "$temp_dir" ] && [ ! -L "$temp_dir" ]; then
-                  rm -rf -- "$temp_dir"
+                  if ! rm -rf -- "$temp_dir"; then
+                    cleanup_failed=1
+                  fi
                 else
                   cleanup_failed=1
                 fi
@@ -1266,11 +1889,283 @@ jobs:
                 ;;
             esac
           done
-          exit "$cleanup_failed"
+          case "$PRIMARY_JOB_STATUS" in
+            success)
+              exit "$cleanup_failed"
+              ;;
+            failure | cancelled)
+              if [ "$cleanup_failed" -ne 0 ]; then
+                echo "PostgreSQL admission cleanup also failed; preserving primary ${PRIMARY_JOB_STATUS} result" >&2
+              fi
+              exit 0
+              ;;
+            *)
+              echo "Unknown primary PostgreSQL admission status" >&2
+              exit 1
+              ;;
+          esac
+
+  postgres-pgvector-reuse:
+    if: >-
+      always()
+      && (
+        github.event_name == 'schedule'
+        || (
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/v')
+        )
+        || (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.postgres-pgvector-material-change.outputs.changed == 'false'
+        )
+      )
+    needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      attestations: read
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout immutable PostgreSQL admission contract
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Read-only admit the existing exact PostgreSQL digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+          MATERIAL_CHANGED: ${{ needs.postgres-pgvector-material-change.outputs.changed }}
+          RUNTIME_REF: ${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}
+          TRIVY_VERSION: ${{ needs.postgres-pgvector-contract.outputs.trivy_version }}
+          TRIVY_ARCHIVE_SHA256: ${{ needs.postgres-pgvector-contract.outputs.trivy_archive_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
+          case "${GITHUB_EVENT_NAME}:${GITHUB_REF}:${MATERIAL_CHANGED}" in
+            push:refs/heads/main:false | schedule:refs/heads/main:)
+              ;;
+            push:refs/tags/v*:)
+              if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+([-.][a-zA-Z0-9.-]+)?$ ]]; then
+                echo "Read-only PostgreSQL admission tag is not semantic" >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Read-only PostgreSQL admission event is not authorized" >&2
+              exit 1
+              ;;
+          esac
+          credential_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-reuse-docker.XXXXXX")"
+          install_dir=""
+          cleanup() {
+            local original_status=$?
+            local cleanup_failed=0
+            trap - EXIT
+            if ! docker logout ghcr.io >/dev/null 2>&1; then cleanup_failed=1; fi
+            case "$credential_dir" in
+              "${RUNNER_TEMP}"/pulseplate-pgvector-reuse-docker.*)
+                if [ -d "$credential_dir" ] && [ ! -L "$credential_dir" ]; then
+                  if ! rm -rf -- "$credential_dir"; then
+                    cleanup_failed=1
+                  fi
+                else
+                  cleanup_failed=1
+                fi
+                ;;
+              *) cleanup_failed=1 ;;
+            esac
+            if [ -n "$install_dir" ]; then
+              case "$install_dir" in
+                "${RUNNER_TEMP}"/pulseplate-pgvector-reuse-trivy.*)
+                  if [ -d "$install_dir" ] && [ ! -L "$install_dir" ]; then
+                    if ! rm -rf -- "$install_dir"; then
+                      cleanup_failed=1
+                    fi
+                  else
+                    cleanup_failed=1
+                  fi
+                  ;;
+                *) cleanup_failed=1 ;;
+              esac
+            fi
+            if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              original_status=1
+            elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+              echo "Reuse cleanup also failed; preserving primary exit $original_status" >&2
+            fi
+            exit "$original_status"
+          }
+          trap cleanup EXIT
+          chmod 700 "$credential_dir"
+          export DOCKER_CONFIG="$credential_dir"
+          printf '%s' "$GHCR_TOKEN_VALUE" | \
+            docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          gh api /user/packages/container/pulseplate --jq \
+            '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
+            grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
+          docker pull --platform linux/amd64 "$RUNTIME_REF"
+          install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-reuse-trivy.XXXXXX")"
+          archive_path="$install_dir/trivy.tar.gz"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            --output "$archive_path"
+          printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$archive_path" | sha256sum --check -
+          tar -xzf "$archive_path" -C "$install_dir" trivy
+          empty_ignore="$install_dir/empty.trivyignore"
+          : > "$empty_ignore"
+          "$install_dir/trivy" image \
+            --scanners vuln,secret \
+            --format table \
+            --pkg-types os,library \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            --timeout 15m \
+            --ignorefile "$empty_ignore" \
+            --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse" \
+            "$RUNTIME_REF"
+          gh attestation verify "oci://${RUNTIME_REF}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+            --source-ref refs/heads/main \
+            --format json > postgres-pgvector-reuse-provenance.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("deploy/postgres-pgvector/image-manifest.json").read_text(encoding="utf-8")
+          )
+          expected_materials = {
+              ("dhi.io/postgres:runtime-index", manifest["runtime_base_index_digest"]),
+              ("dhi.io/postgres:runtime-platform", manifest["runtime_base_platform_manifest_digest"]),
+              ("dhi.io/postgres:runtime-config", manifest["runtime_base_config_digest"]),
+              ("dhi.io/postgres:builder-index", manifest["builder_base_index_digest"]),
+              ("dhi.io/postgres:builder-platform", manifest["builder_base_platform_manifest_digest"]),
+              ("dhi.io/postgres:builder-config", manifest["builder_base_config_digest"]),
+              (manifest["pgvector_source_url"], manifest["pgvector_source_sha256"]),
+              (
+                  "git+https://github.com/pgvector/pgvector",
+                  "sha1:" + manifest["pgvector_source_commit"],
+              ),
+              (
+                  "git+https://github.com/Katsiarynakavaleuskaya/PulsePlate#deploy/postgres-pgvector/Containerfile",
+                  manifest["containerfile_sha256"],
+              ),
+              ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
+              (
+                  "pulseplate:runtime-artifact-inventory",
+                  manifest["runtime_artifact_inventory_sha256"],
+              ),
+              ("pulseplate:mountpoint-layer", manifest["mountpoint_layer_digest"]),
+              ("pulseplate:mountpoint-layer-diff-id", manifest["mountpoint_layer_diff_id"]),
+          }
+          payload = json.loads(
+              Path("postgres-pgvector-reuse-provenance.json").read_text(encoding="utf-8")
+          )
+          matching = 0
+          for item in payload:
+              predicate = (
+                  item.get("verificationResult", {}).get("statement", {}).get("predicate")
+              )
+              if not isinstance(predicate, dict):
+                  continue
+              definition = predicate.get("buildDefinition")
+              if not isinstance(definition, dict) or definition.get("buildType") != (
+                  "https://pulseplate.app/buildtypes/postgres-pgvector/v1"
+              ):
+                  continue
+              observed_materials = set()
+              for dependency in definition.get("resolvedDependencies", []):
+                  digest = dependency.get("digest") if isinstance(dependency, dict) else None
+                  if not isinstance(digest, dict) or len(digest) != 1:
+                      raise SystemExit("Reused provenance material digest is malformed")
+                  algorithm, value = next(iter(digest.items()))
+                  observed_materials.add((dependency.get("uri"), f"{algorithm}:{value}"))
+              if observed_materials != expected_materials:
+                  raise SystemExit("Reused provenance material set drifted")
+              external = definition.get("externalParameters")
+              expected_external = {
+                  "platform": manifest["platform"],
+                  "source_date_epoch": manifest["source_date_epoch"],
+                  "builder_packages": manifest["builder_packages"],
+                  "builder_apk_closure_count": manifest["builder_apk_closure_count"],
+                  "runtime_artifact_count": manifest["runtime_artifact_count"],
+                  "mountpoint_layer_entry_count": manifest["mountpoint_layer_entry_count"],
+                  "final_platform_manifest_digest": manifest["platform_manifest_digest"],
+                  "final_config_digest": manifest["config_digest"],
+              }
+              if not isinstance(external, dict) or any(
+                  external.get(key) != value for key, value in expected_external.items()
+              ):
+                  raise SystemExit("Reused provenance external parameters drifted")
+              matching += 1
+          if matching != 1:
+              raise SystemExit("Expected exactly one material-bound provenance for the frozen recipe")
+          PY
+          gh attestation verify "oci://${RUNTIME_REF}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --predicate-type https://spdx.dev/Document/v2.3 \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+            --source-ref refs/heads/main \
+            --format json > postgres-pgvector-reuse-spdx.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(
+              Path("postgres-pgvector-reuse-spdx.json").read_text(encoding="utf-8")
+          )
+          matches = [
+              item
+              for item in payload
+              if item.get("verificationResult", {})
+              .get("statement", {})
+              .get("predicateType")
+              == "https://spdx.dev/Document/v2.3"
+          ]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
+          PY
+          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
+            "linux/amd64"
+          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
+          test "$(docker image inspect "$RUNTIME_REF" --format '{{json .Config.Entrypoint}}')" = \
+            '["/usr/local/bin/docker-entrypoint.sh"]'
+          test "$(docker image inspect "$RUNTIME_REF" \
+            --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
+
+  postgres-pgvector-admission:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
+    needs: [postgres-pgvector-material-change, postgres-pgvector-publish, postgres-pgvector-reuse]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require one terminal PostgreSQL image admission path
+        env:
+          MATERIAL_CHANGED: ${{ needs.postgres-pgvector-material-change.outputs.changed }}
+          PUBLISH_RESULT: ${{ needs.postgres-pgvector-publish.result }}
+          REUSE_RESULT: ${{ needs.postgres-pgvector-reuse.result }}
+        run: |
+          set -euo pipefail
+          case "${MATERIAL_CHANGED}:${PUBLISH_RESULT}:${REUSE_RESULT}" in
+            true:success:skipped | false:skipped:success)
+              ;;
+            *)
+              echo "PostgreSQL image admission path is incomplete" >&2
+              exit 1
+              ;;
+          esac
 
   build:
     if: github.ref == 'refs/heads/main'
-    needs: [prometheus-image-security, main-push-admission, postgres-pgvector-publish]
+    needs: [prometheus-image-security, main-push-admission]
     runs-on: ubuntu-latest
     env:
       PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -1905,7 +2800,7 @@ jobs:
   # Pre-production quality gates
   production-gates:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [prometheus-image-security, postgres-pgvector-contract]
+    needs: prometheus-image-security
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -2455,11 +3350,11 @@ jobs:
             frontend \
             deploy/Caddyfile.production \
             deploy/docker-compose.production.yaml \
-            deploy/postgres-pgvector/image-manifest.json \
             deploy/prometheus/prometheus.yml \
             deploy/prometheus/image-manifest.json \
             scripts/diagnose_web.sh \
-            scripts/redeploy_caddy.sh
+            scripts/redeploy_caddy.sh \
+            deploy/postgres-pgvector/image-manifest.json
 
           scp -i "$key_path" \
             "$archive_path" \

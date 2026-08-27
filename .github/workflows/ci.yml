@@ -1119,7 +1119,7 @@ jobs:
     env:
       APP_ENV: test
       ENVIRONMENT: test
-      PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@localhost:5432/pgvector_compat  # pragma: allowlist secret
+      PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@127.0.0.1:5432/pgvector_compat  # pragma: allowlist secret
       PGVECTOR_COMPAT_REQUIRED: "1"
     steps:
       - name: Checkout

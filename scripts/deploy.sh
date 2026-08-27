@@ -500,6 +500,217 @@ validate_pulled_postgres_mountpoint() {
     -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
 }
 
+read_rendered_postgres_volume_name() {
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
+import json
+import re
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+volumes = payload.get("volumes") if type(payload) is dict else None
+postgres_data = volumes.get("postgres_data") if type(volumes) is dict else None
+name = postgres_data.get("name") if type(postgres_data) is dict else None
+if type(name) is not str or re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}", name) is None:
+    raise SystemExit("Rendered PostgreSQL volume identity is missing or malformed")
+print(name)
+'
+}
+
+read_existing_postgres_state() {
+  local container_id="$1"
+  "$DOCKER_BIN" inspect "$container_id" | "$PYTHON_BIN" -c '
+import json
+import re
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Existing PostgreSQL container inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("Existing PostgreSQL inspect must return exactly one container")
+record = payload[0]
+state = record.get("State")
+config = record.get("Config")
+mounts = record.get("Mounts")
+if type(state) is not dict or state.get("Running") is not True:
+    raise SystemExit("Existing PostgreSQL container must be running")
+health = state.get("Health")
+if type(health) is not dict or health.get("Status") != "healthy":
+    raise SystemExit("Existing PostgreSQL container must be healthy")
+if type(config) is not dict or type(config.get("Image")) is not str:
+    raise SystemExit("Existing PostgreSQL configured image is malformed")
+environment = config.get("Env")
+if type(environment) is not list or any(type(item) is not str for item in environment):
+    raise SystemExit("Existing PostgreSQL environment is malformed")
+pgdata_values = [item.removeprefix("PGDATA=") for item in environment if item.startswith("PGDATA=")]
+if pgdata_values != ["/var/lib/postgresql/data"]:
+    raise SystemExit("Existing PostgreSQL must have one exact PGDATA value")
+if type(mounts) is not list:
+    raise SystemExit("Existing PostgreSQL mounts are malformed")
+data_mounts = [item for item in mounts if type(item) is dict and item.get("Destination") == "/var/lib/postgresql/data"]
+if len(data_mounts) != 1:
+    raise SystemExit("Existing PostgreSQL must have one exact data mount")
+mount = data_mounts[0]
+if (
+    mount.get("Type") != "volume"
+    or type(mount.get("Name")) is not str
+    or mount.get("RW") is not True
+):
+    raise SystemExit("Existing PostgreSQL data mount must be one named volume")
+container = record.get("Id")
+image_id = record.get("Image")
+if type(container) is not str or re.fullmatch(r"[0-9a-f]{12,64}", container) is None:
+    raise SystemExit("Existing PostgreSQL container ID is malformed")
+if type(image_id) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", image_id) is None:
+    raise SystemExit("Existing PostgreSQL image ID is malformed")
+print("\t".join((container, image_id, config["Image"], pgdata_values[0], mount["Name"])))
+'
+}
+
+validate_existing_postgres_image_identity() {
+  local image_id="$1"
+  local configured_image="$2"
+  case "$configured_image" in
+    postgres:15-alpine | docker.io/library/postgres:15-alpine | \
+      postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181 | \
+      docker.io/library/postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181)
+      if [ "$image_id" != "sha256:aad6289ca337b3ce76896f2e7e61480490152886c7828120371fb28e6b779e1d" ]; then
+        echo "❌ Existing legacy PostgreSQL image ID does not match the frozen predecessor" >&2
+        return 1
+      fi
+      ;;
+    "$POSTGRES_RUNTIME_REF")
+      if [ "$image_id" != "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa" ]; then
+        echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
+        return 1
+      fi
+      ;;
+    *)
+      echo "❌ Existing PostgreSQL configured image is outside the closed transition set" >&2
+      return 1
+      ;;
+  esac
+}
+
+read_existing_postgres_runtime_state() {
+  local container_id="$1"
+  "$DOCKER_BIN" exec "$container_id" sh -ec '
+postgres_uid="$(id -u postgres)"
+server_version_num="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW server_version_num")"
+data_directory="$(psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --tuples-only --no-align --quiet --command "SHOW data_directory")"
+test "$postgres_uid" = "70"
+test "$server_version_num" = "150019"
+test "$data_directory" = "/var/lib/postgresql/data"
+printf "%s\t%s\t%s\n" "$postgres_uid" "$server_version_num" "$data_directory"
+'
+}
+
+assert_existing_postgres_unchanged() {
+  local expected_state="$1"
+  local expected_runtime="$2"
+  local current_container=""
+  current_container="$("${COMPOSE[@]}" ps -q postgres | tr -d '\r')"
+  if [ -z "$current_container" ] || [[ "$current_container" == *$'\n'* ]]; then
+    echo "❌ Existing PostgreSQL container identity changed during transition" >&2
+    return 1
+  fi
+  if [ "$(read_existing_postgres_state "$current_container")" != "$expected_state" ]; then
+    echo "❌ Existing PostgreSQL container/image/volume identity drifted" >&2
+    return 1
+  fi
+  if [ "$(read_existing_postgres_runtime_state "$current_container")" != "$expected_runtime" ]; then
+    echo "❌ Existing PostgreSQL runtime identity drifted" >&2
+    return 1
+  fi
+}
+
+capture_running_service_container() {
+  local service="$1"
+  local container_id=""
+  container_id="$("${COMPOSE[@]}" ps -q "$service" | tr -d '\r')"
+  if [[ "$container_id" == *$'\n'* ]]; then
+    echo "❌ Expected at most one ${service} container" >&2
+    return 1
+  fi
+  if [ -z "$container_id" ]; then
+    return 0
+  fi
+  if [ "$($DOCKER_BIN inspect --format '{{.State.Running}}' "$container_id")" = "true" ]; then
+    printf '%s\n' "$container_id"
+  fi
+}
+
+restart_captured_product_containers() {
+  local cleanup_failed=0
+  local container_id
+  for container_id in "$CAPTURED_APP_ID" "$CAPTURED_CADDY_ID" "$CAPTURED_WORKER_ID"; do
+    if [ -n "$container_id" ]; then
+      if ! "$DOCKER_BIN" start "$container_id" >/dev/null; then
+        cleanup_failed=1
+      fi
+    fi
+  done
+  return "$cleanup_failed"
+}
+
+restart_captured_product_containers_after_failure() {
+  if ! restart_captured_product_containers; then
+    echo "❌ Restart of one or more captured product containers also failed; preserving primary exit" >&2
+  fi
+  return 0
+}
+
+validate_backup_receipt() {
+  local backup_output="$1"
+  local postgres_container_id="$2"
+  local backup_path="${backup_output##*Backup created: }"
+  if [ "$backup_path" = "$backup_output" ] || [[ "$backup_path" != "$BACKUP_DIR"/pulseplate_*.dump ]]; then
+    echo "❌ Postgres backup helper did not return one bounded receipt" >&2
+    return 1
+  fi
+  if [ -L "$backup_path" ] || [ ! -f "$backup_path" ] || [ ! -s "$backup_path" ]; then
+    echo "❌ Postgres backup receipt must be one nonempty regular non-symlink file" >&2
+    return 1
+  fi
+  local backup_mode
+  backup_mode="$($STAT_BIN -c '%a' "$backup_path")"
+  if [ "$backup_mode" != "600" ]; then
+    echo "❌ Postgres backup receipt must use mode 0600; got $backup_mode" >&2
+    return 1
+  fi
+  if ! "$DOCKER_BIN" exec -i "$postgres_container_id" pg_restore --list \
+      < "$backup_path" >/dev/null; then
+    echo "❌ Postgres backup receipt is not a listable custom-format dump" >&2
+    return 1
+  fi
+  local receipt_metadata
+  receipt_metadata="$("$PYTHON_BIN" - "$backup_path" <<'PY'
+import hashlib
+import os
+import stat
+import sys
+
+descriptor = os.open(sys.argv[1], os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+try:
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or metadata.st_size <= 0:
+        raise SystemExit("backup receipt metadata drifted")
+    digest = hashlib.sha256()
+    while chunk := os.read(descriptor, 1024 * 1024):
+        digest.update(chunk)
+finally:
+    os.close(descriptor)
+print(f"size={metadata.st_size} sha256={digest.hexdigest()}")
+PY
+)"
+  printf 'Verified PostgreSQL backup metadata: %s\n' "$receipt_metadata" >&2
+  printf '%s\n' "$backup_path"
+}
+
 validate_pulled_prometheus_image() {
   local runtime_ref="$1"
   "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
@@ -607,6 +818,8 @@ esac
 "${COMPOSE[@]}" config --quiet
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
 validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
+POSTGRES_VOLUME_NAME="$(read_rendered_postgres_volume_name)"
+readonly POSTGRES_VOLUME_NAME
 
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
   echo "✅ Staging deploy preflight passed (contract v${STAGING_DEPLOY_CONTRACT_VERSION})"
@@ -630,21 +843,29 @@ DOCKER_CONFIG="$(mktemp -d "${TMPDIR:-/tmp}/pulseplate-docker-config.XXXXXX")"
 export DOCKER_CONFIG
 cleanup() {
   local original_status=$?
+  local cleanup_failed=0
   trap - EXIT
   case "$DOCKER_CONFIG" in
     "${TMPDIR:-/tmp}"/pulseplate-docker-config.*)
       if [ -d "$DOCKER_CONFIG" ] && [ ! -L "$DOCKER_CONFIG" ]; then
-        rm -rf -- "$DOCKER_CONFIG"
+        if ! rm -rf -- "$DOCKER_CONFIG"; then
+          cleanup_failed=1
+        fi
       else
         echo "❌ Refusing cleanup for an unsafe Docker credential path" >&2
-        original_status=1
+        cleanup_failed=1
       fi
       ;;
     *)
       echo "❌ Refusing cleanup for an unbounded Docker credential path" >&2
-      original_status=1
+      cleanup_failed=1
       ;;
   esac
+  if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+    original_status=1
+  elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
+    echo "❌ Docker credential cleanup also failed; preserving primary exit $original_status" >&2
+  fi
   exit "$original_status"
 }
 trap cleanup EXIT
@@ -682,14 +903,98 @@ echo "Invoking the canonical application production invariant before product mut
 "${COMPOSE[@]}" run --rm --no-deps app python -c \
   'from app.main import app; from app.security.production_invariants import assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)'
 
-echo "Quiescing the previous scheduler worker before backup and migrations"
-"${COMPOSE[@]}" stop worker
-if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
-  echo "Removing disabled scheduler worker container"
-  "${COMPOSE[@]}" rm -f worker
+echo "[3/5] Census and quiesce the current product before PostgreSQL transition"
+CAPTURED_WORKER_ID="$(capture_running_service_container worker)"
+CAPTURED_CADDY_ID="$(capture_running_service_container caddy)"
+CAPTURED_APP_ID="$(capture_running_service_container app)"
+readonly CAPTURED_WORKER_ID CAPTURED_CADDY_ID CAPTURED_APP_ID
+
+postgres_container_raw="$("${COMPOSE[@]}" ps -q postgres | tr -d '\r')"
+if [[ "$postgres_container_raw" == *$'\n'* ]]; then
+  echo "❌ Expected at most one existing PostgreSQL container" >&2
+  exit 1
+fi
+postgres_transition="fresh"
+postgres_container=""
+postgres_image_id=""
+postgres_configured_image=""
+postgres_pgdata=""
+postgres_volume=""
+postgres_state_receipt=""
+postgres_runtime_receipt=""
+if [ -n "$postgres_container_raw" ]; then
+  postgres_transition="existing"
+  postgres_state_receipt="$(read_existing_postgres_state "$postgres_container_raw")"
+  IFS=$'\t' read -r postgres_container postgres_image_id postgres_configured_image \
+    postgres_pgdata postgres_volume <<< "$postgres_state_receipt"
+  validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image"
+  postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container")"
+  if [ "$postgres_volume" != "$POSTGRES_VOLUME_NAME" ]; then
+    echo "❌ Existing PostgreSQL volume does not match rendered Compose identity" >&2
+    exit 1
+  fi
+else
+  if "$DOCKER_BIN" volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+    echo "❌ PostgreSQL volume exists without one trustworthy running container; HOLD" >&2
+    exit 1
+  fi
 fi
 
-echo "[3/5] Start Postgres and create a pre-migration backup"
+if "${COMPOSE[@]}" stop worker caddy app; then
+  :
+else
+  transition_status=$?
+  restart_captured_product_containers_after_failure
+  exit "$transition_status"
+fi
+
+if [ "$postgres_transition" = "existing" ]; then
+  if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    :
+  else
+    identity_status=$?
+    restart_captured_product_containers_after_failure
+    exit "$identity_status"
+  fi
+  echo "Creating a verified backup from the still-running old PostgreSQL container"
+  backup_output=""
+  if backup_output="$(
+      export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE
+      "$BACKUP_HELPER"
+    )"; then
+    :
+  else
+    backup_status=$?
+    restart_captured_product_containers_after_failure
+    exit "$backup_status"
+  fi
+  if backup_receipt="$(validate_backup_receipt "$backup_output" "$postgres_container")"; then
+    :
+  else
+    receipt_status=$?
+    restart_captured_product_containers_after_failure
+    exit "$receipt_status"
+  fi
+  if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then
+    :
+  else
+    identity_status=$?
+    restart_captured_product_containers_after_failure
+    exit "$identity_status"
+  fi
+  echo "Verified pre-transition backup receipt: $backup_receipt"
+  if "$DOCKER_BIN" stop "$postgres_container" >/dev/null; then
+    :
+  else
+    stop_status=$?
+    restart_captured_product_containers_after_failure
+    exit "$stop_status"
+  fi
+else
+  echo "Fresh PostgreSQL path admitted: rendered named volume is absent"
+fi
+
+echo "Starting the already pulled exact PostgreSQL candidate without registry access"
 "${COMPOSE[@]}" up -d --pull never postgres
 
 max_wait=60
@@ -716,13 +1021,7 @@ if [ "$wait_count" -eq "$max_wait" ]; then
   exit 1
 fi
 
-echo "Creating Postgres backup before migrations..."
-DOCKER_BIN="$DOCKER_BIN" PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" \
-  COMPOSE_FILE="$COMPOSE_FILE" \
-  "$BACKUP_HELPER"
-
-echo "[4/5] Quiesce public traffic and run migrations before starting the new app"
-"${COMPOSE[@]}" stop caddy app
+echo "[4/5] Run migrations while public traffic and writers remain quiesced"
 
 echo "Running database migrations in a one-shot container"
 if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then
@@ -764,6 +1063,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker
 else
   echo "Scheduler mode is disabled; worker container remains absent"
+  "${COMPOSE[@]}" rm -f worker
 fi
 
 echo "[5/5] Start Caddy after successful migrations"
