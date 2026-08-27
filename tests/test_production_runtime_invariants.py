@@ -24,6 +24,7 @@ from app.security import production_invariants, rate_limit, web_session
 from scripts.ci.check_production_runtime_invariants import (
     _UNSAFE_FALSE_FLAG_OVERRIDES,
     _UNSAFE_TRUE_FLAG_OVERRIDES,
+    _safe_production_env,
     run_synthetic_production_checks,
 )
 from settings import is_explicit_developer_env, is_raw_explicit_developer_env
@@ -59,6 +60,115 @@ def _set_safe_production_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "0")
     monkeypatch.setenv("ENABLE_DEBUG_ENDPOINT", "false")
     monkeypatch.setenv("METRICS_TEST_BYPASS", "false")
+
+
+def test_synthetic_production_env_emits_expected_fixture_values() -> None:
+    env = _safe_production_env()
+
+    assert env["APPLE_SHARED_SECRET"] == "synthetic-apple-shared-secret"  # pragma: allowlist secret
+    assert env["EXPORT_TOKEN_SECRET"] == "synthetic-export-token-secret"  # pragma: allowlist secret
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "function_name", "required_keys"),
+    [
+        (
+            "scripts/orchestration/creative_spec_learning_rollup_contract.py",
+            "_agent_feedback",
+            {"reviewer_role", "pass_count", "revise_count", "reject_count"},
+        ),
+        (
+            "scripts/orchestration/creative_specification_skeptic_review_contract.py",
+            "_normalize_attachment_coverage",
+            {
+                "variant_count",
+                "required_reviewer_count",
+                "review_count",
+                "pass_review_count",
+                "revise_review_count",
+                "reject_review_count",
+                "unsafe_authority_flag_count",
+                "blocker_count",
+            },
+        ),
+        (
+            "scripts/orchestration/experiment_operator_ledger.py",
+            "build_operator_observability_report",
+            {
+                "approval_digests_stored",
+                "health_data_stored",
+                "local_paths_stored",
+                "patch_text_stored",
+                "provider_logs_stored",
+                "raw_branch_refs_stored",
+                "raw_hypotheses_stored",
+                "raw_slack_text_stored",
+                "slack_ids_stored",
+                "token_prefixes_stored",
+            },
+        ),
+        (
+            "scripts/orchestration/native_subagent_bridge.py",
+            "build_native_subagent_bridge",
+            {
+                "spawn_with_native_subagent",
+                "advisory_only",
+                "required_role_pass",
+                "write_capability",
+            },
+        ),
+        (
+            "scripts/orchestration/task_bootstrap.py",
+            "_provider_no_claim_policy",
+            {
+                "output_required",
+                "seal_without_provider_flags",
+                "provider_invocation_required",
+                "provider_retry_required",
+                "provider_wait_required",
+                "substitute_provider_required",
+                "operator_override_required",
+                "ttl_required",
+                "absence_is_pass",
+                "absence_is_review",
+                "absence_is_scan",
+                "absence_is_approval",
+                "absence_is_no_findings",
+            },
+        ),
+    ],
+)
+def test_bandit_sensitive_mappings_remain_literal_dicts(
+    relative_path: str,
+    function_name: str,
+    required_keys: set[str],
+) -> None:
+    tree = ast.parse(Path(relative_path).read_text(encoding="utf-8"))
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name
+    ]
+    assert (
+        len(functions) == 1
+    ), f"{relative_path}: expected one {function_name} function, found {len(functions)}"
+
+    matches = []
+    for node in ast.walk(functions[0]):
+        if not isinstance(node, ast.Dict):
+            continue
+        literal_keys = {
+            key.value
+            for key in node.keys
+            if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        }
+        if required_keys <= literal_keys:
+            matches.append(node)
+
+    assert len(matches) == 1, (
+        f"{relative_path}:{function_name}: expected one scanner-visible literal dict for "
+        f"{sorted(required_keys)}, found {len(matches)}"
+    )
 
 
 def _set_rate_limit_ready(monkeypatch: pytest.MonkeyPatch) -> None:
