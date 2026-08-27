@@ -471,8 +471,13 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `app/services/insight_compat.py` owns retained compatibility callables and
   their patchable runtime dependencies, and reusable orchestration stays in
   `app/services/insight_application_service.py` and `core/ai/*`.
-  `legacy_app.py` may only expose exact canonical aliases for documented
-  direct-import compatibility. Any AI route extraction must preserve
+  The following ordinary `legacy_app.py` bindings are retired and must not be
+  recreated: `INSIGHT_TEXT_MAX_LENGTH`, `InsightRequest`, `RAGSourceItem`,
+  `InsightResponse`, `INSIGHT_TEMP_UNAVAILABLE_MESSAGE`,
+  `_execute_insight_request`, `insight_v1`, and `insight`. Their canonical
+  schema/service owners remain importable; repository source/runtime absence is
+  not proof that unknown external Python importers do not exist. Any AI route
+  extraction or compatibility retirement must preserve
   wellness-only transparency, input guards, quota/rate-limit behavior, provider
   fallbacks, and OpenAPI hiding; do not introduce new provider behavior,
   semantic-cache serving, or medical/therapy claims in a route-ownership PR.

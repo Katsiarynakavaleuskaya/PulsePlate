@@ -58,6 +58,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "to_csv_week",
     "to_pdf_week",
     "WeeklyPlanFlexibleRequest",
+    "INSIGHT_TEXT_MAX_LENGTH",
+    "InsightRequest",
+    "RAGSourceItem",
+    "InsightResponse",
+    "INSIGHT_TEMP_UNAVAILABLE_MESSAGE",
+    "_execute_insight_request",
+    "insight_v1",
+    "insight",
 }
 
 RETIRED_PLANNING_EXPORT_BINDINGS = (
@@ -72,6 +80,17 @@ RETIRED_PLANNING_EXPORT_BINDINGS = (
     "to_csv_week",
     "to_pdf_week",
     "WeeklyPlanFlexibleRequest",
+)
+
+RETIRED_INSIGHT_BINDINGS = (
+    "INSIGHT_TEXT_MAX_LENGTH",
+    "InsightRequest",
+    "RAGSourceItem",
+    "InsightResponse",
+    "INSIGHT_TEMP_UNAVAILABLE_MESSAGE",
+    "_execute_insight_request",
+    "insight_v1",
+    "insight",
 )
 
 _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
@@ -93,21 +112,21 @@ _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
 
 
 def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
-    env = os.environ.copy()
-    for name in (
-        "API_KEY",
-        "GITHUB_TOKEN",
-        "GH_TOKEN",
-        "OPENAI_API_KEY",
-        "PERPLEXITY_API_KEY",
-    ):
-        env.pop(name, None)
+    passthrough_names = (
+        "LANG",
+        "LC_ALL",
+        "PATH",
+        "PYTHONIOENCODING",
+        "PYTHONUTF8",
+        "TMPDIR",
+    )
+    env = {name: value for name in passthrough_names if (value := os.environ.get(name)) is not None}
     env.update(
         {
             "APP_ENV": "test",
             "ENVIRONMENT": "test",
             "TESTING": "true",
-            "PYTEST_CURRENT_TEST": "legacy-planning-export-retirement-probe",
+            "PYTEST_CURRENT_TEST": "legacy-python-retirement-probe",
             "PRIVATE_EXPORTS_ENABLED": "false",
         }
     )
@@ -133,11 +152,36 @@ def _run_legacy_retirement_probe(scenario: str) -> dict[str, object]:
     return json.loads(result_line.removeprefix("LEGACY_RETIREMENT_RESULT="))
 
 
+def test_legacy_retirement_probe_excludes_ambient_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FIGMA_ACCESS_TOKEN", "must-not-enter-child")
+    monkeypatch.setenv(
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "https://must-not-enter-child.invalid/simple/",
+    )
+    scenario = textwrap.dedent("""
+        import json
+        import os
+
+        assert "FIGMA_ACCESS_TOKEN" not in os.environ
+        assert "PULSEPLATE_PYTHON_INDEX_URL" not in os.environ
+        print(
+            "LEGACY_RETIREMENT_RESULT="
+            + json.dumps({"ambient_credentials_present": False})
+        )
+        """)
+
+    assert _run_legacy_retirement_probe(scenario) == {"ambient_credentials_present": False}
+
+
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
     import app.schemas.bmi_compat as bmi_schemas
+    import app.schemas.insight as insight_schemas
     import app.schemas.premium_contracts as premium_contracts
     import app.services.admin_operations as admin_operations
     import app.services.bmi_compat as bmi_compat
+    import app.services.insight_compat as insight_compat
     import app.services.pro_nutrition_plate as plate_service
     import app.services.pro_nutrition_targets as targets_service
     import core.exports as exports
@@ -178,6 +222,18 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "to_csv_week": exports.to_csv_week,
         "to_pdf_week": exports.to_pdf_week,
         "WeeklyPlanFlexibleRequest": None,
+        "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
+        "InsightRequest": insight_schemas.InsightRequest,
+        "RAGSourceItem": insight_schemas.RAGSourceItem,
+        "InsightResponse": insight_schemas.InsightResponse,
+        "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
+        "_execute_insight_request": insight_compat._execute_insight_request,
+        "insight_v1": insight_compat.insight_v1,
+        "insight": insight_compat.insight,
+    }
+    canonical_constants = {
+        "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
+        "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
@@ -195,7 +251,10 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         if canonical_migration is None
     } == {"_resolve_build_targets_callable", "WeeklyPlanFlexibleRequest"}
     for binding_name, canonical_migration in canonical_migrations.items():
-        if canonical_migration is not None:
+        if binding_name in canonical_constants:
+            assert canonical_migration == canonical_constants[binding_name]
+            assert not callable(canonical_migration)
+        elif canonical_migration is not None:
             assert callable(canonical_migration)
         with pytest.raises(AttributeError):
             getattr(legacy_app, binding_name)
@@ -256,6 +315,99 @@ def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
 
     assert _run_legacy_retirement_probe(scenario) == {
         "absent": list(RETIRED_PLANNING_EXPORT_BINDINGS)
+    }
+
+
+@pytest.mark.parametrize(
+    "import_sequence",
+    (
+        "import legacy_app\n"
+        "import app as app_facade\n"
+        "import app.main as app_main\n"
+        "import app.schemas.insight as insight_schemas\n"
+        "import app.services.insight_compat as insight_compat\n",
+        "import app as app_facade\n"
+        "import app.main as app_main\n"
+        "import app.schemas.insight as insight_schemas\n"
+        "import app.services.insight_compat as insight_compat\n"
+        "import legacy_app\n",
+        "import legacy_app\n"
+        "import app as app_facade\n"
+        "import app.main as app_main\n"
+        "import app.schemas.insight as insight_schemas\n"
+        "import app.services.insight_compat as insight_compat\n"
+        "legacy_app = importlib.reload(legacy_app)\n",
+    ),
+    ids=("legacy-first", "canonical-first", "reload"),
+)
+def test_insight_bindings_fail_closed_with_canonical_owners_in_a_fresh_process(
+    import_sequence: str,
+) -> None:
+    import_failure_checks = "\n".join(textwrap.dedent(f"""
+            try:
+                from legacy_app import {binding_name}
+            except ImportError:
+                pass
+            else:
+                raise AssertionError("legacy from-import remains: {binding_name}")
+            """) for binding_name in RETIRED_INSIGHT_BINDINGS)
+    scenario = textwrap.dedent("""
+        import importlib
+        import json
+        """)
+    scenario += import_sequence
+    scenario += textwrap.dedent(f"""
+        retired = {RETIRED_INSIGHT_BINDINGS!r}
+        canonical = {{
+            "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
+            "InsightRequest": insight_schemas.InsightRequest,
+            "RAGSourceItem": insight_schemas.RAGSourceItem,
+            "InsightResponse": insight_schemas.InsightResponse,
+            "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": (
+                insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE
+            ),
+            "_execute_insight_request": insight_compat._execute_insight_request,
+            "insight_v1": insight_compat.insight_v1,
+            "insight": insight_compat.insight,
+        }}
+        assert tuple(canonical) == retired
+        assert app_facade.app is app_main.app
+        assert legacy_app.app is app_main.app
+        assert insight_schemas.InsightRequest.__module__ == insight_schemas.__name__
+        assert insight_schemas.RAGSourceItem.__module__ == insight_schemas.__name__
+        assert insight_schemas.InsightResponse.__module__ == insight_schemas.__name__
+        assert insight_compat._execute_insight_request.__module__ == insight_compat.__name__
+        assert insight_compat.insight_v1.__module__ == insight_compat.__name__
+        assert insight_compat.insight.__module__ == insight_compat.__name__
+        for binding_name in retired:
+            try:
+                getattr(legacy_app, binding_name)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f"legacy attribute remains: {{binding_name}}")
+        """)
+    scenario += import_failure_checks
+    scenario += textwrap.dedent("""
+        print(
+            "LEGACY_RETIREMENT_RESULT="
+            + json.dumps(
+                {
+                    "absent": list(retired),
+                    "app_identity_preserved": True,
+                    "schema_owner": insight_schemas.__name__,
+                    "service_owner": insight_compat.__name__,
+                },
+                sort_keys=True,
+            )
+        )
+        """)
+
+    assert _run_legacy_retirement_probe(scenario) == {
+        "absent": list(RETIRED_INSIGHT_BINDINGS),
+        "app_identity_preserved": True,
+        "schema_owner": "app.schemas.insight",
+        "service_owner": "app.services.insight_compat",
     }
 
 
