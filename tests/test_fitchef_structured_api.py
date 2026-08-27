@@ -3395,6 +3395,23 @@ def test_outcome_stream_cap_multichunk_content_length_and_depth(
     assert parsed.client_event_id == "outcome-event-0001"
     assert fitchef_router_mod._json_structural_depth({"a": {"b": {"c": {"d": 1}}}}) == 4
     assert fitchef_router_mod._json_structural_depth({"a": {"b": {"c": {"d": {"e": 1}}}}}) == 5
+    assert fitchef_router_mod._json_structural_depth({}) == 1
+    assert fitchef_router_mod._json_structural_depth([]) == 1
+
+    with pytest.raises(HTTPException):
+        asyncio.run(
+            fitchef_router_mod._read_fitchef_support_outcome_body(
+                _outcome_request_from_chunks([cast(bytes, "not-bytes")])
+            )
+        )
+
+    depth_exhausted = {
+        **_OUTCOME_BASE,
+        "extra": {"a": {"b": {"c": {"d": 1}}}},
+    }
+    with pytest.raises(HTTPException) as depth_error:
+        _parse_outcome_chunks([json.dumps(depth_exhausted).encode()])
+    assert depth_error.value.detail == "fitchef_support_outcome_validation_error"
 
     oversized = client.post(
         _OUTCOME_URL,
@@ -3567,6 +3584,121 @@ def test_outcome_factory_and_session_bootstrap_failures_are_sanitized(
     assert sentinel not in caplog.text
 
 
+def test_outcome_service_rejects_nonpositive_subject_and_handles_rollback_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with pytest.raises(ValueError, match="subject_id must be a positive integer"):
+        record_fitchef_support_outcome(
+            subject_id=0,
+            record=_outcome_record_for_failure(),
+        )
+
+    class RollbackFailure:
+        def rollback(self) -> None:
+            raise RuntimeError("rollback-private-detail")
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        assert outcome_service._rollback_session_safely(cast(Session, RollbackFailure())) is False
+    assert "FitChef support outcome store rollback failed" in caplog.text
+    assert "rollback-private-detail" not in caplog.text
+
+
+def test_outcome_integrity_before_session_is_stable_store_unavailable(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def integrity_factory() -> object:
+        raise IntegrityError(
+            "factory",
+            {},
+            sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+        )
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=21,
+                record=_outcome_record_for_failure(),
+                session_factory=cast(Callable[[], Session], integrity_factory),
+            )
+    assert "FitChef support outcome store unavailable" in caplog.text
+
+
+@pytest.mark.parametrize("winner_mode", ("raises", "missing"))
+def test_outcome_postrollback_winner_failure_is_sanitized(
+    winner_mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RaceSession:
+        def add(self, _row: object) -> None:
+            pass
+
+        def commit(self) -> None:
+            raise IntegrityError(
+                "insert",
+                {},
+                sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+            )
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    fetch_count = 0
+
+    def fetch(*_args: object, **_kwargs: object) -> None:
+        nonlocal fetch_count
+        fetch_count += 1
+        if fetch_count == 1:
+            return None
+        if winner_mode == "raises":
+            raise RuntimeError("winner-private-detail")
+        return None
+
+    monkeypatch.setattr(outcome_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(outcome_service, "_fetch_existing", fetch)
+    with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+        record_fitchef_support_outcome(
+            subject_id=22,
+            record=_outcome_record_for_failure(),
+            session_factory=lambda: cast(Session, RaceSession()),
+        )
+
+
+def test_outcome_general_session_failure_rolls_back_and_close_failure_is_best_effort(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    trace: list[str] = []
+
+    class SessionWithCloseFailure:
+        def rollback(self) -> None:
+            trace.append("rollback")
+
+        def close(self) -> None:
+            trace.append("close")
+            raise RuntimeError("close-private-detail")
+
+    session = SessionWithCloseFailure()
+    monkeypatch.setattr(outcome_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        outcome_service,
+        "_fetch_existing",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("lookup-private")),
+    )
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=23,
+                record=_outcome_record_for_failure(),
+                session_factory=lambda: cast(Session, session),
+            )
+    assert trace == ["rollback", "close"]
+    assert "FitChef support outcome store close failed" in caplog.text
+    assert "close-private-detail" not in caplog.text
+
+
 @pytest.mark.parametrize("bootstrap_stage", ("factory_resolution", "session_construction"))
 def test_outcome_bootstrap_failures_are_stable_503_at_route(
     bootstrap_stage: str,
@@ -3670,6 +3802,41 @@ def test_outcome_metric_vocabulary_and_all_permitted_triples_are_exact(
     ):
         metrics_mod.record_fitchef_support_outcome_write(**invalid)
     assert observed == before
+
+    monkeypatch.setattr(metrics_mod, "FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL", None)
+    metrics_mod.record_fitchef_support_outcome_write(
+        support_need="daily_structure",
+        outcome="acknowledged",
+        result="recorded",
+    )
+    assert observed == before
+
+    class BrokenCounter:
+        def labels(self, **_labels: str) -> Child:
+            raise RuntimeError("metric backend unavailable")
+
+    monkeypatch.setattr(metrics_mod, "FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL", BrokenCounter())
+    metrics_mod.record_fitchef_support_outcome_write(
+        support_need="daily_structure",
+        outcome="acknowledged",
+        result="recorded",
+    )
+
+
+def test_outcome_metric_builder_import_and_duplicate_failures_are_best_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_import() -> object:
+        raise ImportError("prometheus unavailable")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", missing_import)
+    assert metrics_mod._build_fitchef_support_outcome_writes_total() is None
+
+    def duplicate_counter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicated collector")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", lambda: duplicate_counter)
+    assert metrics_mod._build_fitchef_support_outcome_writes_total() is None
 
 
 def test_outcome_orm_columns_constraints_indexes_and_zero_foreign_keys_are_exact() -> None:
@@ -3978,6 +4145,20 @@ with tempfile.TemporaryDirectory() as directory:
     }
 
 
+def test_outcome_async_canonical_init_executes_model_registration_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.db as core_db_mod
+
+    monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+    monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
+    asyncio.run(core_db_mod.init_db_async())
+    assert "fitchef_support_outcome_events" in core_db_mod.Base.metadata.tables
+    assert sqlalchemy_inspect(core_db_mod._get_raw_engine()).has_table(
+        "fitchef_support_outcome_events"
+    )
+
+
 def test_outcome_unauthenticated_call_does_not_consume_rate_limit() -> None:
     script = """
 from app.main import app
@@ -4278,6 +4459,7 @@ def test_outcome_existing_target_metadata_drift_fails_unchanged(state: str) -> N
 
 
 def test_outcome_registration_and_live_app_ownership_are_exact_and_unique() -> None:
+    assert main_app._is_exact_fitchef_support_outcome_route(object()) is False
     target = FastAPI()
     main_app._include_fitchef_support_outcome_router_if_needed(target)
     first_routes = tuple(target.routes)
@@ -4471,3 +4653,42 @@ def test_outcome_dsar_delete_failure_rolls_back_restores_and_preserves_original(
             credential_subject_id=99,
         )
     assert trace == [7, 99, "rollback", 7]
+
+
+def test_outcome_dsar_rollback_failure_does_not_mask_original(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class EmptyResult:
+        def scalars(self) -> "EmptyResult":
+            return self
+
+        def all(self) -> list[object]:
+            return []
+
+    class BrokenRollbackSession:
+        def __init__(self) -> None:
+            self.execute_count = 0
+
+        def get(self, _model: object, _user_id: int) -> None:
+            return None
+
+        def execute(self, _statement: object) -> EmptyResult:
+            self.execute_count += 1
+            if self.execute_count == 3:
+                raise RuntimeError("outcome-delete-original")
+            return EmptyResult()
+
+        def rollback(self) -> None:
+            raise RuntimeError("rollback-must-not-mask")
+
+    monkeypatch.setattr(dsar_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    with caplog.at_level("ERROR", logger=dsar_service.__name__):
+        with pytest.raises(RuntimeError, match="outcome-delete-original"):
+            delete_direct_user_artifacts(
+                session=cast(Session, BrokenRollbackSession()),
+                user_id=7,
+                credential_subject_id=99,
+            )
+    assert "DSAR direct-user artifact rollback failed" in caplog.text
+    assert "rollback-must-not-mask" not in caplog.text
