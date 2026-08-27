@@ -7,6 +7,7 @@
 - [Canonical entrypoint](#canonical-entrypoint)
 - [Routing map](#routing-map-source-of-truth)
 - [FitChef support handoff](#fitchef-support-handoff-pr-2320-landed)
+- [FitChef support outcome ledger](#fitchef-support-outcome-ledger)
 - [OpenAPI generation mode](#openapi-generation-mode-current)
 
 ## Containers / Modules (high level)
@@ -43,6 +44,19 @@ OpenAPI truth, not deployment or value evidence; utility remains unmeasured and
 the descriptor grants no navigation, execution, or plan-mutation authority. See
 the [canonical FitChef support-handoff routing subsection](backend_routing_map.md#canonical-fitchef-support-handoff-pr-2320-landed)
 for backend ownership, guard order, OpenAPI, and no-execution boundaries.
+
+## FitChef support outcome ledger
+
+The additive `POST /api/v1/pro/fitchef/recommend/outcome` path accepts one
+strict, bounded, authenticated client assertion and persists it under a
+credential-derived bigint subject. `app/main.py` owns a separate exact
+one-member route-family registrar; `app/routers/fitchef_structured.py` owns
+auth/rate/flag/parser admission; `app/services/fitchef_support_outcomes.py`
+owns race-safe replay/conflict behavior; and PostgreSQL forced RLS plus exact
+SQLite predicates own isolation. The feature defaults off and introduces no
+public history, plan, AI/provider, navigation, or causal authority. See the
+[routing evidence](backend_routing_map.md#canonical-fitchef-support-outcome-ledger)
+and the [semantic contract](../contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract).
 
 ## Architecture diagram (Mermaid)
 

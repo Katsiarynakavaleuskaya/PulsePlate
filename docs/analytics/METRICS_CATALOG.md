@@ -38,6 +38,40 @@ Real-time / daily / weekly (and when it is computed).
 
 ---
 
+## FitChef support outcome writes
+
+#### Definition
+
+`fitchef_support_outcome_writes_total{support_need,outcome,result}` counts only
+schema-valid, authenticated, feature-admitted support-outcome write decisions.
+Its closed vocabulary is two needs (`daily_structure`, `weekly_structure`), two
+outcomes (`acknowledged`, `dismissed`), and three results (`recorded`,
+`replayed`, `rejected`), for at most 12 series. `rejected` means only a
+divergent idempotency replay (`409`); auth, validation, rate-limit, disabled,
+and store-unavailable responses remain in generic HTTP metrics.
+
+#### Formula
+
+```text
+increment exactly one closed labelset after recorded/replayed,
+or after a schema-valid divergent replay; emit no subject, event id, raw path,
+timestamp, goal, plan, credential, or error label
+```
+
+#### Owner
+
+Backend + Product Analytics + Privacy
+
+#### Update frequency
+
+Real-time, best-effort per accepted write decision
+
+#### Change history
+
+- 2026-08-27: added the privacy-bounded FitChef support-outcome counter
+
+---
+
 ## Activation (first_success)
 
 #### Definition

@@ -2683,6 +2683,31 @@
         "title": "FitChefSupportHandoffResponse",
         "type": "object"
       },
+      "FitChefSupportOutcomeResponse": {
+        "additionalProperties": false,
+        "description": "Minimal response for a recorded or byte-equivalent replay.",
+        "properties": {
+          "schema_version": {
+            "const": "fitchef_support_outcome_v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "recorded",
+              "replayed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "state"
+        ],
+        "title": "FitChefSupportOutcomeResponse",
+        "type": "object"
+      },
       "FitChefVipCoachingErrorResponse": {
         "description": "VIP FitChef error envelope preserving frozen VIP aliases.",
         "properties": {
@@ -8180,6 +8205,145 @@
           }
         ],
         "summary": "Select deterministic FitChef support handoff",
+        "tags": [
+          "coaching",
+          "fitchef",
+          "pro",
+          "structured"
+        ]
+      }
+    },
+    "/api/v1/pro/fitchef/recommend/outcome": {
+      "post": {
+        "description": "Records one authenticated client-reported outcome assertion for a bounded FitChef support choice. The row does not prove a human click, a prior handoff response, consent, understanding, navigation, plan execution, or product effectiveness.",
+        "operationId": "fitchef_support_outcome_api_v1_pro_fitchef_recommend_outcome_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Closed client-reported support-outcome assertion.",
+                "properties": {
+                  "client_event_id": {
+                    "maxLength": 128,
+                    "minLength": 16,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$",
+                    "title": "Client Event Id",
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "enum": [
+                      "acknowledged",
+                      "dismissed"
+                    ],
+                    "title": "Outcome",
+                    "type": "string"
+                  },
+                  "schema_version": {
+                    "const": "fitchef_support_outcome_v1",
+                    "title": "Schema Version",
+                    "type": "string"
+                  },
+                  "support_need": {
+                    "enum": [
+                      "daily_structure",
+                      "weekly_structure"
+                    ],
+                    "title": "Support Need",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "support_need",
+                  "outcome",
+                  "client_event_id"
+                ],
+                "title": "FitChefSupportOutcomeRequest",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefSupportOutcomeResponse"
+                }
+              }
+            },
+            "description": "Outcome recorded or identically replayed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "API key required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "PRO tier required"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Idempotency key is bound to different material"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitErrorResponse"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitChefCoachingErrorResponse"
+                }
+              }
+            },
+            "description": "Feature disabled or outcome store unavailable"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Record a client-reported FitChef support outcome",
         "tags": [
           "coaching",
           "fitchef",

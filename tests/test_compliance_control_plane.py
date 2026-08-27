@@ -39,8 +39,8 @@ _DSAR_MAP_DOC = _REPO_ROOT / "docs/compliance/DSAR_AND_DELETION_MAP.md"
 def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     payload = build_privacy_endpoint_payload()
 
-    assert payload["policy_version"] == "2026-04-10.eu-first.v1"
-    assert payload["last_updated"] == "2026-04-10"
+    assert payload["policy_version"] == "2026-08-27.eu-first.v2"
+    assert payload["last_updated"] == "2026-08-27"
     assert isinstance(payload["providers"], list)
     assert isinstance(payload["processing_categories"], list)
     assert isinstance(payload["rights"], list)
@@ -65,6 +65,11 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     signed_audit_envelopes = next(
         item for item in processing_categories if item["category_id"] == "signed_audit_envelopes"
     )
+    support_outcomes = next(
+        item
+        for item in processing_categories
+        if item["category_id"] == "fitchef_support_outcome_assertions"
+    )
     endpoints = cast(list[str], wellness_inputs["endpoints"])
     ai_generated_endpoints = list(cast(list[str], ai_generated_analysis["endpoints"]))
     pseudonymous_endpoints = cast(list[str], pseudonymous_identifiers["endpoints"])
@@ -82,6 +87,19 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     assert "/api/v1/vip/fitchef/insight" in pseudonymous_endpoints
     assert "/api/v1/vip/fitchef/insight" in signed_audit_endpoints
     assert llm_processing_endpoints == ai_generated_endpoints
+    assert support_outcomes == {
+        "category_id": "fitchef_support_outcome_assertions",
+        "title": "FitChef client-reported support outcomes",
+        "endpoints": ("/api/v1/pro/fitchef/recommend/outcome",),
+        "purpose": "First-party FitChef relationship continuity and bounded product measurement",
+        "sensitivity": "direct-user product-interaction metadata",
+        "third_party_exposure": (
+            "This flow directly sends no outcome field or row to an AI provider or other "
+            "third-party processor; aggregate metrics remain subject to configured telemetry policy"
+        ),
+        "retention": "Until support-led deletion or a separately reviewed policy change",
+        "deletion_path": "Internal support-led credential-subject-scoped export and deletion",
+    }
 
 
 def test_privacy_metadata_stays_in_sync_with_canonical_docs() -> None:
@@ -270,6 +288,7 @@ def test_dsar_artifact_map_distinguishes_direct_and_indirect_artifacts() -> None
 
     artifact_ids = {item["artifact_id"] for item in artifact_map}
     assert "rag_feedback" in artifact_ids
+    assert "fitchef_support_outcomes" in artifact_ids
     assert "agent_control_audit" in artifact_ids
     assert support["artifact_count"] == len(artifact_map)
     assert support["deletion_supported_count"] >= 1
@@ -419,6 +438,7 @@ def test_dsar_helpers_export_and_delete_direct_user_artifacts() -> None:
             "account_user_record": 1,
             "rag_feedback": 1,
             "user_knowledge": 1,
+            "fitchef_support_outcomes": 0,
         }
         assert user_record["email"] == "dsar-direct@example.com"
         assert feedback_records[0]["query"] == "[EMAIL_REDACTED] wants a plate"
@@ -440,6 +460,7 @@ def test_dsar_helpers_export_and_delete_direct_user_artifacts() -> None:
             "account_user_record": 0,
             "rag_feedback": 1,
             "user_knowledge": 1,
+            "fitchef_support_outcomes": 0,
         }
         assert deleted["deleted_any"] is True
         assert deleted["pending_manual_artifacts"] == ["account_user_record"]
@@ -449,6 +470,7 @@ def test_dsar_helpers_export_and_delete_direct_user_artifacts() -> None:
             "account_user_record": 1,
             "rag_feedback": 0,
             "user_knowledge": 0,
+            "fitchef_support_outcomes": 0,
         }
         cleanup = session.get(User, user_id)
         if cleanup is not None:
@@ -470,6 +492,7 @@ def test_dsar_delete_helper_is_idempotent_for_missing_user() -> None:
             "account_user_record": 0,
             "rag_feedback": 0,
             "user_knowledge": 0,
+            "fitchef_support_outcomes": 0,
         },
         "deleted_any": False,
         "pending_manual_artifacts": [],
@@ -531,6 +554,7 @@ def test_dsar_delete_helper_preserves_account_row_without_direct_artifacts() -> 
                 "account_user_record": 0,
                 "rag_feedback": 0,
                 "user_knowledge": 0,
+                "fitchef_support_outcomes": 0,
             },
             "deleted_any": False,
             "pending_manual_artifacts": ["account_user_record"],

@@ -114,6 +114,57 @@ Runtime contract:
 - The existing `/api/v1/insight/fitchef*` mascot canon and future VIP
   `chat`/`week-repair` lanes remain separate.
 
+### Canonical FitChef support outcome ledger
+
+Anchor (stable): `POST /api/v1/pro/fitchef/recommend/outcome`
+
+- The strict request and minimal response DTOs are closed and frozen in
+  `app/schemas/fitchef_coaching.py:127-150`.
+- `support_outcome_router` is a separate one-member source router. The route
+  declares exact response/OpenAPI metadata and one canonical
+  `require_pro_tier` dependency at
+  `app/routers/fitchef_structured.py:461-479`.
+- Auth and the scoped SlowAPI wrapper precede the request-time default-off flag.
+  The body parser streams at most 4096 actual bytes, rejects duplicate decoded
+  keys and structural depth above four, and never calls `request.json()`
+  (`app/routers/fitchef_structured.py:271-364`).
+- The handler derives the target only through
+  `build_fitchef_support_handoff`, derives the bigint subject only from the
+  normalized dependency result, and offloads synchronous SQL work to the
+  threadpool (`app/routers/fitchef_structured.py:482-533`).
+- `app/services/fitchef_support_outcomes.py:68-193` applies RLS before every
+  lookup/insert, recognizes only the named PostgreSQL constraint or exact
+  SQLite signature, rebinds RLS after rollback, compares all closed material,
+  and sanitizes every unrelated store failure.
+- The model has no `users.id` foreign key, cascade, JSON payload, or mutable
+  update surface; closed CHECKs also enforce the canonical need/target pair
+  (`app/models/fitchef_support_outcomes.py:13-62`). Migration
+  `alembic/versions/202608270001_add_fitchef_support_outcomes.py:23-102`
+  enables and forces PostgreSQL RLS and reverses only this table/policy.
+- Both canonical database initialization paths perform a function-local normal
+  package import of the outcome model before `Base.metadata.create_all`, so a
+  fresh sync or async initialization owns both metadata registration and the
+  physical SQLite fallback table without loading the outcome service
+  (`core/db.py:815-917,1001-1015`).
+- Exact source/live route ownership and idempotent registration are enforced by
+  `app/main.py:683-776`; duplicate, partial, foreign, dependency, response, and
+  OpenAPI drift fail before mutation.
+- Generated OpenAPI freezes the inline strict request and exact response set at
+  `frontend/src/api/openapi.json:8216-8345`, with the minimal response component
+  at `frontend/src/api/openapi.json:2686-2710`. TypeScript mirrors the path at
+  `frontend/src/api/schema.ts:321-340`, response at
+  `frontend/src/api/schema.ts:2976-2990`, and operation at
+  `frontend/src/api/schema.ts:5922-6017`.
+- The metric is bounded to 12 identifier-free series and is best-effort
+  (`app/metrics.py:226-324`). Support-led DSAR receives an independent optional
+  credential-subject namespace and never infers it from numeric `user_id`
+  (`core/compliance/dsar_service.py:31-271`).
+
+The row is an authenticated client-reported assertion only. It proves no click,
+prior handoff, consent, understanding, navigation, plan action, product effect,
+or causal outcome. The feature defaults off and adds no public read/history or
+DSAR route.
+
 ### Canonical public restaurants router (canonical bootstrap-owned)
 
 Anchor (stable): `app/main.py -> _include_restaurants_router_if_needed(app)`
