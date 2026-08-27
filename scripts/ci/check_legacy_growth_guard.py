@@ -70,6 +70,14 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "to_csv_week",
         "to_pdf_week",
         "WeeklyPlanFlexibleRequest",
+        "INSIGHT_TEXT_MAX_LENGTH",
+        "InsightRequest",
+        "RAGSourceItem",
+        "InsightResponse",
+        "INSIGHT_TEMP_UNAVAILABLE_MESSAGE",
+        "_execute_insight_request",
+        "insight_v1",
+        "insight",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
