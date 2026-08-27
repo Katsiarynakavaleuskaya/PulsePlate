@@ -140,9 +140,11 @@ Status reconciliation:
 
 - `POST /api/v1/pro/fitchef/explain` is now the landed, feature-gated PRO
   Distortion Simulator runtime from PR #1215 / `70bdbd9e51d977d440b605eed3064c71212cff97`.
-- `POST /api/v1/pro/fitchef/recommend` is the landed, feature-gated
-  deterministic selector-only PRO descriptor from PR #2320 /
-  `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`.
+- `POST /api/v1/pro/fitchef/recommend` landed via PR #2320 on 2026-08-25 at
+  `f95a329d899d5ac4fa73f198e90cfed44d0fc45c` as a feature-gated deterministic
+  selector-only PRO descriptor. It is repository runtime/OpenAPI truth, while
+  deployment and business utility remain unproven and no navigation or plan
+  mutation is authorized.
 - `POST /api/v1/vip/fitchef/insight` is now the landed, feature-gated VIP
   Identity Loop Mapper runtime from PR #1870 /
   `7802ed25e99e0a4f346d14487270a037bb5ec97a`.
@@ -150,14 +152,13 @@ Status reconciliation:
   remain future-only VIP structured coach follow-ups until later reviewed
   runtime PRs register routes and update OpenAPI.
 
-The landed PR #2320 route accepts only a `Content-Type` whose untrimmed base
-token, compared case-insensitively before the first `;`, is exactly
-`application/json`. Missing, empty, whitespace-padded, `+json`, or other media
-types return the same stable JSON `422` envelope before body decoding, DTO
-validation, or mapping. The selector reads only the explicit `support_need` and
-returns a product-surface descriptor; it performs no execution, mutation,
-AI/provider/RAG work, client navigation, plan inspection, or value/outcome
-claim.
+The PR #2320 route accepts only a `Content-Type` whose untrimmed base token,
+compared case-insensitively before the first `;`, is exactly `application/json`.
+Missing, empty, whitespace-padded, `+json`, or other media types return the same
+stable JSON `422` envelope before body decoding, DTO validation, or mapping.
+The selector reads only the explicit `support_need` and returns a product-surface
+descriptor; it performs no execution, mutation, AI/provider/RAG work, client
+navigation, plan inspection, or value/outcome claim.
 
 ## Artifact and asset governance
 

@@ -39,11 +39,13 @@ Evidence: `app/main.py -> _include_restaurants_router_if_needed(app)`
 - Users CRUD is no longer legacy-owned; see
   [Canonical users router](#canonical-users-router-canonical-bootstrap-owned).
 
-### Canonical FitChef support handoff (PR #2320 merge-bound)
+### Canonical FitChef support handoff (PR #2320 landed)
 
-PR #2320 implements `POST /api/v1/pro/fitchef/recommend` as a merge-bound
-backend candidate. It is not public-main or deployed runtime truth and carries
-no product-value claim until merge and post-merge verification complete.
+PR #2320 landed `POST /api/v1/pro/fitchef/recommend` on 2026-08-25 at
+`f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. It is repository runtime and
+OpenAPI truth, but not deployment or product-value evidence. Business utility
+remains unmeasured, and the descriptor grants no navigation, execution, or
+plan-mutation authority.
 
 Ownership is split across three explicit layers:
 

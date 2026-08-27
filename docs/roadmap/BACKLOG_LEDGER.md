@@ -2900,6 +2900,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Merged caller slices: TC2-01 / PR #2233, TC2-02 / PR #2248, TC2-03 / PR #2255, TC2-04 / PR #2273, TC2-05 / PR #2277, TC2-06 / PR #2292, TC2-07 / PR #2296, and TC2-08 / PR #2307
     - Merged slice: TC2-09 / PR #2312 migrates eight managed-lifecycle nodes in `tests/test_vip_integration_97_extended.py`; all eight consume the shared managed client, and the same bounded work-package closes the directly exposed VIP recipe/auto-repair false-success contracts plus publishes the typed auto-repair request schema and generated client artifacts without changing shared fixtures, auth guards, or dependencies
     - Main stabilization: PR #2325 merged the first bounded post-TC2-09 fixture/lifecycle repair; merged PR #2330 repaired the complete remaining active non-slow strict-request cohort of 16 nodes / 17 requests across 11 VIP coverage files after exact-main shard cancellation hid six positive callers from the initial JUnit inventory. PR #2330 also removed three incidental raw constructors in already-touched nodes: its exact base census was 387 sites / 96 files (386 / 95 outside `tests/_client.py`) and its merged-main census is 384 / 96 (383 / 95 outside the helper).
+    - Nightly carryover stabilization: PR #2340 binds the exact main `31682657c23cdd922b8e8597125718708d5b5d78` evidence that exposed the two remaining slow-only stale strict-request callers in Nightly Tests run `33005864412` and Nightly Full Tests run `33005869136`. This bounded continuation reuses the canonical weekly-recipes and auto-repair request builders merged by PR #2330, preserves real VIP authorization and exact HTTP `200` success assertions, and leaves the broader lifecycle tracker open.
     - Direct-getter ownership stabilization: PR #2332 closes the complete finite three-node test cohort that directly acquired and published the unified-food singleton without restoring and closing the exact test-owned instance. Each node now requires a cold prior, enters its cleanup guard immediately after successful acquisition, proves a foreign identity cannot be cleared, restores only test-owned state, and verifies that the aggregate helper plus every configured owned USDA/OFF client close exactly once. All 45 pre-existing coroutine nodes in the three pre-commit-selected files execute through a typed function-scoped `asyncio.run` adapter, so the ci-lite hook remains deterministic without a dependency or hook-configuration change. Runtime lifecycle/CAS/getter semantics and shared fixtures remain unchanged. The checkbox and tracker remain open, `TC2-09B REQUIRED`, and TC2-10 remains blocked.
     - Residual boundary: the historical post-TC2-08 coarse AST census was 415 construction sites across 99 test files; after synchronizing `origin/main@f561d37b2`, the exact base census is 412 sites / 98 files (411 / 97 outside `tests/_client.py`) and the TC2-09 head census is 404 / 97 (403 / 96 outside the helper), with the target file reduced from eight sites to zero; therefore `TC2-09B REQUIRED`, while TC2-10 remains blocked until canonical callers reach zero
     - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
@@ -4165,6 +4166,68 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing SQLite 3.53.2 source URL and SHA3-256 are revalidated and the bounded source-artifact review window is current
     - No live deploy occurs in the PR; rollout and database-aware rollback remain human-approved
 
+<a id="ledger-p1-caddy-alpine-cve-2026-14456-remediation"></a>
+- [ ] P1: Remediate CVE-2026-14456 in the staged Caddy Alpine image
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (exact-main recovery / staging image integrity)
+  - Target PR: [PR #2338](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2338)
+    (`codex/fix-caddy-openssl-cve-2026-14456`)
+  - Status: In progress; the bounded repository/image prerequisite is being fixed.
+    Exact-image post-fix proof is still pending, and main recovery remains HOLD while
+    the approved Python proxy is unstable.
+  - Area: security / frontend Caddy image / container supply chain
+  - Finding Type: fixed-upstream Alpine runtime vulnerability
+  - Reason: Exact-main CD run `32948599821`, job `98114831067`, scanned immutable
+    staged Caddy digest
+    `sha256:5df03414572d3414ef49495f1acfbc67f479016e24b96238c82824f6b72df55b`
+    and failed on one HIGH CVE represented by two Alpine package rows:
+    `CVE-2026-14456` in `libcrypto3 3.5.7-r0` and `libssl3 3.5.7-r0`, both
+    fixed by `3.5.8-r0`. The Caddy Go binary itself reported zero vulnerabilities.
+    This carrier adds only the two fixed runtime floors to the existing
+    final-stage `apk add --no-cache` transaction and binds the complete current
+    final-stage recipe with a closed readable source snapshot; source
+    conformance is not exact-image admission evidence and makes no general
+    shell-semantic completeness claim.
+  - Scope boundary: Caddy `2.11.4`, Go `1.26.6`, both pinned base digests, module
+    parity, file capabilities, existing package floors, the empty Caddy ignore
+    policy, and the suppression-free Trivy workflow remain unchanged. No
+    `openssl` substitute, broad `apk upgrade`, workflow change, suppression,
+    deploy, secret, staging, or production action is authorized here; this
+    carrier introduces no additional package transaction.
+  - Links:
+    - `frontend/Dockerfile.caddy-spa`
+    - `tests/test_caddy_deploy_provenance.py`
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32948599821/job/98114831067>
+    - [`ledger-p1-caddy-attested-staging-digests`](#ledger-p1-caddy-attested-staging-digests)
+    - [`ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456`](#ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456)
+  - DoD:
+    - A closed readable source snapshot binds the complete current final Caddy
+      stage, including both exact floors `libcrypto3>=3.5.8-r0` and
+      `libssl3>=3.5.8-r0`, every existing package floor, and every current
+      hardened Caddy instruction
+    - Deterministic source tests reject any byte drift in the current final-stage
+      recipe and cover representative lower, partial, substitute, before-floor,
+      and after-floor mutations without claiming to interpret arbitrary shell
+      semantics or weakening workflow, digest, empty-ignore, or Trivy assertions
+    - A GitHub runner builds a new immutable linux/amd64 Caddy digest, verifies
+      provenance and SPDX SBOM, proves the installed Alpine package identities,
+      and completes a suppression-free Trivy v0.72 `vuln,secret` scan with zero
+      HIGH/CRITICAL findings
+    - Close only after terminal exact-main CD evidence binds the merged source,
+      immutable image digest, attestations, installed package versions, and scan
+      result; repository tests alone do not satisfy this gate
+  - Rollback: If Alpine cannot resolve the exact fixed floors or the rebuilt
+    image fails Caddy parity, capability, provenance, SBOM, or scan checks, stop
+    before publication/deploy and retain the last known image only as rollback
+    material. Do not restore the vulnerable floor, add a suppression, run a
+    broad upgrade, or call the prior staged digest admitted.
+  - Residual risk: Exact-image evidence is pending until the canonical runner
+    rebuilds the image, and unstable private-proxy health independently keeps
+    exact-main recovery on HOLD. The Debian Bookworm OpenSSL 3.0 scanner
+    disposition remains open and unchanged because it is a separate image,
+    package branch, and evidence context; this Alpine remediation does not close
+    or modify that item.
+
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -4719,7 +4782,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     for the already-landed PRO Distortion Simulator lane. Future PRs that close
     ledger items should still update this ledger in the same PR or same/next-day
     follow-up.
-  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and landed through PR #2320.
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge. PR #1215 turned that knowledge into the bounded, feature-gated PRO `Distortion Simulator` runtime at `POST /api/v1/pro/fitchef/explain` instead of widening into broad open-ended chat. The separate E1-05 `POST /api/v1/pro/fitchef/recommend` implementation is tracked by `ledger-p1-fitchef-support-handoff` below and landed via PR #2320.
   - Links:
     - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
     - `docs/cbt/cognitive_restructuring.md`
@@ -4738,8 +4801,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (bounded PRO contract / planning continuity)
   - Target PR: PR #2320 (`feat(fitchef): add deterministic PRO support handoff`)
-  - Status: Landed via PR #2320 on 2026-08-25 with merge commit `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. Business utility remains unmeasured and is not admitted.
-  - Reason (EN): E1-05 adds one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
+  - Status: Landed on 2026-08-25 at 2026-08-25T13:55:28Z with merge commit `f95a329d899d5ac4fa73f198e90cfed44d0fc45c`. Business utility remains unmeasured and not admitted; merge proves no client navigation, execution, or plan mutation.
+  - Reason (EN): E1-05 added one bounded, feature-gated PRO planning-support descriptor at `POST /api/v1/pro/fitchef/recommend`. It accepts only `daily_structure` or `weekly_structure`, maps them deterministically to `pro_daily_plate` or `pro_weekly_plan`, and returns one typed `handoff_to_product_surface` action without claiming that a client navigated or that a downstream plan changed.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
@@ -4752,6 +4815,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Business utility remains unmeasured and not admitted; no activation, retention, conversion, revenue, or LTV outcome is claimed by implementation or merge
     - Any future web/iOS thin-client consumer or measurement contract requires a separate explicit authorization and must not infer navigation, success, or value from this descriptor alone
     - Persisted weekly-plan adaptation, canonical principal/plan identity, a positive semantic verifier, N2/N3 work, and VIP week-repair remain separate unauthorized lanes and are not opened by E1-05
+
+
+<a id="ledger-p1-fitchef-support-choice-consumer"></a>
+- [ ] P1: FitChef support-choice thin web consumer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (planning continuity / bounded frontend activation)
+  - Target PR: PR #2337 (current E1-05B carrier `codex/e1-05b-fitchef-support-choice-consumer`)
+  - Status: E1-05B implementation is merge-bound. No production counts, causal result, navigation, execution, or plan mutation is claimed before or by this carrier.
+  - Reason (EN): The landed E1-05 descriptor needs one thin, explicit web consumer so a user can choose daily or weekly scope, submit that exact choice, inspect the backend-owned product-area pointer, and acknowledge it without opening a route or changing a plan. The carrier also defines a local-only measurement schema while leaving transport and product-value inference closed.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/FITCHEF_SUPPORT_CHOICE_FUNNEL.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
+  - DoD:
+    - The adapter derives request/response types from generated OpenAPI, uses the shared cookie-session client exactly once, and validates the complete frozen response with no fallback, target repair, or response-body parsing in UI
+    - `/app` renders exactly one two-option support-choice card after the planning preview and before the tier-value rail; selection alone sends nothing, submit is explicit, and unknown auth blocks submit
+    - Latest-request, abort, stale-response, unmount, retry, acknowledgement, and dismiss states are deterministic; displayed targets are non-interactive product-area labels and no route, setting, storage, or plan action is invoked
+    - Local events use exactly the five names and six exit outcomes in `FITCHEF_SUPPORT_CHOICE_FUNNEL.md`, reject extra/sensitive fields, and keep `transport=none`, `production_counts=unavailable`, and `causal_status=not_assessed`
+    - Focused client/adapter/component tests cover valid and fail-closed branches, targeted accessibility has zero violations, Storybook covers the frozen states without live backend access, and generated OpenAPI artifacts remain unchanged
+    - Business utility remains explicitly unmeasured after implementation; terminal merge and post-merge outcome evidence are recorded through the next governed evidence carrier rather than inferred from local events
 
 
 <a id="ledger-p1-er-ios-2-fitchef-runtime-integration"></a>
@@ -4775,22 +4859,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-er-web-1-free-acquisition-surface"></a>
-- [ ] P1: ER-WEB-1 free BMI, education, and iOS acquisition surface
+- [ ] P1: ER-WEB-1 current free BMI, education, and iOS acquisition surface
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (free acquisition / channel clarity)
+  - Priority: P1 (free acquisition / phased channel clarity)
   - Target PR: PR-TBD after a dedicated web audit and separate human GO
-  - Status: 📋 Planned; no web payment or paid nutrition implementation is authorized.
-  - Reason (EN): The current channel posture assigns web to the free backend-driven BMI calculator, wellness and nutrition education, bounded information-chat, acquisition content, and a transparent iOS/App Store referral. Existing web paid-flow affordances must be audited and either retired or explicitly dispositioned in a separate bounded lane; this item does not authorize web billing, entitlement truth, paid nutrition execution, or duplication of backend domain logic.
+  - Status: 📋 Planned current-free-phase follow-up; this lane does not authorize web payment or paid nutrition implementation.
+  - Reason (EN): The current web phase contains the backend-driven BMI calculator, wellness and nutrition education, bounded informational chat, acquisition content, transparent iOS/App Store referral, and the already-landed FitChef support-choice surface. It does not add web payments, client-side entitlement truth, paid nutrition execution, persistence, navigation into paid planning, or plan mutation. This is a phased posture rather than a permanent prohibition: a future full web FitChef surface, including paid capabilities, may open under a separate human GO with server-authoritative billing and entitlement architecture.
   - Links:
     - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
     - `docs/contracts/PRODUCT_TIER_MAP.md`
     - `frontend/AGENTS.md`
   - DoD:
-    - A dedicated audit inventories existing web BMI, education, chat, paid-flow, acquisition, and iOS-referral affordances before implementation
-    - The free BMI flow remains a thin client over canonical backend/OpenAPI truth and does not duplicate calculations, thresholds, categories, or entitlement logic
-    - Education and information-chat remain bounded, wellness-only, transparent about limitations, and separate from paid nutrition execution
+    - A dedicated audit inventories existing web BMI, education, chat, paid-flow, acquisition, support-choice, and iOS-referral affordances before implementation
+    - The current free BMI flow remains a thin client over canonical backend/OpenAPI truth and does not duplicate calculations, thresholds, categories, or entitlement logic
+    - Education and informational chat remain bounded, wellness-only, transparent about limitations, and separate from paid nutrition execution in the current phase
     - The iOS/App Store referral is transparent and measurable only under a separately approved analytics contract; it does not imply availability, purchase, entitlement, or outcome
-    - Web payment implementation remains absent, and every legacy paid-flow affordance receives an explicit retire, preserve-as-informational, or separately-authorized disposition
+    - Current web payment implementation remains absent, and every legacy paid-flow affordance receives an explicit preserve-as-informational, retire, or separately-authorized disposition
+    - Any future full or paid web FitChef carrier requires its own server-authoritative billing/entitlement contract, tests, rollout, rollback, and ordinary PR governance
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>
@@ -7417,7 +7502,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> `codex/retire-legacy-planning-export-python-shims` -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7433,12 +7518,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `827f8ea0ba5bf0432e011241d08553b01fa471b1`, adding canonical PRO BMR/gaps
     and migrating the repository-owned Web BMR consumer without deleting aliases.
     PR #2317 merged at `5a53fe8d0e0200866afe817f0f6073f5008b0f6a`, retiring the first
-    ten legacy admin/BMI direct-call Python bindings. PR #2322 is the current
-    bounded successor and removes only the second ten-name PRO nutrition cohort
-    while preserving canonical services and every HTTP, auth, OpenAPI, and
-    app-identity contract. Product Owner sequencing keeps
-    telemetry-admitted versioned-alias retirement, root-alias auth/sunset, and
-    final legacy deletion as separate later lanes.
+    ten legacy admin/BMI direct-call Python bindings. PR #2322 merged at
+    `d96314454935862bc2a694c1e594648c011081ba`, retiring only the second
+    ten-name PRO nutrition cohort. The current bounded child
+    `codex/retire-legacy-planning-export-python-shims` retires only the third
+    eleven-name planning/export cohort plus the exact synthetic
+    `legacy_app.routers.plan_export` namespace while preserving canonical
+    services and every HTTP, auth, signed-token, rate-limit, OpenAPI, and
+    app-identity contract. This parent stays open: telemetry-admitted HTTP alias
+    retirement, Insight retirement, root-alias auth/sunset, and final facade
+    deletion remain separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7491,8 +7580,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → PR-OBS1B `codex/internal-prometheus-deploy-contour` (repository contour only) → separate future alias-retirement PR
-  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B adds only the internal persistent Prometheus and deploy/evidence repository contour. Host synchronization, secret bootstrap, separately authorized staging and production deployment, baseline eligibility, human-authored `T₀`, the complete `30 × 24h` production window, consumer classification, and a future retirement PR remain required and unclaimed
+  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) (OBS1B repository contour) → bounded image prerequisite `codex/fix-alembic-image-package-collision` → separate future alias-retirement PR
+  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B merged as `9fd673cca03ca1fd9cab3cecfba20b70803c5620`. The authorized private-staging activation stopped before any migration revision executed because repository path `/app/alembic` shadowed the installed Alembic package. The bounded image lane closes only that repository/image prerequisite. Private-staging activation and baseline, separately authorized production deployment, human-authored `T₀`, the complete `30 × 24h` production window, consumer classification, and a future retirement PR remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
   - Links:
     - `app/security/production_invariants.py`
@@ -7500,6 +7589,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/verify_premium_alias_telemetry.py`
     - `deploy/prometheus/prometheus.yml`
     - `deploy/prometheus/image-manifest.json`
+    - `Dockerfile`
+    - `alembic.ini`
     - `docs/deploy/OPERATIONAL_SIGNALS.md`
     - `docs/contracts/API_CANONICAL_MAP.md`
     - `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`
@@ -7911,13 +8002,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR #986 or PR-TBD
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
-  - Reason: Make disposition check always-on by calling `check_review_threads_disposition.py` from `scripts/orchestration/check_preflight.py` and documenting in `workflow.md`.
+  - Reason: Make disposition check always-on by calling `check_review_threads_disposition.py` from `scripts/orchestration/check_preflight.py` and documenting in `workflow.md`. PR #2320 provided a fresh failure witness: a resolved root that had been covered by an epoch-sensitive reply-only disposition lost that eligibility after later material changes and was absent from the sole final mapping commit until the strict wrapper caught it.
   - Links:
     - `scripts/orchestration/check_review_threads_disposition.py`
     - `scripts/orchestration/check_preflight.py`
     - `docs/orchestration/workflow.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2320#discussion_r3846893060`
   - DoD:
     - Pre-flight runs disposition guard when in PR context (or always)
+    - The final local mapping is checked against the current resolved-thread inventory before the sole mapping-only closeout commit
     - workflow.md updated with required step
     - No regression in pre-flight runtime
 

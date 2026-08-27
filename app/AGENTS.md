@@ -453,6 +453,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   tests import and patch the modular router. Existing schema and helper
   compatibility exports remain unchanged. Repository source/runtime absence is
   not proof that unknown external Python importers do not exist.
+- Planning and export direct-call ownership belongs to `core/menu_engine.py`,
+  `core/plate.py`, `core/recommendations.py`, and `core/exports.py`. The
+  following ordinary `legacy_app.py` bindings are retired and must not be
+  recreated: `analyze_nutrient_gaps`, `make_daily_menu`, `make_weekly_menu`,
+  `repair_week_plan`, `make_plate`, `build_nutrition_targets`, `to_csv_day`,
+  `to_pdf_day`, `to_csv_week`, `to_pdf_week`, and
+  `WeeklyPlanFlexibleRequest`. `WeeklyPlanFlexibleRequest` has no replacement;
+  retained weekly-plan schemas remain separate contracts. The exact synthetic
+  `legacy_app.routers.plan_export` namespace must not be recreated; import the
+  canonical `app.routers.plan_export` module directly. Public
+  `app.make_weekly_menu` and `app.build_nutrition_targets` remain exact package
+  facade exports. Repository source/runtime absence is not proof that unknown
+  external Python importers do not exist.
 - Legacy AI/insight routes must not own provider orchestration in
   `legacy_app.py`. `app/schemas/insight.py` owns the request/response models,
   `app/services/insight_compat.py` owns retained compatibility callables and
@@ -544,9 +557,9 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   broken-runtime failures.
 - Production resolution must not inspect `sys.modules`, `app`, `app_module`,
   `legacy_app`, package dictionaries, mutable overrides, registries, or cached
-  fallback state. Public `app.make_weekly_menu` and
-  `legacy_app.make_weekly_menu` remain compatibility exports, not route
-  authority.
+  fallback state. Public `app.make_weekly_menu` remains an exact package
+  compatibility export; the retired `legacy_app.make_weekly_menu` binding must
+  not be recreated and neither facade is route authority.
 - Keep the route's API-key dependency and request-time VIP gate ahead of
   builder resolution. Only the two reviewed static downstream `422` details
   may cross the route boundary; all other downstream HTTP or unexpected errors
