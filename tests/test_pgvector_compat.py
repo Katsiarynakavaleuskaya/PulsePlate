@@ -2373,7 +2373,6 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
                         client_event_id="tenant-mismatch-0001",
                     ),
                 )
-                first_session.commit()
             first_session.rollback()
             apply_user_rls_context(first_session, user_id=TENANT_ONE)
             assert list(first_session.scalars(select(outcome_table.c.id))) == ["tenant-one-first"]
@@ -2423,6 +2422,9 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
                 if role_created:
                     with admin_engine.connect() as connection:
                         connection.exec_driver_sql(f"DROP ROLE {quoted_role}")
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+            try:
                 admin_engine.dispose()
             except BaseException as exc:
                 cleanup_failures.append(exc)

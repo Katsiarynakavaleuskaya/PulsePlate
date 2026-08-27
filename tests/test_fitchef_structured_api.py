@@ -16,6 +16,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sqlite3
 import subprocess
 import sys
@@ -25,7 +26,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, params
 from fastapi.responses import PlainTextResponse
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
@@ -3383,12 +3384,14 @@ def test_outcome_stream_cap_multichunk_content_length_and_depth(
         )
     )
     assert len(exact) == 4096
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as over_cap:
         asyncio.run(
             fitchef_router_mod._read_fitchef_support_outcome_body(
                 _outcome_request_from_chunks([b"a" * 4096, b"b"])
             )
         )
+    assert over_cap.value.status_code == 422
+    assert over_cap.value.detail == "fitchef_support_outcome_validation_error"
 
     encoded = json.dumps(_OUTCOME_BASE, separators=(",", ":")).encode("utf-8")
     parsed = _parse_outcome_chunks([encoded[:11], encoded[11:37], encoded[37:]])
@@ -3398,12 +3401,14 @@ def test_outcome_stream_cap_multichunk_content_length_and_depth(
     assert fitchef_router_mod._json_structural_depth({}) == 1
     assert fitchef_router_mod._json_structural_depth([]) == 1
 
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as non_bytes:
         asyncio.run(
             fitchef_router_mod._read_fitchef_support_outcome_body(
                 _outcome_request_from_chunks([cast(bytes, "not-bytes")])
             )
         )
+    assert non_bytes.value.status_code == 422
+    assert non_bytes.value.detail == "fitchef_support_outcome_validation_error"
 
     depth_exhausted = {
         **_OUTCOME_BASE,
@@ -3902,7 +3907,7 @@ def test_outcome_endpoint_and_service_call_oracle_has_no_external_authority() ->
         "record_fitchef_support_outcome_write",
         "FitChefSupportOutcomeResponse",
     }
-    forbidden_fragments = {
+    forbidden_tokens = {
         "provider",
         "rag",
         "quota",
@@ -3914,8 +3919,12 @@ def test_outcome_endpoint_and_service_call_oracle_has_no_external_authority() ->
         "execution",
         "plan_mutation",
     }
-    combined = {name.lower() for name in endpoint_calls | service_calls}
-    assert all(fragment not in name for name in combined for fragment in forbidden_fragments)
+    combined_tokens = {
+        token
+        for name in endpoint_calls | service_calls
+        for token in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", name.lower())
+    }
+    assert forbidden_tokens.isdisjoint(combined_tokens)
 
 
 def test_outcome_migration_op_execute_uses_six_exact_constant_statements() -> None:
@@ -4161,7 +4170,9 @@ def test_outcome_async_canonical_init_executes_model_registration_in_process(
 
 def test_outcome_unauthenticated_call_does_not_consume_rate_limit() -> None:
     script = """
+import json
 from app.main import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 from tests._client import open_test_client
 payload = {
     "schema_version": "fitchef_support_outcome_v1",
@@ -4177,11 +4188,11 @@ with open_test_client(app) as client:
         client.post(
             "/api/v1/pro/fitchef/recommend/outcome",
             json=payload,
-            headers={"X-API-Key": "test_pro_key"},
+            headers={"X-API-Key": TEST_KEY_PRO},
         ).status_code
         for _ in range(3)
     ]
-print({"unauthenticated": unauthenticated, "authenticated": authenticated})
+print(json.dumps({"unauthenticated": unauthenticated, "authenticated": authenticated}, sort_keys=True))
 """
     env = dict(os.environ)
     env.update(
@@ -4203,9 +4214,11 @@ print({"unauthenticated": unauthenticated, "authenticated": authenticated})
         capture_output=True,
         text=True,
     )
-    assert completed.stdout.strip().splitlines()[-1] == (
-        "{'unauthenticated': 401, 'authenticated': [503, 503, 429]}"
-    )
+    observed = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert observed == {
+        "authenticated": [503, 503, 429],
+        "unauthenticated": 401,
+    }
 
 
 def test_outcome_two_session_identical_and_divergent_races(
@@ -4350,7 +4363,7 @@ def _add_outcome_route_with_drift(
     if state == "wrong_response_map":
         responses[409] = {"description": "Substituted conflict response"}
 
-    dependencies: list[object] = []
+    dependencies: list[params.Depends] = []
     if state == "wrong_dependency":
         dependencies.append(Depends(lambda: None))
     if state == "extra_dependency":

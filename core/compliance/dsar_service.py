@@ -18,7 +18,9 @@ from core.db_rls import apply_user_rls_context
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from app.models.fitchef_support_outcomes import FitChefSupportOutcomeEvent
+    from app.models.fitchef_support_outcomes import (
+        FitChefSupportOutcomeEvent as FitChefSupportOutcomeEventType,
+    )
 
 
 def _serialize_timestamp(value: datetime | None) -> str | None:
@@ -60,7 +62,7 @@ def export_direct_user_artifacts(
         .scalars()
         .all()
     )
-    outcome_rows: list[FitChefSupportOutcomeEvent] = []
+    outcome_rows: list[FitChefSupportOutcomeEventType] = []
     if credential_subject_id is not None:
         try:
             from app.models.fitchef_support_outcomes import FitChefSupportOutcomeEvent
