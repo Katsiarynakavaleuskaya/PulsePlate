@@ -83,7 +83,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 ) { error in
                     XCTAssertEqual(
                         dataCorruptedDescription(error),
-                        "supportNeed and action.targetSurface must form a compatible handoff pair"
+                        "support_need and action.target_surface must form a compatible handoff pair"
                     )
                 }
             }
@@ -116,7 +116,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         }
     }
 
-    func testUnknownSemanticTopLevelKeysAreRejectedInStableSortedOrder() throws {
+    func testUnknownRawTopLevelKeysAreRejectedInStableSortedOrder() throws {
         var payload = canonicalPayload()
         payload["z_extra"] = true
         payload["a_extra"] = true
@@ -124,12 +124,12 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
             XCTAssertEqual(
                 dataCorruptedDescription(error),
-                "FitChefSupportHandoffDescriptor contains unknown keys: aExtra, zExtra"
+                "FitChefSupportHandoffDescriptor contains unknown keys: a_extra, z_extra"
             )
         }
     }
 
-    func testUnknownSemanticActionKeysAreRejectedInStableSortedOrder() throws {
+    func testUnknownRawActionKeysAreRejectedInStableSortedOrder() throws {
         var payload = canonicalPayload()
         var action = try XCTUnwrap(payload["action"] as? [String: Any])
         action["z_extra"] = true
@@ -139,7 +139,78 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
             XCTAssertEqual(
                 dataCorruptedDescription(error),
-                "FitChefSupportHandoffAction contains unknown keys: aExtra, zExtra"
+                "FitChefSupportHandoffAction contains unknown keys: a_extra, z_extra"
+            )
+        }
+    }
+
+    func testCamelCaseTopLevelAliasesAreRejectedAsUnknownRawKeys() throws {
+        let aliases = [
+            ("schema_version", "schemaVersion"),
+            ("support_need", "supportNeed"),
+            ("user_confirmation_required", "userConfirmationRequired"),
+            ("execution_authority", "executionAuthority"),
+            ("plan_mutation_authority", "planMutationAuthority"),
+            ("used_llm", "usedLlm"),
+            ("wellness_boundary", "wellnessBoundary"),
+        ]
+
+        for (canonicalKey, aliasKey) in aliases {
+            var payload = canonicalPayload()
+            payload[aliasKey] = payload.removeValue(forKey: canonicalKey)
+
+            XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+                XCTAssertEqual(
+                    dataCorruptedDescription(error),
+                    "FitChefSupportHandoffDescriptor contains unknown keys: \(aliasKey)"
+                )
+            }
+        }
+    }
+
+    func testCamelCaseActionAliasesAreRejectedAsUnknownRawKeys() throws {
+        let aliases = [
+            ("action_type", "actionType"),
+            ("target_surface", "targetSurface"),
+        ]
+
+        for (canonicalKey, aliasKey) in aliases {
+            var payload = canonicalPayload()
+            var action = try XCTUnwrap(payload["action"] as? [String: Any])
+            action[aliasKey] = action.removeValue(forKey: canonicalKey)
+            payload["action"] = action
+
+            XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+                XCTAssertEqual(
+                    dataCorruptedDescription(error),
+                    "FitChefSupportHandoffAction contains unknown keys: \(aliasKey)"
+                )
+            }
+        }
+    }
+
+    func testCanonicalAndCamelCaseAliasCollisionsFailAsUnknownKeys() throws {
+        var payload = canonicalPayload()
+        payload["schemaVersion"] = payload["schema_version"]
+        payload["supportNeed"] = payload["support_need"]
+        var action = try XCTUnwrap(payload["action"] as? [String: Any])
+        action["actionType"] = action["action_type"]
+        action["targetSurface"] = action["target_surface"]
+        payload["action"] = action
+
+        XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+            XCTAssertEqual(
+                dataCorruptedDescription(error),
+                "FitChefSupportHandoffDescriptor contains unknown keys: schemaVersion, supportNeed"
+            )
+        }
+
+        payload.removeValue(forKey: "schemaVersion")
+        payload.removeValue(forKey: "supportNeed")
+        XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+            XCTAssertEqual(
+                dataCorruptedDescription(error),
+                "FitChefSupportHandoffAction contains unknown keys: actionType, targetSurface"
             )
         }
     }
@@ -211,15 +282,15 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             (
                 "user_confirmation_required",
                 false,
-                "userConfirmationRequired must be exactly true"
+                "user_confirmation_required must be exactly true"
             ),
-            ("execution_authority", true, "executionAuthority must be exactly false"),
+            ("execution_authority", true, "execution_authority must be exactly false"),
             (
                 "plan_mutation_authority",
                 true,
-                "planMutationAuthority must be exactly false"
+                "plan_mutation_authority must be exactly false"
             ),
-            ("used_llm", true, "usedLlm must be exactly false"),
+            ("used_llm", true, "used_llm must be exactly false"),
         ]
 
         for (field, invalidValue, expectedDescription) in invalidValues {
@@ -376,7 +447,40 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         }
     }
 
-    func testSelectionStateStartsEmptyAndReturnsTheExactSelectedDescriptor() throws {
+    func testSelectionStateStartsEmptySwitchesClearsAndReturnsExactDescriptor() throws {
+        let daily = try decodeDescriptor(canonicalPayload())
+        let weekly = try decodeDescriptor(
+            canonicalPayload(
+                supportNeed: "weekly_structure",
+                targetSurface: "pro_weekly_plan"
+            )
+        )
+        var state = FitChefSupportChoiceSelectionState()
+
+        XCTAssertNil(state.selectedDescriptor)
+        XCTAssertNil(state.confirmationDescriptor)
+        XCTAssertFalse(state.canConfirm)
+
+        state.select(daily)
+        XCTAssertEqual(state.selectedDescriptor, daily)
+        XCTAssertEqual(state.confirmationDescriptor, daily)
+        XCTAssertTrue(state.canConfirm)
+
+        state.select(daily)
+        XCTAssertEqual(state.confirmationDescriptor, daily)
+
+        state.select(weekly)
+        XCTAssertEqual(state.selectedDescriptor, weekly)
+        XCTAssertEqual(state.confirmationDescriptor, weekly)
+        XCTAssertNotEqual(state.confirmationDescriptor, daily)
+
+        state.clear()
+        XCTAssertNil(state.selectedDescriptor)
+        XCTAssertNil(state.confirmationDescriptor)
+        XCTAssertFalse(state.canConfirm)
+    }
+
+    func testSelectionRevalidationPreservesExactMemberOfCurrentChoices() throws {
         let daily = try decodeDescriptor(canonicalPayload())
         let weekly = try decodeDescriptor(
             canonicalPayload(
@@ -388,24 +492,31 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             dailyDescriptor: daily,
             weeklyDescriptor: weekly
         )
-        var state = FitChefSupportChoiceSelectionState(choices: choices)
+        let equalChoices = try FitChefSupportHandoffChoices(
+            dailyDescriptor: try decodeDescriptor(canonicalPayload()),
+            weeklyDescriptor: try decodeDescriptor(
+                canonicalPayload(
+                    supportNeed: "weekly_structure",
+                    targetSurface: "pro_weekly_plan"
+                )
+            )
+        )
+        var state = FitChefSupportChoiceSelectionState()
 
-        XCTAssertNil(state.selectedDescriptor)
-        XCTAssertNil(state.confirmationDescriptor)
-        XCTAssertFalse(state.canConfirm)
-
-        state.select(.dailyStructure)
-        XCTAssertEqual(state.selectedDescriptor, daily)
+        state.select(daily)
+        state.revalidate(against: choices)
         XCTAssertEqual(state.confirmationDescriptor, daily)
-        XCTAssertTrue(state.canConfirm)
 
-        state.select(.dailyStructure)
+        state.revalidate(against: equalChoices)
         XCTAssertEqual(state.confirmationDescriptor, daily)
 
-        state.select(.weeklyStructure)
-        XCTAssertEqual(state.selectedDescriptor, weekly)
+        state.select(weekly)
+        state.revalidate(against: equalChoices)
         XCTAssertEqual(state.confirmationDescriptor, weekly)
-        XCTAssertNotEqual(state.confirmationDescriptor, daily)
+
+        state.clear()
+        state.revalidate(against: choices)
+        XCTAssertNil(state.confirmationDescriptor)
     }
 
     func testCatalogAndSelectionExposeOnlyClosedConstructionAndSelection() throws {
@@ -430,21 +541,21 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             )
         )
         XCTAssertEqual(occurrenceCount(of: "init(", in: selectionSource), 1)
+        XCTAssertTrue(selectionSource.contains("init()"))
         XCTAssertTrue(
-            selectionSource.contains("init(choices: FitChefSupportHandoffChoices)")
-        )
-        XCTAssertTrue(
-            selectionSource.contains("mutating func select(_ supportNeed: FitChefSupportNeed)")
-        )
-        XCTAssertTrue(
-            selectionSource.contains("selectedDescriptor = choices.descriptor(for: supportNeed)")
-        )
-        XCTAssertFalse(selectionSource.contains("init()"))
-        XCTAssertFalse(
             selectionSource.contains(
-                "select(_ descriptor: FitChefSupportHandoffDescriptor)"
+                "mutating func select(_ descriptor: FitChefSupportHandoffDescriptor)"
             )
         )
+        XCTAssertTrue(selectionSource.contains("selectedDescriptor = descriptor"))
+        XCTAssertTrue(selectionSource.contains("mutating func clear()"))
+        XCTAssertTrue(
+            selectionSource.contains(
+                "mutating func revalidate(against choices: FitChefSupportHandoffChoices)"
+            )
+        )
+        XCTAssertFalse(selectionSource.contains("private let choices"))
+        XCTAssertFalse(selectionSource.contains("init(choices:"))
     }
 
     func testFitChefSupportChoiceLocalizationKeysMatchAndValuesAreFrozen() throws {
@@ -511,9 +622,225 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         }
     }
 
+    func testFoundationSourceKeepsTheClosedRawWireAndAuthoritySurface() throws {
+        let source = try fitChefFoundationSource()
+
+        for rawKey in topLevelFields + ["action_type", "target_surface"] {
+            XCTAssertTrue(source.contains("\"\(rawKey)\""), "Missing raw wire key: \(rawKey)")
+        }
+        XCTAssertFalse(source.contains("Encodable"))
+        XCTAssertFalse(source.contains("AnyCodable"))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("APIClient"))
+        XCTAssertFalse(source.contains("HTTPClient"))
+        XCTAssertFalse(source.contains("Navigation"))
+        XCTAssertFalse(source.contains("StoreKit"))
+        XCTAssertFalse(source.contains("HealthKit"))
+        XCTAssertFalse(source.contains("UserDefaults"))
+        XCTAssertFalse(source.contains("Keychain"))
+        XCTAssertFalse(source.contains("NotificationCenter"))
+        XCTAssertFalse(source.contains("Analytics"))
+    }
+
+    func testCandidateViewHasNoProductionRegistrationOutsideItsOwnFile() throws {
+        let root = try repositoryRoot().appendingPathComponent("ios/PulsePlate")
+        let candidatePath = "Views/FitChef/FitChefSupportChoiceExperience.swift"
+        let references = try swiftSources(under: root)
+            .filter { !$0.path.hasSuffix(candidatePath) }
+            .compactMap { url -> String? in
+                let source = try String(contentsOf: url, encoding: .utf8)
+                return source.contains("FitChefSupportChoiceExperience") ? url.path : nil
+            }
+
+        XCTAssertEqual(references, [])
+    }
+
+    func testFileSystemSynchronizedTargetsOwnAppAndTestSourcesSeparately() throws {
+        let root = try repositoryRoot()
+        let projectURL = root.appendingPathComponent(
+            "ios/PulsePlate.xcodeproj/project.pbxproj"
+        )
+        let project = try String(contentsOf: projectURL, encoding: .utf8)
+
+        XCTAssertTrue(
+            project.contains(
+                "path = PulsePlate; sourceTree = \"<group>\";"
+            )
+        )
+        XCTAssertTrue(
+            project.contains(
+                "path = PulsePlateTests; sourceTree = \"<group>\";"
+            )
+        )
+        XCTAssertTrue(
+            project.contains(
+                "fileSystemSynchronizedGroups = (\n\t\t\t\tB6169A352E893CF100B218D8"
+            )
+        )
+        XCTAssertTrue(
+            project.contains(
+                "fileSystemSynchronizedGroups = (\n\t\t\t\tB6169A892E893CF200B218D8"
+            )
+        )
+        XCTAssertFalse(project.contains("FitChefSupportHandoffDescriptor.swift"))
+        XCTAssertFalse(project.contains("FitChefSupportChoiceExperimentTests.swift"))
+        XCTAssertFalse(project.contains("FitChefSupportChoiceExperience.swift"))
+
+        let testTargets = try String(
+            contentsOf: root.appendingPathComponent("scripts/ios_test_targets.sh"),
+            encoding: .utf8
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/FitChefSupportChoiceExperimentTests",
+                in: testTargets
+            ),
+            1
+        )
+    }
+
+    func testCandidateViewStaticContractWhenCandidateIsPresent() throws {
+        guard let source = try fitChefCandidateViewSource() else {
+            XCTAssertFalse(
+                FileManager.default.fileExists(atPath: try fitChefCandidateViewURL().path)
+            )
+            return
+        }
+
+        let forbiddenFragments = [
+            "URLSession",
+            "APIClient",
+            "HTTPClient",
+            "NavigationStack",
+            "NavigationLink",
+            "openURL",
+            "UIApplication.shared",
+            "UserDefaults",
+            "@AppStorage",
+            "Keychain",
+            "FileManager",
+            "StoreKit",
+            "HealthKit",
+            "NotificationCenter",
+            "Analytics",
+            "analytics",
+            "provider",
+            ".save(",
+            ".write(",
+        ]
+        for fragment in forbiddenFragments {
+            XCTAssertFalse(source.contains(fragment), "Forbidden candidate seam: \(fragment)")
+        }
+
+        XCTAssertTrue(
+            source.contains(
+                "FitChefSupportChoiceExperience(choices:onConfirm:onDismiss:)"
+            ) || source.contains("struct FitChefSupportChoiceExperience: View")
+        )
+        XCTAssertTrue(source.contains("@State private var selectionState"))
+        XCTAssertTrue(source.contains("FitChefSupportChoiceSelectionState()"))
+        XCTAssertTrue(source.contains("selectionState.select(choices.dailyDescriptor)"))
+        XCTAssertTrue(source.contains("selectionState.select(choices.weeklyDescriptor)"))
+        XCTAssertTrue(source.contains("selectionState.revalidate(against: newChoices)"))
+        XCTAssertTrue(source.contains("onConfirm(descriptor)"))
+        XCTAssertTrue(source.contains(".disabled(!selectionState.canConfirm)"))
+        XCTAssertTrue(source.contains("onDismiss()"))
+        XCTAssertTrue(source.contains("PPDesignTokens.Brand.navy"))
+        XCTAssertTrue(source.contains("PPCard"))
+        XCTAssertTrue(source.contains("PPButton"))
+        XCTAssertTrue(source.contains(".frame(maxWidth: 650)"))
+        XCTAssertTrue(source.contains("Image(\"FitChef\")"))
+        XCTAssertTrue(source.contains(".frame(width: 56, height: 56)"))
+        XCTAssertTrue(source.contains(".accessibilityHidden(true)"))
+        XCTAssertTrue(source.contains(".accessibilityAddTraits(isSelected ? .isSelected : [])"))
+        XCTAssertTrue(source.contains(".accessibilityLabel(Text(\"\\(title). \\(detail)\"))"))
+        XCTAssertTrue(source.contains("minHeight: PPAccessibility.minimumTouchTarget"))
+        XCTAssertFalse(source.contains("withAnimation"))
+        XCTAssertFalse(source.contains(".animation("))
+
+        let scaledMetricDeclarations = [
+            "@ScaledMetric(relativeTo: .title2) private var headingFontSize",
+            "@ScaledMetric(relativeTo: .body) private var bodyFontSize",
+            "@ScaledMetric(relativeTo: .caption) private var captionFontSize",
+            "@ScaledMetric(relativeTo: .headline) private var choiceTitleFontSize",
+            "@ScaledMetric(relativeTo: .body) private var choiceDetailFontSize",
+            "@ScaledMetric(relativeTo: .title3) private var radioSymbolFontSize",
+        ]
+        XCTAssertEqual(occurrenceCount(of: "@ScaledMetric(", in: source), 6)
+        for declaration in scaledMetricDeclarations {
+            XCTAssertTrue(source.contains(declaration), "Missing scaled metric: \(declaration)")
+        }
+
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "traits: .fixedLayout(width: 390, height: 844)",
+                in: source
+            ),
+            3
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "traits: .fixedLayout(width: 834, height: 1194)",
+                in: source
+            ),
+            1
+        )
+        XCTAssertEqual(occurrenceCount(of: ".dynamicTypeSize(.accessibility5)", in: source), 1)
+        XCTAssertTrue(source.contains("decoder.keyDecodingStrategy = .useDefaultKeys"))
+
+        let disclosureRegex = try NSRegularExpression(
+            pattern: #"if\s+isSelected\s*\{\s*Text\(detail\)"#
+        )
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        XCTAssertLessThanOrEqual(
+            disclosureRegex.numberOfMatches(in: source, range: range),
+            1
+        )
+    }
+
+    func testCandidateSemanticDeclarationOrderWhenCandidateIsPresent() throws {
+        guard let source = try fitChefCandidateViewSource() else {
+            return
+        }
+        let body = try sourceSlice(
+            source,
+            from: "var body: some View",
+            to: "private var header: some View"
+        )
+        assertOrdered(
+            [
+                "header",
+                "fitchef.support_choice.daily.title",
+                "fitchef.support_choice.weekly.title",
+                "boundaryCopy",
+                "fitchef.support_choice.confirm",
+                "fitchef.support_choice.dismiss",
+            ],
+            in: body
+        )
+        let header = try sourceSlice(
+            source,
+            from: "private var header: some View",
+            to: "private var boundaryCopy: some View"
+        )
+        assertOrdered(
+            ["fitchef.support_choice.question", "fitchef.support_choice.agency"],
+            in: header
+        )
+        let boundary = try sourceSlice(
+            source,
+            from: "private var boundaryCopy: some View",
+            to: "private func localized"
+        )
+        assertOrdered(
+            ["fitchef.support_choice.consequence", "fitchef.support_choice.wellness"],
+            in: boundary
+        )
+    }
+
     private func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.keyDecodingStrategy = .useDefaultKeys
         return decoder
     }
 
@@ -621,6 +948,70 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "ios/PulsePlate/Models/FitChef/FitChefSupportHandoffDescriptor.swift"
             )
         return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func fitChefCandidateViewURL() throws -> URL {
+        try repositoryRoot().appendingPathComponent(
+            "ios/PulsePlate/Views/FitChef/FitChefSupportChoiceExperience.swift"
+        )
+    }
+
+    private func fitChefCandidateViewSource() throws -> String? {
+        let url = try fitChefCandidateViewURL()
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func swiftSources(under root: URL) throws -> [URL] {
+        let resourceKeys: [URLResourceKey] = [.isRegularFileKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var sources: [URL] = []
+        while let url = enumerator.nextObject() as? URL {
+            guard url.pathExtension == "swift" else {
+                continue
+            }
+            let values = try url.resourceValues(forKeys: Set(resourceKeys))
+            if values.isRegularFile == true {
+                sources.append(url)
+            }
+        }
+        return sources.sorted { $0.path < $1.path }
+    }
+
+    private func sourceSlice(
+        _ source: String,
+        from startAnchor: String,
+        to endAnchor: String
+    ) throws -> String {
+        let start = try XCTUnwrap(source.range(of: startAnchor)?.lowerBound)
+        let remainder = source[start...]
+        let end = try XCTUnwrap(remainder.range(of: endAnchor)?.lowerBound)
+        return String(source[start..<end])
+    }
+
+    private func assertOrdered(
+        _ needles: [String],
+        in source: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var searchStart = source.startIndex
+        for needle in needles {
+            guard let range = source.range(of: needle, range: searchStart..<source.endIndex) else {
+                XCTFail("Missing or out-of-order source declaration: \(needle)", file: file, line: line)
+                return
+            }
+            searchStart = range.upperBound
+        }
     }
 
     private func occurrenceCount(of needle: String, in source: String) -> Int {

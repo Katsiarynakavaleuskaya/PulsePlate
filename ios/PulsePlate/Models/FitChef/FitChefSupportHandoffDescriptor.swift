@@ -31,8 +31,8 @@ struct FitChefSupportHandoffAction: Decodable, Equatable, Hashable, Sendable {
     let targetSurface: FitChefSupportTargetSurface
 
     private static let allowedKeys: Set<String> = [
-        "actionType",
-        "targetSurface",
+        "action_type",
+        "target_surface",
     ]
 
     init(from decoder: Decoder) throws {
@@ -45,11 +45,11 @@ struct FitChefSupportHandoffAction: Decodable, Equatable, Hashable, Sendable {
 
         actionType = try container.decode(
             FitChefSupportHandoffActionType.self,
-            forKey: FitChefSupportDynamicCodingKey("actionType")
+            forKey: FitChefSupportDynamicCodingKey("action_type")
         )
         targetSurface = try container.decode(
             FitChefSupportTargetSurface.self,
-            forKey: FitChefSupportDynamicCodingKey("targetSurface")
+            forKey: FitChefSupportDynamicCodingKey("target_surface")
         )
     }
 }
@@ -67,14 +67,14 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
 
     private static let allowedKeys: Set<String> = [
         "action",
-        "executionAuthority",
-        "planMutationAuthority",
+        "execution_authority",
+        "plan_mutation_authority",
         "scenario",
-        "schemaVersion",
-        "supportNeed",
-        "usedLlm",
-        "userConfirmationRequired",
-        "wellnessBoundary",
+        "schema_version",
+        "support_need",
+        "used_llm",
+        "user_confirmation_required",
+        "wellness_boundary",
     ]
 
     init(from decoder: Decoder) throws {
@@ -87,7 +87,7 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
 
         schemaVersion = try container.decode(
             FitChefSupportHandoffSchemaVersion.self,
-            forKey: FitChefSupportDynamicCodingKey("schemaVersion")
+            forKey: FitChefSupportDynamicCodingKey("schema_version")
         )
         scenario = try container.decode(
             FitChefSupportHandoffScenario.self,
@@ -95,7 +95,7 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
         )
         supportNeed = try container.decode(
             FitChefSupportNeed.self,
-            forKey: FitChefSupportDynamicCodingKey("supportNeed")
+            forKey: FitChefSupportDynamicCodingKey("support_need")
         )
         action = try container.decode(
             FitChefSupportHandoffAction.self,
@@ -103,50 +103,50 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
         )
         userConfirmationRequired = try container.decode(
             Bool.self,
-            forKey: FitChefSupportDynamicCodingKey("userConfirmationRequired")
+            forKey: FitChefSupportDynamicCodingKey("user_confirmation_required")
         )
         executionAuthority = try container.decode(
             Bool.self,
-            forKey: FitChefSupportDynamicCodingKey("executionAuthority")
+            forKey: FitChefSupportDynamicCodingKey("execution_authority")
         )
         planMutationAuthority = try container.decode(
             Bool.self,
-            forKey: FitChefSupportDynamicCodingKey("planMutationAuthority")
+            forKey: FitChefSupportDynamicCodingKey("plan_mutation_authority")
         )
         usedLlm = try container.decode(
             Bool.self,
-            forKey: FitChefSupportDynamicCodingKey("usedLlm")
+            forKey: FitChefSupportDynamicCodingKey("used_llm")
         )
         wellnessBoundary = try container.decode(
             FitChefSupportHandoffWellnessBoundary.self,
-            forKey: FitChefSupportDynamicCodingKey("wellnessBoundary")
+            forKey: FitChefSupportDynamicCodingKey("wellness_boundary")
         )
 
         guard userConfirmationRequired else {
             throw fitChefSupportDataCorrupted(
-                "userConfirmationRequired must be exactly true",
+                "user_confirmation_required must be exactly true",
                 codingPath: container.codingPath
-                    + [FitChefSupportDynamicCodingKey("userConfirmationRequired")]
+                    + [FitChefSupportDynamicCodingKey("user_confirmation_required")]
             )
         }
         guard !executionAuthority else {
             throw fitChefSupportDataCorrupted(
-                "executionAuthority must be exactly false",
+                "execution_authority must be exactly false",
                 codingPath: container.codingPath
-                    + [FitChefSupportDynamicCodingKey("executionAuthority")]
+                    + [FitChefSupportDynamicCodingKey("execution_authority")]
             )
         }
         guard !planMutationAuthority else {
             throw fitChefSupportDataCorrupted(
-                "planMutationAuthority must be exactly false",
+                "plan_mutation_authority must be exactly false",
                 codingPath: container.codingPath
-                    + [FitChefSupportDynamicCodingKey("planMutationAuthority")]
+                    + [FitChefSupportDynamicCodingKey("plan_mutation_authority")]
             )
         }
         guard !usedLlm else {
             throw fitChefSupportDataCorrupted(
-                "usedLlm must be exactly false",
-                codingPath: container.codingPath + [FitChefSupportDynamicCodingKey("usedLlm")]
+                "used_llm must be exactly false",
+                codingPath: container.codingPath + [FitChefSupportDynamicCodingKey("used_llm")]
             )
         }
 
@@ -155,7 +155,7 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
             || pair == (.weeklyStructure, .proWeeklyPlan)
         guard isCompatible else {
             throw fitChefSupportDataCorrupted(
-                "supportNeed and action.targetSurface must form a compatible handoff pair",
+                "support_need and action.target_surface must form a compatible handoff pair",
                 codingPath: container.codingPath
             )
         }
@@ -202,16 +202,29 @@ struct FitChefSupportHandoffChoices: Equatable, Hashable, Sendable {
 }
 
 struct FitChefSupportChoiceSelectionState: Equatable, Sendable {
-    private let choices: FitChefSupportHandoffChoices
     private(set) var selectedDescriptor: FitChefSupportHandoffDescriptor?
 
-    init(choices: FitChefSupportHandoffChoices) {
-        self.choices = choices
+    init() {
         selectedDescriptor = nil
     }
 
-    mutating func select(_ supportNeed: FitChefSupportNeed) {
-        selectedDescriptor = choices.descriptor(for: supportNeed)
+    mutating func select(_ descriptor: FitChefSupportHandoffDescriptor) {
+        selectedDescriptor = descriptor
+    }
+
+    mutating func clear() {
+        selectedDescriptor = nil
+    }
+
+    mutating func revalidate(against choices: FitChefSupportHandoffChoices) {
+        guard
+            let selectedDescriptor,
+            selectedDescriptor != choices.dailyDescriptor,
+            selectedDescriptor != choices.weeklyDescriptor
+        else {
+            return
+        }
+        clear()
     }
 
     var canConfirm: Bool {
