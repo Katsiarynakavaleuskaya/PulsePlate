@@ -52,18 +52,6 @@ The current runtime anchors are stable service symbols:
 - Template and fallback responses are mandatory whenever LLM execution is
   unavailable, disallowed, or disabled.
 
-## Client channel posture
-
-- iOS is the intended full nutrition and product surface, including daily plate,
-  weekly planning, FitChef, and future entitlement-gated and StoreKit-backed
-  experiences.
-- Web remains the free BMI, wellness and nutrition education, bounded
-  information-chat, acquisition, and transparent iOS/App Store referral surface.
-  Web payment and paid nutrition execution are not part of the current posture.
-
-This section records product placement intent only. It is not billing
-architecture, entitlement truth, runtime integration, or release authority.
-
 ## Rollout order
 
 ### PR-0 foundation

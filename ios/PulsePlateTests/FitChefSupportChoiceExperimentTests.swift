@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import PulsePlate
 
+@MainActor
 final class FitChefSupportChoiceExperimentTests: XCTestCase {
     private let topLevelFields = [
         "schema_version",
