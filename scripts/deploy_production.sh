@@ -849,6 +849,7 @@ contract_destination_transaction() {
   local source_caddyfile="${7:-}"
   local source_diagnose="${8:-}"
   local source_redeploy="${9:-}"
+  local source_backup_helper="${10:-}"
 
   "$PYTHON_BIN" - \
     "$operation" \
@@ -868,7 +869,9 @@ contract_destination_transaction() {
     "$source_diagnose" \
     "scripts/diagnose_web.sh" \
     "$source_redeploy" \
-    "scripts/redeploy_caddy.sh" <<'PY'
+    "scripts/redeploy_caddy.sh" \
+    "$source_backup_helper" \
+    "scripts/ops/postgres_backup.sh" <<'PY'
 from __future__ import annotations
 
 import errno
@@ -896,6 +899,8 @@ source_diagnose = sys.argv[15]
 diagnose_target = sys.argv[16]
 source_redeploy = sys.argv[17]
 redeploy_target = sys.argv[18]
+source_backup_helper = sys.argv[19]
+backup_helper_target = sys.argv[20]
 
 if operation not in {
     "validate-contracts",
@@ -927,6 +932,8 @@ if diagnose_target != "scripts/diagnose_web.sh":
     raise SystemExit("diagnose helper destination is not canonical")
 if redeploy_target != "scripts/redeploy_caddy.sh":
     raise SystemExit("redeploy helper destination is not canonical")
+if backup_helper_target != "scripts/ops/postgres_backup.sh":
+    raise SystemExit("PostgreSQL backup helper destination is not canonical")
 
 no_follow = getattr(os, "O_NOFOLLOW", 0)
 directory_flag = getattr(os, "O_DIRECTORY", 0)
@@ -1209,6 +1216,7 @@ try:
         caddy_target,
         diagnose_target,
         redeploy_target,
+        backup_helper_target,
     ]
     target_parts = {target: split_target(target) for target in targets}
     deploy_contract_fd = ensure_directory(
@@ -1242,11 +1250,22 @@ try:
     scripts_fd = ensure_directory(
         deploy_fd,
         "scripts",
-        create=operation == "publish-full",
+        create=operation in {"publish-contracts", "publish-full"},
         label="production scripts directory",
     )
     if scripts_fd is not None:
         directory_fds.append(scripts_fd)
+
+    scripts_ops_fd = None
+    if scripts_fd is not None:
+        scripts_ops_fd = ensure_directory(
+            scripts_fd,
+            "ops",
+            create=operation in {"publish-contracts", "publish-full"},
+            label="production ops scripts directory",
+        )
+        if scripts_ops_fd is not None:
+            directory_fds.append(scripts_ops_fd)
 
     parent_by_target: dict[str, int | None] = {
         compose_target: deploy_contract_fd,
@@ -1256,6 +1275,7 @@ try:
         caddy_target: deploy_contract_fd,
         diagnose_target: scripts_fd,
         redeploy_target: scripts_fd,
+        backup_helper_target: scripts_ops_fd,
     }
     for target in (
         compose_target,
@@ -1265,6 +1285,7 @@ try:
         caddy_target,
         diagnose_target,
         redeploy_target,
+        backup_helper_target,
     ):
         parent_fd = parent_by_target[target]
         if parent_fd is not None:
@@ -1305,11 +1326,21 @@ try:
             raise SystemExit("Prometheus contract directory was not created")
         if postgres_pgvector_fd is None:
             raise SystemExit("PostgreSQL image contract directory was not created")
+        if scripts_ops_fd is None:
+            raise SystemExit("production ops scripts directory was not created")
         sources = {
             compose_target: source_compose,
             config_target: source_config,
             manifest_target: source_manifest,
             postgres_manifest_target: source_postgres_manifest,
+            backup_helper_target: source_backup_helper,
+        }
+        modes = {
+            compose_target: 0o644,
+            config_target: 0o644,
+            manifest_target: 0o644,
+            postgres_manifest_target: 0o644,
+            backup_helper_target: 0o755,
         }
         prepared_contracts: list[tuple[int, str, str]] = []
         try:
@@ -1318,6 +1349,7 @@ try:
                 manifest_target,
                 postgres_manifest_target,
                 compose_target,
+                backup_helper_target,
             ):
                 source_fd, source_metadata = open_absolute_file(
                     sources[target],
@@ -1325,6 +1357,13 @@ try:
                     max_bytes=max_contract_bytes,
                 )
                 try:
+                    mode = modes[target]
+                    if target == backup_helper_target and stat.S_IMODE(
+                        source_metadata.st_mode
+                    ) != mode:
+                        raise SystemExit(
+                            "PostgreSQL backup helper source mode does not match the reviewed contract"
+                        )
                     parent_fd = parent_by_target[target]
                     if parent_fd is None:
                         raise SystemExit("contract destination parent is unavailable")
@@ -1349,7 +1388,7 @@ try:
                             temp_fd,
                             label=f"{target} source",
                         )
-                        os.fchmod(temp_fd, 0o644)
+                        os.fchmod(temp_fd, mode)
                         os.fsync(temp_fd)
                     finally:
                         os.close(temp_fd)
@@ -1383,15 +1422,21 @@ try:
                 depth=0,
                 label="frontend source",
             )
-            for source_path, label in (
-                (source_caddy, "Caddy source"),
-                (source_redeploy, "redeploy helper source"),
+            for source_path, label, required_mode in (
+                (source_caddy, "Caddy source", None),
+                (source_redeploy, "redeploy helper source", None),
+                (source_backup_helper, "PostgreSQL backup helper source", 0o755),
             ):
-                source_fd, _metadata = open_absolute_file(
+                source_fd, source_metadata = open_absolute_file(
                     source_path,
                     label=label,
                     max_bytes=max_contract_bytes,
                 )
+                if required_mode is not None and stat.S_IMODE(
+                    source_metadata.st_mode
+                ) != required_mode:
+                    os.close(source_fd)
+                    raise SystemExit(f"{label} mode does not match the reviewed contract")
                 os.close(source_fd)
             if source_diagnose:
                 source_fd, _metadata = open_absolute_file(
@@ -1402,7 +1447,7 @@ try:
                 os.close(source_fd)
             raise SystemExit(0)
 
-        if scripts_fd is None:
+        if scripts_fd is None or scripts_ops_fd is None:
             raise SystemExit("production scripts directory was not created")
 
         temp_frontend = (
@@ -1558,11 +1603,14 @@ publish_contract_files_safely() {
   local source_prometheus_config="$2"
   local source_prometheus_manifest="$3"
   local source_postgres_manifest="$4"
+  local source_backup_helper="$5"
   contract_destination_transaction publish-contracts \
     "$source_compose" \
     "$source_prometheus_config" \
     "$source_prometheus_manifest" \
-    "$source_postgres_manifest"
+    "$source_postgres_manifest" \
+    "" "" "" "" \
+    "$source_backup_helper"
 }
 
 validate_full_bundle_safely() {
@@ -1570,12 +1618,14 @@ validate_full_bundle_safely() {
   local source_caddyfile="$2"
   local source_diagnose="$3"
   local source_redeploy="$4"
+  local source_backup_helper="$5"
   contract_destination_transaction validate-full \
     "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
-    "$source_redeploy"
+    "$source_redeploy" \
+    "$source_backup_helper"
 }
 
 publish_full_bundle_safely() {
@@ -1648,6 +1698,7 @@ required_files = {
     "deploy/prometheus/image-manifest.json",
     "deploy/prometheus/prometheus.yml",
     "scripts/diagnose_web.sh",
+    "scripts/ops/postgres_backup.sh",
     "scripts/redeploy_caddy.sh",
 }
 allowed_directories = {
@@ -1656,6 +1707,7 @@ allowed_directories = {
     "deploy/postgres-pgvector",
     "deploy/prometheus",
     "scripts",
+    "scripts/ops",
 }
 max_members = 20_000
 max_expanded_bytes = 512 * 1024 * 1024
@@ -1700,6 +1752,10 @@ with tarfile.open(copied_archive, mode="r:gz") as archive:
         if expanded_bytes > max_expanded_bytes:
             raise SystemExit("production shell archive expanded size is out of bounds")
         if member.isfile():
+            if normalized_name == "scripts/ops/postgres_backup.sh" and (
+                member.mode & 0o777
+            ) != 0o755:
+                raise SystemExit("PostgreSQL backup helper archive mode drifted")
             files_seen.add(normalized_name)
         normalized_members.append((member, normalized_name))
 
@@ -1877,6 +1933,7 @@ sync_shell_bundle() {
   local source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
+  local source_backup_helper="$SHELL_BUNDLE_DIR/scripts/ops/postgres_backup.sh"
   local compose_relative_path="$COMPOSE_RELATIVE_IDENTITY"
 
   if [ -z "$RESOLVED_COMPOSE_FILE" ]; then
@@ -1912,6 +1969,8 @@ sync_shell_bundle() {
     echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $source_redeploy" >&2
     exit 1
   fi
+  validate_regular_non_symlink_file "$source_backup_helper" \
+    "Incoming PostgreSQL backup helper"
 
   if [ -L "$source_diagnose" ]; then
     echo "❌ Optional diagnose helper must not be a symlink" >&2
@@ -1926,8 +1985,9 @@ sync_shell_bundle() {
       "$source_compose" \
       "$source_prometheus_config" \
       "$source_prometheus_manifest" \
-      "$source_postgres_manifest"
-    echo "Synced production Compose, Prometheus, and PostgreSQL image contracts before worker operations"
+      "$source_postgres_manifest" \
+      "$source_backup_helper"
+    echo "Synced production Compose, Prometheus, PostgreSQL image, and reviewed backup-helper contracts before worker operations"
     return 0
   fi
 
@@ -2232,8 +2292,12 @@ validate_self_hosted_postgres_contract() {
   : "${POSTGRES_DB:?POSTGRES_DB is required for self-hosted PostgreSQL}"
   : "${POSTGRES_USER:?POSTGRES_USER is required for self-hosted PostgreSQL}"
   : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required for self-hosted PostgreSQL}"
-  if [ -L "$BACKUP_HELPER" ] || [ ! -f "$BACKUP_HELPER" ] || [ ! -x "$BACKUP_HELPER" ]; then
-    echo "❌ Self-hosted PostgreSQL backup helper must be a regular executable file" >&2
+  if [ -z "$SHELL_BUNDLE_DIR" ] && [ -z "$SHELL_BUNDLE_ARCHIVE" ]; then
+    echo "❌ Self-hosted PostgreSQL deploy requires one reviewed shell-bundle carrier" >&2
+    exit 1
+  fi
+  if [ "$BACKUP_HELPER" != "$DEPLOY_DIR/scripts/ops/postgres_backup.sh" ]; then
+    echo "❌ Self-hosted PostgreSQL backup helper must use the canonical deployed path" >&2
     exit 1
   fi
   case "$BACKUP_DIR" in
@@ -2256,6 +2320,78 @@ validate_self_hosted_postgres_contract() {
     echo "❌ Self-hosted production Compose must contain exactly one postgres service" >&2
     exit 1
   fi
+}
+
+validate_published_backup_helper_binding() {
+  if [ -z "$SHELL_BUNDLE_DIR" ]; then
+    echo "❌ Reviewed shell bundle is unavailable for backup-helper binding" >&2
+    return 1
+  fi
+  validate_contract_destinations_safely
+  local source_backup_helper="$SHELL_BUNDLE_DIR/scripts/ops/postgres_backup.sh"
+  "$PYTHON_BIN" - "$source_backup_helper" "$BACKUP_HELPER" <<'PY'
+from __future__ import annotations
+
+import os
+import stat
+import sys
+
+max_bytes = 4 * 1024 * 1024
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0:
+    raise SystemExit("backup-helper no-follow validation is unavailable")
+
+
+def read_reviewed_file(raw_path: str, *, label: str) -> bytes:
+    if not os.path.isabs(raw_path) or os.path.normpath(raw_path) != raw_path:
+        raise SystemExit(f"{label} path must be canonical and absolute")
+    try:
+        descriptor = os.open(
+            raw_path,
+            os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+        )
+    except OSError as exc:
+        raise SystemExit(f"{label} cannot be opened safely") from exc
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or stat.S_IMODE(before.st_mode) != 0o755
+            or before.st_uid != os.geteuid()
+            or before.st_size <= 0
+            or before.st_size > max_bytes
+        ):
+            raise SystemExit(f"{label} metadata does not match the reviewed contract")
+        remaining = before.st_size
+        chunks: list[bytes] = []
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                raise SystemExit(f"{label} changed while being read")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(descriptor, 1):
+            raise SystemExit(f"{label} grew while being read")
+        after = os.fstat(descriptor)
+        if (
+            after.st_dev != before.st_dev
+            or after.st_ino != before.st_ino
+            or after.st_size != before.st_size
+            or after.st_mtime_ns != before.st_mtime_ns
+            or after.st_ctime_ns != before.st_ctime_ns
+        ):
+            raise SystemExit(f"{label} identity changed while being read")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+source_bytes = read_reviewed_file(sys.argv[1], label="reviewed backup-helper source")
+published_bytes = read_reviewed_file(sys.argv[2], label="published backup-helper destination")
+if published_bytes != source_bytes:
+    raise SystemExit("published backup helper does not match the reviewed shell bundle")
+PY
 }
 
 validate_production_database_contract() {
@@ -2299,6 +2435,7 @@ validate_shell_bundle_contract() {
   local source_postgres_manifest=""
   local compose_relative_path=""
   local required_redeploy=""
+  local required_backup_helper=""
   local optional_diagnose=""
 
   if [ -z "$SHELL_BUNDLE_DIR" ]; then
@@ -2320,6 +2457,7 @@ validate_shell_bundle_contract() {
   source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
   source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
   source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
+  required_backup_helper="$SHELL_BUNDLE_DIR/scripts/ops/postgres_backup.sh"
 
   if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
     case "$RESOLVED_COMPOSE_FILE" in
@@ -2374,6 +2512,8 @@ validate_shell_bundle_contract() {
     echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $required_redeploy" >&2
     exit 1
   fi
+  validate_regular_non_symlink_file "$required_backup_helper" \
+    "Incoming PostgreSQL backup helper"
 
   optional_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   if [ -L "$optional_diagnose" ]; then
@@ -2392,7 +2532,8 @@ validate_shell_bundle_contract() {
     "$source_frontend" \
     "$source_caddyfile" \
     "$optional_diagnose" \
-    "$required_redeploy"
+    "$required_redeploy" \
+    "$required_backup_helper"
 }
 
 run_preflight() {
@@ -2434,6 +2575,9 @@ fi
 login_to_ghcr_if_configured
 
 sync_shell_bundle compose-only
+if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  validate_published_backup_helper_binding
+fi
 validate_prometheus_contract_files
 dc config --quiet
 PROMETHEUS_RUNTIME_REF="$(read_prometheus_runtime_ref "$PROMETHEUS_IMAGE_MANIFEST")"
@@ -2490,6 +2634,7 @@ dc run --rm --no-deps app python -c \
   'from app.main import app; from app.security.production_invariants import assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)'
 
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  validate_published_backup_helper_binding
   echo "Censusing and quiescing product containers before self-hosted PostgreSQL transition..."
   CAPTURED_WORKER_ID="$(capture_running_service_container worker)"
   CAPTURED_CADDY_ID="$(capture_running_service_container caddy)"

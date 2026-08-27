@@ -191,23 +191,27 @@ def _write_shell_bundle_contract(
     shell_bundle_dir: Path,
     *,
     compose_text: str = PRODUCTION_COMPOSE_TEXT,
+    compose_name: str = "docker-compose.production.yaml",
     include_frontend: bool = True,
     include_redeploy: bool = True,
+    include_backup_helper: bool = True,
 ) -> None:
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
     postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     scripts_dir = shell_bundle_dir / "scripts"
+    ops_dir = scripts_dir / "ops"
     deploy_dir.mkdir(parents=True, exist_ok=True)
     prometheus_dir.mkdir(parents=True, exist_ok=True)
     postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     scripts_dir.mkdir(parents=True, exist_ok=True)
+    ops_dir.mkdir(parents=True, exist_ok=True)
     if include_frontend:
         (shell_bundle_dir / "frontend").mkdir(parents=True, exist_ok=True)
     (deploy_dir / "Caddyfile.production").write_text(
         'pulseplate.test {\n    respond "ok"\n}\n', encoding="utf-8"
     )
-    (deploy_dir / "docker-compose.production.yaml").write_text(compose_text, encoding="utf-8")
+    (deploy_dir / compose_name).write_text(compose_text, encoding="utf-8")
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -224,6 +228,13 @@ def _write_shell_bundle_contract(
         (scripts_dir / "redeploy_caddy.sh").write_text(
             "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
         )
+    if include_backup_helper:
+        backup_helper = ops_dir / "postgres_backup.sh"
+        backup_helper.write_text(
+            (REPO_ROOT / "scripts" / "ops" / "postgres_backup.sh").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        backup_helper.chmod(0o755)
 
 
 def _canonical_test_archive_path(suffix: int) -> Path:
@@ -244,6 +255,7 @@ def _write_shell_bundle_archive(
         "deploy/prometheus/prometheus.yml",
         "deploy/prometheus/image-manifest.json",
         "scripts/diagnose_web.sh",
+        "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
     ]
     if archive_path.exists():
@@ -256,6 +268,10 @@ def _write_shell_bundle_archive(
     with tarfile.open(archive_path, "w:gz") as archive:
         for relative_path in required_paths:
             if variant == "missing_manifest" and relative_path.endswith("image-manifest.json"):
+                continue
+            if variant.startswith("backup_helper_") and relative_path == (
+                "scripts/ops/postgres_backup.sh"
+            ):
                 continue
             archive.add(source_dir / relative_path, arcname=relative_path, recursive=True)
 
@@ -286,6 +302,21 @@ def _write_shell_bundle_archive(
             else:
                 member.type = tarfile.FIFOTYPE
             archive.addfile(member)
+        elif variant in {"backup_helper_symlink", "backup_helper_hardlink"}:
+            member = tarfile.TarInfo("scripts/ops/postgres_backup.sh")
+            if variant == "backup_helper_symlink":
+                member.type = tarfile.SYMTYPE
+                member.linkname = "../../deploy/Caddyfile.production"
+            else:
+                member.type = tarfile.LNKTYPE
+                member.linkname = "scripts/redeploy_caddy.sh"
+            archive.addfile(member)
+        elif variant == "backup_helper_wrong_mode":
+            payload = b"#!/usr/bin/env bash\nexit 0\n"
+            member = tarfile.TarInfo("scripts/ops/postgres_backup.sh")
+            member.mode = 0o775
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
 
 
 def test_production_compose_source_of_truth_matches_split_contract() -> None:
@@ -1443,6 +1474,71 @@ def test_production_shell_bundle_validation_cleanup_preserves_primary_status(
         assert "preserving primary exit 33" in completed.stderr
 
 
+@pytest.mark.parametrize(
+    ("variant", "expected_returncode"),
+    (("exact", 0), ("content-drift", 1), ("hardlink", 1), ("writable", 1)),
+)
+def test_published_backup_helper_binding_rejects_post_publication_drift(
+    tmp_path: Path,
+    variant: str,
+    expected_returncode: int,
+) -> None:
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    start = script.index("validate_published_backup_helper_binding() {\n")
+    end = script.index("\n}\n\nvalidate_production_database_contract", start) + len("\n}\n")
+    function_source = script[start:end]
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    source_ops_dir = shell_bundle_dir / "scripts" / "ops"
+    destination_ops_dir = tmp_path / "production" / "scripts" / "ops"
+    source_ops_dir.mkdir(parents=True)
+    destination_ops_dir.mkdir(parents=True)
+    source_helper = source_ops_dir / "postgres_backup.sh"
+    destination_helper = destination_ops_dir / "postgres_backup.sh"
+    reviewed_bytes = b"#!/usr/bin/env bash\nprintf 'reviewed-helper\\n'\n"
+    source_helper.write_bytes(reviewed_bytes)
+    source_helper.chmod(0o755)
+    destination_helper.write_bytes(reviewed_bytes)
+    destination_helper.chmod(0o755)
+
+    if variant == "content-drift":
+        destination_helper.write_bytes(b"#!/usr/bin/env bash\nprintf 'drifted-helper\\n'\n")
+        destination_helper.chmod(0o755)
+    elif variant == "hardlink":
+        destination_helper.unlink()
+        external = tmp_path / "hardlinked-helper"
+        external.write_bytes(reviewed_bytes)
+        external.chmod(0o755)
+        os.link(external, destination_helper)
+    elif variant == "writable":
+        destination_helper.chmod(0o775)
+
+    program = (
+        "set -euo pipefail\n"
+        "validate_contract_destinations_safely() { :; }\n"
+        + function_source
+        + "\nvalidate_published_backup_helper_binding\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "PYTHON_BIN": sys.executable,
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
+            "BACKUP_HELPER": str(destination_helper),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_returncode, completed.stderr
+    if expected_returncode != 0:
+        assert "backup-helper" in completed.stderr or "backup helper" in completed.stderr
+
+
 def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
@@ -1854,6 +1950,30 @@ set -euo pipefail
 
     assert completed.returncode == 1
     assert "SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh" in completed.stderr
+    assert not log_file.exists()
+
+
+def test_deploy_production_rejects_shell_bundle_without_reviewed_backup_helper(
+    tmp_path: Path,
+) -> None:
+    env, _project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    (shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh").unlink()
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "Incoming PostgreSQL backup helper" in completed.stderr
     assert not log_file.exists()
 
 
@@ -2659,6 +2779,9 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
         "caddy-leaf-symlink",
         "scripts-directory-symlink",
         "redeploy-leaf-symlink",
+        "ops-directory-symlink",
+        "backup-helper-leaf-symlink",
+        "backup-helper-leaf-hardlink",
     ),
 )
 def test_production_full_bundle_rejects_hostile_destination_before_docker(
@@ -2687,12 +2810,30 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         hostile = project_dir / "scripts"
         hostile.symlink_to(external, target_is_directory=True)
         expected = (external / "sentinel").read_bytes()
-    else:
+    elif destination_variant == "redeploy-leaf-symlink":
         scripts_dir = project_dir / "scripts"
         scripts_dir.mkdir()
         external.write_text("external-helper\n", encoding="utf-8")
         hostile = scripts_dir / "redeploy_caddy.sh"
         hostile.symlink_to(external)
+        expected = external.read_bytes()
+    elif destination_variant == "ops-directory-symlink":
+        scripts_dir = project_dir / "scripts"
+        scripts_dir.mkdir()
+        external.mkdir()
+        (external / "sentinel").write_text("external-ops\n", encoding="utf-8")
+        hostile = scripts_dir / "ops"
+        hostile.symlink_to(external, target_is_directory=True)
+        expected = (external / "sentinel").read_bytes()
+    else:
+        ops_dir = project_dir / "scripts" / "ops"
+        ops_dir.mkdir(parents=True)
+        external.write_text("external-backup-helper\n", encoding="utf-8")
+        hostile = ops_dir / "postgres_backup.sh"
+        if destination_variant == "backup-helper-leaf-symlink":
+            hostile.symlink_to(external)
+        else:
+            os.link(external, hostile)
         expected = external.read_bytes()
 
     completed = subprocess.run(
@@ -2705,7 +2846,11 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
     )
 
     assert completed.returncode != 0
-    assert hostile.is_symlink()
+    if destination_variant == "backup-helper-leaf-hardlink":
+        assert not hostile.is_symlink()
+        assert hostile.stat().st_nlink == 2
+    else:
+        assert hostile.is_symlink()
     assert not log_file.exists()
     if external.is_dir():
         assert (external / "sentinel").read_bytes() == expected
@@ -2723,6 +2868,10 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         "frontend-nested-hardlink",
         "caddy-source-symlink",
         "redeploy-source-symlink",
+        "backup-source-symlink",
+        "backup-source-hardlink",
+        "backup-source-nonexec",
+        "backup-source-writable",
     ),
 )
 def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
@@ -2753,11 +2902,25 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         caddy.rename(external)
         caddy.symlink_to(external)
         expected_path = external
-    else:
+    elif source_variant == "redeploy-source-symlink":
         redeploy = shell_bundle_dir / "scripts" / "redeploy_caddy.sh"
         redeploy.rename(external)
         redeploy.symlink_to(external)
         expected_path = external
+    else:
+        backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+        if source_variant == "backup-source-symlink":
+            backup_helper.rename(external)
+            backup_helper.symlink_to(external)
+            expected_path = external
+        elif source_variant == "backup-source-hardlink":
+            backup_helper.unlink()
+            external.write_text("hardlinked-backup-helper\n", encoding="utf-8")
+            os.link(external, backup_helper)
+            expected_path = external
+        else:
+            backup_helper.chmod(0o644 if source_variant == "backup-source-nonexec" else 0o775)
+            expected_path = backup_helper
     expected = expected_path.read_bytes()
 
     completed = subprocess.run(
@@ -2798,6 +2961,10 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         ("unexpected", 9, 1),
         ("missing_manifest", 10, 1),
         ("oversized_archive", 11, 1),
+        ("backup_helper_missing", 13, 1),
+        ("backup_helper_symlink", 14, 1),
+        ("backup_helper_hardlink", 15, 1),
+        ("backup_helper_wrong_mode", 16, 1),
     ),
 )
 def test_production_archive_preflight_is_bounded_and_extracts_nothing(
@@ -3046,6 +3213,12 @@ printf 'curl %s\n' "$*" >> "{log_file}"
     assert (project_dir / "frontend" / "bundle-marker.txt").read_text(
         encoding="utf-8"
     ) == "archive-shell\n"
+    published_backup_helper = project_dir / "scripts" / "ops" / "postgres_backup.sh"
+    assert (
+        published_backup_helper.read_bytes()
+        == (shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh").read_bytes()
+    )
+    assert stat.S_IMODE(published_backup_helper.stat().st_mode) == 0o755
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert all(METRICS_SECRET_SENTINEL not in line for line in log_lines)
@@ -3619,6 +3792,16 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     (project_dir / "scripts").mkdir()
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
+    destination_ops_dir = project_dir / "scripts" / "ops"
+    destination_ops_dir.mkdir()
+    stale_backup_helper = destination_ops_dir / "postgres_backup.sh"
+    stale_backup_helper.write_text(
+        "#!/usr/bin/env bash\nprintf 'stale-backup-helper\\n'\n",
+        encoding="utf-8",
+    )
+    stale_backup_helper.chmod(0o755)
+    source_backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+    reviewed_backup_helper = source_backup_helper.read_bytes()
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -3706,6 +3889,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     for helper_path in (
         project_dir / "scripts" / "diagnose_web.sh",
         project_dir / "scripts" / "redeploy_caddy.sh",
+        stale_backup_helper,
     ):
         assert stat.S_IMODE(helper_path.stat().st_mode) == 0o755
     assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
@@ -3717,6 +3901,56 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
+    assert stale_backup_helper.read_bytes() == reviewed_backup_helper
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all("pg_dump" not in line for line in log_lines)
+
+
+def test_production_contract_publication_failure_preserves_previous_backup_helper(
+    tmp_path: Path,
+) -> None:
+    env, project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    destination_ops_dir = project_dir / "scripts" / "ops"
+    destination_ops_dir.mkdir(parents=True)
+    destination_backup_helper = destination_ops_dir / "postgres_backup.sh"
+    previous_helper = b"#!/usr/bin/env bash\nprintf 'previous-helper\\n'\n"
+    destination_backup_helper.write_bytes(previous_helper)
+    destination_backup_helper.chmod(0o755)
+
+    prometheus_dir = project_dir / "deploy" / "prometheus"
+    original_mode = stat.S_IMODE(prometheus_dir.stat().st_mode)
+    prometheus_dir.chmod(0o555)
+    env.update(
+        {
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+        }
+    )
+    try:
+        completed = subprocess.run(
+            [str(REPO_ROOT / "scripts/deploy_production.sh")],
+            cwd=str(REPO_ROOT),
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        prometheus_dir.chmod(original_mode)
+
+    assert completed.returncode != 0
+    assert destination_backup_helper.read_bytes() == previous_helper
+    assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
+    assert list(project_dir.rglob(".pulseplate-postgres_backup.sh.tmp-*")) == []
+    if log_file.exists():
+        assert all(
+            " stop " not in line and " up " not in line
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        )
 
 
 def test_production_full_sync_cannot_republish_contracts_changed_after_validation(
@@ -4430,19 +4664,63 @@ esac
     )
 
 
+@pytest.mark.parametrize(
+    "destination_helper_variant",
+    ("absent", "stale-executable", "stale-nonexec"),
+)
 def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_contour(
     tmp_path: Path,
+    destination_helper_variant: str,
 ) -> None:
     project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "shell-bundle"
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    shell_bundle_dir.mkdir()
     bin_dir.mkdir()
+    self_hosted_compose = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
     _write_production_host_contract(
         project_dir,
-        compose_text=SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8"),
+        compose_text=self_hosted_compose,
         self_hosted=True,
     )
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text=self_hosted_compose,
+        compose_name="docker-compose.production.selfhosted.yaml",
+    )
+    source_backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+    source_backup_helper.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "reviewed-bundle-backup\\n" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'receipt="${BACKUP_DIR}/pulseplate_reviewed.dump"\n'
+        "printf 'synthetic-custom-dump' > \"$receipt\"\n"
+        'chmod 0600 "$receipt"\n'
+        "printf 'Backup created: %s\\n' \"$receipt\"\n",
+        encoding="utf-8",
+    )
+    source_backup_helper.chmod(0o755)
+    destination_backup_helper = project_dir / "scripts" / "ops" / "postgres_backup.sh"
+    stale_helper_bytes = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "stale-host-backup\\n" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'receipt="${BACKUP_DIR}/pulseplate_stale.dump"\n'
+        "printf 'synthetic-custom-dump' > \"$receipt\"\n"
+        'chmod 0600 "$receipt"\n'
+        "printf 'Backup created: %s\\n' \"$receipt\"\n"
+    ).encode()
+    if destination_helper_variant == "absent":
+        destination_backup_helper.unlink()
+        destination_backup_helper.parent.rmdir()
+        destination_backup_helper.parent.parent.rmdir()
+    else:
+        destination_backup_helper.write_bytes(stale_helper_bytes)
+        destination_backup_helper.chmod(
+            0o755 if destination_helper_variant == "stale-executable" else 0o644
+        )
     (project_dir / ".env").write_text(
         "\n".join(
             (
@@ -4485,6 +4763,7 @@ esac
             "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
             "TAG": "prod-vtest",
             "STUB_DEPLOY_LOG_FILE": str(log_file),
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
         }
     )
     completed = subprocess.run(
@@ -4497,6 +4776,14 @@ esac
     )
     assert completed.returncode == 0, completed.stderr
     assert "Production deploy preflight passed" in completed.stdout
+    if destination_helper_variant == "absent":
+        assert not destination_backup_helper.exists()
+        assert not destination_backup_helper.parent.exists()
+    else:
+        assert destination_backup_helper.read_bytes() == stale_helper_bytes
+        assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == (
+            0o755 if destination_helper_variant == "stale-executable" else 0o644
+        )
 
     completed = subprocess.run(
         [str(REPO_ROOT / "scripts/deploy_production.sh")],
@@ -4511,7 +4798,7 @@ esac
     quiesce_index = next(
         index for index, line in enumerate(log_lines) if " stop worker caddy app" in line
     )
-    backup_index = log_lines.index("backup")
+    backup_index = log_lines.index("reviewed-bundle-backup")
     old_stop_index = log_lines.index(f"docker stop {'a' * 64}")
     candidate_index = next(
         index for index, line in enumerate(log_lines) if " up -d --pull never postgres" in line
@@ -4522,6 +4809,25 @@ esac
         if " run --rm --no-deps app alembic upgrade head" in line
     )
     assert quiesce_index < backup_index < old_stop_index < candidate_index < migration_index
+    assert "stale-host-backup" not in log_lines
+    assert destination_backup_helper.read_bytes() == source_backup_helper.read_bytes()
+    assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
+
+    alternate_backup_helper = project_dir / "scripts" / "ops" / "alternate_backup.sh"
+    alternate_backup_helper.write_bytes(source_backup_helper.read_bytes())
+    alternate_backup_helper.chmod(0o755)
+    env["BACKUP_HELPER"] = str(alternate_backup_helper)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    assert "backup helper must use the canonical deployed path" in completed.stderr
+    env.pop("BACKUP_HELPER")
 
     env.pop("COMPOSE_FILE")
     env["PROD_DEPLOY_MODE"] = "self-hosted"

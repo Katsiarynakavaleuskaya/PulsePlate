@@ -3354,6 +3354,7 @@ jobs:
             deploy/prometheus/image-manifest.json \
             scripts/diagnose_web.sh \
             scripts/redeploy_caddy.sh \
+            scripts/ops/postgres_backup.sh \
             deploy/postgres-pgvector/image-manifest.json
 
           scp -i "$key_path" \
