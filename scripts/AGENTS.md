@@ -403,8 +403,14 @@
   cycle counts; do not add finding, false-positive, regression, rollback,
   quality, or external-outcome fields.
 - Preserve strict bounded JSON, private modes, symlink/hardlink/nonregular-file
-  rejection, atomic no-replace publication, identical no-write replay, and
-  divergent replay failure.
+  rejection, sibling-stage kernel no-replace rename publication, exact replay
+  at capacity, pre-creation rejection of new ids at capacity, identical
+  no-write replay, and divergent replay failure. Never sweep arbitrary sibling
+  stage-looking residue.
+- Preserve the public-operation lock boundary: thread `RLock` plus fixed-store
+  directory `flock`, exclusive for prepare/finalize and shared for
+  validate/report. Internal loaders remain lock-free and canonical receipts
+  must validate only at link count one.
 - The first receipt is for the next freshly bootstrapped lane after the feature
   lands. Never backfill the implementation PR with a retrospective self receipt.
 - Contract and terminal rail truth table:

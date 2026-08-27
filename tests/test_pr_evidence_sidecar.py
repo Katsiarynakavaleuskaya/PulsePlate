@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -435,7 +437,7 @@ def test_validate_rejects_unknown_sibling(isolated_store: Path) -> None:
 
     prepared = _prepare(isolated_store)
     receipt = isolated_store / str(prepared["sidecar_path"])
-    (receipt.parent / "unknown.json").write_text("{}", encoding="utf-8")
+    (receipt.parent / ".receipt-poison").write_text("{}", encoding="utf-8")
     with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
         sidecar.validate(str(prepared["sidecar_id"]))
 
@@ -461,6 +463,57 @@ def test_report_rejects_store_over_sidecar_limit(
     monkeypatch.setattr(sidecar, "MAX_SIDECARS", 0)
     with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
         sidecar.report()
+
+
+def test_prepare_capacity_allows_replay_and_rejects_new_id_before_directory(
+    isolated_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exact replay remains valid at capacity, while a new id is rejected."""
+
+    monkeypatch.setattr(sidecar, "MAX_SIDECARS", 1)
+    first = _prepare(isolated_store)
+    replay = sidecar.prepare(
+        isolated_store / f"artifacts/orchestration/task_packets/{'1' * 12}.json",
+        SHA_A,
+        ["experiment_runner"],
+    )
+    assert replay["created"] is False
+    second_packet = isolated_store / "artifacts/orchestration/task_packets" / f"{'2' * 12}.json"
+    second_packet.write_text(
+        json.dumps({"schema_version": "3.1", "task_packet_id": "2" * 12}),
+        encoding="utf-8",
+    )
+    with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
+        sidecar.prepare(second_packet, SHA_B, ["euler"])
+    assert [entry.name for entry in sidecar.STORE_ROOT.iterdir()] == [str(first["sidecar_id"])[7:]]
+    assert sidecar.report()["counts"]["start_receipts"] == 1
+
+
+def test_out_of_store_stage_residue_cannot_poison_receipt_publication(
+    isolated_store: Path,
+) -> None:
+    """A crash-like sibling stage is ignored and never cleaned as arbitrary state."""
+
+    packet = _packet(isolated_store)
+    residue = sidecar.STORE_ROOT.parent / ".pr-evidence-receipt-crash-residue"
+    residue.write_text("crash", encoding="utf-8")
+    residue.chmod(0o600)
+    prepared = sidecar.prepare(packet, SHA_A, ["experiment_runner"])
+    terminal_input = _terminal(isolated_store, prepared)
+    finalized = sidecar.finalize(str(prepared["sidecar_id"]), terminal_input.name)
+
+    assert residue.read_text(encoding="utf-8") == "crash"
+    start_path = isolated_store / str(prepared["sidecar_path"])
+    terminal_path = isolated_store / str(finalized["sidecar_path"])
+    assert start_path.stat().st_nlink == 1
+    assert terminal_path.stat().st_nlink == 1
+    assert {entry.name for entry in start_path.parent.iterdir()} == {
+        "start.json",
+        "terminal.json",
+    }
+    assert sidecar.validate(str(prepared["sidecar_id"]))["receipt_state"] == "terminal_recorded"
+    assert sidecar.report()["counts"]["terminal_receipts"] == 1
 
 
 def test_report_cli_emits_no_partial_stdout_on_malformed_store(
@@ -490,6 +543,150 @@ def test_concurrent_prepare_has_one_creator_and_identical_replays(isolated_store
         )
     assert sum(result["created"] is True for result in results) == 1
     assert len({str(result["sidecar_id"]) for result in results}) == 1
+
+
+def test_publisher_lock_blocks_replay_validate_and_report_until_cleanup(
+    isolated_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Readers and identical replay wait until canonical nlink returns to one."""
+
+    packet = _packet(isolated_store)
+    renamed = threading.Event()
+    release = threading.Event()
+    original_rename = sidecar._kernel_rename_noreplace
+
+    def paused_rename(
+        source_fd: int,
+        source_name: str,
+        destination_fd: int,
+        destination_name: str,
+    ) -> None:
+        original_rename(source_fd, source_name, destination_fd, destination_name)
+        renamed.set()
+        assert release.wait(timeout=5)
+
+    monkeypatch.setattr(sidecar, "_kernel_rename_noreplace", paused_rename)
+    validate_started = threading.Event()
+    report_started = threading.Event()
+
+    def run_validate(sidecar_id: str) -> dict[str, object]:
+        validate_started.set()
+        return sidecar.validate(sidecar_id)
+
+    def run_report() -> dict[str, object]:
+        report_started.set()
+        return sidecar.report()
+
+    expected_id = sidecar._fingerprint(
+        sidecar._start_identity(
+            repository=sidecar.REPOSITORY,
+            task_packet_id="1" * 12,
+            task_packet_fingerprint="sha256:" + hashlib.sha256(packet.read_bytes()).hexdigest(),
+            base_sha=SHA_A,
+            applicable_rails=["experiment_runner"],
+        )
+    )
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        creator = executor.submit(sidecar.prepare, packet, SHA_A, ["experiment_runner"])
+        assert renamed.wait(timeout=5)
+        replay = executor.submit(sidecar.prepare, packet, SHA_A, ["experiment_runner"])
+        validation = executor.submit(run_validate, expected_id)
+        reporting = executor.submit(run_report)
+        assert validate_started.wait(timeout=5)
+        assert report_started.wait(timeout=5)
+        assert not replay.done()
+        assert not validation.done()
+        assert not reporting.done()
+        release.set()
+        assert creator.result(timeout=5)["created"] is True
+        assert replay.result(timeout=5)["created"] is False
+        assert validation.result(timeout=5)["receipt_state"] == "start_recorded"
+        assert reporting.result(timeout=5)["counts"]["start_receipts"] == 1
+
+
+def test_finalize_lock_serializes_identical_and_divergent_replays(
+    isolated_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Terminal publication blocks both replay classes until receipt cleanup."""
+
+    prepared = _prepare(isolated_store)
+    terminal_input = _terminal(isolated_store, prepared)
+    identical_input = isolated_store / "identical-terminal.json"
+    identical_input.write_bytes(terminal_input.read_bytes())
+    divergent_input = isolated_store / "divergent-terminal.json"
+    divergent = json.loads(terminal_input.read_text())
+    divergent["operator_observations"]["repair_cycles"] += 1
+    divergent_input.write_text(json.dumps(divergent), encoding="utf-8")
+    renamed = threading.Event()
+    release = threading.Event()
+    original_rename = sidecar._kernel_rename_noreplace
+
+    def paused_rename(
+        source_fd: int,
+        source_name: str,
+        destination_fd: int,
+        destination_name: str,
+    ) -> None:
+        original_rename(source_fd, source_name, destination_fd, destination_name)
+        renamed.set()
+        assert release.wait(timeout=5)
+
+    monkeypatch.setattr(sidecar, "_kernel_rename_noreplace", paused_rename)
+    sidecar_id = str(prepared["sidecar_id"])
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        creator = executor.submit(sidecar.finalize, sidecar_id, terminal_input.name)
+        assert renamed.wait(timeout=5)
+        identical = executor.submit(sidecar.finalize, sidecar_id, identical_input.name)
+        divergent_future = executor.submit(sidecar.finalize, sidecar_id, divergent_input.name)
+        assert not identical.done()
+        assert not divergent_future.done()
+        release.set()
+        assert creator.result(timeout=5)["created"] is True
+        assert identical.result(timeout=5)["created"] is False
+        with pytest.raises(sidecar.SidecarError, match="CONFLICT"):
+            divergent_future.result(timeout=5)
+
+
+def test_store_lock_uses_directory_flock_modes(
+    isolated_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Public lock protocol requests exclusive/shared file locks and unlocks."""
+
+    calls: list[int] = []
+    original_flock = sidecar.fcntl.flock
+
+    def recording_flock(descriptor: int, operation: int) -> None:
+        calls.append(operation)
+        original_flock(descriptor, operation)
+
+    monkeypatch.setattr(sidecar.fcntl, "flock", recording_flock)
+    with sidecar._store_lock(exclusive=True, create_store=True):
+        pass
+    with sidecar._store_lock(exclusive=False, create_store=False):
+        pass
+
+    assert calls == [
+        sidecar.fcntl.LOCK_EX,
+        sidecar.fcntl.LOCK_UN,
+        sidecar.fcntl.LOCK_SH,
+        sidecar.fcntl.LOCK_UN,
+    ]
+
+
+def test_read_only_operations_do_not_create_missing_store(isolated_store: Path) -> None:
+    """Empty reporting and failed validation remain filesystem read-only."""
+
+    assert not sidecar.STORE_ROOT.exists()
+    report = sidecar.report()
+    assert report["counts"]["start_receipts"] == 0
+    assert not sidecar.STORE_ROOT.exists()
+
+    with pytest.raises(sidecar.SidecarError, match="INVALID_INPUT"):
+        sidecar.validate("sha256:" + ("d" * 64))
+    assert not sidecar.STORE_ROOT.exists()
 
 
 def test_validate_rejects_tampering_and_nonregular_receipts(isolated_store: Path) -> None:

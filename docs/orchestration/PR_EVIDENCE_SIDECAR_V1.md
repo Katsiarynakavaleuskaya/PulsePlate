@@ -28,6 +28,19 @@ repository identity, task-packet id, raw packet-byte SHA-256 fingerprint,
 lowercase 40-character base commit, and exact applicable-rail set. Directories
 are private and files are mode `0600`. Publication is atomic and no-replace:
 an identical canonical replay performs no write, while divergent content fails.
+Public operations cooperate through one process-local reentrant lock plus a
+shared/exclusive `flock` on a no-follow directory descriptor for the fixed
+store. Prepare/finalize hold the exclusive lock through publication and
+postvalidation; validate/report hold the shared lock through complete reads.
+Canonical receipts are visible only with link count one, while external
+hardlinks remain invalid.
+Each receipt is staged as one unique mode-`0600` file in the fixed sibling
+`artifacts/orchestration/` directory, then published with Darwin
+`renameatx_np(RENAME_EXCL)` or Linux `renameat2(RENAME_NOREPLACE)` across safely
+opened directory descriptors. The destination directory is fsynced. A crash
+before rename can leave only that out-of-store stage; a crash after rename
+leaves a canonical link-count-one receipt. Finalization removes only its own
+inode-bound remaining stage and never sweeps arbitrary residue.
 Prepare accepts only the canonical packet path
 `artifacts/orchestration/task_packets/<task_packet_id>.json`; the filename must
 match the parsed id. Packet, terminal-input, and receipt reads use bounded
@@ -95,6 +108,9 @@ as `start_only_receipts`. One report accepts at most 128 discovered sidecar
 directories and processes them in sidecar-id order. Output contains integer
 counts and totals only—no averages, GO/NO-GO, causality, enrollment, or quality
 inference.
+Exclusive prepare enforces the same strict root index before creating a new id
+directory. Exact replay is allowed at capacity; a distinct id is rejected
+before directory creation.
 
 Validation reports only `receipt_state=start_recorded|terminal_recorded`.
 Aggregate keys are qualified as `start_receipts`, `terminal_receipts`,

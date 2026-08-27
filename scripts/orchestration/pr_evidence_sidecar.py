@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
+import fcntl
 import hashlib
 import json
 import os
 import stat
 import sys
 import tempfile
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -43,6 +49,7 @@ MAX_PACKET_BYTES = 2_000_000
 MAX_TERMINAL_INPUT_BYTES = 64_000
 MAX_RECEIPT_BYTES = 128_000
 MAX_SIDECARS = 128
+_THREAD_STORE_LOCK = threading.RLock()
 
 
 class SidecarError(ValueError):
@@ -88,7 +95,6 @@ def _read_regular(
     path: Path,
     *,
     limit: int,
-    allow_owned_publication_window: bool = False,
 ) -> bytes:
     required_flags = ("O_NOFOLLOW", "O_CLOEXEC")
     if any(not hasattr(os, name) for name in required_flags):
@@ -102,14 +108,7 @@ def _read_regular(
         initial = os.fstat(descriptor)
         if not stat.S_ISREG(initial.st_mode):
             raise SidecarError("INVALID_INPUT")
-        link_metadata = initial
-        if allow_owned_publication_window:
-            for _ in range(64):
-                if link_metadata.st_nlink == 1:
-                    break
-                os.sched_yield()
-                link_metadata = os.fstat(descriptor)
-        if link_metadata.st_nlink != 1:
+        if initial.st_nlink != 1:
             raise SidecarError("INVALID_INPUT")
         chunks: list[bytes] = []
         remaining = limit + 1
@@ -266,52 +265,188 @@ def _ensure_private_dir(path: Path) -> None:
         raise SidecarError("STORAGE_UNAVAILABLE") from exc
 
 
+def _store_root_exists_without_alias() -> bool:
+    """Return whether the fixed root exists, rejecting unsafe existing components."""
+
+    try:
+        relative = STORE_ROOT.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise SidecarError("INVALID_INPUT") from exc
+    current = REPO_ROOT
+    for part in relative.parts:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise SidecarError("STORAGE_UNAVAILABLE") from exc
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise SidecarError("INVALID_INPUT")
+    return True
+
+
+@contextmanager
+def _store_lock(*, exclusive: bool, create_store: bool) -> Iterator[bool]:
+    """Serialize cooperative access across threads and local processes."""
+
+    required_flags = ("O_DIRECTORY", "O_NOFOLLOW", "O_CLOEXEC")
+    if any(not hasattr(os, name) for name in required_flags):
+        raise SidecarError("STORAGE_UNAVAILABLE")
+    with _THREAD_STORE_LOCK:
+        if create_store:
+            _ensure_private_dir(STORE_ROOT)
+        elif not _store_root_exists_without_alias():
+            yield False
+            return
+        descriptor = -1
+        try:
+            descriptor = os.open(
+                STORE_ROOT,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o700:
+                raise SidecarError("INVALID_INPUT")
+            fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            yield True
+        except SidecarError:
+            raise
+        except OSError as exc:
+            raise SidecarError("STORAGE_UNAVAILABLE") from exc
+        finally:
+            if descriptor >= 0:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                finally:
+                    os.close(descriptor)
+
+
+def _kernel_rename_noreplace(
+    source_fd: int,
+    source_name: str,
+    destination_fd: int,
+    destination_name: str,
+) -> None:
+    if sys.platform == "darwin":
+        symbol = "renameatx_np"
+        flag = 0x00000004
+    elif sys.platform.startswith("linux"):
+        symbol = "renameat2"
+        flag = 1
+    else:
+        raise SidecarError("STORAGE_UNAVAILABLE")
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        rename_noreplace = getattr(libc, symbol)
+    except (AttributeError, OSError) as exc:
+        raise SidecarError("STORAGE_UNAVAILABLE") from exc
+    rename_noreplace.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_noreplace.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_noreplace(
+        source_fd,
+        os.fsencode(source_name),
+        destination_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+        raise FileExistsError(error_number, "no-replace destination exists")
+    raise SidecarError("STORAGE_UNAVAILABLE")
+
+
+def _open_directory_fd(path: Path) -> int:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        metadata = os.fstat(descriptor)
+    except OSError as exc:
+        raise SidecarError("STORAGE_UNAVAILABLE") from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        os.close(descriptor)
+        raise SidecarError("INVALID_INPUT")
+    return descriptor
+
+
+def _remove_owned_stage(path: Path, identity: tuple[int, int]) -> None:
+    try:
+        metadata = path.lstat()
+        if (
+            stat.S_ISREG(metadata.st_mode)
+            and metadata.st_nlink == 1
+            and (metadata.st_dev, metadata.st_ino) == identity
+        ):
+            path.unlink()
+    except (FileNotFoundError, OSError):
+        return
+
+
 def _atomic_immutable_write(path: Path, payload: bytes) -> bool:
     if len(payload) > MAX_RECEIPT_BYTES:
         raise SidecarError("INVALID_INPUT")
     _ensure_private_dir(STORE_ROOT)
     _ensure_private_dir(path.parent)
     if path.exists() or path.is_symlink():
-        existing = _read_regular(
-            path,
-            limit=MAX_RECEIPT_BYTES,
-            allow_owned_publication_window=True,
-        )
+        existing = _read_regular(path, limit=MAX_RECEIPT_BYTES)
         if existing == payload:
             return False
         raise SidecarError("CONFLICT")
-    temporary: Path | None = None
+    stage_path: Path | None = None
+    stage_identity: tuple[int, int] | None = None
+    source_fd = -1
+    destination_fd = -1
     try:
-        descriptor, name = tempfile.mkstemp(prefix=".receipt-", dir=path.parent)
-        temporary = Path(name)
+        stage_parent = STORE_ROOT.parent
+        _walk_repo_components(stage_parent, create_missing=False)
+        descriptor, name = tempfile.mkstemp(prefix=".pr-evidence-receipt-", dir=stage_parent)
+        stage_path = Path(name)
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary, 0o600)
+        os.chmod(stage_path, 0o600)
+        stage_metadata = stage_path.lstat()
+        stage_identity = (stage_metadata.st_dev, stage_metadata.st_ino)
+        source_fd = _open_directory_fd(stage_parent)
+        destination_fd = _open_directory_fd(path.parent)
         try:
-            os.link(temporary, path, follow_symlinks=False)
-        except FileExistsError:
-            existing = _read_regular(
-                path,
-                limit=MAX_RECEIPT_BYTES,
-                allow_owned_publication_window=True,
+            _kernel_rename_noreplace(
+                source_fd,
+                stage_path.name,
+                destination_fd,
+                path.name,
             )
+        except FileExistsError:
+            existing = _read_regular(path, limit=MAX_RECEIPT_BYTES)
             if existing == payload:
                 return False
             raise SidecarError("CONFLICT")
         os.chmod(path, 0o600)
+        os.fsync(destination_fd)
         return True
     except SidecarError:
         raise
     except OSError as exc:
         raise SidecarError("STORAGE_UNAVAILABLE") from exc
     finally:
-        if temporary is not None:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
+        if source_fd >= 0:
+            os.close(source_fd)
+        if destination_fd >= 0:
+            os.close(destination_fd)
+        if stage_path is not None and stage_identity is not None:
+            _remove_owned_stage(stage_path, stage_identity)
 
 
 def _validate_receipt_fingerprint(value: dict[str, Any]) -> None:
@@ -325,11 +460,7 @@ def _validate_receipt_fingerprint(value: dict[str, Any]) -> None:
 def _load_start(sidecar_id: str) -> dict[str, Any]:
     path = _sidecar_dir(sidecar_id) / "start.json"
     parsed = _strict_json_bytes(
-        _read_regular(
-            path,
-            limit=MAX_RECEIPT_BYTES,
-            allow_owned_publication_window=True,
-        ),
+        _read_regular(path, limit=MAX_RECEIPT_BYTES),
         limit=MAX_RECEIPT_BYTES,
     )
     _require_mode(path, 0o600)
@@ -404,7 +535,37 @@ def _canonical_packet_path(packet_path: Path) -> Path:
     return path
 
 
-def prepare(packet_path: Path, base_sha: str, applicable_rails: list[str]) -> dict[str, Any]:
+def _validate_root_index() -> list[Path]:
+    """Validate and bound the complete canonical sidecar directory index."""
+
+    _walk_repo_components(STORE_ROOT, create_missing=False)
+    _require_mode(STORE_ROOT, 0o700)
+    try:
+        entries = sorted(STORE_ROOT.iterdir(), key=lambda item: item.name)
+    except OSError as exc:
+        raise SidecarError("INVALID_INPUT") from exc
+    if len(entries) > MAX_SIDECARS:
+        raise SidecarError("INVALID_INPUT")
+    for entry in entries:
+        try:
+            metadata = entry.lstat()
+        except OSError as exc:
+            raise SidecarError("INVALID_INPUT") from exc
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or len(entry.name) != 64
+            or any(char not in "0123456789abcdef" for char in entry.name)
+        ):
+            raise SidecarError("INVALID_INPUT")
+    return entries
+
+
+def _prepare_unlocked(
+    packet_path: Path,
+    base_sha: str,
+    applicable_rails: list[str],
+) -> dict[str, Any]:
     base_sha = _lower_sha(base_sha)
     rails = sorted(set(applicable_rails))
     if not rails or len(rails) != len(applicable_rails) or any(rail not in RAILS for rail in rails):
@@ -432,6 +593,13 @@ def prepare(packet_path: Path, base_sha: str, applicable_rails: list[str]) -> di
         applicable_rails=rails,
     )
     sidecar_id = _fingerprint(identity)
+    existing_entries = _validate_root_index()
+    candidate_name = sidecar_id.removeprefix("sha256:")
+    if (
+        all(entry.name != candidate_name for entry in existing_entries)
+        and len(existing_entries) >= MAX_SIDECARS
+    ):
+        raise SidecarError("INVALID_INPUT")
     receipt = _receipt(
         {
             "schema_version": START_SCHEMA,
@@ -456,6 +624,11 @@ def prepare(packet_path: Path, base_sha: str, applicable_rails: list[str]) -> di
         "sidecar_path": path.relative_to(REPO_ROOT).as_posix(),
         "created": created,
     }
+
+
+def prepare(packet_path: Path, base_sha: str, applicable_rails: list[str]) -> dict[str, Any]:
+    with _store_lock(exclusive=True, create_store=True):
+        return _prepare_unlocked(packet_path, base_sha, applicable_rails)
 
 
 def _repo_input_path(raw_path: str) -> Path:
@@ -536,7 +709,7 @@ def _validate_terminal_input(value: Any, start: dict[str, Any]) -> dict[str, Any
     return document
 
 
-def finalize(sidecar_id: str, terminal_input_path: str) -> dict[str, Any]:
+def _finalize_unlocked(sidecar_id: str, terminal_input_path: str) -> dict[str, Any]:
     start, _existing_terminal = _validate_sidecar_container(sidecar_id)
     input_path = _repo_input_path(terminal_input_path)
     value = _strict_json_bytes(
@@ -578,16 +751,19 @@ def finalize(sidecar_id: str, terminal_input_path: str) -> dict[str, Any]:
     }
 
 
+def finalize(sidecar_id: str, terminal_input_path: str) -> dict[str, Any]:
+    with _store_lock(exclusive=True, create_store=False) as store_exists:
+        if not store_exists:
+            raise SidecarError("INVALID_INPUT")
+        return _finalize_unlocked(sidecar_id, terminal_input_path)
+
+
 def _load_terminal(sidecar_id: str, start: dict[str, Any]) -> dict[str, Any] | None:
     path = _sidecar_dir(sidecar_id) / "terminal.json"
     if not path.exists() and not path.is_symlink():
         return None
     parsed = _strict_json_bytes(
-        _read_regular(
-            path,
-            limit=MAX_RECEIPT_BYTES,
-            allow_owned_publication_window=True,
-        ),
+        _read_regular(path, limit=MAX_RECEIPT_BYTES),
         limit=MAX_RECEIPT_BYTES,
     )
     _require_mode(path, 0o600)
@@ -653,13 +829,7 @@ def _validate_sidecar_container(
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
             raise SidecarError("INVALID_INPUT")
         _require_mode(directory, 0o700)
-        names: set[str] = set()
-        for _ in range(64):
-            names = {item.name for item in directory.iterdir()}
-            transient = names - {"start.json", "terminal.json"}
-            if not transient or not all(name.startswith(".receipt-") for name in transient):
-                break
-            os.sched_yield()
+        names = {item.name for item in directory.iterdir()}
     except SidecarError:
         raise
     except OSError as exc:
@@ -670,7 +840,7 @@ def _validate_sidecar_container(
     return start, _load_terminal(sidecar_id, start)
 
 
-def validate(sidecar_id: str) -> dict[str, Any]:
+def _validate_unlocked(sidecar_id: str) -> dict[str, Any]:
     _start, terminal = _validate_sidecar_container(sidecar_id)
     return {
         "schema_version": "pr_evidence_sidecar.validation.v1",
@@ -684,28 +854,21 @@ def validate(sidecar_id: str) -> dict[str, Any]:
     }
 
 
-def report() -> dict[str, Any]:
+def validate(sidecar_id: str) -> dict[str, Any]:
+    with _store_lock(exclusive=False, create_store=False) as store_exists:
+        if not store_exists:
+            raise SidecarError("INVALID_INPUT")
+        return _validate_unlocked(sidecar_id)
+
+
+def _report_unlocked() -> dict[str, Any]:
     if not STORE_ROOT.exists() and not STORE_ROOT.is_symlink():
         entries: list[Path] = []
     else:
-        metadata = STORE_ROOT.lstat()
-        if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
-            raise SidecarError("INVALID_INPUT")
-        _require_mode(STORE_ROOT, 0o700)
-        entries = sorted(STORE_ROOT.iterdir(), key=lambda item: item.name)
-    if len(entries) > MAX_SIDECARS:
-        raise SidecarError("INVALID_INPUT")
+        entries = _validate_root_index()
     starts: list[dict[str, Any]] = []
     terminals: list[dict[str, Any]] = []
     for directory in entries:
-        metadata = directory.lstat()
-        if (
-            not stat.S_ISDIR(metadata.st_mode)
-            or stat.S_ISLNK(metadata.st_mode)
-            or len(directory.name) != 64
-            or any(char not in "0123456789abcdef" for char in directory.name)
-        ):
-            raise SidecarError("INVALID_INPUT")
         sidecar_id = "sha256:" + directory.name
         start, terminal = _validate_sidecar_container(sidecar_id)
         starts.append(start)
@@ -743,6 +906,13 @@ def report() -> dict[str, Any]:
         "authority": AUTHORITY,
         "disclaimer": DISCLAIMER,
     }
+
+
+def report() -> dict[str, Any]:
+    with _store_lock(exclusive=False, create_store=False) as store_exists:
+        if not store_exists:
+            return _report_unlocked()
+        return _report_unlocked()
 
 
 def _parser() -> StrictParser:
