@@ -1,8 +1,8 @@
 # Data Classification and Processing Matrix
 
 **Status:** Canonical
-**Last updated:** 2026-04-10
-**Policy version:** `2026-04-10.eu-first.v1`
+**Last updated:** 2026-08-27
+**Policy version:** `2026-08-27.eu-first.v2`
 
 This matrix is the canonical control-plane view for the current wellness runtime.
 
@@ -14,6 +14,7 @@ This matrix is the canonical control-plane view for the current wellness runtime
 | `/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`, `/api/v1/pro/fitchef/explain`, `/api/v1/vip/fitchef/insight` | Runtime + minimized audit/tracing metadata | AI-generated wellness analysis and bounded coaching structure generation | Derived sensitive | Provider/deployment specific; local audit/tracing metadata is minimized or fingerprint-only | Local direct-user artifacts via DSAR map; provider-side artifacts follow provider terms | Yes, when a configured provider family is enabled or a telemetry trace processor is configured |
 | `/api/v1/feedback/rag` | SQL table `rag_feedback` | Quality improvement and retrieval/response feedback | Derived sensitive | Until deletion or retention review | Direct row deletion for user-bound artifacts | No automatic third-party sharing by default |
 | `user_knowledge` artifacts | SQL table `user_knowledge` | Personalization and user-specific retrieval | Derived sensitive | Until deletion or retention review | Direct row deletion for user-bound artifacts | No automatic third-party sharing by default |
+| `/api/v1/pro/fitchef/recommend/outcome` | SQL table `fitchef_support_outcome_events` | First-party FitChef relationship continuity and bounded product measurement | Direct-user product-interaction metadata | Until support-led deletion or separately reviewed policy change | Internal credential-subject-scoped export/delete; no public DSAR endpoint | This flow directly sends no outcome field or row to an AI provider or other third-party processor; aggregate metrics remain subject to configured telemetry policy |
 | Request fingerprints | Logs / rate-limit keying | Abuse prevention, rate limiting, operational security | Pseudonymous | `core/log_retention.py` policy | Retention-managed cleanup only | No automatic third-party sharing by default |
 | Signed audit envelopes | `artifacts/orchestration/agent_control_audit.jsonl` | Tamper-evident record of privileged AI actions | Minimized security metadata | Security/audit policy | Retention-managed only | No automatic third-party sharing by default |
 | LLM quota usage | SQL table `vip_llm_monthly_usage` | Economic abuse prevention | Pseudonymous / indirect | Billing/security policy | Support-led remediation or retention | No automatic third-party sharing by default |

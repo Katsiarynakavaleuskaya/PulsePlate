@@ -1,8 +1,8 @@
 # Privacy Policy
 
 **Status:** Canonical legal document
-**Last updated:** 2026-04-10
-**Policy version:** `2026-04-10.eu-first.v1`
+**Last updated:** 2026-08-27
+**Policy version:** `2026-08-27.eu-first.v2`
 **Scope:** All product tiers (FREE / PRO / VIP)
 **Markets:** CIS / EU / US
 **Positioning:** Consumer wellness product, not a clinical system
@@ -30,6 +30,14 @@
   - feedback on AI/RAG responses
   - user knowledge/personalization artifacts
   - signed audit metadata for privileged AI actions
+  - credential-bound client-reported FitChef support outcomes
+
+FitChef outcome row означает только принятое от авторизованного клиента
+утверждение `acknowledged` или `dismissed`. Оно не доказывает human click,
+предыдущий успешный handoff, consent, understanding, navigation, plan execution
+или product effectiveness. Этот flow напрямую не передаёт outcome field/row AI
+provider или другому third-party processor; aggregate metrics регулируются
+настроенной telemetry policy.
 
 ### Что мы не обещаем
 
@@ -69,6 +77,7 @@
 
 - Псевдонимные security identifiers удаляются по retention policy
 - Direct-user SQL artifacts могут быть экспортированы или удалены через внутренний support-led DSAR workflow
+- FitChef support outcomes хранятся до support-led удаления или отдельно рассмотренного изменения policy
 - Audit envelopes и indirect security artifacts не считаются public self-service artifacts и живут по retention/security policy
 
 ### Ваши права
@@ -112,6 +121,14 @@
   - feedback on AI/RAG responses
   - user knowledge/personalization artifacts
   - signed audit metadata for privileged AI actions
+  - credential-bound client-reported FitChef support outcomes
+
+A FitChef outcome row means only an accepted authenticated client-reported
+`acknowledged` or `dismissed` assertion. It does not prove a human click, a
+prior successful handoff, consent, understanding, navigation, plan execution,
+or product effectiveness. This flow directly sends no outcome field or row to
+an AI provider or other third-party processor; aggregate metrics remain subject
+to the configured telemetry policy.
 
 ### What We Do Not Promise
 
@@ -151,6 +168,7 @@ The active processor depends on deployment configuration. An OTLP collector or t
 
 - Pseudonymous security identifiers are cleaned up through retention policy
 - Direct-user SQL artifacts can be exported or deleted through an internal support-led DSAR workflow
+- FitChef support outcomes are retained until support-led deletion or a separately reviewed policy change
 - Audit envelopes and indirect security artifacts are retention-managed and are not treated as public self-service artifacts
 
 ### Your Rights
@@ -180,6 +198,14 @@ Where GDPR or a similar regime applies, you may request:
 - Datos de cuenta y acceso cuando la funcionalidad de cuenta está habilitada
 - Identificadores de seguridad seudónimos para rate limiting, prevención de abuso y correlación de solicitudes
 - Artefactos minimizados vinculados al usuario para feedback de AI/RAG, personalización y metadatos de auditoría firmada
+- Outcomes de soporte de FitChef reportados por un cliente autorizado y vinculados a su credencial
+
+Una fila de outcome de FitChef significa solamente una afirmación
+`acknowledged` o `dismissed` aceptada del cliente autorizado. No demuestra un
+click humano, handoff previo exitoso, consentimiento, comprensión, navegación,
+ejecución de plan ni efectividad del producto. Este flow no envía directamente
+el campo o la fila de outcome a un proveedor AI u otro processor externo; las
+métricas agregadas siguen la política de telemetría configurada.
 
 ### Qué No Prometemos
 
@@ -214,6 +240,7 @@ El processor activo depende de la configuración del deployment. Un collector OT
 
 - Los identificadores de seguridad seudónimos siguen la política de retención
 - Los artefactos SQL vinculados directamente al usuario pueden exportarse o eliminarse mediante un flujo interno DSAR
+- Los outcomes de soporte de FitChef se conservan hasta su eliminación support-led o un cambio de policy revisado por separado
 - Los audit envelopes y artefactos indirectos de seguridad se gestionan por retención y no son artefactos públicos self-service
 
 ---

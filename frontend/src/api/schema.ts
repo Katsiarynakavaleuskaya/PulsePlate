@@ -318,6 +318,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/fitchef/recommend/outcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a client-reported FitChef support outcome
+         * @description Records one authenticated client-reported outcome assertion for a bounded FitChef support choice. The row does not prove a human click, a prior handoff response, consent, understanding, navigation, plan execution, or product effectiveness.
+         */
+        post: operations["fitchef_support_outcome_api_v1_pro_fitchef_recommend_outcome_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/meal/shopping-list": {
         parameters: {
             query?: never;
@@ -2952,6 +2972,22 @@ export interface components {
             /** @constant */
             support_need: "weekly_structure";
         });
+        /**
+         * FitChefSupportOutcomeResponse
+         * @description Minimal response for a recorded or byte-equivalent replay.
+         */
+        FitChefSupportOutcomeResponse: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "fitchef_support_outcome_v1";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "recorded" | "replayed";
+        };
         /**
          * FitChefVipCoachingErrorResponse
          * @description VIP FitChef error envelope preserving frozen VIP aliases.
@@ -5873,6 +5909,102 @@ export interface operations {
                 };
             };
             /** @description Feature disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+        };
+    };
+    fitchef_support_outcome_api_v1_pro_fitchef_recommend_outcome_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Client Event Id */
+                    client_event_id: string;
+                    /**
+                     * Outcome
+                     * @enum {string}
+                     */
+                    outcome: "acknowledged" | "dismissed";
+                    /**
+                     * Schema Version
+                     * @constant
+                     */
+                    schema_version: "fitchef_support_outcome_v1";
+                    /**
+                     * Support Need
+                     * @enum {string}
+                     */
+                    support_need: "daily_structure" | "weekly_structure";
+                };
+            };
+        };
+        responses: {
+            /** @description Outcome recorded or identically replayed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefSupportOutcomeResponse"];
+                };
+            };
+            /** @description API key required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description PRO tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Idempotency key is bound to different material */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitChefCoachingErrorResponse"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitErrorResponse"];
+                };
+            };
+            /** @description Feature disabled or outcome store unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
