@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 import app
 from app.bootstrap.metrics import register_metrics
 from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
+from tests._client import open_test_client
 
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
@@ -318,15 +319,13 @@ def test_metrics_json_fallback_when_exporter_raises(
 
 def test_register_metrics_adds_route_after_stack_is_built() -> None:
     """Late bootstrap must still restore /metrics without mutating middleware."""
-    from starlette.testclient import TestClient as RawTestClient
-
     app_instance = FastAPI()
 
     @app_instance.get("/")
     def root() -> dict[str, str]:
         return {"status": "ok"}
 
-    with RawTestClient(app_instance) as client:
+    with open_test_client(app_instance) as client:
         response = client.get("/")
         assert response.status_code == 200
 
@@ -340,7 +339,7 @@ def test_register_metrics_adds_route_after_stack_is_built() -> None:
     assert len(_get_metrics_get_routes(app_instance)) == 1
     assert len(getattr(app_instance, "user_middleware", [])) == before_user_middleware
 
-    with RawTestClient(app_instance) as client:
+    with open_test_client(app_instance) as client:
         client.headers["X-API-Key"] = "test_key"
         metrics_response = client.get("/metrics")
 
@@ -360,12 +359,10 @@ def test_register_metrics_is_idempotent_for_route_registration() -> None:
 
 def test_register_metrics_is_idempotent_after_stack_is_built() -> None:
     """Repeated late bootstrap must not duplicate the /metrics route."""
-    from starlette.testclient import TestClient as RawTestClient
-
     app_instance = FastAPI()
     register_metrics(app_instance)
 
-    with RawTestClient(app_instance) as client:
+    with open_test_client(app_instance) as client:
         client.headers["X-API-Key"] = "test_key"
         metrics_response = client.get("/metrics")
         assert metrics_response.status_code == 200
