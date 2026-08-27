@@ -605,54 +605,55 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let expectedValues: [String: [String: String]] = [
             "en": [
                 "fitchef.support_choice.question":
-                    "What kind of structure would help right now?",
-                "fitchef.support_choice.daily.title": "Today’s structure",
+                    "Where would you like to start?",
+                "fitchef.support_choice.daily.title": "Today",
                 "fitchef.support_choice.daily.detail":
-                    "A direction for organizing the current day.",
-                "fitchef.support_choice.weekly.title": "Week’s structure",
+                    "Start with the plan for today.",
+                "fitchef.support_choice.weekly.title": "This week",
                 "fitchef.support_choice.weekly.detail":
-                    "A direction for organizing the week.",
-                "fitchef.support_choice.agency": "FitChef suggests a direction. You choose.",
+                    "Look at the next seven days.",
+                "fitchef.support_choice.agency":
+                    "FitChef shows both options. The choice is yours.",
                 "fitchef.support_choice.consequence":
-                    "Confirming only returns your selected direction. Nothing will be opened, saved, or changed.",
+                    "For now, you’re only choosing where to start. Nothing will open, be saved, or change.",
                 "fitchef.support_choice.wellness":
-                    "For wellness planning only — not medical advice.",
-                "fitchef.support_choice.confirm": "Confirm direction",
+                    "For everyday planning — not medical advice.",
+                "fitchef.support_choice.confirm": "Confirm choice",
                 "fitchef.support_choice.dismiss": "Not now",
             ],
             "ru": [
-                "fitchef.support_choice.question": "Какая структура сейчас поможет?",
-                "fitchef.support_choice.daily.title": "Структура дня",
+                "fitchef.support_choice.question": "С чего хотите начать?",
+                "fitchef.support_choice.daily.title": "Сегодня",
                 "fitchef.support_choice.daily.detail":
-                    "Направление для организации текущего дня.",
-                "fitchef.support_choice.weekly.title": "Структура недели",
+                    "Сначала разобраться с планом на день.",
+                "fitchef.support_choice.weekly.title": "Неделя",
                 "fitchef.support_choice.weekly.detail":
-                    "Направление для организации недели.",
+                    "Сначала посмотреть на ближайшие семь дней.",
                 "fitchef.support_choice.agency":
-                    "FitChef предлагает направление. Вы выбираете.",
+                    "FitChef покажет оба варианта, а выбор останется за вами.",
                 "fitchef.support_choice.consequence":
-                    "Подтверждение только передаст выбранное направление. Ничего не откроется, не сохранится и не изменится.",
+                    "Сейчас вы только выбираете, с чего начать. Ничего не откроется, не сохранится и не изменится.",
                 "fitchef.support_choice.wellness":
-                    "Только для планирования повседневного благополучия — не медицинская рекомендация.",
-                "fitchef.support_choice.confirm": "Подтвердить направление",
+                    "Для повседневного планирования — не медицинский совет.",
+                "fitchef.support_choice.confirm": "Подтвердить выбор",
                 "fitchef.support_choice.dismiss": "Не сейчас",
             ],
             "es": [
                 "fitchef.support_choice.question":
-                    "¿Qué tipo de estructura te ayudaría ahora?",
-                "fitchef.support_choice.daily.title": "Estructura de hoy",
+                    "¿Por dónde quieres empezar?",
+                "fitchef.support_choice.daily.title": "Hoy",
                 "fitchef.support_choice.daily.detail":
-                    "Una orientación para organizar el día de hoy.",
-                "fitchef.support_choice.weekly.title": "Estructura de la semana",
+                    "Empezar por el plan de hoy.",
+                "fitchef.support_choice.weekly.title": "Esta semana",
                 "fitchef.support_choice.weekly.detail":
-                    "Una orientación para organizar la semana.",
+                    "Ver los próximos siete días.",
                 "fitchef.support_choice.agency":
-                    "FitChef sugiere una orientación. Tú eliges.",
+                    "FitChef te muestra ambas opciones. Tú eliges.",
                 "fitchef.support_choice.consequence":
-                    "Al confirmar, solo se comunicará la orientación elegida. No se abrirá, guardará ni cambiará nada.",
+                    "Por ahora, solo eliges por dónde empezar. No se abrirá, guardará ni cambiará nada.",
                 "fitchef.support_choice.wellness":
-                    "Solo para planificar el bienestar; no es asesoramiento médico.",
-                "fitchef.support_choice.confirm": "Confirmar orientación",
+                    "Para la planificación diaria; no es consejo médico.",
+                "fitchef.support_choice.confirm": "Confirmar elección",
                 "fitchef.support_choice.dismiss": "Ahora no",
             ],
         ]

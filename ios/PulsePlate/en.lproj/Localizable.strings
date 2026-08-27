@@ -207,13 +207,13 @@
 "ai_consent.decline" = "Not Now";
 
 /* FitChef Support Choice Preview */
-"fitchef.support_choice.question" = "What kind of structure would help right now?";
-"fitchef.support_choice.daily.title" = "Today’s structure";
-"fitchef.support_choice.daily.detail" = "A direction for organizing the current day.";
-"fitchef.support_choice.weekly.title" = "Week’s structure";
-"fitchef.support_choice.weekly.detail" = "A direction for organizing the week.";
-"fitchef.support_choice.agency" = "FitChef suggests a direction. You choose.";
-"fitchef.support_choice.consequence" = "Confirming only returns your selected direction. Nothing will be opened, saved, or changed.";
-"fitchef.support_choice.wellness" = "For wellness planning only — not medical advice.";
-"fitchef.support_choice.confirm" = "Confirm direction";
+"fitchef.support_choice.question" = "Where would you like to start?";
+"fitchef.support_choice.daily.title" = "Today";
+"fitchef.support_choice.daily.detail" = "Start with the plan for today.";
+"fitchef.support_choice.weekly.title" = "This week";
+"fitchef.support_choice.weekly.detail" = "Look at the next seven days.";
+"fitchef.support_choice.agency" = "FitChef shows both options. The choice is yours.";
+"fitchef.support_choice.consequence" = "For now, you’re only choosing where to start. Nothing will open, be saved, or change.";
+"fitchef.support_choice.wellness" = "For everyday planning — not medical advice.";
+"fitchef.support_choice.confirm" = "Confirm choice";
 "fitchef.support_choice.dismiss" = "Not now";
