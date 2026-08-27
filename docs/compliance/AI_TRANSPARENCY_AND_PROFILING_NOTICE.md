@@ -1,8 +1,8 @@
 # AI Transparency and Profiling Notice
 
 **Status:** Canonical
-**Last updated:** 2026-04-10
-**Policy version:** `2026-04-10.eu-first.v1`
+**Last updated:** 2026-08-27
+**Policy version:** `2026-08-27.eu-first.v2`
 
 PulsePlate treats health-adjacent AI features as **automated wellness analysis**.
 
@@ -54,6 +54,20 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
 - Telemetry processors: OTLP collectors or tracing vendors may receive minimized trace metadata when telemetry export is configured; they do not receive raw prompt or completion text in v1
+
+## Adjacent Non-AI FitChef Outcome Processing
+
+`POST /api/v1/pro/fitchef/recommend/outcome` is not an AI analysis or profiling
+surface. It stores one credential-bound client-reported `acknowledged` or
+`dismissed` assertion with a server-derived product-surface label. The row does
+not prove a human click, a prior successful handoff, consent, understanding,
+navigation, plan execution, effectiveness, or causality.
+
+This flow directly sends no outcome field or row to an AI provider or other
+third-party processor. Its closed low-cardinality aggregate metrics remain
+subject to the configured telemetry policy. Support-led export and exact
+credential-subject deletion are available internally; no public DSAR or outcome
+history endpoint is introduced.
 
 ## User Notice Contract
 

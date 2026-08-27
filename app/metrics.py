@@ -67,6 +67,10 @@ class _MeiliCounter(Protocol):
     def labels(self, *, strategy: str, perf_state: str, degraded: str) -> _CounterChild: ...
 
 
+class _FitChefSupportOutcomeCounter(Protocol):
+    def labels(self, *, support_need: str, outcome: str, result: str) -> _CounterChild: ...
+
+
 class _HistogramChild(Protocol):
     def observe(self, amount: float) -> None: ...
 
@@ -219,6 +223,33 @@ def _build_food_search_meili_stage_processing_time_ms() -> _MeiliStageHistogram 
     return meili_stage_processing_time_ms
 
 
+def _build_fitchef_support_outcome_writes_total() -> _FitChefSupportOutcomeCounter | None:
+    """Initialize the closed 2 x 2 x 3 support-outcome counter."""
+
+    try:
+        Counter = _import_prometheus()
+    except ImportError:
+        return None
+
+    try:
+        counter: _FitChefSupportOutcomeCounter = cast(
+            _FitChefSupportOutcomeCounter,
+            Counter(
+                "fitchef_support_outcome_writes_total",
+                "Accepted FitChef support-outcome write results",
+                labelnames=("support_need", "outcome", "result"),
+            ),
+        )
+    except ValueError:
+        logger.warning(
+            "Duplicate prometheus metric registration for "
+            "fitchef_support_outcome_writes_total (metric disabled)",
+            exc_info=True,
+        )
+        return None
+    return counter
+
+
 LEGACY_ALIAS_REQUESTS_TOTAL: _Counter | None = _build_legacy_alias_requests_total()
 FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL: _MeiliCounter | None = (
     _build_food_search_meili_perf_events_total()
@@ -228,6 +259,15 @@ FOOD_SEARCH_MEILI_PROCESSING_TIME_MS: _MeiliHistogram | None = (
 )
 FOOD_SEARCH_MEILI_STAGE_PROCESSING_TIME_MS: _MeiliStageHistogram | None = (
     _build_food_search_meili_stage_processing_time_ms()
+)
+FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL: _FitChefSupportOutcomeCounter | None = (
+    _build_fitchef_support_outcome_writes_total()
+)
+
+FITCHEF_SUPPORT_NEED_LABELS: frozenset[str] = frozenset({"daily_structure", "weekly_structure"})
+FITCHEF_SUPPORT_OUTCOME_LABELS: frozenset[str] = frozenset({"acknowledged", "dismissed"})
+FITCHEF_SUPPORT_OUTCOME_RESULT_LABELS: frozenset[str] = frozenset(
+    {"recorded", "replayed", "rejected"}
 )
 
 
@@ -252,6 +292,34 @@ def record_legacy_alias_hit(alias_route: str) -> None:
             alias_route,
             exc_info=True,
         )
+
+
+def record_fitchef_support_outcome_write(
+    *,
+    support_need: object,
+    outcome: object,
+    result: object,
+) -> None:
+    """Record one closed, identifier-free support-outcome result best-effort."""
+
+    if not isinstance(support_need, str) or support_need not in FITCHEF_SUPPORT_NEED_LABELS:
+        return
+    if not isinstance(outcome, str) or outcome not in FITCHEF_SUPPORT_OUTCOME_LABELS:
+        return
+    if not isinstance(result, str) or result not in FITCHEF_SUPPORT_OUTCOME_RESULT_LABELS:
+        return
+
+    counter = FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL
+    if counter is None:
+        return
+    try:
+        counter.labels(
+            support_need=support_need,
+            outcome=outcome,
+            result=result,
+        ).inc()
+    except Exception:
+        logger.debug("Failed to record FitChef support outcome metric")
 
 
 def _normalize_label_value(value: object) -> str | None:

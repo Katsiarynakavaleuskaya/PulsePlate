@@ -61,11 +61,18 @@ def rate_limit_apple_verify_value() -> str:
     return os.getenv("RATE_LIMIT_APPLE_VERIFY", "10/minute")
 
 
+def rate_limit_fitchef_support_outcome_value() -> str:
+    """Return the FitChef support-outcome write limit (env-backed)."""
+
+    return os.getenv("RATE_LIMIT_FITCHEF_SUPPORT_OUTCOME", "30/minute")
+
+
 # Backward-compat names (existing imports expect these).
 # NOTE: These are captured at import-time; tests that override env must reload this module.
 RATE_LIMIT_INSIGHT = rate_limit_insight_value()
 RATE_LIMIT_EXPORTS = rate_limit_exports_value()
 RATE_LIMIT_APPLE_VERIFY = rate_limit_apple_verify_value()
+RATE_LIMIT_FITCHEF_SUPPORT_OUTCOME = rate_limit_fitchef_support_outcome_value()
 
 
 class RateLimitErrorResponse(BaseModel):
@@ -530,9 +537,11 @@ __all__ = [
     "RATE_LIMIT_INSIGHT",
     "RATE_LIMIT_EXPORTS",
     "RATE_LIMIT_APPLE_VERIFY",
+    "RATE_LIMIT_FITCHEF_SUPPORT_OUTCOME",
     "rate_limit_insight_value",
     "rate_limit_exports_value",
     "rate_limit_apple_verify_value",
+    "rate_limit_fitchef_support_outcome_value",
     "parse_trusted_proxies",
     "is_trusted_proxy",
     "extract_client_ip",
