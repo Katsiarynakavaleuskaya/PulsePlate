@@ -33,7 +33,7 @@ _RETIRED_REGISTRATION_MIRRORS = (
 _IMPORT_SCENARIOS = """import app as package; import app.main as main; import legacy_app; from app.bootstrap import application as canonical
 import app.main as main; import app as package; import legacy_app; from app.bootstrap import application as canonical
 import legacy_app; import app.main as main; import app as package; from app.bootstrap import application as canonical""".splitlines()
-_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/pro/fitchef/recommend:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
+_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/pro/fitchef/recommend:POST|/api/v1/pro/fitchef/recommend/outcome:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
 _HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
 _OPTIONAL_ENV = "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split()
@@ -204,11 +204,11 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
         else:
             endpoint = fn if owner == "c" else (lambda: None)
             target.add_api_route(path, endpoint, methods=[method])
-    expected_error = (
-        "Invalid existing FitChef support handoff route"
-        if path == main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH
-        else "Duplicate"
-    )
+    expected_errors = {
+        main._FITCHEF_SUPPORT_HANDOFF_ROUTE_PATH: "Invalid existing FitChef support handoff route",
+        main._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH: "Invalid existing FitChef support outcome route",
+    }
+    expected_error = expected_errors.get(path, "Duplicate")
     _assert_atomic_bootstrap_failure(target, expected_error)
 
 
@@ -592,6 +592,210 @@ def test_fitchef_support_handoff_private_registration_is_exact_and_idempotent() 
             main.require_pro_tier
         ]
         assert main._is_exact_fitchef_support_handoff_route(route) is True
+
+
+_FITCHEF_SUPPORT_OUTCOME_SOURCE_DRIFT_STATES = (
+    "zero",
+    "extra",
+    "wrong_path",
+    "wrong_method",
+    "combined_methods",
+    "wrong_visibility",
+    "wrong_endpoint",
+    "wrong_model",
+    "wrong_response_class",
+    "wrong_name",
+    "wrong_operation_id",
+    "wrong_generate_unique_id_function",
+    "wrong_unique_id",
+    "missing_status",
+    "extra_status",
+    "wrong_primary_status",
+    "altered_response_description",
+    "altered_response_model",
+    "wrong_response_map",
+    "wrong_response_model_include",
+    "wrong_response_model_exclude",
+    "wrong_by_alias",
+    "wrong_exclude_unset",
+    "wrong_exclude_defaults",
+    "wrong_exclude_none",
+    "wrong_summary",
+    "wrong_description",
+    "wrong_dependency",
+    "extra_dependency",
+    "missing_openapi_extra",
+    "wrong_openapi_extra",
+    "extra_openapi_extra",
+    "extra_nested_request_body",
+)
+_FITCHEF_SUPPORT_OUTCOME_TARGET_DRIFT_STATES = tuple(
+    state
+    for state in _FITCHEF_SUPPORT_OUTCOME_SOURCE_DRIFT_STATES
+    if state not in {"zero", "extra", "wrong_path", "wrong_endpoint"}
+) + ("foreign", "duplicate")
+
+
+def _add_fitchef_support_outcome_route(
+    owner: APIRouter | FastAPI,
+    *,
+    state: str,
+) -> APIRoute:
+    """Add one outcome route with exactly one selected contract drift."""
+
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main._FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID
+
+    path = (
+        "/api/v1/pro/fitchef/recommend/not-outcome"
+        if state == "wrong_path"
+        else main._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    )
+    methods = (
+        ["POST", "DELETE"]
+        if state == "combined_methods"
+        else ["GET" if state == "wrong_method" else "POST"]
+    )
+    endpoint = (
+        (lambda: None) if state in {"wrong_endpoint", "foreign"} else main.fitchef_support_outcome
+    )
+    response_model = (
+        dict[str, object] if state == "wrong_model" else main.FitChefSupportOutcomeResponse
+    )
+    responses = deepcopy(main._FITCHEF_SUPPORT_OUTCOME_RESPONSES)
+    if state == "missing_status":
+        responses.pop(503)
+    if state == "extra_status":
+        responses[418] = {"description": "Unexpected response"}
+    if state == "altered_response_description":
+        responses[503]["description"] = "Altered outcome-store response"
+    if state == "altered_response_model":
+        responses[503]["model"] = main.FitChefSupportOutcomeResponse
+    if state == "wrong_response_map":
+        responses[409] = {"description": "Substituted conflict response"}
+
+    dependencies: list[object] = []
+    if state == "wrong_dependency":
+        dependencies.append(Depends(lambda: None))
+    if state == "extra_dependency":
+        dependencies.append(Depends(main.require_pro_tier))
+
+    openapi_extra = deepcopy(main._FITCHEF_SUPPORT_OUTCOME_OPENAPI_EXTRA)
+    if state == "wrong_openapi_extra":
+        openapi_extra["requestBody"] = {"required": False}
+    if state == "extra_openapi_extra":
+        openapi_extra["unexpected"] = True
+    if state == "extra_nested_request_body":
+        request_body = openapi_extra["requestBody"]
+        assert isinstance(request_body, dict)
+        request_body["unexpected"] = True
+
+    owner.add_api_route(
+        path,
+        endpoint,
+        methods=methods,
+        include_in_schema=state != "wrong_visibility",
+        response_model=response_model,
+        status_code=201 if state == "wrong_primary_status" else None,
+        response_model_include={"state"} if state == "wrong_response_model_include" else None,
+        response_model_exclude=(
+            {"schema_version"} if state == "wrong_response_model_exclude" else None
+        ),
+        response_model_by_alias=state != "wrong_by_alias",
+        response_model_exclude_unset=state == "wrong_exclude_unset",
+        response_model_exclude_defaults=state == "wrong_exclude_defaults",
+        response_model_exclude_none=state == "wrong_exclude_none",
+        response_class=(
+            PlainTextResponse if state == "wrong_response_class" else main.JSONResponse
+        ),
+        name=(
+            "wrong_fitchef_support_outcome"
+            if state == "wrong_name"
+            else main._FITCHEF_SUPPORT_OUTCOME_ROUTE_NAME
+        ),
+        operation_id=(
+            "wrong_fitchef_support_outcome_operation" if state == "wrong_operation_id" else None
+        ),
+        generate_unique_id_function=(
+            wrong_generate_unique_id
+            if state == "wrong_generate_unique_id_function"
+            else main.generate_unique_id
+        ),
+        summary=(
+            "Substituted FitChef outcome summary"
+            if state == "wrong_summary"
+            else main._FITCHEF_SUPPORT_OUTCOME_SUMMARY
+        ),
+        description=(
+            "Substituted FitChef outcome description"
+            if state == "wrong_description"
+            else main._FITCHEF_SUPPORT_OUTCOME_DESCRIPTION
+        ),
+        responses=responses,
+        dependencies=dependencies,
+        openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
+    )
+    route = owner.routes[-1]
+    assert isinstance(route, APIRoute)
+    if state in {"wrong_name", "wrong_operation_id"}:
+        route.unique_id = main._FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID
+    if state == "wrong_unique_id":
+        route.unique_id = "wrong_fitchef_support_outcome_stored_id"
+    return route
+
+
+@pytest.mark.parametrize("state", _FITCHEF_SUPPORT_OUTCOME_SOURCE_DRIFT_STATES)
+def test_fitchef_support_outcome_source_fails_before_bootstrap_mutation(
+    state: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dedicated outcome source is closed and validated before mutation."""
+
+    router = APIRouter()
+    if state != "zero":
+        _add_fitchef_support_outcome_route(router, state=state)
+        if state == "extra":
+            router.add_api_route("/unexpected-outcome-source", lambda: None, methods=["GET"])
+
+    monkeypatch.setattr(main, "fitchef_support_outcome_router", router)
+    _assert_atomic_bootstrap_failure(FastAPI(), "Invalid FitChef support outcome source route")
+
+
+@pytest.mark.parametrize("state", _FITCHEF_SUPPORT_OUTCOME_TARGET_DRIFT_STATES)
+def test_fitchef_support_outcome_existing_target_fails_unchanged(state: str) -> None:
+    """Every foreign, duplicate, or metadata-drifted live owner fails unchanged."""
+
+    target = FastAPI()
+    _add_fitchef_support_outcome_route(target, state=state)
+    if state == "duplicate":
+        target.include_router(main.fitchef_support_outcome_router)
+    _assert_atomic_bootstrap_failure(
+        target,
+        "Invalid existing FitChef support outcome route",
+    )
+
+
+def test_fitchef_support_outcome_private_registration_is_exact_and_idempotent() -> None:
+    """The outcome route has one exact source and one idempotent target owner."""
+
+    target = FastAPI()
+    main._include_fitchef_support_outcome_router_if_needed(target)
+    first_routes = tuple(target.routes)
+    main._include_fitchef_support_outcome_router_if_needed(target)
+    matching = [
+        route
+        for route in main._effective_app_routes(target)
+        if main.route_path(route) == main._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    ]
+
+    assert tuple(target.routes) == first_routes
+    assert len(matching) == 1
+    route = cast(APIRoute, matching[0])
+    assert main._is_exact_fitchef_support_outcome_route(route) is True
+    assert route.response_model is main.FitChefSupportOutcomeResponse
+    assert [dependency.call for dependency in route.dependant.dependencies] == [
+        main.require_pro_tier
+    ]
 
 
 @pytest.mark.parametrize("s", _WS_STATES)

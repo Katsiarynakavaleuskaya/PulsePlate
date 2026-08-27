@@ -55,6 +55,20 @@ _DSAR_ARTIFACTS: tuple[DSARArtifact, ...] = (
         notes="Embedding-backed personalization artifacts remain internal-only.",
     ),
     DSARArtifact(
+        artifact_id="fitchef_support_outcomes",
+        label="FitChef support-outcome assertions",
+        storage="SQL table `fitchef_support_outcome_events`",
+        subject_binding="credential-derived bigint subject",
+        export_supported=True,
+        deletion_supported=True,
+        deletion_mode="support-led exact-subject deletion",
+        retention_owner="FitChef product interaction privacy review",
+        notes=(
+            "Direct-user product-interaction metadata retained until support-led deletion "
+            "or a separately reviewed policy change; no public DSAR endpoint."
+        ),
+    ),
+    DSARArtifact(
         artifact_id="pseudonymous_request_fingerprint",
         label="Pseudonymous request fingerprints",
         storage="logs and rate-limit fingerprints",
