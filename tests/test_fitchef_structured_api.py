@@ -6,18 +6,39 @@ EN: Tests for bounded structured FitChef coaching surfaces.
 
 from __future__ import annotations
 
+import ast
 import asyncio
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from importlib import import_module
+import json
 import math
+import os
 from pathlib import Path
+import re
+import sqlite3
+import subprocess
+import sys
+import threading
+from types import ModuleType
 from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, params
+from fastapi.responses import PlainTextResponse
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, delete, inspect as sqlalchemy_inspect, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
+import app.main as main_app
 import app.middleware.api_tiers as api_tiers_mod
+import app.routers.fitchef_structured as fitchef_router_mod
+import app.services.fitchef_support_outcomes as outcome_service
+from app.models.fitchef_support_outcomes import FitChefSupportOutcomeEvent
 from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 from app.middleware.api_tiers import (
     AuthSource,
@@ -50,6 +71,7 @@ from app.schemas.fitchef_coaching import (
     FitChefSupportHandoffRequest,
     FitChefSupportHandoffResponse,
     FitChefSupportNeed,
+    FitChefSupportOutcomeRequest,
 )
 from app.services.fitchef_claim_evidence_assurance import (
     FitChefSourceOccurrenceV1,
@@ -57,7 +79,24 @@ from app.services.fitchef_claim_evidence_assurance import (
     build_distortion_field_assurance_unavailable,
 )
 from app.services.fitchef_support_handoff import build_fitchef_support_handoff
+from app.services.fitchef_support_outcomes import (
+    FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE,
+    FITCHEF_SUPPORT_OUTCOME_UNIQUE_CONSTRAINT,
+    FitChefSupportOutcomeConflictError,
+    FitChefSupportOutcomeRecord,
+    FitChefSupportOutcomeStoreUnavailableError,
+    record_fitchef_support_outcome,
+)
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
+from core.compliance import (
+    build_direct_user_deletion_plan,
+    delete_direct_user_artifacts,
+    export_direct_user_artifacts,
+)
+from core.compliance import dsar_service
+from core.db import get_session_factory, init_db
+
+metrics_mod = cast(ModuleType, import_module("app.metrics"))
 
 if TYPE_CHECKING:
     from core.insight.fitchef_companion import FitChefDistortionDraft
@@ -2961,3 +3000,1708 @@ class TestFitChefStructuredRuntimeCoverage:
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_identity_loop_mapper_unavailable"
+
+
+# ---------------------------------------------------------------------------
+# FitChef support-outcome ledger: selected CI carrier
+# ---------------------------------------------------------------------------
+
+_OUTCOME_URL = "/api/v1/pro/fitchef/recommend/outcome"
+_OUTCOME_BASE: dict[str, object] = {
+    "schema_version": "fitchef_support_outcome_v1",
+    "support_need": "daily_structure",
+    "outcome": "acknowledged",
+    "client_event_id": "outcome-event-0001",
+}
+
+
+@pytest.fixture
+def fitchef_outcome_runtime(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Enable and isolate only tests that explicitly consume the outcome ledger."""
+
+    engine = init_db()
+    assert sqlalchemy_inspect(engine).has_table("fitchef_support_outcome_events")
+    with get_session_factory()() as session:
+        session.execute(delete(FitChefSupportOutcomeEvent))
+        session.commit()
+    monkeypatch.setenv("FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER", "true")
+    yield
+    with get_session_factory()() as session:
+        session.execute(delete(FitChefSupportOutcomeEvent))
+        session.commit()
+
+
+def _outcome_rows(*, client_event_id: str | None = None) -> list[FitChefSupportOutcomeEvent]:
+    with get_session_factory()() as session:
+        statement = select(FitChefSupportOutcomeEvent).order_by(
+            FitChefSupportOutcomeEvent.subject_id.asc(),
+            FitChefSupportOutcomeEvent.client_event_id.asc(),
+        )
+        if client_event_id is not None:
+            statement = statement.where(
+                FitChefSupportOutcomeEvent.client_event_id == client_event_id
+            )
+        return list(session.execute(statement).scalars().all())
+
+
+def _outcome_request_from_chunks(
+    chunks: list[bytes],
+    *,
+    content_type: str = "application/json",
+) -> Request:
+    messages = [
+        {
+            "type": "http.request",
+            "body": chunk,
+            "more_body": index < len(chunks) - 1,
+        }
+        for index, chunk in enumerate(chunks)
+    ]
+
+    async def receive() -> dict[str, object]:
+        if messages:
+            return messages.pop(0)
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    return Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": _OUTCOME_URL,
+            "raw_path": _OUTCOME_URL.encode("ascii"),
+            "query_string": b"",
+            "headers": [(b"content-type", content_type.encode("ascii"))],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        },
+        receive,
+    )
+
+
+def _parse_outcome_chunks(chunks: list[bytes]) -> FitChefSupportOutcomeRequest:
+    return asyncio.run(
+        fitchef_router_mod._parse_fitchef_support_outcome_request(
+            _outcome_request_from_chunks(chunks)
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("support_need", "outcome", "target_surface"),
+    (
+        ("daily_structure", "acknowledged", "pro_daily_plate"),
+        ("daily_structure", "dismissed", "pro_daily_plate"),
+        ("weekly_structure", "acknowledged", "pro_weekly_plan"),
+        ("weekly_structure", "dismissed", "pro_weekly_plan"),
+    ),
+)
+def test_outcome_full_closed_matrix_records_replays_conflicts_and_keeps_one_row(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    support_need: str,
+    outcome: str,
+    target_surface: str,
+) -> None:
+    """Every need/outcome pair has one target, minimal response, replay, and conflict."""
+
+    client_event_id = f"matrix-{support_need}-{outcome}"
+    payload = {
+        **_OUTCOME_BASE,
+        "support_need": support_need,
+        "outcome": outcome,
+        "client_event_id": client_event_id,
+    }
+    first = client.post(_OUTCOME_URL, json=payload, headers=pro_headers)
+    replay = client.post(_OUTCOME_URL, json=payload, headers=pro_headers)
+    conflict = client.post(
+        _OUTCOME_URL,
+        json={
+            **payload,
+            "outcome": "dismissed" if outcome == "acknowledged" else "acknowledged",
+        },
+        headers=pro_headers,
+    )
+
+    assert first.status_code == replay.status_code == 200
+    assert _json_body(first) == {
+        "schema_version": "fitchef_support_outcome_v1",
+        "state": "recorded",
+    }
+    assert _json_body(replay) == {
+        "schema_version": "fitchef_support_outcome_v1",
+        "state": "replayed",
+    }
+    assert conflict.status_code == 409
+    assert _json_body(conflict) == {"detail": "fitchef_support_outcome_idempotency_conflict"}
+    rows = _outcome_rows(client_event_id=client_event_id)
+    assert len(rows) == 1
+    assert rows[0].support_need == support_need
+    assert rows[0].outcome == outcome
+    assert rows[0].target_surface == target_surface
+    assert rows[0].subject_id == api_tiers_mod.derive_subject_id_from_api_key(TEST_KEY_PRO)
+
+
+def test_outcome_same_event_id_isolated_across_pro_and_vip_subjects(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    vip_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+) -> None:
+    shared = {**_OUTCOME_BASE, "client_event_id": "shared-subject-event-0001"}
+    first = client.post(_OUTCOME_URL, json=shared, headers=pro_headers)
+    second = client.post(
+        _OUTCOME_URL,
+        json={**shared, "support_need": "weekly_structure"},
+        headers=vip_headers,
+    )
+
+    assert first.status_code == second.status_code == 200
+    rows = _outcome_rows(client_event_id="shared-subject-event-0001")
+    assert len(rows) == 2
+    assert {row.subject_id for row in rows} == {
+        api_tiers_mod.derive_subject_id_from_api_key(TEST_KEY_PRO),
+        api_tiers_mod.derive_subject_id_from_api_key(TEST_KEY_VIP),
+    }
+
+
+def test_outcome_auth_is_unread_body_first(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER", "false")
+
+    async def forbidden_parser(_request: Request) -> FitChefSupportOutcomeRequest:
+        pytest.fail("outcome body must remain unread before authentication")
+
+    monkeypatch.setattr(
+        fitchef_router_mod,
+        "_parse_fitchef_support_outcome_request",
+        forbidden_parser,
+    )
+    response = client.post(
+        _OUTCOME_URL,
+        content="{",
+        headers={"Content-Type": "text/plain"},
+    )
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "ApiKey"
+
+
+def test_outcome_flag_precedes_parser_and_store(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER", "false")
+
+    async def forbidden_parser(_request: Request) -> FitChefSupportOutcomeRequest:
+        pytest.fail("disabled outcome feature must not parse")
+
+    monkeypatch.setattr(
+        fitchef_router_mod,
+        "_parse_fitchef_support_outcome_request",
+        forbidden_parser,
+    )
+    response = client.post(_OUTCOME_URL, content="{", headers=pro_headers)
+    assert response.status_code == 503
+    assert _json_body(response) == {"detail": "FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER is disabled"}
+
+
+def test_outcome_invalid_header_dominates_valid_cookie(
+    client: TestClient,
+    fitchef_outcome_runtime: None,
+) -> None:
+    issued = issue_web_session(api_key=TEST_KEY_PRO, tier="PRO", ttl_seconds=300)
+    client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+    response = client.post(
+        _OUTCOME_URL,
+        json=_OUTCOME_BASE,
+        headers={"X-API-Key": "invalid"},
+    )
+    assert response.status_code == 403
+    assert _json_body(response) == {"detail": "API key does not have PRO tier access"}
+    assert _outcome_rows() == []
+
+
+@pytest.mark.parametrize(("api_key", "tier"), ((TEST_KEY_PRO, "PRO"), (TEST_KEY_VIP, "VIP")))
+def test_outcome_paid_cookie_fallback(
+    client: TestClient,
+    fitchef_outcome_runtime: None,
+    api_key: str,
+    tier: str,
+) -> None:
+    issued = issue_web_session(api_key=api_key, tier=tier, ttl_seconds=300)
+    client.cookies.set(WEB_SESSION_COOKIE_NAME, issued.token, path="/")
+    response = client.post(_OUTCOME_URL, json=_OUTCOME_BASE)
+    assert response.status_code == 200
+    assert len(_outcome_rows()) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    tuple(
+        (field, invalid)
+        for field in ("schema_version", "support_need", "outcome")
+        for invalid in (True, 1, 1.0, ["daily_structure"], "1")
+    )
+    + (
+        ("client_event_id", True),
+        ("client_event_id", 1),
+        ("client_event_id", 1.0),
+        ("client_event_id", ["outcome-event-0001"]),
+        ("client_event_id", "short"),
+        ("client_event_id", "a" * 129),
+        ("client_event_id", " outcome-event-0001"),
+        ("client_event_id", "outcome.event.0001"),
+    ),
+)
+def test_outcome_all_closed_string_fields_reject_boolean_number_and_coercion(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    field: str,
+    invalid: object,
+) -> None:
+    response = client.post(
+        _OUTCOME_URL,
+        json={**_OUTCOME_BASE, field: invalid},
+        headers=pro_headers,
+    )
+    assert response.status_code == 422
+    assert _json_body(response) == {"detail": "fitchef_support_outcome_validation_error"}
+
+
+@pytest.mark.parametrize(
+    "forbidden_field",
+    (
+        "subject_id",
+        "user_id",
+        "target_surface",
+        "plan_id",
+        "goal",
+        "free_text",
+        "email",
+        "weight",
+        "height",
+        "bmi",
+        "health_condition",
+        "raw_error",
+        "timestamp",
+        "created_at",
+        "metadata",
+        "payload",
+    ),
+)
+def test_outcome_forbidden_fields_are_rejected_not_ignored(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    forbidden_field: str,
+) -> None:
+    response = client.post(
+        _OUTCOME_URL,
+        json={**_OUTCOME_BASE, forbidden_field: "forbidden"},
+        headers=pro_headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("content_type", "body"),
+    (
+        ("text/plain", json.dumps(_OUTCOME_BASE)),
+        (" application/json", json.dumps(_OUTCOME_BASE)),
+        ("application/problem+json", json.dumps(_OUTCOME_BASE)),
+        ("application/json ; charset=utf-8", json.dumps(_OUTCOME_BASE)),
+        ("application/json", "{"),
+        ("application/json", "[]"),
+        ("application/json", "null"),
+        ("application/json", "NaN"),
+    ),
+)
+def test_outcome_media_malformed_and_nonobject_are_stable_422(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    content_type: str,
+    body: str,
+) -> None:
+    response = client.post(
+        _OUTCOME_URL,
+        content=body,
+        headers={**pro_headers, "Content-Type": content_type},
+    )
+    assert response.status_code == 422
+    assert _json_body(response) == {"detail": "fitchef_support_outcome_validation_error"}
+
+
+def test_outcome_parameterized_json_media_type_is_accepted(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+) -> None:
+    response = client.post(
+        _OUTCOME_URL,
+        content=json.dumps(_OUTCOME_BASE),
+        headers={**pro_headers, "Content-Type": "Application/JSON;charset=utf-8"},
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        b'{"schema_version":"fitchef_support_outcome_v1",'
+        b'"support_need":"daily_structure","support_need":"weekly_structure",'
+        b'"outcome":"acknowledged","client_event_id":"outcome-event-0002"}',
+        b'{"schema_version":"fitchef_support_outcome_v1",'
+        b'"support_need":"daily_structure","outcome":"acknowledged",'
+        b'"client_event_id":"outcome-event-0003","metadata":{"x":1,"x":2}}',
+        b'{"schema_version":"fitchef_support_outcome_v1",'
+        b'"support_need":"daily_structure","support\\u005fneed":"weekly_structure",'
+        b'"outcome":"acknowledged","client_event_id":"outcome-event-0004"}',
+    ),
+)
+def test_outcome_duplicate_keys_nested_and_escaped_aliases_are_rejected(body: bytes) -> None:
+    with pytest.raises(HTTPException) as captured:
+        _parse_outcome_chunks([body])
+    assert captured.value.status_code == 422
+    assert captured.value.detail == "fitchef_support_outcome_validation_error"
+
+
+def test_outcome_stream_cap_multichunk_content_length_and_depth(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+) -> None:
+    exact = asyncio.run(
+        fitchef_router_mod._read_fitchef_support_outcome_body(
+            _outcome_request_from_chunks([b"a" * 2048, b"b" * 2048])
+        )
+    )
+    assert len(exact) == 4096
+    with pytest.raises(HTTPException) as over_cap:
+        asyncio.run(
+            fitchef_router_mod._read_fitchef_support_outcome_body(
+                _outcome_request_from_chunks([b"a" * 4096, b"b"])
+            )
+        )
+    assert over_cap.value.status_code == 422
+    assert over_cap.value.detail == "fitchef_support_outcome_validation_error"
+
+    encoded = json.dumps(_OUTCOME_BASE, separators=(",", ":")).encode("utf-8")
+    parsed = _parse_outcome_chunks([encoded[:11], encoded[11:37], encoded[37:]])
+    assert parsed.client_event_id == "outcome-event-0001"
+    assert fitchef_router_mod._json_structural_depth({"a": {"b": {"c": {"d": 1}}}}) == 4
+    assert fitchef_router_mod._json_structural_depth({"a": {"b": {"c": {"d": {"e": 1}}}}}) == 5
+    assert fitchef_router_mod._json_structural_depth({}) == 1
+    assert fitchef_router_mod._json_structural_depth([]) == 1
+
+    with pytest.raises(HTTPException) as non_bytes:
+        asyncio.run(
+            fitchef_router_mod._read_fitchef_support_outcome_body(
+                _outcome_request_from_chunks([cast(bytes, "not-bytes")])
+            )
+        )
+    assert non_bytes.value.status_code == 422
+    assert non_bytes.value.detail == "fitchef_support_outcome_validation_error"
+
+    depth_exhausted = {
+        **_OUTCOME_BASE,
+        "extra": {"a": {"b": {"c": {"d": 1}}}},
+    }
+    with pytest.raises(HTTPException) as depth_error:
+        _parse_outcome_chunks([json.dumps(depth_exhausted).encode()])
+    assert depth_error.value.detail == "fitchef_support_outcome_validation_error"
+
+    oversized = client.post(
+        _OUTCOME_URL,
+        content=b"{" + b" " * 4096,
+        headers={**pro_headers, "Content-Type": "application/json", "Content-Length": "1"},
+    )
+    assert oversized.status_code == 422
+
+
+def test_outcome_exact_constraint_classifier_is_fail_closed() -> None:
+    class Diagnostic:
+        constraint_name = FITCHEF_SUPPORT_OUTCOME_UNIQUE_CONSTRAINT
+
+    class PostgresOriginal(Exception):
+        diag = Diagnostic()
+
+    postgres = IntegrityError("insert", {}, PostgresOriginal())
+    sqlite = IntegrityError(
+        "insert",
+        {},
+        sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+    )
+    wrong_class = IntegrityError(
+        "insert",
+        {},
+        RuntimeError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+    )
+    wrong_columns = IntegrityError(
+        "insert",
+        {},
+        sqlite3.IntegrityError(
+            "UNIQUE constraint failed: fitchef_support_outcome_events.client_event_id"
+        ),
+    )
+    assert outcome_service._is_exact_idempotency_violation(postgres) is True
+    assert outcome_service._is_exact_idempotency_violation(sqlite) is True
+    assert outcome_service._is_exact_idempotency_violation(wrong_class) is False
+    assert outcome_service._is_exact_idempotency_violation(wrong_columns) is False
+
+
+def test_outcome_postrollback_winner_read_rebinds_rls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = FitChefSupportOutcomeRecord(
+        schema_version="fitchef_support_outcome_v1",
+        support_need="daily_structure",
+        target_surface="pro_daily_plate",
+        outcome="acknowledged",
+        client_event_id="outcome-race-rebind",
+    )
+    winner = FitChefSupportOutcomeEvent(
+        id="winner",
+        subject_id=17,
+        schema_version=record.schema_version,
+        support_need=record.support_need,
+        target_surface=record.target_surface,
+        outcome=record.outcome,
+        client_event_id=record.client_event_id,
+    )
+    trace: list[str] = []
+
+    class FakeSession:
+        def add(self, _row: object) -> None:
+            trace.append("add")
+
+        def commit(self) -> None:
+            trace.append("commit")
+            raise IntegrityError(
+                "insert",
+                {},
+                sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+            )
+
+        def rollback(self) -> None:
+            trace.append("rollback")
+
+        def close(self) -> None:
+            trace.append("close")
+
+    existing = iter((None, winner))
+    monkeypatch.setattr(
+        outcome_service,
+        "apply_user_rls_context",
+        lambda _session, *, user_id: trace.append(f"rls:{user_id}"),
+    )
+    monkeypatch.setattr(
+        outcome_service,
+        "_fetch_existing",
+        lambda *_args, **_kwargs: next(existing),
+    )
+    state = record_fitchef_support_outcome(
+        subject_id=17,
+        record=record,
+        session_factory=lambda: cast(Session, FakeSession()),
+    )
+    assert state == "replayed"
+    assert trace == ["rls:17", "add", "commit", "rollback", "rls:17", "close"]
+
+
+def _outcome_record_for_failure() -> FitChefSupportOutcomeRecord:
+    return FitChefSupportOutcomeRecord(
+        schema_version="fitchef_support_outcome_v1",
+        support_need="daily_structure",
+        target_surface="pro_daily_plate",
+        outcome="acknowledged",
+        client_event_id="outcome-store-error",
+    )
+
+
+def test_outcome_unrelated_integrity_error_is_sanitized(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    sentinel = "credential-params-/srv/private.sqlite"
+
+    class FakeSession:
+        def execute(self, _statement: object) -> object:
+            raise IntegrityError("select", {"secret": sentinel}, RuntimeError(sentinel))
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+        def get_bind(self) -> object:
+            class Dialect:
+                name = "sqlite"
+
+            class Bind:
+                dialect = Dialect()
+
+            return Bind()
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=18,
+                record=_outcome_record_for_failure(),
+                session_factory=lambda: cast(Session, FakeSession()),
+            )
+    assert "FitChef support outcome store unavailable" in caplog.text
+    assert sentinel not in caplog.text
+
+
+@pytest.mark.parametrize("bootstrap_stage", ("factory_resolution", "session_construction"))
+def test_outcome_factory_and_session_bootstrap_failures_are_sanitized(
+    bootstrap_stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    sentinel = f"{bootstrap_stage}-private-/srv/fitchef.sqlite"
+
+    def fail_bootstrap() -> object:
+        raise RuntimeError(sentinel)
+
+    if bootstrap_stage == "factory_resolution":
+        monkeypatch.setattr(outcome_service, "get_session_factory", fail_bootstrap)
+        injected_factory = None
+    else:
+        injected_factory = cast(Callable[[], Session], fail_bootstrap)
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=19,
+                record=_outcome_record_for_failure(),
+                session_factory=injected_factory,
+            )
+    assert "FitChef support outcome store unavailable" in caplog.text
+    assert sentinel not in caplog.text
+
+
+def test_outcome_service_rejects_nonpositive_subject_and_handles_rollback_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with pytest.raises(ValueError, match="subject_id must be a positive integer"):
+        record_fitchef_support_outcome(
+            subject_id=0,
+            record=_outcome_record_for_failure(),
+        )
+
+    class RollbackFailure:
+        def rollback(self) -> None:
+            raise RuntimeError("rollback-private-detail")
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        assert outcome_service._rollback_session_safely(cast(Session, RollbackFailure())) is False
+    assert "FitChef support outcome store rollback failed" in caplog.text
+    assert "rollback-private-detail" not in caplog.text
+
+
+def test_outcome_integrity_before_session_is_stable_store_unavailable(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def integrity_factory() -> object:
+        raise IntegrityError(
+            "factory",
+            {},
+            sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+        )
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=21,
+                record=_outcome_record_for_failure(),
+                session_factory=cast(Callable[[], Session], integrity_factory),
+            )
+    assert "FitChef support outcome store unavailable" in caplog.text
+
+
+@pytest.mark.parametrize("winner_mode", ("raises", "missing"))
+def test_outcome_postrollback_winner_failure_is_sanitized(
+    winner_mode: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RaceSession:
+        def add(self, _row: object) -> None:
+            pass
+
+        def commit(self) -> None:
+            raise IntegrityError(
+                "insert",
+                {},
+                sqlite3.IntegrityError(FITCHEF_SUPPORT_OUTCOME_SQLITE_UNIQUE_SIGNATURE),
+            )
+
+        def rollback(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    fetch_count = 0
+
+    def fetch(*_args: object, **_kwargs: object) -> None:
+        nonlocal fetch_count
+        fetch_count += 1
+        if fetch_count == 1:
+            return None
+        if winner_mode == "raises":
+            raise RuntimeError("winner-private-detail")
+        return None
+
+    monkeypatch.setattr(outcome_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(outcome_service, "_fetch_existing", fetch)
+    with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+        record_fitchef_support_outcome(
+            subject_id=22,
+            record=_outcome_record_for_failure(),
+            session_factory=lambda: cast(Session, RaceSession()),
+        )
+
+
+def test_outcome_general_session_failure_rolls_back_and_close_failure_is_best_effort(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    trace: list[str] = []
+
+    class SessionWithCloseFailure:
+        def rollback(self) -> None:
+            trace.append("rollback")
+
+        def close(self) -> None:
+            trace.append("close")
+            raise RuntimeError("close-private-detail")
+
+    session = SessionWithCloseFailure()
+    monkeypatch.setattr(outcome_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        outcome_service,
+        "_fetch_existing",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("lookup-private")),
+    )
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        with pytest.raises(FitChefSupportOutcomeStoreUnavailableError):
+            record_fitchef_support_outcome(
+                subject_id=23,
+                record=_outcome_record_for_failure(),
+                session_factory=lambda: cast(Session, session),
+            )
+    assert trace == ["rollback", "close"]
+    assert "FitChef support outcome store close failed" in caplog.text
+    assert "close-private-detail" not in caplog.text
+
+
+@pytest.mark.parametrize("bootstrap_stage", ("factory_resolution", "session_construction"))
+def test_outcome_bootstrap_failures_are_stable_503_at_route(
+    bootstrap_stage: str,
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    sentinel = f"{bootstrap_stage}-credential-/private/store.sqlite"
+
+    def fail_bootstrap() -> object:
+        raise RuntimeError(sentinel)
+
+    if bootstrap_stage == "factory_resolution":
+        monkeypatch.setattr(outcome_service, "get_session_factory", fail_bootstrap)
+    else:
+        monkeypatch.setattr(outcome_service, "get_session_factory", lambda: fail_bootstrap)
+
+    with caplog.at_level("ERROR", logger=outcome_service.__name__):
+        response = client.post(_OUTCOME_URL, json=_OUTCOME_BASE, headers=pro_headers)
+    assert response.status_code == 503
+    assert _json_body(response) == {"detail": "fitchef_support_outcome_store_unavailable"}
+    assert sentinel.encode() not in response.content
+    assert sentinel not in caplog.text
+
+
+def test_outcome_route_metrics_only_classify_divergent_conflict(
+    client: TestClient,
+    pro_headers: dict[str, str],
+    fitchef_outcome_runtime: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+    monkeypatch.setattr(
+        fitchef_router_mod,
+        "record_fitchef_support_outcome_write",
+        lambda **labels: observed.append(cast(str, labels["result"])),
+    )
+
+    def unavailable(**_kwargs: object) -> str:
+        raise FitChefSupportOutcomeStoreUnavailableError("private-/srv/store")
+
+    monkeypatch.setattr(outcome_service, "record_fitchef_support_outcome", unavailable)
+    response = client.post(_OUTCOME_URL, json=_OUTCOME_BASE, headers=pro_headers)
+    assert response.status_code == 503
+    assert observed == []
+
+    def conflict(**_kwargs: object) -> str:
+        raise FitChefSupportOutcomeConflictError
+
+    monkeypatch.setattr(outcome_service, "record_fitchef_support_outcome", conflict)
+    response = client.post(_OUTCOME_URL, json=_OUTCOME_BASE, headers=pro_headers)
+    assert response.status_code == 409
+    assert observed == ["rejected"]
+
+
+def test_outcome_metric_vocabulary_and_all_permitted_triples_are_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_needs = frozenset({"daily_structure", "weekly_structure"})
+    expected_outcomes = frozenset({"acknowledged", "dismissed"})
+    expected_results = frozenset({"recorded", "replayed", "rejected"})
+    expected_triples = {
+        (support_need, outcome, result)
+        for support_need in expected_needs
+        for outcome in expected_outcomes
+        for result in expected_results
+    }
+    assert metrics_mod.FITCHEF_SUPPORT_NEED_LABELS == expected_needs
+    assert metrics_mod.FITCHEF_SUPPORT_OUTCOME_LABELS == expected_outcomes
+    assert metrics_mod.FITCHEF_SUPPORT_OUTCOME_RESULT_LABELS == expected_results
+    assert len(expected_triples) == 12
+
+    observed: list[tuple[str, str, str]] = []
+
+    class Child:
+        def inc(self, _amount: float = 1.0) -> None:
+            pass
+
+    class Counter:
+        def labels(self, *, support_need: str, outcome: str, result: str) -> Child:
+            observed.append((support_need, outcome, result))
+            return Child()
+
+    monkeypatch.setattr(metrics_mod, "FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL", Counter())
+    for support_need, outcome, result in sorted(expected_triples):
+        metrics_mod.record_fitchef_support_outcome_write(
+            support_need=support_need,
+            outcome=outcome,
+            result=result,
+        )
+    assert set(observed) == expected_triples
+
+    before = list(observed)
+    for invalid in (
+        {"support_need": "other", "outcome": "acknowledged", "result": "recorded"},
+        {"support_need": "daily_structure", "outcome": "other", "result": "recorded"},
+        {"support_need": "daily_structure", "outcome": "acknowledged", "result": "other"},
+        {"support_need": 1, "outcome": "acknowledged", "result": "recorded"},
+    ):
+        metrics_mod.record_fitchef_support_outcome_write(**invalid)
+    assert observed == before
+
+    monkeypatch.setattr(metrics_mod, "FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL", None)
+    metrics_mod.record_fitchef_support_outcome_write(
+        support_need="daily_structure",
+        outcome="acknowledged",
+        result="recorded",
+    )
+    assert observed == before
+
+    class BrokenCounter:
+        def labels(self, **_labels: str) -> Child:
+            raise RuntimeError("metric backend unavailable")
+
+    monkeypatch.setattr(metrics_mod, "FITCHEF_SUPPORT_OUTCOME_WRITES_TOTAL", BrokenCounter())
+    metrics_mod.record_fitchef_support_outcome_write(
+        support_need="daily_structure",
+        outcome="acknowledged",
+        result="recorded",
+    )
+
+
+def test_outcome_metric_builder_import_and_duplicate_failures_are_best_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_import() -> object:
+        raise ImportError("prometheus unavailable")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", missing_import)
+    assert metrics_mod._build_fitchef_support_outcome_writes_total() is None
+
+    def duplicate_counter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicated collector")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", lambda: duplicate_counter)
+    assert metrics_mod._build_fitchef_support_outcome_writes_total() is None
+
+
+def test_outcome_orm_columns_constraints_indexes_and_zero_foreign_keys_are_exact() -> None:
+    table = FitChefSupportOutcomeEvent.__table__
+    assert tuple(table.columns.keys()) == (
+        "id",
+        "subject_id",
+        "schema_version",
+        "support_need",
+        "target_surface",
+        "outcome",
+        "client_event_id",
+        "created_at",
+    )
+    assert {column.name for column in table.primary_key.columns} == {"id"}
+    assert table.foreign_keys == set()
+    assert {constraint.name for constraint in table.constraints if constraint.name} == {
+        "uq_fitchef_support_outcome_subject_event",
+        "ck_fitchef_support_outcome_schema_version",
+        "ck_fitchef_support_outcome_support_need",
+        "ck_fitchef_support_outcome_target_surface",
+        "ck_fitchef_support_outcome_outcome",
+        "ck_fitchef_support_outcome_compatible_pair",
+    }
+    assert {index.name for index in table.indexes} == {
+        "ix_fitchef_support_outcomes_subject_created_at"
+    }
+
+
+def _function_call_names(path: Path, function_name: str) -> set[str]:
+    tree = ast.parse(path.read_bytes(), filename=str(path))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name
+    )
+    body = ast.Module(body=function.body, type_ignores=[])
+    names: set[str] = set()
+    for node in ast.walk(body):
+        if not isinstance(node, ast.Call):
+            continue
+        names.add(ast.unparse(node.func))
+    return names
+
+
+def test_outcome_endpoint_and_service_call_oracle_has_no_external_authority() -> None:
+    endpoint_calls = _function_call_names(
+        Path("app/routers/fitchef_structured.py"),
+        "fitchef_support_outcome",
+    )
+    service_calls = _function_call_names(
+        Path("app/services/fitchef_support_outcomes.py"),
+        "record_fitchef_support_outcome",
+    )
+    assert endpoint_calls == {
+        "_is_fitchef_support_outcome_enabled",
+        "HTTPException",
+        "_parse_fitchef_support_outcome_request",
+        "build_fitchef_support_handoff",
+        "derive_subject_id_from_api_key",
+        "FitChefSupportOutcomeRecord",
+        "run_in_threadpool",
+        "record_fitchef_support_outcome_write",
+        "FitChefSupportOutcomeResponse",
+    }
+    forbidden_tokens = {
+        "provider",
+        "rag",
+        "quota",
+        "planner",
+        "coaching_state",
+        "markov",
+        "bayesian",
+        "navigation",
+        "execution",
+        "plan_mutation",
+    }
+    combined_tokens = {
+        token
+        for name in endpoint_calls | service_calls
+        for token in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", name.lower())
+    }
+    assert forbidden_tokens.isdisjoint(combined_tokens)
+
+
+def test_outcome_migration_op_execute_uses_six_exact_constant_statements() -> None:
+    path = Path("alembic/versions/202608270001_add_fitchef_support_outcomes.py")
+    tree = ast.parse(path.read_bytes(), filename=str(path))
+    arguments: list[ast.expr] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if (
+            isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "op"
+            and node.func.attr == "execute"
+        ):
+            assert len(node.args) == 1
+            arguments.append(node.args[0])
+
+    assert len(arguments) == 6
+    assert all(isinstance(argument, ast.Constant) for argument in arguments)
+    assert [cast(ast.Constant, argument).value for argument in arguments] == [
+        "ALTER TABLE fitchef_support_outcome_events ENABLE ROW LEVEL SECURITY",
+        "ALTER TABLE fitchef_support_outcome_events FORCE ROW LEVEL SECURITY",
+        (
+            "CREATE POLICY fitchef_support_outcome_subject_isolation "
+            "ON fitchef_support_outcome_events "
+            "USING (subject_id = "
+            "NULLIF(current_setting('app.current_user_id', true), '')::bigint) "
+            "WITH CHECK (subject_id = "
+            "NULLIF(current_setting('app.current_user_id', true), '')::bigint)"
+        ),
+        (
+            "DROP POLICY IF EXISTS fitchef_support_outcome_subject_isolation "
+            "ON fitchef_support_outcome_events"
+        ),
+        "ALTER TABLE fitchef_support_outcome_events NO FORCE ROW LEVEL SECURITY",
+        "ALTER TABLE fitchef_support_outcome_events DISABLE ROW LEVEL SECURITY",
+    ]
+
+
+def _run_outcome_sqlite_alembic(database_url: str, *arguments: str) -> None:
+    env = dict(os.environ)
+    env.update(
+        {
+            "DATABASE_URL": database_url,
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "TESTING": "true",
+        }
+    )
+    completed = subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", "alembic.ini", *arguments],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def _outcome_sqlite_projection(database_url: str) -> dict[str, object]:
+    engine = create_engine(database_url)
+    try:
+        inspector = sqlalchemy_inspect(engine)
+        return {
+            "present": "fitchef_support_outcome_events" in inspector.get_table_names(),
+            "columns": tuple(
+                (column["name"], str(column["type"]), column["nullable"])
+                for column in inspector.get_columns("fitchef_support_outcome_events")
+            ),
+            "unique": tuple(
+                (item["name"], tuple(item["column_names"]))
+                for item in inspector.get_unique_constraints("fitchef_support_outcome_events")
+            ),
+            "indexes": tuple(
+                (item["name"], tuple(item["column_names"]), bool(item["unique"]))
+                for item in inspector.get_indexes("fitchef_support_outcome_events")
+            ),
+            "checks": tuple(
+                sorted(
+                    item["name"]
+                    for item in inspector.get_check_constraints("fitchef_support_outcome_events")
+                )
+            ),
+            "foreign_keys": tuple(inspector.get_foreign_keys("fitchef_support_outcome_events")),
+        }
+    finally:
+        engine.dispose()
+
+
+def test_outcome_sqlite_fresh_upgrade_noop_downgrade_and_reupgrade(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'fitchef-outcome-cycle.sqlite3'}"
+    _run_outcome_sqlite_alembic(database_url, "upgrade", "head")
+    first = _outcome_sqlite_projection(database_url)
+    assert first == {
+        "present": True,
+        "columns": (
+            ("id", "VARCHAR(36)", False),
+            ("subject_id", "BIGINT", False),
+            ("schema_version", "VARCHAR(32)", False),
+            ("support_need", "VARCHAR(32)", False),
+            ("target_surface", "VARCHAR(32)", False),
+            ("outcome", "VARCHAR(16)", False),
+            ("client_event_id", "VARCHAR(128)", False),
+            ("created_at", "DATETIME", False),
+        ),
+        "unique": (
+            (
+                "uq_fitchef_support_outcome_subject_event",
+                ("subject_id", "client_event_id"),
+            ),
+        ),
+        "indexes": (
+            (
+                "ix_fitchef_support_outcomes_subject_created_at",
+                ("subject_id", "created_at"),
+                False,
+            ),
+        ),
+        "checks": (
+            "ck_fitchef_support_outcome_compatible_pair",
+            "ck_fitchef_support_outcome_outcome",
+            "ck_fitchef_support_outcome_schema_version",
+            "ck_fitchef_support_outcome_support_need",
+            "ck_fitchef_support_outcome_target_surface",
+        ),
+        "foreign_keys": (),
+    }
+
+    _run_outcome_sqlite_alembic(database_url, "upgrade", "head")
+    assert _outcome_sqlite_projection(database_url) == first
+
+    _run_outcome_sqlite_alembic(database_url, "downgrade", "202604130001")
+    engine = create_engine(database_url)
+    try:
+        assert "fitchef_support_outcome_events" not in sqlalchemy_inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+
+    _run_outcome_sqlite_alembic(database_url, "upgrade", "head")
+    assert _outcome_sqlite_projection(database_url) == first
+
+
+def test_outcome_openapi_import_does_not_load_orm_or_service() -> None:
+    script = """
+import json
+import sys
+from app.main import app
+app.openapi()
+print(json.dumps({
+    "orm": "app.models.fitchef_support_outcomes" in sys.modules,
+    "service": "app.services.fitchef_support_outcomes" in sys.modules,
+}))
+"""
+    env = dict(os.environ)
+    env.update({"TESTING": "true", "APP_ENV": "test", "ENVIRONMENT": "test"})
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(completed.stdout.strip().splitlines()[-1]) == {
+        "orm": False,
+        "service": False,
+    }
+
+
+@pytest.mark.parametrize("initialization_mode", ("sync", "async"))
+def test_outcome_canonical_db_init_registers_and_creates_table_fresh(
+    initialization_mode: str,
+) -> None:
+    script = f"""
+import asyncio
+import json
+import os
+import sys
+import tempfile
+
+with tempfile.TemporaryDirectory() as directory:
+    os.environ["DATABASE_URL"] = "sqlite:///" + directory + "/canonical-init.sqlite3"
+    os.environ["APP_ENV"] = "test"
+    os.environ["ENVIRONMENT"] = "test"
+    os.environ.pop("DATABASE_ASYNC_URL", None)
+    os.environ.pop("DATABASE_USE_ASYNC", None)
+    import core.db as core_db
+    from sqlalchemy import inspect
+    before = {{
+        "model": "app.models.fitchef_support_outcomes" in sys.modules,
+        "service": "app.services.fitchef_support_outcomes" in sys.modules,
+    }}
+    if {initialization_mode!r} == "sync":
+        engine = core_db.init_db()
+    else:
+        asyncio.run(core_db.init_db_async())
+        engine = core_db._get_raw_engine()
+    print(json.dumps({{
+        "before": before,
+        "model_loaded": "app.models.fitchef_support_outcomes" in sys.modules,
+        "service_loaded": "app.services.fitchef_support_outcomes" in sys.modules,
+        "metadata": "fitchef_support_outcome_events" in core_db.Base.metadata.tables,
+        "physical": inspect(engine).has_table("fitchef_support_outcome_events"),
+    }}, sort_keys=True))
+"""
+    env = dict(os.environ)
+    env.update({"TESTING": "true", "APP_ENV": "test", "ENVIRONMENT": "test"})
+    env.pop("DATABASE_ASYNC_URL", None)
+    env.pop("DATABASE_USE_ASYNC", None)
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(completed.stdout.strip().splitlines()[-1]) == {
+        "before": {"model": False, "service": False},
+        "metadata": True,
+        "model_loaded": True,
+        "physical": True,
+        "service_loaded": False,
+    }
+
+
+def test_outcome_async_canonical_init_executes_model_registration_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.db as core_db_mod
+
+    monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+    monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
+    asyncio.run(core_db_mod.init_db_async())
+    assert "fitchef_support_outcome_events" in core_db_mod.Base.metadata.tables
+    assert sqlalchemy_inspect(core_db_mod._get_raw_engine()).has_table(
+        "fitchef_support_outcome_events"
+    )
+
+
+def test_outcome_unauthenticated_call_does_not_consume_rate_limit() -> None:
+    script = """
+import json
+from app.main import app
+from app.middleware.api_tiers import TEST_KEY_PRO
+from tests._client import open_test_client
+payload = {
+    "schema_version": "fitchef_support_outcome_v1",
+    "support_need": "daily_structure",
+    "outcome": "acknowledged",
+    "client_event_id": "rate-event-0000001",
+}
+with open_test_client(app) as client:
+    unauthenticated = client.post(
+        "/api/v1/pro/fitchef/recommend/outcome", json=payload
+    ).status_code
+    authenticated = [
+        client.post(
+            "/api/v1/pro/fitchef/recommend/outcome",
+            json=payload,
+            headers={"X-API-Key": TEST_KEY_PRO},
+        ).status_code
+        for _ in range(3)
+    ]
+print(json.dumps({"unauthenticated": unauthenticated, "authenticated": authenticated}, sort_keys=True))
+"""
+    env = dict(os.environ)
+    env.update(
+        {
+            "TESTING": "true",
+            "RATE_LIMITING_IN_TESTS": "true",
+            "RATE_LIMIT_FITCHEF_SUPPORT_OUTCOME": "2/minute",
+            "FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER": "false",
+            "APP_ENV": "test",
+            "ENVIRONMENT": "test",
+            "SERVER_SALT": "Aa1!" * 16,
+        }
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    observed = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert observed == {
+        "authenticated": [503, 503, 429],
+        "unauthenticated": 401,
+    }
+
+
+def test_outcome_two_session_identical_and_divergent_races(
+    fitchef_outcome_runtime: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_fetch = outcome_service._fetch_existing
+
+    def run_race(
+        records: tuple[FitChefSupportOutcomeRecord, FitChefSupportOutcomeRecord],
+    ) -> list[str]:
+        barrier = threading.Barrier(2)
+        lock = threading.Lock()
+        initial_missing_reads = 0
+
+        def synchronized_fetch(
+            *args: object, **kwargs: object
+        ) -> FitChefSupportOutcomeEvent | None:
+            nonlocal initial_missing_reads
+            row = real_fetch(*args, **kwargs)
+            should_wait = False
+            if row is None:
+                with lock:
+                    if initial_missing_reads < 2:
+                        initial_missing_reads += 1
+                        should_wait = True
+            if should_wait:
+                barrier.wait(timeout=5)
+            return row
+
+        monkeypatch.setattr(outcome_service, "_fetch_existing", synchronized_fetch)
+
+        def invoke(record: FitChefSupportOutcomeRecord) -> str:
+            try:
+                return record_fitchef_support_outcome(subject_id=404, record=record)
+            except FitChefSupportOutcomeConflictError:
+                return "conflict"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            return list(executor.map(invoke, records))
+
+    identical = FitChefSupportOutcomeRecord(
+        schema_version="fitchef_support_outcome_v1",
+        support_need="daily_structure",
+        target_surface="pro_daily_plate",
+        outcome="acknowledged",
+        client_event_id="race-identical-0001",
+    )
+    assert sorted(run_race((identical, identical))) == ["recorded", "replayed"]
+
+    first = FitChefSupportOutcomeRecord(
+        schema_version="fitchef_support_outcome_v1",
+        support_need="daily_structure",
+        target_surface="pro_daily_plate",
+        outcome="acknowledged",
+        client_event_id="race-divergent-0001",
+    )
+    second = FitChefSupportOutcomeRecord(
+        schema_version="fitchef_support_outcome_v1",
+        support_need="daily_structure",
+        target_surface="pro_daily_plate",
+        outcome="dismissed",
+        client_event_id="race-divergent-0001",
+    )
+    assert sorted(run_race((first, second))) == ["conflict", "recorded"]
+
+
+_OUTCOME_SOURCE_DRIFT_STATES = (
+    "zero",
+    "extra",
+    "wrong_path",
+    "wrong_method",
+    "combined_methods",
+    "wrong_visibility",
+    "wrong_endpoint",
+    "wrong_model",
+    "wrong_response_class",
+    "wrong_name",
+    "wrong_operation_id",
+    "wrong_generate_unique_id_function",
+    "wrong_unique_id",
+    "missing_status",
+    "extra_status",
+    "wrong_primary_status",
+    "altered_response_description",
+    "altered_response_model",
+    "wrong_response_map",
+    "wrong_response_model_include",
+    "wrong_response_model_exclude",
+    "wrong_by_alias",
+    "wrong_exclude_unset",
+    "wrong_exclude_defaults",
+    "wrong_exclude_none",
+    "wrong_summary",
+    "wrong_description",
+    "wrong_dependency",
+    "extra_dependency",
+    "missing_openapi_extra",
+    "wrong_openapi_extra",
+    "extra_openapi_extra",
+    "extra_nested_request_body",
+)
+_OUTCOME_TARGET_DRIFT_STATES = tuple(
+    state
+    for state in _OUTCOME_SOURCE_DRIFT_STATES
+    if state not in {"zero", "extra", "wrong_path", "wrong_endpoint"}
+) + ("foreign", "duplicate")
+
+
+def _add_outcome_route_with_drift(
+    owner: APIRouter | FastAPI,
+    *,
+    state: str,
+) -> APIRoute:
+    def wrong_generate_unique_id(_: APIRoute) -> str:
+        return main_app._FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID
+
+    path = (
+        "/api/v1/pro/fitchef/recommend/not-outcome"
+        if state == "wrong_path"
+        else main_app._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    )
+    methods = (
+        ["POST", "DELETE"]
+        if state == "combined_methods"
+        else ["GET" if state == "wrong_method" else "POST"]
+    )
+    endpoint = (
+        (lambda: None)
+        if state in {"wrong_endpoint", "foreign"}
+        else main_app.fitchef_support_outcome
+    )
+    responses = deepcopy(main_app._FITCHEF_SUPPORT_OUTCOME_RESPONSES)
+    if state == "missing_status":
+        responses.pop(503)
+    if state == "extra_status":
+        responses[418] = {"description": "Unexpected response"}
+    if state == "altered_response_description":
+        responses[503]["description"] = "Altered outcome-store response"
+    if state == "altered_response_model":
+        responses[503]["model"] = main_app.FitChefSupportOutcomeResponse
+    if state == "wrong_response_map":
+        responses[409] = {"description": "Substituted conflict response"}
+
+    dependencies: list[params.Depends] = []
+    if state == "wrong_dependency":
+        dependencies.append(Depends(lambda: None))
+    if state == "extra_dependency":
+        dependencies.append(Depends(main_app.require_pro_tier))
+
+    openapi_extra = deepcopy(main_app._FITCHEF_SUPPORT_OUTCOME_OPENAPI_EXTRA)
+    if state == "wrong_openapi_extra":
+        openapi_extra["requestBody"] = {"required": False}
+    if state == "extra_openapi_extra":
+        openapi_extra["unexpected"] = True
+    if state == "extra_nested_request_body":
+        request_body = openapi_extra["requestBody"]
+        assert isinstance(request_body, dict)
+        request_body["unexpected"] = True
+
+    owner.add_api_route(
+        path,
+        endpoint,
+        methods=methods,
+        include_in_schema=state != "wrong_visibility",
+        response_model=(
+            dict[str, object] if state == "wrong_model" else main_app.FitChefSupportOutcomeResponse
+        ),
+        status_code=201 if state == "wrong_primary_status" else None,
+        response_model_include={"state"} if state == "wrong_response_model_include" else None,
+        response_model_exclude=(
+            {"schema_version"} if state == "wrong_response_model_exclude" else None
+        ),
+        response_model_by_alias=state != "wrong_by_alias",
+        response_model_exclude_unset=state == "wrong_exclude_unset",
+        response_model_exclude_defaults=state == "wrong_exclude_defaults",
+        response_model_exclude_none=state == "wrong_exclude_none",
+        response_class=(
+            PlainTextResponse if state == "wrong_response_class" else main_app.JSONResponse
+        ),
+        name=(
+            "wrong_fitchef_support_outcome"
+            if state == "wrong_name"
+            else main_app._FITCHEF_SUPPORT_OUTCOME_ROUTE_NAME
+        ),
+        operation_id=(
+            "wrong_fitchef_support_outcome_operation" if state == "wrong_operation_id" else None
+        ),
+        generate_unique_id_function=(
+            wrong_generate_unique_id
+            if state == "wrong_generate_unique_id_function"
+            else main_app.generate_unique_id
+        ),
+        summary=(
+            "Substituted FitChef outcome summary"
+            if state == "wrong_summary"
+            else main_app._FITCHEF_SUPPORT_OUTCOME_SUMMARY
+        ),
+        description=(
+            "Substituted FitChef outcome description"
+            if state == "wrong_description"
+            else main_app._FITCHEF_SUPPORT_OUTCOME_DESCRIPTION
+        ),
+        responses=responses,
+        dependencies=dependencies,
+        openapi_extra=None if state == "missing_openapi_extra" else openapi_extra,
+    )
+    route = owner.routes[-1]
+    assert isinstance(route, APIRoute)
+    if state in {"wrong_name", "wrong_operation_id"}:
+        route.unique_id = main_app._FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID
+    if state == "wrong_unique_id":
+        route.unique_id = "wrong_fitchef_support_outcome_stored_id"
+    return route
+
+
+def _assert_outcome_bootstrap_failure(target: FastAPI, match: str) -> None:
+    before = (tuple(target.routes), tuple(target.user_middleware))
+    with pytest.raises(RuntimeError, match=match):
+        main_app.ensure_canonical_app_bootstrap(target)
+    assert (tuple(target.routes), tuple(target.user_middleware)) == before
+
+
+@pytest.mark.parametrize("state", _OUTCOME_SOURCE_DRIFT_STATES)
+def test_outcome_source_metadata_drift_fails_before_bootstrap_mutation(
+    state: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    router = APIRouter()
+    if state != "zero":
+        _add_outcome_route_with_drift(router, state=state)
+        if state == "extra":
+            router.add_api_route("/unexpected-outcome-source", lambda: None, methods=["GET"])
+    monkeypatch.setattr(main_app, "fitchef_support_outcome_router", router)
+    _assert_outcome_bootstrap_failure(
+        FastAPI(),
+        "Invalid FitChef support outcome source route",
+    )
+
+
+@pytest.mark.parametrize("state", _OUTCOME_TARGET_DRIFT_STATES)
+def test_outcome_existing_target_metadata_drift_fails_unchanged(state: str) -> None:
+    target = FastAPI()
+    _add_outcome_route_with_drift(target, state=state)
+    if state == "duplicate":
+        target.include_router(main_app.fitchef_support_outcome_router)
+    _assert_outcome_bootstrap_failure(
+        target,
+        "Invalid existing FitChef support outcome route",
+    )
+
+
+def test_outcome_registration_and_live_app_ownership_are_exact_and_unique() -> None:
+    assert main_app._is_exact_fitchef_support_outcome_route(object()) is False
+    target = FastAPI()
+    main_app._include_fitchef_support_outcome_router_if_needed(target)
+    first_routes = tuple(target.routes)
+    main_app._include_fitchef_support_outcome_router_if_needed(target)
+    matching = [
+        route
+        for route in main_app._effective_app_routes(target)
+        if main_app.route_path(route) == main_app._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    ]
+    live = [
+        route
+        for route in main_app._effective_app_routes(main_app.app)
+        if main_app.route_path(route) == main_app._FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    ]
+    assert tuple(target.routes) == first_routes
+    assert len(matching) == len(live) == 1
+    for route in (cast(APIRoute, matching[0]), cast(APIRoute, live[0])):
+        assert main_app._is_exact_fitchef_support_outcome_route(route) is True
+        assert route.response_model is main_app.FitChefSupportOutcomeResponse
+        assert [dependency.call for dependency in route.dependant.dependencies] == [
+            main_app.require_pro_tier
+        ]
+
+
+def test_outcome_dsar_uses_independent_subject_and_preserves_cross_subject_rows(
+    fitchef_outcome_runtime: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.models import User
+
+    with get_session_factory()() as session:
+        existing = session.execute(
+            select(User).where(User.email == "fitchef-outcome-dsar@example.com")
+        ).scalar_one_or_none()
+        if existing is not None:
+            session.delete(existing)
+            session.commit()
+
+        user = User(email="fitchef-outcome-dsar@example.com", name="FitChef Outcome DSAR")
+        session.add(user)
+        session.flush()
+        credential_subject_id = user.id
+        other_subject_id = user.id + 100_000
+        session.add_all(
+            (
+                FitChefSupportOutcomeEvent(
+                    id="fitchef-dsar-row-1",
+                    subject_id=credential_subject_id,
+                    schema_version="fitchef_support_outcome_v1",
+                    support_need="daily_structure",
+                    target_surface="pro_daily_plate",
+                    outcome="acknowledged",
+                    client_event_id="fitchef-dsar-event-0001",
+                ),
+                FitChefSupportOutcomeEvent(
+                    id="fitchef-dsar-row-2",
+                    subject_id=other_subject_id,
+                    schema_version="fitchef_support_outcome_v1",
+                    support_need="weekly_structure",
+                    target_surface="pro_weekly_plan",
+                    outcome="dismissed",
+                    client_event_id="fitchef-dsar-event-0002",
+                ),
+            )
+        )
+        session.commit()
+
+        user_only = export_direct_user_artifacts(session=session, user_id=user.id)
+        assert cast(dict[str, object], user_only["artifacts"])["fitchef_support_outcomes"] == []
+        user_only_plan = build_direct_user_deletion_plan(session=session, user_id=user.id)
+        assert cast(dict[str, dict[str, object]], user_only_plan["artifacts"])[
+            "fitchef_support_outcomes"
+        ] == {
+            "present_count": 0,
+            "helper_action": "credential_subject_required",
+        }
+        user_only_delete = delete_direct_user_artifacts(session=session, user_id=user.id)
+        assert cast(dict[str, int], user_only_delete["deleted"])["fitchef_support_outcomes"] == 0
+
+        trace: list[int] = []
+        monkeypatch.setattr(
+            dsar_service,
+            "apply_user_rls_context",
+            lambda _session, *, user_id: trace.append(user_id),
+        )
+        exported = export_direct_user_artifacts(
+            session=session,
+            user_id=user.id,
+            credential_subject_id=credential_subject_id,
+        )
+        outcome_rows = cast(
+            list[dict[str, object]],
+            cast(dict[str, object], exported["artifacts"])["fitchef_support_outcomes"],
+        )
+        assert trace == [user.id, credential_subject_id, user.id]
+        assert outcome_rows == [
+            {
+                "schema_version": "fitchef_support_outcome_v1",
+                "support_need": "daily_structure",
+                "target_surface": "pro_daily_plate",
+                "outcome": "acknowledged",
+                "client_event_id": "fitchef-dsar-event-0001",
+                "created_at": outcome_rows[0]["created_at"],
+            }
+        ]
+        assert outcome_rows[0]["created_at"] is not None
+
+        trace.clear()
+        plan = build_direct_user_deletion_plan(
+            session=session,
+            user_id=user.id,
+            credential_subject_id=credential_subject_id,
+        )
+        assert (
+            cast(dict[str, dict[str, object]], plan["artifacts"])["fitchef_support_outcomes"][
+                "present_count"
+            ]
+            == 1
+        )
+        assert trace == [user.id, credential_subject_id, user.id]
+
+        first_delete = delete_direct_user_artifacts(
+            session=session,
+            user_id=user.id,
+            credential_subject_id=credential_subject_id,
+        )
+        second_delete = delete_direct_user_artifacts(
+            session=session,
+            user_id=user.id,
+            credential_subject_id=credential_subject_id,
+        )
+        assert cast(dict[str, int], first_delete["deleted"])["fitchef_support_outcomes"] == 1
+        assert cast(dict[str, int], second_delete["deleted"])["fitchef_support_outcomes"] == 0
+        remaining = set(
+            session.execute(select(FitChefSupportOutcomeEvent.subject_id)).scalars().all()
+        )
+        assert remaining == {other_subject_id}
+        assert not FitChefSupportOutcomeEvent.__table__.foreign_keys
+
+        session.execute(delete(FitChefSupportOutcomeEvent))
+        session.delete(user)
+        session.commit()
+
+
+@pytest.mark.parametrize("restore_fails", (False, True))
+def test_outcome_dsar_delete_failure_rolls_back_restores_and_preserves_original(
+    restore_fails: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace: list[int | str] = []
+    apply_count = 0
+
+    class EmptyResult:
+        def scalars(self) -> "EmptyResult":
+            return self
+
+        def all(self) -> list[object]:
+            return []
+
+    class BrokenOutcomeDeleteSession:
+        def __init__(self) -> None:
+            self.execute_count = 0
+
+        def get(self, _model: object, _user_id: int) -> None:
+            return None
+
+        def execute(self, _statement: object) -> EmptyResult:
+            self.execute_count += 1
+            if self.execute_count == 3:
+                raise RuntimeError("outcome-delete-original-sentinel")
+            return EmptyResult()
+
+        def rollback(self) -> None:
+            trace.append("rollback")
+
+        def commit(self) -> None:
+            pytest.fail("failed outcome deletion must not commit")
+
+    def apply_context(_session: object, *, user_id: int) -> None:
+        nonlocal apply_count
+        apply_count += 1
+        trace.append(user_id)
+        if restore_fails and apply_count == 3:
+            raise RuntimeError("restore-failure-must-not-mask")
+
+    monkeypatch.setattr(dsar_service, "apply_user_rls_context", apply_context)
+    with pytest.raises(RuntimeError, match="outcome-delete-original-sentinel"):
+        delete_direct_user_artifacts(
+            session=cast(Session, BrokenOutcomeDeleteSession()),
+            user_id=7,
+            credential_subject_id=99,
+        )
+    assert trace == [7, 99, "rollback", 7]
+
+
+def test_outcome_dsar_rollback_failure_does_not_mask_original(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class EmptyResult:
+        def scalars(self) -> "EmptyResult":
+            return self
+
+        def all(self) -> list[object]:
+            return []
+
+    class BrokenRollbackSession:
+        def __init__(self) -> None:
+            self.execute_count = 0
+
+        def get(self, _model: object, _user_id: int) -> None:
+            return None
+
+        def execute(self, _statement: object) -> EmptyResult:
+            self.execute_count += 1
+            if self.execute_count == 3:
+                raise RuntimeError("outcome-delete-original")
+            return EmptyResult()
+
+        def rollback(self) -> None:
+            raise RuntimeError("rollback-must-not-mask")
+
+    monkeypatch.setattr(dsar_service, "apply_user_rls_context", lambda *_args, **_kwargs: None)
+    with caplog.at_level("ERROR", logger=dsar_service.__name__):
+        with pytest.raises(RuntimeError, match="outcome-delete-original"):
+            delete_direct_user_artifacts(
+                session=cast(Session, BrokenRollbackSession()),
+                user_id=7,
+                credential_subject_id=99,
+            )
+    assert "DSAR direct-user artifact rollback failed" in caplog.text
+    assert "rollback-must-not-mask" not in caplog.text

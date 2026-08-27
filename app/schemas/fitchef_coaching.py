@@ -17,6 +17,8 @@ from app.schemas.fitchef import (
 
 FitChefSupportNeed = Literal["daily_structure", "weekly_structure"]
 FitChefSupportTargetSurface = Literal["pro_daily_plate", "pro_weekly_plan"]
+FitChefSupportOutcome = Literal["acknowledged", "dismissed"]
+FitChefSupportOutcomeState = Literal["recorded", "replayed"]
 
 
 class FitChefSupportHandoffRequest(BaseModel):
@@ -120,6 +122,32 @@ class FitChefSupportHandoffResponse(BaseModel):
         if value is not False:
             raise ValueError("handoff authority flags must be exactly false")
         return value
+
+
+class FitChefSupportOutcomeRequest(BaseModel):
+    """Closed client-reported support-outcome assertion."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal["fitchef_support_outcome_v1"]
+    support_need: FitChefSupportNeed
+    outcome: FitChefSupportOutcome
+    client_event_id: str = Field(
+        ...,
+        strict=True,
+        min_length=16,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$",
+    )
+
+
+class FitChefSupportOutcomeResponse(BaseModel):
+    """Minimal response for a recorded or byte-equivalent replay."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal["fitchef_support_outcome_v1"]
+    state: FitChefSupportOutcomeState
 
 
 class FitChefCoachingRequest(BaseModel):

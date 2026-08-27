@@ -2208,6 +2208,230 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
     _raise_preserved_failures(primary_failure, cleanup_failures)
 
 
+def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolation() -> None:
+    """Prove the migrated outcome table under a real non-bypass PostgreSQL role."""
+
+    parsed_url = _required_ci_pgvector_url()
+    admin_engine = create_engine(
+        parsed_url,
+        isolation_level="AUTOCOMMIT",
+        poolclass=NullPool,
+    )
+    token = uuid4().hex
+    database_name = f"{ALEMBIC_DATABASE_PREFIX}{token}"
+    role_name = f"fitchef_outcome_rls_{token}"
+    assert re.fullmatch(r"pulseplate_alembic_[0-9a-f]{32}", database_name)
+    assert re.fullmatch(r"fitchef_outcome_rls_[0-9a-f]{32}", role_name)
+    quoted_database = _quote_identifier(admin_engine, database_name)
+    quoted_role = _quote_identifier(admin_engine, role_name)
+    receipt: _CreatedDatabaseReceipt | None = None
+    target_engine: Engine | None = None
+    role_engine: Engine | None = None
+    role_created = False
+    primary_failure: BaseException | None = None
+    cleanup_failures: list[BaseException] = []
+
+    try:
+        with admin_engine.connect() as connection:
+            assert _database_oid(connection, database_name) is None
+            connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
+            created_oid = _database_oid(connection, database_name)
+            if created_oid is None or created_oid <= 0:
+                pytest.fail("FitChef outcome test database has no positive OID receipt")
+            receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
+            connection.exec_driver_sql(
+                f"CREATE ROLE {quoted_role} WITH LOGIN "
+                f"PASSWORD '{OWNER_PASSWORD}' NOSUPERUSER NOBYPASSRLS"
+            )
+            role_created = True
+
+        target_url = parsed_url.set(database=database_name)
+        target_engine = create_engine(target_url, poolclass=NullPool)
+        _run_alembic(target_url, "upgrade", "head")
+
+        with target_engine.begin() as connection:
+            connection.exec_driver_sql(
+                f"GRANT SELECT, INSERT ON TABLE " f"fitchef_support_outcome_events TO {quoted_role}"
+            )
+            relation = connection.execute(text("""
+                    SELECT relrowsecurity, relforcerowsecurity
+                    FROM pg_class
+                    WHERE oid = 'fitchef_support_outcome_events'::regclass
+                    """)).one()
+            policies = connection.execute(text("""
+                    SELECT
+                        policy.polname,
+                        policy.polpermissive,
+                        policy.polcmd::text AS command,
+                        policy.polroles::text AS roles,
+                        pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+                        pg_get_expr(policy.polwithcheck, policy.polrelid) AS check_expression
+                    FROM pg_policy AS policy
+                    WHERE policy.polrelid = 'fitchef_support_outcome_events'::regclass
+                    ORDER BY policy.polname COLLATE "C"
+                    """)).all()
+            role_flags = connection.execute(
+                text("""
+                    SELECT rolsuper, rolbypassrls
+                    FROM pg_roles
+                    WHERE rolname = :role_name
+                    """),
+                {"role_name": role_name},
+            ).one()
+
+        expected_expression = (
+            "(subject_id = (NULLIF(current_setting('app.current_user_id'::text, true), "
+            "''::text))::bigint)"
+        )
+        assert relation.relrowsecurity is True
+        assert relation.relforcerowsecurity is True
+        assert role_flags.rolsuper is False
+        assert role_flags.rolbypassrls is False
+        assert len(policies) == 1
+        policy = policies[0]
+        assert policy.polname == "fitchef_support_outcome_subject_isolation"
+        assert policy.polpermissive is True
+        assert policy.command == "*"
+        assert policy.roles == "{0}"
+        assert policy.using_expression == expected_expression
+        assert policy.check_expression == expected_expression
+
+        metadata = MetaData()
+        outcome_table = Table(
+            "fitchef_support_outcome_events",
+            metadata,
+            autoload_with=target_engine,
+        )
+        role_url = target_url.set(username=role_name, password=OWNER_PASSWORD)
+        role_engine = create_engine(role_url, poolclass=NullPool)
+
+        def row(
+            *,
+            row_id: str,
+            subject_id: int,
+            support_need: str,
+            target_surface: str,
+            outcome: str,
+            client_event_id: str,
+        ) -> dict[str, object]:
+            return {
+                "id": row_id,
+                "subject_id": subject_id,
+                "schema_version": "fitchef_support_outcome_v1",
+                "support_need": support_need,
+                "target_surface": target_surface,
+                "outcome": outcome,
+                "client_event_id": client_event_id,
+            }
+
+        with Session(role_engine) as missing_context:
+            assert missing_context.scalar(select(func.count()).select_from(outcome_table)) == 0
+
+        with Session(role_engine) as session:
+            apply_user_rls_context(session, user_id=TENANT_ONE)
+            session.execute(
+                insert(outcome_table),
+                row(
+                    row_id="tenant-one-first",
+                    subject_id=TENANT_ONE,
+                    support_need="daily_structure",
+                    target_surface="pro_daily_plate",
+                    outcome="acknowledged",
+                    client_event_id="tenant-one-event-0001",
+                ),
+            )
+            session.commit()
+
+        with Session(role_engine) as session:
+            apply_user_rls_context(session, user_id=TENANT_TWO)
+            session.execute(
+                insert(outcome_table),
+                row(
+                    row_id="tenant-two-first",
+                    subject_id=TENANT_TWO,
+                    support_need="weekly_structure",
+                    target_surface="pro_weekly_plan",
+                    outcome="dismissed",
+                    client_event_id="tenant-two-event-0001",
+                ),
+            )
+            session.commit()
+
+        with Session(role_engine) as first_session:
+            apply_user_rls_context(first_session, user_id=TENANT_ONE)
+            assert list(first_session.scalars(select(outcome_table.c.id))) == ["tenant-one-first"]
+
+            with pytest.raises(DBAPIError):
+                first_session.execute(
+                    insert(outcome_table),
+                    row(
+                        row_id="tenant-mismatch",
+                        subject_id=TENANT_TWO,
+                        support_need="weekly_structure",
+                        target_surface="pro_weekly_plan",
+                        outcome="acknowledged",
+                        client_event_id="tenant-mismatch-0001",
+                    ),
+                )
+            first_session.rollback()
+            apply_user_rls_context(first_session, user_id=TENANT_ONE)
+            assert list(first_session.scalars(select(outcome_table.c.id))) == ["tenant-one-first"]
+
+        with Session(role_engine) as second_session:
+            apply_user_rls_context(second_session, user_id=TENANT_TWO)
+            assert list(second_session.scalars(select(outcome_table.c.id))) == ["tenant-two-first"]
+    except BaseException as exc:
+        primary_failure = exc
+    finally:
+        if role_engine is not None:
+            try:
+                role_engine.dispose()
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+        target_disposed = True
+        if target_engine is not None:
+            try:
+                target_engine.dispose()
+            except BaseException as exc:
+                target_disposed = False
+                cleanup_failures.append(exc)
+        try:
+            if receipt is not None and target_disposed:
+                with admin_engine.connect() as connection:
+                    current_oid = _database_oid(connection, receipt.database_name)
+                    if current_oid != receipt.oid:
+                        raise AssertionError(
+                            "FitChef outcome database cleanup receipt no longer matches OID"
+                        )
+                    connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")
+                    if role_created:
+                        connection.exec_driver_sql(f"DROP ROLE {quoted_role}")
+                        role_created = False
+                    if _database_oid(connection, receipt.database_name) is not None:
+                        raise AssertionError("FitChef outcome test database remains after DROP")
+            elif receipt is not None:
+                cleanup_failures.append(
+                    RuntimeError(
+                        "FitChef outcome database cleanup withheld because disposal was unproven"
+                    )
+                )
+        except BaseException as exc:
+            cleanup_failures.append(exc)
+        finally:
+            try:
+                if role_created:
+                    with admin_engine.connect() as connection:
+                        connection.exec_driver_sql(f"DROP ROLE {quoted_role}")
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+            try:
+                admin_engine.dispose()
+            except BaseException as exc:
+                cleanup_failures.append(exc)
+
+    _raise_preserved_failures(primary_failure, cleanup_failures)
+
+
 def test_database_uses_exact_extension_and_non_bypass_table_owner(
     pgvector_database: _CompatDatabase,
 ) -> None:

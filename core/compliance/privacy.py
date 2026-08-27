@@ -9,8 +9,8 @@ from core.compliance.dsar import build_dsar_rights_summary, summarize_dsar_suppo
 from core.compliance.transparency import get_blocked_regulated_lane, get_transparency_registry
 from core.log_retention import get_retention_manager
 
-PRIVACY_POLICY_VERSION = "2026-04-10.eu-first.v1"
-PRIVACY_POLICY_LAST_UPDATED = "2026-04-10"
+PRIVACY_POLICY_VERSION = "2026-08-27.eu-first.v2"
+PRIVACY_POLICY_LAST_UPDATED = "2026-08-27"
 
 
 @dataclass(frozen=True)
@@ -195,6 +195,19 @@ _PROCESSING_CATEGORIES: tuple[ProcessingCategory, ...] = (
         third_party_exposure="No automatic third-party disclosure by default",
         retention="Application-controlled until deletion or retention review",
         deletion_path="Direct row deletion for user-bound artifacts",
+    ),
+    ProcessingCategory(
+        category_id="fitchef_support_outcome_assertions",
+        title="FitChef client-reported support outcomes",
+        endpoints=("/api/v1/pro/fitchef/recommend/outcome",),
+        purpose="First-party FitChef relationship continuity and bounded product measurement",
+        sensitivity="direct-user product-interaction metadata",
+        third_party_exposure=(
+            "This flow directly sends no outcome field or row to an AI provider or other "
+            "third-party processor; aggregate metrics remain subject to configured telemetry policy"
+        ),
+        retention="Until support-led deletion or a separately reviewed policy change",
+        deletion_path="Internal support-led credential-subject-scoped export and deletion",
     ),
     ProcessingCategory(
         category_id="signed_audit_envelopes",
