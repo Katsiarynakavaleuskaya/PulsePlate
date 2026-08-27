@@ -116,20 +116,20 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         }
     }
 
-    func testUnknownRawTopLevelKeysAreRejectedInStableSortedOrder() throws {
+    func testUnknownRawTopLevelKeysUseStableObjectDiagnosticWithoutRawNames() throws {
         var payload = canonicalPayload()
         payload["z_extra"] = true
         payload["a_extra"] = true
 
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
-            XCTAssertEqual(
-                dataCorruptedDescription(error),
-                "FitChefSupportHandoffDescriptor contains unknown keys: a_extra, z_extra"
-            )
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffDescriptor contains unknown key(s)")
+            XCTAssertFalse(diagnostic?.contains("a_extra") == true)
+            XCTAssertFalse(diagnostic?.contains("z_extra") == true)
         }
     }
 
-    func testUnknownRawActionKeysAreRejectedInStableSortedOrder() throws {
+    func testUnknownRawActionKeysUseStableObjectDiagnosticWithoutRawNames() throws {
         var payload = canonicalPayload()
         var action = try XCTUnwrap(payload["action"] as? [String: Any])
         action["z_extra"] = true
@@ -137,10 +137,10 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         payload["action"] = action
 
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
-            XCTAssertEqual(
-                dataCorruptedDescription(error),
-                "FitChefSupportHandoffAction contains unknown keys: a_extra, z_extra"
-            )
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffAction contains unknown key(s)")
+            XCTAssertFalse(diagnostic?.contains("a_extra") == true)
+            XCTAssertFalse(diagnostic?.contains("z_extra") == true)
         }
     }
 
@@ -160,10 +160,12 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             payload[aliasKey] = payload.removeValue(forKey: canonicalKey)
 
             XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+                let diagnostic = dataCorruptedDescription(error)
                 XCTAssertEqual(
-                    dataCorruptedDescription(error),
-                    "FitChefSupportHandoffDescriptor contains unknown keys: \(aliasKey)"
+                    diagnostic,
+                    "FitChefSupportHandoffDescriptor contains unknown key(s)"
                 )
+                XCTAssertFalse(diagnostic?.contains(aliasKey) == true)
             }
         }
     }
@@ -181,10 +183,9 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             payload["action"] = action
 
             XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
-                XCTAssertEqual(
-                    dataCorruptedDescription(error),
-                    "FitChefSupportHandoffAction contains unknown keys: \(aliasKey)"
-                )
+                let diagnostic = dataCorruptedDescription(error)
+                XCTAssertEqual(diagnostic, "FitChefSupportHandoffAction contains unknown key(s)")
+                XCTAssertFalse(diagnostic?.contains(aliasKey) == true)
             }
         }
     }
@@ -199,19 +200,67 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         payload["action"] = action
 
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
-            XCTAssertEqual(
-                dataCorruptedDescription(error),
-                "FitChefSupportHandoffDescriptor contains unknown keys: schemaVersion, supportNeed"
-            )
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffDescriptor contains unknown key(s)")
+            XCTAssertFalse(diagnostic?.contains("schemaVersion") == true)
+            XCTAssertFalse(diagnostic?.contains("supportNeed") == true)
         }
 
         payload.removeValue(forKey: "schemaVersion")
         payload.removeValue(forKey: "supportNeed")
         XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
-            XCTAssertEqual(
-                dataCorruptedDescription(error),
-                "FitChefSupportHandoffAction contains unknown keys: actionType, targetSurface"
-            )
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffAction contains unknown key(s)")
+            XCTAssertFalse(diagnostic?.contains("actionType") == true)
+            XCTAssertFalse(diagnostic?.contains("targetSurface") == true)
+        }
+    }
+
+    func testHostileTopLevelUnknownKeysAndSensitiveValuesDoNotEnterDiagnostic() throws {
+        let hostileEntries = [
+            ("password_reset_token", "SENSITIVE_TOP_LEVEL_VALUE_1"),
+            ("forged\nlog_line", "SENSITIVE_TOP_LEVEL_VALUE_2"),
+        ]
+        var payload = canonicalPayload()
+        for (key, value) in hostileEntries {
+            payload[key] = value
+        }
+
+        XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffDescriptor contains unknown key(s)")
+            let renderedError = String(describing: error)
+            for (key, value) in hostileEntries {
+                XCTAssertFalse(diagnostic?.contains(key) == true)
+                XCTAssertFalse(diagnostic?.contains(value) == true)
+                XCTAssertFalse(renderedError.contains(key))
+                XCTAssertFalse(renderedError.contains(value))
+            }
+        }
+    }
+
+    func testHostileNestedUnknownKeysAndSensitiveValuesDoNotEnterDiagnostic() throws {
+        let hostileEntries = [
+            ("authorization_bearer_secret", "SENSITIVE_NESTED_VALUE_1"),
+            ("injected\nheader", "SENSITIVE_NESTED_VALUE_2"),
+        ]
+        var payload = canonicalPayload()
+        var action = try XCTUnwrap(payload["action"] as? [String: Any])
+        for (key, value) in hostileEntries {
+            action[key] = value
+        }
+        payload["action"] = action
+
+        XCTAssertThrowsError(try decodeDescriptor(payload)) { error in
+            let diagnostic = dataCorruptedDescription(error)
+            XCTAssertEqual(diagnostic, "FitChefSupportHandoffAction contains unknown key(s)")
+            let renderedError = String(describing: error)
+            for (key, value) in hostileEntries {
+                XCTAssertFalse(diagnostic?.contains(key) == true)
+                XCTAssertFalse(diagnostic?.contains(value) == true)
+                XCTAssertFalse(renderedError.contains(key))
+                XCTAssertFalse(renderedError.contains(value))
+            }
         }
     }
 

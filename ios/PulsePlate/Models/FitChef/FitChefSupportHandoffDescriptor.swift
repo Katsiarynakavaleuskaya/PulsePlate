@@ -250,14 +250,13 @@ private func rejectUnknownFitChefSupportKeys(
     allowedKeys: Set<String>,
     objectName: String
 ) throws {
-    let unknownKeys = container.allKeys
-        .map(\.stringValue)
-        .filter { !allowedKeys.contains($0) }
-        .sorted()
+    let containsUnknownKey = container.allKeys.contains {
+        !allowedKeys.contains($0.stringValue)
+    }
 
-    guard unknownKeys.isEmpty else {
+    guard !containsUnknownKey else {
         throw fitChefSupportDataCorrupted(
-            "\(objectName) contains unknown keys: \(unknownKeys.joined(separator: ", "))",
+            "\(objectName) contains unknown key(s)",
             codingPath: container.codingPath
         )
     }
