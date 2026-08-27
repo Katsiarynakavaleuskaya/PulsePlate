@@ -27,12 +27,12 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Three bounded direct-call retirements remove
-only the exact 31 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Four bounded direct-call retirements remove
+only the exact 39 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
-consumer of the second ten-name cohort or the third eleven-name cohort; it does
-not prove that no external or dynamic Python consumer exists.
+consumer of the second ten-name, third eleven-name, or fourth eight-name cohort;
+it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -171,9 +171,15 @@ and transparency adapters, quota enforcement, and sanitized failure envelopes;
 it delegates orchestration to `app/services/insight_application_service.py`.
 The hidden router in `app/routers/legacy_insight.py` imports canonical schemas,
 security, and rate-limit policy and resolves adapter callables from
-`app.services.insight_compat` at request time. `legacy_app.py` exposes exact
-aliases only; canonical router, schema, adapter, and service modules must never
-import or dynamically look it up.
+`app.services.insight_compat` at request time. The following ordinary
+`legacy_app.py` bindings are retired: `INSIGHT_TEXT_MAX_LENGTH`,
+`InsightRequest`, `RAGSourceItem`, `InsightResponse`,
+`INSIGHT_TEMP_UNAVAILABLE_MESSAGE`, `_execute_insight_request`, `insight_v1`,
+and `insight`. Their canonical schema/service owners remain callable, while
+both retained routes stay hidden from OpenAPI and `/insight` remains deprecated.
+Canonical router, schema, adapter, and service modules must never import or
+dynamically look up the legacy facade. Unknown external direct importers remain
+an explicit residual compatibility risk.
 
 The current policy is compatibility first:
 
@@ -205,14 +211,17 @@ PR #2317 removed only the first ten direct-call Python bindings enumerated
 above and added a closed, exact-name regression guard. PR #2322 merged at
 `d96314454935862bc2a694c1e594648c011081ba`, removing only the second ten-name
 PRO nutrition cohort and extending that exact-name set without changing the
-recognizer. The bounded
-`codex/retire-legacy-planning-export-python-shims` successor removes only the
-third eleven-name planning/export cohort plus the exact synthetic
-`legacy_app.routers.plan_export` namespace, and extends the same exact-name set
-without changing the recognizer. All four versioned nutrition aliases and both
-root aliases remain callable; versioned-alias retirement, root-alias
-auth/sunset, Insight retirement, and final legacy deletion remain separate
-ordered lanes behind their own evidence
+recognizer. PR #2336 merged at
+`ece5250305d3d65f47fa75c64bf9b55b5e5158de`, removing only the third
+eleven-name planning/export cohort plus the exact synthetic
+`legacy_app.routers.plan_export` namespace and extending the same recognizer to
+31 names. The bounded `codex/retire-legacy-insight-python-exports` successor
+removes only the fourth eight-name Insight Python projection and extends the
+same exact-name data to 39 without changing recognizer semantics. All retained
+Insight HTTP routes, all four versioned nutrition aliases, and both root aliases
+remain callable; versioned-alias retirement, root-alias auth/sunset, retained
+Insight HTTP-alias retirement, and final legacy deletion remain separate ordered
+lanes behind their own evidence
 (canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
 `app/routers/pro_nutrition_contracts.py:72`; bounded registrar evidence:
 `app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
@@ -260,9 +269,9 @@ Forbidden in `legacy_app.py`:
 | Plan-export HTTP routes | `app/routers/plan_export.py` + `app/main.py` | Canonical routers retain exact endpoint, auth, signed-token, rate-limit, response, operation-identity, and public-OpenAPI behavior; no synthetic `legacy_app.routers.plan_export` namespace. |
 | Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
 | Legacy BMI routes and direct-call runtime | `app/routers/bmi_compat.py` + `app/services/bmi_compat.py` | HTTP routes remain unchanged; the three former `legacy_app.py` endpoint bindings are retired while schemas and visualization exports remain. |
-| Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership; legacy compatibility exports preserve exact class identity and wire shape. |
+| Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership and wire shape remain; the four former schema/constants projections are retired from `legacy_app.py`. |
 | Insight compatibility routes | `app/routers/legacy_insight.py` | The two hidden VIP routes own route-level guards and consume canonical adapter attributes at request time; the legacy facade is not a runtime dependency. |
-| Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. Facade rebinding and reverse imports are forbidden. |
+| Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. The four former callable/message projections stay absent from `legacy_app.py`; facade rebinding and reverse imports are forbidden. |
 | PRO targets/gaps API contracts | `app/schemas/premium_contracts.py` | Canonical request/response ownership; legacy imports preserve the existing wire shapes without parallel schema definitions. |
 | PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; retired facade callables stay absent while retained helpers remain exact aliases. |
 | PRO targets/gaps routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical targets/gaps and retained compatibility routes call the service directly; the canonical family uses `require_pro_tier`, while legacy API-key behavior remains unchanged. |
@@ -287,9 +296,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 31 retired direct-call bindings, the guard has a deliberately bounded
+For the 39 retired direct-call bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 31-name set, uses the existing `_assigned_names`
+only. It freezes the exact 39-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -307,7 +316,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-31 protected names, requires manual STOP and review. The existing router-import
+39 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.

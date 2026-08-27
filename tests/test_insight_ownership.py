@@ -41,19 +41,16 @@ def test_canonical_insight_modules_do_not_reference_legacy_app() -> None:
         assert "legacy_app" not in source_path.read_text(encoding="utf-8"), source_path
 
 
-def test_legacy_insight_exports_are_exact_canonical_aliases() -> None:
-    legacy_app = resolve_legacy_app()
-
-    assert legacy_app.INSIGHT_TEXT_MAX_LENGTH == insight_schemas.INSIGHT_TEXT_MAX_LENGTH
-    assert legacy_app.InsightRequest is insight_schemas.InsightRequest
-    assert legacy_app.RAGSourceItem is insight_schemas.RAGSourceItem
-    assert legacy_app.InsightResponse is insight_schemas.InsightResponse
-    assert legacy_app.INSIGHT_TEMP_UNAVAILABLE_MESSAGE is (
-        insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE
-    )
-    assert legacy_app._execute_insight_request is insight_compat._execute_insight_request
-    assert legacy_app.insight_v1 is insight_compat.insight_v1
-    assert legacy_app.insight is insight_compat.insight
+def test_insight_contracts_and_callables_have_canonical_owners() -> None:
+    assert insight_schemas.InsightRequest.__module__ == insight_schemas.__name__
+    assert insight_schemas.RAGSourceItem.__module__ == insight_schemas.__name__
+    assert insight_schemas.InsightResponse.__module__ == insight_schemas.__name__
+    assert insight_compat.InsightRequest is insight_schemas.InsightRequest
+    assert insight_compat.RAGSourceItem is insight_schemas.RAGSourceItem
+    assert insight_compat.InsightResponse is insight_schemas.InsightResponse
+    assert insight_compat._execute_insight_request.__module__ == insight_compat.__name__
+    assert insight_compat.insight_v1.__module__ == insight_compat.__name__
+    assert insight_compat.insight.__module__ == insight_compat.__name__
 
 
 def test_obsolete_legacy_insight_injection_bindings_are_absent() -> None:
@@ -121,6 +118,9 @@ def test_insight_router_uses_canonical_adapter_after_facade_rebinding(
     legacy_app = resolve_legacy_app()
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
+    assert not hasattr(legacy_app, "_execute_insight_request")
+    assert not hasattr(legacy_app, callable_name)
+
     def _legacy_must_not_run(*_args: object, **_kwargs: object) -> None:
         pytest.fail("canonical router must ignore legacy facade rebinding")
 
@@ -129,8 +129,8 @@ def test_insight_router_uses_canonical_adapter_after_facade_rebinding(
     ) -> insight_schemas.InsightResponse:
         return insight_schemas.InsightResponse(provider="canonical", insight="ok")
 
-    monkeypatch.setattr(legacy_app, "_execute_insight_request", _legacy_must_not_run, raising=True)
-    monkeypatch.setattr(legacy_app, callable_name, _legacy_must_not_run, raising=True)
+    monkeypatch.setattr(legacy_app, "_execute_insight_request", _legacy_must_not_run, raising=False)
+    monkeypatch.setattr(legacy_app, callable_name, _legacy_must_not_run, raising=False)
     monkeypatch.setattr(
         insight_compat,
         "_enforce_vip_llm_monthly_quota",

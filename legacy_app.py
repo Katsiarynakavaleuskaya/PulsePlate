@@ -36,12 +36,6 @@ from app.schemas.bmr import (  # noqa: F401 - compatibility re-exports
     BMRResponse,
 )
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
-from app.schemas.insight import (  # noqa: F401 - compatibility re-exports
-    INSIGHT_TEXT_MAX_LENGTH,
-    InsightRequest,
-    InsightResponse,
-    RAGSourceItem,
-)
 from app.schemas.premium_contracts import (
     Activity,
     DietFlag,
@@ -65,12 +59,6 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
     WeeklyMenuResponse,
 )
 from app.services import pro_nutrition_plate as _canonical_plate_service
-from app.services.insight_compat import (  # noqa: F401 - compatibility re-exports
-    INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
-    _execute_insight_request,
-    insight,
-    insight_v1,
-)
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
     generate_who_targets_response as _generate_who_targets_response,

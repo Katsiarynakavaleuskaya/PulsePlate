@@ -42,10 +42,35 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "to_csv_week",
     "to_pdf_week",
     "WeeklyPlanFlexibleRequest",
+    "INSIGHT_TEXT_MAX_LENGTH",
+    "InsightRequest",
+    "RAGSourceItem",
+    "InsightResponse",
+    "INSIGHT_TEMP_UNAVAILABLE_MESSAGE",
+    "_execute_insight_request",
+    "insight_v1",
+    "insight",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
 RETIRED_PLANNING_EXPORT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[20:31]
+RETIRED_INSIGHT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[31:39]
+
+
+def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_INSIGHT_BINDINGS == (
+        "INSIGHT_TEXT_MAX_LENGTH",
+        "InsightRequest",
+        "RAGSourceItem",
+        "InsightResponse",
+        "INSIGHT_TEMP_UNAVAILABLE_MESSAGE",
+        "_execute_insight_request",
+        "insight_v1",
+        "insight",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 39
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 39
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:31]).isdisjoint(RETIRED_INSIGHT_BINDINGS)
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -111,6 +136,30 @@ def test_legacy_growth_guard_rejects_each_pro_nutrition_binding_carrier(
     ids=["assignment", "import-alias", "function", "class", "delete", "global"],
 )
 def test_legacy_growth_guard_rejects_each_planning_export_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
+    source = source_template.format(name=binding_name)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_INSIGHT_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from app.schemas.insight import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_legacy_growth_guard_rejects_each_insight_binding_carrier(
     binding_name: str,
     source_template: str,
 ) -> None:
