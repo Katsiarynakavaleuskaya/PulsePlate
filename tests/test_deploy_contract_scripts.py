@@ -3921,28 +3921,47 @@ def test_production_contract_publication_failure_preserves_previous_backup_helpe
     destination_backup_helper.write_bytes(previous_helper)
     destination_backup_helper.chmod(0o755)
 
-    prometheus_dir = project_dir / "deploy" / "prometheus"
-    original_mode = stat.S_IMODE(prometheus_dir.stat().st_mode)
-    prometheus_dir.chmod(0o555)
+    source_config = shell_bundle_dir / "deploy" / "prometheus" / "prometheus.yml"
+    oversized_config = tmp_path / "oversized-prometheus.yml"
+    oversized_config.write_bytes(b"x" * (4 * 1024 * 1024 + 1))
+    move_bin = shutil.which("mv")
+    assert move_bin is not None
+    docker_bin = Path(env["DOCKER_BIN"])
+    _write_executable(
+        docker_bin,
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"login ghcr.io"*)
+    "$STUB_MV_BIN" "$STUB_OVERSIZED_CONFIG" "$STUB_SOURCE_CONFIG"
+    ;;
+  *"config --services"*) printf 'app\nworker\ncaddy\nprometheus\n' ;;
+esac
+""",
+    )
     env.update(
         {
             "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
             "TAG": "prod-vtest",
+            "GHCR_USER": "bundle-test",
+            "GHCR_TOKEN": "test-only-token",  # pragma: allowlist secret
+            "STUB_MV_BIN": move_bin,
+            "STUB_OVERSIZED_CONFIG": str(oversized_config),
+            "STUB_SOURCE_CONFIG": str(source_config),
         }
     )
-    try:
-        completed = subprocess.run(
-            [str(REPO_ROOT / "scripts/deploy_production.sh")],
-            cwd=str(REPO_ROOT),
-            env=env,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    finally:
-        prometheus_dir.chmod(original_mode)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
 
     assert completed.returncode != 0
+    assert "source must be one bounded regular file" in completed.stderr
     assert destination_backup_helper.read_bytes() == previous_helper
     assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
     assert list(project_dir.rglob(".pulseplate-postgres_backup.sh.tmp-*")) == []
@@ -4753,6 +4772,7 @@ esac
     env.update(
         {
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
