@@ -1,0 +1,36 @@
+# PR 2335 — Review Governance
+
+Review-Seal-Version: v1
+
+## Lane Start Provenance
+Packet: `artifacts/orchestration/task_packets/e4854b757873.json`
+
+## Experiment Runner Evidence
+Artifact: `artifacts/orchestration/experiments/results/bandit-b105-review-fix-oracle.json`
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 2830ad98115427d8517caf0fc9b9e6f6d8b1f980
+Evidence: tests/test_production_runtime_invariants.py:141; Bandit 1.9.4 B105/B106 zero on all eight source owners; full owning suites pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2335#discussion_r3857369816 -> 2830ad98115427d8517caf0fc9b9e6f6d8b1f980
+
+Disposition: FIXED
+Commit: 0dcee6018bd693a80cf59dfa22eae0c6bb85b184
+Evidence: docs/review/PR_2335_FIXED_MAPPING.md:20; mapping-only reseal binds material head 2830ad98115427d8517caf0fc9b9e6f6d8b1f980 and digest a66c379760239fb6261d3df421569fa6c68c04013bd7cb5fba7dfa1d8c6af5e4.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2335#discussion_r3861022479 -> 0dcee6018bd693a80cf59dfa22eae0c6bb85b184
+
+Disposition: FIXED
+Commit: 0dcee6018bd693a80cf59dfa22eae0c6bb85b184
+Evidence: docs/review/PR_2335_FIXED_MAPPING.md:14; canonical artifact records the original B105 review root, FIXED commit, and executable evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2335#discussion_r3861022493 -> 0dcee6018bd693a80cf59dfa22eae0c6bb85b184
+
+## Review Material Seal
+<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
+<!-- pragma: allowlist nextline secret -->
+{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:1d9e72b895921a4f52fcac483f1a36dcd111f1166a9084ed400fe54b741d95bc","material_head_sha":"abd4ac3e166199ffbf56ee34f87527fcd555284e","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981","blocking":false,"head_revision":"abd4ac3e166199ffbf56ee34f87527fcd555284e","material_digest":"sha256:1d9e72b895921a4f52fcac483f1a36dcd111f1166a9084ed400fe54b741d95bc","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981","digest":"sha256:1d9e72b895921a4f52fcac483f1a36dcd111f1166a9084ed400fe54b741d95bc","material_head_sha":"abd4ac3e166199ffbf56ee34f87527fcd555284e","merge_base_sha":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981","policy_version":"pulseplate.material-classification/v1"},"pr_number":2335,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":0,"material_digest":"sha256:1d9e72b895921a4f52fcac483f1a36dcd111f1166a9084ed400fe54b741d95bc","material_head_sha":"abd4ac3e166199ffbf56ee34f87527fcd555284e","report_payload":{"actionable_findings_count":0,"base_ref_oid":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981","calibration":{"case_labels":["clean-context"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/e4854b757873.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"e4854b757873"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[],"findings_count":0,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast"],"generated_at_utc":"2026-08-26T23:31:55Z","material_digest":"sha256:1d9e72b895921a4f52fcac483f1a36dcd111f1166a9084ed400fe54b741d95bc","material_head_sha":"abd4ac3e166199ffbf56ee34f87527fcd555284e","merge_base_sha":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"d4cfbf08f796db8b3c780fcf7cdeb74ced0bd981..abd4ac3e166199ffbf56ee34f87527fcd555284e","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2335_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter has no deterministic findings from the supplied context."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":["app/security/__init__.py","scripts/ci/check_production_runtime_invariants.py","scripts/orchestration/creative_spec_learning_rollup_contract.py","scripts/orchestration/creative_specification_skeptic_review_contract.py","scripts/orchestration/experiment_operator_ledger.py","scripts/orchestration/experiment_slack_bridge_readiness.py","scripts/orchestration/native_subagent_bridge.py","scripts/orchestration/task_bootstrap.py","tests/test_production_runtime_invariants.py"],"diff_summary":{"additions":174,"changed_lines":227,"deletions":53,"files":9},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","app/AGENTS.md","scripts/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:d41b2c30e0588e47e632381dbc289d171e3fda38e3947cb15d0336ee8e95f6cd","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
+<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->

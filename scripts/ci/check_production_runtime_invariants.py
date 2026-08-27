@@ -42,6 +42,8 @@ _MANAGED_ENV = (
     "METRICS_TEST_BYPASS",
     "RATE_LIMITING_IN_TESTS",
 )
+_SYNTHETIC_APPLE_VALUE = "synthetic-apple-shared-secret"  # pragma: allowlist secret
+_SYNTHETIC_EXPORT_VALUE = "synthetic-export-token-secret"  # pragma: allowlist secret
 
 
 @contextmanager
@@ -75,9 +77,9 @@ def _safe_production_env(**overrides: str) -> dict[str, str]:
         "API_KEY_REQUIRED": "true",  # pragma: allowlist secret
         "SUBSCRIPTION_DB_ENABLED": "true",
         "SERVER_SALT": "SyntheticServerSaltForProductionInvariantCI123!",  # pragma: allowlist secret
-        "APPLE_SHARED_SECRET": "synthetic-apple-shared-secret",  # pragma: allowlist secret
+        "APPLE_SHARED_SECRET": _SYNTHETIC_APPLE_VALUE,
         "PRIVATE_EXPORTS_ENABLED": "true",
-        "EXPORT_TOKEN_SECRET": "synthetic-export-token-secret",  # pragma: allowlist secret
+        "EXPORT_TOKEN_SECRET": _SYNTHETIC_EXPORT_VALUE,
         "DATABASE_URL": "postgresql+psycopg://db/pulseplate",
         "ENABLE_TEST_ROUTES": "0",
         "ENABLE_DEBUG_ENDPOINT": "false",
