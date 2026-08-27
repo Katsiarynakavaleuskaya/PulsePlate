@@ -76,9 +76,15 @@ from app.routers.fitchef_structured import (
     _FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI,
     _FITCHEF_SUPPORT_HANDOFF_RESPONSES,
     _FITCHEF_SUPPORT_HANDOFF_SUMMARY,
+    _FITCHEF_SUPPORT_OUTCOME_DESCRIPTION,
+    _FITCHEF_SUPPORT_OUTCOME_REQUEST_BODY_OPENAPI,
+    _FITCHEF_SUPPORT_OUTCOME_RESPONSES,
+    _FITCHEF_SUPPORT_OUTCOME_SUMMARY,
     fitchef_support_handoff,
+    fitchef_support_outcome,
     router as fitchef_structured_router,
     support_handoff_router as fitchef_support_handoff_router,
+    support_outcome_router as fitchef_support_outcome_router,
 )
 from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
 from app.routers.foods import FOODS_ROUTE_SPECS, get_food_store, router as foods_router
@@ -141,7 +147,10 @@ from app.routers.users import (
 )
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
-from app.schemas.fitchef_coaching import FitChefSupportHandoffResponse
+from app.schemas.fitchef_coaching import (
+    FitChefSupportHandoffResponse,
+    FitChefSupportOutcomeResponse,
+)
 from app.utils.feature_flags import is_business_module_enabled
 
 logger = logging.getLogger(__name__)
@@ -174,6 +183,20 @@ _FITCHEF_SUPPORT_HANDOFF_RESPONSES_SNAPSHOT: dict[int | str, dict[str, object]] 
 )
 _FITCHEF_SUPPORT_HANDOFF_OPENAPI_EXTRA: dict[str, object] = {
     "requestBody": deepcopy(_FITCHEF_SUPPORT_HANDOFF_REQUEST_BODY_OPENAPI)
+}
+_FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH: str = "/api/v1/pro/fitchef/recommend/outcome"
+_FITCHEF_SUPPORT_OUTCOME_ROUTE_NAME: str = "fitchef_support_outcome"
+_FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID: str = (
+    "fitchef_support_outcome_api_v1_pro_fitchef_recommend_outcome_post"
+)
+_FITCHEF_SUPPORT_OUTCOME_RESPONSE_CODES: frozenset[int] = frozenset(
+    {200, 401, 403, 409, 422, 429, 503}
+)
+_FITCHEF_SUPPORT_OUTCOME_RESPONSES_SNAPSHOT: dict[int | str, dict[str, object]] = deepcopy(
+    _FITCHEF_SUPPORT_OUTCOME_RESPONSES
+)
+_FITCHEF_SUPPORT_OUTCOME_OPENAPI_EXTRA: dict[str, object] = {
+    "requestBody": deepcopy(_FITCHEF_SUPPORT_OUTCOME_REQUEST_BODY_OPENAPI)
 }
 _CREATIVE_RESEARCH_PILOT_ROUTE_PATH: str = "/api/v1/internal/creative-research/pilot"
 _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
@@ -655,6 +678,102 @@ def _include_fitchef_support_handoff_router_if_needed(target_app: FastAPI) -> No
         endpoint_matcher=_same_fitchef_support_handoff_endpoint,
     )
     _validate_fitchef_support_handoff_target(target_app, required=True)
+
+
+def _is_exact_fitchef_support_outcome_route(candidate: object) -> bool:
+    """Return whether one effective route preserves the frozen outcome contract."""
+
+    carrier = getattr(candidate, "original_route", candidate)
+    if not isinstance(carrier, APIRoute):
+        return False
+    route = cast(APIRoute, candidate)
+    response_class = route.response_class
+    if isinstance(response_class, DefaultPlaceholder):
+        response_class = response_class.value
+    unique_id_generator = route.generate_unique_id_function
+    if isinstance(unique_id_generator, DefaultPlaceholder):
+        unique_id_generator = unique_id_generator.value
+    dependencies = [dependency.call for dependency in route.dependant.dependencies]
+    return (
+        route_path(route) == _FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+        and route_methods(route) == {"POST"}
+        and route_include_in_schema(route) is True
+        and route_endpoint(route) is fitchef_support_outcome
+        and route.response_model is FitChefSupportOutcomeResponse
+        and route.status_code is None
+        and route.response_model_include is None
+        and route.response_model_exclude is None
+        and route.response_model_by_alias is True
+        and route.response_model_exclude_unset is False
+        and route.response_model_exclude_defaults is False
+        and route.response_model_exclude_none is False
+        and response_class is JSONResponse
+        and route.name == _FITCHEF_SUPPORT_OUTCOME_ROUTE_NAME
+        and route.operation_id is None
+        and unique_id_generator is generate_unique_id
+        and route.unique_id == _FITCHEF_SUPPORT_OUTCOME_UNIQUE_ID
+        and route.summary == _FITCHEF_SUPPORT_OUTCOME_SUMMARY
+        and route.description == _FITCHEF_SUPPORT_OUTCOME_DESCRIPTION
+        and dependencies == [require_pro_tier]
+        and set(route_responses(route)) == _FITCHEF_SUPPORT_OUTCOME_RESPONSE_CODES
+        and route_responses(route) == _FITCHEF_SUPPORT_OUTCOME_RESPONSES_SNAPSHOT
+        and route.openapi_extra == _FITCHEF_SUPPORT_OUTCOME_OPENAPI_EXTRA
+    )
+
+
+def _validate_fitchef_support_outcome_source() -> None:
+    """Fail closed unless the dedicated outcome source router has one exact member."""
+
+    candidates = tuple(iter_effective_route_candidates(fitchef_support_outcome_router.routes))
+    if len(candidates) != 1 or not _is_exact_fitchef_support_outcome_route(candidates[0]):
+        raise RuntimeError("Invalid FitChef support outcome source route.")
+
+
+def _validate_fitchef_support_outcome_target(
+    target_app: FastAPI,
+    *,
+    required: bool,
+) -> None:
+    """Validate an absent or one exact live support-outcome owner."""
+
+    candidates = tuple(
+        route
+        for route in _effective_app_routes(target_app)
+        if route_path(route) == _FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH
+    )
+    if not candidates and not required:
+        return
+    if len(candidates) != 1 or not _is_exact_fitchef_support_outcome_route(candidates[0]):
+        raise RuntimeError("Invalid existing FitChef support outcome route.")
+
+
+def _same_fitchef_support_outcome_endpoint(existing: object, expected: object) -> bool:
+    """Match only the exact frozen support-outcome endpoint object."""
+
+    return existing is expected
+
+
+def _include_fitchef_support_outcome_router_if_needed(target_app: FastAPI) -> None:
+    """Register and postvalidate the dedicated support-outcome route family."""
+
+    _validate_fitchef_support_outcome_source()
+    _validate_fitchef_support_outcome_target(target_app, required=False)
+    ensure_route_family_registered(
+        target_app,
+        family_name="FitChef support outcome",
+        routers=(fitchef_support_outcome_router,),
+        members=(
+            RouteMemberContract(
+                path=_FITCHEF_SUPPORT_OUTCOME_ROUTE_PATH,
+                method="POST",
+                include_in_schema=True,
+                required_status_codes=_FITCHEF_SUPPORT_OUTCOME_RESPONSE_CODES,
+                required_dependencies=(require_pro_tier,),
+            ),
+        ),
+        endpoint_matcher=_same_fitchef_support_outcome_endpoint,
+    )
+    _validate_fitchef_support_outcome_target(target_app, required=True)
 
 
 def _route_has_endpoint(
@@ -1218,6 +1337,8 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     validate_openapi_builder_state(target_app)
     _validate_fitchef_support_handoff_source()
     _validate_fitchef_support_handoff_target(app, required=False)
+    _validate_fitchef_support_outcome_source()
+    _validate_fitchef_support_outcome_target(app, required=False)
     source_routes = []
     for path, router in (
         (_FEEDBACK_ROUTE_PATH, feedback_router),
@@ -1323,6 +1444,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         app.include_router(fitchef_structured_router)
 
     _include_fitchef_support_handoff_router_if_needed(app)
+    _include_fitchef_support_outcome_router_if_needed(app)
 
     if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)

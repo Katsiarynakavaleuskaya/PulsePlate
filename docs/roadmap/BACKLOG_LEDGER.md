@@ -4844,6 +4844,58 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Active and future channel posture is owned solely by `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#current-web-channel-posture`; this ledger item records only the bounded E1-05B lifecycle
 
 
+<a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
+- [ ] P1: FitChef support-outcome thin web transport
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (bounded measurement transport / thin-client integrity)
+  - Target PR: PR-TBD after an exact authenticated web-channel authority decision
+  - Status: Planned; the backend intake does not authorize or imply a web caller.
+  - Reason (EN): The support-outcome ledger is backend-first and default-off. A separate thin-client carrier must prove that transport originates only from the guarded acknowledgement or eligible dismissal handlers, never from selection, render, stale response, unmount, or inferred navigation. The protected PRO contract and current free-web channel posture remain unchanged until that exact carrier is authorized.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract`
+    - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
+  - DoD:
+    - Use generated OpenAPI types and the shared web HTTP/session boundary; add no direct fetch or client-owned entitlement truth
+    - Emit one opaque random `client_event_id` only from explicit eligible acknowledgement/dismissal handlers and never retry a divergent payload under the same id
+    - Prove abort, stale response, retry, unmount, auth, `409`, `422`, `429`, and `503` behavior deterministically
+    - Preserve `transport=none` in historical PR #2337 evidence; the new transport cannot retroactively prove a click, navigation, plan execution, effectiveness, retention, conversion, or causality
+
+
+<a id="ledger-p1-fitchef-support-outcome-coaching-state-projection"></a>
+- [ ] P1: Internal FitChef outcome coaching-state projection with no-authority oracle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (bounded internal continuity / evidence correctness)
+  - Target PR: PR-TBD after sufficient prospective outcome evidence and a separate authority review
+  - Status: Planned; no projection, Markov, Bayesian, prompt, plan, or runtime authority is open.
+  - Reason (EN): Accepted client assertions may later support a bounded rolling-window internal projection, but the raw ledger is not coaching state and cannot authorize a Markov transition, prompt input, plan change, navigation, or causal/product conclusion. A separate carrier must freeze the window, completeness rules, no-data/degraded semantics, privacy budget, replay, and all false-authority postconditions before implementation.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+  - DoD:
+    - Define a finite rolling window, exact event admission, late/duplicate handling, subject isolation, retention interaction, and deterministic replay fixtures
+    - Add a full no-authority oracle proving no prompt, provider, Markov/Bayesian decision, entitlement, navigation, plan mutation, cache promotion, or user-profile truth can derive from the projection
+    - Keep missing, partial, deleted, and contradictory histories explicit and fail closed; do not infer unreported exits
+    - Require a separate reviewed activation decision before any product-runtime consumer can read the projection
+
+
+<a id="ledger-p1-fitchef-support-outcome-activation-readiness"></a>
+- [ ] P1: FitChef support-outcome ledger activation readiness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (storage safety / privacy operations / release truth)
+  - Target PR: PR-TBD before any staging or production flag activation
+  - Status: Planned and blocking for activation; the implementation flag remains default-off.
+  - Reason (EN): The backend intake is bounded and subject-isolated, but enabling writes outside local/test environments still requires outcome-table-specific capacity, growth-query/alert, deletion-exercise, and rollback-threshold evidence. Merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) already provides the private persistent Prometheus foundation, authenticated scrape boundary, and 30-day retention contour; this item must reuse that foundation rather than add another Prometheus stack, dashboard, TTL, scheduler, quota, or deployment-wiring lane. Code merge alone is not staging or production activation authority.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/analytics/METRICS_CATALOG.md#fitchef-support-outcome-writes`
+  - DoD:
+    - Record a bounded outcome-table capacity forecast for expected rows/day, per-subject contribution assumptions, retained-row growth, and index/storage overhead across the existing 30-day observation contour
+    - Define and prove the exact authenticated query plus actionable threshold for `fitchef_support_outcome_events` table growth using the merged PR #2324 monitoring foundation
+    - Complete one representative support-led export/delete/repeated-delete exercise, proving exact-subject export, first delete, idempotent second delete, and cross-subject preservation without exposing row contents
+    - Freeze outcome-specific rollback/disable thresholds for write-error rate, unexpected table growth, isolation failure, deletion failure, or privacy-policy drift; disabling the existing feature flag must stop new intake without claiming deletion of retained rows
+
+
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>
 - [ ] P1: FitChef positive semantic support verifier after E1-04 decision
   - Owner: @katsiaryna_kavaleuskaya

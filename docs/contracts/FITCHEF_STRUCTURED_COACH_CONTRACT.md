@@ -1,7 +1,7 @@
 # FitChef Structured Coach Contract
 
-**Status:** Contract freeze plus landed structured runtime reconciliation
-**Date:** 2026-03-21
+**Status:** Contract freeze plus structured runtime and support-outcome reconciliation
+**Date:** 2026-08-27
 **Owner:** @katsiaryna_kavaleuskaya
 
 ## Summary
@@ -98,6 +98,68 @@ any future activation.
 This posture reconciliation preserves the landed PR #2337 implementation. It
 adds no runtime, payment, entitlement, persistence, navigation, execution, or
 plan-mutation authority.
+
+## Support-outcome ledger contract
+
+The additive backend intake is:
+
+- `POST /api/v1/pro/fitchef/recommend/outcome`
+- default-off flag: `FEATURE_FITCHEF_SUPPORT_OUTCOME_LEDGER=false`
+- scoped rate limit: `RATE_LIMIT_FITCHEF_SUPPORT_OUTCOME=30/minute`
+
+The request is one closed four-field object:
+
+```json
+{
+  "schema_version": "fitchef_support_outcome_v1",
+  "support_need": "daily_structure",
+  "outcome": "acknowledged",
+  "client_event_id": "opaque-client-event-id"
+}
+```
+
+`support_need` is exactly `daily_structure` or `weekly_structure`; `outcome` is
+exactly `acknowledged` or `dismissed`. `client_event_id` is an opaque 16–128
+character identifier matching `^[A-Za-z0-9][A-Za-z0-9_-]{15,127}$`. Unknown,
+sensitive, targeting, free-text, plan, profile, timestamp, and metadata fields
+are rejected rather than ignored.
+
+The response contains only the schema version and `state=recorded|replayed`.
+It never returns the credential subject, event identifier, target surface,
+timestamp, or an internal integrity field. Stable status semantics are `200`
+for a new or exact replay, canonical `401`/`403` for PRO auth, `409` for a
+divergent same-subject event-id replay, `422` for media/JSON/schema failure,
+`429` for the scoped intake limit, and `503` for the disabled feature or an
+unavailable store.
+
+Admission order is canonical PRO auth, scoped rate limit, feature flag, exact
+JSON media type, actual streamed body limit (4096 bytes), duplicate-free and
+depth-bounded JSON, strict DTO validation, credential-derived bigint subject,
+canonical handoff target derivation, RLS context, and race-safe persistence.
+The target is derived only by `build_fitchef_support_handoff`; no second mapping
+switch exists.
+
+Each row means only an accepted authenticated client-reported outcome assertion
+plus a server-derived credential subject and one client event id. It does not
+prove a human UI click, a prior successful `/recommend` response, consent,
+understanding, navigation, plan execution or mutation, goal change,
+effectiveness, retention, conversion, or causality. `acknowledged` is not a
+consent or understanding claim.
+
+The SQL ledger is append-only and subject-isolated. It has no `users.id`
+foreign key or cascade, public history endpoint, free-form/JSON payload,
+update surface, TTL, scheduler, provider, RAG, LLM, planner, Markov, or Bayesian
+authority. PostgreSQL uses forced RLS; SQLite/test paths retain exact subject
+predicates. Support-led export/delete receives a separate explicit credential
+subject namespace, independent from account `user_id`, and no public DSAR
+endpoint is introduced.
+
+The low-cardinality metric has exactly the closed dimensions
+`2 support_need × 2 outcome × 3 result`. `rejected` is emitted only for a
+divergent `409`; the metric has no subject, event-id, credential, path, error,
+plan, goal, or timestamp label. The flow directly sends no outcome field or row
+to an AI provider or other third-party processor; aggregate metrics remain
+subject to configured telemetry policy.
 
 ## Wave-aligned capability mapping
 
