@@ -39,6 +39,7 @@ _ALLOWLIST_LABELS = {
     SLACK_USER_ALLOWLIST_ENV: "user_allowlist_status",
     SLACK_TEAM_ALLOWLIST_ENV: "team_allowlist_status",
 }
+_STATUS_NOT_CHECKED = "not_checked"
 
 
 def activation_readiness_authority_boundary() -> dict[str, bool]:
@@ -77,18 +78,18 @@ def manual_only_activation_readiness_report() -> dict[str, Any]:
 
     return {
         "activation_state": "manual_only",
-        "audit_retention_status": "not_checked",
+        "audit_retention_status": _STATUS_NOT_CHECKED,
         "authority_boundary": activation_readiness_authority_boundary(),
         "dispatch_surface": "socket_mode_only",
         "manual_live_smoke": "operator_evidence_only",
         "redaction": "labels_only",
-        "slack_app_token_status": "not_checked",
-        "slack_bot_token_status": "not_checked",
-        "channel_allowlist_status": "not_checked",
-        "user_allowlist_status": "not_checked",
-        "team_allowlist_status": "not_checked",
-        "branch_ref_status": "not_checked",
-        "hypothesis_sha256_status": "not_checked",
+        "slack_app_token_status": _STATUS_NOT_CHECKED,
+        "slack_bot_token_status": _STATUS_NOT_CHECKED,
+        "channel_allowlist_status": _STATUS_NOT_CHECKED,
+        "user_allowlist_status": _STATUS_NOT_CHECKED,
+        "team_allowlist_status": _STATUS_NOT_CHECKED,
+        "branch_ref_status": _STATUS_NOT_CHECKED,
+        "hypothesis_sha256_status": _STATUS_NOT_CHECKED,
         "status": "pass",
         **_manual_github_dispatch_readiness(),
     }
@@ -129,14 +130,14 @@ def _allowlist_status(env: Mapping[str, str], name: str) -> str:
 def _branch_ref_status(raw_value: str | None, env: Mapping[str, str]) -> str:
     raw = (raw_value if raw_value is not None else env.get(LIVE_SMOKE_BRANCH_REF_ENV, "")).strip()
     if not raw:
-        return "not_checked"
+        return _STATUS_NOT_CHECKED
     return "valid" if _is_safe_ref(raw) else "invalid"
 
 
 def _hypothesis_digest_status(raw_value: str | None, env: Mapping[str, str]) -> str:
     raw = raw_value if raw_value is not None else env.get(LIVE_SMOKE_HYPOTHESIS_SHA256_ENV, "")
     if not raw:
-        return "not_checked"
+        return _STATUS_NOT_CHECKED
     return "valid" if SHA256_HEX_RE.fullmatch(raw) is not None else "invalid"
 
 
