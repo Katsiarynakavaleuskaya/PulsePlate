@@ -686,6 +686,7 @@ def _outcomes(
 
 def _agent_feedback(bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
     decisions = ("pass", "revise", "reject")
+    default_count = 0
     rows: dict[str, dict[str, int | str]] = {}
     for review in cast(Sequence[Mapping[str, Any]], bundle["skeptic_reviews"]):
         role = str(review["reviewer_role"])
@@ -693,7 +694,7 @@ def _agent_feedback(bundle: Mapping[str, Any]) -> list[dict[str, Any]]:
             role,
             {
                 "reviewer_role": role,
-                "pass_count": 0,
+                "pass_count": default_count,
                 "revise_count": 0,
                 "reject_count": 0,
             },
