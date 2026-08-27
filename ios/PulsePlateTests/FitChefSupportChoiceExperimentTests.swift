@@ -769,6 +769,14 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             "Analytics",
             "analytics",
             "provider",
+            "ViewThatFits",
+            "GeometryReader",
+            "UIDevice",
+            "UIScreen",
+            "userInterfaceIdiom",
+            ".minimumScaleFactor(",
+            ".lineLimit(",
+            ".truncationMode(",
             ".save(",
             ".write(",
         ]
@@ -799,6 +807,40 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 in: source
             ),
             1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "@Environment(\\.dynamicTypeSize) private var dynamicTypeSize",
+                in: source
+            ),
+            1
+        )
+        XCTAssertEqual(occurrenceCount(of: "@ViewBuilder", in: source), 1)
+        XCTAssertEqual(
+            occurrenceCount(of: "private var headerCopy: some View", in: source),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "private var fitChefImage: some View", in: source),
+            1
+        )
+        XCTAssertEqual(occurrenceCount(of: "\n                headerCopy\n", in: source), 2)
+        XCTAssertEqual(occurrenceCount(of: "\n                fitChefImage\n", in: source), 2)
+        XCTAssertTrue(source.contains("if dynamicTypeSize.isAccessibilitySize {"))
+        XCTAssertTrue(
+            source.contains(
+                "VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large)"
+            )
+        )
+        XCTAssertTrue(
+            source.contains(
+                "HStack(alignment: .top, spacing: PPDesignTokens.Spacing.large)"
+            )
+        )
+        XCTAssertTrue(
+            source.contains(
+                ".frame(maxWidth: .infinity, alignment: .trailing)"
+            )
         )
         XCTAssertTrue(source.contains("private var fitChefImageSize: CGFloat"))
         XCTAssertTrue(
@@ -863,10 +905,19 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(occurrenceCount(of: ".dynamicTypeSize(.accessibility5)", in: source), 1)
         XCTAssertTrue(source.contains("decoder.keyDecodingStrategy = .useDefaultKeys"))
 
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        let headerLayoutRegex = try NSRegularExpression(
+            pattern: #"if\s+dynamicTypeSize\.isAccessibilitySize\s*\{\s*VStack\(alignment:\s*\.leading,\s*spacing:\s*PPDesignTokens\.Spacing\.large\)\s*\{\s*headerCopy\s*fitChefImage\s*\.frame\(maxWidth:\s*\.infinity,\s*alignment:\s*\.trailing\)\s*\}\s*\}\s*else\s*\{\s*HStack\(alignment:\s*\.top,\s*spacing:\s*PPDesignTokens\.Spacing\.large\)\s*\{\s*headerCopy\s*fitChefImage\s*\}\s*\}"#
+        )
+        XCTAssertEqual(
+            headerLayoutRegex.numberOfMatches(in: source, range: range),
+            1
+        )
+
         let disclosureRegex = try NSRegularExpression(
             pattern: #"if\s+isSelected\s*\{\s*Text\(detail\)"#
         )
-        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        XCTAssertEqual(occurrenceCount(of: "Text(detail)", in: source), 1)
         XCTAssertLessThanOrEqual(
             disclosureRegex.numberOfMatches(in: source, range: range),
             1
@@ -896,11 +947,69 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let header = try sourceSlice(
             source,
             from: "private var header: some View",
-            to: "private var boundaryCopy: some View"
+            to: "private var headerCopy: some View"
+        )
+        assertOrdered(
+            [
+                "if dynamicTypeSize.isAccessibilitySize",
+                "VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large)",
+                "headerCopy",
+                "fitChefImage",
+                ".frame(maxWidth: .infinity, alignment: .trailing)",
+                "HStack(alignment: .top, spacing: PPDesignTokens.Spacing.large)",
+            ],
+            in: header
+        )
+        let headerCopy = try sourceSlice(
+            source,
+            from: "private var headerCopy: some View",
+            to: "private var fitChefImage: some View"
         )
         assertOrdered(
             ["fitchef.support_choice.question", "fitchef.support_choice.agency"],
-            in: header
+            in: headerCopy
+        )
+        XCTAssertTrue(
+            headerCopy.contains(
+                ".font(.system(size: headingFontSize, weight: .bold))"
+            )
+        )
+        XCTAssertTrue(
+            headerCopy.contains(
+                ".font(.system(size: bodyFontSize, weight: .regular))"
+            )
+        )
+        XCTAssertTrue(
+            headerCopy.contains(".foregroundStyle(PPDesignTokens.ColorToken.textPrimary)")
+        )
+        XCTAssertTrue(
+            headerCopy.contains(".foregroundStyle(PPDesignTokens.ColorToken.textSecondary)")
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".fixedSize(horizontal: false, vertical: true)",
+                in: headerCopy
+            ),
+            2
+        )
+        XCTAssertTrue(headerCopy.contains(".accessibilityAddTraits(.isHeader)"))
+        XCTAssertTrue(
+            headerCopy.contains(".frame(maxWidth: .infinity, alignment: .leading)")
+        )
+        let fitChefImage = try sourceSlice(
+            source,
+            from: "private var fitChefImage: some View",
+            to: "private var boundaryCopy: some View"
+        )
+        assertOrdered(
+            [
+                "Image(\"FitChef\")",
+                ".resizable()",
+                ".scaledToFit()",
+                ".frame(width: fitChefImageSize, height: fitChefImageSize)",
+                ".accessibilityHidden(true)",
+            ],
+            in: fitChefImage
         )
         let boundary = try sourceSlice(
             source,
