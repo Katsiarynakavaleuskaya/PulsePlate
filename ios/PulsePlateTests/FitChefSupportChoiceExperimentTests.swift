@@ -793,8 +793,25 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertTrue(source.contains("PPCard"))
         XCTAssertTrue(source.contains("PPButton"))
         XCTAssertTrue(source.contains(".frame(maxWidth: 650)"))
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "@Environment(\\.horizontalSizeClass) private var horizontalSizeClass",
+                in: source
+            ),
+            1
+        )
+        XCTAssertTrue(source.contains("private var fitChefImageSize: CGFloat"))
+        XCTAssertTrue(
+            source.contains("horizontalSizeClass == .regular ? 72 : 64")
+        )
         XCTAssertTrue(source.contains("Image(\"FitChef\")"))
-        XCTAssertTrue(source.contains(".frame(width: 56, height: 56)"))
+        XCTAssertTrue(source.contains(".scaledToFit()"))
+        XCTAssertTrue(
+            source.contains(
+                ".frame(width: fitChefImageSize, height: fitChefImageSize)"
+            )
+        )
+        XCTAssertFalse(source.contains(".frame(width: 56, height: 56)"))
         XCTAssertTrue(source.contains(".accessibilityHidden(true)"))
         XCTAssertTrue(source.contains(".accessibilityAddTraits(isSelected ? .isSelected : [])"))
         XCTAssertTrue(source.contains(".accessibilityLabel(Text(\"\\(title). \\(detail)\"))"))
@@ -825,6 +842,20 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(
             occurrenceCount(
                 of: "traits: .fixedLayout(width: 834, height: 1194)",
+                in: source
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".environment(\\.horizontalSizeClass, .compact)",
+                in: source
+            ),
+            3
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".environment(\\.horizontalSizeClass, .regular)",
                 in: source
             ),
             1
