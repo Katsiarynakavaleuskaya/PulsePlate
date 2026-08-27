@@ -139,8 +139,9 @@ If it is not recorded here — it does not exist.
 - [ ] P1: TELO-OPS-1 local PR evidence sidecar v1 umbrella
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (bounded orchestration evidence and operator-effort visibility)
-  - Target PR: PR-TBD (`codex/pr-evidence-sidecar-v1`)
-  - Status: Implementation lane; first fresh receipt is deferred to the next
+  - Target PR: [PR #2344](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2344)
+    (`codex/pr-evidence-sidecar-v1`)
+  - Status: In review in PR #2344; first fresh receipt is deferred to the next
     lane after merge, with no retrospective receipt for this PR
   - Reason (EN): TaskNormative and the existing Euler and Experiment Runner
     rails need one local structural start/terminal carrier for bounded counts
