@@ -5,7 +5,6 @@ from collections import Counter
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from fastapi.testclient import TestClient
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
@@ -18,6 +17,7 @@ from app.effective_routes import (
 )
 from app.routers.api_key import require_app_api_key
 from app.utils.feature_flags import is_business_module_enabled
+from tests._client import open_test_client
 
 _EXPECTED_BUSINESS_ROUTE_KEYS = {
     (path, method) for path, method, _include_in_schema in app_main._BUSINESS_ROUTE_SPECS
@@ -229,16 +229,17 @@ def test_business_status_remains_unauthenticated_and_reflects_request_time_flag(
     monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "on")
     target_app = FastAPI()
     app_main._include_business_router_if_enabled(target_app)
-    client = TestClient(target_app)
+    with open_test_client(target_app) as client:
+        response = client.get("/api/v1/business/status")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"enabled": True, "module": "business_analysis"}
 
-    response = client.get("/api/v1/business/status")
-    assert response.status_code == 200
-    assert response.json() == {"enabled": True, "module": "business_analysis"}
-
-    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
-    response = client.get("/api/v1/business/status")
-    assert response.status_code == 200
-    assert response.json() == {"enabled": False, "module": "business_analysis"}
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
+        response = client.get("/api/v1/business/status")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"enabled": False, "module": "business_analysis"}
 
 
 def test_enabled_business_routes_stay_hidden_from_public_openapi(
