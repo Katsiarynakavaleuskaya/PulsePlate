@@ -376,7 +376,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(Set([daily, equalDaily, weekly]).count, 2)
     }
 
-    func testValidatedChoicesAdmitCanonicalSlotsAndProvideTotalLookup() throws {
+    func testValidatedChoicesAdmitCanonicalSlotsAndPreserveEqualityAndHashing() throws {
         let daily = try decodeDescriptor(canonicalPayload())
         let weekly = try decodeDescriptor(
             canonicalPayload(
@@ -395,8 +395,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
 
         XCTAssertEqual(choices.dailyDescriptor, daily)
         XCTAssertEqual(choices.weeklyDescriptor, weekly)
-        XCTAssertEqual(choices.descriptor(for: .dailyStructure), daily)
-        XCTAssertEqual(choices.descriptor(for: .weeklyStructure), weekly)
         XCTAssertEqual(choices, equalChoices)
         XCTAssertEqual(Set([choices, equalChoices]).count, 1)
     }
@@ -535,11 +533,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
 
         XCTAssertEqual(occurrenceCount(of: "init(", in: catalogSource), 1)
         XCTAssertTrue(catalogSource.contains(") throws {"))
-        XCTAssertTrue(
-            catalogSource.contains(
-                "func descriptor(for supportNeed: FitChefSupportNeed)"
-            )
-        )
         XCTAssertEqual(occurrenceCount(of: "init(", in: selectionSource), 1)
         XCTAssertTrue(selectionSource.contains("init()"))
         XCTAssertTrue(

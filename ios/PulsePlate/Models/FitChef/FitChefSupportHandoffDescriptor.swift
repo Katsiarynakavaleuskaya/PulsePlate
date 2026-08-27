@@ -191,14 +191,6 @@ struct FitChefSupportHandoffChoices: Equatable, Hashable, Sendable {
         self.weeklyDescriptor = weeklyDescriptor
     }
 
-    func descriptor(for supportNeed: FitChefSupportNeed) -> FitChefSupportHandoffDescriptor {
-        switch supportNeed {
-        case .dailyStructure:
-            return dailyDescriptor
-        case .weeklyStructure:
-            return weeklyDescriptor
-        }
-    }
 }
 
 struct FitChefSupportChoiceSelectionState: Equatable, Sendable {
