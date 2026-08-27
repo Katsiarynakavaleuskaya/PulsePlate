@@ -902,7 +902,116 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             ),
             1
         )
-        XCTAssertEqual(occurrenceCount(of: ".dynamicTypeSize(.accessibility5)", in: source), 1)
+        XCTAssertEqual(occurrenceCount(of: ".dynamicTypeSize(", in: source), 4)
+        XCTAssertEqual(occurrenceCount(of: ".dynamicTypeSize(.large)", in: source), 3)
+        XCTAssertEqual(
+            occurrenceCount(of: ".dynamicTypeSize(.accessibility5)", in: source),
+            1
+        )
+
+        let englishMobilePreview = try sourceSlice(
+            source,
+            from: "\"390×844 · EN · Unselected\"",
+            to: "\"390×844 · RU · Weekly selected\""
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".dynamicTypeSize(.large)", in: englishMobilePreview),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".dynamicTypeSize(.accessibility5)",
+                in: englishMobilePreview
+            ),
+            0
+        )
+        assertOrdered(
+            [
+                ".environment(\\.locale, Locale(identifier: \"en\"))",
+                ".environment(\\.horizontalSizeClass, .compact)",
+                ".dynamicTypeSize(.large)",
+                ".preferredColorScheme(.dark)",
+            ],
+            in: englishMobilePreview
+        )
+
+        let russianMobilePreview = try sourceSlice(
+            source,
+            from: "\"390×844 · RU · Weekly selected\"",
+            to: "\"390×844 · ES · Accessibility 5 · Daily selected\""
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".dynamicTypeSize(.large)", in: russianMobilePreview),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".dynamicTypeSize(.accessibility5)",
+                in: russianMobilePreview
+            ),
+            0
+        )
+        assertOrdered(
+            [
+                ".environment(\\.locale, Locale(identifier: \"ru\"))",
+                ".environment(\\.horizontalSizeClass, .compact)",
+                ".dynamicTypeSize(.large)",
+                ".preferredColorScheme(.light)",
+            ],
+            in: russianMobilePreview
+        )
+
+        let spanishAccessibilityPreview = try sourceSlice(
+            source,
+            from: "\"390×844 · ES · Accessibility 5 · Daily selected\"",
+            to: "\"834×1194 · EN · Weekly selected\""
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".dynamicTypeSize(.large)", in: spanishAccessibilityPreview),
+            0
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".dynamicTypeSize(.accessibility5)",
+                in: spanishAccessibilityPreview
+            ),
+            1
+        )
+        assertOrdered(
+            [
+                ".environment(\\.locale, Locale(identifier: \"es\"))",
+                ".environment(\\.horizontalSizeClass, .compact)",
+                ".dynamicTypeSize(.accessibility5)",
+                ".preferredColorScheme(.light)",
+            ],
+            in: spanishAccessibilityPreview
+        )
+
+        let englishTabletPreview = try sourceSlice(
+            source,
+            from: "\"834×1194 · EN · Weekly selected\"",
+            to: "#endif"
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".dynamicTypeSize(.large)", in: englishTabletPreview),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".dynamicTypeSize(.accessibility5)",
+                in: englishTabletPreview
+            ),
+            0
+        )
+        assertOrdered(
+            [
+                ".environment(\\.locale, Locale(identifier: \"en\"))",
+                ".environment(\\.horizontalSizeClass, .regular)",
+                ".dynamicTypeSize(.large)",
+                ".preferredColorScheme(.dark)",
+            ],
+            in: englishTabletPreview
+        )
         XCTAssertTrue(source.contains("decoder.keyDecodingStrategy = .useDefaultKeys"))
 
         let range = NSRange(source.startIndex..<source.endIndex, in: source)
