@@ -70,6 +70,35 @@ envelope rules.
 The remaining unimplemented paths are contract-frozen for future implementation
 PRs and must stay additive to the live mascot family.
 
+## Current web channel posture
+
+At the named PR #2337 evidence cutoff (`2026-08-26T22:19:41Z`, merge
+`d5ef261473bb76fcaa57a6a982013a2424263dfa`), bounded examples of the current
+free web channel posture were BMI, wellness and nutrition education, bounded
+informational chat, acquisition and iOS referral, and the FitChef
+support-choice consumer. These examples describe the recorded channel posture
+at that cutoff only. They authorize no unnamed web capability, new route, or
+future carrier and are not asserted as an exhaustive repository-wide inventory.
+This is a channel-posture statement, not a product-tier grant.
+
+For this phase, `free web channel` means that the web client does not originate
+a FitChef sale, checkout, or paid entitlement and has no client-side billing or
+entitlement authority. It does **not** grant `FREE` tier access to the protected
+`POST /api/v1/pro/fitchef/recommend` route. That route remains a canonical,
+server-authorized `PRO` surface; missing or disallowed authorization continues
+to fail closed with `401` or `403` under the backend contract.
+
+The current phase neither authorizes nor permanently prohibits a future full or
+paid web FitChef surface. A separate, exact human `GO` is necessary but not
+sufficient for such a carrier. Server-authoritative billing and entitlement
+architecture, a bounded carrier, and the ordinary architecture, security,
+contract, test, review, and merge gates remain independently required before
+any future activation.
+
+This posture reconciliation preserves the landed PR #2337 implementation. It
+adds no runtime, payment, entitlement, persistence, navigation, execution, or
+plan-mutation authority.
+
 ## Wave-aligned capability mapping
 
 The current contract-freeze lane now aligns to the docs-first **CBT Coaching Wave**
