@@ -74,14 +74,19 @@
   for both retained routes.
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer
   client/route behavior tests against `app.main` or the canonical router.
-  Direct `legacy_app` access is limited to focused exact-alias compatibility
-  tests. Patch transparency, quota, provider, and execution dependencies on
+  The focused ownership oracle must prove exact absence of the retired Insight
+  facade bindings and canonical-owner presence. Only that bounded adversarial
+  oracle may temporarily inject an absent `legacy_app` attribute with
+  `monkeypatch.setattr(..., raising=False)` to prove the canonical router ignores
+  facade state; monkeypatch cleanup must restore absence. Patch transparency,
+  quota, provider, and execution dependencies on
   their request-time consumer, `app.services.insight_compat`, and patch the
   route input guard on `app.security.agent_input_guard`; do not patch facade
   bindings, package dictionaries, `sys.modules`, or private per-carrier
-  resolvers. Keep the ownership oracle finite over canonical modules, exact
-  aliases, the two route models, and the sibling runtime-test family; do not
-  grow a partial Python interpreter to chase assignment or spelling variants.
+  resolvers outside that exact independence oracle. Keep the ownership oracle
+  finite over canonical modules, the exact retired-name set, the two route
+  models, and the sibling runtime-test family; do not grow a partial Python
+  interpreter to chase assignment or spelling variants.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

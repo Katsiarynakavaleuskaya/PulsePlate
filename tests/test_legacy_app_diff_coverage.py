@@ -22,8 +22,10 @@ from sqlalchemy import create_engine
 
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
+from app.schemas import insight as insight_schemas
 import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
+from app.services import insight_compat
 from app.services import pro_nutrition_plate as plate_service
 import legacy_app
 from tests.helpers.module_resolve import resolve_module
@@ -503,8 +505,8 @@ def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> N
             content="Balanced meals support everyday wellness.",
         )
 
-        req = legacy_app.InsightRequest(text="question")
-        out = await legacy_app.insight_v1(req)
+        req = insight_schemas.InsightRequest(text="question")
+        out = await insight_compat.insight_v1(req)
         assert out.provider == "stub"
         assert "Context:" in out.insight
 
@@ -518,11 +520,11 @@ def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FEATURE_RAG", "true")
 
         _patch_stub_insight_provider(monkeypatch)
-        long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
+        long_prompt = "x" * (insight_schemas.INSIGHT_TEXT_MAX_LENGTH + 5)
         _patch_long_prompt_orchestration(monkeypatch, prompt=long_prompt)
 
-        out = await legacy_app.insight_v1(legacy_app.InsightRequest(text="q"))
-        assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+        out = await insight_compat.insight_v1(insight_schemas.InsightRequest(text="q"))
+        assert len(out.insight) == insight_schemas.INSIGHT_TEXT_MAX_LENGTH
 
     asyncio.run(_run())
 
@@ -535,13 +537,13 @@ def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) -> None:
 
         _patch_stub_insight_provider(monkeypatch)
         # Return a large context to force prompt trimming
-        big_content = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
+        big_content = "c" * (insight_schemas.INSIGHT_TEXT_MAX_LENGTH * 2)
         _patch_structured_rag_context(monkeypatch, query="q", content=big_content)
 
-        req = legacy_app.InsightRequest(text="q")
-        out = await legacy_app.insight(req)
+        req = insight_schemas.InsightRequest(text="q")
+        out = await insight_compat.insight(req)
         assert out.provider == "stub"
-        assert len(out.insight) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
+        assert len(out.insight) <= insight_schemas.INSIGHT_TEXT_MAX_LENGTH
 
     asyncio.run(_run())
 
@@ -553,11 +555,11 @@ def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> No
         monkeypatch.setenv("FEATURE_RAG", "true")
 
         _patch_stub_insight_provider(monkeypatch)
-        long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
+        long_prompt = "x" * (insight_schemas.INSIGHT_TEXT_MAX_LENGTH + 5)
         _patch_long_prompt_orchestration(monkeypatch, prompt=long_prompt)
 
-        out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
-        assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+        out = await insight_compat.insight(insight_schemas.InsightRequest(text="q"))
+        assert len(out.insight) == insight_schemas.INSIGHT_TEXT_MAX_LENGTH
 
     asyncio.run(_run())
 
