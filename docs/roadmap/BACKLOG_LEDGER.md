@@ -4817,14 +4817,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-fitchef-support-choice-consumer"></a>
-- [ ] P1: FitChef support-choice thin web consumer
+- [x] P1: FitChef support-choice thin web consumer
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (planning continuity / bounded frontend activation)
-  - Target PR: PR #2337 (current E1-05B carrier `codex/e1-05b-fitchef-support-choice-consumer`)
-  - Status: E1-05B implementation is merge-bound. No production counts, causal result, navigation, execution, or plan mutation is claimed before or by this carrier.
+  - Target PR: PR #2337 (`feat(frontend): consume FitChef support handoff in guided planning`)
+  - Evidence sidecar: E1-05C branch `codex/e1-05c-fitchef-support-choice-evidence-sidecar`; its authenticated PR number will be added after the non-draft PR opens
+  - Status: E1-05B landed on 2026-08-26 at 2026-08-26T22:19:41Z with squash merge `d5ef261473bb76fcaa57a6a982013a2424263dfa`. This checkbox closes only the bounded E1-05B DoD. Terminal E1-05C state is not owned or claimed by this E1-05B closure and must be read from authenticated GitHub state. `transport=none`, `production_counts=unavailable`, business utility remains unmeasured, and `causal_status=not_assessed`; no navigation, execution, persistence, or plan mutation is claimed.
   - Reason (EN): The landed E1-05 descriptor needs one thin, explicit web consumer so a user can choose daily or weekly scope, submit that exact choice, inspect the backend-owned product-area pointer, and acknowledge it without opening a route or changing a plan. The carrier also defines a local-only measurement schema while leaving transport and product-value inference closed.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/review/PR_2337_POST_MERGE_OUTCOME.md`
     - `docs/analytics/FITCHEF_SUPPORT_CHOICE_FUNNEL.md`
     - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
     - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
@@ -4834,7 +4836,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Latest-request, abort, stale-response, unmount, retry, acknowledgement, and dismiss states are deterministic; displayed targets are non-interactive product-area labels and no route, setting, storage, or plan action is invoked
     - Local events use exactly the five names and six exit outcomes in `FITCHEF_SUPPORT_CHOICE_FUNNEL.md`, reject extra/sensitive fields, and keep `transport=none`, `production_counts=unavailable`, and `causal_status=not_assessed`
     - Focused client/adapter/component tests cover valid and fail-closed branches, targeted accessibility has zero violations, Storybook covers the frozen states without live backend access, and generated OpenAPI artifacts remain unchanged
-    - Business utility remains explicitly unmeasured after implementation; terminal merge and post-merge outcome evidence are recorded through the next governed evidence carrier rather than inferred from local events
+    - PR #2337 terminal merge and the bounded post-merge outcome are recorded in `docs/review/PR_2337_POST_MERGE_OUTCOME.md`; the outcome is historical evidence only and is not inferred from local events
+    - Business utility remains explicitly unmeasured after implementation. E1-05B remains inside the current free web channel phase, grants no `FREE` tier access to the protected PRO route, and grants no future-carrier authority
+    - Active and future channel posture is owned solely by `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#current-web-channel-posture`; this ledger item records only the bounded E1-05B lifecycle
 
 
 <a id="ledger-p1-fitchef-positive-semantic-support-verifier"></a>
