@@ -1529,6 +1529,8 @@ def test_ds3_mypy_hook_remains_isolated_changed_file_pre_push_guard() -> None:
     assert mypy_hook["stages"] == ["pre-push"]
     assert "pass_filenames" not in mypy_hook
     assert "always_run" not in mypy_hook
+    for forbidden_override in ("entry", "exclude", "exclude_types", "types", "types_or"):
+        assert forbidden_override not in mypy_hook
     assert mypy_hook["args"] == ["--pretty", "--show-error-codes", "--follow-imports=skip"]
     assert mypy_hook["files"] == DS3_MYPY_CHANGED_FILE_REGEX
 
