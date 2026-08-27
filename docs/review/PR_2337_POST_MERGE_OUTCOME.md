@@ -24,6 +24,8 @@
   "idempotency_key": "pulseplate:fitchef:e1-05b:pr-2337:d5ef261473bb76fcaa57a6a982013a2424263dfa:outcome:v1",
   "upstream_assets": [
     "github_pr:Katsiarynakavaleuskaya/PulsePlate#2337",
+    "github_pr:Katsiarynakavaleuskaya/PulsePlate#2341",
+    "github_pr_body:Katsiarynakavaleuskaya/PulsePlate#2337@sha256:0bdb456350c34f6ff61cbb3b26e6330828b7a1113ec331c30c0db89e2b0d107f",
     "git_commit:d5ef261473bb76fcaa57a6a982013a2424263dfa",
     "review_mapping:docs/review/PR_2337_FIXED_MAPPING.md@d5ef261473bb76fcaa57a6a982013a2424263dfa",
     "measurement_contract:docs/analytics/FITCHEF_SUPPORT_CHOICE_FUNNEL.md@d5ef261473bb76fcaa57a6a982013a2424263dfa",
@@ -85,6 +87,8 @@ universal claims about every repository path or any future carrier.
 | Source ID | Evidence | Observed at | Authority boundary |
 |---|---|---|---|
 | `SRC-PR-2337` | Authenticated [PR #2337](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2337) metadata | 2026-08-26T23:10:59Z | Merge identity and GitHub review counts only |
+| `SRC-SIDECAR-2341` | Authenticated non-draft [PR #2341](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2341) identity on branch `codex/e1-05c-fitchef-support-choice-evidence-sidecar` | 2026-08-27T00:11:16.737347Z | Sidecar PR identity only; no terminal-state or merge claim |
+| `SRC-PR-BODY-2337` | Authenticated PR #2337 body reconciliation: before `sha256:898d8e708c1d606a91f205a7b5f06eb225ccb3617c14d29fd27191aa32721174` / `49595` bytes at `2026-08-27T00:10:44.840042Z`; after `sha256:0bdb456350c34f6ff61cbb3b26e6330828b7a1113ec331c30c0db89e2b0d107f` / `50903` bytes, applied and re-read at `2026-08-27T00:11:16.737347Z`; the existing body remained an exact prefix followed by one dated append | 2026-08-27T00:11:16.737347Z | Metadata-only append verification; PR stayed `MERGED` at head `5abc57bd42acaa202efb3e20604912fb52722b6c` and merge `d5ef261473bb76fcaa57a6a982013a2424263dfa`; no material, policy, runtime, or sidecar-merge authority |
 | `SRC-MAPPING` | `docs/review/PR_2337_FIXED_MAPPING.md` at merge SHA `d5ef261473bb76fcaa57a6a982013a2424263dfa` | 2026-08-26T23:10:59Z | Dispositions and material seal; no provider review or scan claim |
 | `SRC-CI-33016887783` | [CI run 33016887783](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33016887783) | 2026-08-26T22:04:09Z | Exact PR-head CI result only |
 | `SRC-CI-33016887806` | [Frontend CI run 33016887806](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33016887806) | 2026-08-26T21:51:49Z | Exact PR-head frontend result only |
@@ -221,6 +225,20 @@ universal claims about every repository path or any future carrier.
   user understanding, consent, utility, safety effectiveness, revenue,
   retention, or causal effect. Business utility is `unmeasured`, production
   counts are `unavailable`, and causal status is `not_assessed`.
+
+### CR-10: append-only merged PR body reconciliation
+
+- `claim_type`: `fact`
+- `support_status`: `supported`
+- `source_ids`: `SRC-PR-BODY-2337`, `SRC-SIDECAR-2341`
+- `evidence_mode`: `cross_source_synthesis`
+- `conflict_flag`: `false`
+- `observed_at`: `2026-08-27T00:11:16.737347Z`
+- `scope_boundary`: The authenticated PR #2337 body retained its existing bytes
+  as an exact prefix and received one dated append, after which its `MERGED`
+  state, exact head, and merge SHA were unchanged. This is metadata
+  reconciliation only; it grants no material, policy, runtime, review, merge,
+  deployment, release, or PR #2341 terminal-state authority.
 
 ## Predicate separation
 
@@ -365,16 +383,23 @@ this record.
 
 ## Channel-posture reconciliation provenance
 
-At `recorded_at`, the operator had approved the channel-posture reconciliation.
-This E1-05C candidate proposes its promotion to
+The operator approved the channel-posture reconciliation, and non-draft sidecar
+PR [#2341](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2341)
+opened on branch `codex/e1-05c-fitchef-support-choice-evidence-sidecar`.
+The authenticated PR #2337 body procedure preserved the existing `49595` bytes
+as an exact prefix, added one dated append, and re-read `50903` bytes. Its
+source-bound before/after digests were observed at
+`2026-08-27T00:10:44.840042Z` and applied/verified at
+`2026-08-27T00:11:16.737347Z`; `SRC-PR-BODY-2337` records the exact digest
+values. PR #2337 remained `MERGED` at head
+`5abc57bd42acaa202efb3e20604912fb52722b6c` and merge
+`d5ef261473bb76fcaa57a6a982013a2424263dfa`.
+
+The E1-05C candidate proposes promotion to
 `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#current-web-channel-posture`.
 Canonical promotion occurs only if this carrier completes its ordinary
 lifecycle and merges. This outcome does not define or update active policy and
 grants no current or future authority.
-
-The merged PR #2337 body clarification remains pending until the sidecar PR
-opens and the authenticated backup/digest/append/re-read procedure completes.
-This record does not claim that clarification occurred.
 
 ## Rollback and residual unknowns
 
@@ -395,7 +420,8 @@ This record does not claim that clarification occurred.
   prove universal absence across the repository or future changes.
 - Retained local artifacts are gitignored and noncanonical. Their continued
   local availability is not equivalent to durable repository storage.
-- The merged PR #2337 body clarification is pending the sidecar PR open and the
-  authenticated backup/digest/append/re-read procedure; it is not claimed
-  completed here.
+- The merged PR #2337 body metadata reconciliation completed through
+  authenticated backup/digest/append/re-read verification with an exact-prefix
+  append. This records no terminal-state or merge claim for PR #2341; its live
+  state must be read from authenticated GitHub state.
 - No deployment or release is claimed by this record.

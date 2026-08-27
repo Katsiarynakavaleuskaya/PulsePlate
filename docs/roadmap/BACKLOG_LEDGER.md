@@ -4822,8 +4822,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (planning continuity / bounded frontend activation)
   - Target PR: PR #2337 (`feat(frontend): consume FitChef support handoff in guided planning`)
-  - Evidence sidecar: E1-05C branch `codex/e1-05c-fitchef-support-choice-evidence-sidecar`; its authenticated PR number will be added after the non-draft PR opens
-  - Status: E1-05B landed on 2026-08-26 at 2026-08-26T22:19:41Z with squash merge `d5ef261473bb76fcaa57a6a982013a2424263dfa`. This checkbox closes only the bounded E1-05B DoD. Terminal E1-05C state is not owned or claimed by this E1-05B closure and must be read from authenticated GitHub state. `transport=none`, `production_counts=unavailable`, business utility remains unmeasured, and `causal_status=not_assessed`; no navigation, execution, persistence, or plan mutation is claimed.
+  - Evidence sidecar: [PR #2341](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2341) on branch `codex/e1-05c-fitchef-support-choice-evidence-sidecar`; terminal E1-05C state must be read from authenticated GitHub state and is not owned by E1-05B closure
+  - Status: E1-05B landed on 2026-08-26 at 2026-08-26T22:19:41Z with squash merge `d5ef261473bb76fcaa57a6a982013a2424263dfa`. This checkbox closes only the bounded E1-05B DoD. `transport=none`, `production_counts=unavailable`, business utility remains unmeasured, and `causal_status=not_assessed`; no navigation, execution, persistence, or plan mutation is claimed.
   - Reason (EN): The landed E1-05 descriptor needs one thin, explicit web consumer so a user can choose daily or weekly scope, submit that exact choice, inspect the backend-owned product-area pointer, and acknowledge it without opening a route or changing a plan. The carrier also defines a local-only measurement schema while leaving transport and product-value inference closed.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
