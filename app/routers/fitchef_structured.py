@@ -453,7 +453,10 @@ async def fitchef_support_handoff(request: Request) -> FitChefSupportHandoffResp
         raise HTTPException(status_code=503, detail=FITCHEF_STRUCTURED_DISABLED_DETAIL)
 
     payload = await _parse_fitchef_support_handoff_request(request)
-    return build_fitchef_support_handoff(support_need=payload.support_need)
+    response: FitChefSupportHandoffResponse = build_fitchef_support_handoff(
+        support_need=payload.support_need
+    )
+    return response
 
 
 @support_outcome_router.post(
@@ -481,7 +484,9 @@ async def fitchef_support_outcome(
         raise HTTPException(status_code=503, detail=FITCHEF_SUPPORT_OUTCOME_DISABLED_DETAIL)
 
     payload = await _parse_fitchef_support_outcome_request(request)
-    handoff = build_fitchef_support_handoff(support_need=payload.support_need)
+    handoff: FitChefSupportHandoffResponse = build_fitchef_support_handoff(
+        support_need=payload.support_need
+    )
     subject_id = derive_subject_id_from_api_key(pro_key)
 
     from app.services.fitchef_support_outcomes import (
