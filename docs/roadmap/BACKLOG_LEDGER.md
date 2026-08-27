@@ -7544,8 +7544,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) (OBS1B repository contour) → bounded image prerequisite `codex/fix-alembic-image-package-collision` → separate future alias-retirement PR
-  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B merged as `9fd673cca03ca1fd9cab3cecfba20b70803c5620`. The authorized private-staging activation stopped before any migration revision executed because repository path `/app/alembic` shadowed the installed Alembic package. The bounded image lane closes only that repository/image prerequisite. Private-staging activation and baseline, separately authorized production deployment, human-authored `T₀`, the complete `30 × 24h` production window, consumer classification, and a future retirement PR remain required and unclaimed
+  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) (OBS1B repository contour) → merged [PR #2331](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2331) (Alembic image collision prerequisite) → current bounded immutable PG15+pgvector carrier `codex/harden-pgvector-postgres-contour` → separate future alias-retirement PR
+  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B merged as `9fd673cca03ca1fd9cab3cecfba20b70803c5620`; the Alembic image collision prerequisite merged in PR #2331 as `5599317c848bcc9f094b6e9ba486d43c9ee1de2c`. The earlier authorized private-staging attempt stopped before any migration revision executed. The current bounded Infrastructure lane replaces the floating local PostgreSQL image only for staging and `production.selfhosted` with one reproducible DHI Alpine PostgreSQL 15.19 plus pgvector 0.8.6 image, an exact existing-package GHCR digest, Trivy 0.74 suppression-free admission, one exact empty UID-70 compatibility mountpoint for fresh Docker named volumes, and fail-closed deploy contracts. The mountpoint does not repair or mutate existing volumes. This lane does not activate staging, change managed production, deploy production, author `T₀`, start the `30 × 24h` window, classify consumers, or authorize alias retirement; all remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
   - Links:
     - `app/security/production_invariants.py`
@@ -7553,6 +7553,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/verify_premium_alias_telemetry.py`
     - `deploy/prometheus/prometheus.yml`
     - `deploy/prometheus/image-manifest.json`
+    - `deploy/postgres-pgvector/image-manifest.json`
     - `Dockerfile`
     - `alembic.ini`
     - `docs/deploy/OPERATIONAL_SIGNALS.md`

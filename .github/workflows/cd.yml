@@ -125,10 +125,12 @@ jobs:
             > "$evidence_dir/platform-manifest.json"
           python3 - "$evidence_dir/index.json" "$evidence_dir/platform-manifest.json" <<'PY'
           import hashlib
+          import io
           import json
           import os
           from pathlib import Path
           import sys
+          import tarfile
 
           index_bytes = Path(sys.argv[1]).read_bytes()
           platform_bytes = Path(sys.argv[2]).read_bytes()
@@ -230,8 +232,8 @@ jobs:
       - name: Install exact Trivy CLI
         id: prometheus_trivy
         env:
-          TRIVY_VERSION: 0.72.0
-          TRIVY_ARCHIVE_SHA256: bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea # pragma: allowlist secret
+          TRIVY_VERSION: 0.74.0
+          TRIVY_ARCHIVE_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a # pragma: allowlist secret
         run: |
           set -euo pipefail
           umask 077
@@ -411,6 +413,153 @@ jobs:
             exit 1
           fi
 
+  postgres-pgvector-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      repository: ${{ steps.postgres-contract.outputs.repository }}
+      tag: ${{ steps.postgres-contract.outputs.tag }}
+      runtime_ref: ${{ steps.postgres-contract.outputs.runtime_ref }}
+      platform_manifest_digest: ${{ steps.postgres-contract.outputs.platform_manifest_digest }}
+      config_digest: ${{ steps.postgres-contract.outputs.config_digest }}
+      source_date_epoch: ${{ steps.postgres-contract.outputs.source_date_epoch }}
+      source_url: ${{ steps.postgres-contract.outputs.source_url }}
+      source_sha256: ${{ steps.postgres-contract.outputs.source_sha256 }}
+      trivy_version: ${{ steps.postgres-contract.outputs.trivy_version }}
+      trivy_archive_sha256: ${{ steps.postgres-contract.outputs.trivy_archive_sha256 }}
+    steps:
+      - name: Checkout immutable PostgreSQL image contracts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate closed PostgreSQL pgvector image record
+        id: postgres-contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+
+          manifest_path = Path("deploy/postgres-pgvector/image-manifest.json")
+          containerfile_path = Path("deploy/postgres-pgvector/Containerfile")
+          if manifest_path.is_symlink() or not manifest_path.is_file():
+              raise SystemExit("PostgreSQL image manifest must be one regular file")
+          if containerfile_path.is_symlink() or not containerfile_path.is_file():
+              raise SystemExit("PostgreSQL Containerfile must be one regular file")
+          manifest_bytes = manifest_path.read_bytes()
+          if hashlib.sha256(manifest_bytes).hexdigest() != (
+              "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+          ):
+              raise SystemExit("PostgreSQL image manifest bytes drifted")
+          manifest = json.loads(manifest_bytes)
+          expected = {
+              "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
+              "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+              "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+              "platform": "linux/amd64",
+              "platform_manifest_digest": "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4",
+              "config_digest": "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa",
+              "source_date_epoch": "1785349734",
+              "containerfile_sha256": "sha256:22a16d8aa81187ac44f7d3b23a5540a7aa89e700105e063cc7984a377e28ac55",
+              "postgres_version": "15.19",
+              "pgvector_version": "0.8.6",
+              "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
+              "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
+              "mountpoint_layer_size": "154",
+              "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+              "mountpoint_layer_entry_count": "4",
+              "mountpoint_uid": "70",
+              "mountpoint_gid": "70",
+              "mountpoint_mode": "0700",
+              "mountpoint_path": "/var/lib/postgresql/data",
+              "mountpoint_leaf_empty": "true",
+              "mountpoint_base_parent_metadata_equal": "true",
+              "trivy_version": "0.74.0",
+              "trivy_linux_archive_sha256": "sha256:2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a",
+              "trivy_scan_contract": "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none",
+          }
+          if any(manifest.get(key) != value for key, value in expected.items()):
+              raise SystemExit("PostgreSQL image manifest identity drifted")
+          digest_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          for key, value in manifest.items():
+              if key.endswith("_digest") or key.endswith("_sha256"):
+                  if digest_pattern.fullmatch(value) is None:
+                      raise SystemExit(f"Malformed PostgreSQL image digest: {key}")
+          derived_ref = (
+              f"{manifest['repository']}:{manifest['tag']}@"
+              f"{manifest['platform_manifest_digest']}"
+          )
+          if manifest["runtime_ref"] != derived_ref:
+              raise SystemExit("PostgreSQL runtime reference is not digest-bound")
+          containerfile_digest = "sha256:" + hashlib.sha256(
+              containerfile_path.read_bytes()
+          ).hexdigest()
+          if containerfile_digest != manifest["containerfile_sha256"]:
+              raise SystemExit("PostgreSQL Containerfile hash does not match the manifest")
+
+          runtime_ref = manifest["runtime_ref"]
+          for compose_name in (
+              "deploy/docker-compose.staging.yaml",
+              "deploy/docker-compose.production.selfhosted.yaml",
+          ):
+              compose_text = Path(compose_name).read_text(encoding="utf-8")
+              if compose_text.count(runtime_ref) != 1:
+                  raise SystemExit(f"{compose_name} must contain one exact PostgreSQL runtime ref")
+              postgres_block = compose_text.split("  postgres:\n", 1)[1].split("\n  app:\n", 1)[0]
+              for required_line in (
+                  "    platform: linux/amd64",
+                  "      - PGDATA=/var/lib/postgresql/data",
+                  "      - postgres_data:/var/lib/postgresql/data",
+              ):
+                  if required_line not in postgres_block:
+                      raise SystemExit(f"{compose_name} PostgreSQL contract is incomplete")
+              if "    ports:" in postgres_block:
+                  raise SystemExit(f"{compose_name} must not publish PostgreSQL ports")
+          managed_text = Path("deploy/docker-compose.production.yaml").read_text(
+              encoding="utf-8"
+          )
+          if runtime_ref in managed_text or "  postgres:\n" in managed_text:
+              raise SystemExit("Managed production Compose must remain Postgres-service free")
+
+          workflow_text = Path(".github/workflows/cd.yml").read_text(encoding="utf-8")
+          privileged_pr_event = "pull_request" + "_target:"
+          if privileged_pr_event in workflow_text:
+              raise SystemExit("PostgreSQL image workflow must not use pull_request_target")
+          contract_start = workflow_text.index("\n  postgres-pgvector-contract:")
+          publish_start = workflow_text.index("\n  postgres-pgvector-publish:")
+          contract_block = workflow_text[contract_start:publish_start]
+          secret_expression_token = "secrets" + "."
+          registry_login_token = "docker" + " login"
+          if secret_expression_token in contract_block or registry_login_token in contract_block:
+              raise SystemExit("PR PostgreSQL contract job must remain secret-free and publish-free")
+
+          outputs = {
+              "repository": manifest["repository"],
+              "tag": manifest["tag"],
+              "runtime_ref": manifest["runtime_ref"],
+              "platform_manifest_digest": manifest["platform_manifest_digest"],
+              "config_digest": manifest["config_digest"],
+              "source_date_epoch": manifest["source_date_epoch"],
+              "source_url": manifest["pgvector_source_url"],
+              "source_sha256": manifest["pgvector_source_sha256"].removeprefix("sha256:"),
+              "trivy_version": manifest["trivy_version"],
+              "trivy_archive_sha256": manifest["trivy_linux_archive_sha256"].removeprefix(
+                  "sha256:"
+              ),
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, value in outputs.items():
+                  print(f"{key}={value}", file=output)
+          PY
+
   main-push-admission:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -422,9 +571,706 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "push"
           test "$GITHUB_REF" = "refs/heads/main"
 
+  postgres-pgvector-publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [main-push-admission, postgres-pgvector-contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout exact trusted main source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Reassert exact main publication predicate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Authenticate DHI read and existing GHCR package write rails
+        env:
+          DHI_USER: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${DHI_USER:?DHI_USERNAME is required on exact main}"
+          : "${DHI_TOKEN:?DHI_ACCESS_TOKEN is required on exact main}"
+          : "${GHCR_USER:?GitHub repository owner is required}"
+          : "${GHCR_TOKEN_VALUE:?GitHub token is required}"
+          case "${DHI_USER}${DHI_TOKEN}${GHCR_USER}${GHCR_TOKEN_VALUE}" in
+            *$'\n'*|*$'\r'*)
+              echo "Registry credentials must be single-line opaque values" >&2
+              exit 1
+              ;;
+          esac
+          umask 077
+          credential_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-docker-config.XXXXXX")"
+          chmod 700 "$credential_dir"
+          printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
+          printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
+          printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker buildx version
+          builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx create \
+            --name "$builder_name" \
+            --driver docker-container \
+            --use >/dev/null
+          docker buildx inspect --bootstrap >/dev/null
+          printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
+
+      - name: Prepare exact verified pgvector source context
+        id: pgvector-context
+        env:
+          PGVECTOR_SOURCE_URL: ${{ needs.postgres-pgvector-contract.outputs.source_url }}
+          PGVECTOR_SOURCE_SHA256: ${{ needs.postgres-pgvector-contract.outputs.source_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          context_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-context.XXXXXX")"
+          archive_path="$context_dir/pgvector-v0.8.6.tar.gz"
+          cp deploy/postgres-pgvector/Containerfile "$context_dir/Containerfile"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 \
+            "$PGVECTOR_SOURCE_URL" \
+            --output "$archive_path"
+          printf '%s  %s\n' "$PGVECTOR_SOURCE_SHA256" "$archive_path" | sha256sum --check -
+          chmod 0600 "$context_dir/Containerfile" "$archive_path"
+          printf 'context_dir=%s\n' "$context_dir" >> "$GITHUB_OUTPUT"
+          printf 'PGVECTOR_CONTEXT_DIR=%s\n' "$context_dir" >> "$GITHUB_ENV"
+
+      - name: Reproduce the exact platform manifest twice
+        id: pgvector-build
+        env:
+          EXPECTED_CONFIG_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.config_digest }}
+          EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          SOURCE_DATE_EPOCH: ${{ needs.postgres-pgvector-contract.outputs.source_date_epoch }}
+          SOURCE_CONTEXT: ${{ steps.pgvector-context.outputs.context_dir }}
+        run: |
+          set -euo pipefail
+          output_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-oci.XXXXXX")"
+          chmod 700 "$output_dir"
+          for build_number in 1 2; do
+            docker buildx build \
+              --platform linux/amd64 \
+              --file "$SOURCE_CONTEXT/Containerfile" \
+              --no-cache \
+              --provenance=false \
+              --sbom=false \
+              --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
+              --output "type=oci,dest=${output_dir}/image-${build_number}.oci.tar,rewrite-timestamp=true" \
+              "$SOURCE_CONTEXT"
+            mkdir -m 700 "$output_dir/oci-${build_number}"
+            tar -xf "$output_dir/image-${build_number}.oci.tar" \
+              -C "$output_dir/oci-${build_number}"
+          done
+          diff -qr "$output_dir/oci-1" "$output_dir/oci-2"
+          python3 - "$output_dir/oci-1" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          index_bytes = (root / "index.json").read_bytes()
+          index = json.loads(index_bytes)
+          manifests = index.get("manifests")
+          if not isinstance(manifests, list) or len(manifests) != 1:
+              raise SystemExit("Expected exactly one OCI platform manifest")
+          descriptor = manifests[0]
+          expected_platform = os.environ["EXPECTED_PLATFORM_DIGEST"]
+          if descriptor.get("platform") != {"architecture": "amd64", "os": "linux"}:
+              raise SystemExit("OCI platform descriptor is not linux/amd64")
+          if descriptor.get("digest") != expected_platform:
+              raise SystemExit("Reproduced PostgreSQL platform digest does not match the manifest")
+          manifest_path = root / "blobs/sha256" / expected_platform.removeprefix("sha256:")
+          manifest_bytes = manifest_path.read_bytes()
+          if "sha256:" + hashlib.sha256(manifest_bytes).hexdigest() != expected_platform:
+              raise SystemExit("Reproduced PostgreSQL manifest bytes have the wrong digest")
+          manifest = json.loads(manifest_bytes)
+          layers = manifest.get("layers")
+          if not isinstance(layers, list) or len(layers) != 12:
+              raise SystemExit("Reproduced PostgreSQL layer count drifted")
+          mountpoint_descriptor = layers[-1]
+          expected_mountpoint_descriptor = {
+              "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
+              "digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
+              "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+              "size": 154,
+          }
+          if mountpoint_descriptor != expected_mountpoint_descriptor:
+              raise SystemExit("PostgreSQL mountpoint layer descriptor drifted")
+          mountpoint_bytes = (
+              root
+              / "blobs/sha256"
+              / mountpoint_descriptor["digest"].removeprefix("sha256:")
+          ).read_bytes()
+          if (
+              "sha256:" + hashlib.sha256(mountpoint_bytes).hexdigest()
+              != mountpoint_descriptor["digest"]
+              or len(mountpoint_bytes) != mountpoint_descriptor["size"]
+          ):
+              raise SystemExit("PostgreSQL mountpoint layer bytes drifted")
+          with tarfile.open(fileobj=io.BytesIO(mountpoint_bytes), mode="r:gz") as archive:
+              members = archive.getmembers()
+          expected_paths = ["var", "var/lib", "var/lib/postgresql", "var/lib/postgresql/data"]
+          if [member.name for member in members] != expected_paths:
+              raise SystemExit("PostgreSQL mountpoint layer path inventory drifted")
+          for member in members:
+              if (
+                  not member.isdir()
+                  or member.uid != 70
+                  or member.gid != 70
+                  or member.mode != 0o700
+                  or member.size != 0
+                  or member.mtime != 1785349734
+                  or member.linkname
+                  or member.pax_headers
+              ):
+                  raise SystemExit("PostgreSQL mountpoint layer metadata drifted")
+          expected_config = os.environ["EXPECTED_CONFIG_DIGEST"]
+          if manifest.get("config", {}).get("digest") != expected_config:
+              raise SystemExit("Reproduced PostgreSQL config digest does not match the manifest")
+          config_path = root / "blobs/sha256" / expected_config.removeprefix("sha256:")
+          config_bytes = config_path.read_bytes()
+          if "sha256:" + hashlib.sha256(config_bytes).hexdigest() != expected_config:
+              raise SystemExit("Reproduced PostgreSQL config bytes have the wrong digest")
+          config = json.loads(config_bytes)
+          rootfs = config.get("rootfs")
+          expected_mountpoint_diff_id = (
+              "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+          )
+          if (
+              not isinstance(rootfs, dict)
+              or not isinstance(rootfs.get("diff_ids"), list)
+              or len(rootfs["diff_ids"]) != 12
+              or rootfs["diff_ids"][-1] != expected_mountpoint_diff_id
+          ):
+              raise SystemExit("PostgreSQL mountpoint layer diff ID drifted")
+          runtime = config.get("config")
+          expected_runtime = {
+              "architecture": "amd64",
+              "os": "linux",
+              "user": "70",
+              "entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
+              "pgdata": "/var/lib/postgresql/15/data",
+              "pg_major": "15",
+              "pg_minor": "19",
+          }
+          environment = runtime.get("Env") if isinstance(runtime, dict) else None
+          observed_runtime = {
+              "architecture": config.get("architecture"),
+              "os": config.get("os"),
+              "user": runtime.get("User") if isinstance(runtime, dict) else None,
+              "entrypoint": runtime.get("Entrypoint") if isinstance(runtime, dict) else None,
+              "pgdata": next(
+                  (item.removeprefix("PGDATA=") for item in environment or [] if item.startswith("PGDATA=")),
+                  None,
+              ),
+              "pg_major": next(
+                  (item.removeprefix("PG_MAJOR=") for item in environment or [] if item.startswith("PG_MAJOR=")),
+                  None,
+              ),
+              "pg_minor": next(
+                  (item.removeprefix("PG_MINOR=") for item in environment or [] if item.startswith("PG_MINOR=")),
+                  None,
+              ),
+          }
+          if observed_runtime != expected_runtime:
+              raise SystemExit("Reproduced PostgreSQL runtime config drifted")
+          PY
+
+          resource_prefix="pulseplate-pgvector-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          final_tag="${resource_prefix}-final"
+          builder_tag="${resource_prefix}-builder"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "$SOURCE_CONTEXT/Containerfile" \
+            --provenance=false \
+            --sbom=false \
+            --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
+            --output type=docker,rewrite-timestamp=true \
+            --tag "$final_tag" \
+            "$SOURCE_CONTEXT"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "$SOURCE_CONTEXT/Containerfile" \
+            --target builder \
+            --provenance=false \
+            --sbom=false \
+            --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
+            --load \
+            --tag "$builder_tag" \
+            "$SOURCE_CONTEXT"
+          test "$(docker image inspect "$final_tag" --format '{{.Os}}/{{.Architecture}}')" = \
+            "linux/amd64"
+          test "$(docker image inspect "$final_tag" --format '{{.Config.User}}')" = "70"
+          test "$(docker image inspect "$final_tag" --format '{{json .Config.Entrypoint}}')" = \
+            '["/usr/local/bin/docker-entrypoint.sh"]'
+          test "$(docker image inspect "$final_tag" \
+            --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
+          {
+            printf 'output_dir=%s\n' "$output_dir"
+            printf 'final_tag=%s\n' "$final_tag"
+            printf 'builder_tag=%s\n' "$builder_tag"
+            printf 'resource_prefix=%s\n' "$resource_prefix"
+          } >> "$GITHUB_OUTPUT"
+          {
+            printf 'PGVECTOR_OCI_OUTPUT_DIR=%s\n' "$output_dir"
+            printf 'PGVECTOR_FINAL_LOCAL_TAG=%s\n' "$final_tag"
+            printf 'PGVECTOR_BUILDER_LOCAL_TAG=%s\n' "$builder_tag"
+            printf 'PGVECTOR_RESOURCE_PREFIX=%s\n' "$resource_prefix"
+          } >> "$GITHUB_ENV"
+
+      - name: Install exact Trivy 0.74 CLI
+        id: pgvector-trivy
+        env:
+          TRIVY_VERSION: ${{ needs.postgres-pgvector-contract.outputs.trivy_version }}
+          TRIVY_ARCHIVE_SHA256: ${{ needs.postgres-pgvector-contract.outputs.trivy_archive_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-trivy.XXXXXX")"
+          archive_path="$install_dir/trivy.tar.gz"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            --output "$archive_path"
+          printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$archive_path" | sha256sum --check -
+          tar -xzf "$archive_path" -C "$install_dir" trivy
+          trivy_path="$install_dir/trivy"
+          test -f "$trivy_path" && test ! -L "$trivy_path" && test -x "$trivy_path"
+          case "$("$trivy_path" --version)" in
+            "Version: ${TRIVY_VERSION}"*) ;;
+            *)
+              echo "Installed Trivy version does not match the closed manifest" >&2
+              exit 1
+              ;;
+          esac
+          empty_ignore="$install_dir/empty.trivyignore"
+          : > "$empty_ignore"
+          chmod 0600 "$empty_ignore"
+          printf 'path=%s\n' "$trivy_path" >> "$GITHUB_OUTPUT"
+          printf 'ignore=%s\n' "$empty_ignore" >> "$GITHUB_OUTPUT"
+          printf 'PGVECTOR_TRIVY_DIR=%s\n' "$install_dir" >> "$GITHUB_ENV"
+
+      - name: Scan exact bases, post-APK builder, and final image without suppressions
+        env:
+          TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
+          TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        run: |
+          set -euo pipefail
+          test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
+          test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
+            && test ! -s "$TRIVY_IGNORE_FILE"
+          runtime_base='dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee'
+          builder_base='dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a'
+          docker pull --platform linux/amd64 "$runtime_base"
+          docker pull --platform linux/amd64 "$builder_base"
+          scan_number=0
+          for image_ref in \
+            "$runtime_base" \
+            "$builder_base" \
+            "$PGVECTOR_BUILDER_LOCAL_TAG"; do
+            scan_number=$((scan_number + 1))
+            "$TRIVY_BIN" image \
+              --scanners vuln,secret \
+              --format table \
+              --pkg-types os,library \
+              --severity CRITICAL,HIGH \
+              --exit-code 1 \
+              --timeout 15m \
+              --ignorefile "$TRIVY_IGNORE_FILE" \
+              --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-${scan_number}" \
+              "$image_ref"
+          done
+          "$TRIVY_BIN" image \
+            --input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar" \
+            --scanners vuln,secret \
+            --format table \
+            --pkg-types os,library \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            --timeout 15m \
+            --ignorefile "$TRIVY_IGNORE_FILE" \
+            --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-exact-final"
+
+      - name: Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity
+        run: |
+          set -euo pipefail
+          prefix="$PGVECTOR_RESOURCE_PREFIX"
+          if [[ ! "$prefix" =~ ^pulseplate-pgvector-[0-9]+-[0-9]+$ ]]; then
+            echo "Invalid synthetic PostgreSQL resource prefix" >&2
+            exit 1
+          fi
+          container_name="${prefix}-postgres"
+          volume_name="${prefix}-data"
+          legacy_container_name="${prefix}-legacy-postgres"
+          legacy_volume_name="${prefix}-legacy-data"
+          legacy_image='postgres:15-alpine@sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181'
+          database_name="pulseplate_pgvector_ci"
+          database_user="pulseplate_pgvector_ci"
+          database_password="pulseplate-pgvector-ci-password" # pragma: allowlist secret
+          start_postgres() {
+            local target_container="$1"
+            local target_volume="$2"
+            local target_image="$3"
+            docker run --detach \
+              --name "$target_container" \
+              --platform linux/amd64 \
+              --label "com.pulseplate.pgvector.contract=$prefix" \
+              --env "POSTGRES_DB=$database_name" \
+              --env "POSTGRES_USER=$database_user" \
+              --env "POSTGRES_PASSWORD=$database_password" \
+              --env PGDATA=/var/lib/postgresql/data \
+              --mount "type=volume,source=${target_volume},target=/var/lib/postgresql/data" \
+              "$target_image" >/dev/null
+            ready=0
+            for attempt in $(seq 1 60); do
+              if docker exec "$target_container" pg_isready \
+                --username "$database_user" --dbname "$database_name" >/dev/null 2>&1; then
+                ready=1
+                break
+              fi
+              if [ "$attempt" -lt 60 ]; then
+                sleep 1
+              fi
+            done
+            if [ "$ready" -ne 1 ]; then
+              docker logs --tail 100 "$target_container" >&2
+              echo "Synthetic PostgreSQL image did not become ready" >&2
+              exit 1
+            fi
+          }
+          if docker volume inspect "$volume_name" >/dev/null 2>&1; then
+            echo "Synthetic fresh-volume name already exists" >&2
+            exit 1
+          fi
+          docker volume create "$volume_name" >/dev/null
+          docker run --rm \
+            --platform linux/amd64 \
+            --user 70:70 \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --entrypoint /bin/sh \
+            --mount "type=volume,source=${volume_name},target=/var/lib/postgresql/data" \
+            "$PGVECTOR_FINAL_LOCAL_TAG" \
+            -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+          start_postgres "$container_name" "$volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+          docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 \
+            --command 'CREATE EXTENSION vector;' \
+            --command 'CREATE TABLE pulseplate_pgvector_sentinel (value text PRIMARY KEY);' \
+            --command "INSERT INTO pulseplate_pgvector_sentinel VALUES ('persistent');"
+          extension_version="$(docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+          database_oid="$(docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT oid FROM pg_database WHERE datname = current_database();")"
+          test "$extension_version" = "0.8.6"
+          [[ "$database_oid" =~ ^[0-9]+$ ]]
+          docker rm -f "$container_name" >/dev/null
+          start_postgres "$container_name" "$volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
+          recreated_extension="$(docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+          recreated_oid="$(docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT oid FROM pg_database WHERE datname = current_database();")"
+          sentinel="$(docker exec "$container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command 'SELECT value FROM pulseplate_pgvector_sentinel;')"
+          test "$recreated_extension" = "0.8.6"
+          test "$recreated_oid" = "$database_oid"
+          test "$sentinel" = "persistent"
+          docker rm -f "$container_name" >/dev/null
+
+          docker pull --platform linux/amd64 "$legacy_image"
+          if docker volume inspect "$legacy_volume_name" >/dev/null 2>&1; then
+            echo "Synthetic legacy-volume name already exists" >&2
+            exit 1
+          fi
+          docker volume create "$legacy_volume_name" >/dev/null
+          start_postgres "$legacy_container_name" "$legacy_volume_name" "$legacy_image"
+          docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 \
+            --command 'CREATE TABLE pulseplate_legacy_sentinel (value text PRIMARY KEY);' \
+            --command "INSERT INTO pulseplate_legacy_sentinel VALUES ('legacy-persistent');"
+          legacy_oid="$(docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT oid FROM pg_database WHERE datname = current_database();")"
+          [[ "$legacy_oid" =~ ^[0-9]+$ ]]
+          docker rm -f "$legacy_container_name" >/dev/null
+          start_postgres \
+            "$legacy_container_name" \
+            "$legacy_volume_name" \
+            "$PGVECTOR_FINAL_LOCAL_TAG"
+          docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --set ON_ERROR_STOP=1 \
+            --command 'CREATE EXTENSION vector;'
+          transitioned_oid="$(docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT oid FROM pg_database WHERE datname = current_database();")"
+          transitioned_sentinel="$(docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command 'SELECT value FROM pulseplate_legacy_sentinel;')"
+          transitioned_vector="$(docker exec "$legacy_container_name" psql \
+            --username "$database_user" --dbname "$database_name" \
+            --tuples-only --no-align \
+            --command "SELECT extversion FROM pg_extension WHERE extname = 'vector';")"
+          transitioned_postgres="$(docker exec "$legacy_container_name" postgres --version)"
+          test "$transitioned_oid" = "$legacy_oid"
+          test "$transitioned_sentinel" = "legacy-persistent"
+          test "$transitioned_vector" = "0.8.6"
+          test "$transitioned_postgres" = "postgres (PostgreSQL) 15.19"
+
+      - name: Publish only the reproduced exact manifest to existing GHCR package
+        id: publish-pgvector
+        env:
+          EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          IMAGE_REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          IMAGE_TAG: ${{ needs.postgres-pgvector-contract.outputs.tag }}
+          SOURCE_DATE_EPOCH: ${{ needs.postgres-pgvector-contract.outputs.source_date_epoch }}
+        run: |
+          set -euo pipefail
+          tag_ref="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+          metadata_path="${RUNNER_TEMP}/pulseplate-pgvector-publish-metadata.json"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "$PGVECTOR_CONTEXT_DIR/Containerfile" \
+            --provenance=false \
+            --sbom=false \
+            --build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH" \
+            --tag "$tag_ref" \
+            --metadata-file "$metadata_path" \
+            --output type=registry,rewrite-timestamp=true \
+            "$PGVECTOR_CONTEXT_DIR"
+          raw_manifest="${RUNNER_TEMP}/pulseplate-pgvector-published-manifest.json"
+          docker buildx imagetools inspect --raw "$tag_ref" > "$raw_manifest"
+          python3 - "$raw_manifest" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          raw = Path(sys.argv[1]).read_bytes()
+          payload = json.loads(raw)
+          expected = os.environ["EXPECTED_PLATFORM_DIGEST"]
+          media_type = payload.get("mediaType", "")
+          if media_type.endswith("image.manifest.v1+json"):
+              observed = "sha256:" + hashlib.sha256(raw).hexdigest()
+          elif media_type.endswith("image.index.v1+json") or media_type.endswith(
+              "manifest.list.v2+json"
+          ):
+              matches = [
+                  item
+                  for item in payload.get("manifests", [])
+                  if item.get("platform") == {"architecture": "amd64", "os": "linux"}
+              ]
+              if len(matches) != 1:
+                  raise SystemExit("Published PostgreSQL index lacks one linux/amd64 manifest")
+              observed = matches[0].get("digest")
+          else:
+              raise SystemExit("Published PostgreSQL media type is unsupported")
+          if observed != expected:
+              raise SystemExit("Published PostgreSQL platform digest differs from the frozen manifest")
+          PY
+          runtime_ref="${tag_ref}@${EXPECTED_PLATFORM_DIGEST}"
+          test "$runtime_ref" = "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
+          printf 'runtime_ref=%s\n' "$runtime_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Attest PostgreSQL pgvector image provenance
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          subject-digest: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          push-to-registry: true
+
+      - name: Generate PostgreSQL pgvector SPDX SBOM with exact Trivy
+        env:
+          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.runtime_ref }}
+          TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
+          TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
+        run: |
+          set -euo pipefail
+          test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
+          test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
+            && test ! -s "$TRIVY_IGNORE_FILE"
+          "$TRIVY_BIN" image \
+            --scanners vuln \
+            --format spdx-json \
+            --pkg-types os,library \
+            --ignorefile "$TRIVY_IGNORE_FILE" \
+            --output postgres-pgvector-image-sbom.spdx.json \
+            "$RUNTIME_REF"
+          test -f postgres-pgvector-image-sbom.spdx.json
+          test ! -L postgres-pgvector-image-sbom.spdx.json
+          test -s postgres-pgvector-image-sbom.spdx.json
+
+      - name: Attest PostgreSQL pgvector SPDX SBOM
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          subject-digest: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          predicate-type: https://spdx.dev/Document/v2.3
+          predicate-path: postgres-pgvector-image-sbom.spdx.json
+          push-to-registry: true
+
+      - name: Verify GHCR pullback, provenance, SBOM, and runtime identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.runtime_ref }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 "$RUNTIME_REF"
+          python3 scripts/ci/check_docker_provenance_attestation.py \
+            --image-name "$REPOSITORY" \
+            --digest "$PLATFORM_DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+            --source-ref refs/heads/main \
+            --json-out postgres-pgvector-provenance-attestation-check.json \
+            --markdown-out postgres-pgvector-provenance-attestation-check.md
+          gh attestation verify "oci://${RUNTIME_REF}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --predicate-type https://spdx.dev/Document/v2.3 \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA"
+          inspected_digest="$(docker image inspect "$RUNTIME_REF" \
+            --format '{{join .RepoDigests "\n"}}')"
+          printf '%s\n' "$inspected_digest" | \
+            grep -Fx "ghcr.io/katsiarynakavaleuskaya/pulseplate@${PLATFORM_DIGEST}"
+          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
+            "linux/amd64"
+          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
+          docker run --rm --platform linux/amd64 "$RUNTIME_REF" postgres --version | \
+            grep -Fx 'postgres (PostgreSQL) 15.19'
+
+      - name: Upload PostgreSQL pgvector admission evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: postgres-pgvector-image-admission
+          path: |
+            postgres-pgvector-image-sbom.spdx.json
+            postgres-pgvector-provenance-attestation-check.json
+            postgres-pgvector-provenance-attestation-check.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Remove synthetic resources and temporary registry credentials
+        if: ${{ always() }}
+        run: |
+          set -u
+          cleanup_failed=0
+          prefix="${PGVECTOR_RESOURCE_PREFIX:-}"
+          builder_name="${PGVECTOR_BUILDX_BUILDER:-}"
+          if [ -n "$prefix" ]; then
+            if [[ "$prefix" =~ ^pulseplate-pgvector-[0-9]+-[0-9]+$ ]]; then
+              for synthetic_container in \
+                "${prefix}-postgres" \
+                "${prefix}-legacy-postgres"; do
+                if docker container inspect "$synthetic_container" >/dev/null 2>&1; then
+                  if ! docker rm -f "$synthetic_container" >/dev/null; then
+                    cleanup_failed=1
+                  fi
+                fi
+              done
+              for synthetic_volume in \
+                "${prefix}-data" \
+                "${prefix}-legacy-data"; do
+                if docker volume inspect "$synthetic_volume" >/dev/null 2>&1; then
+                  if ! docker volume rm "$synthetic_volume" >/dev/null; then
+                    cleanup_failed=1
+                  fi
+                fi
+              done
+              for local_image in "${prefix}-builder" "${prefix}-final"; do
+                if docker image inspect "$local_image" >/dev/null 2>&1; then
+                  if ! docker image rm "$local_image" >/dev/null; then
+                    cleanup_failed=1
+                  fi
+                fi
+              done
+            else
+              echo "Refusing cleanup for an unbounded PostgreSQL resource prefix" >&2
+              cleanup_failed=1
+            fi
+          fi
+          if [ -n "$builder_name" ]; then
+            if [[ "$builder_name" =~ ^pulseplate-pgvector-builder-[0-9]+-[0-9]+$ ]]; then
+              if ! docker buildx rm "$builder_name" >/dev/null; then
+                cleanup_failed=1
+              fi
+            else
+              echo "Refusing cleanup for an unbounded Buildx builder name" >&2
+              cleanup_failed=1
+            fi
+          fi
+          if ! docker logout dhi.io >/dev/null 2>&1; then
+            cleanup_failed=1
+          fi
+          if ! docker logout ghcr.io >/dev/null 2>&1; then
+            cleanup_failed=1
+          fi
+          for temp_dir in \
+            "${PGVECTOR_CONTEXT_DIR:-}" \
+            "${PGVECTOR_OCI_OUTPUT_DIR:-}" \
+            "${PGVECTOR_TRIVY_DIR:-}" \
+            "${PGVECTOR_DOCKER_CONFIG:-}"; do
+            if [ -z "$temp_dir" ]; then
+              continue
+            fi
+            case "$temp_dir" in
+              "${RUNNER_TEMP}"/pulseplate-pgvector-*)
+                if [ -d "$temp_dir" ] && [ ! -L "$temp_dir" ]; then
+                  rm -rf -- "$temp_dir"
+                else
+                  cleanup_failed=1
+                fi
+                ;;
+              *)
+                echo "Refusing cleanup for an unbounded PostgreSQL temporary directory" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
+          exit "$cleanup_failed"
+
   build:
     if: github.ref == 'refs/heads/main'
-    needs: [prometheus-image-security, main-push-admission]
+    needs: [prometheus-image-security, main-push-admission, postgres-pgvector-publish]
     runs-on: ubuntu-latest
     env:
       PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
@@ -702,7 +1548,7 @@ jobs:
           timeout: 15m
           trivyignores: .trivyignore
           ignore-policy: .trivy-ignore-policy.rego
-          version: v0.72.0
+          version: v0.74.0
           cache-dir: /tmp/trivy-cache-staging-backend
 
       - name: Scan staged Caddy image
@@ -721,7 +1567,7 @@ jobs:
           # Override Trivy's default root .trivyignore: it is backend/Debian-specific,
           # while the staged Caddy runtime is Alpine and must remain suppression-free.
           trivyignores: .trivyignore-caddy
-          version: v0.72.0
+          version: v0.74.0
           cache-dir: /tmp/trivy-cache-staging-caddy
 
       - name: Enforce required staging deployment policy
@@ -790,6 +1636,7 @@ jobs:
             echo "staging_compose_sha256=$(sha256sum deploy/docker-compose.staging.yaml | cut -d' ' -f1)"
             echo "prometheus_config_sha256=$(sha256sum deploy/prometheus/prometheus.yml | cut -d' ' -f1)"
             echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
+            echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
@@ -811,6 +1658,7 @@ jobs:
           STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
         with:
@@ -818,7 +1666,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -827,13 +1675,15 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="3"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="4"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
             [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
             [ ! -L ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./postgres-pgvector/image-manifest.json ]
+            [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
@@ -859,6 +1709,7 @@ jobs:
           STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
         with:
@@ -866,7 +1717,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -875,13 +1726,15 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="3"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="4"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
             [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
             [ ! -L ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./postgres-pgvector/image-manifest.json ]
+            [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
@@ -1052,7 +1905,7 @@ jobs:
   # Pre-production quality gates
   production-gates:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: prometheus-image-security
+    needs: [prometheus-image-security, postgres-pgvector-contract]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1602,6 +2455,7 @@ jobs:
             frontend \
             deploy/Caddyfile.production \
             deploy/docker-compose.production.yaml \
+            deploy/postgres-pgvector/image-manifest.json \
             deploy/prometheus/prometheus.yml \
             deploy/prometheus/image-manifest.json \
             scripts/diagnose_web.sh \

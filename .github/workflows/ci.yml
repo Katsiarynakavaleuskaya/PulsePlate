@@ -74,7 +74,7 @@ jobs:
               - 'ios/**'
               - '.github/workflows/**'
               - '.github/actions/**'
-            pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'core/rag/vector_rag.py', 'core/db_rls.py', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
+            pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'scripts/deploy.sh', 'scripts/deploy_production.sh', 'deploy/docker-compose.staging.yaml', 'deploy/docker-compose.production.selfhosted.yaml', 'deploy/postgres-pgvector/**', 'core/rag/vector_rag.py', 'core/db_rls.py', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_deploy_contract_scripts.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
       - name: Build CI risk profile
         id: risk_profile
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')))
@@ -1102,7 +1102,9 @@ jobs:
       contents: read
     services:
       postgres:
-        image: pgvector/pgvector:0.8.2-pg15-bookworm@sha256:bd12d6788a617f4147d5a2ae0b56d07921398adabfe5a033bd3f50c245df55a1
+        # Credential-free semantic oracle only. Exact derived-image identity,
+        # Trivy, reproducibility, and volume continuity remain CD/main proofs.
+        image: pgvector/pgvector:0.8.6-pg15-trixie@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f
         env:
           POSTGRES_USER: pgvector_compat
           POSTGRES_PASSWORD: pgvector_compat_test_password  # pragma: allowlist secret

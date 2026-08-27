@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import os
 import shutil
@@ -19,6 +20,7 @@ SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.sel
 STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
+POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
 PROMETHEUS_RUNTIME_REF = (
     "prom/prometheus:v3.14.0-distroless@"
     "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
@@ -26,13 +28,32 @@ PROMETHEUS_RUNTIME_REF = (
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
     "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
 )
+POSTGRES_RUNTIME_REF = (
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+    "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4"
+)
+POSTGRES_PLATFORM_MANIFEST_DIGEST = (
+    "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4"
+)
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
             "prometheus": {
                 "image": PROMETHEUS_RUNTIME_REF,
                 "platform": "linux/amd64",
-            }
+            },
+            "postgres": {
+                "image": POSTGRES_RUNTIME_REF,
+                "platform": "linux/amd64",
+                "environment": {"PGDATA": "/var/lib/postgresql/data"},
+                "volumes": [
+                    {
+                        "type": "volume",
+                        "source": "pulseplate_postgres_data",
+                        "target": "/var/lib/postgresql/data",
+                    }
+                ],
+            },
         }
     },
     separators=(",", ":"),
@@ -43,6 +64,36 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
             "Os": "linux",
             "Architecture": "amd64",
             "RepoDigests": [f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"],
+        }
+    ],
+    separators=(",", ":"),
+)
+FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
+    [
+        {
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [
+                f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
+            ],
+            "Config": {
+                "User": "70",
+                "Entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
+                "Env": [
+                    "PGDATA=/var/lib/postgresql/15/data",
+                    "PG_MAJOR=15",
+                    "PG_MINOR=19",
+                ],
+                "Labels": {
+                    "com.pulseplate.pgvector.version": "0.8.6",
+                    "com.pulseplate.pgvector.source-commit": (
+                        "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
+                    ),
+                    "com.pulseplate.postgres.base-manifest": (
+                        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+                    ),
+                },
+            },
         }
     ],
     separators=(",", ":"),
@@ -60,8 +111,10 @@ def _write_production_host_contract(
 ) -> Path:
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     secret_dir = deploy_dir / "secrets"
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.chmod(0o700)
     secret_file = secret_dir / "pulseplate_metrics_scrape_key"
@@ -72,6 +125,9 @@ def _write_production_host_contract(
     )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (postgres_manifest_dir / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     compose_name = (
         "docker-compose.production.selfhosted.yaml"
@@ -92,9 +148,11 @@ def _write_shell_bundle_contract(
 ) -> None:
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     scripts_dir = shell_bundle_dir / "scripts"
     deploy_dir.mkdir(parents=True, exist_ok=True)
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     scripts_dir.mkdir(parents=True, exist_ok=True)
     if include_frontend:
         (shell_bundle_dir / "frontend").mkdir(parents=True, exist_ok=True)
@@ -107,6 +165,9 @@ def _write_shell_bundle_contract(
     )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (postgres_manifest_dir / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (scripts_dir / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
@@ -131,6 +192,7 @@ def _write_shell_bundle_archive(
         "frontend",
         "deploy/Caddyfile.production",
         "deploy/docker-compose.production.yaml",
+        "deploy/postgres-pgvector/image-manifest.json",
         "deploy/prometheus/prometheus.yml",
         "deploy/prometheus/image-manifest.json",
         "scripts/diagnose_web.sh",
@@ -220,6 +282,166 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
         ),
         "runtime_ref": PROMETHEUS_RUNTIME_REF,
     }
+
+
+def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
+    manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+    )
+    manifest = json.loads(manifest_bytes)
+    assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
+    assert manifest["repository"] == "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    assert manifest["tag"] == "postgres-15.19-pgvector0.8.6-alpine3.23"
+    assert manifest["platform"] == "linux/amd64"
+    assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
+    assert manifest["config_digest"] == (
+        "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa"
+    )
+    assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
+    assert manifest["source_date_epoch"] == "1785349734"
+    assert manifest["postgres_version"] == "15.19"
+    assert manifest["pgvector_version"] == "0.8.6"
+    assert manifest["runtime_user"] == "70"
+    assert manifest["runtime_entrypoint"] == "/usr/local/bin/docker-entrypoint.sh"
+    assert manifest["runtime_default_pgdata"] == "/var/lib/postgresql/15/data"
+    assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
+    assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
+    assert manifest["runtime_base_platform_manifest_digest"] == (
+        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+    )
+    assert manifest["builder_base_platform_manifest_digest"] == (
+        "sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a"
+    )
+    assert manifest["legacy_platform_manifest_digest"] == (
+        "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
+    )
+    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.19-r0"
+    assert manifest["builder_apk_closure_count"] == "94"
+    assert manifest["runtime_artifact_count"] == "63"
+    assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
+    assert manifest["mountpoint_layer_digest"] == (
+        "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124"
+    )
+    assert manifest["mountpoint_layer_size"] == "154"
+    assert manifest["mountpoint_layer_diff_id"] == (
+        "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+    )
+    assert manifest["mountpoint_layer_entry_count"] == "4"
+    assert manifest["mountpoint_uid"] == "70"
+    assert manifest["mountpoint_gid"] == "70"
+    assert manifest["mountpoint_mode"] == "0700"
+    assert manifest["mountpoint_path"] == "/var/lib/postgresql/data"
+    assert manifest["mountpoint_leaf_empty"] == "true"
+    assert manifest["mountpoint_base_parent_metadata_equal"] == "true"
+    assert manifest["trivy_version"] == "0.74.0"
+    assert manifest["trivy_scan_contract"] == (
+        "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none"
+    )
+    containerfile = REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile"
+    assert (
+        "sha256:" + hashlib.sha256(containerfile.read_bytes()).hexdigest()
+        == manifest["containerfile_sha256"]
+    )
+    assert POSTGRES_RUNTIME_REF == (
+        f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
+    )
+
+
+@pytest.mark.parametrize("compose_path", (STAGING_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH))
+def test_local_postgres_contours_use_one_immutable_pgvector_volume_contract(
+    compose_path: Path,
+) -> None:
+    compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    postgres = compose["services"]["postgres"]
+    assert postgres["image"] == POSTGRES_RUNTIME_REF
+    assert postgres["platform"] == "linux/amd64"
+    assert "PGDATA=/var/lib/postgresql/data" in postgres["environment"]
+    assert postgres["volumes"] == ["postgres_data:/var/lib/postgresql/data"]
+    assert "ports" not in postgres
+    assert postgres["networks"] == ["web"]
+
+
+def test_managed_production_compose_remains_postgres_service_free() -> None:
+    compose = yaml.safe_load(PRODUCTION_COMPOSE_TEXT)
+    assert "postgres" not in compose["services"]
+    assert POSTGRES_RUNTIME_REF not in PRODUCTION_COMPOSE_TEXT
+
+
+def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
+    containerfile = (REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile").read_text(
+        encoding="utf-8"
+    )
+    assert containerfile.startswith("ARG SOURCE_DATE_EPOCH=1785349734\n")
+    assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
+    assert (
+        "FROM dhi.io/postgres@sha256:"
+        "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a AS builder"
+        in containerfile
+    )
+    assert (
+        "FROM dhi.io/postgres@sha256:"
+        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee" in containerfile
+    )
+    assert "apk add --no-cache build-base=0.5-r3 postgresql15-dev=15.19-r0" in containerfile
+    assert "PG_CONFIG=/usr/libexec/postgresql15/pg_config" in containerfile
+    assert "make -j1" in containerfile
+    assert 'OPTFLAGS=""' in containerfile
+    assert "install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data" in containerfile
+    assert (
+        "COPY --from=builder --chown=70:70 --chmod=0700 "
+        "/out/var/lib/postgresql/data/ /var/lib/postgresql/data/" in containerfile
+    )
+    final_stage = containerfile.split(
+        "FROM dhi.io/postgres@sha256:"
+        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+        maxsplit=1,
+    )[1]
+    for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
+        assert forbidden not in final_stage
+    assert "COPY --from=builder /out/var" not in containerfile
+    assert "COPY --from=builder --chown=70:70 --chmod=0700 /out/var/ /var/" not in containerfile
+    assert "curl " not in containerfile
+    assert "git clone" not in containerfile
+    assert "postgres:15-alpine" not in containerfile
+
+
+def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "cd.yml").read_text(encoding="utf-8")
+    contract = workflow.split("\n  postgres-pgvector-contract:\n", maxsplit=1)[1].split(
+        "\n  main-push-admission:\n", maxsplit=1
+    )[0]
+    publish = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
+        "\n  build:\n", maxsplit=1
+    )[0]
+    assert "${{ secrets." not in contract
+    assert "docker" + " login" not in contract
+    workflow_triggers = workflow.split("\npermissions:\n", maxsplit=1)[0]
+    assert "pull_request" + "_target:" not in workflow_triggers
+    assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in publish
+    assert "DHI_USERNAME" in publish
+    assert "DHI_ACCESS_TOKEN" in publish
+    assert publish.count("--no-cache") == 1
+    assert "for build_number in 1 2" in publish
+    assert "diff -qr" in publish
+    assert "--output type=registry,rewrite-timestamp=true" in publish
+    assert "--scanners vuln,secret" in publish
+    assert "--severity CRITICAL,HIGH" in publish
+    assert "--exit-code 1" in publish
+    assert "--ignorefile" in publish
+    assert "ignore-policy" not in publish
+    assert "ignore-unfixed" not in publish
+    assert "0.74.0" in workflow
+    assert POSTGRES_PLATFORM_MANIFEST_DIGEST in workflow
+    assert "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124" in workflow
+    assert "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc" in workflow
+    assert 'stat -c "%u:%g:%a" /var/lib/postgresql/data' in publish
+    assert "test -z" in publish
+    assert (
+        "postgres:15-alpine@sha256:"
+        "a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181" in publish
+    )
+    assert "82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in workflow
 
 
 def test_prometheus_config_has_one_private_exact_target() -> None:
@@ -481,6 +703,21 @@ def _write_executable(path: Path, content: str) -> None:
       printf '%s\\n' '{FAKE_PROMETHEUS_COMPOSE_JSON}'
     fi
     ;;
+  run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
+    if [ "${{STUB_POSTGRES_MOUNTPOINT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_MOUNTPOINT_STATUS}}"
+    fi
+    ;;
+  image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
+    if [ "${{STUB_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_IMAGE_INSPECT_STATUS}}"
+    fi
+    if [ -n "${{STUB_POSTGRES_IMAGE_INSPECT_JSON+x}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_IMAGE_INSPECT_JSON"
+    else
+      printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
   image\\ inspect\\ *)
     if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
@@ -537,6 +774,33 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
         canonical["tag"] = 314
     else:
         raise AssertionError(f"unsupported manifest variant: {variant}")
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+
+
+def _write_postgres_manifest_variant(path: Path, variant: str) -> None:
+    canonical = json.loads(POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"))
+    if variant == "malformed":
+        path.write_text("{", encoding="utf-8")
+        return
+    if variant == "duplicate":
+        canonical_text = json.dumps(canonical, separators=(",", ":"))
+        path.write_text(
+            '{"schema":"pulseplate.postgres_pgvector_image_manifest.v1",' + canonical_text[1:],
+            encoding="utf-8",
+        )
+        return
+    if variant == "missing":
+        canonical.pop("runtime_base_platform_manifest_digest")
+    elif variant == "extra":
+        canonical["unexpected"] = "forbidden"
+    elif variant == "wrong-platform-digest":
+        canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+    elif variant == "wrong-runtime-ref":
+        canonical["runtime_ref"] = canonical["runtime_ref"].replace("63782de6", "b3782de6")
+    elif variant == "wrong-type":
+        canonical["postgres_major"] = 15
+    else:
+        raise AssertionError(f"unsupported PostgreSQL manifest variant: {variant}")
     path.write_text(json.dumps(canonical), encoding="utf-8")
 
 
@@ -643,6 +907,47 @@ def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
         "wrong-type",
     ),
 )
+def test_staging_deploy_rejects_noncanonical_postgres_manifest_before_docker(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    manifest_path = Path(env["PROJECT_DIR"]) / "postgres-pgvector" / "image-manifest.json"
+    _write_postgres_manifest_variant(manifest_path, variant)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL image manifest" in completed.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "malformed",
+        "duplicate",
+        "missing",
+        "extra",
+        "wrong-platform-digest",
+        "wrong-runtime-ref",
+        "wrong-type",
+    ),
+)
 def test_production_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
     tmp_path: Path,
     variant: str,
@@ -721,6 +1026,58 @@ def test_staging_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
     )
 
     assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("config --format json" in line for line in log_lines)
+    assert all(
+        " login " not in line and " pull " not in line and " up " not in line for line in log_lines
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ("missing", "wrong-image", "wrong-platform", "wrong-pgdata", "wrong-volume", "ports"),
+)
+def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    rendered = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    postgres = rendered["services"]["postgres"]
+    if variant == "missing":
+        del rendered["services"]["postgres"]
+    elif variant == "wrong-image":
+        postgres["image"] = "postgres:15-alpine"
+    elif variant == "wrong-platform":
+        postgres["platform"] = "linux/arm64"
+    elif variant == "wrong-pgdata":
+        postgres["environment"]["PGDATA"] = "/var/lib/postgresql/15/data"
+    elif variant == "wrong-volume":
+        postgres["volumes"][0]["target"] = "/var/lib/postgresql/15/data"
+    elif variant == "ports":
+        postgres["ports"] = [{"target": 5432, "published": "5432"}]
+    else:
+        raise AssertionError(f"unsupported rendered PostgreSQL variant: {variant}")
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(rendered)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("config --format json" in line for line in log_lines)
     assert all(
@@ -843,6 +1200,44 @@ IMAGE_INSPECT_REJECTIONS = (
 )
 
 
+def _postgres_image_inspect_variant(variant: str) -> str:
+    payload = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
+    record = payload[0]
+    config = record["Config"]
+    if variant == "wrong-platform":
+        record["Architecture"] = "arm64"
+    elif variant == "wrong-user":
+        config["User"] = "0"
+    elif variant == "wrong-entrypoint":
+        config["Entrypoint"] = ["/bin/sh"]
+    elif variant == "wrong-environment":
+        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=19"]
+    elif variant == "wrong-label":
+        config["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
+    elif variant == "wrong-repository-digest":
+        record["RepoDigests"] = [f"example.invalid/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"]
+    else:
+        raise AssertionError(f"unsupported pulled PostgreSQL variant: {variant}")
+    return json.dumps(payload)
+
+
+POSTGRES_IMAGE_INSPECT_REJECTIONS = (
+    "{",
+    "[]",
+    *(
+        _postgres_image_inspect_variant(variant)
+        for variant in (
+            "wrong-platform",
+            "wrong-user",
+            "wrong-entrypoint",
+            "wrong-environment",
+            "wrong-label",
+            "wrong-repository-digest",
+        )
+    ),
+)
+
+
 @pytest.mark.parametrize("inspect_payload", IMAGE_INSPECT_REJECTIONS)
 def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutation(
     tmp_path: Path,
@@ -864,8 +1259,62 @@ def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutati
 
     assert completed.returncode != 0
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert any(" pull app caddy prometheus" in line for line in log_lines)
+    assert any(" pull app caddy postgres prometheus" in line for line in log_lines)
     assert any("image inspect" in line for line in log_lines)
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+@pytest.mark.parametrize("inspect_payload", POSTGRES_IMAGE_INSPECT_REJECTIONS)
+def test_staging_deploy_rejects_pulled_postgres_identity_before_product_mutation(
+    tmp_path: Path,
+    inspect_payload: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = inspect_payload
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL image" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" pull app caddy postgres prometheus" in line for line in log_lines)
+    assert sum("image inspect" in line for line in log_lines) >= 2
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+def test_staging_deploy_rejects_postgres_mountpoint_drift_before_product_mutation(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_MOUNTPOINT_STATUS"] = "17"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 17
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert sum("image inspect" in line for line in log_lines) >= 2
     assert all("promtool" not in line for line in log_lines)
     assert all("assert_production_runtime_invariants" not in line for line in log_lines)
     assert all(" stop " not in line and " up " not in line for line in log_lines)
@@ -1979,16 +2428,23 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     ) == PRODUCTION_COMPOSE_TEXT
     published_config = project_dir / "deploy" / "prometheus" / "prometheus.yml"
     published_manifest = project_dir / "deploy" / "prometheus" / "image-manifest.json"
+    published_postgres_manifest = (
+        project_dir / "deploy" / "postgres-pgvector" / "image-manifest.json"
+    )
     assert published_config.read_text(encoding="utf-8") == PROMETHEUS_CONFIG_PATH.read_text(
         encoding="utf-8"
     )
     assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
         encoding="utf-8"
     )
+    assert published_postgres_manifest.read_text(
+        encoding="utf-8"
+    ) == POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8")
     for published_path in (
         project_dir / "deploy" / "docker-compose.production.yaml",
         published_config,
         published_manifest,
+        published_postgres_manifest,
         project_dir / "deploy" / "Caddyfile.production",
         project_dir / "frontend" / "bundle-marker.txt",
     ):
@@ -3582,6 +4038,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
     (project_dir / "prometheus").mkdir()
+    (project_dir / "postgres-pgvector").mkdir()
     (project_dir / "secrets").mkdir()
     (project_dir / "secrets").chmod(0o700)
     (project_dir / "backups").mkdir()
@@ -3594,6 +4051,9 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     )
     (project_dir / "prometheus" / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "postgres-pgvector" / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (project_dir / "secrets" / "pulseplate_metrics_scrape_key").write_text(
         METRICS_SECRET_SENTINEL, encoding="ascii"
@@ -3829,8 +4289,8 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     pull_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " pull app caddy prometheus" in line,
-        message="missing exact app, Caddy, and Prometheus pull",
+        predicate=lambda line: "compose " in line and " pull app caddy postgres prometheus" in line,
+        message="missing exact app, Caddy, PostgreSQL, and Prometheus pull",
     )
     image_inspect_index = _assert_log_index(
         log_lines,
@@ -3842,7 +4302,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     postgres_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " up -d postgres" in line,
+        predicate=lambda line: "compose " in line and " up -d --pull never postgres" in line,
         message="missing Postgres bootstrap",
     )
     quiesce_index = _assert_log_index(
@@ -3877,7 +4337,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         < app_index
         < caddy_index
     )
-    assert all("up -d --pull never postgres" not in line for line in log_lines)
+    assert all(" up -d postgres" not in line for line in log_lines)
     assert f"backup docker={env['DOCKER_BIN']}" in log_lines[backup_index]
 
     env_lines = [line for line in log_lines if line.startswith("env backend=")]

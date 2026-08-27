@@ -1,7 +1,8 @@
 # Operational Signals
 
-Canonical operator runbook for PulsePlate health, private Prometheus activation,
-premium-alias evidence, and non-destructive telemetry rollback.
+Canonical operator runbook for PulsePlate health, the immutable local
+PostgreSQL plus pgvector contour, private Prometheus activation, premium-alias
+evidence, and non-destructive telemetry rollback.
 
 Repository merge, host synchronization, secret bootstrap, private staging,
 production release authorization, production deployment, baseline eligibility,
@@ -56,6 +57,59 @@ Managed versus colocated PostgreSQL remains product-topology truth. Runner
 transport such as `PROD_DEPLOY_MODE=self-hosted` does not select a database
 contour. Only an exact canonical `COMPOSE_FILE` does so.
 
+## Immutable local PostgreSQL plus pgvector contour
+
+Only private staging and the explicitly selected
+`deploy/docker-compose.production.selfhosted.yaml` contour run a local
+PostgreSQL service. Managed production continues to use the separately owned
+DigitalOcean PostgreSQL database and does not receive this service.
+
+The operator-selected DigitalOcean topology for the later activation is not
+host-census evidence: staging runs on its own DigitalOcean droplet; the
+production application droplet runs app, Caddy, and private Prometheus through
+`deploy/docker-compose.production.yaml`; production PostgreSQL remains a
+separate DigitalOcean database resource reached through `DATABASE_URL`.
+`production.selfhosted` is a maintained fallback contour, not the selected
+production database topology. A fresh read-only host census must still confirm
+these identities before any activation or `T₀` claim.
+
+The closed repository record is
+`deploy/postgres-pgvector/image-manifest.json`. It binds:
+
+- DHI PostgreSQL `15.19-alpine3.23` runtime and `15.19-alpine3.23-dev` exact
+  linux/amd64 platform manifests;
+- pgvector `0.8.6` commit/archive SHA-256 and the exact two-stage
+  `deploy/postgres-pgvector/Containerfile`;
+- the deterministic APK/build/artifact closure and source epoch;
+- the derived existing-package GHCR platform/config digest;
+- Trivy `0.74.0` `vuln,secret` and `os,library` HIGH/CRITICAL exit-1 scan with
+  an empty ignore file and no Rego, VEX, `ignore-unfixed`, or other suppression.
+
+Both local contours keep `postgres_data:/var/lib/postgresql/data`, explicitly
+set `PGDATA=/var/lib/postgresql/data`, select `linux/amd64`, and expose no host
+port. This preserves the existing volume root while changing the image owner.
+The base image default `/var/lib/postgresql/15/data` is evidence, not the
+Compose mount contract.
+
+The derived image contains one empty `/var/lib/postgresql/data` directory with
+owner `70:70` and mode `0700`. This closes only the fresh named-volume
+initialization precondition for the tested Docker engine while preserving the
+inherited non-root UID 70 entrypoint. A mounted existing volume hides that
+image directory; therefore the layer cannot repair, chown, migrate, inspect,
+or prove any existing staging or production volume. Host activation still
+requires a read-only volume/UID/PGDATA census and backup. Any ownership or data
+drift is `HOLD`, not permission for an automatic host `chown`, copy, restore,
+replacement, or deletion.
+
+Pull requests validate only repository contracts and the public pinned
+pgvector semantic oracle; they receive no DHI credentials and write no image.
+Only the exact trusted `push` to `refs/heads/main` job may use the repository
+`DHI_USERNAME` and `DHI_ACCESS_TOKEN`, reproduce the expected digest twice,
+scan exact runtime/dev/builder/final images, publish into the existing
+`ghcr.io/katsiarynakavaleuskaya/pulseplate` package, attach derived
+provenance/SPDX evidence, and verify pullback. That publication still performs
+no staging or production deployment.
+
 ## Host secret contract
 
 The secret is a human-owned server-local artifact. Repository workflows and
@@ -105,20 +159,23 @@ Private staging is a human infrastructure action after the OBS1B repository
 change is merged. It never starts the production clock.
 
 1. Keep `STAGING_ATTESTED_DIGEST_READY=false` while synchronizing the exact
-   merged `deploy.sh`, staging Compose, Prometheus config, image manifest,
-   Caddyfile, and backup helper.
+   merged `deploy.sh`, staging Compose, Prometheus config/image manifest,
+   PostgreSQL image manifest, Caddyfile, and backup helper.
 2. Create the server-local secret directory and file under the frozen host
    permission contract without exposing the token.
-3. Record the merged application SHA, backend image, Caddy image, Prometheus
-   runtime image, normalized Compose identity, config hash, manifest hash, and
-   intended named volume.
-4. Run the contract-v3 preflight. It must reject invalid metadata, config,
-   manifest, architecture, or canonical application invariants before worker,
-   database, app, or Caddy mutation.
+3. Record the merged application SHA, backend image, Caddy image, PostgreSQL
+   image, Prometheus runtime image, normalized Compose identity, config hashes,
+   both image-manifest hashes, and intended named volumes.
+4. Run the contract-v4 preflight. It must reject invalid metadata, config,
+   manifest, architecture, PostgreSQL identity/PGDATA/mount drift, or canonical
+   application invariants before worker, database, app, or Caddy mutation.
 5. Only after the exact host contracts and secret/bootstrap checks are
    complete may the human re-enable `STAGING_ATTESTED_DIGEST_READY`.
-6. Run the separately authorized staging deploy. Product migration, app,
-   worker, Caddy, and external readiness complete before Prometheus starts.
+6. Run the separately authorized staging deploy. It pulls and inspects the
+   exact PostgreSQL image under temporary GHCR credentials, removes those
+   credentials, starts PostgreSQL with `--pull never`, verifies health, and
+   only then performs backup/migrations. Product migration, app, worker, Caddy,
+   and external readiness complete before Prometheus starts.
 7. Run canonical BMR and gaps API smoke plus Web Nutrition Setup smoke.
 8. Create a private mode-`0700` staging evidence directory and run the
    verifier in `baseline` mode.
@@ -143,10 +200,12 @@ Production requires a separate exact human authorization. Before presenting a
 release candidate, collect a fresh host census without changing the host:
 
 - exact Compose path and selected managed or colocated PostgreSQL contour;
-- current app, worker, Caddy, and Prometheus images;
+- current app, worker, Caddy, PostgreSQL (when self-hosted), and Prometheus
+  images;
 - one API container and one Uvicorn process;
 - database topology and readiness;
-- server-local `.env`, secret metadata, config, and manifest identities;
+- server-local `.env`, secret metadata, config, Prometheus manifest, and any
+  self-hosted PostgreSQL manifest identities;
 - existing `prometheus_data` identity, capacity, and free disk;
 - exact application release SHA/tag and intended Caddy and Prometheus images.
 
@@ -154,8 +213,11 @@ Only after the human authorizes that exact release may the tag and production
 deploy occur. The deploy sequence must remain:
 
 1. validate incoming archive/contracts and host secret metadata;
-2. normalize Compose and pull exact images;
-3. run exact-image promtool and the canonical `app.main` production invariant;
+2. normalize Compose and pull exact images; for self-hosted PostgreSQL, inspect
+   its platform/config/labels under temporary GHCR credentials, then remove
+   credentials and start it only with `--pull never`;
+3. require self-hosted PostgreSQL health before any migration, and run
+   exact-image promtool plus the canonical `app.main` production invariant;
 4. preserve migrations, app, worker, Caddy, and product readiness order;
 5. start Prometheus last and require both promtool ready and healthy checks.
 
@@ -258,6 +320,14 @@ For a Prometheus-only failure:
 Never run `down -v`, remove or prune `prometheus_data`, delete evidence, rotate
 or delete the secret, remove aliases, or substitute an image as an automatic
 rollback. Destructive TSDB cleanup requires separate exact human authorization.
+
+For a PostgreSQL image or migration failure, stop before product traffic
+mutation when possible, preserve `postgres_data` and the pre-migration backup,
+and record the exact image/config/volume identities. Do not retry with the old
+floating image, change `PGDATA`, restore, delete a volume, or patch server-local
+files automatically. Restore and destructive database actions require a
+separate exact human authorization. A failed or rolled-back staging attempt
+cannot establish a production baseline or `T₀`.
 
 ## Existing tracing and request telemetry
 

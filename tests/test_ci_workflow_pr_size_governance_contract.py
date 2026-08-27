@@ -176,7 +176,11 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
         "6c25",
     )
 )
-TRIVY_RUNTIME_VERSION = "v0.72.0"
+TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW = {
+    BUILD_WORKFLOW_PATH: "v0.72.0",
+    CD_WORKFLOW_PATH: "v0.74.0",
+    TRIVY_WORKFLOW_PATH: "v0.72.0",
+}
 CODEQL_ACTION_V4_37_1_SHA = "".join(
     (
         "7188",
@@ -2215,6 +2219,11 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
 
 
 def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> None:
+    assert set(TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW) == {
+        BUILD_WORKFLOW_PATH,
+        CD_WORKFLOW_PATH,
+        TRIVY_WORKFLOW_PATH,
+    }
     """Guard remaining Node 20 workflow action migrations against regression."""
 
     active_workflow_text = "\n".join(
@@ -2478,7 +2487,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
                 "trivyignores": ".trivyignore",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -2501,7 +2510,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
                 "exit-code": "1",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -2523,7 +2532,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "timeout": "15m",
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[CD_WORKFLOW_PATH],
                 "cache-dir": "/tmp/trivy-cache-staging-backend",
             },
             None,
@@ -2545,7 +2554,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "exit-code": "1",
                 "timeout": "15m",
                 "trivyignores": ".trivyignore-caddy",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[CD_WORKFLOW_PATH],
                 "cache-dir": "/tmp/trivy-cache-staging-caddy",
             },
             None,
@@ -2571,7 +2580,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "exit-code": "1",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[TRIVY_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},

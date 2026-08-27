@@ -23,7 +23,8 @@ secrets:
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4
+    platform: linux/amd64
     restart: unless-stopped
     networks: [web]
     env_file:
@@ -32,6 +33,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
       - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - PGDATA=/var/lib/postgresql/data
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

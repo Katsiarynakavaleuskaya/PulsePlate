@@ -56,6 +56,7 @@ TRUSTED_PYTHON_CANDIDATES=("/usr/bin/python3" "/usr/local/bin/python3")
 TRUSTED_STAT_CANDIDATES=("/usr/bin/stat" "/bin/stat")
 TRUSTED_CURL_CANDIDATES=("/usr/bin/curl" "/usr/local/bin/curl")
 ARCHIVE_EXTRACT_DIR=""
+GHCR_DOCKER_CONFIG=""
 
 # RU: Сохраняем credentials из workflow/окружения до загрузки .env,
 # чтобы локальный deploy/.env не подменял registry contract из CI.
@@ -233,6 +234,7 @@ COMPOSE_CONTRACT_DIR="${COMPOSE_CONTRACT_PATH%/*}"
 COMPOSE_RELATIVE_IDENTITY="${COMPOSE_CONTRACT_PATH#"$DEPLOY_DIR"/}"
 PROMETHEUS_CONFIG="$COMPOSE_CONTRACT_DIR/prometheus/prometheus.yml"
 PROMETHEUS_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/prometheus/image-manifest.json"
+POSTGRES_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/postgres-pgvector/image-manifest.json"
 METRICS_SECRET_DIR="$COMPOSE_CONTRACT_DIR/secrets"
 METRICS_SECRET_FILE="$METRICS_SECRET_DIR/pulseplate_metrics_scrape_key"
 
@@ -246,7 +248,7 @@ if [ "${RESOLVED_COMPOSE_FILE##*/}" = "docker-compose.production.selfhosted.yaml
 fi
 readonly COMPOSE_CONTRACT_PATH COMPOSE_CONTRACT_DIR
 readonly COMPOSE_RELATIVE_IDENTITY
-readonly PROMETHEUS_CONFIG PROMETHEUS_IMAGE_MANIFEST
+readonly PROMETHEUS_CONFIG PROMETHEUS_IMAGE_MANIFEST POSTGRES_IMAGE_MANIFEST
 readonly METRICS_SECRET_DIR METRICS_SECRET_FILE PRODUCTION_DB_TOPOLOGY
 
 if [ -z "$ENV_FILE" ]; then
@@ -313,8 +315,57 @@ login_to_ghcr_if_configured() {
     exit 1
   fi
 
-  echo "Logging in to ghcr.io with deploy credentials..."
+  umask 077
+  GHCR_DOCKER_CONFIG="$(mktemp -d /tmp/pulseplate-production-docker-config.XXXXXX)"
+  case "$GHCR_DOCKER_CONFIG" in
+    /tmp/pulseplate-production-docker-config.*)
+      ;;
+    *)
+      echo "❌ Refusing an unbounded Docker credential directory" >&2
+      exit 1
+      ;;
+  esac
+  if [ -L "$GHCR_DOCKER_CONFIG" ] || [ ! -d "$GHCR_DOCKER_CONFIG" ]; then
+    echo "❌ Docker credential directory must be a real directory" >&2
+    exit 1
+  fi
+  chmod 700 "$GHCR_DOCKER_CONFIG"
+  export DOCKER_CONFIG="$GHCR_DOCKER_CONFIG"
+
+  echo "Logging in to ghcr.io with temporary deploy credentials..."
   printf '%s\n' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+}
+
+cleanup_ghcr_credentials() {
+  if [ -z "$GHCR_DOCKER_CONFIG" ]; then
+    return 0
+  fi
+  local cleanup_failed=0
+  if [ -d "$GHCR_DOCKER_CONFIG" ] && [ ! -L "$GHCR_DOCKER_CONFIG" ]; then
+    if [ -f "$GHCR_DOCKER_CONFIG/config.json" ] && \
+       [ ! -L "$GHCR_DOCKER_CONFIG/config.json" ]; then
+      "$DOCKER_BIN" logout ghcr.io >/dev/null 2>&1 || cleanup_failed=1
+      rm -f -- "$GHCR_DOCKER_CONFIG/config.json"
+    elif [ -L "$GHCR_DOCKER_CONFIG/config.json" ]; then
+      echo "❌ Docker credential file became a symlink" >&2
+      cleanup_failed=1
+    fi
+    case "$GHCR_DOCKER_CONFIG" in
+      /tmp/pulseplate-production-docker-config.*)
+        rm -rf -- "$GHCR_DOCKER_CONFIG"
+        ;;
+      *)
+        echo "❌ Refusing cleanup for an unbounded Docker credential directory" >&2
+        cleanup_failed=1
+        ;;
+    esac
+  else
+    echo "❌ Refusing cleanup for an unsafe Docker credential directory" >&2
+    cleanup_failed=1
+  fi
+  unset DOCKER_CONFIG
+  GHCR_DOCKER_CONFIG=""
+  return "$cleanup_failed"
 }
 
 validate_regular_non_symlink_file() {
@@ -371,6 +422,11 @@ validate_prometheus_contract_files() {
   validate_regular_non_symlink_file "$PROMETHEUS_IMAGE_MANIFEST" "Prometheus image manifest"
 }
 
+validate_postgres_contract_files() {
+  validate_regular_non_symlink_file "$POSTGRES_IMAGE_MANIFEST" \
+    "PostgreSQL image manifest"
+}
+
 read_prometheus_runtime_ref() {
   local manifest_path="$1"
   "$PYTHON_BIN" - "$manifest_path" <<'PY'
@@ -395,7 +451,6 @@ expected = {
         "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
     ),
 }
-
 
 def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
@@ -455,6 +510,151 @@ print(manifest["runtime_ref"])
 PY
 }
 
+read_postgres_runtime_ref() {
+  local manifest_path="$1"
+  "$PYTHON_BIN" - "$manifest_path" <<'PY'
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import stat
+import sys
+
+manifest_path = sys.argv[1]
+expected_file_sha256 = "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+expected_keys = set(
+    """
+    schema repository tag platform platform_manifest_digest config_digest runtime_ref
+    source_date_epoch containerfile_sha256 runtime_base_repository runtime_base_tag
+    runtime_base_index_digest runtime_base_platform_manifest_digest runtime_base_config_digest
+    builder_base_repository builder_base_tag builder_base_index_digest
+    builder_base_platform_manifest_digest builder_base_config_digest legacy_repository
+    legacy_tag legacy_index_digest legacy_platform_manifest_digest legacy_config_digest
+    postgres_major postgres_version runtime_user runtime_entrypoint runtime_default_pgdata
+    compose_pgdata compose_volume_target pgvector_version pgvector_source_commit
+    pgvector_source_url pgvector_source_sha256 builder_packages builder_apk_closure_count
+    builder_apk_closure_sha256 pg_config_path pg_config_version make_jobs optflags
+    runtime_artifact_count runtime_artifact_inventory_sha256 trivy_version
+    mountpoint_layer_schema mountpoint_layer_digest mountpoint_layer_size
+    mountpoint_layer_diff_id mountpoint_layer_entry_count mountpoint_uid mountpoint_gid
+    mountpoint_mode mountpoint_path mountpoint_leaf_empty
+    mountpoint_base_parent_metadata_equal trivy_linux_archive_sha256 trivy_scan_contract
+    """.split()
+)
+expected_values = {
+    "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
+    "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+    "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+    "platform": "linux/amd64",
+    "platform_manifest_digest": "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4",
+    "config_digest": "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa",
+    "runtime_user": "70",
+    "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
+    "runtime_default_pgdata": "/var/lib/postgresql/15/data",
+    "compose_pgdata": "/var/lib/postgresql/data",
+    "compose_volume_target": "/var/lib/postgresql/data",
+    "postgres_major": "15",
+    "postgres_version": "15.19",
+    "pgvector_version": "0.8.6",
+    "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
+    "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
+    "mountpoint_layer_size": "154",
+    "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+    "mountpoint_layer_entry_count": "4",
+    "mountpoint_uid": "70",
+    "mountpoint_gid": "70",
+    "mountpoint_mode": "0700",
+    "mountpoint_path": "/var/lib/postgresql/data",
+    "mountpoint_leaf_empty": "true",
+    "mountpoint_base_parent_metadata_equal": "true",
+    "trivy_version": "0.74.0",
+    "trivy_scan_contract": "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none",
+}
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate PostgreSQL image manifest key")
+        result[key] = value
+    return result
+
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0 or not os.path.isabs(manifest_path):
+    raise SystemExit("PostgreSQL image manifest path is not one safe absolute path")
+descriptor = os.open(
+    manifest_path,
+    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+)
+try:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > 64 * 1024
+    ):
+        raise SystemExit("PostgreSQL image manifest must be one bounded regular file")
+    payload = os.read(descriptor, metadata.st_size + 1)
+    if len(payload) != metadata.st_size:
+        raise SystemExit("PostgreSQL image manifest changed while being read")
+finally:
+    os.close(descriptor)
+
+if hashlib.sha256(payload).hexdigest() != expected_file_sha256:
+    raise SystemExit("PostgreSQL image manifest bytes do not match the frozen contract")
+try:
+    manifest = json.loads(
+        payload.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=lambda value: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON constant: {value}")
+        ),
+    )
+except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("PostgreSQL image manifest is malformed") from exc
+if type(manifest) is not dict or set(manifest) != expected_keys:
+    raise SystemExit("PostgreSQL image manifest fields do not match the closed contract")
+if any(type(value) is not str for value in manifest.values()):
+    raise SystemExit("PostgreSQL image manifest values must be strings")
+if any(manifest[key] != value for key, value in expected_values.items()):
+    raise SystemExit("PostgreSQL image manifest identity does not match the canonical record")
+for key in (
+    "platform_manifest_digest",
+    "config_digest",
+    "containerfile_sha256",
+    "runtime_base_index_digest",
+    "runtime_base_platform_manifest_digest",
+    "runtime_base_config_digest",
+    "builder_base_index_digest",
+    "builder_base_platform_manifest_digest",
+    "builder_base_config_digest",
+    "legacy_index_digest",
+    "legacy_platform_manifest_digest",
+    "legacy_config_digest",
+    "pgvector_source_sha256",
+    "builder_apk_closure_sha256",
+    "runtime_artifact_inventory_sha256",
+    "mountpoint_layer_digest",
+    "mountpoint_layer_diff_id",
+    "trivy_linux_archive_sha256",
+):
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", manifest[key]) is None:
+        raise SystemExit(f"PostgreSQL image manifest digest is malformed: {key}")
+derived_ref = (
+    f'{manifest["repository"]}:{manifest["tag"]}@'
+    f'{manifest["platform_manifest_digest"]}'
+)
+if manifest["runtime_ref"] != derived_ref:
+    raise SystemExit("PostgreSQL runtime reference is not manifest-digest bound")
+print(manifest["runtime_ref"])
+PY
+}
+
 validate_prometheus_compose_identity() {
   local compose_path="$1"
   local runtime_ref="$2"
@@ -492,6 +692,58 @@ validate_prometheus_contract_identity() {
   validate_prometheus_compose_identity "$compose_path" "$runtime_ref"
 }
 
+validate_postgres_compose_identity() {
+  local compose_path="$1"
+  local runtime_ref="$2"
+  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" config --format json | \
+    "$PYTHON_BIN" -c '
+import json
+import sys
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+postgres = services.get("postgres") if type(services) is dict else None
+if type(postgres) is not dict:
+    raise SystemExit("Rendered self-hosted Compose must define exactly one PostgreSQL service")
+if postgres.get("image") != sys.argv[1] or postgres.get("platform") != "linux/amd64":
+    raise SystemExit("Rendered self-hosted PostgreSQL identity does not match the manifest")
+environment = postgres.get("environment")
+if type(environment) is not dict or environment.get("PGDATA") != "/var/lib/postgresql/data":
+    raise SystemExit("Rendered self-hosted PostgreSQL PGDATA does not preserve the volume root")
+volumes = postgres.get("volumes")
+if type(volumes) is not list:
+    raise SystemExit("Rendered self-hosted PostgreSQL volumes are malformed")
+data_mounts = [
+    item
+    for item in volumes
+    if type(item) is dict and item.get("target") == "/var/lib/postgresql/data"
+]
+if len(data_mounts) != 1 or data_mounts[0].get("type") != "volume":
+    raise SystemExit("Rendered self-hosted PostgreSQL must use one named data volume")
+if postgres.get("ports") not in (None, []):
+    raise SystemExit("Rendered self-hosted PostgreSQL must not publish a host port")
+' "$runtime_ref"
+}
+
+validate_postgres_contract_identity() {
+  local manifest_path="$1"
+  local compose_path="$2"
+  local runtime_ref
+  runtime_ref="$(read_postgres_runtime_ref "$manifest_path")"
+  validate_postgres_compose_identity "$compose_path" "$runtime_ref"
+}
+
 validate_pulled_prometheus_image() {
   local runtime_ref="$1"
   "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
@@ -510,6 +762,7 @@ allowed = {
     f"prom/prometheus@{sys.argv[1]}",
     f"docker.io/prom/prometheus@{sys.argv[1]}",
 }
+
 if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
     raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
 if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
@@ -519,15 +772,74 @@ if not allowed.intersection(repo_digests):
 ' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
 }
 
+validate_pulled_postgres_image() {
+  local runtime_ref="$1"
+  local platform_digest="${runtime_ref##*@}"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("PostgreSQL image inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("PostgreSQL image inspect must return exactly one image")
+record = payload[0]
+config = record.get("Config")
+if type(config) is not dict:
+    raise SystemExit("PostgreSQL image config is malformed")
+if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
+    raise SystemExit("Pulled PostgreSQL image platform is not linux/amd64")
+if config.get("User") != "70" or config.get("Entrypoint") != ["/usr/local/bin/docker-entrypoint.sh"]:
+    raise SystemExit("Pulled PostgreSQL image runtime identity is not canonical")
+environment = config.get("Env")
+required_environment = {
+    "PGDATA=/var/lib/postgresql/15/data",
+    "PG_MAJOR=15",
+    "PG_MINOR=19",
+}
+
+if type(environment) is not list or not required_environment.issubset(environment):
+    raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
+labels = config.get("Labels")
+required_labels = {
+    "com.pulseplate.pgvector.version": "0.8.6",
+    "com.pulseplate.pgvector.source-commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
+    "com.pulseplate.postgres.base-manifest": "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+}
+if type(labels) is not dict or any(labels.get(key) != value for key, value in required_labels.items()):
+    raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
+repo_digests = record.get("RepoDigests")
+expected = f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{sys.argv[1]}"
+if type(repo_digests) is not list or expected not in repo_digests:
+    raise SystemExit("Pulled PostgreSQL image is not bound to the canonical GHCR digest")
+' "$platform_digest"
+}
+
+validate_pulled_postgres_mountpoint() {
+  local runtime_ref="$1"
+  "$DOCKER_BIN" run --rm \
+    --platform linux/amd64 \
+    --user 70:70 \
+    --network none \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --entrypoint /bin/sh \
+    "$runtime_ref" \
+    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+}
+
 contract_destination_transaction() {
   local operation="$1"
   local source_compose="${2:-}"
   local source_prometheus_config="${3:-}"
   local source_prometheus_manifest="${4:-}"
-  local source_frontend="${5:-}"
-  local source_caddyfile="${6:-}"
-  local source_diagnose="${7:-}"
-  local source_redeploy="${8:-}"
+  local source_postgres_manifest="${5:-}"
+  local source_frontend="${6:-}"
+  local source_caddyfile="${7:-}"
+  local source_diagnose="${8:-}"
+  local source_redeploy="${9:-}"
 
   "$PYTHON_BIN" - \
     "$operation" \
@@ -538,6 +850,8 @@ contract_destination_transaction() {
     "deploy/prometheus/prometheus.yml" \
     "$source_prometheus_manifest" \
     "deploy/prometheus/image-manifest.json" \
+    "$source_postgres_manifest" \
+    "deploy/postgres-pgvector/image-manifest.json" \
     "$source_frontend" \
     "frontend" \
     "$source_caddyfile" \
@@ -563,14 +877,16 @@ source_config = sys.argv[5]
 config_target = sys.argv[6]
 source_manifest = sys.argv[7]
 manifest_target = sys.argv[8]
-source_frontend = sys.argv[9]
-frontend_target = sys.argv[10]
-source_caddy = sys.argv[11]
-caddy_target = sys.argv[12]
-source_diagnose = sys.argv[13]
-diagnose_target = sys.argv[14]
-source_redeploy = sys.argv[15]
-redeploy_target = sys.argv[16]
+source_postgres_manifest = sys.argv[9]
+postgres_manifest_target = sys.argv[10]
+source_frontend = sys.argv[11]
+frontend_target = sys.argv[12]
+source_caddy = sys.argv[13]
+caddy_target = sys.argv[14]
+source_diagnose = sys.argv[15]
+diagnose_target = sys.argv[16]
+source_redeploy = sys.argv[17]
+redeploy_target = sys.argv[18]
 
 if operation not in {
     "validate-contracts",
@@ -592,6 +908,8 @@ if config_target != "deploy/prometheus/prometheus.yml":
     raise SystemExit("Prometheus configuration destination is not canonical")
 if manifest_target != "deploy/prometheus/image-manifest.json":
     raise SystemExit("Prometheus image manifest destination is not canonical")
+if postgres_manifest_target != "deploy/postgres-pgvector/image-manifest.json":
+    raise SystemExit("PostgreSQL image manifest destination is not canonical")
 if frontend_target != "frontend":
     raise SystemExit("frontend destination is not canonical")
 if caddy_target != "deploy/Caddyfile.production":
@@ -877,6 +1195,7 @@ try:
         compose_target,
         config_target,
         manifest_target,
+        postgres_manifest_target,
         frontend_target,
         caddy_target,
         diagnose_target,
@@ -902,6 +1221,15 @@ try:
     if prometheus_fd is not None:
         directory_fds.append(prometheus_fd)
 
+    postgres_pgvector_fd = ensure_directory(
+        deploy_contract_fd,
+        "postgres-pgvector",
+        create=operation == "publish-contracts",
+        label="PostgreSQL image contract directory",
+    )
+    if postgres_pgvector_fd is not None:
+        directory_fds.append(postgres_pgvector_fd)
+
     scripts_fd = ensure_directory(
         deploy_fd,
         "scripts",
@@ -915,6 +1243,7 @@ try:
         compose_target: deploy_contract_fd,
         config_target: prometheus_fd,
         manifest_target: prometheus_fd,
+        postgres_manifest_target: postgres_pgvector_fd,
         caddy_target: deploy_contract_fd,
         diagnose_target: scripts_fd,
         redeploy_target: scripts_fd,
@@ -923,6 +1252,7 @@ try:
         compose_target,
         config_target,
         manifest_target,
+        postgres_manifest_target,
         caddy_target,
         diagnose_target,
         redeploy_target,
@@ -964,14 +1294,22 @@ try:
     if operation == "publish-contracts":
         if prometheus_fd is None:
             raise SystemExit("Prometheus contract directory was not created")
+        if postgres_pgvector_fd is None:
+            raise SystemExit("PostgreSQL image contract directory was not created")
         sources = {
             compose_target: source_compose,
             config_target: source_config,
             manifest_target: source_manifest,
+            postgres_manifest_target: source_postgres_manifest,
         }
         prepared_contracts: list[tuple[int, str, str]] = []
         try:
-            for target in (config_target, manifest_target, compose_target):
+            for target in (
+                config_target,
+                manifest_target,
+                postgres_manifest_target,
+                compose_target,
+            ):
                 source_fd, source_metadata = open_absolute_file(
                     sources[target],
                     label=f"{target} source",
@@ -1203,17 +1541,19 @@ PY
 }
 
 validate_contract_destinations_safely() {
-  contract_destination_transaction validate-contracts "" "" ""
+  contract_destination_transaction validate-contracts "" "" "" ""
 }
 
 publish_contract_files_safely() {
   local source_compose="$1"
   local source_prometheus_config="$2"
   local source_prometheus_manifest="$3"
+  local source_postgres_manifest="$4"
   contract_destination_transaction publish-contracts \
     "$source_compose" \
     "$source_prometheus_config" \
-    "$source_prometheus_manifest"
+    "$source_prometheus_manifest" \
+    "$source_postgres_manifest"
 }
 
 validate_full_bundle_safely() {
@@ -1222,7 +1562,7 @@ validate_full_bundle_safely() {
   local source_diagnose="$3"
   local source_redeploy="$4"
   contract_destination_transaction validate-full \
-    "" "" "" \
+    "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1235,7 +1575,7 @@ publish_full_bundle_safely() {
   local source_diagnose="$3"
   local source_redeploy="$4"
   contract_destination_transaction publish-full \
-    "" "" "" \
+    "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1295,12 +1635,19 @@ finally:
 required_files = {
     "deploy/Caddyfile.production",
     "deploy/docker-compose.production.yaml",
+    "deploy/postgres-pgvector/image-manifest.json",
     "deploy/prometheus/image-manifest.json",
     "deploy/prometheus/prometheus.yml",
     "scripts/diagnose_web.sh",
     "scripts/redeploy_caddy.sh",
 }
-allowed_directories = {"frontend", "deploy", "deploy/prometheus", "scripts"}
+allowed_directories = {
+    "frontend",
+    "deploy",
+    "deploy/postgres-pgvector",
+    "deploy/prometheus",
+    "scripts",
+}
 max_members = 20_000
 max_expanded_bytes = 512 * 1024 * 1024
 
@@ -1443,6 +1790,16 @@ cleanup_shell_bundle_archive() {
   fi
 }
 
+cleanup_deploy_runtime() {
+  local original_status=$?
+  trap - EXIT
+  if ! cleanup_ghcr_credentials; then
+    original_status=1
+  fi
+  cleanup_shell_bundle_archive
+  exit "$original_status"
+}
+
 sync_shell_bundle() {
   local sync_mode="${1:-full}"
   case "$sync_mode" in
@@ -1468,6 +1825,7 @@ sync_shell_bundle() {
   local source_compose=""
   local source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
   local source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
+  local source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
   local compose_relative_path="$COMPOSE_RELATIVE_IDENTITY"
@@ -1498,6 +1856,8 @@ sync_shell_bundle() {
     "Incoming Prometheus configuration"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
+  validate_regular_non_symlink_file "$source_postgres_manifest" \
+    "Incoming PostgreSQL image manifest"
 
   if [ -L "$source_redeploy" ] || [ ! -f "$source_redeploy" ]; then
     echo "❌ SHELL_BUNDLE_DIR is missing scripts/redeploy_caddy.sh: $source_redeploy" >&2
@@ -1516,8 +1876,9 @@ sync_shell_bundle() {
     publish_contract_files_safely \
       "$source_compose" \
       "$source_prometheus_config" \
-      "$source_prometheus_manifest"
-    echo "Synced production Compose and Prometheus contracts before worker operations"
+      "$source_prometheus_manifest" \
+      "$source_postgres_manifest"
+    echo "Synced production Compose, Prometheus, and PostgreSQL image contracts before worker operations"
     return 0
   fi
 
@@ -1546,6 +1907,34 @@ wait_for_app_ready() {
   done
 
   echo "❌ App failed to become ready within $max_wait seconds" >&2
+  return 1
+}
+
+wait_for_postgres_ready() {
+  local max_wait="${1:-60}"
+  local wait_count=0
+
+  while [ "$wait_count" -lt "$max_wait" ]; do
+    local postgres_container=""
+    local postgres_health="unknown"
+    postgres_container="$(dc ps -q postgres | tr -d '\n\r ')"
+    if [ -n "$postgres_container" ]; then
+      if inspected_health="$($DOCKER_BIN inspect \
+          --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+          "$postgres_container" 2>/dev/null)"; then
+        postgres_health="$inspected_health"
+      fi
+    fi
+    if [ -n "$postgres_container" ] && [ "$postgres_health" = "healthy" ]; then
+      echo "PostgreSQL is healthy"
+      return 0
+    fi
+    wait_count=$((wait_count + 1))
+    echo "Waiting for PostgreSQL readiness... ($wait_count/$max_wait)"
+    sleep 1
+  done
+
+  echo "❌ PostgreSQL failed to become healthy within $max_wait seconds" >&2
   return 1
 }
 
@@ -1631,6 +2020,7 @@ validate_shell_bundle_contract() {
   local source_compose=""
   local source_prometheus_config=""
   local source_prometheus_manifest=""
+  local source_postgres_manifest=""
   local compose_relative_path=""
   local required_redeploy=""
   local optional_diagnose=""
@@ -1653,6 +2043,7 @@ validate_shell_bundle_contract() {
   source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
   source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
+  source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
 
   if [[ "$RESOLVED_COMPOSE_FILE" = /* ]]; then
     case "$RESOLVED_COMPOSE_FILE" in
@@ -1699,6 +2090,8 @@ validate_shell_bundle_contract() {
     "Incoming Prometheus configuration"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
+  validate_regular_non_symlink_file "$source_postgres_manifest" \
+    "Incoming PostgreSQL image manifest"
 
   required_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
   if [ -L "$required_redeploy" ] || [ ! -f "$required_redeploy" ]; then
@@ -1716,6 +2109,9 @@ validate_shell_bundle_contract() {
   fi
 
   validate_prometheus_contract_identity "$source_prometheus_manifest" "$source_compose"
+  if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+    validate_postgres_contract_identity "$source_postgres_manifest" "$source_compose"
+  fi
   validate_full_bundle_safely \
     "$source_frontend" \
     "$source_caddyfile" \
@@ -1735,6 +2131,12 @@ run_preflight() {
     validate_prometheus_contract_identity \
       "$PROMETHEUS_IMAGE_MANIFEST" \
       "$COMPOSE_CONTRACT_PATH"
+    if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+      validate_postgres_contract_files
+      validate_postgres_contract_identity \
+        "$POSTGRES_IMAGE_MANIFEST" \
+        "$COMPOSE_CONTRACT_PATH"
+    fi
   fi
   validate_production_database_contract
   validate_scheduler_mode_contract
@@ -1746,8 +2148,9 @@ if [ "$MODE" = "preflight-only" ]; then
   exit 0
 fi
 
+trap cleanup_deploy_runtime EXIT
+
 if [ -n "$SHELL_BUNDLE_ARCHIVE" ]; then
-  trap cleanup_shell_bundle_archive EXIT
   extract_shell_bundle_archive
   validate_shell_bundle_contract
 fi
@@ -1762,6 +2165,13 @@ readonly PROMETHEUS_RUNTIME_REF
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
 readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
 validate_prometheus_compose_identity "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_RUNTIME_REF"
+POSTGRES_RUNTIME_REF=""
+if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  validate_postgres_contract_files
+  POSTGRES_RUNTIME_REF="$(read_postgres_runtime_ref "$POSTGRES_IMAGE_MANIFEST")"
+  readonly POSTGRES_RUNTIME_REF
+  validate_postgres_compose_identity "$COMPOSE_CONTRACT_PATH" "$POSTGRES_RUNTIME_REF"
+fi
 
 echo "Pulling production app image..."
 dc pull app
@@ -1772,8 +2182,26 @@ dc pull worker
 echo "Pulling exact production Prometheus image..."
 dc pull prometheus
 
+if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  echo "Pulling exact self-hosted PostgreSQL image..."
+  dc pull postgres
+fi
+
 echo "Validating the pulled Prometheus platform manifest before product mutation..."
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
+
+if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  echo "Validating the pulled PostgreSQL platform manifest before product mutation..."
+  validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
+  echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation..."
+  validate_pulled_postgres_mountpoint "$POSTGRES_RUNTIME_REF"
+fi
+
+if ! cleanup_ghcr_credentials; then
+  echo "❌ Failed to remove temporary GHCR credentials before runtime mutation" >&2
+  exit 1
+fi
+unset GHCR_TOKEN GHCR_USER ORIGINAL_GHCR_TOKEN ORIGINAL_GHCR_USER
 
 echo "Validating the exact Prometheus configuration before product mutation..."
 dc run --rm --no-deps --entrypoint /bin/promtool prometheus \
@@ -1791,6 +2219,12 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
 fi
 
 echo "Production DB backups are managed outside the deploy script (provider snapshots / PITR)."
+
+if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
+  echo "Starting exact self-hosted PostgreSQL image without a registry pull..."
+  dc up -d --pull never postgres
+  wait_for_postgres_ready 60
+fi
 
 echo "Running database migrations via one-shot release container..."
 if dc run --rm --no-deps app alembic upgrade head; then

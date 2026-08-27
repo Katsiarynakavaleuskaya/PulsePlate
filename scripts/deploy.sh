@@ -2,7 +2,7 @@
 # Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
-STAGING_DEPLOY_CONTRACT_VERSION="3"
+STAGING_DEPLOY_CONTRACT_VERSION="4"
 STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"
 CANONICAL_IMAGE_PATTERN='^ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[0-9a-f]{64}$'
 
@@ -51,6 +51,7 @@ BACKUP_HELPER="${BACKUP_HELPER:-${PROJECT_DIR}/scripts/ops/postgres_backup.sh}"
 STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-deploy-v1}"
 PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
 PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
+POSTGRES_IMAGE_MANIFEST="${POSTGRES_IMAGE_MANIFEST:-${PROJECT_DIR}/postgres-pgvector/image-manifest.json}"
 METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
 METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
 
@@ -102,7 +103,8 @@ for required_path in \
   "$COMPOSE_FILE" \
   "$CADDYFILE" \
   "$PROMETHEUS_CONFIG" \
-  "$PROMETHEUS_IMAGE_MANIFEST"; do
+  "$PROMETHEUS_IMAGE_MANIFEST" \
+  "$POSTGRES_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
     echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
     exit 1
@@ -253,6 +255,251 @@ if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linu
 ' "$runtime_ref"
 }
 
+validate_postgres_image_manifest() {
+  local manifest_path="$1"
+  "$PYTHON_BIN" - "$manifest_path" <<'PY'
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import stat
+import sys
+
+manifest_path = sys.argv[1]
+expected_file_sha256 = "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+expected_keys = set(
+    """
+    schema repository tag platform platform_manifest_digest config_digest runtime_ref
+    source_date_epoch containerfile_sha256 runtime_base_repository runtime_base_tag
+    runtime_base_index_digest runtime_base_platform_manifest_digest runtime_base_config_digest
+    builder_base_repository builder_base_tag builder_base_index_digest
+    builder_base_platform_manifest_digest builder_base_config_digest legacy_repository
+    legacy_tag legacy_index_digest legacy_platform_manifest_digest legacy_config_digest
+    postgres_major postgres_version runtime_user runtime_entrypoint runtime_default_pgdata
+    compose_pgdata compose_volume_target pgvector_version pgvector_source_commit
+    pgvector_source_url pgvector_source_sha256 builder_packages builder_apk_closure_count
+    builder_apk_closure_sha256 pg_config_path pg_config_version make_jobs optflags
+    runtime_artifact_count runtime_artifact_inventory_sha256 trivy_version
+    mountpoint_layer_schema mountpoint_layer_digest mountpoint_layer_size
+    mountpoint_layer_diff_id mountpoint_layer_entry_count mountpoint_uid mountpoint_gid
+    mountpoint_mode mountpoint_path mountpoint_leaf_empty
+    mountpoint_base_parent_metadata_equal trivy_linux_archive_sha256 trivy_scan_contract
+    """.split()
+)
+expected_values = {
+    "schema": "pulseplate.postgres_pgvector_image_manifest.v1",
+    "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
+    "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
+    "platform": "linux/amd64",
+    "platform_manifest_digest": "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4",
+    "config_digest": "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa",
+    "runtime_user": "70",
+    "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
+    "runtime_default_pgdata": "/var/lib/postgresql/15/data",
+    "compose_pgdata": "/var/lib/postgresql/data",
+    "compose_volume_target": "/var/lib/postgresql/data",
+    "postgres_major": "15",
+    "postgres_version": "15.19",
+    "pgvector_version": "0.8.6",
+    "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
+    "mountpoint_layer_digest": "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124",
+    "mountpoint_layer_size": "154",
+    "mountpoint_layer_diff_id": "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc",
+    "mountpoint_layer_entry_count": "4",
+    "mountpoint_uid": "70",
+    "mountpoint_gid": "70",
+    "mountpoint_mode": "0700",
+    "mountpoint_path": "/var/lib/postgresql/data",
+    "mountpoint_leaf_empty": "true",
+    "mountpoint_base_parent_metadata_equal": "true",
+    "trivy_version": "0.74.0",
+    "trivy_scan_contract": "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none",
+}
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate PostgreSQL image manifest key")
+        result[key] = value
+    return result
+
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+if no_follow <= 0 or not os.path.isabs(manifest_path):
+    raise SystemExit("PostgreSQL image manifest path is not one safe absolute path")
+descriptor = os.open(
+    manifest_path,
+    os.O_RDONLY | no_follow | getattr(os, "O_CLOEXEC", 0),
+)
+try:
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > 64 * 1024
+    ):
+        raise SystemExit("PostgreSQL image manifest must be one bounded regular file")
+    payload = os.read(descriptor, metadata.st_size + 1)
+    if len(payload) != metadata.st_size:
+        raise SystemExit("PostgreSQL image manifest changed while being read")
+finally:
+    os.close(descriptor)
+
+if hashlib.sha256(payload).hexdigest() != expected_file_sha256:
+    raise SystemExit("PostgreSQL image manifest bytes do not match the frozen contract")
+try:
+    manifest = json.loads(
+        payload.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=lambda value: (_ for _ in ()).throw(
+            ValueError(f"invalid JSON constant: {value}")
+        ),
+    )
+except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("PostgreSQL image manifest is malformed") from exc
+if type(manifest) is not dict or set(manifest) != expected_keys:
+    raise SystemExit("PostgreSQL image manifest fields do not match the closed contract")
+if any(type(value) is not str for value in manifest.values()):
+    raise SystemExit("PostgreSQL image manifest values must be strings")
+if any(manifest[key] != value for key, value in expected_values.items()):
+    raise SystemExit("PostgreSQL image manifest identity does not match the canonical record")
+for key in (
+    "platform_manifest_digest",
+    "config_digest",
+    "containerfile_sha256",
+    "runtime_base_index_digest",
+    "runtime_base_platform_manifest_digest",
+    "runtime_base_config_digest",
+    "builder_base_index_digest",
+    "builder_base_platform_manifest_digest",
+    "builder_base_config_digest",
+    "legacy_index_digest",
+    "legacy_platform_manifest_digest",
+    "legacy_config_digest",
+    "pgvector_source_sha256",
+    "builder_apk_closure_sha256",
+    "runtime_artifact_inventory_sha256",
+    "mountpoint_layer_digest",
+    "mountpoint_layer_diff_id",
+    "trivy_linux_archive_sha256",
+):
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", manifest[key]) is None:
+        raise SystemExit(f"PostgreSQL image manifest digest is malformed: {key}")
+derived_ref = (
+    f'{manifest["repository"]}:{manifest["tag"]}@'
+    f'{manifest["platform_manifest_digest"]}'
+)
+if manifest["runtime_ref"] != derived_ref:
+    raise SystemExit("PostgreSQL runtime reference is not manifest-digest bound")
+print(manifest["runtime_ref"])
+PY
+}
+
+validate_postgres_compose_identity() {
+  local runtime_ref="$1"
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
+import json
+import sys
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+postgres = services.get("postgres") if type(services) is dict else None
+if type(postgres) is not dict:
+    raise SystemExit("Rendered staging Compose must define exactly one PostgreSQL service")
+if postgres.get("image") != sys.argv[1] or postgres.get("platform") != "linux/amd64":
+    raise SystemExit("Rendered staging PostgreSQL identity does not match the manifest")
+environment = postgres.get("environment")
+if type(environment) is not dict or environment.get("PGDATA") != "/var/lib/postgresql/data":
+    raise SystemExit("Rendered staging PostgreSQL PGDATA does not preserve the legacy volume root")
+volumes = postgres.get("volumes")
+if type(volumes) is not list:
+    raise SystemExit("Rendered staging PostgreSQL volumes are malformed")
+data_mounts = [
+    item
+    for item in volumes
+    if type(item) is dict and item.get("target") == "/var/lib/postgresql/data"
+]
+if len(data_mounts) != 1 or data_mounts[0].get("type") != "volume":
+    raise SystemExit("Rendered staging PostgreSQL must use one named data volume")
+if postgres.get("ports") not in (None, []):
+    raise SystemExit("Rendered staging PostgreSQL must not publish a host port")
+' "$runtime_ref"
+}
+
+validate_pulled_postgres_image() {
+  local runtime_ref="$1"
+  local platform_digest="${runtime_ref##*@}"
+  "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("PostgreSQL image inspect JSON is malformed") from exc
+if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+    raise SystemExit("PostgreSQL image inspect must return exactly one image")
+record = payload[0]
+config = record.get("Config")
+if type(config) is not dict:
+    raise SystemExit("PostgreSQL image config is malformed")
+if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
+    raise SystemExit("Pulled PostgreSQL image platform is not linux/amd64")
+if config.get("User") != "70" or config.get("Entrypoint") != ["/usr/local/bin/docker-entrypoint.sh"]:
+    raise SystemExit("Pulled PostgreSQL image runtime identity is not canonical")
+environment = config.get("Env")
+required_environment = {
+    "PGDATA=/var/lib/postgresql/15/data",
+    "PG_MAJOR=15",
+    "PG_MINOR=19",
+}
+
+if type(environment) is not list or not required_environment.issubset(environment):
+    raise SystemExit("Pulled PostgreSQL image version or default PGDATA drifted")
+labels = config.get("Labels")
+required_labels = {
+    "com.pulseplate.pgvector.version": "0.8.6",
+    "com.pulseplate.pgvector.source-commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
+    "com.pulseplate.postgres.base-manifest": "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+}
+if type(labels) is not dict or any(labels.get(key) != value for key, value in required_labels.items()):
+    raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
+repo_digests = record.get("RepoDigests")
+expected = f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{sys.argv[1]}"
+if type(repo_digests) is not list or expected not in repo_digests:
+    raise SystemExit("Pulled PostgreSQL image is not bound to the canonical GHCR digest")
+' "$platform_digest"
+}
+
+validate_pulled_postgres_mountpoint() {
+  local runtime_ref="$1"
+  "$DOCKER_BIN" run --rm \
+    --platform linux/amd64 \
+    --user 70:70 \
+    --network none \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --entrypoint /bin/sh \
+    "$runtime_ref" \
+    -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
+}
+
 validate_pulled_prometheus_image() {
   local runtime_ref="$1"
   "$DOCKER_BIN" image inspect "$runtime_ref" | "$PYTHON_BIN" -c '
@@ -345,6 +592,8 @@ PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_
 readonly PROMETHEUS_RUNTIME_REF
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
 readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+POSTGRES_RUNTIME_REF="$(validate_postgres_image_manifest "$POSTGRES_IMAGE_MANIFEST")"
+readonly POSTGRES_RUNTIME_REF
 
 docker_architecture="$($DOCKER_BIN info --format '{{.Architecture}}')"
 case "$docker_architecture" in
@@ -357,6 +606,7 @@ esac
 
 "${COMPOSE[@]}" config --quiet
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
+validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
 
 if [ "$PREFLIGHT_ONLY" -eq 1 ]; then
   echo "✅ Staging deploy preflight passed (contract v${STAGING_DEPLOY_CONTRACT_VERSION})"
@@ -379,7 +629,23 @@ umask 077
 DOCKER_CONFIG="$(mktemp -d "${TMPDIR:-/tmp}/pulseplate-docker-config.XXXXXX")"
 export DOCKER_CONFIG
 cleanup() {
-  rm -rf -- "$DOCKER_CONFIG"
+  local original_status=$?
+  trap - EXIT
+  case "$DOCKER_CONFIG" in
+    "${TMPDIR:-/tmp}"/pulseplate-docker-config.*)
+      if [ -d "$DOCKER_CONFIG" ] && [ ! -L "$DOCKER_CONFIG" ]; then
+        rm -rf -- "$DOCKER_CONFIG"
+      else
+        echo "❌ Refusing cleanup for an unsafe Docker credential path" >&2
+        original_status=1
+      fi
+      ;;
+    *)
+      echo "❌ Refusing cleanup for an unbounded Docker credential path" >&2
+      original_status=1
+      ;;
+  esac
+  exit "$original_status"
 }
 trap cleanup EXIT
 
@@ -390,15 +656,22 @@ HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
 echo "[1/5] Login to GHCR with temporary credentials"
 printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --password-stdin
 
-echo "[2/5] Pull exact backend, Caddy, and Prometheus digests"
-"${COMPOSE[@]}" pull app caddy prometheus
+echo "[2/5] Pull exact backend, Caddy, PostgreSQL, and Prometheus digests"
+"${COMPOSE[@]}" pull app caddy postgres prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
 echo "Validating the pulled Prometheus platform manifest before product mutation"
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
+echo "Validating the pulled PostgreSQL platform manifest before product mutation"
+validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
+echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation"
+validate_pulled_postgres_mountpoint "$POSTGRES_RUNTIME_REF"
 "$DOCKER_BIN" logout ghcr.io >/dev/null
-rm -rf -- "$DOCKER_CONFIG"
-mkdir -m 700 -- "$DOCKER_CONFIG"
+if [ -L "$DOCKER_CONFIG/config.json" ]; then
+  echo "❌ Docker credential file became a symlink" >&2
+  exit 1
+fi
+rm -f -- "$DOCKER_CONFIG/config.json"
 unset GHCR_TOKEN GHCR_USER
 
 echo "Validating the exact Prometheus configuration before product mutation"
@@ -417,7 +690,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
 fi
 
 echo "[3/5] Start Postgres and create a pre-migration backup"
-"${COMPOSE[@]}" up -d postgres
+"${COMPOSE[@]}" up -d --pull never postgres
 
 max_wait=60
 wait_count=0
