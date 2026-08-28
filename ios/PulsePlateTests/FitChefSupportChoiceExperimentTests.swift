@@ -815,7 +815,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             ),
             1
         )
-        XCTAssertEqual(occurrenceCount(of: "@ViewBuilder", in: source), 1)
+        XCTAssertEqual(occurrenceCount(of: "@ViewBuilder", in: source), 2)
         XCTAssertEqual(
             occurrenceCount(of: "private var headerCopy: some View", in: source),
             1
@@ -1046,7 +1046,22 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(occurrenceCount(of: "\n                        actions\n", in: body), 1)
         XCTAssertEqual(occurrenceCount(of: "PPButton(", in: body), 0)
         XCTAssertEqual(
-            occurrenceCount(of: ".defaultScrollAnchor(scrollAnchor)", in: body),
+            occurrenceCount(of: "\n            versionedSupportChoiceScrollView\n", in: body),
+            1
+        )
+        XCTAssertEqual(occurrenceCount(of: "ScrollView {", in: source), 1)
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "private var supportChoiceScrollView: some View",
+                in: source
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "@ViewBuilder\n    private var versionedSupportChoiceScrollView: some View",
+                in: source
+            ),
             1
         )
         XCTAssertEqual(
@@ -1086,7 +1101,69 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
         XCTAssertFalse(source.contains("ScrollViewReader"))
         XCTAssertFalse(source.contains(".scrollTo("))
-        XCTAssertEqual(occurrenceCount(of: ".defaultScrollAnchor(", in: source), 1)
+        XCTAssertEqual(occurrenceCount(of: ".defaultScrollAnchor(.top)", in: source), 1)
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".defaultScrollAnchor(scrollAnchor, for: .alignment)",
+                in: source
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".defaultScrollAnchor(scrollAnchor)", in: source),
+            0
+        )
+        XCTAssertFalse(source.contains("for: .initialOffset"))
+        XCTAssertFalse(source.contains("for: .sizeChanges"))
+        XCTAssertEqual(occurrenceCount(of: ".defaultScrollAnchor(", in: source), 2)
+        XCTAssertFalse(source.contains("ViewModifier"))
+        XCTAssertFalse(source.contains("extension View"))
+
+        let baseScrollView = try sourceSlice(
+            source,
+            from: "private var supportChoiceScrollView: some View",
+            to: "@ViewBuilder\n    private var versionedSupportChoiceScrollView: some View"
+        )
+        XCTAssertEqual(occurrenceCount(of: "ScrollView {", in: baseScrollView), 1)
+        XCTAssertEqual(
+            occurrenceCount(of: ".defaultScrollAnchor(.top)", in: baseScrollView),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".defaultScrollAnchor(scrollAnchor", in: baseScrollView),
+            0
+        )
+
+        let versionedScrollAnchor = try sourceSlice(
+            source,
+            from: "@ViewBuilder\n    private var versionedSupportChoiceScrollView: some View",
+            to: "private var header: some View"
+        )
+        assertOrdered(
+            [
+                "if #available(iOS 18.0, *) {",
+                "supportChoiceScrollView",
+                ".defaultScrollAnchor(scrollAnchor, for: .alignment)",
+                "} else {",
+                "supportChoiceScrollView",
+            ],
+            in: versionedScrollAnchor
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "if #available(iOS 18.0, *) {", in: source),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".defaultScrollAnchor(scrollAnchor, for: .alignment)",
+                in: versionedScrollAnchor
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "supportChoiceScrollView", in: versionedScrollAnchor),
+            2
+        )
 
         let actions = try sourceSlice(
             source,
