@@ -74,7 +74,7 @@ contourpy==1.3.3
     # via
     #   -c requirements.txt
     #   matplotlib
-coverage[toml]==7.15.1
+coverage[toml]==7.15.4
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -115,7 +115,7 @@ email-validator==2.3.0
     #   -r requirements.in
 execnet==2.1.2
     # via pytest-xdist
-faker==40.31.0
+faker==40.37.0
     # via -r requirements-dev.in
 fastapi==0.138.1
     # via
@@ -159,7 +159,7 @@ httpx==0.28.1
     #   openai
 httpx2==2.3.0
     # via -r requirements-dev.in
-hypothesis==6.156.6
+hypothesis==6.165.10
     # via -r requirements-dev.in
 identify==2.6.19
     # via pre-commit
@@ -218,7 +218,7 @@ msgpack==1.2.1
     # via
     #   -r requirements-dev.in
     #   cachecontrol
-mypy==2.2.0
+mypy==2.3.1
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via
@@ -427,7 +427,7 @@ rich==15.0.0
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.21
+ruff==0.16.4
     # via -r requirements-dev.in
 setuptools==83.0.0
     # via
@@ -480,7 +480,7 @@ truststore==0.10.4
     # via
     #   httpcore2
     #   httpx2
-types-pyyaml==6.0.12.20260518
+types-pyyaml==6.0.12.20260815
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via

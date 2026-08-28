@@ -1269,8 +1269,8 @@ def test_repo_mypy_dev_requirement_surfaces_no_longer_need_emergency_fallback() 
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
     artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
 
-    assert ("mypy", "2.2.0") in _exact_requirement_pairs(requirements_dev_in)
-    assert ("mypy", "2.2.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_in)
+    assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_txt)
     assert not any(package == "mypy" for package, _version in artifacts)
 
 
@@ -1284,16 +1284,16 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
     expected_ruff_version = _compatible_release_version(requirements_dev_in, "ruff")
     assert expected_ruff_version is not None
     assert _minimum_requirement_version(constraints_text, "black") == "26.5.1"
-    assert _minimum_requirement_version(constraints_text, "mypy") == "2.2.0"
+    assert _minimum_requirement_version(constraints_text, "mypy") == "2.3.1"
     assert _minimum_requirement_version(constraints_text, "ruff") == expected_ruff_version
     assert _minimum_requirement_version(requirements_all_text, "black") == "26.5.1"
-    assert _minimum_requirement_version(requirements_all_text, "mypy") == "2.2.0"
+    assert _minimum_requirement_version(requirements_all_text, "mypy") == "2.3.1"
     assert _minimum_requirement_version(requirements_all_text, "ruff") == expected_ruff_version
 
     assert _compatible_release_version(requirements_dev_in, "black") == "26.5.1"
-    assert ("mypy", "2.2.0") in _exact_requirement_pairs(requirements_dev_in)
+    assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_in)
     assert ("black", "26.5.1") in _exact_requirement_pairs(requirements_dev_txt)
-    assert ("mypy", "2.2.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("mypy", "2.3.1") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ast-serialize", "0.6.0") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ast-serialize", "0.6.0") in _exact_requirement_pairs(requirements_lock_txt)
@@ -1304,6 +1304,69 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
     assert not any(package == "mypy" for package, _version in artifacts)
     assert not any(package == "ruff" for package, _version in artifacts)
     assert not any(package == "black" for package, _version in artifacts)
+
+
+def test_repo_ds3_test_quality_inputs_locks_and_emergency_manifest_align() -> None:
+    artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
+    exact_targets = {
+        "bandit": ("bandit", "1.9.4"),
+        "black": ("black", "26.5.1"),
+        "coverage": ("coverage[toml]", "7.15.4"),
+        "faker": ("faker", "40.37.0"),
+        "hypothesis": ("hypothesis", "6.165.10"),
+        "mypy": ("mypy", "2.3.1"),
+        "pip-audit": ("pip-audit", "2.10.1"),
+        "ruff": ("ruff", "0.16.4"),
+        "types-pyyaml": ("types-pyyaml", "6.0.12.20260815"),
+        "yamllint": ("yamllint", "1.38.0"),
+    }
+    dev_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    )
+    aggregate_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+    )
+
+    for package, (lock_name, version) in exact_targets.items():
+        assert (lock_name, version) in dev_pairs
+        assert (lock_name, version) in aggregate_pairs
+        assert (package, version) not in artifacts
+
+    requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
+    requirements_test_in = (REPO_ROOT / "requirements-test.in").read_text(encoding="utf-8")
+    requirements_ci_lite_in = (REPO_ROOT / "requirements-ci-lite.in").read_text(encoding="utf-8")
+    for package, version in {
+        "coverage": "7.15.4",
+        "faker": "40.37.0",
+        "hypothesis": "6.165.10",
+    }.items():
+        assert _compatible_release_version(requirements_dev_in, package) == version
+        assert _compatible_release_version(requirements_test_in, package) == version
+    assert _compatible_release_version(requirements_dev_in, "types-pyyaml") == ("6.0.12.20260815")
+    assert _minimum_requirement_version(requirements_ci_lite_in, "coverage") == "7.15.4"
+    assert "coverage>=7.15.4,<7.15.5" in requirements_ci_lite_in
+
+    test_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
+    )
+    assert ("coverage[toml]", "7.15.4") in test_pairs
+    assert ("faker", "40.37.0") in test_pairs
+    assert ("hypothesis", "6.165.10") in test_pairs
+
+    ci_lite_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
+    )
+    assert ("coverage", "7.15.4") in ci_lite_pairs
+
+    runtime_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+    )
+    docker_runtime_pairs = _exact_requirement_pairs(
+        (REPO_ROOT / "requirements-docker-runtime.txt").read_text(encoding="utf-8")
+    )
+    for package in exact_targets:
+        assert not any(candidate == package for candidate, _version in runtime_pairs)
+        assert not any(candidate == package for candidate, _version in docker_runtime_pairs)
 
 
 def test_repo_dev_quality_emergency_wheels_are_retired_from_repo_manifest(
