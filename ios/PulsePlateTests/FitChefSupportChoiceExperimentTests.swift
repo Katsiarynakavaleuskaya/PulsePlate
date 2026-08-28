@@ -1043,7 +1043,16 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             from: "var body: some View",
             to: "private var header: some View"
         )
-        XCTAssertEqual(occurrenceCount(of: "\n                        actions\n", in: body), 1)
+        let standaloneActionsRegex = try NSRegularExpression(
+            pattern: #"(?m)^[ \t]+actions[ \t]*$"#
+        )
+        XCTAssertEqual(
+            standaloneActionsRegex.numberOfMatches(
+                in: body,
+                range: NSRange(body.startIndex..<body.endIndex, in: body)
+            ),
+            1
+        )
         XCTAssertEqual(occurrenceCount(of: "PPButton(", in: body), 0)
         XCTAssertEqual(
             occurrenceCount(of: "\n            versionedSupportChoiceScrollView\n", in: body),
