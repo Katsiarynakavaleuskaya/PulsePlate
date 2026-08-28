@@ -10,14 +10,14 @@ pytest-asyncio~=1.4.0
 pytest-xdist~=3.8.0
 pytest-picked~=0.5.0
 pytest-split~=0.11.0
-hypothesis~=6.156.6
-faker~=40.31.0  # Test data generation (40.11.1 yanked / unavailable on PyPI)
+hypothesis~=6.165.10
+faker~=40.37.0  # Test data generation (40.11.1 yanked / unavailable on PyPI)
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.15.1
+coverage~=7.15.4
 diff-cover~=10.3.0
 # Code quality tools: use compatible release for stability
 flake8~=7.3.0
-bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
+bandit>=1.9.4  # Security tool - keep >= for vulnerability updates
 # safety removed: CVE-2025-14009 (nltk transitive), see docs/security/CVE-2025-14009-nltk.md
 pip-audit>=2.10.1  # Security tool - keep >= for vulnerability updates
 marshmallow>=4.1.2  # Explicit floor to keep CVE fix independent of transitive deps
@@ -33,9 +33,9 @@ setuptools>=83.0.0,<84.0.0  # Security floor for CVE-2026-59890 across dev tooli
 pre-commit~=4.6.1
 pip-tools~=7.6.0
 detect-secrets~=1.5.0
-mypy==2.2.0
-types-pyyaml~=6.0.12
+mypy==2.3.1
+types-pyyaml~=6.0.12.20260815
 yamllint~=1.38.0
 black~=26.5.1
-ruff~=0.15.21
+ruff~=0.16.4
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)

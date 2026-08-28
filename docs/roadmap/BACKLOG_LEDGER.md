@@ -2807,6 +2807,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Current manifests, locks, CI images, and toolchain files have fresh census evidence, with zero untriaged alerts and no stale branch, historical lock, or stale CI used as current authority
     - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
 
+<a id="ledger-p1-mypy-repo-wide-prepush-debt"></a>
+- [ ] P1: MyPy repo-wide pre-push debt decomposition
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-MYPY-REPO-WIDE-DEBT
+  - Status: 📋 Deferred from DEPSEC-2 DS-3; the isolated changed-file hook remains the admitted PR acceptance surface
+  - Area: developer tooling / typing / pre-push validation
+  - Finding Type: repo-wide typing debt outside the DS-3 finite hook-parity transaction
+  - Reason (EN): A diagnostic run of the previous MyPy hook at base `c6e1e17ab6e0406b3949d9bbf8e922e385638edc` reported 26 errors in 18 files while checking 677 source files. DS-3 updates the dev lock and isolated changed-file pre-push hook, but a global run is not its acceptance surface and must not force unrelated typing cleanup or configuration weakening into the dependency transaction.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
+    - `.pre-commit-config.yaml`
+    - `requirements-dev.in`
+  - DoD:
+    - Re-run a fresh repo-wide MyPy census from current `origin/main` and retain exact command, checked-file count, error count, and `file:line:error` evidence
+    - Decompose findings into bounded owners and implementation PRs, or admit one explicit incremental ratchet with a finite contract
+    - Add no ignores, disabled error codes, suppressions, skips, broad excludes, or weaker MyPy configuration
+    - Preserve the DS-3 changed-file pre-push guard until each admitted owner is closed and current-head CI proves the replacement contract
+
 <a id="ledger-p1-native-docker-action-image-pin-guard"></a>
 - [ ] P1: Native Docker action `runs.image` immutable pin guard
   - Owner: @katsiaryna_kavaleuskaya

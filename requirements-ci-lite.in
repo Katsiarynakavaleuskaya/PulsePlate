@@ -44,9 +44,9 @@ setuptools>=83.0.0,<84.0.0
 
 # Control-plane CI tooling only.
 pre-commit~=4.6.1
-bandit>=1.8.6
+bandit>=1.9.4
 pip-audit>=2.10.1
 diff-cover~=10.3.0
 pytest~=9.1.1
 # Required by the focused Coverage HTML security canary selected by pre-commit.
-coverage>=7.15.1,<7.15.2
+coverage>=7.15.4,<7.15.5
