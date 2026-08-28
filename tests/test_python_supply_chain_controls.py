@@ -140,6 +140,102 @@ HTTPX2_TESTCLIENT_RUNTIME_EXCLUDED_SURFACES = (
     "requirements-rag-vector-cpu.in",
     "requirements-rag-vector-cpu.txt",
 )
+DS3_HOOK_LOCK_PARITY = {
+    "https://github.com/adrienverge/yamllint": {
+        "hook_id": "yamllint",
+        "hook_count": 1,
+        "package": "yamllint",
+        "revision": "v1.38.0",
+        "inputs": {"requirements-dev.in": {("~=", "1.38.0")}},
+        "locks": ("requirements-dev.txt", "requirements-lock.txt"),
+    },
+    "https://github.com/psf/black": {
+        "hook_id": "black",
+        "hook_count": 1,
+        "package": "black",
+        "revision": "26.5.1",
+        "inputs": {
+            "requirements-dev.in": {("~=", "26.5.1")},
+            "constraints.txt": {(">=", "26.5.1")},
+            "requirements-all.txt": {(">=", "26.5.1")},
+        },
+        "locks": ("requirements-dev.txt", "requirements-lock.txt"),
+    },
+    "https://github.com/astral-sh/ruff-pre-commit": {
+        "hook_id": "ruff",
+        "hook_count": 2,
+        "package": "ruff",
+        "revision": "v0.16.4",
+        "inputs": {
+            "requirements-dev.in": {("~=", "0.16.4")},
+            "constraints.txt": {(">=", "0.16.4")},
+            "requirements-all.txt": {(">=", "0.16.4")},
+        },
+        "locks": ("requirements-dev.txt", "requirements-lock.txt"),
+    },
+    "https://github.com/pre-commit/mirrors-mypy": {
+        "hook_id": "mypy",
+        "hook_count": 1,
+        "package": "mypy",
+        "revision": "v2.3.1",
+        "inputs": {
+            "requirements-dev.in": {("==", "2.3.1")},
+            "constraints.txt": {(">=", "2.3.1"), ("<", "3.0.0")},
+            "requirements-all.txt": {(">=", "2.3.1")},
+        },
+        "locks": ("requirements-dev.txt", "requirements-lock.txt"),
+    },
+    "https://github.com/PyCQA/bandit": {
+        "hook_id": "bandit",
+        "hook_count": 1,
+        "package": "bandit",
+        "revision": "1.9.4",
+        "inputs": {
+            "requirements-ci-lite.in": {(">=", "1.9.4")},
+            "requirements-dev.in": {(">=", "1.9.4")},
+            "constraints.txt": {(">=", "1.9.4")},
+            "requirements-all.txt": {(">=", "1.9.4")},
+        },
+        "locks": (
+            "requirements-ci-lite.txt",
+            "requirements-dev.txt",
+            "requirements-lock.txt",
+        ),
+    },
+    "https://github.com/pypa/pip-audit": {
+        "hook_id": "pip-audit",
+        "hook_count": 1,
+        "package": "pip-audit",
+        "revision": "v2.10.1",
+        "inputs": {
+            "requirements-ci-lite.in": {(">=", "2.10.1")},
+            "requirements-dev.in": {(">=", "2.10.1")},
+            "constraints.txt": {(">=", "2.10.1")},
+            "requirements-all.txt": {(">=", "2.10.1")},
+        },
+        "locks": (
+            "requirements-ci-lite.txt",
+            "requirements-dev.txt",
+            "requirements-lock.txt",
+        ),
+    },
+}
+DS3_RUNTIME_AND_OPTIONAL_EXCLUDED_SURFACES = (
+    (
+        "requirements.in",
+        "requirements.txt",
+        "requirements-docker-runtime.in",
+        "requirements-docker-runtime.txt",
+    )
+    + OPTIONAL_VECTOR_REQUIREMENT_FILES
+    + LOCAL_MANUAL_EVAL_DATA_REQUIREMENT_FILES
+)
+DS3_MYPY_CHANGED_FILE_REGEX = (
+    r"^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|"
+    r"verify_.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|"
+    r"llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|"
+    r"bmi_visualization\.py|providers/.*\.py)$"
+)
 DEFAULT_AND_TOOLING_REQUIREMENT_FILES = DEFAULT_INSTALL_REQUIREMENT_FILES + (
     "requirements-dev.in",
     "requirements-dev.txt",
@@ -1266,9 +1362,9 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "pytest==9.1.1" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
-    assert "hypothesis==6.156.6" in {line.strip() for line in requirements_test.splitlines()}
-    assert "faker==40.31.0" in requirements_test
-    assert "coverage[toml]==7.15.1" in requirements_test
+    assert "hypothesis==6.165.10" in {line.strip() for line in requirements_test.splitlines()}
+    assert "faker==40.37.0" in requirements_test
+    assert "coverage[toml]==7.15.4" in requirements_test
     assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
@@ -1329,7 +1425,7 @@ def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:
     assert (
         'EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")' in dependency_test_block
     )
-    assert "coverage==7.15.1" in requirements_ci_lite
+    assert "coverage==7.15.4" in requirements_ci_lite
 
 
 def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
@@ -1342,7 +1438,7 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "bandit==" in requirements_ci_lite
     assert "diff-cover==" in requirements_ci_lite
     assert "pytest==" in requirements_ci_lite
-    assert "coverage==7.15.1" in requirements_ci_lite
+    assert "coverage==7.15.4" in requirements_ci_lite
     assert "sentence-transformers==" not in requirements_ci_lite
     assert "transformers==" not in requirements_ci_lite
     assert "torch==" not in requirements_ci_lite
@@ -1361,6 +1457,102 @@ def test_httpx2_testclient_backend_stays_dev_and_test_only() -> None:
     for requirement_file in HTTPX2_TESTCLIENT_RUNTIME_EXCLUDED_SURFACES:
         package_names = _requirement_package_names(REPO_ROOT / requirement_file)
         assert canonicalize_name("httpx2") not in package_names
+
+
+def test_ds3_hook_revisions_match_finite_dev_lock_owners() -> None:
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    repositories = config["repos"]
+    assert isinstance(repositories, list)
+    for repository_url, relation in DS3_HOOK_LOCK_PARITY.items():
+        hook_id = relation["hook_id"]
+        hook_count = relation["hook_count"]
+        package_name = relation["package"]
+        exact_revision = relation["revision"]
+        assert isinstance(hook_id, str)
+        assert isinstance(hook_count, int)
+        assert isinstance(package_name, str)
+        assert isinstance(exact_revision, str)
+        matching_repositories = [
+            repository
+            for repository in repositories
+            if isinstance(repository, dict) and repository.get("repo") == repository_url
+        ]
+        assert len(matching_repositories) == 1, repository_url
+        repository = matching_repositories[0]
+        assert repository.get("rev") == exact_revision
+
+        hooks = repository.get("hooks")
+        assert isinstance(hooks, list)
+        matching_hooks = [
+            hook for hook in hooks if isinstance(hook, dict) and hook.get("id") == hook_id
+        ]
+        assert len(matching_hooks) == hook_count
+
+        inputs = relation["inputs"]
+        assert isinstance(inputs, dict)
+        for input_path, expected_specifiers in inputs.items():
+            assert (
+                _requirement_package_specifiers(REPO_ROOT / input_path, package_name)
+                == expected_specifiers
+            )
+
+        locks = relation["locks"]
+        assert isinstance(locks, tuple)
+        for lock_path in locks:
+            assert _requirement_package_versions(REPO_ROOT / lock_path, package_name) == {
+                exact_revision.removeprefix("v")
+            }
+
+    governed_packages = {
+        canonicalize_name(str(relation["package"])) for relation in DS3_HOOK_LOCK_PARITY.values()
+    }
+    governed_packages.update({"coverage", "faker", "hypothesis", "types-pyyaml"})
+    for excluded_surface in DS3_RUNTIME_AND_OPTIONAL_EXCLUDED_SURFACES:
+        assert _requirement_package_names(REPO_ROOT / excluded_surface).isdisjoint(
+            governed_packages
+        )
+
+
+def test_ds3_mypy_hook_remains_isolated_changed_file_pre_push_guard() -> None:
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    matching_repositories = [
+        repository
+        for repository in config["repos"]
+        if repository.get("repo") == "https://github.com/pre-commit/mirrors-mypy"
+    ]
+    assert len(matching_repositories) == 1
+    mypy_repository = matching_repositories[0]
+    matching_hooks = [hook for hook in mypy_repository["hooks"] if hook.get("id") == "mypy"]
+    assert len(matching_hooks) == 1
+    mypy_hook = matching_hooks[0]
+
+    assert mypy_hook["stages"] == ["pre-push"]
+    assert "pass_filenames" not in mypy_hook
+    assert "always_run" not in mypy_hook
+    for forbidden_override in ("entry", "exclude", "exclude_types", "types", "types_or"):
+        assert forbidden_override not in mypy_hook
+    assert mypy_hook["args"] == ["--pretty", "--show-error-codes", "--follow-imports=skip"]
+    assert mypy_hook["files"] == DS3_MYPY_CHANGED_FILE_REGEX
+
+    changed_file_filter = re.compile(mypy_hook["files"])
+    assert changed_file_filter.fullmatch("app/main.py")
+    assert changed_file_filter.fullmatch("scripts/ci/check_python_dependency_surfaces.py")
+    assert changed_file_filter.fullmatch("providers/example.py")
+    assert changed_file_filter.fullmatch("main.py")
+    assert changed_file_filter.fullmatch("tests/test_main.py") is None
+
+    pydantic_runtime_versions = _requirement_package_versions(
+        REPO_ROOT / "requirements.txt", "pydantic"
+    )
+    types_pyyaml_dev_versions = _requirement_package_versions(
+        REPO_ROOT / "requirements-dev.txt", "types-pyyaml"
+    )
+    assert pydantic_runtime_versions == {"2.13.4"}
+    assert types_pyyaml_dev_versions == {"6.0.12.20260815"}
+    assert mypy_hook["additional_dependencies"] == [
+        "pydantic==2.13.4",
+        "types-PyYAML==6.0.12.20260815",
+    ]
 
 
 def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
