@@ -1535,6 +1535,9 @@ jobs:
               metadata = normalized.get("runDetails", {}).get("metadata", {})
               if isinstance(metadata, dict):
                   metadata.pop("invocationId", None)
+              external = normalized.get("buildDefinition", {}).get("externalParameters", {})
+              if isinstance(external, dict):
+                  external.pop("source_sha", None)
               return normalized
 
           expected_normalized = normalize_provenance(expected_predicate)
@@ -1624,6 +1627,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
           PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          PROVENANCE_MODE: ${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}
           REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
         run: |
           set -euo pipefail
@@ -1636,16 +1640,24 @@ jobs:
             --source-ref refs/heads/main \
             --json-out postgres-pgvector-provenance-attestation-check.json \
             --markdown-out postgres-pgvector-provenance-attestation-check.md
+          provenance_verify_args=(
+            --repo "$GITHUB_REPOSITORY"
+            --predicate-type https://slsa.dev/provenance/v1
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml"
+            --source-ref refs/heads/main
+          )
+          case "$PROVENANCE_MODE" in
+            create) provenance_verify_args+=(--source-digest "$GITHUB_SHA") ;;
+            reuse) ;;
+            *) echo "Unknown PostgreSQL provenance admission mode" >&2; exit 1 ;;
+          esac
           gh attestation verify "oci://${RUNTIME_REF}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --predicate-type https://slsa.dev/provenance/v1 \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-            --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA" \
+            "${provenance_verify_args[@]}" \
             --format json > postgres-pgvector-provenance-verified.json
           python3 - <<'PY'
           import copy
           import json
+          import os
           from pathlib import Path
 
           expected = json.loads(
@@ -1659,6 +1671,10 @@ jobs:
               metadata = result.get("runDetails", {}).get("metadata", {})
               if isinstance(metadata, dict):
                   metadata.pop("invocationId", None)
+              if os.environ["PROVENANCE_MODE"] == "reuse":
+                  external = result.get("buildDefinition", {}).get("externalParameters", {})
+                  if isinstance(external, dict):
+                      external.pop("source_sha", None)
               return result
 
           expected_normalized = normalize(expected)
@@ -1722,6 +1738,7 @@ jobs:
           CANDIDATE_RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
           CANONICAL_TAG_REF: ${{ steps.publish-pgvector.outputs.canonical_tag_ref }}
           EXPECTED_PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          EXPECTED_RUNTIME_REF: ${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}
         run: |
           set -euo pipefail
           git fetch --no-tags --prune --depth=1 origin \
@@ -1771,7 +1788,7 @@ jobs:
               raise SystemExit("Canonical PostgreSQL tag does not select the verified candidate")
           PY
           canonical_runtime_ref="${CANONICAL_TAG_REF}@${EXPECTED_PLATFORM_DIGEST}"
-          test "$canonical_runtime_ref" = "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
+          test "$canonical_runtime_ref" = "$EXPECTED_RUNTIME_REF"
           printf 'runtime_ref=%s\n' "$canonical_runtime_ref" >> "$GITHUB_OUTPUT"
 
       - name: Verify canonical pullback and unchanged public package visibility
@@ -1923,6 +1940,9 @@ jobs:
     needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    concurrency:
+      group: postgres-pgvector-canonical-tag-promotion
+      cancel-in-progress: false
     permissions:
       attestations: read
       contents: read

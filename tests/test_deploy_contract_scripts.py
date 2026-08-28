@@ -557,6 +557,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "contents": "read",
         "packages": "read",
     }
+    assert reuse["concurrency"] == publish["concurrency"]
     for forbidden in ("DHI_USERNAME", "DHI_ACCESS_TOKEN", '"packages": "write"', "id-token"):
         assert forbidden not in reuse_text
     reuse_run = reuse["steps"][1]["run"]
@@ -765,7 +766,13 @@ def _postgres_candidate_provenance_verifier_program() -> str:
 
 
 @pytest.mark.parametrize(
-    ("variant", "expected_success"), (("valid", True), ("duplicate", False), ("wrong", False))
+    ("variant", "expected_success"),
+    (
+        ("valid", True),
+        ("reuse-historical", True),
+        ("duplicate", False),
+        ("wrong", False),
+    ),
 )
 def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
     tmp_path: Path,
@@ -775,7 +782,7 @@ def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
     expected = {
         "buildDefinition": {
             "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
-            "externalParameters": {"source_sha": "a" * 40},
+            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
         },
         "runDetails": {
             "builder": {"id": "builder"},
@@ -784,8 +791,10 @@ def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
     }
     observed = json.loads(json.dumps(expected))
     observed["runDetails"]["metadata"]["invocationId"] = "historical"
-    if variant == "wrong":
+    if variant in {"reuse-historical", "wrong"}:
         observed["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
+    if variant == "wrong":
+        observed["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
     item = {"verificationResult": {"statement": {"predicate": observed}}}
     verified = [item, item] if variant == "duplicate" else [item]
     (tmp_path / "postgres-pgvector-provenance.json").write_text(
@@ -797,6 +806,10 @@ def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
     completed = subprocess.run(
         [sys.executable, "-c", _postgres_candidate_provenance_verifier_program()],
         cwd=tmp_path,
+        env={
+            **os.environ,
+            "PROVENANCE_MODE": "reuse" if variant == "reuse-historical" else "create",
+        },
         text=True,
         capture_output=True,
         check=False,
@@ -811,6 +824,7 @@ def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
         ("one-each", ("reuse", "reuse"), True),
         ("provenance-only", ("reuse", "create"), True),
         ("spdx-only", ("create", "reuse"), True),
+        ("historical-source", ("reuse", "reuse"), True),
         ("duplicate-provenance", None, False),
         ("duplicate-spdx", None, False),
         ("conflicting-provenance", None, False),
@@ -827,7 +841,7 @@ def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinalit
     expected_predicate = {
         "buildDefinition": {
             "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
-            "externalParameters": {"source_sha": "a" * 40},
+            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
             "resolvedDependencies": [],
         },
         "runDetails": {
@@ -860,6 +874,7 @@ def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinalit
         "provenance-only",
         "duplicate-provenance",
         "conflicting-provenance",
+        "historical-source",
     }
     spdx_variants = {
         "one-each",
@@ -867,10 +882,13 @@ def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinalit
         "duplicate-provenance",
         "duplicate-spdx",
         "conflicting-provenance",
+        "historical-source",
     }
     if variant in provenance_variants:
         historical = json.loads(json.dumps(expected_predicate))
         historical["runDetails"]["metadata"]["invocationId"] = "historical"
+        if variant == "historical-source":
+            historical["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
         records.append(record("https://slsa.dev/provenance/v1", historical))
     if variant in spdx_variants:
         records.append(record("https://spdx.dev/Document/v2.3", {"name": "sbom"}))
@@ -880,7 +898,7 @@ def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinalit
         records.append(record("https://spdx.dev/Document/v2.3", {"name": "duplicate"}))
     if variant == "conflicting-provenance":
         conflict = json.loads(json.dumps(expected_predicate))
-        conflict["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
+        conflict["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
         records.append(record("https://slsa.dev/provenance/v1", conflict))
     response_path = tmp_path / "attestations.json"
     response_path.write_text(json.dumps({"attestations": records}), encoding="utf-8")
@@ -928,6 +946,12 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert '--tag "$candidate_tag_ref"' in candidate_run
     assert '--tag "$canonical_tag_ref"' not in candidate_run
     promote_run = steps[promote]["run"]
+    promote_env = steps[promote]["env"]
+    assert promote_env["EXPECTED_RUNTIME_REF"] == (
+        "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
+    )
+    assert 'test "$canonical_runtime_ref" = "$EXPECTED_RUNTIME_REF"' in promote_run
+    assert "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}" not in promote_run
     material_check = 'git diff --quiet "$GITHUB_SHA" "$current_main_sha"'
     assert material_check in promote_run
     assert promote_run.index(material_check) < promote_run.index("docker buildx imagetools create")
@@ -939,6 +963,15 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     job_text = json.dumps(workflow["jobs"]["postgres-pgvector-publish"], sort_keys=True)
     assert job_text.count("actions/attest@") == 2
     assert "actions/attest-build-provenance@" not in job_text
+    verify_step = steps[verify]
+    assert verify_step["env"]["PROVENANCE_MODE"] == (
+        "${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}"
+    )
+    verify_run = verify_step["run"]
+    assert 'case "$PROVENANCE_MODE" in' in verify_run
+    assert 'create) provenance_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
+    assert "reuse) ;;" in verify_run
+    assert verify_run.count('provenance_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
 
     runtime_step = next(
         step
@@ -5723,6 +5756,12 @@ case "$*" in
       exit "${{STUB_RESTART_FAILURE_STATUS:-77}}"
     fi
     ;;
+  stop\\ *)
+    if [ -n "${{STUB_POSTGRES_STOP_FAILURE_ID:-}}" ] && \
+       [ "$*" = "stop $STUB_POSTGRES_STOP_FAILURE_ID" ]; then
+      exit "${{STUB_POSTGRES_STOP_FAILURE_STATUS:-47}}"
+    fi
+    ;;
   *"login ghcr.io"*"--password-stdin"*) cat >/dev/null ;;
   *"info --format"*"Architecture"*) printf 'amd64\n' ;;
   *"ps -q postgres"*)
@@ -6019,9 +6058,76 @@ def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgr
     backup = next(index for index, line in enumerate(log_lines) if line.startswith("backup "))
     assert quiesce < backup
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
-    assert all(line != "docker stop aaaaaaaaaaaa" for line in log_lines)
+    assert all(line != f"docker stop {'a' * 64}" for line in log_lines)
     for container_id in ("bbbbbbbbbbbb", "cccccccccccc", "dddddddddddd"):
         assert f"docker start {container_id}" in log_lines
+
+
+def test_old_postgres_stop_failure_keeps_product_writers_quiesced(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env.update(
+        {
+            "STUB_POSTGRES_STOP_FAILURE_ID": "a" * 64,
+            "STUB_POSTGRES_STOP_FAILURE_STATUS": "47",
+        }
+    )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 47
+    assert "captured product writers remain quiesced" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert f"docker stop {'a' * 64}" in log_lines
+    assert all(not line.startswith("docker start ") for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(" alembic upgrade head" not in line for line in log_lines)
+
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        marker = 'if "$DOCKER_BIN" stop "$postgres_container" >/dev/null; then'
+        start = script.index(marker)
+        line_start = script.rfind("\n", 0, start) + 1
+        indentation = script[line_start:start]
+        closing = f"\n{indentation}fi"
+        end = script.index(closing, start) + len(closing)
+        stop_failure_branch = script[start:end]
+        assert "captured product writers remain quiesced" in stop_failure_branch
+        assert "restart_captured_product_containers_after_failure" not in stop_failure_branch
+
+        branch_log = tmp_path / f"{Path(relative_path).stem}-ambiguous-stop.log"
+        docker_stub = tmp_path / f"{Path(relative_path).stem}-docker"
+        _write_executable(
+            docker_stub,
+            f'#!/usr/bin/env bash\nprintf \'docker %s\\n\' "$*" > "{branch_log}"\nexit 47\n',
+        )
+        branch_program = (
+            "set -euo pipefail\n"
+            f'DOCKER_BIN="{docker_stub}"\n'
+            f'postgres_container="{"a" * 64}"\n'
+            f"{stop_failure_branch}\n"
+        )
+        branch_result = subprocess.run(
+            [bash_bin, "-c", branch_program],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert branch_result.returncode == 47
+        assert "captured product writers remain quiesced" in branch_result.stderr
+        assert branch_log.read_text(encoding="utf-8") == f"docker stop {'a' * 64}\n"
 
 
 def test_staging_backup_failure_preserves_primary_when_restart_also_fails(

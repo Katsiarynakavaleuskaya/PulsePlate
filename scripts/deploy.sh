@@ -987,7 +987,7 @@ if [ "$postgres_transition" = "existing" ]; then
     :
   else
     stop_status=$?
-    restart_captured_product_containers_after_failure
+    echo "❌ PostgreSQL stop failed ambiguously; captured product writers remain quiesced" >&2
     exit "$stop_status"
   fi
 else

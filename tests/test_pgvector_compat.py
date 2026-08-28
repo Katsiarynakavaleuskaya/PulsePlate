@@ -1669,7 +1669,7 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
 def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
-        "\n  build:\n", maxsplit=1
+        "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
     assert "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4" in workflow
     assert (
