@@ -117,6 +117,9 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Would run in worktree:" in result.stdout
     assert "scripts/orchestration/check_preflight.py" in result.stdout
     assert "scripts/orchestration/task_bootstrap.py" in result.stdout
+    assert "Would run in worktree after bootstrap:" in result.stdout
+    assert "scripts/orchestration/pr_evidence_sidecar.py prepare" in result.stdout
+    assert "--applicable-rail experiment_runner" in result.stdout
     assert "Repo Python:" in result.stdout
     assert "avoid bare python3 -m pytest when .venv exists" in result.stdout
     assert "--path docs/dev/CODEX_SKILLS.md" in result.stdout
@@ -173,11 +176,25 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "automatically start" not in result.stdout.lower()
 
 
-def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
-    """The real post-task-bootstrap path should emit the packet-backed Codex prompt."""
+def _valid_sidecar_prepare_payload() -> dict[str, object]:
+    sidecar_id = "sha256:" + ("d" * 64)
+    return {
+        "schema_version": "pr_evidence_sidecar.start.v1",
+        "command": "prepare",
+        "sidecar_id": sidecar_id,
+        "sidecar_path": (
+            f"artifacts/orchestration/pr_evidence_sidecars/{sidecar_id[7:]}/start.json"
+        ),
+        "created": True,
+    }
 
+
+def _run_execute_path_with_sidecar_payload(
+    tmp_path: Path,
+    sidecar_payload: dict[str, object],
+) -> tuple[subprocess.CompletedProcess[str], Path]:
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(parents=True)
     packet_path = tmp_path / "packet with space.json"
     packet_payload = {
         "goal": "Start governed PR lane",
@@ -220,7 +237,11 @@ case "$1" in
     exit 0
     ;;
   rev-list) printf '0\\t0\\n'; exit 0 ;;
-  worktree) mkdir -p "$5"; exit 0 ;;
+  worktree)
+    mkdir -p "$5/scripts/orchestration"
+    touch "$5/scripts/orchestration/pr_evidence_sidecar.py"
+    exit 0
+    ;;
   *) exit 0 ;;
 esac
 """,
@@ -230,6 +251,7 @@ esac
 
     python_stub = bin_dir / "python3"
     real_python = sys.executable
+    sidecar_output = shlex.quote(json.dumps(sidecar_payload, separators=(",", ":"), sort_keys=True))
     python_stub.write_text(
         f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -240,6 +262,10 @@ case "$1" in
     ;;
   *task_bootstrap.py)
     printf '{{"output": "{packet_path}", "primary_agent": "agent-coordinator", "reviewer": "qa-engineer-agent", "recommended_skills": ["pulseplate-premortem-risk-review"]}}\\n'
+    exit 0
+    ;;
+  *pr_evidence_sidecar.py)
+    printf '%s\\n' {sidecar_output}
     exit 0
     ;;
   *render_codex_start_prompt.py)
@@ -272,9 +298,23 @@ esac
         env=env,
     )
     shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
+    return result, packet_path
+
+
+def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
+    """The real post-task-bootstrap path should emit the packet-backed Codex prompt."""
+
+    result, packet_path = _run_execute_path_with_sidecar_payload(
+        tmp_path,
+        _valid_sidecar_prepare_payload(),
+    )
 
     assert result.returncode == 0, result.stderr
     assert "Authoritative bootstrap already ran" in result.stdout
+    assert "PR evidence sidecar v1: state=prepared" in result.stdout
+    assert f"sha256:{'d' * 64}" in result.stdout
+    assert "Structural local receipt only; no review, CI, merge" in result.stdout
+    assert "Rail truth table: false -> not_applicable + null" in result.stdout
     assert f"Task packet: {packet_path}" in result.stdout
     assert "packet_creation_executes_roles=false" in result.stdout
     assert "role_agent_dispatch_required=true" in result.stdout
@@ -320,6 +360,59 @@ def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:
         assert f"  - {plugin}" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
     assert "PR open mode: non-draft by default" in result.stdout
+
+
+def test_start_pr_lane_dry_run_deduplicates_sidecar_rails_without_writing() -> None:
+    """Dry-run prints the post-bootstrap plan once per applicability rail."""
+
+    result = run_start(
+        *_required_args(),
+        "--evidence-sidecar-rail",
+        "teleology",
+        "--evidence-sidecar-rail",
+        "experiment_runner",
+        "--dry-run",
+    )
+
+    assert result.returncode == 0, result.stderr
+    planned = next(
+        line for line in result.stdout.splitlines() if "pr_evidence_sidecar.py prepare" in line
+    )
+    assert planned.count("--applicable-rail experiment_runner") == 1
+    assert planned.count("--applicable-rail teleology") == 1
+    assert "pr_evidence_sidecars/" not in result.stdout
+
+
+def test_start_pr_lane_handshake_contract_rejects_schema_and_hex_drift(
+    tmp_path: Path,
+) -> None:
+    """Execute-path handshake validation rejects schema, lowercase-id, and key drift."""
+
+    valid = _valid_sidecar_prepare_payload()
+    uppercase_id = "sha256:" + ("D" * 64)
+    cases = {
+        "wrong-schema": {**valid, "schema_version": "pr_evidence_sidecar.start.v2"},
+        "uppercase-id": {
+            **valid,
+            "sidecar_id": uppercase_id,
+            "sidecar_path": (
+                "artifacts/orchestration/pr_evidence_sidecars/" f"{uppercase_id[7:]}/start.json"
+            ),
+        },
+        "extra-key": {**valid, "unexpected": True},
+    }
+
+    for case_name, payload in cases.items():
+        case_path = tmp_path / f"{tmp_path.name}-{case_name}"
+        result, _packet_path = _run_execute_path_with_sidecar_payload(case_path, payload)
+
+        assert result.returncode == 0, result.stderr
+        assert "PR evidence sidecar v1: state=invalid; id=<none>." in result.stdout
+        assert "PR evidence sidecar v1: state=prepared" not in result.stdout
+        assert (
+            "WARNING: evidence sidecar invalid; structural receipt only, no authority granted."
+            in result.stderr
+        )
 
 
 def test_start_pr_lane_allows_dirty_launcher_for_synced_origin_main_lane(
