@@ -13,7 +13,7 @@ repos:
 
   # --- YAML lint: yamllint (style + structure)
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+    rev: v1.38.0
     hooks:
       - id: yamllint
         name: yamllint (yaml lint)
@@ -50,7 +50,7 @@ repos:
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
-    rev: 26.1.0
+    rev: 26.5.1
     hooks:
       - id: black
         name: black (format)
@@ -60,7 +60,7 @@ repos:
 
   # --- Lint: Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
+    rev: v0.16.4
     hooks:
       - id: ruff
         name: ruff (lint, local)
@@ -82,7 +82,7 @@ repos:
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+    rev: v2.3.1
     hooks:
       - id: mypy
         name: mypy (type-check, changed files)
@@ -90,8 +90,8 @@ repos:
         additional_dependencies:
           # Keep in sync with requirements.txt / pyproject.toml.
           # Pre-commit mypy runs in an isolated env and needs runtime deps to avoid Any pollution.
-          - pydantic==2.12.5
-          - types-PyYAML==6.0.12.20260518
+          - pydantic==2.13.4
+          - types-PyYAML==6.0.12.20260815
         args:
           - --pretty
           - --show-error-codes
@@ -102,7 +102,7 @@ repos:
 
   # --- Security: bandit
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.9
+    rev: 1.9.4
     hooks:
       - id: bandit
         name: bandit (security, changed files only)
@@ -119,7 +119,7 @@ repos:
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
-    rev: v2.9.0
+    rev: v2.10.1
     hooks:
       - id: pip-audit
         name: pip-audit (pip vulns)

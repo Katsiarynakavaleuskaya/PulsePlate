@@ -8,18 +8,18 @@
 pytest>=9.1.1
 pytest-cov>=7.0.0
 pytest-asyncio>=1.4.0
-coverage>=7.15.1  # Must match requirements-dev.txt minimum
+coverage>=7.15.4  # Must match requirements-dev.txt minimum
 
 # Code quality - allow updates for new features/fixes
 # Note: Makefile lint still uses flake8; ruff remains the fast companion guard.
 black>=26.5.1
 # mypy 1.13.x adds support for typing.ReadOnly (PEP 742).
 # Type-parameter defaults are available only when using the legacy TypeVar-like syntax.
-mypy>=2.2.0,<3.0.0
-ruff>=0.15.21  # Fast local/pre-commit lint companion.
+mypy>=2.3.1,<3.0.0
+ruff>=0.16.4  # Fast local/pre-commit lint companion.
 
 # Security - allow patch updates for vulnerability fixes
-bandit>=1.8.6
+bandit>=1.9.4
 pip-audit>=2.10.1
 setuptools>=83.0.0  # Security floor for CVE-2026-59890
 
