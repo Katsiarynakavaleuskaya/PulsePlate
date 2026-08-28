@@ -29,7 +29,7 @@ from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable, Union
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -727,6 +727,58 @@ class Base(DeclarativeBase):
     """Base class for declarative SQLAlchemy models."""
 
 
+def load_canonical_orm_metadata() -> MetaData:
+    """Register the current mapped model set and return the canonical metadata."""
+    import core.models  # noqa: F401  # pylint: disable=unused-import
+    import app.models  # noqa: F401  # pylint: disable=unused-import
+    import app.models.fitchef_support_outcomes  # noqa: F401  # pylint: disable=unused-import
+
+    expected_classes = {
+        core.models.User,
+        core.models.Recipe,
+        core.models.Meal,
+        core.models.FoodItem,
+        core.models.ContextEntry,
+        core.models.AnalyzerStateModel,
+        app.models.NutritionEvent,
+        app.models.VipLlmMonthlyUsage,
+        app.models.PaywallExposureLedger,
+        app.models.WeeklyPlan,
+        app.models.DayPlan,
+        app.models.RAGFeedback,
+        app.models.UserKnowledge,
+        app.models.Subscription,
+        app.models.SubscriptionActivationAudit,
+        app.models.fitchef_support_outcomes.FitChefSupportOutcomeEvent,
+    }
+    mappers = tuple(Base.registry.mappers)
+    mapped_classes = {mapper.class_ for mapper in mappers}
+    expected_table_keys = {model.__table__.key for model in expected_classes}
+    actual_table_keys = set(Base.metadata.tables)
+    if (
+        mapped_classes != expected_classes
+        or len(mappers) != 16
+        or actual_table_keys != expected_table_keys
+    ):
+
+        def class_name(model: type[Base]) -> str:
+            return f"{model.__module__}.{model.__qualname__}"
+
+        missing_classes = sorted(class_name(model) for model in expected_classes - mapped_classes)
+        extra_classes = sorted(class_name(model) for model in mapped_classes - expected_classes)
+        missing_tables = sorted(expected_table_keys - actual_table_keys)
+        extra_tables = sorted(actual_table_keys - expected_table_keys)
+        raise RuntimeError(
+            "Canonical ORM registry mismatch: "
+            f"missing_classes={missing_classes}; extra_classes={extra_classes}; "
+            f"mapper_count={len(mappers)}; missing_tables={missing_tables}; "
+            f"extra_tables={extra_tables}"
+        )
+
+    Base.registry.configure()
+    return Base.metadata
+
+
 def get_session() -> Generator[Session, None, None]:
     """RU: Зависимость FastAPI, возвращающая сессию базы данных.
 
@@ -835,10 +887,7 @@ def init_db(database_url: str | None = None) -> "Engine":
     """
     global _RAW_ENGINE, SessionLocal
 
-    # Import models lazily so Base metadata is populated before create_all is called.
-    import core.models  # noqa: F401  # pylint: disable=unused-import
-    import app.models  # noqa: F401  # pylint: disable=unused-import
-    import app.models.fitchef_support_outcomes  # noqa: F401  # pylint: disable=unused-import
+    metadata = load_canonical_orm_metadata()
 
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
@@ -913,7 +962,7 @@ def init_db(database_url: str | None = None) -> "Engine":
     # RU: create_all() вызываем всегда при init_db(); операция идемпотентна.
     # EN: Always call create_all() on init_db(); this is idempotent.
     # This ensures tables are created even if engine was reused from previous init_db() call.
-    Base.metadata.create_all(bind=_RAW_ENGINE)
+    metadata.create_all(bind=_RAW_ENGINE)
 
     return _RAW_ENGINE
 
@@ -981,7 +1030,8 @@ def get_db() -> Generator[Session, None, None]:
 
 def create_tables() -> None:
     """Idempotent schema creation using the current engine."""
-    Base.metadata.create_all(bind=_get_raw_engine())
+    metadata = load_canonical_orm_metadata()
+    metadata.create_all(bind=_get_raw_engine())
 
 
 def init_database(database_url: str | None = None) -> "Engine":
@@ -1001,11 +1051,7 @@ def get_unified_food_db() -> "UnifiedFoodDatabase | None":
 
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
-    import core.models  # noqa: F401  # pylint: disable=unused-import
-    import app.models  # noqa: F401  # pylint: disable=unused-import
-    import app.models.fitchef_support_outcomes  # noqa: F401  # pylint: disable=unused-import
-
-    metadata = Base.metadata
+    metadata = load_canonical_orm_metadata()
 
     async_eng = _get_async_engine()
     if async_eng is None:

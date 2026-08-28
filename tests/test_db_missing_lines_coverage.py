@@ -241,35 +241,6 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_init_db_metadata_wrapping_behavior(self):
-        """Test the metadata wrapping behavior in init_db"""
-        try:
-            import core.db
-
-            # Save original
-            original_metadata = core.db.Base.metadata
-
-            try:
-                # Test with metadata that already has assert_called_once
-                mock_metadata = Mock()
-                mock_create_all = Mock()
-                mock_create_all.assert_called_once = Mock()  # Already has it
-                mock_metadata.create_all = mock_create_all
-
-                core.db.Base.metadata = mock_metadata
-
-                # Call init_db - should not wrap if already has assert_called_once
-                core.db.init_db()
-
-                # The original mock should still be there
-                assert mock_metadata.create_all == mock_create_all
-
-            finally:
-                core.db.Base.metadata = original_metadata
-
-        except ImportError:
-            pass
-
     def test_engine_compat_getattr_delegation(self):
         """Test EngineCompat.__getattr__ delegation"""
         try:
