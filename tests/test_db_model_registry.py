@@ -208,6 +208,11 @@ def test_shared_conftest_has_exact_canonical_registry_loader_ownership() -> None
         for alias in node.names
         if alias.name in {"app.models", "core.models"}
     ]
+    manual_model_imports.extend(
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module in {"app.models", "core.models"}
+    )
 
     assert len(loader_calls) == 2
     assert manual_model_imports == []

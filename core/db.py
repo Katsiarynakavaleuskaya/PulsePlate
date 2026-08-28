@@ -757,7 +757,7 @@ def load_canonical_orm_metadata() -> MetaData:
     actual_table_keys = set(Base.metadata.tables)
     if (
         mapped_classes != expected_classes
-        or len(mappers) != 16
+        or len(mappers) != len(expected_classes)
         or actual_table_keys != expected_table_keys
     ):
 

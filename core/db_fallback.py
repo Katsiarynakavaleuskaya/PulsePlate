@@ -87,8 +87,9 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
     """
     Create and initialize fallback SQLAlchemy engine.
 
-    Creates engine with correct connect_args, runs Base.metadata.create_all.
-    Returns the initialized engine or raises db_err on failure.
+    Canonical registration and mapper-configuration failures propagate directly
+    before fallback engine work starts. Engine creation and ``create_all`` failures
+    are logged and chained to the original ``db_err``.
     """
     from core.db import load_canonical_orm_metadata
 
