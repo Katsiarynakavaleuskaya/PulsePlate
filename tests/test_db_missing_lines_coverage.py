@@ -3,6 +3,7 @@ Targeted tests for core/db.py missing lines 56-65, 136.
 Focus on error handling and edge cases.
 """
 
+import asyncio
 import os
 from typing import Any, Tuple
 from unittest.mock import Mock, NonCallableMock, patch
@@ -524,8 +525,7 @@ class TestDbMissingLinesCoverage:
         finally:
             core.db.SessionLocal = original_session
 
-    @pytest.mark.asyncio
-    async def test_init_db_async_with_no_async_engine(self):
+    def test_init_db_async_with_no_async_engine(self) -> None:
         """Test init_db_async falls back to sync engine when no async engine."""
         import core.db
 
@@ -539,7 +539,7 @@ class TestDbMissingLinesCoverage:
             core.db._RAW_ENGINE = None
 
             # Run async init - should use sync engine fallback
-            await core.db.init_db_async()
+            asyncio.run(core.db.init_db_async())
 
             # Verify sync engine was created via lazy getter
             assert core.db._RAW_ENGINE is not None

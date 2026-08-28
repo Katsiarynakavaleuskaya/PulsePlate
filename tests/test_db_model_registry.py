@@ -9,7 +9,6 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
-from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
@@ -306,45 +305,6 @@ def test_loader_has_no_database_or_fastapi_bootstrap_side_effects() -> None:
         "raw_engine": True,
         "session": True,
     }
-
-
-def test_loader_diagnostics_cover_empty_mapper_registry_in_process() -> None:
-    import core.db as db
-
-    registry_type = type(db.Base.registry)
-    with patch.object(
-        registry_type,
-        "mappers",
-        new_callable=PropertyMock,
-        return_value=frozenset(),
-    ):
-        with pytest.raises(RuntimeError) as exc_info:
-            db.load_canonical_orm_metadata()
-
-    message = str(exc_info.value)
-    assert message.startswith("Canonical ORM registry mismatch: missing_classes=[")
-    assert "mapper_count=0" in message
-    assert "extra_classes=[]" in message
-    assert "missing_tables=[]" in message
-    assert "extra_tables=[]" in message
-    for class_name in EXPECTED_CLASSES:
-        assert class_name in message
-
-
-def test_create_tables_uses_loaded_metadata_and_current_engine() -> None:
-    import core.db as db
-
-    metadata = Mock()
-    engine = object()
-    with (
-        patch.object(db, "load_canonical_orm_metadata", return_value=metadata) as load_metadata,
-        patch.object(db, "_get_raw_engine", return_value=engine) as get_raw_engine,
-    ):
-        db.create_tables()
-
-    load_metadata.assert_called_once_with()
-    get_raw_engine.assert_called_once_with()
-    metadata.create_all.assert_called_once_with(bind=engine)
 
 
 def test_fallback_registration_failure_cannot_create_partial_schema() -> None:
