@@ -8,11 +8,8 @@ from typing import Any, Tuple
 from unittest.mock import Mock, NonCallableMock, patch
 
 import pytest
-from faker import Faker
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import SQLAlchemyError
-
-fake = Faker()
 
 
 class FakeConnection:
@@ -71,9 +68,6 @@ class FakeEngine:
 
 class TestDbMissingLinesCoverage:
     """Test specific missing lines in core/db.py"""
-
-    def setup_method(self):
-        Faker.seed(42)
 
     def test_engine_compat_execute_commit_exception_lines_56_65(self):
         """Test lines 56-65: exception handling in EngineCompat.execute()"""
@@ -328,7 +322,7 @@ class TestDbMissingLinesCoverage:
                 "postgresql://user:pass@localhost/db",
                 "mysql://user:pass@localhost/db",
                 "sqlite:///custom.db",
-                fake.url(),
+                "https://example.invalid/database",
             ]
 
             for test_url in test_urls:
@@ -378,8 +372,8 @@ class TestDbMissingLinesCoverage:
             engine_compat = EngineCompat(fake_engine)
 
             # Test with args and kwargs
-            test_args = (fake.random_int(), fake.word())
-            test_kwargs = {"param1": fake.word(), "param2": fake.random_int()}
+            test_args = (7, "stable-argument")
+            test_kwargs = {"param1": "stable-parameter", "param2": 11}
 
             result = engine_compat.execute("SELECT ?", *test_args, **test_kwargs)
 
