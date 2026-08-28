@@ -953,7 +953,7 @@ if [ "$postgres_transition" = "existing" ]; then
     :
   else
     identity_status=$?
-    restart_captured_product_containers_after_failure
+    echo "❌ PostgreSQL identity revalidation failed; captured product writers remain quiesced" >&2
     exit "$identity_status"
   fi
   echo "Creating a verified backup from the still-running old PostgreSQL container"
@@ -979,7 +979,7 @@ if [ "$postgres_transition" = "existing" ]; then
     :
   else
     identity_status=$?
-    restart_captured_product_containers_after_failure
+    echo "❌ PostgreSQL identity revalidation failed; captured product writers remain quiesced" >&2
     exit "$identity_status"
   fi
   echo "Verified pre-transition backup receipt: $backup_receipt"

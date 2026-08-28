@@ -716,19 +716,15 @@ jobs:
           test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
-      - name: Authenticate DHI read and existing GHCR package write rails
+      - name: Authenticate DHI read rail for reproducible local build
         env:
           DHI_USER: ${{ secrets.DHI_USERNAME }}
           DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
-          GHCR_USER: ${{ github.repository_owner }}
-          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           : "${DHI_USER:?DHI_USERNAME is required on exact main}"
           : "${DHI_TOKEN:?DHI_ACCESS_TOKEN is required on exact main}"
-          : "${GHCR_USER:?GitHub repository owner is required}"
-          : "${GHCR_TOKEN_VALUE:?GitHub token is required}"
-          case "${DHI_USER}${DHI_TOKEN}${GHCR_USER}${GHCR_TOKEN_VALUE}" in
+          case "${DHI_USER}${DHI_TOKEN}" in
             *$'\n'*|*$'\r'*)
               echo "Registry credentials must be single-line opaque values" >&2
               exit 1
@@ -744,7 +740,6 @@ jobs:
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           chmod 700 "$credential_dir"
           printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
-          printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
           docker buildx version
           builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
@@ -1155,6 +1150,27 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-exact-final"
 
+      - name: Drop registry credentials before repository-controlled tests
+        run: |
+          set -euo pipefail
+          test "$DOCKER_CONFIG" = "$PGVECTOR_DOCKER_CONFIG"
+          case "$PGVECTOR_DOCKER_CONFIG" in
+            "${RUNNER_TEMP}"/pulseplate-pgvector-docker-config.*)
+              test -d "$PGVECTOR_DOCKER_CONFIG" && test ! -L "$PGVECTOR_DOCKER_CONFIG"
+              ;;
+            *)
+              echo "Refusing to clear an unbounded PostgreSQL Docker credential directory" >&2
+              exit 1
+              ;;
+          esac
+          docker logout dhi.io >/dev/null
+          rm -rf -- "$PGVECTOR_DOCKER_CONFIG"
+          credential_free_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-docker-empty.XXXXXX")"
+          chmod 700 "$credential_free_dir"
+          test ! -e "$credential_free_dir/config.json"
+          printf 'DOCKER_CONFIG=%s\n' "$credential_free_dir" >> "$GITHUB_ENV"
+          printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_free_dir" >> "$GITHUB_ENV"
+
       - name: Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity
         run: |
           set -euo pipefail
@@ -1334,6 +1350,53 @@ jobs:
           if observed != expected:
               raise SystemExit("Existing GHCR package identity or public visibility drifted")
           PY
+
+      - name: Reauthenticate exact registry rails only for publication
+        env:
+          DHI_USER: ${{ secrets.DHI_USERNAME }}
+          DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${DHI_USER:?DHI_USERNAME is required on exact main}"
+          : "${DHI_TOKEN:?DHI_ACCESS_TOKEN is required on exact main}"
+          : "${GHCR_USER:?GitHub repository owner is required}"
+          : "${GHCR_TOKEN_VALUE:?GitHub token is required}"
+          case "${DHI_USER}${DHI_TOKEN}${GHCR_USER}${GHCR_TOKEN_VALUE}" in
+            *$'\n'*|*$'\r'*)
+              echo "Registry credentials must be single-line opaque values" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$DHI_USER" = "$DHI_TOKEN" ]; then
+            echo "DHI username and access token must be distinct opaque credentials" >&2
+            exit 1
+          fi
+          case "${PGVECTOR_DOCKER_CONFIG:-}" in
+            "${RUNNER_TEMP}"/pulseplate-pgvector-docker-empty.*)
+              test -d "$PGVECTOR_DOCKER_CONFIG" && test ! -L "$PGVECTOR_DOCKER_CONFIG"
+              rm -rf -- "$PGVECTOR_DOCKER_CONFIG"
+              ;;
+            *)
+              echo "Repository tests did not preserve the credential-free Docker boundary" >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! "${PGVECTOR_BUILDX_BUILDER:-}" =~ ^pulseplate-pgvector-builder-[0-9]+-[0-9]+$ ]]; then
+            echo "Post-test Buildx builder identity is invalid" >&2
+            exit 1
+          fi
+          umask 077
+          credential_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-publish-docker.XXXXXX")"
+          chmod 700 "$credential_dir"
+          export DOCKER_CONFIG="$credential_dir"
+          printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
+          printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
+          printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker buildx use "$PGVECTOR_BUILDX_BUILDER"
+          docker buildx inspect --bootstrap >/dev/null
 
       - name: Publish reproduced manifest under one unadmitted candidate tag
         id: publish-pgvector
@@ -1947,7 +2010,7 @@ jobs:
       )
     needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 90
     env:
       PGVECTOR_REUSE_ADMISSION_POLL_SECONDS: "30"
       PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS: "3600"
@@ -2020,6 +2083,22 @@ jobs:
                 *) cleanup_failed=1 ;;
               esac
             fi
+            if [ -n "${canonical_raw:-}" ]; then
+              case "$canonical_raw" in
+                "${RUNNER_TEMP}"/pulseplate-pgvector-reuse-canonical.json)
+                  if [ -e "$canonical_raw" ] || [ -L "$canonical_raw" ]; then
+                    if [ -f "$canonical_raw" ] && [ ! -L "$canonical_raw" ]; then
+                      if ! rm -f -- "$canonical_raw"; then
+                        cleanup_failed=1
+                      fi
+                    else
+                      cleanup_failed=1
+                    fi
+                  fi
+                  ;;
+                *) cleanup_failed=1 ;;
+              esac
+            fi
             if [ "$original_status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
               original_status=1
             elif [ "$original_status" -ne 0 ] && [ "$cleanup_failed" -ne 0 ]; then
@@ -2045,13 +2124,57 @@ jobs:
             echo "PostgreSQL reuse admission poll must be within 1..300 seconds" >&2
             exit 1
           fi
+          canonical_tag_ref="${RUNTIME_REF%@*}"
+          expected_platform_digest="${RUNTIME_REF##*@}"
+          if [ "$canonical_tag_ref" = "$RUNTIME_REF" ] || \
+             [[ ! "$expected_platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "PostgreSQL reuse runtime reference is not canonical-tag and digest bound" >&2
+            exit 1
+          fi
+          canonical_raw="${RUNNER_TEMP}/pulseplate-pgvector-reuse-canonical.json"
+          canonical_tag_selects_expected_digest() {
+            if ! docker buildx imagetools inspect --raw "$canonical_tag_ref" \
+                > "$canonical_raw" 2>/dev/null; then
+              return 1
+            fi
+            EXPECTED_PLATFORM_DIGEST="$expected_platform_digest" \
+              python3 - "$canonical_raw" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+
+          raw = Path(sys.argv[1]).read_bytes()
+          payload = json.loads(raw)
+          expected = os.environ["EXPECTED_PLATFORM_DIGEST"]
+          media_type = payload.get("mediaType", "")
+          if media_type.endswith("image.manifest.v1+json"):
+              observed = "sha256:" + hashlib.sha256(raw).hexdigest()
+          else:
+              matches = [
+                  item
+                  for item in payload.get("manifests", [])
+                  if item.get("platform") == {"architecture": "amd64", "os": "linux"}
+              ]
+              if len(matches) != 1:
+                  raise SystemExit("Canonical PostgreSQL tag lacks one linux/amd64 manifest")
+              observed = matches[0].get("digest")
+          if observed != expected:
+              raise SystemExit("Canonical PostgreSQL tag does not select the frozen digest")
+          PY
+          }
           admission_deadline=$((SECONDS + PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS))
           while true; do
+            tag_ready=false
             image_ready=false
             provenance_ready=false
             spdx_ready=false
             if docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1; then
               image_ready=true
+              if canonical_tag_selects_expected_digest; then
+                tag_ready=true
+              fi
               if gh attestation verify "oci://${RUNTIME_REF}" \
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://slsa.dev/provenance/v1 \
@@ -2067,11 +2190,12 @@ jobs:
                 spdx_ready=true
               fi
             fi
-            if [ "$image_ready:$provenance_ready:$spdx_ready" = "true:true:true" ]; then
+            if [ "$tag_ready:$image_ready:$provenance_ready:$spdx_ready" = \
+                 "true:true:true:true" ]; then
               break
             fi
             if [ "$SECONDS" -ge "$admission_deadline" ]; then
-              echo "Exact PostgreSQL reuse admission did not become complete before timeout: image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready}" >&2
+              echo "Exact PostgreSQL reuse admission did not become complete before timeout: tag=${tag_ready} image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready}" >&2
               exit 1
             fi
             sleep "$PGVECTOR_REUSE_ADMISSION_POLL_SECONDS"

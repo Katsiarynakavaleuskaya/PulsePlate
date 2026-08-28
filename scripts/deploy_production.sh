@@ -2687,7 +2687,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       :
     else
       identity_status=$?
-      restart_captured_product_containers_after_failure
+      echo "❌ PostgreSQL identity revalidation failed; captured product writers remain quiesced" >&2
       exit "$identity_status"
     fi
     echo "Creating a verified backup from the still-running old self-hosted PostgreSQL container..."
@@ -2716,7 +2716,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       :
     else
       identity_status=$?
-      restart_captured_product_containers_after_failure
+      echo "❌ PostgreSQL identity revalidation failed; captured product writers remain quiesced" >&2
       exit "$identity_status"
     fi
     echo "Verified self-hosted pre-transition backup receipt: $backup_receipt"

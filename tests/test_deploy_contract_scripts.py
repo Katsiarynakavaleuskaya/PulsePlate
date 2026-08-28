@@ -559,7 +559,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "packages": "read",
     }
     assert "concurrency" not in reuse
-    assert reuse["timeout-minutes"] == 70
+    assert reuse["timeout-minutes"] == 90
     assert reuse["env"] == {
         "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "30",
         "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "3600",
@@ -573,6 +573,10 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "--severity CRITICAL,HIGH" in reuse_run
     assert "visibility" in reuse_run and "public" in reuse_run
     assert 'docker manifest inspect "$RUNTIME_REF"' in reuse_run
+    assert 'canonical_tag_ref="${RUNTIME_REF%@*}"' in reuse_run
+    assert 'docker buildx imagetools inspect --raw "$canonical_tag_ref"' in reuse_run
+    assert "Canonical PostgreSQL tag does not select the frozen digest" in reuse_run
+    assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready"' in reuse_run
     assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') >= 4
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
     owner_package_endpoint = (
@@ -605,6 +609,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     (("2", 0), ("0", 1)),
 )
 def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
+    tmp_path: Path,
     ready_after: str,
     expected_returncode: int,
 ) -> None:
@@ -624,6 +629,15 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
         '    [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
         "    return\n"
         "  fi\n"
+        '  if [ "$1 $2 $3" = "buildx imagetools inspect" ]; then\n'
+        '    expected_digest="${RUNTIME_REF##*@}"\n'
+        "    printf "
+        '\'{"mediaType":"application/vnd.oci.image.index.v1+json",'
+        '"manifests":[{"digest":"%s","platform":{'
+        '"architecture":"amd64","os":"linux"}}]}\\n\' '
+        '"$expected_digest"\n'
+        "    return\n"
+        "  fi\n"
         "  return 0\n"
         "}\n"
         "gh() {\n"
@@ -640,6 +654,7 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
             "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
             "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "1",
             "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "2",
+            "RUNNER_TEMP": str(tmp_path),
             "RUNTIME_REF": POSTGRES_RUNTIME_REF,
             "STUB_READY_AFTER": ready_after,
         },
@@ -1001,6 +1016,14 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     def position(name: str) -> int:
         return names.index(name)
 
+    initial_auth = position("Authenticate DHI read rail for reproducible local build")
+    scan = position("Scan exact bases, post-APK builder, and final image without suppressions")
+    drop_credentials = position("Drop registry credentials before repository-controlled tests")
+    runtime_oracle = position("Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity")
+    package_identity = position(
+        "Verify existing public GHCR package identity before candidate write"
+    )
+    publication_auth = position("Reauthenticate exact registry rails only for publication")
     candidate = position("Publish reproduced manifest under one unadmitted candidate tag")
     provenance = position("Attest PostgreSQL pgvector material-bound provenance")
     spdx = position("Attest PostgreSQL pgvector SPDX SBOM")
@@ -1008,7 +1031,48 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     visibility = position("Recheck public GHCR package identity after candidate admission")
     promote = position("Promote verified candidate digest to canonical tag without rebuild")
     canonical = position("Verify canonical pullback and unchanged public package visibility")
-    assert candidate < provenance < spdx < verify < visibility < promote < canonical
+    assert (
+        initial_auth
+        < scan
+        < drop_credentials
+        < runtime_oracle
+        < package_identity
+        < publication_auth
+        < candidate
+        < provenance
+        < spdx
+        < verify
+        < visibility
+        < promote
+        < canonical
+    )
+
+    initial_auth_step = steps[initial_auth]
+    assert set(initial_auth_step["env"]) == {"DHI_USER", "DHI_TOKEN"}
+    assert "docker login dhi.io" in initial_auth_step["run"]
+    assert "docker login ghcr.io" not in initial_auth_step["run"]
+    drop_run = steps[drop_credentials]["run"]
+    assert "docker logout dhi.io" in drop_run
+    assert 'rm -rf -- "$PGVECTOR_DOCKER_CONFIG"' in drop_run
+    assert "pulseplate-pgvector-docker-empty" in drop_run
+    assert "config.json" in drop_run
+    runtime_text = json.dumps(steps[runtime_oracle], sort_keys=True)
+    assert "DHI_ACCESS_TOKEN" not in runtime_text
+    assert "GITHUB_TOKEN" not in runtime_text
+    publication_auth_step = steps[publication_auth]
+    assert set(publication_auth_step["env"]) == {
+        "DHI_USER",
+        "DHI_TOKEN",
+        "GHCR_USER",
+        "GHCR_TOKEN_VALUE",
+    }
+    publication_auth_run = publication_auth_step["run"]
+    assert "Repository tests did not preserve the credential-free Docker boundary" in (
+        publication_auth_run
+    )
+    assert "docker login dhi.io" in publication_auth_run
+    assert "docker login ghcr.io" in publication_auth_run
+    assert 'docker buildx use "$PGVECTOR_BUILDX_BUILDER"' in publication_auth_run
 
     candidate_run = steps[candidate]["run"]
     assert "candidate-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in candidate_run
@@ -6213,6 +6277,54 @@ def test_old_postgres_stop_failure_keeps_product_writers_quiesced(
         assert branch_result.returncode == 47
         assert "captured product writers remain quiesced" in branch_result.stderr
         assert branch_log.read_text(encoding="utf-8") == f"docker stop {'a' * 64}\n"
+
+
+def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
+    tmp_path: Path,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    marker = (
+        'if assert_existing_postgres_unchanged "$postgres_state_receipt" '
+        '"$postgres_runtime_receipt"; then'
+    )
+
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert script.count(marker) == 2
+        search_from = 0
+        for occurrence in range(2):
+            start = script.index(marker, search_from)
+            line_start = script.rfind("\n", 0, start) + 1
+            indentation = script[line_start:start]
+            closing = f"\n{indentation}fi"
+            end = script.index(closing, start) + len(closing)
+            branch = script[start:end]
+            search_from = end
+            assert "PostgreSQL identity revalidation failed" in branch
+            assert "captured product writers remain quiesced" in branch
+            assert "restart_captured_product_containers_after_failure" not in branch
+
+            restart_log = tmp_path / f"{Path(relative_path).stem}-{occurrence}-restart.log"
+            branch_program = (
+                "set -euo pipefail\n"
+                'postgres_state_receipt="state"\n'
+                'postgres_runtime_receipt="runtime"\n'
+                "assert_existing_postgres_unchanged() { return 42; }\n"
+                "restart_captured_product_containers_after_failure() {\n"
+                f"  printf 'restarted\\n' > \"{restart_log}\"\n"
+                "}\n"
+                f"{branch}\n"
+            )
+            completed = subprocess.run(
+                [bash_bin, "-c", branch_program],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert completed.returncode == 42
+            assert "captured product writers remain quiesced" in completed.stderr
+            assert not restart_log.exists()
 
 
 def test_staging_backup_failure_preserves_primary_when_restart_also_fails(
