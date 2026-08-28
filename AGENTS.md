@@ -961,6 +961,14 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Tests must import/patch fallback only via `core.db_fallback`; any global flag must be reset via `reset_fallback_state()` or fixture (autouse allowed).
 - **Test hygiene:** Any test that mutates `core.db.SessionLocal` or calls `_configure_session_bindings` **must** restore `core_db.SessionLocal` and env keys (`DB_HEALTH_DEGRADED`, `DB_FALLBACK_URL`, `DATABASE_URL`) in a `finally` block or via `monkeypatch`.
 
+**Mapped schema-creation registration (hard):**
+
+- Current runtime, fallback, direct table-creation, and shared-test schema consumers must use `core.db.load_canonical_orm_metadata()` before creating mapped tables.
+- A future mapped-model module must update that explicit loader and its focused exact-set tests in the same PR.
+- Fresh standalone `create_tables()` and local/dev/test fallback paths materialize the loader's existing exact mapped-table set, including where their former independent imports produced empty or core-only metadata.
+- The loader must reject missing or extra mapped classes/tables and complete `Base.registry.configure()` before each named consumer initiates new engine/file/table schema work or calls `create_all`; registration/configuration errors propagate. Pre-existing long-lived sync/async engine state may already exist and is not retroactively covered.
+- This registration contract does not claim Alembic revision or autogenerate completeness.
+
 **Production DB invariant (hard):**
 
 - Paid runtime, subscriptions, entitlement state, and client history must not ship on SQLite as canonical production storage.
