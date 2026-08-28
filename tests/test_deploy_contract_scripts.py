@@ -582,6 +582,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "DHI_USERNAME" in publish_text
     assert "DHI_ACCESS_TOKEN" in publish_text
     assert publish["permissions"]["packages"] == "write"
+    assert publish["environment"] == {"name": "pgvector-publish"}
     assert publish["concurrency"] == {
         "group": "postgres-pgvector-canonical-tag-promotion",
         "cancel-in-progress": False,
@@ -595,26 +596,40 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "main-push-admission",
         "postgres-pgvector-material-change",
     ]
-    assert ci_admission["permissions"] == {"actions": "read"}
-    assert ci_admission["timeout-minutes"] == 45
-    assert len(ci_admission["steps"]) == 1
-    ci_admission_step = ci_admission["steps"][0]
+    assert ci_admission["permissions"] == {"contents": "read"}
+    assert ci_admission["timeout-minutes"] == 30
+    assert workflow.get("concurrency") is None
+    postgres_service = ci_admission["services"]["postgres"]
+    assert postgres_service["image"] == (
+        "pgvector/pgvector:0.8.6-pg15-trixie@"
+        "sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f"
+    )
+    assert postgres_service["ports"] == ["5432:5432"]
+    assert len(ci_admission["steps"]) == 3
+    assert ci_admission["steps"][0]["name"] == "Checkout exact main compatibility source"
+    setup_step = ci_admission["steps"][1]
+    assert setup_step["uses"] == "./.github/actions/python-setup"
+    assert setup_step["with"] == {
+        "python-version": "3.13.14",
+        "requirements-profile": "ci-test",
+        "install-mode": "direct-proxy",
+    }
+    ci_admission_step = ci_admission["steps"][2]
     assert ci_admission_step["env"] == {
-        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
-        "EXPECTED_SHA": "${{ github.sha }}",
-        "POLL_SECONDS": "30",
-        "WAIT_SECONDS": "2400",
+        "PGVECTOR_COMPAT_DATABASE_URL": (
+            "postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@"  # pragma: allowlist secret
+            "127.0.0.1:5432/pgvector_compat"
+        ),
+        "PGVECTOR_COMPAT_REQUIRED": "1",
     }
     ci_admission_run = ci_admission_step["run"]
     for required in (
-        "actions/workflows/ci.yml/runs",
-        "head_sha=${EXPECTED_SHA}",
-        "Expected exactly one canonical CI run for exact main",
-        'item.get("name") == "pgvector-compat"',
-        "Canonical CI pgvector-compat job is not terminal success",
+        'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+        "test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop",
     ):
         assert required in ci_admission_run
-    assert "actions/checkout" not in json.dumps(ci_admission, sort_keys=True)
+    ci_admission_text = json.dumps(ci_admission, sort_keys=True)
+    assert "actions/workflows/ci.yml/runs" not in ci_admission_text
     assert "DHI_ACCESS_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
     assert "GHCR_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
 
@@ -649,6 +664,12 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready"' in reuse_run
     assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') >= 4
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
+    assert "--format spdx-json" in reuse_run
+    assert "postgres-pgvector-reuse-current.spdx.json" in reuse_run
+    assert "observed_spdx != expected_spdx" in reuse_run
+    assert "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM" in (
+        reuse_run
+    )
     owner_package_endpoint = (
         'gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate"'
     )
@@ -738,74 +759,6 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
         assert completed.stdout.strip() == "ATTEMPTS=2"
     else:
         assert "did not become complete before timeout" in completed.stderr
-
-
-@pytest.mark.parametrize(
-    ("mode", "expected_returncode"),
-    (("success", 0), ("failed-run", 1), ("missing", 1)),
-)
-def test_cd_postgres_ci_admission_executes_exact_closed_state_machine(
-    tmp_path: Path,
-    mode: str,
-    expected_returncode: int,
-) -> None:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    program = workflow["jobs"]["postgres-pgvector-ci-admission"]["steps"][0]["run"]
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    gh_stub = bin_dir / "gh"
-    _write_executable(
-        gh_stub,
-        """#!/usr/bin/env bash
-set -euo pipefail
-case "$*" in
-  *"actions/workflows/ci.yml/runs"*)
-    case "$STUB_MODE" in
-      success)
-        printf '{"workflow_runs":[{"id":123,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"success","head_repository":{"full_name":"%s"}}]}\n' "$EXPECTED_SHA" "$GITHUB_REPOSITORY"
-        ;;
-      failed-run)
-        printf '{"workflow_runs":[{"id":123,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"failure","head_repository":{"full_name":"%s"}}]}\n' "$EXPECTED_SHA" "$GITHUB_REPOSITORY"
-        ;;
-      missing) printf '{"workflow_runs":[]}\n' ;;
-    esac
-    ;;
-  *"actions/runs/123/jobs"*)
-    printf '{"jobs":[{"name":"pgvector-compat","status":"completed","conclusion":"success"}]}\n'
-    ;;
-  *) exit 91 ;;
-esac
-""",
-    )
-    bash_bin = shutil.which("bash")
-    assert bash_bin is not None
-    completed = subprocess.run(
-        [bash_bin, "-c", program],
-        cwd=REPO_ROOT,
-        env={
-            **os.environ,
-            "EXPECTED_SHA": "a" * 40,
-            "GH_TOKEN": "test-token",  # pragma: allowlist secret
-            "GITHUB_EVENT_NAME": "push",
-            "GITHUB_REF": "refs/heads/main",
-            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
-            "PATH": f"{bin_dir}:{os.environ['PATH']}",
-            "POLL_SECONDS": "1",
-            "RUNNER_TEMP": str(tmp_path),
-            "STUB_MODE": mode,
-            "WAIT_SECONDS": "1",
-        },
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert completed.returncode == expected_returncode, completed.stderr
-    if mode == "success":
-        assert completed.stderr == ""
-    elif mode == "failed-run":
-        assert "completed without success" in completed.stderr
-    else:
-        assert "did not appear before" in completed.stderr
 
 
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
@@ -1002,6 +955,15 @@ def _postgres_candidate_spdx_verifier_program() -> str:
     return run.split(marker, maxsplit=2)[2].split("\nPY\n", maxsplit=1)[0]
 
 
+def _postgres_reuse_spdx_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    step = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]
+    marker = "python3 - <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 2
+    return run.rsplit(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+
+
 @pytest.mark.parametrize(
     ("variant", "expected_success"),
     (
@@ -1084,6 +1046,44 @@ def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
     )
     completed = subprocess.run(
         [sys.executable, "-c", _postgres_candidate_spdx_verifier_program()],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success"),
+    (("matching", True), ("mismatching", False), ("duplicate", False)),
+)
+def test_cd_postgres_reuse_spdx_verifier_executes_exact_program(
+    tmp_path: Path,
+    variant: str,
+    expected_success: bool,
+) -> None:
+    expected = {"SPDXID": "SPDXRef-DOCUMENT", "name": "pulseplate-pgvector"}
+    observed = json.loads(json.dumps(expected))
+    if variant == "mismatching":
+        observed["name"] = "historical-incomplete"
+    item = {
+        "verificationResult": {
+            "statement": {
+                "predicateType": "https://spdx.dev/Document/v2.3",
+                "predicate": observed,
+            }
+        }
+    }
+    verified = [item, item] if variant == "duplicate" else [item]
+    (tmp_path / "postgres-pgvector-reuse-current.spdx.json").write_text(
+        json.dumps(expected), encoding="utf-8"
+    )
+    (tmp_path / "postgres-pgvector-reuse-spdx.json").write_text(
+        json.dumps(verified), encoding="utf-8"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_reuse_spdx_verifier_program()],
         cwd=tmp_path,
         text=True,
         capture_output=True,

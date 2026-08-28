@@ -580,8 +580,8 @@ jobs:
           if privileged_pr_event in workflow_text:
               raise SystemExit("PostgreSQL image workflow must not use pull_request_target")
           contract_start = workflow_text.index("\n  postgres-pgvector-contract:")
-          publish_start = workflow_text.index("\n  postgres-pgvector-publish:")
-          contract_block = workflow_text[contract_start:publish_start]
+          contract_end = workflow_text.index("\n  main-push-admission:")
+          contract_block = workflow_text[contract_start:contract_end]
           secret_expression_token = "secrets" + "."
           registry_login_token = "docker" + " login"
           if secret_expression_token in contract_block or registry_login_token in contract_block:
@@ -680,141 +680,55 @@ jobs:
       && needs.postgres-pgvector-material-change.outputs.changed == 'true'
     needs: [main-push-admission, postgres-pgvector-material-change]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
-      actions: read
-    steps:
-      - name: Wait for exact-main canonical CI and pgvector compatibility
+      contents: read
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg15-trixie@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EXPECTED_SHA: ${{ github.sha }}
-          POLL_SECONDS: "30"
-          WAIT_SECONDS: "2400"
+          POSTGRES_DB: pgvector_compat
+          POSTGRES_USER: pgvector_compat
+          POSTGRES_PASSWORD: pgvector_compat_test_password # pragma: allowlist secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pgvector_compat -d pgvector_compat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout exact main compatibility source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install locked compatibility runtime without publication credentials
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
+          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
+        with:
+          python-version: "3.13.14"
+          requirements-profile: ci-test
+          install-mode: direct-proxy
+
+      - name: Prove exact-head PostgreSQL pgvector compatibility
+        env:
+          PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@127.0.0.1:5432/pgvector_compat # pragma: allowlist secret
+          PGVECTOR_COMPAT_REQUIRED: "1"
         run: |
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = "push"
           test "$GITHUB_REF" = "refs/heads/main"
           test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
-          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Exact-main CI admission SHA is malformed" >&2
-            exit 1
-          fi
-          if [[ ! "$POLL_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]] || [ "$POLL_SECONDS" -gt 300 ]; then
-            echo "Exact-main CI admission poll must be within 1..300 seconds" >&2
-            exit 1
-          fi
-          if [[ ! "$WAIT_SECONDS" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$WAIT_SECONDS" -gt 2400 ]; then
-            echo "Exact-main CI admission wait must be within 1..2400 seconds" >&2
-            exit 1
-          fi
-          evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-ci-admission.XXXXXX")"
-          cleanup() {
-            local original_status=$?
-            trap - EXIT
-            case "$evidence_dir" in
-              "${RUNNER_TEMP}"/pulseplate-pgvector-ci-admission.*)
-                if [ -d "$evidence_dir" ] && [ ! -L "$evidence_dir" ]; then
-                  rm -rf -- "$evidence_dir"
-                else
-                  original_status=1
-                fi
-                ;;
-              *) original_status=1 ;;
-            esac
-            exit "$original_status"
-          }
-          trap cleanup EXIT
-          deadline=$((SECONDS + WAIT_SECONDS))
-          while true; do
-            runs_path="$evidence_dir/runs.json"
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=${EXPECTED_SHA}&per_page=10" \
-              > "$runs_path"
-            run_record="$(python3 - "$runs_path" "$EXPECTED_SHA" "$GITHUB_REPOSITORY" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          expected_sha = sys.argv[2]
-          expected_repository = sys.argv[3]
-          matches = [
-              item
-              for item in payload.get("workflow_runs", [])
-              if item.get("head_sha") == expected_sha
-              and item.get("head_branch") == "main"
-              and item.get("event") == "push"
-              and (item.get("head_repository") or {}).get("full_name")
-              == expected_repository
-          ]
-          if not matches:
-              print("missing")
-          elif len(matches) != 1:
-              raise SystemExit("Expected exactly one canonical CI run for exact main")
-          else:
-              run = matches[0]
-              print(
-                  "\t".join(
-                      (
-                          str(run.get("id", "")),
-                          str(run.get("status", "")),
-                          str(run.get("conclusion") or ""),
-                      )
-                  )
-              )
-          PY
-            )"
-            if [ "$run_record" = "missing" ]; then
-              if [ "$SECONDS" -ge "$deadline" ]; then
-                echo "Canonical CI run did not appear before PostgreSQL admission timeout" >&2
-                exit 1
-              fi
-              sleep "$POLL_SECONDS"
-              continue
-            fi
-            IFS=$'\t' read -r run_id run_status run_conclusion <<< "$run_record"
-            if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
-              echo "Canonical CI run identity is malformed" >&2
-              exit 1
-            fi
-            case "$run_status:$run_conclusion" in
-              completed:success)
-                jobs_path="$evidence_dir/jobs.json"
-                gh api \
-                  "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" \
-                  > "$jobs_path"
-                python3 - "$jobs_path" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          matches = [item for item in payload.get("jobs", []) if item.get("name") == "pgvector-compat"]
-          if len(matches) != 1:
-              raise SystemExit("Expected exactly one pgvector-compat job in canonical CI")
-          job = matches[0]
-          if job.get("status") != "completed" or job.get("conclusion") != "success":
-              raise SystemExit("Canonical CI pgvector-compat job is not terminal success")
-          PY
-                break
-                ;;
-              completed:*)
-                echo "Canonical CI completed without success: ${run_conclusion:-none}" >&2
-                exit 1
-                ;;
-              queued: | in_progress: | requested: | waiting: | pending:)
-                ;;
-              *)
-                echo "Canonical CI returned an unknown status/conclusion pair" >&2
-                exit 1
-                ;;
-            esac
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Canonical CI did not become terminal success before PostgreSQL admission timeout" >&2
-              exit 1
-            fi
-            sleep "$POLL_SECONDS"
-          done
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          CI=true \
+          GITHUB_ACTIONS=true \
+          APP_ENV=test \
+          ENVIRONMENT=test \
+            python -m pytest -q \
+              tests/test_pgvector_compat.py::test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
 
   postgres-pgvector-publish:
     if: >-
@@ -825,6 +739,8 @@ jobs:
     needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change, postgres-pgvector-ci-admission]
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment:
+      name: pgvector-publish
     concurrency:
       group: postgres-pgvector-canonical-tag-promotion
       cancel-in-progress: false
@@ -2293,6 +2209,12 @@ jobs:
             --ignorefile "$empty_ignore" \
             --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse" \
             "$RUNTIME_REF"
+          "$install_dir/trivy" image \
+            --format spdx-json \
+            --output postgres-pgvector-reuse-current.spdx.json \
+            --timeout 15m \
+            --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse-sbom" \
+            "$RUNTIME_REF"
           gh attestation verify "oci://${RUNTIME_REF}" \
             --repo "$GITHUB_REPOSITORY" \
             --predicate-type https://slsa.dev/provenance/v1 \
@@ -2396,6 +2318,16 @@ jobs:
           ]
           if len(matches) != 1:
               raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
+          expected_spdx = json.loads(
+              Path("postgres-pgvector-reuse-current.spdx.json").read_text(encoding="utf-8")
+          )
+          observed_spdx = matches[0].get("verificationResult", {}).get("statement", {}).get(
+              "predicate"
+          )
+          if observed_spdx != expected_spdx:
+              raise SystemExit(
+                  "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM"
+              )
           PY
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
