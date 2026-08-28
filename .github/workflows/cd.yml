@@ -502,7 +502,7 @@ jobs:
               raise SystemExit("PostgreSQL Containerfile must be one regular file")
           manifest_bytes = manifest_path.read_bytes()
           if hashlib.sha256(manifest_bytes).hexdigest() != (
-              "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+              "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"
           ):
               raise SystemExit("PostgreSQL image manifest bytes drifted")
           manifest = json.loads(manifest_bytes)
@@ -514,7 +514,7 @@ jobs:
               "platform_manifest_digest": "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec",
               "config_digest": "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:499576970227a372e962ffab985c4faef18af1d3e4485dacb6223ed05b0d7fa4",
+              "containerfile_sha256": "sha256:2381acb59b94614e81721bbcdccf277b22805c836245bc994c2ccebc202c57ea",
               "postgres_version": "15.19",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",

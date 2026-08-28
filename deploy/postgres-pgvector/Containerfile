@@ -23,6 +23,8 @@ RUN set -eu; \
     make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS=""; \
     make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS="" DESTDIR=/out install; \
     install -D -o 0 -g 0 -m 0644 LICENSE /out/usr/share/licenses/pgvector/LICENSE; \
+    touch -d "@${SOURCE_DATE_EPOCH}" /out/usr/share/licenses/pgvector/LICENSE; \
+    test "$(stat -c %Y /out/usr/share/licenses/pgvector/LICENSE)" = "$SOURCE_DATE_EPOCH"; \
     test -f /out/usr/share/licenses/pgvector/LICENSE; \
     test ! -L /out/usr/share/licenses/pgvector/LICENSE; \
     first_symlink="$(find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type l -print -quit)"; \

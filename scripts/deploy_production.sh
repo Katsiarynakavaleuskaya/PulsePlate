@@ -533,7 +533,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "97cfcc5896bf687ced40c56a983dfaacda81ce891e4b656736dc8cf3cac4d9bd"  # pragma: allowlist secret
+expected_file_sha256 = "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -2134,7 +2134,7 @@ validate_existing_postgres_image_identity() {
       fi
       ;;
     "$POSTGRES_RUNTIME_REF")
-      if [ "$image_id" != "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa" ]; then
+      if [ "$image_id" != "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738" ]; then
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
         return 1
       fi

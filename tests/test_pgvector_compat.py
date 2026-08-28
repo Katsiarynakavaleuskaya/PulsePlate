@@ -1668,10 +1668,17 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
 
 def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
+    contract_job = workflow.split("\n  postgres-pgvector-contract:\n", maxsplit=1)[1].split(
+        "\n  main-push-admission:\n", maxsplit=1
+    )[0]
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
         "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
-    assert "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec" in workflow
+    assert "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec" in contract_job
+    assert (
+        "EXPECTED_PLATFORM_DIGEST: "
+        "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}" in publish_job
+    )
     assert (
         "sha256:82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in publish_job
     )

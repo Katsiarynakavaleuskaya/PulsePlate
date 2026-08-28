@@ -375,7 +375,7 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "97cfcc5896bf687ced40c56a983dfaacda81ce891e4b656736dc8cf3cac4d9bd"  # pragma: allowlist secret
+        "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
@@ -437,6 +437,9 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert POSTGRES_RUNTIME_REF == (
         f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
     )
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert f'if [ "$image_id" != "{manifest["config_digest"]}" ]; then' in script
 
 
 @pytest.mark.parametrize("compose_path", (STAGING_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH))
@@ -482,6 +485,13 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
         "install -D -o 0 -g 0 -m 0644 LICENSE "
         "/out/usr/share/licenses/pgvector/LICENSE" in containerfile
     )
+    assert 'touch -d "@${SOURCE_DATE_EPOCH}" /out/usr/share/licenses/pgvector/LICENSE' in (
+        containerfile
+    )
+    assert (
+        'test "$(stat -c %Y /out/usr/share/licenses/pgvector/LICENSE)" = '
+        '"$SOURCE_DATE_EPOCH"' in containerfile
+    )
     assert "/out/usr/share/licenses/pgvector -type f" in containerfile
     assert (
         "COPY --from=builder --chown=0:0 /out/usr/share/licenses/pgvector/LICENSE "
@@ -516,6 +526,7 @@ def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only()
     )[0]
     assert "${{ secrets." not in contract
     assert "docker" + " login" not in contract
+    assert hashlib.sha256(POSTGRES_MANIFEST_PATH.read_bytes()).hexdigest() in contract
     workflow_triggers = workflow.split("\npermissions:\n", maxsplit=1)[0]
     assert "pull_request" + "_target:" not in workflow_triggers
     assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in publish
