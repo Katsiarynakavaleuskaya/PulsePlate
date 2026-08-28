@@ -89,13 +89,20 @@ class TestVIPProductionMode:
                 )
                 assert response.status_code == 200
 
-    def test_weekly_menu_generation_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test weekly menu generation error handling (line 155)."""
+    @pytest.mark.parametrize("app_env", ["production", "development"])
+    def test_weekly_menu_generation_error_handling(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+        app_env: str,
+    ) -> None:
+        """Internal weekly-plan failures stay private in every environment."""
         import app
 
-        def raise_exc(*args, **kwargs):
-            # sourcery skip: raise-specific-error
-            raise Exception("Menu generation failed")
+        sentinel = "PRIVATE_EXCEPTION_SENTINEL_/srv/internal/module.py"
+
+        def raise_exc(*args: object, **kwargs: object) -> None:
+            raise RuntimeError(sentinel)
 
         deprecated_endpoint = find_route_endpoint(
             app=app.app,
@@ -112,19 +119,24 @@ class TestVIPProductionMode:
 
         with open_test_client(app.app) as client:
             with monkeypatch.context() as request_env:
-                request_env.setenv("APP_ENV", "production")
-                request_env.setenv("API_KEY", "secret-key")
-                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
+                request_env.setenv("APP_ENV", app_env)
+                request_env.setenv("API_KEY", vip_headers["X-API-Key"])
+                request_env.setenv("VIP_API_KEYS", vip_headers["X-API-Key"])
 
                 response = client.post(
                     "/api/v1/vip/weekly-plan",
                     json=VALID_WEEKLY_PLAN_REQUEST,
-                    headers={"X-API-Key": "secret-key"},
+                    headers=vip_headers,
                 )
 
                 assert response.status_code == 200
                 assert response.headers["content-type"].startswith("application/json")
-                assert "Weekly plan generation failed" in response.json()["message"]
+                assert response.json() == {
+                    "status": "error",
+                    "message": "Weekly plan generation failed",
+                    "data": {},
+                }
+                assert sentinel not in response.text
 
     def test_vip_recipes_endpoint_auth_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP recipes endpoint requires authentication."""
