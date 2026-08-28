@@ -19,13 +19,16 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
     private let localizationKeys: Set<String> = [
         "fitchef.support_choice.agency",
         "fitchef.support_choice.confirm",
-        "fitchef.support_choice.consequence",
         "fitchef.support_choice.daily.detail",
         "fitchef.support_choice.daily.title",
         "fitchef.support_choice.dismiss",
         "fitchef.support_choice.question",
         "fitchef.support_choice.weekly.detail",
         "fitchef.support_choice.weekly.title",
+    ]
+
+    private let removedUILocalizationKeys: Set<String> = [
+        "fitchef.support_choice.consequence",
         "fitchef.support_choice.wellness",
     ]
 
@@ -92,6 +95,9 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
     }
 
     func testEveryRequiredTopLevelFieldIsRequired() throws {
+        XCTAssertEqual(canonicalPayload()["wellness_boundary"] as? String, "wellness_planning_only")
+        XCTAssertEqual(topLevelFields.filter { $0 == "wellness_boundary" }.count, 1)
+
         for field in topLevelFields {
             var payload = canonicalPayload()
             payload.removeValue(forKey: field)
@@ -223,6 +229,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             ("forged\nlog_line", "SENSITIVE_TOP_LEVEL_VALUE_2"),
         ]
         var payload = canonicalPayload()
+        XCTAssertEqual(payload["wellness_boundary"] as? String, "wellness_planning_only")
         for (key, value) in hostileEntries {
             payload[key] = value
         }
@@ -614,10 +621,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                     "Look at the next seven days.",
                 "fitchef.support_choice.agency":
                     "FitChef shows both options. The choice is yours.",
-                "fitchef.support_choice.consequence":
-                    "For now, you’re only choosing where to start. Nothing will open, be saved, or change.",
-                "fitchef.support_choice.wellness":
-                    "For everyday planning — not medical advice.",
                 "fitchef.support_choice.confirm": "Confirm choice",
                 "fitchef.support_choice.dismiss": "Not now",
             ],
@@ -631,10 +634,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                     "Сначала посмотреть на ближайшие семь дней.",
                 "fitchef.support_choice.agency":
                     "FitChef покажет оба варианта, а выбор останется за вами.",
-                "fitchef.support_choice.consequence":
-                    "Сейчас вы только выбираете, с чего начать. Ничего не откроется, не сохранится и не изменится.",
-                "fitchef.support_choice.wellness":
-                    "Для повседневного планирования — не медицинский совет.",
                 "fitchef.support_choice.confirm": "Подтвердить выбор",
                 "fitchef.support_choice.dismiss": "Не сейчас",
             ],
@@ -649,18 +648,24 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                     "Ver los próximos siete días.",
                 "fitchef.support_choice.agency":
                     "FitChef te muestra ambas opciones. Tú eliges.",
-                "fitchef.support_choice.consequence":
-                    "Por ahora, solo eliges por dónde empezar. No se abrirá, guardará ni cambiará nada.",
-                "fitchef.support_choice.wellness":
-                    "Para la planificación diaria; no es consejo médico.",
                 "fitchef.support_choice.confirm": "Confirmar elección",
                 "fitchef.support_choice.dismiss": "Ahora no",
             ],
         ]
 
+        XCTAssertEqual(localizationKeys.count, 8)
+        XCTAssertEqual(
+            removedUILocalizationKeys,
+            [
+                "fitchef.support_choice.consequence",
+                "fitchef.support_choice.wellness",
+            ]
+        )
         for locale in ["en", "ru", "es"] {
             let localizedValues = try loadFitChefLocalization(locale: locale)
             XCTAssertEqual(Set(localizedValues.keys), localizationKeys)
+            XCTAssertEqual(localizedValues.count, 8)
+            XCTAssertTrue(removedUILocalizationKeys.isDisjoint(with: localizedValues.keys))
             XCTAssertTrue(localizedValues.values.allSatisfy { !$0.isEmpty })
             XCTAssertEqual(localizedValues, expectedValues[locale])
         }
@@ -672,6 +677,21 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         for rawKey in topLevelFields + ["action_type", "target_surface"] {
             XCTAssertTrue(source.contains("\"\(rawKey)\""), "Missing raw wire key: \(rawKey)")
         }
+        XCTAssertTrue(
+            source.contains(
+                "case wellnessPlanningOnly = \"wellness_planning_only\""
+            )
+        )
+        XCTAssertTrue(
+            source.contains(
+                "let wellnessBoundary: FitChefSupportHandoffWellnessBoundary"
+            )
+        )
+        XCTAssertTrue(
+            source.contains(
+                "forKey: FitChefSupportDynamicCodingKey(\"wellness_boundary\")"
+            )
+        )
         XCTAssertFalse(source.contains("Encodable"))
         XCTAssertFalse(source.contains("AnyCodable"))
         XCTAssertFalse(source.contains("URLSession"))
@@ -797,6 +817,10 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertTrue(source.contains("onConfirm(descriptor)"))
         XCTAssertTrue(source.contains(".disabled(!selectionState.canConfirm)"))
         XCTAssertTrue(source.contains("onDismiss()"))
+        XCTAssertFalse(source.contains("captionFontSize"))
+        XCTAssertFalse(source.contains("boundaryCopy"))
+        XCTAssertFalse(source.contains("fitchef.support_choice.consequence"))
+        XCTAssertFalse(source.contains("fitchef.support_choice.wellness"))
         XCTAssertTrue(source.contains("PPDesignTokens.Brand.navy"))
         XCTAssertTrue(source.contains("PPCard"))
         XCTAssertTrue(source.contains("PPButton"))
@@ -864,12 +888,11 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let scaledMetricDeclarations = [
             "@ScaledMetric(relativeTo: .title2) private var headingFontSize",
             "@ScaledMetric(relativeTo: .body) private var bodyFontSize",
-            "@ScaledMetric(relativeTo: .caption) private var captionFontSize",
             "@ScaledMetric(relativeTo: .headline) private var choiceTitleFontSize",
             "@ScaledMetric(relativeTo: .body) private var choiceDetailFontSize",
             "@ScaledMetric(relativeTo: .title3) private var radioSymbolFontSize",
         ]
-        XCTAssertEqual(occurrenceCount(of: "@ScaledMetric(", in: source), 6)
+        XCTAssertEqual(occurrenceCount(of: "@ScaledMetric(", in: source), 5)
         for declaration in scaledMetricDeclarations {
             XCTAssertTrue(source.contains(declaration), "Missing scaled metric: \(declaration)")
         }
@@ -1013,6 +1036,13 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             in: englishTabletPreview
         )
         XCTAssertTrue(source.contains("decoder.keyDecodingStrategy = .useDefaultKeys"))
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "\"wellness_boundary\": \"wellness_planning_only\"",
+                in: source
+            ),
+            1
+        )
 
         let range = NSRange(source.startIndex..<source.endIndex, in: source)
         let headerLayoutRegex = try NSRegularExpression(
@@ -1240,7 +1270,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "header",
                 "fitchef.support_choice.daily.title",
                 "fitchef.support_choice.weekly.title",
-                "boundaryCopy",
                 "actions",
             ],
             in: body
@@ -1300,7 +1329,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let fitChefImage = try sourceSlice(
             source,
             from: "private var fitChefImage: some View",
-            to: "private var boundaryCopy: some View"
+            to: "private var actions: some View"
         )
         assertOrdered(
             [
@@ -1311,15 +1340,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 ".accessibilityHidden(true)",
             ],
             in: fitChefImage
-        )
-        let boundary = try sourceSlice(
-            source,
-            from: "private var boundaryCopy: some View",
-            to: "private func localized"
-        )
-        assertOrdered(
-            ["fitchef.support_choice.consequence", "fitchef.support_choice.wellness"],
-            in: boundary
         )
     }
 
@@ -1408,7 +1428,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         guard let values = propertyList as? [String: String] else {
             throw FitChefSupportChoiceTestError.invalidLocalizationFile(locale)
         }
-        return values.filter { localizationKeys.contains($0.key) }
+        return values.filter { $0.key.hasPrefix("fitchef.support_choice.") }
     }
 
     private func repositoryRoot() throws -> URL {

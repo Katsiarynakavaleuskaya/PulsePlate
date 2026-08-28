@@ -213,7 +213,5 @@
 "fitchef.support_choice.weekly.title" = "This week";
 "fitchef.support_choice.weekly.detail" = "Look at the next seven days.";
 "fitchef.support_choice.agency" = "FitChef shows both options. The choice is yours.";
-"fitchef.support_choice.consequence" = "For now, you’re only choosing where to start. Nothing will open, be saved, or change.";
-"fitchef.support_choice.wellness" = "For everyday planning — not medical advice.";
 "fitchef.support_choice.confirm" = "Confirm choice";
 "fitchef.support_choice.dismiss" = "Not now";
