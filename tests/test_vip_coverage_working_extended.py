@@ -6,11 +6,13 @@ Uses correct endpoint paths and working test patterns.
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 from app.dependencies import get_recipe_synthesizer
 from core.recipe_synth import RecipeSynthesizer
+from tests._client import open_test_client
 from tests.conftest_app import assert_vip_response
 
 
@@ -216,41 +218,44 @@ class TestVIPCoverageWorkingExtended:
                 assert data["status"] == "success"
                 assert "templates" in data
 
-    def test_vip_recipe_templates_error_coverage(self):
-        """Test VIP recipe templates error coverage."""
+    @pytest.mark.parametrize("app_env", ["production", "development"])
+    def test_vip_recipe_templates_error_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+        app_env: str,
+    ) -> None:
+        """Recipe-template failures never expose exception details."""
         import app
 
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Create a mock synthesizer that raises exception when templates is accessed
+        sentinel = "PRIVATE_EXCEPTION_SENTINEL_/srv/internal/module.py"
         mock_synthesizer = MagicMock()
-        mock_synthesizer.templates.values.side_effect = Exception("Templates error")
+        mock_synthesizer.templates.values.side_effect = RuntimeError(sentinel)
 
         def mock_get_synthesizer() -> RecipeSynthesizer:
             return cast(RecipeSynthesizer, mock_synthesizer)
 
-        # Override the dependency to return our mock that will raise exception
-        app.app.dependency_overrides[get_recipe_synthesizer] = mock_get_synthesizer
-
-        try:
-            response = client.get(
-                "/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"}
-            )
-            assert response.status_code in [200, 403]  # Success or API key issue
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "error"
-                # Production-safe message should not expose internal error details
-                assert (
-                    "An internal error occurred while retrieving recipe templates."
-                    in data["message"]
+        with open_test_client(app.app) as client:
+            with monkeypatch.context() as request_env:
+                request_env.setenv("APP_ENV", app_env)
+                request_env.setenv("ALLOW_DEV_API_KEY", "false")
+                request_env.setenv("API_KEY", vip_headers["X-API-Key"])
+                request_env.setenv("VIP_API_KEYS", vip_headers["X-API-Key"])
+                # The managed client restores the exact dependency override state on exit.
+                app.app.dependency_overrides[get_recipe_synthesizer] = mock_get_synthesizer
+                response = client.get(
+                    "/api/v1/vip/recipes/templates",
+                    headers=vip_headers,
                 )
-                # In non-production, implementation may include technical detail for diagnostics
-                if "detail" in data:
-                    assert "Templates error" in data["detail"]
-        finally:
-            # Clean up the override
-            app.app.dependency_overrides.pop(get_recipe_synthesizer, None)
+                assert response.status_code == 200
+                assert response.headers["content-type"].startswith("application/json")
+                assert response.json() == {
+                    "status": "error",
+                    "message": "An internal error occurred while retrieving recipe templates.",
+                    "templates": [],
+                }
+                assert sentinel not in response.text
 
     def test_vip_auto_repair_strategies_success_coverage(self):
         """Test VIP auto repair strategies success coverage."""
