@@ -388,6 +388,34 @@
   requested owners against the packet bridge bindings before clearing readonly.
   The manifest records `implementation_owner_override: true` for those entries.
 
+## PR evidence sidecar v1
+
+- `pr_evidence_sidecar.py` owns one fixed gitignored store under
+  `artifacts/orchestration/pr_evidence_sidecars/`; do not add a root override.
+- Treat start/terminal receipts and whole-store reports as structural local
+  receipts only. Reference fingerprints are non-verifying. They grant no
+  review, CI, merge, release, enrollment,
+  causality, outcome, promotion, repository, or GitHub authority.
+- `observed_pr_terminal_state` is an operator-supplied local observation only.
+  GitHub owns authenticated PR state, review governance owns review semantics,
+  and `CreativeCodeTerminalOutcome` owns its separate terminal ontology.
+- `operator_observations` is limited to operator minutes plus review and repair
+  cycle counts; do not add finding, false-positive, regression, rollback,
+  quality, or external-outcome fields.
+- Preserve strict bounded JSON, private modes, symlink/hardlink/nonregular-file
+  rejection, sibling-stage kernel no-replace rename publication, exact replay
+  at capacity, pre-creation rejection of new ids at capacity, identical
+  no-write replay, and divergent replay failure. Never sweep arbitrary sibling
+  stage-looking residue.
+- Preserve the public-operation lock boundary: thread `RLock` plus fixed-store
+  directory `flock`, exclusive for prepare/finalize and shared for
+  validate/report. Internal loaders remain lock-free and canonical receipts
+  must validate only at link count one.
+- The first receipt is for the next freshly bootstrapped lane after the feature
+  lands. Never backfill the implementation PR with a retrospective self receipt.
+- Contract and terminal rail truth table:
+  `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`.
+
 ## Pre-push backend tests (smart diff runner)
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
