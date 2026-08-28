@@ -2782,8 +2782,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: DEPSEC-2 multi-ecosystem dependency coverage and compatibility closure
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: DS-1 completed via PR #2318; DS-2 repository carrier merged via PR #2323; provider correction via PR #2326 on branch `codex/depsec2-actions-cooldown-provider-fix`; DS-3 and reproduction-gated DS-4 remain separate PRs
-  - Status: 🟡 In progress. PR #2323 merged, but provider proof failed because `github-actions` rejects semver-major/minor/patch cooldown keys; the corrective lane narrows Actions to exact `default-days: 7`. Provider acceptance, DS-3, DS-4, and the umbrella remain open.
+  - Target PR: DS-1 completed via PR #2318; DS-2 repository carrier merged via PR #2323 and provider correction via PR #2326; DS-3 completed via PR #2345; CodeQL alert #650 uses `codex/security-vip-error-sanitization`; reproduction-gated DS-4 remains a separate PR
+  - Status: 🟡 In progress. DS-1 through DS-3 are complete. CodeQL alert #650 is assigned to the bounded VIP response-sanitization carrier, while alert #651 received an owner-authorized provider `false positive` disposition with no guard-code change. DS-4 and the umbrella remain open.
   - Area: dependency security / CI governance / runtime compatibility
   - Finding Type: multi-ecosystem automation and architecture-drift closure
   - Reason (EN): Dependency maintenance needs a finite current-main train with explicit ecosystem ownership, native resolvers, immutable lock or digest evidence, focused verification, rollback, and post-merge alert reconciliation. Configuration-authority PRs must not carry package updates; cross-ecosystem mega-updates and auto-merge are forbidden.
@@ -2791,6 +2791,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2318`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2323`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2326`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2345`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/b04a6c4f62081b56d7d7c50af65bb0c8978d3757`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/650`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/651`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-governance-pr-series`
     - `docs/security/TOOLING_SURFACE_POLICY.md`
     - `.github/dependabot.yml`
@@ -2799,13 +2803,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - DS-1 (completed via PR #2318): require immutable digests for recognized `docker://` action references
     - DS-2 (repository carrier merged via PR #2323; provider correction in PR #2326): automate weekly capped proposals for root/frontend npm, iOS Bundler, and workflow/direct-child composite GitHub Actions without package updates; Actions uses only `default-days: 7`, while pip/npm/bundler retain the full 7/30/7/3 cooldown contract
     - DS-2 manual owners: Docker/Docker Compose/devcontainers and SwiftPM/Xcode remain outside scheduled automation; the dependency-free business-collateral CommonJS marker requires a new ownership decision if dependency keys or an adjacent lock appear
-    - DS-3 (open): reconcile fresh test-quality dependency and pre-commit hook parity without runtime dependency changes
+    - DS-3 (completed via PR #2345; merge `b04a6c4f62081b56d7d7c50af65bb0c8978d3757`): reconciled fresh test-quality dependency and pre-commit hook parity without runtime dependency changes
     - DS-4 (open, reproduction-gated): fix FastAPI lifespan/test compatibility only after a preserved red reproduction identifies the owning defect class
   - DoD:
     - Every slice runs the mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` chain and lands as its own scoped PR
     - `pip`, `npm`, `bundler`, and `github-actions` have explicit update ownership; Docker and SwiftPM are either bounded automation or explicit manual ownership
     - Current manifests, locks, CI images, and toolchain files have fresh census evidence, with zero untriaged alerts and no stale branch, historical lock, or stale CI used as current authority
     - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
+
+<a id="ledger-p1-bola-executable-evidence-matrix-v1"></a>
+- [ ] P1: Executable BOLA evidence matrix v1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/security-bola-oracle-matrix-v1`
+  - Status: 📋 Planned after terminal CodeQL/provider closure
+  - Area: backend authorization / object-level access control / security evidence
+  - Finding Type: executable cross-principal authorization evidence gap
+  - Reason (EN): Current authorization coverage needs one finite, current-main matrix that binds every admitted object route to executable same-principal and foreign-principal outcomes without creating a second authorization registry or changing runtime/OpenAPI behavior. First-class authenticated principal mapping remains a downstream lane.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`
+    - `tests/security/test_api_auth_tier_contract_pack.py`
+  - DoD:
+    - Recompute the eligible object-route census from fresh exact `origin/main` and extend the existing `ApiAuthzContract` instead of creating a second registry
+    - Bind every admitted route to exactly one executable `bola_oracle_id` with deterministic same-principal success and foreign-principal denial
+    - Prove zero state mutation, creation, or deletion after every denied foreign-principal attempt
+    - Preserve each route's exact `403` or `404` denial contract and keep runtime and OpenAPI changes out of the planned evidence-only carrier
+    - Keep first-class authenticated principal mapping downstream until this executable matrix is terminal
 
 <a id="ledger-p1-mypy-repo-wide-prepush-debt"></a>
 - [ ] P1: MyPy repo-wide pre-push debt decomposition
