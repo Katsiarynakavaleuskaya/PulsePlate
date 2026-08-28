@@ -1312,7 +1312,7 @@ jobs:
         run: |
           set -euo pipefail
           visibility_payload="${RUNNER_TEMP}/pulseplate-pgvector-package-before.json"
-          gh api /user/packages/container/pulseplate > "$visibility_payload"
+          gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate" > "$visibility_payload"
           python3 - "$visibility_payload" <<'PY'
           import json
           from pathlib import Path
@@ -1629,6 +1629,7 @@ jobs:
           PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
           PROVENANCE_MODE: ${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}
           REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          SPDX_MODE: ${{ steps.pgvector-attestation-inventory.outputs.spdx_mode }}
         run: |
           set -euo pipefail
           docker pull --platform linux/amd64 "$RUNTIME_REF"
@@ -1688,12 +1689,19 @@ jobs:
           if len(matches) != 1:
               raise SystemExit("Expected exactly one material-bound provenance predicate")
           PY
+          spdx_verify_args=(
+            --repo "$GITHUB_REPOSITORY"
+            --predicate-type https://spdx.dev/Document/v2.3
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml"
+            --source-ref refs/heads/main
+          )
+          case "$SPDX_MODE" in
+            create) spdx_verify_args+=(--source-digest "$GITHUB_SHA") ;;
+            reuse) ;;
+            *) echo "Unknown PostgreSQL SPDX admission mode" >&2; exit 1 ;;
+          esac
           gh attestation verify "oci://${RUNTIME_REF}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --predicate-type https://spdx.dev/Document/v2.3 \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-            --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA" \
+            "${spdx_verify_args[@]}" \
             --format json > postgres-pgvector-spdx-verified.json
           python3 - <<'PY'
           import json
@@ -1728,7 +1736,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh api /user/packages/container/pulseplate --jq \
+          gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate" --jq \
             '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
             grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
 
@@ -1798,7 +1806,7 @@ jobs:
           PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
         run: |
           set -euo pipefail
-          gh api /user/packages/container/pulseplate --jq \
+          gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate" --jq \
             '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
             grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
           docker pull --platform linux/amd64 "$RUNTIME_REF"
@@ -1939,10 +1947,10 @@ jobs:
       )
     needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    concurrency:
-      group: postgres-pgvector-canonical-tag-promotion
-      cancel-in-progress: false
+    timeout-minutes: 70
+    env:
+      PGVECTOR_REUSE_ADMISSION_POLL_SECONDS: "30"
+      PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS: "3600"
     permissions:
       attestations: read
       contents: read
@@ -2024,9 +2032,50 @@ jobs:
           export DOCKER_CONFIG="$credential_dir"
           printf '%s' "$GHCR_TOKEN_VALUE" | \
             docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          gh api /user/packages/container/pulseplate --jq \
+          gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate" --jq \
             '[.name,.package_type,.visibility,.repository.full_name] | @tsv' | \
             grep -Fx $'pulseplate\tcontainer\tpublic\tKatsiarynakavaleuskaya/PulsePlate'
+          if [[ ! "$PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS" =~ ^[1-9][0-9]{0,3}$ ]] || \
+             [ "$PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS" -gt 3600 ]; then
+            echo "PostgreSQL reuse admission wait must be within 1..3600 seconds" >&2
+            exit 1
+          fi
+          if [[ ! "$PGVECTOR_REUSE_ADMISSION_POLL_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]] || \
+             [ "$PGVECTOR_REUSE_ADMISSION_POLL_SECONDS" -gt 300 ]; then
+            echo "PostgreSQL reuse admission poll must be within 1..300 seconds" >&2
+            exit 1
+          fi
+          admission_deadline=$((SECONDS + PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS))
+          while true; do
+            image_ready=false
+            provenance_ready=false
+            spdx_ready=false
+            if docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1; then
+              image_ready=true
+              if gh attestation verify "oci://${RUNTIME_REF}" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --predicate-type https://slsa.dev/provenance/v1 \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+                  --source-ref refs/heads/main >/dev/null 2>&1; then
+                provenance_ready=true
+              fi
+              if gh attestation verify "oci://${RUNTIME_REF}" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --predicate-type https://spdx.dev/Document/v2.3 \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+                  --source-ref refs/heads/main >/dev/null 2>&1; then
+                spdx_ready=true
+              fi
+            fi
+            if [ "$image_ready:$provenance_ready:$spdx_ready" = "true:true:true" ]; then
+              break
+            fi
+            if [ "$SECONDS" -ge "$admission_deadline" ]; then
+              echo "Exact PostgreSQL reuse admission did not become complete before timeout: image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready}" >&2
+              exit 1
+            fi
+            sleep "$PGVECTOR_REUSE_ADMISSION_POLL_SECONDS"
+          done
           docker pull --platform linux/amd64 "$RUNTIME_REF"
           install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-reuse-trivy.XXXXXX")"
           archive_path="$install_dir/trivy.tar.gz"

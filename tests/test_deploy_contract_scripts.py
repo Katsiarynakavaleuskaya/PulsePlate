@@ -524,7 +524,8 @@ def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only()
 
 
 def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() -> None:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    workflow_text = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
     classifier = jobs["postgres-pgvector-material-change"]
     classifier_run = classifier["steps"][1]["run"]
@@ -557,7 +558,12 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "contents": "read",
         "packages": "read",
     }
-    assert reuse["concurrency"] == publish["concurrency"]
+    assert "concurrency" not in reuse
+    assert reuse["timeout-minutes"] == 70
+    assert reuse["env"] == {
+        "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "30",
+        "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "3600",
+    }
     for forbidden in ("DHI_USERNAME", "DHI_ACCESS_TOKEN", '"packages": "write"', "id-token"):
         assert forbidden not in reuse_text
     reuse_run = reuse["steps"][1]["run"]
@@ -566,6 +572,14 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "--scanners vuln,secret" in reuse_run
     assert "--severity CRITICAL,HIGH" in reuse_run
     assert "visibility" in reuse_run and "public" in reuse_run
+    assert 'docker manifest inspect "$RUNTIME_REF"' in reuse_run
+    assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') >= 4
+    assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
+    owner_package_endpoint = (
+        'gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate"'
+    )
+    assert workflow_text.count(owner_package_endpoint) == 4
+    assert "gh api /user/packages/container/pulseplate" not in workflow_text
 
     admission = jobs["postgres-pgvector-admission"]
     admission_run = admission["steps"][0]["run"]
@@ -584,6 +598,61 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "main-push-admission",
     ]
     assert jobs["production-gates"]["needs"] == "prometheus-image-security"
+
+
+@pytest.mark.parametrize(
+    ("ready_after", "expected_returncode"),
+    (("2", 0), ("0", 1)),
+)
+def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
+    ready_after: str,
+    expected_returncode: int,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    reuse_run = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]["run"]
+    start = reuse_run.index('if [[ ! "$PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS"')
+    end = reuse_run.index('\ndocker pull --platform linux/amd64 "$RUNTIME_REF"', start)
+    wait_program = reuse_run[start:end]
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    program = (
+        "set -euo pipefail\n"
+        "ATTEMPT=0\n"
+        "docker() {\n"
+        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
+        "    ATTEMPT=$((ATTEMPT + 1))\n"
+        '    [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
+        "    return\n"
+        "  fi\n"
+        "  return 0\n"
+        "}\n"
+        "gh() {\n"
+        '  [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
+        "}\n"
+        "sleep() { SECONDS=$((SECONDS + $1)); }\n"
+        + wait_program
+        + '\nprintf "ATTEMPTS=%s\\n" "$ATTEMPT"\n'
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "1",
+            "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "2",
+            "RUNTIME_REF": POSTGRES_RUNTIME_REF,
+            "STUB_READY_AFTER": ready_after,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_returncode
+    if expected_returncode == 0:
+        assert completed.stdout.strip() == "ATTEMPTS=2"
+    else:
+        assert "did not become complete before timeout" in completed.stderr
 
 
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
@@ -967,11 +1036,17 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert verify_step["env"]["PROVENANCE_MODE"] == (
         "${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}"
     )
+    assert verify_step["env"]["SPDX_MODE"] == (
+        "${{ steps.pgvector-attestation-inventory.outputs.spdx_mode }}"
+    )
     verify_run = verify_step["run"]
     assert 'case "$PROVENANCE_MODE" in' in verify_run
     assert 'create) provenance_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
     assert "reuse) ;;" in verify_run
     assert verify_run.count('provenance_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
+    assert 'case "$SPDX_MODE" in' in verify_run
+    assert 'create) spdx_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
+    assert verify_run.count('spdx_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
 
     runtime_step = next(
         step
@@ -4746,10 +4821,9 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
     source_backup_helper.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        'printf "reviewed-bundle-backup\\n" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'printf "reviewed-bundle-backup project=%s compose=%s\\n" "$PROJECT_DIR" "$COMPOSE_FILE" >> "$STUB_DEPLOY_LOG_FILE"\n'
         'receipt="${BACKUP_DIR}/pulseplate_reviewed.dump"\n'
         "printf 'synthetic-custom-dump' > \"$receipt\"\n"
-        'chmod 0600 "$receipt"\n'
         "printf 'Backup created: %s\\n' \"$receipt\"\n",
         encoding="utf-8",
     )
@@ -4802,6 +4876,8 @@ esac
     _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
 
     env = os.environ.copy()
+    env.pop("GHCR_TOKEN", None)
+    env.pop("GHCR_USER", None)
     env.update(
         {
             "DOCKER_BIN": str(bin_dir / "docker"),
@@ -4851,7 +4927,9 @@ esac
     quiesce_index = next(
         index for index, line in enumerate(log_lines) if " stop worker caddy app" in line
     )
-    backup_index = log_lines.index("reviewed-bundle-backup")
+    backup_index = next(
+        index for index, line in enumerate(log_lines) if line.startswith("reviewed-bundle-backup ")
+    )
     old_stop_index = log_lines.index(f"docker stop {'a' * 64}")
     candidate_index = next(
         index for index, line in enumerate(log_lines) if " up -d --pull never postgres" in line
@@ -4863,8 +4941,15 @@ esac
     )
     assert quiesce_index < backup_index < old_stop_index < candidate_index < migration_index
     assert "stale-host-backup" not in log_lines
+    assert f"project={project_dir / 'deploy'}" in log_lines[backup_index]
+    assert (
+        f"compose={project_dir / 'deploy' / 'docker-compose.production.selfhosted.yaml'}"
+        in log_lines[backup_index]
+    )
     assert destination_backup_helper.read_bytes() == source_backup_helper.read_bytes()
     assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
+    backup_receipt = project_dir / "backups" / "pulseplate_reviewed.dump"
+    assert stat.S_IMODE(backup_receipt.stat().st_mode) == 0o600
 
     alternate_backup_helper = project_dir / "scripts" / "ops" / "alternate_backup.sh"
     alternate_backup_helper.write_bytes(source_backup_helper.read_bytes())

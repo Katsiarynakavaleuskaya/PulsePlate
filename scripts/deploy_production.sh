@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 MODE="deploy"
 if [ "$#" -gt 1 ]; then
@@ -1783,6 +1784,7 @@ with tarfile.open(copied_archive, mode="r:gz") as archive:
                 member.mode & 0o777,
             )
             try:
+                os.fchmod(target_fd, member.mode & 0o777)
                 with source, os.fdopen(target_fd, "wb", closefd=False) as destination:
                     shutil.copyfileobj(source, destination, length=1024 * 1024)
                     destination.flush()
@@ -2692,7 +2694,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     backup_output=""
     if backup_output="$(
         export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB
-        PROJECT_DIR="$DEPLOY_DIR"
+        PROJECT_DIR="$COMPOSE_CONTRACT_DIR"
         COMPOSE_FILE="$COMPOSE_CONTRACT_PATH"
         export PROJECT_DIR COMPOSE_FILE
         "$BACKUP_HELPER"
