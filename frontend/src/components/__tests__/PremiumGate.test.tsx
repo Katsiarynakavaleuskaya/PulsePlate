@@ -1,125 +1,89 @@
-/* @vitest-environment jsdom */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import PremiumGate from "../PremiumGate";
-// Initialize i18n so t() resolves labels
-import "../../i18n";
-// Import test setup for jest-dom matchers
-import "../../test/setup";
-import { vi, describe, test, expect, beforeEach } from "vitest";
+/** @vitest-environment jsdom */
+import '../../test/setup';
+import '../../i18n';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test } from 'vitest';
+import PremiumGate from '../PremiumGate';
 
-const telemetryTrack = vi.hoisted(() => ({
-  gateInteracted: vi.fn(),
-  upgradeClicked: vi.fn(),
-  paywallDismissed: vi.fn(),
-  moduleViewed: vi.fn(),
-  featureClicked: vi.fn(),
-  paywallViewed: vi.fn(),
-  badgeViewed: vi.fn(),
-}));
+function renderWithRouter(element: JSX.Element): ReturnType<typeof render> {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}
 
-const beforeAfterPropsSpy = vi.hoisted(() => vi.fn());
-
-const { gateInteracted, upgradeClicked, paywallDismissed } = telemetryTrack;
-
-vi.mock("../../lib/useTelemetry", () => ({
-  useTelemetry: () => ({
-    track: telemetryTrack,
-    isEnabled: true,
-    isVip: false,
-  }),
-}));
-
-vi.mock("../Paywall/BeforeAfter", () => {
-  return {
-    default: (props: { onClose: () => void; source?: string; triggerReason?: string }) => {
-      beforeAfterPropsSpy(props);
-      return (
-        <div role="dialog">
-        Mocked Paywall
-        <button onClick={props.onClose}>Close</button>
-        </div>
-      );
-    },
-  };
-});
-
-describe("PremiumGate", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  test("shows children directly when premium", () => {
+describe('PremiumGate', () => {
+  test('shows children directly when premium', () => {
     render(
-      <PremiumGate isPremium={true}>
+      <PremiumGate isPremium>
         <div data-testid="content">Premium content</div>
       </PremiumGate>
     );
-    expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  test("dims and gates content when not premium, opens Paywall on click", () => {
-    render(
+  test('keeps the preview inert and opens the shared information dialog', async () => {
+    renderWithRouter(
       <PremiumGate isPremium={false}>
-        <div data-testid="content">Gated content</div>
+        <button data-testid="content" type="button">Gated content</button>
       </PremiumGate>
     );
 
-    expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
+    const preview = screen.getByTestId('content').parentElement;
+    expect(
+      preview?.hasAttribute('inert') || preview?.getAttribute('aria-hidden') === 'true'
+    ).toBe(true);
 
-    const unlock = screen.getByRole("button", { name: /continue/i });
-    expect(unlock).toHaveAttribute("aria-haspopup", "dialog");
-    expect(unlock.className).toContain("min-h-11");
-    expect(unlock.className).toContain("bg-[var(--pp-primary)]");
-    expect(unlock.className).toContain("text-[var(--color-primary-foreground)]");
-    fireEvent.click(unlock);
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
+    });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    fireEvent.click(trigger);
 
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
-
-  test("preview has no aria-label (sr-only copy + inert handle context); telemetry and focus restore on close", async () => {
-    render(
-      <PremiumGate isPremium={false} source="plate_test">
-        <div data-testid="content">Gated content</div>
-      </PremiumGate>
-    );
-
-    const preview = screen.getByTestId("content").parentElement;
-    expect(preview).not.toHaveAttribute("aria-label");
-
-    const unlock = screen.getByRole("button", { name: /continue/i });
-    fireEvent.click(unlock);
-
-    expect(gateInteracted).toHaveBeenCalledWith("premium_preview", "click");
-    expect(upgradeClicked).toHaveBeenCalledWith("plate_test", "premium_preview_gate");
-
-    fireEvent.click(screen.getByText("Close"));
-
-    expect(paywallDismissed).toHaveBeenCalledWith("plate_test", "close_button");
+    expect(
+      screen.getByRole('dialog', { name: 'PulsePlate for Apple devices' })
+    ).toBeInTheDocument();
     await waitFor(() => {
-      expect(document.activeElement).toBe(unlock);
+      expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveFocus();
     });
   });
 
-  test("forwards planning trigger reason to the paywall seam when provided", () => {
-    render(
-      <PremiumGate
-        isPremium={false}
-        source="plate_page"
-        paywallSource="pro_daily_plate"
-        triggerReason="targets_ready"
-      >
-        <div data-testid="content">Gated content</div>
+  test('restores trigger focus after Escape or Not now', async () => {
+    renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
       </PremiumGate>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
+    });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
 
-    expect(beforeAfterPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: "pro_daily_plate",
-        triggerReason: "targets_ready",
-      })
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  test('accepts old source metadata without giving it visible or action authority', () => {
+    renderWithRouter(
+      <PremiumGate
+        isPremium={false}
+        paywallSource="pro_daily_plate"
+        source="plate_page"
+        triggerReason="upgrade_for_export"
+      >
+        <div>Gated content</div>
+      </PremiumGate>
     );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Learn about PulsePlate for Apple devices' })
+    );
+    expect(document.body).not.toHaveTextContent(/plate_page|pro_daily_plate|upgrade_for_export/i);
+    expect(screen.queryByRole('button', { name: /buy|upgrade|subscribe|trial|restore/i })).not.toBeInTheDocument();
   });
 });

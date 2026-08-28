@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import '../../i18n';
 import ProPaywallPage from './ProPaywallPage';
-import { ProPaywallStorySurface } from '../../stories/storybookParitySupport';
+import { ProProductInfoStorySurface } from '../../stories/storybookParitySupport';
 
 const meta = {
-  title: 'PulsePlate/Parity Pack/Pro Paywall',
+  title: 'PulsePlate/Parity Pack/Apple Product Information',
   component: ProPaywallPage,
-  render: () => <ProPaywallStorySurface />,
+  render: () => <ProProductInfoStorySurface />,
   parameters: {
     layout: 'fullscreen',
   },
@@ -15,4 +15,4 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const DirectProEntry: Story = {};
+export const DirectCompatibilityEntry: Story = {};
