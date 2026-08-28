@@ -212,6 +212,14 @@ def _write_shell_bundle_contract(
         'pulseplate.test {\n    respond "ok"\n}\n', encoding="utf-8"
     )
     (deploy_dir / compose_name).write_text(compose_text, encoding="utf-8")
+    sibling_compose = (
+        SELF_HOSTED_COMPOSE_PATH
+        if compose_name == "docker-compose.production.yaml"
+        else PRODUCTION_COMPOSE_PATH
+    )
+    (deploy_dir / sibling_compose.name).write_text(
+        sibling_compose.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -251,6 +259,7 @@ def _write_shell_bundle_archive(
         "frontend",
         "deploy/Caddyfile.production",
         "deploy/docker-compose.production.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
         "deploy/postgres-pgvector/image-manifest.json",
         "deploy/prometheus/prometheus.yml",
         "deploy/prometheus/image-manifest.json",
@@ -552,6 +561,13 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     publish = jobs["postgres-pgvector-publish"]
     publish_text = json.dumps(publish, sort_keys=True)
     assert "needs.postgres-pgvector-material-change.outputs.changed == 'true'" in publish["if"]
+    assert "needs.postgres-pgvector-ci-admission.result == 'success'" in publish["if"]
+    assert publish["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-contract",
+        "postgres-pgvector-material-change",
+        "postgres-pgvector-ci-admission",
+    ]
     assert "DHI_USERNAME" in publish_text
     assert "DHI_ACCESS_TOKEN" in publish_text
     assert publish["permissions"]["packages"] == "write"
@@ -559,6 +575,37 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "group": "postgres-pgvector-canonical-tag-promotion",
         "cancel-in-progress": False,
     }
+    assert "python -m pytest" not in publish_text
+    assert "DEVPI_CI_USER" not in publish_text
+    assert "DEVPI_CI_PASSWORD" not in publish_text
+
+    ci_admission = jobs["postgres-pgvector-ci-admission"]
+    assert ci_admission["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-material-change",
+    ]
+    assert ci_admission["permissions"] == {"actions": "read"}
+    assert ci_admission["timeout-minutes"] == 45
+    assert len(ci_admission["steps"]) == 1
+    ci_admission_step = ci_admission["steps"][0]
+    assert ci_admission_step["env"] == {
+        "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+        "EXPECTED_SHA": "${{ github.sha }}",
+        "POLL_SECONDS": "30",
+        "WAIT_SECONDS": "2400",
+    }
+    ci_admission_run = ci_admission_step["run"]
+    for required in (
+        "actions/workflows/ci.yml/runs",
+        "head_sha=${EXPECTED_SHA}",
+        "Expected exactly one canonical CI run for exact main",
+        'item.get("name") == "pgvector-compat"',
+        "Canonical CI pgvector-compat job is not terminal success",
+    ):
+        assert required in ci_admission_run
+    assert "actions/checkout" not in json.dumps(ci_admission, sort_keys=True)
+    assert "DHI_ACCESS_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
+    assert "GHCR_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
 
     reuse = jobs["postgres-pgvector-reuse"]
     reuse_text = json.dumps(reuse, sort_keys=True)
@@ -680,6 +727,74 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
         assert completed.stdout.strip() == "ATTEMPTS=2"
     else:
         assert "did not become complete before timeout" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_returncode"),
+    (("success", 0), ("failed-run", 1), ("missing", 1)),
+)
+def test_cd_postgres_ci_admission_executes_exact_closed_state_machine(
+    tmp_path: Path,
+    mode: str,
+    expected_returncode: int,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    program = workflow["jobs"]["postgres-pgvector-ci-admission"]["steps"][0]["run"]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gh_stub = bin_dir / "gh"
+    _write_executable(
+        gh_stub,
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  *"actions/workflows/ci.yml/runs"*)
+    case "$STUB_MODE" in
+      success)
+        printf '{"workflow_runs":[{"id":123,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"success","head_repository":{"full_name":"%s"}}]}\n' "$EXPECTED_SHA" "$GITHUB_REPOSITORY"
+        ;;
+      failed-run)
+        printf '{"workflow_runs":[{"id":123,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"failure","head_repository":{"full_name":"%s"}}]}\n' "$EXPECTED_SHA" "$GITHUB_REPOSITORY"
+        ;;
+      missing) printf '{"workflow_runs":[]}\n' ;;
+    esac
+    ;;
+  *"actions/runs/123/jobs"*)
+    printf '{"jobs":[{"name":"pgvector-compat","status":"completed","conclusion":"success"}]}\n'
+    ;;
+  *) exit 91 ;;
+esac
+""",
+    )
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        cwd=REPO_ROOT,
+        env={
+            **os.environ,
+            "EXPECTED_SHA": "a" * 40,
+            "GH_TOKEN": "test-token",  # pragma: allowlist secret
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "POLL_SECONDS": "1",
+            "RUNNER_TEMP": str(tmp_path),
+            "STUB_MODE": mode,
+            "WAIT_SECONDS": "1",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == expected_returncode, completed.stderr
+    if mode == "success":
+        assert completed.stderr == ""
+    elif mode == "failed-run":
+        assert "completed without success" in completed.stderr
+    else:
+        assert "did not appear before" in completed.stderr
 
 
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
@@ -1081,14 +1196,12 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     def position(name: str) -> int:
         return names.index(name)
 
-    initial_auth = position("Authenticate DHI read rail for reproducible local build")
+    initial_auth = position("Authenticate DHI read and GHCR publication rails")
     scan = position("Scan exact bases, post-APK builder, and final image without suppressions")
-    drop_credentials = position("Drop registry credentials before repository-controlled tests")
     runtime_oracle = position("Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity")
     package_identity = position(
         "Verify existing public GHCR package identity before candidate write"
     )
-    publication_auth = position("Reauthenticate exact registry rails only for publication")
     candidate = position("Publish reproduced manifest under one unadmitted candidate tag")
     provenance = position("Attest PostgreSQL pgvector material-bound provenance")
     spdx = position("Attest PostgreSQL pgvector SPDX SBOM")
@@ -1099,10 +1212,8 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert (
         initial_auth
         < scan
-        < drop_credentials
         < runtime_oracle
         < package_identity
-        < publication_auth
         < candidate
         < provenance
         < spdx
@@ -1113,31 +1224,14 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     )
 
     initial_auth_step = steps[initial_auth]
-    assert set(initial_auth_step["env"]) == {"DHI_USER", "DHI_TOKEN"}
-    assert "docker login dhi.io" in initial_auth_step["run"]
-    assert "docker login ghcr.io" not in initial_auth_step["run"]
-    drop_run = steps[drop_credentials]["run"]
-    assert "docker logout dhi.io" in drop_run
-    assert 'rm -rf -- "$PGVECTOR_DOCKER_CONFIG"' in drop_run
-    assert "pulseplate-pgvector-docker-empty" in drop_run
-    assert "config.json" in drop_run
-    runtime_text = json.dumps(steps[runtime_oracle], sort_keys=True)
-    assert "DHI_ACCESS_TOKEN" not in runtime_text
-    assert "GITHUB_TOKEN" not in runtime_text
-    publication_auth_step = steps[publication_auth]
-    assert set(publication_auth_step["env"]) == {
+    assert set(initial_auth_step["env"]) == {
         "DHI_USER",
         "DHI_TOKEN",
         "GHCR_USER",
         "GHCR_TOKEN_VALUE",
     }
-    publication_auth_run = publication_auth_step["run"]
-    assert "Repository tests did not preserve the credential-free Docker boundary" in (
-        publication_auth_run
-    )
-    assert "docker login dhi.io" in publication_auth_run
-    assert "docker login ghcr.io" in publication_auth_run
-    assert 'docker buildx use "$PGVECTOR_BUILDX_BUILDER"' in publication_auth_run
+    assert "docker login dhi.io" in initial_auth_step["run"]
+    assert "docker login ghcr.io" in initial_auth_step["run"]
 
     candidate_run = steps[candidate]["run"]
     assert "candidate-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in candidate_run
@@ -1162,6 +1256,9 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     job_text = json.dumps(workflow["jobs"]["postgres-pgvector-publish"], sort_keys=True)
     assert job_text.count("actions/attest@") == 2
     assert "actions/attest-build-provenance@" not in job_text
+    assert "python -m pytest" not in job_text
+    assert "DEVPI_CI_USER" not in job_text
+    assert "DEVPI_CI_PASSWORD" not in job_text
     verify_step = steps[verify]
     assert verify_step["env"]["PROVENANCE_MODE"] == (
         "${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}"
@@ -1188,11 +1285,8 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
         for step in steps
         if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
     )["run"]
-    assert "test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop" in (
-        runtime_step
-    )
+    assert "pytest" not in runtime_step
     assert "--publish 127.0.0.1:5432:5432" in runtime_step
-    assert "@127.0.0.1:5432/${database_name}" in runtime_step
     for forbidden_host in ("@localhost:5432/pgvector_compat", "0.0.0.0:5432", "::1:5432"):
         assert forbidden_host not in runtime_step
     reproduce_step = next(
@@ -3214,6 +3308,7 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
     ("variant", "suffix", "expected_returncode"),
     (
         ("valid", 1, 0),
+        ("valid-selfhosted", 17, 0),
         ("traversal", 2, 1),
         ("absolute", 3, 1),
         ("non_normalized", 4, 1),
@@ -3243,8 +3338,27 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
-    _write_shell_bundle_contract(shell_bundle_dir)
+    self_hosted = variant == "valid-selfhosted"
+    selected_compose_text = (
+        SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+        if self_hosted
+        else PRODUCTION_COMPOSE_TEXT
+    )
+    selected_compose_name = (
+        "docker-compose.production.selfhosted.yaml"
+        if self_hosted
+        else "docker-compose.production.yaml"
+    )
+    _write_production_host_contract(
+        project_dir,
+        compose_text=selected_compose_text,
+        self_hosted=self_hosted,
+    )
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text=selected_compose_text,
+        compose_name=selected_compose_name,
+    )
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -3252,9 +3366,20 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
 
     archive_path = _canonical_test_archive_path(suffix)
     _write_shell_bundle_archive(archive_path, shell_bundle_dir, variant=variant)
+    service_list = (
+        "app\\ncaddy\\npostgres\\nprometheus\\nworker\\n"
+        if self_hosted
+        else "app\\ncaddy\\nprometheus\\nworker\\n"
+    )
     _write_executable(
         bin_dir / "docker",
-        f'#!/usr/bin/env bash\nset -euo pipefail\nprintf \'docker %s\\n\' "$*" >> "{log_file}"\n',
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf '{service_list}' ;;
+esac
+""",
     )
     _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
 
@@ -3266,11 +3391,22 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
-            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "COMPOSE_FILE": (
+                CANONICAL_SELF_HOSTED_COMPOSE if self_hosted else CANONICAL_MANAGED_COMPOSE
+            ),
             "PRODUCTION_DOMAIN": "pulseplate.test",
             "SHELL_BUNDLE_ARCHIVE": str(archive_path),
         }
     )
+    if self_hosted:
+        env.update(
+            {
+                "PROD_DEPLOY_MODE": "self-hosted",
+                "POSTGRES_DB": "pulseplate",
+                "POSTGRES_USER": "pulseplate",
+                "POSTGRES_PASSWORD": "test-only",  # pragma: allowlist secret
+            }
+        )
     try:
         completed = subprocess.run(
             [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
@@ -6291,6 +6427,8 @@ def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgr
     )
 
     assert completed.returncode == 33
+    assert "backup execution failed ambiguously" in completed.stderr
+    assert "captured product writers remain quiesced" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     quiesce = next(
         index for index, line in enumerate(log_lines) if " stop worker caddy app" in line
@@ -6299,8 +6437,7 @@ def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgr
     assert quiesce < backup
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
     assert all(line != f"docker stop {'a' * 64}" for line in log_lines)
-    for container_id in ("bbbbbbbbbbbb", "cccccccccccc", "dddddddddddd"):
-        assert f"docker start {container_id}" in log_lines
+    assert all(not line.startswith("docker start ") for line in log_lines)
 
 
 def test_old_postgres_stop_failure_keeps_product_writers_quiesced(
@@ -6418,33 +6555,28 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
             assert not restart_log.exists()
 
 
-def test_staging_backup_failure_preserves_primary_when_restart_also_fails(
-    tmp_path: Path,
-) -> None:
-    env, log_file = _staging_deploy_fixture(tmp_path)
-    env.update(
-        {
-            "STUB_BACKUP_FAILURE": "33",
-            "STUB_RESTART_FAILURE_ID": "bbbbbbbbbbbb",
-            "STUB_RESTART_FAILURE_STATUS": "77",
-        }
+def test_postgres_backup_and_receipt_failures_keep_product_writers_quiesced() -> None:
+    markers = (
+        ('if backup_output="$(', "PostgreSQL backup execution failed ambiguously"),
+        (
+            'if backup_receipt="$(validate_backup_receipt "$backup_output" '
+            '"$postgres_container")"; then',
+            "PostgreSQL backup receipt validation failed",
+        ),
     )
-    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
-    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
-
-    completed = subprocess.run(
-        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
-        cwd=str(REPO_ROOT),
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert completed.returncode == 33
-    assert "also failed; preserving primary exit" in completed.stderr
-    log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        for marker, expected_message in markers:
+            assert script.count(marker) == 1
+            start = script.index(marker)
+            line_start = script.rfind("\n", 0, start) + 1
+            indentation = script[line_start:start]
+            closing = f"\n{indentation}fi"
+            end = script.index(closing, start) + len(closing)
+            failure_branch = script[start:end]
+            assert expected_message in failure_branch
+            assert "captured product writers remain quiesced" in failure_branch
+            assert "restart_captured_product_containers_after_failure" not in failure_branch
 
 
 @pytest.mark.parametrize(

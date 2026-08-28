@@ -965,14 +965,14 @@ if [ "$postgres_transition" = "existing" ]; then
     :
   else
     backup_status=$?
-    restart_captured_product_containers_after_failure
+    echo "❌ PostgreSQL backup execution failed ambiguously; captured product writers remain quiesced" >&2
     exit "$backup_status"
   fi
   if backup_receipt="$(validate_backup_receipt "$backup_output" "$postgres_container")"; then
     :
   else
     receipt_status=$?
-    restart_captured_product_containers_after_failure
+    echo "❌ PostgreSQL backup receipt validation failed; captured product writers remain quiesced" >&2
     exit "$receipt_status"
   fi
   if assert_existing_postgres_unchanged "$postgres_state_receipt" "$postgres_runtime_receipt"; then

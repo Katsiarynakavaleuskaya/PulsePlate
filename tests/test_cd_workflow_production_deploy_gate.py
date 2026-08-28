@@ -74,6 +74,7 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+frontend \\\n"
         r"\s+deploy/Caddyfile\.production \\\n"
         r"\s+deploy/docker-compose\.production\.yaml \\\n"
+        r"\s+deploy/docker-compose\.production\.selfhosted\.yaml \\\n"
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"

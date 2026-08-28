@@ -673,20 +673,161 @@ jobs:
           done < <(git diff --name-only --diff-filter=ACDMRTUXB "$BEFORE_SHA" "$AFTER_SHA")
           printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
 
+  postgres-pgvector-ci-admission:
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.postgres-pgvector-material-change.outputs.changed == 'true'
+    needs: [main-push-admission, postgres-pgvector-material-change]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for exact-main canonical CI and pgvector compatibility
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_SHA: ${{ github.sha }}
+          POLL_SECONDS: "30"
+          WAIT_SECONDS: "2400"
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Exact-main CI admission SHA is malformed" >&2
+            exit 1
+          fi
+          if [[ ! "$POLL_SECONDS" =~ ^[1-9][0-9]{0,2}$ ]] || [ "$POLL_SECONDS" -gt 300 ]; then
+            echo "Exact-main CI admission poll must be within 1..300 seconds" >&2
+            exit 1
+          fi
+          if [[ ! "$WAIT_SECONDS" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$WAIT_SECONDS" -gt 2400 ]; then
+            echo "Exact-main CI admission wait must be within 1..2400 seconds" >&2
+            exit 1
+          fi
+          evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-ci-admission.XXXXXX")"
+          cleanup() {
+            local original_status=$?
+            trap - EXIT
+            case "$evidence_dir" in
+              "${RUNNER_TEMP}"/pulseplate-pgvector-ci-admission.*)
+                if [ -d "$evidence_dir" ] && [ ! -L "$evidence_dir" ]; then
+                  rm -rf -- "$evidence_dir"
+                else
+                  original_status=1
+                fi
+                ;;
+              *) original_status=1 ;;
+            esac
+            exit "$original_status"
+          }
+          trap cleanup EXIT
+          deadline=$((SECONDS + WAIT_SECONDS))
+          while true; do
+            runs_path="$evidence_dir/runs.json"
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=${EXPECTED_SHA}&per_page=10" \
+              > "$runs_path"
+            run_record="$(python3 - "$runs_path" "$EXPECTED_SHA" "$GITHUB_REPOSITORY" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          expected_sha = sys.argv[2]
+          expected_repository = sys.argv[3]
+          matches = [
+              item
+              for item in payload.get("workflow_runs", [])
+              if item.get("head_sha") == expected_sha
+              and item.get("head_branch") == "main"
+              and item.get("event") == "push"
+              and (item.get("head_repository") or {}).get("full_name")
+              == expected_repository
+          ]
+          if not matches:
+              print("missing")
+          elif len(matches) != 1:
+              raise SystemExit("Expected exactly one canonical CI run for exact main")
+          else:
+              run = matches[0]
+              print(
+                  "\t".join(
+                      (
+                          str(run.get("id", "")),
+                          str(run.get("status", "")),
+                          str(run.get("conclusion") or ""),
+                      )
+                  )
+              )
+          PY
+            )"
+            if [ "$run_record" = "missing" ]; then
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "Canonical CI run did not appear before PostgreSQL admission timeout" >&2
+                exit 1
+              fi
+              sleep "$POLL_SECONDS"
+              continue
+            fi
+            IFS=$'\t' read -r run_id run_status run_conclusion <<< "$run_record"
+            if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Canonical CI run identity is malformed" >&2
+              exit 1
+            fi
+            case "$run_status:$run_conclusion" in
+              completed:success)
+                jobs_path="$evidence_dir/jobs.json"
+                gh api \
+                  "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" \
+                  > "$jobs_path"
+                python3 - "$jobs_path" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [item for item in payload.get("jobs", []) if item.get("name") == "pgvector-compat"]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one pgvector-compat job in canonical CI")
+          job = matches[0]
+          if job.get("status") != "completed" or job.get("conclusion") != "success":
+              raise SystemExit("Canonical CI pgvector-compat job is not terminal success")
+          PY
+                break
+                ;;
+              completed:*)
+                echo "Canonical CI completed without success: ${run_conclusion:-none}" >&2
+                exit 1
+                ;;
+              queued: | in_progress: | requested: | waiting: | pending:)
+                ;;
+              *)
+                echo "Canonical CI returned an unknown status/conclusion pair" >&2
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "Canonical CI did not become terminal success before PostgreSQL admission timeout" >&2
+              exit 1
+            fi
+            sleep "$POLL_SECONDS"
+          done
+
   postgres-pgvector-publish:
     if: >-
       github.event_name == 'push'
       && github.ref == 'refs/heads/main'
       && needs.postgres-pgvector-material-change.outputs.changed == 'true'
-    needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change]
+      && needs.postgres-pgvector-ci-admission.result == 'success'
+    needs: [main-push-admission, postgres-pgvector-contract, postgres-pgvector-material-change, postgres-pgvector-ci-admission]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
       group: postgres-pgvector-canonical-tag-promotion
       cancel-in-progress: false
-    env:
-      PULSEPLATE_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     permissions:
       attestations: write
       contents: read
@@ -698,16 +839,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install locked canonical migration test runtime
-        uses: ./.github/actions/python-setup
-        env:
-          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
-          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
-        with:
-          python-version: "3.13.14"
-          requirements-profile: ci-test
-          install-mode: direct-proxy
-
       - name: Reassert exact main publication predicate
         run: |
           set -euo pipefail
@@ -716,15 +847,19 @@ jobs:
           test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
-      - name: Authenticate DHI read rail for reproducible local build
+      - name: Authenticate DHI read and GHCR publication rails
         env:
           DHI_USER: ${{ secrets.DHI_USERNAME }}
           DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           : "${DHI_USER:?DHI_USERNAME is required on exact main}"
           : "${DHI_TOKEN:?DHI_ACCESS_TOKEN is required on exact main}"
-          case "${DHI_USER}${DHI_TOKEN}" in
+          : "${GHCR_USER:?GitHub repository owner is required}"
+          : "${GHCR_TOKEN_VALUE:?GitHub token is required}"
+          case "${DHI_USER}${DHI_TOKEN}${GHCR_USER}${GHCR_TOKEN_VALUE}" in
             *$'\n'*|*$'\r'*)
               echo "Registry credentials must be single-line opaque values" >&2
               exit 1
@@ -740,6 +875,7 @@ jobs:
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           chmod 700 "$credential_dir"
           printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
           docker buildx version
           builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
@@ -1150,27 +1286,6 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-exact-final"
 
-      - name: Drop registry credentials before repository-controlled tests
-        run: |
-          set -euo pipefail
-          test "$DOCKER_CONFIG" = "$PGVECTOR_DOCKER_CONFIG"
-          case "$PGVECTOR_DOCKER_CONFIG" in
-            "${RUNNER_TEMP}"/pulseplate-pgvector-docker-config.*)
-              test -d "$PGVECTOR_DOCKER_CONFIG" && test ! -L "$PGVECTOR_DOCKER_CONFIG"
-              ;;
-            *)
-              echo "Refusing to clear an unbounded PostgreSQL Docker credential directory" >&2
-              exit 1
-              ;;
-          esac
-          docker logout dhi.io >/dev/null
-          rm -rf -- "$PGVECTOR_DOCKER_CONFIG"
-          credential_free_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-docker-empty.XXXXXX")"
-          chmod 700 "$credential_free_dir"
-          test ! -e "$credential_free_dir/config.json"
-          printf 'DOCKER_CONFIG=%s\n' "$credential_free_dir" >> "$GITHUB_ENV"
-          printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_free_dir" >> "$GITHUB_ENV"
-
       - name: Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity
         run: |
           set -euo pipefail
@@ -1235,14 +1350,6 @@ jobs:
             "$PGVECTOR_FINAL_LOCAL_TAG" \
             -ec 'test "$(stat -c "%u:%g:%a" /var/lib/postgresql/data)" = "70:70:700"; test -z "$(find /var/lib/postgresql/data -mindepth 1 -print -quit)"'
           start_postgres "$container_name" "$volume_name" "$PGVECTOR_FINAL_LOCAL_TAG"
-          CI=true \
-          GITHUB_ACTIONS=true \
-          APP_ENV=test \
-          ENVIRONMENT=test \
-          PGVECTOR_COMPAT_REQUIRED=1 \
-          PGVECTOR_COMPAT_DATABASE_URL="postgresql+psycopg://${database_user}:${database_password}@127.0.0.1:5432/${database_name}" \
-            python -m pytest -q \
-              tests/test_pgvector_compat.py::test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
           docker exec "$container_name" psql \
             --username "$database_user" --dbname "$database_name" \
             --set ON_ERROR_STOP=1 \
@@ -1350,53 +1457,6 @@ jobs:
           if observed != expected:
               raise SystemExit("Existing GHCR package identity or public visibility drifted")
           PY
-
-      - name: Reauthenticate exact registry rails only for publication
-        env:
-          DHI_USER: ${{ secrets.DHI_USERNAME }}
-          DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
-          GHCR_USER: ${{ github.repository_owner }}
-          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          : "${DHI_USER:?DHI_USERNAME is required on exact main}"
-          : "${DHI_TOKEN:?DHI_ACCESS_TOKEN is required on exact main}"
-          : "${GHCR_USER:?GitHub repository owner is required}"
-          : "${GHCR_TOKEN_VALUE:?GitHub token is required}"
-          case "${DHI_USER}${DHI_TOKEN}${GHCR_USER}${GHCR_TOKEN_VALUE}" in
-            *$'\n'*|*$'\r'*)
-              echo "Registry credentials must be single-line opaque values" >&2
-              exit 1
-              ;;
-          esac
-          if [ "$DHI_USER" = "$DHI_TOKEN" ]; then
-            echo "DHI username and access token must be distinct opaque credentials" >&2
-            exit 1
-          fi
-          case "${PGVECTOR_DOCKER_CONFIG:-}" in
-            "${RUNNER_TEMP}"/pulseplate-pgvector-docker-empty.*)
-              test -d "$PGVECTOR_DOCKER_CONFIG" && test ! -L "$PGVECTOR_DOCKER_CONFIG"
-              rm -rf -- "$PGVECTOR_DOCKER_CONFIG"
-              ;;
-            *)
-              echo "Repository tests did not preserve the credential-free Docker boundary" >&2
-              exit 1
-              ;;
-          esac
-          if [[ ! "${PGVECTOR_BUILDX_BUILDER:-}" =~ ^pulseplate-pgvector-builder-[0-9]+-[0-9]+$ ]]; then
-            echo "Post-test Buildx builder identity is invalid" >&2
-            exit 1
-          fi
-          umask 077
-          credential_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-publish-docker.XXXXXX")"
-          chmod 700 "$credential_dir"
-          export DOCKER_CONFIG="$credential_dir"
-          printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
-          printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
-          printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
-          printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          docker buildx use "$PGVECTOR_BUILDX_BUILDER"
-          docker buildx inspect --bootstrap >/dev/null
 
       - name: Publish reproduced manifest under one unadmitted candidate tag
         id: publish-pgvector
@@ -3555,6 +3615,7 @@ jobs:
             frontend \
             deploy/Caddyfile.production \
             deploy/docker-compose.production.yaml \
+            deploy/docker-compose.production.selfhosted.yaml \
             deploy/prometheus/prometheus.yml \
             deploy/prometheus/image-manifest.json \
             scripts/diagnose_web.sh \
