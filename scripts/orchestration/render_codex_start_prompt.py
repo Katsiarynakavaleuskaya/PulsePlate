@@ -66,6 +66,10 @@ POST_OPEN_REVIEW_GUIDANCE = (
     "the trusted security-check bundle, dispositions, mapping, ancestry, bot "
     "actionables, unresolved threads, and the review wait window remain hard."
 )
+EVIDENCE_SIDECAR_DISCLAIMER = (
+    "Structural local receipt only; no review, CI, merge, release, enrollment, "
+    "causality, outcome, or other authority is granted."
+)
 
 
 class PromptError(ValueError):
@@ -161,6 +165,63 @@ def _render_dispatch_command(
 
 def _prompt_list(items: list[str], fallback: str) -> str:
     return ", ".join(_prompt_text(item) for item in items) if items else fallback
+
+
+def _validate_sidecar_args(state: str | None, sidecar_id: str) -> None:
+    if state is None:
+        if sidecar_id:
+            raise PromptError("evidence sidecar id requires a state")
+        return
+    if state not in {"prepared", "unavailable", "invalid"}:
+        raise PromptError("unknown evidence sidecar state")
+    if state == "prepared":
+        if (
+            not sidecar_id.startswith("sha256:")
+            or len(sidecar_id) != 71
+            or any(char not in "0123456789abcdef" for char in sidecar_id[7:])
+        ):
+            raise PromptError("prepared evidence sidecar requires a full sha256 id")
+    elif sidecar_id:
+        raise PromptError("unavailable or invalid evidence sidecar must not carry an id")
+
+
+def _sidecar_prompt_lines(
+    state: str | None,
+    sidecar_id: str,
+    *,
+    packet_path: str,
+) -> list[str]:
+    if state is None:
+        return []
+    lines = [
+        f"PR evidence sidecar v1: state={state}; id={sidecar_id or '<none>'}.",
+        EVIDENCE_SIDECAR_DISCLAIMER,
+    ]
+    if state != "prepared":
+        lines.append(
+            "Manual recovery prepare: $VENV_PYTHON scripts/orchestration/"
+            f"pr_evidence_sidecar.py prepare --packet {_shell_quote(packet_path)} "
+            "--base-sha <lowercase-40-sha> --applicable-rail experiment_runner"
+        )
+        return lines
+    start_path = (
+        "artifacts/orchestration/pr_evidence_sidecars/"
+        f"{sidecar_id.removeprefix('sha256:')}/start.json"
+    )
+    lines.extend(
+        [
+            f"Sidecar start receipt: {start_path}",
+            "Prepare: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py "
+            f"prepare --packet {_shell_quote(packet_path)} "
+            "--base-sha <lowercase-40-sha> --applicable-rail experiment_runner "
+            "[--applicable-rail teleology] [--applicable-rail euler]",
+            f"Finalize: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py finalize --sidecar-id {sidecar_id} --terminal-input <repo-relative-terminal-input.json>",
+            f"Validate: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py validate --sidecar-id {sidecar_id}",
+            "Report: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py report",
+            "Rail truth table: false -> not_applicable + null; true -> referenced + full sha256 fingerprint; true -> unknown + null.",
+        ]
+    )
+    return lines
 
 
 def _packet_role_bindings(bridge: dict[str, Any], key: str) -> list[object]:
@@ -266,9 +327,12 @@ def render_packet_prompt(
     packet_path: str,
     branch: str = "",
     worktree: str = "",
+    evidence_sidecar_state: str | None = None,
+    evidence_sidecar_id: str = "",
 ) -> str:
     """Render the post-task-bootstrap prompt block."""
 
+    _validate_sidecar_args(evidence_sidecar_state, evidence_sidecar_id)
     goal = str(packet.get("goal") or "<goal unavailable>")
     task_class = str(packet.get("task_class") or "<task_class unavailable>")
     pr_phase = str(packet.get("pr_phase") or "none")
@@ -327,6 +391,13 @@ def render_packet_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
             "Then run only the scoped validation bundle required by the lane before any readiness claim.",
         ]
+    )
+    lines.extend(
+        _sidecar_prompt_lines(
+            evidence_sidecar_state,
+            evidence_sidecar_id,
+            packet_path=packet_path,
+        )
     )
     return "\n".join(lines)
 
@@ -398,6 +469,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     packet_parser.add_argument("--packet", required=True)
     packet_parser.add_argument("--branch", default="")
     packet_parser.add_argument("--worktree", default="")
+    packet_parser.add_argument(
+        "--evidence-sidecar-state", choices=("prepared", "unavailable", "invalid")
+    )
+    packet_parser.add_argument("--evidence-sidecar-id", default="")
 
     recipe_parser = subparsers.add_parser("recipe")
     recipe_parser.add_argument("--goal", default="")
@@ -431,6 +506,8 @@ def main(argv: list[str] | None = None) -> int:
                     packet_path=_repo_relative(packet_path),
                     branch=args.branch,
                     worktree=args.worktree,
+                    evidence_sidecar_state=args.evidence_sidecar_state,
+                    evidence_sidecar_id=args.evidence_sidecar_id,
                 )
             )
             return 0
