@@ -35,6 +35,9 @@ Options:
   --invariant-change-class <class>
                              Repeatable; parser, validator, guard, or authority.
   --requested-agent <slug>   Repeatable; forwarded to task_bootstrap.py.
+  --evidence-sidecar-rail <rail>
+                             Repeatable; teleology, euler, or experiment_runner.
+                             experiment_runner is included by default.
   --plugin <name>            Repeatable; operator/runtime plugin checklist item.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none. Default: pre_open.
   --base <ref>               Base ref for worktree creation. Default: origin/main.
@@ -189,6 +192,7 @@ PATH_ARGS=()
 INVARIANT_CLASS_ARGS=()
 REQUESTED_ARGS=(--requested-agent "agent-coordinator")
 PLUGIN_ARGS=()
+EVIDENCE_SIDECAR_RAILS=("experiment_runner")
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -233,6 +237,24 @@ while [[ $# -gt 0 ]]; do
         --requested-agent)
             if [[ $# -lt 2 ]]; then die_usage "--requested-agent requires a value"; fi
             REQUESTED_ARGS+=(--requested-agent "$2")
+            shift 2
+            ;;
+        --evidence-sidecar-rail)
+            if [[ $# -lt 2 ]]; then die_usage "--evidence-sidecar-rail requires a value"; fi
+            case "$2" in
+                teleology|euler|experiment_runner) ;;
+                *) die_usage "--evidence-sidecar-rail must be one of: teleology, euler, experiment_runner" ;;
+            esac
+            sidecar_rail_seen=0
+            for existing_rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+                if [[ "${existing_rail}" == "$2" ]]; then
+                    sidecar_rail_seen=1
+                    break
+                fi
+            done
+            if [[ "${sidecar_rail_seen}" -eq 0 ]]; then
+                EVIDENCE_SIDECAR_RAILS+=("$2")
+            fi
             shift 2
             ;;
         --plugin)
@@ -363,6 +385,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
         printf " %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
     printf "\n"
+    printf "Would run in worktree after bootstrap: %q scripts/orchestration/pr_evidence_sidecar.py prepare --packet '<bootstrap-packet>' --base-sha '<worktree-HEAD>'" "${REPO_PYTHON}"
+    for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+        printf " --applicable-rail %q" "${rail}"
+    done
+    printf "\n"
     echo ""
     prompt_cmd=(
         "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py
@@ -437,11 +464,76 @@ for skill in payload["recommended_skills"]:
     print(f"    - {skill}")
 PY
     echo ""
+    EVIDENCE_SIDECAR_STATE="unavailable"
+    EVIDENCE_SIDECAR_ID=""
+    if [[ ! -f scripts/orchestration/pr_evidence_sidecar.py ]]; then
+        echo "WARNING: evidence sidecar unavailable; structural receipt only, no authority granted." >&2
+    else
+        WORKTREE_HEAD="$(git rev-parse HEAD)"
+        sidecar_cmd=(
+            "${REPO_PYTHON}" scripts/orchestration/pr_evidence_sidecar.py prepare
+            --packet "${BOOTSTRAP_PACKET_PATH}"
+            --base-sha "${WORKTREE_HEAD}"
+        )
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            sidecar_cmd+=(--applicable-rail "${rail}")
+        done
+        if SIDECAR_OUTPUT="$("${sidecar_cmd[@]}" 2>&1)"; then
+            if EVIDENCE_SIDECAR_ID="$(
+                SIDECAR_OUTPUT="${SIDECAR_OUTPUT}" BOOTSTRAP_PACKET_PATH="${BOOTSTRAP_PACKET_PATH}" "${REPO_PYTHON}" - <<'PY'
+import json
+import os
+
+try:
+    payload = json.loads(os.environ["SIDECAR_OUTPUT"])
+except (json.JSONDecodeError, TypeError):
+    raise SystemExit(1)
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+expected_keys = {"schema_version", "command", "sidecar_id", "sidecar_path", "created"}
+if (
+    set(payload) != expected_keys
+    or payload["schema_version"] != "pr_evidence_sidecar.start.v1"
+    or payload["command"] != "prepare"
+):
+    raise SystemExit(1)
+sidecar_id = payload["sidecar_id"]
+if (
+    not isinstance(sidecar_id, str)
+    or not sidecar_id.startswith("sha256:")
+    or len(sidecar_id) != 71
+    or any(char not in "0123456789abcdef" for char in sidecar_id[7:])
+):
+    raise SystemExit(1)
+expected_path = f"artifacts/orchestration/pr_evidence_sidecars/{sidecar_id[7:]}/start.json"
+if payload["sidecar_path"] != expected_path or not isinstance(payload["created"], bool):
+    raise SystemExit(1)
+print(sidecar_id)
+PY
+            )"; then
+                EVIDENCE_SIDECAR_STATE="prepared"
+            else
+                EVIDENCE_SIDECAR_STATE="invalid"
+                EVIDENCE_SIDECAR_ID=""
+                echo "WARNING: evidence sidecar invalid; structural receipt only, no authority granted." >&2
+            fi
+        elif [[ "${SIDECAR_OUTPUT}" == "STORAGE_UNAVAILABLE" ]]; then
+            echo "WARNING: evidence sidecar unavailable; structural receipt only, no authority granted." >&2
+        else
+            EVIDENCE_SIDECAR_STATE="invalid"
+            echo "WARNING: evidence sidecar invalid; structural receipt only, no authority granted." >&2
+        fi
+    fi
+    evidence_prompt_args=(--evidence-sidecar-state "${EVIDENCE_SIDECAR_STATE}")
+    if [[ "${EVIDENCE_SIDECAR_STATE}" == "prepared" ]]; then
+        evidence_prompt_args+=(--evidence-sidecar-id "${EVIDENCE_SIDECAR_ID}")
+    fi
     "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py \
         packet \
         --packet "${BOOTSTRAP_PACKET_PATH}" \
         --branch "${BRANCH}" \
-        --worktree "${WORKTREE_REL}"
+        --worktree "${WORKTREE_REL}" \
+        "${evidence_prompt_args[@]}"
 
     echo ""
     echo "Next steps:"
