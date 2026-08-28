@@ -225,9 +225,9 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert install_step["id"] == "prometheus_trivy"
     install_env = install_step.get("env")
     assert install_env == {
-        "TRIVY_VERSION": "0.72.0",
+        "TRIVY_VERSION": "0.74.0",
         "TRIVY_ARCHIVE_SHA256": (
-            "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea"  # pragma: allowlist secret
+            "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"  # pragma: allowlist secret
         ),
     }
     install_script = install_step["run"]

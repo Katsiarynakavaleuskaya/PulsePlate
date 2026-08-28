@@ -266,8 +266,8 @@ jobs:
       - name: Install exact Trivy CLI
         id: prometheus_trivy
         env:
-          TRIVY_VERSION: 0.72.0
-          TRIVY_ARCHIVE_SHA256: bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea # pragma: allowlist secret
+          TRIVY_VERSION: 0.74.0
+          TRIVY_ARCHIVE_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a # pragma: allowlist secret
         run: |
           set -euo pipefail
           umask 077
@@ -511,10 +511,10 @@ jobs:
               "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
               "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4",
-              "config_digest": "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa",
+              "platform_manifest_digest": "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec",
+              "config_digest": "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:22a16d8aa81187ac44f7d3b23a5540a7aa89e700105e063cc7984a377e28ac55",
+              "containerfile_sha256": "sha256:499576970227a372e962ffab985c4faef18af1d3e4485dacb6223ed05b0d7fa4",
               "postgres_version": "15.19",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
@@ -931,7 +931,7 @@ jobs:
               raise SystemExit("Reproduced PostgreSQL manifest bytes have the wrong digest")
           manifest = json.loads(manifest_bytes)
           layers = manifest.get("layers")
-          if not isinstance(layers, list) or len(layers) != 12:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Reproduced PostgreSQL layer count drifted")
           mountpoint_descriptor = layers[-1]
           expected_mountpoint_descriptor = {
@@ -999,7 +999,7 @@ jobs:
           if (
               not isinstance(rootfs, dict)
               or not isinstance(rootfs.get("diff_ids"), list)
-              or len(rootfs["diff_ids"]) != 12
+              or len(rootfs["diff_ids"]) != 13
               or rootfs["diff_ids"][-1] != expected_mountpoint_diff_id
           ):
               raise SystemExit("PostgreSQL mountpoint layer diff ID drifted")
@@ -1065,7 +1065,7 @@ jobs:
           import sys
 
           layers = json.loads(sys.argv[1])
-          if not isinstance(layers, list) or len(layers) != 12:
+          if not isinstance(layers, list) or len(layers) != 13:
               raise SystemExit("Loaded PostgreSQL image rootfs cardinality drifted")
           if layers[-1] != sys.argv[2]:
               raise SystemExit("Loaded PostgreSQL image mountpoint diff ID drifted")
@@ -1783,6 +1783,16 @@ jobs:
           ]
           if len(matches) != 1:
               raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
+          expected_spdx = json.loads(
+              Path("postgres-pgvector-image-sbom.spdx.json").read_text(encoding="utf-8")
+          )
+          observed_spdx = matches[0].get("verificationResult", {}).get("statement", {}).get(
+              "predicate"
+          )
+          if observed_spdx != expected_spdx:
+              raise SystemExit(
+                  "Verified PostgreSQL SPDX predicate does not equal the exact generated SBOM"
+              )
           PY
           inspected_digest="$(docker image inspect "$RUNTIME_REF" \
             --format '{{join .RepoDigests "\n"}}')"
@@ -1817,15 +1827,17 @@ jobs:
           current_main_sha="$(git rev-parse refs/remotes/origin/main)"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           for material_path in \
+            .github/workflows/cd.yml \
             deploy/postgres-pgvector/Containerfile \
             deploy/postgres-pgvector/image-manifest.json; do
             git cat-file -e "${GITHUB_SHA}:${material_path}"
             git cat-file -e "${current_main_sha}:${material_path}"
           done
           if ! git diff --quiet "$GITHUB_SHA" "$current_main_sha" -- \
+              .github/workflows/cd.yml \
               deploy/postgres-pgvector/Containerfile \
               deploy/postgres-pgvector/image-manifest.json; then
-            echo "Current main PostgreSQL image material superseded this publishing run" >&2
+            echo "Current main PostgreSQL image material or publication policy superseded this publishing run" >&2
             exit 1
           fi
           docker buildx imagetools create \

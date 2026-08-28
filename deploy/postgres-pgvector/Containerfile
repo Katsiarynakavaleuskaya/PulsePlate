@@ -22,12 +22,15 @@ RUN set -eu; \
     unset CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS PG_CPPFLAGS SHLIB_LINK CC LD; \
     make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS=""; \
     make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS="" DESTDIR=/out install; \
-    first_symlink="$(find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension -type l -print -quit)"; \
+    install -D -o 0 -g 0 -m 0644 LICENSE /out/usr/share/licenses/pgvector/LICENSE; \
+    test -f /out/usr/share/licenses/pgvector/LICENSE; \
+    test ! -L /out/usr/share/licenses/pgvector/LICENSE; \
+    first_symlink="$(find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type l -print -quit)"; \
     if [ -n "$first_symlink" ]; then \
       echo "symlink in pgvector runtime artifact set: $first_symlink" >&2; \
       exit 1; \
     fi; \
-    find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension -type f | \
+    find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type f | \
       sort > /tmp/runtime-artifact-paths.txt; \
     : > /tmp/runtime-artifact-inventory.txt; \
     while IFS= read -r path; do \
@@ -36,8 +39,8 @@ RUN set -eu; \
       digest="$(sha256sum "$path" | cut -d' ' -f1)"; \
       printf '%s %s %s %s\n' "$mode" "$size" "$digest" "$path" >> /tmp/runtime-artifact-inventory.txt; \
     done < /tmp/runtime-artifact-paths.txt; \
-    test "$(wc -l < /tmp/runtime-artifact-inventory.txt | tr -d '[:space:]')" = "63"; \
-    echo "4eb50bd26407e1580c32dc9d4ca906ff71e3dc1daf4a4a7062daca8d0b6f1d94  /tmp/runtime-artifact-inventory.txt" | sha256sum -c -; \
+    test "$(wc -l < /tmp/runtime-artifact-inventory.txt | tr -d '[:space:]')" = "64"; \
+    echo "a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57  /tmp/runtime-artifact-inventory.txt" | sha256sum -c -; \
     install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data; \
     test "$(stat -c '%u:%g:%a' /out/var/lib/postgresql/data)" = "70:70:700"; \
     test -z "$(find /out/var/lib/postgresql/data -mindepth 1 -print -quit)"
@@ -49,6 +52,7 @@ ARG SOURCE_DATE_EPOCH
 COPY --from=builder --chown=0:0 /out/usr/lib/postgresql15/vector.so /usr/lib/postgresql15/vector.so
 COPY --from=builder --chown=0:0 /out/usr/lib/postgresql15/bitcode/ /usr/lib/postgresql15/bitcode/
 COPY --from=builder --chown=0:0 /out/usr/share/postgresql15/extension/ /usr/share/postgresql15/extension/
+COPY --from=builder --chown=0:0 /out/usr/share/licenses/pgvector/LICENSE /usr/share/licenses/pgvector/LICENSE
 COPY --from=builder --chown=70:70 --chmod=0700 /out/var/lib/postgresql/data/ /var/lib/postgresql/data/
 
 LABEL org.opencontainers.image.title="PulsePlate PostgreSQL 15 with pgvector"

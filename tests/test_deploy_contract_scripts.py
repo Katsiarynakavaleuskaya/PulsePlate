@@ -32,10 +32,10 @@ PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
 )
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
-    "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4"
+    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
 )
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4"
+    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
 )
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
@@ -366,7 +366,7 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+        "97cfcc5896bf687ced40c56a983dfaacda81ce891e4b656736dc8cf3cac4d9bd"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
@@ -375,7 +375,7 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["platform"] == "linux/amd64"
     assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
     assert manifest["config_digest"] == (
-        "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa"
+        "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738"
     )
     assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
     assert manifest["source_date_epoch"] == "1785349734"
@@ -397,7 +397,10 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     )
     assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.19-r0"
     assert manifest["builder_apk_closure_count"] == "94"
-    assert manifest["runtime_artifact_count"] == "63"
+    assert manifest["runtime_artifact_count"] == "64"
+    assert manifest["runtime_artifact_inventory_sha256"] == (
+        "sha256:a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57"
+    )
     assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
     assert manifest["mountpoint_layer_digest"] == (
         "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124"
@@ -466,6 +469,15 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     assert "PG_CONFIG=/usr/libexec/postgresql15/pg_config" in containerfile
     assert "make -j1" in containerfile
     assert 'OPTFLAGS=""' in containerfile
+    assert (
+        "install -D -o 0 -g 0 -m 0644 LICENSE "
+        "/out/usr/share/licenses/pgvector/LICENSE" in containerfile
+    )
+    assert "/out/usr/share/licenses/pgvector -type f" in containerfile
+    assert (
+        "COPY --from=builder --chown=0:0 /out/usr/share/licenses/pgvector/LICENSE "
+        "/usr/share/licenses/pgvector/LICENSE" in containerfile
+    )
     assert "install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data" in containerfile
     assert (
         "COPY --from=builder --chown=70:70 --chmod=0700 "
@@ -849,6 +861,21 @@ def _postgres_candidate_provenance_verifier_program() -> str:
     return run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
 
 
+def _postgres_candidate_spdx_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name")
+        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
+    )
+    marker = "python3 - <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 2
+    return run.split(marker, maxsplit=2)[2].split("\nPY\n", maxsplit=1)[0]
+
+
 @pytest.mark.parametrize(
     ("variant", "expected_success"),
     (
@@ -894,6 +921,44 @@ def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
             **os.environ,
             "PROVENANCE_MODE": "reuse" if variant == "reuse-historical" else "create",
         },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success"),
+    (("matching", True), ("mismatching", False), ("duplicate", False)),
+)
+def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
+    tmp_path: Path,
+    variant: str,
+    expected_success: bool,
+) -> None:
+    expected = {"SPDXID": "SPDXRef-DOCUMENT", "name": "pulseplate-pgvector"}
+    observed = json.loads(json.dumps(expected))
+    if variant == "mismatching":
+        observed["name"] = "historical-incomplete"
+    item = {
+        "verificationResult": {
+            "statement": {
+                "predicateType": "https://spdx.dev/Document/v2.3",
+                "predicate": observed,
+            }
+        }
+    }
+    verified = [item, item] if variant == "duplicate" else [item]
+    (tmp_path / "postgres-pgvector-image-sbom.spdx.json").write_text(
+        json.dumps(expected), encoding="utf-8"
+    )
+    (tmp_path / "postgres-pgvector-spdx-verified.json").write_text(
+        json.dumps(verified), encoding="utf-8"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_candidate_spdx_verifier_program()],
+        cwd=tmp_path,
         text=True,
         capture_output=True,
         check=False,
@@ -1088,6 +1153,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     material_check = 'git diff --quiet "$GITHUB_SHA" "$current_main_sha"'
     assert material_check in promote_run
     assert promote_run.index(material_check) < promote_run.index("docker buildx imagetools create")
+    assert ".github/workflows/cd.yml" in promote_run
     assert "deploy/postgres-pgvector/Containerfile" in promote_run
     assert "deploy/postgres-pgvector/image-manifest.json" in promote_run
     assert "docker buildx imagetools create" in promote_run
@@ -1111,6 +1177,11 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert 'case "$SPDX_MODE" in' in verify_run
     assert 'create) spdx_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
     assert verify_run.count('spdx_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
+    assert 'Path("postgres-pgvector-image-sbom.spdx.json")' in verify_run
+    assert "observed_spdx != expected_spdx" in verify_run
+    assert "Verified PostgreSQL SPDX predicate does not equal the exact generated SBOM" in (
+        verify_run
+    )
 
     runtime_step = next(
         step
@@ -1177,8 +1248,10 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
     git(source, "config", "user.name", "PulsePlate Test")
     git(source, "config", "user.email", "pulseplate-test@example.invalid")
     git(source, "checkout", "-qb", "main")
+    (source / ".github" / "workflows").mkdir(parents=True)
     (source / "deploy" / "postgres-pgvector").mkdir(parents=True)
     (source / "docs").mkdir()
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: base\n", encoding="utf-8")
     (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
         "FROM scratch\n", encoding="utf-8"
     )
@@ -1209,6 +1282,24 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
     )
     assert same_material.returncode == 0, same_material.stderr
 
+    (source / ".github" / "workflows" / "cd.yml").write_text(
+        "name: superseding-policy\n", encoding="utf-8"
+    )
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "supersede publication policy")
+    git(source, "push", "-q", "origin", "main")
+    superseded_policy = subprocess.run(
+        [bash_bin, "-c", freshness_program],
+        cwd=runner,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert superseded_policy.returncode != 0
+    assert "publication policy superseded" in superseded_policy.stderr
+
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: base\n", encoding="utf-8")
     (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
         "FROM scratch\nLABEL newer=1\n", encoding="utf-8"
     )
@@ -1224,7 +1315,7 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
         check=False,
     )
     assert superseded.returncode != 0
-    assert "superseded this publishing run" in superseded.stderr
+    assert "image material or publication policy superseded" in superseded.stderr
 
 
 def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
@@ -1819,7 +1910,7 @@ def _write_postgres_oci_verifier_fixture(
         },
         "rootfs": {
             "type": "layers",
-            "diff_ids": ["sha256:" + "0" * 64] * 11
+            "diff_ids": ["sha256:" + "0" * 64] * 12
             + ["sha256:" + "f" * 64 if variant == "diff-id" else layer_diff_id],
         },
     }
@@ -1839,7 +1930,7 @@ def _write_postgres_oci_verifier_fixture(
             "mediaType": "application/vnd.oci.image.config.v1+json",
             "size": len(config_bytes),
         },
-        "layers": [dummy_layer] * 11
+        "layers": [dummy_layer] * 12
         + [
             {
                 "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
@@ -2342,7 +2433,7 @@ def _write_postgres_manifest_variant(path: Path, variant: str) -> None:
     elif variant == "wrong-platform-digest":
         canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
     elif variant == "wrong-runtime-ref":
-        canonical["runtime_ref"] = canonical["runtime_ref"].replace("63782de6", "b3782de6")
+        canonical["runtime_ref"] = canonical["runtime_ref"].replace("ca0968c5", "ba0968c5")
     elif variant == "wrong-type":
         canonical["postgres_major"] = 15
     else:

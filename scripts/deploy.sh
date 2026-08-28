@@ -268,7 +268,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "6e9da6d08ace2969ba315f2afcc99a49cec908ffac20f67ef05723246d6170c8"
+expected_file_sha256 = "97cfcc5896bf687ced40c56a983dfaacda81ce891e4b656736dc8cf3cac4d9bd"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -293,8 +293,8 @@ expected_values = {
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
     "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4",
-    "config_digest": "sha256:da9e5626437d31f000dfd0460332d7194626439123f6ceb87fb9802cc4d165fa",
+    "platform_manifest_digest": "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec",
+    "config_digest": "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",

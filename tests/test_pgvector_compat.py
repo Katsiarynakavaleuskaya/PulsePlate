@@ -1671,7 +1671,7 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
         "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
-    assert "sha256:63782de6bbcb39760c585dfae46ac961a4dcf89a7d5aca53dd779fec7decdbd4" in workflow
+    assert "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec" in workflow
     assert (
         "sha256:82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in publish_job
     )
