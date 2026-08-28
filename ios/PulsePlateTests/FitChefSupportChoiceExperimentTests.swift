@@ -1033,6 +1033,113 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
     }
 
+    func testCandidateCommonLayoutAndButtonContractWhenCandidateIsPresent() throws {
+        guard let source = try fitChefCandidateViewSource() else {
+            return
+        }
+
+        let body = try sourceSlice(
+            source,
+            from: "var body: some View",
+            to: "private var header: some View"
+        )
+        XCTAssertEqual(occurrenceCount(of: "\n                        actions\n", in: body), 1)
+        XCTAssertEqual(occurrenceCount(of: "PPButton(", in: body), 0)
+        XCTAssertEqual(
+            occurrenceCount(of: ".defaultScrollAnchor(scrollAnchor)", in: body),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.horizontal, PPDesignTokens.Spacing.xLarge)",
+                in: body
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.vertical, PPDesignTokens.Spacing.large)",
+                in: body
+            ),
+            1
+        )
+        XCTAssertFalse(
+            body.contains(".padding(.bottom, PPDesignTokens.Spacing.xxLarge)")
+        )
+
+        let layoutState = try sourceSlice(
+            source,
+            from: "private let actionButtonSize: PPButtonSize",
+            to: "var body: some View"
+        )
+        assertOrdered(
+            [
+                "private let actionButtonSize: PPButtonSize = .sm",
+                "private var usesStackedActions: Bool",
+                "dynamicTypeSize.isAccessibilitySize || horizontalSizeClass != .regular",
+                "private var scrollAnchor: UnitPoint",
+                "if dynamicTypeSize.isAccessibilitySize",
+                "return .top",
+                "horizontalSizeClass == .regular ? .center : .bottom",
+            ],
+            in: layoutState
+        )
+        XCTAssertFalse(source.contains("ScrollViewReader"))
+        XCTAssertFalse(source.contains(".scrollTo("))
+        XCTAssertEqual(occurrenceCount(of: ".defaultScrollAnchor(", in: source), 1)
+
+        let actions = try sourceSlice(
+            source,
+            from: "private var actions: some View",
+            to: "private func confirmButton"
+        )
+        assertOrdered(
+            [
+                "if usesStackedActions",
+                "VStack(spacing: PPDesignTokens.Spacing.small)",
+                "confirmButton(fullWidth: true)",
+                "dismissButton(fullWidth: true)",
+                "HStack(spacing: PPDesignTokens.Spacing.small)",
+                "confirmButton(fullWidth: true)",
+                "dismissButton(fullWidth: false)",
+            ],
+            in: actions
+        )
+
+        let confirmButton = try sourceSlice(
+            source,
+            from: "private func confirmButton",
+            to: "private func dismissButton"
+        )
+        XCTAssertTrue(
+            confirmButton.contains(
+                "variant: selectionState.canConfirm ? .primary : .secondary"
+            )
+        )
+        XCTAssertTrue(confirmButton.contains("size: actionButtonSize"))
+        XCTAssertTrue(confirmButton.contains("fullWidth: fullWidth"))
+        XCTAssertTrue(confirmButton.contains("confirmSelection()"))
+        XCTAssertTrue(confirmButton.contains(".disabled(!selectionState.canConfirm)"))
+        XCTAssertTrue(
+            confirmButton.contains(".opacity(selectionState.canConfirm ? 1 : 0.45)")
+        )
+
+        let dismissButton = try sourceSlice(
+            source,
+            from: "private func dismissButton",
+            to: "private func localized"
+        )
+        XCTAssertTrue(dismissButton.contains("variant: .secondary"))
+        XCTAssertTrue(dismissButton.contains("size: actionButtonSize"))
+        XCTAssertTrue(dismissButton.contains("fullWidth: fullWidth"))
+        XCTAssertTrue(dismissButton.contains("onDismiss()"))
+        XCTAssertFalse(dismissButton.contains(".disabled("))
+        XCTAssertFalse(dismissButton.contains(".opacity("))
+
+        XCTAssertEqual(occurrenceCount(of: "PPButton(", in: source), 2)
+        XCTAssertEqual(occurrenceCount(of: "size: actionButtonSize", in: source), 2)
+    }
+
     func testCandidateSemanticDeclarationOrderWhenCandidateIsPresent() throws {
         guard let source = try fitChefCandidateViewSource() else {
             return
@@ -1048,8 +1155,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "fitchef.support_choice.daily.title",
                 "fitchef.support_choice.weekly.title",
                 "boundaryCopy",
-                "fitchef.support_choice.confirm",
-                "fitchef.support_choice.dismiss",
+                "actions",
             ],
             in: body
         )
