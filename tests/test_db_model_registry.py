@@ -51,6 +51,7 @@ EXPECTED_TABLES = [
 ]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_APP_MODELS_PLANS = ".".join(("app", "models", "plans"))
 
 
 def _run_probe(source: str) -> dict[str, object]:
@@ -87,6 +88,37 @@ def _run_probe(source: str) -> dict[str, object]:
         pytest.fail(f"ORM registry subprocess returned invalid JSON: {completed.stdout[-4000:]}")
     assert isinstance(result, dict)
     return result
+
+
+def _find_manual_model_imports(source: str) -> list[str]:
+    """Return deterministic descriptions of shared-fixture model imports."""
+    violations: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in {"app.models", "core.models"} or alias.name.startswith(
+                    ("app.models.", "core.models.")
+                ):
+                    imported = alias.name
+                    if alias.asname is not None:
+                        imported = f"{imported} as {alias.asname}"
+                    violations.append(f"import {imported}")
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imports_model_module = module in {"app.models", "core.models"} or module.startswith(
+                ("app.models.", "core.models.")
+            )
+            imports_models_from_parent = module in {"app", "core"} and any(
+                alias.name == "models" for alias in node.names
+            )
+            if imports_model_module or imports_models_from_parent:
+                for alias in node.names:
+                    if imports_model_module or alias.name == "models":
+                        imported = alias.name
+                        if alias.asname is not None:
+                            imported = f"{imported} as {alias.asname}"
+                        violations.append(f"from {module} import {imported}")
+    return sorted(violations)
 
 
 def test_base_import_alone_registers_no_models_or_tables() -> None:
@@ -193,7 +225,8 @@ def test_loader_registers_exact_packet_bound_universe_for_import_orders(
 
 def test_shared_conftest_has_exact_canonical_registry_loader_ownership() -> None:
     source_path = REPO_ROOT / "tests" / "conftest.py"
-    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     loader_calls = [
         node
         for node in ast.walk(tree)
@@ -201,21 +234,48 @@ def test_shared_conftest_has_exact_canonical_registry_loader_ownership() -> None
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "load_canonical_orm_metadata"
     ]
-    manual_model_imports = [
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-        if alias.name in {"app.models", "core.models"}
-    ]
-    manual_model_imports.extend(
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module in {"app.models", "core.models"}
-    )
 
     assert len(loader_calls) == 2
-    assert manual_model_imports == []
+    assert _find_manual_model_imports(source) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import app.models", ["import app.models"]),
+        ("import core.models as core_models", ["import core.models as core_models"]),
+        (f"import {_APP_MODELS_PLANS}", [f"import {_APP_MODELS_PLANS}"]),
+        ("import core.models.extra as extra", ["import core.models.extra as extra"]),
+        ("from app.models import WeeklyPlan", ["from app.models import WeeklyPlan"]),
+        ("from core.models import User as CoreUser", ["from core.models import User as CoreUser"]),
+        (
+            f"from {_APP_MODELS_PLANS} import DayPlan",
+            [f"from {_APP_MODELS_PLANS} import DayPlan"],
+        ),
+        (
+            "from core.models.extra import Thing as Alias",
+            ["from core.models.extra import Thing as Alias"],
+        ),
+        ("from app import models", ["from app import models"]),
+        ("from core import models as core_models", ["from core import models as core_models"]),
+        ("import app.services\nfrom core import db", []),
+    ],
+    ids=[
+        "app-direct",
+        "core-direct-alias",
+        "app-submodule",
+        "core-submodule-alias",
+        "app-from",
+        "core-from-alias",
+        "app-submodule-from",
+        "core-submodule-from-alias",
+        "app-parent-from",
+        "core-parent-from-alias",
+        "harmless-non-model-imports",
+    ],
+)
+def test_manual_model_import_detector(source: str, expected: list[str]) -> None:
+    assert _find_manual_model_imports(source) == expected
 
 
 def test_loader_has_no_database_or_fastapi_bootstrap_side_effects() -> None:
