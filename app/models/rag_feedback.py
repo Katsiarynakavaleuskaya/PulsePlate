@@ -30,9 +30,36 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql.base import ischema_names
+from sqlalchemy.types import UserDefinedType
+
+_vector_type_factory: type[UserDefinedType]
+try:
+    from pgvector.sqlalchemy import VECTOR as _InstalledVectorType
+except ModuleNotFoundError as exc:  # pragma: no cover - optional base runtime profile
+    if not exc.name or not exc.name.startswith("pgvector"):
+        raise
+
+    class _FallbackVectorType(UserDefinedType):
+        """Minimal PostgreSQL VECTOR type when the optional binding is absent."""
+
+        cache_ok = True
+
+        def __init__(self, dim: int | None = None) -> None:
+            self.dim = dim
+
+        def get_col_spec(self, **_: object) -> str:
+            return "VECTOR" if self.dim is None else f"VECTOR({self.dim})"
+
+    _vector_type_factory = _FallbackVectorType
+else:
+    _vector_type_factory = _InstalledVectorType
+
 
 from core.db import Base
 from app.models.events import JSONEncodedDict
+
+ischema_names["vector"] = _vector_type_factory
 
 
 class RAGFeedback(Base):
@@ -61,6 +88,7 @@ class RAGFeedback(Base):
         CheckConstraint("user_rating BETWEEN 1 AND 5", name="ck_rag_feedback_rating"),
         CheckConstraint("confidence BETWEEN 0.0 AND 1.0", name="ck_rag_feedback_confidence"),
         CheckConstraint("hops >= 0", name="ck_rag_feedback_hops"),
+        Index("idx_rag_feedback_user_id", "user_id"),
         Index("idx_rag_feedback_user_created", "user_id", "created_at"),
         Index(
             "idx_rag_feedback_agent",
@@ -70,7 +98,7 @@ class RAGFeedback(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     agent_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     query: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -123,14 +151,17 @@ class UserKnowledge(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Embedding vector for semantic search
     # On Postgres with pgvector: VECTOR(768) (after migration 202602280003)
     # On SQLite (tests): TEXT storing JSON array; app-level cosine in vector_rag.py
     # See: core/rag/vector_rag.py for dialect-aware retrieval
-    embedding: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    embedding: Mapped[Optional[str]] = mapped_column(
+        Text().with_variant(_vector_type_factory(768), "postgresql"),
+        nullable=True,
+    )
 
     source: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+from datetime import date
 from hashlib import sha256
 import inspect
 from itertools import chain
@@ -18,6 +19,7 @@ import re
 import subprocess
 import sys
 import time
+import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -31,6 +33,8 @@ from uuid import uuid4
 
 import pytest
 from alembic.config import Config
+from alembic.autogenerate import produce_migrations
+from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import (
     BigInteger,
@@ -66,6 +70,15 @@ OWNER_PASSWORD = "pgvector_compat_owner_password"  # pragma: allowlist secret
 TENANT_ONE = 101
 TENANT_TWO = 202
 ALEMBIC_DATABASE_PREFIX = "pulseplate_alembic_"
+PRE_DRIFT_RECONCILIATION_HEAD = "202608270001"
+EXPECTED_POSTFIX_ALEMBIC_RESIDUAL = frozenset(
+    {
+        "public.foods",
+        "public.pulseplate_migration_ownership",
+        "public.restaurant_chains",
+        "public.restaurant_menu_items",
+    }
+)
 CONTROLLED_ALEMBIC_ENV = {
     "APP_ENV": "test",
     "ENVIRONMENT": "test",
@@ -281,6 +294,101 @@ def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProc
             f"stderr tail:\n{stderr[-4000:]}"
         )
     return completed
+
+
+def _assert_exact_postfix_alembic_residual(connection: Connection) -> None:
+    """Require the 23 reconciled leaves to be absent from a full comparison.
+
+    The remaining exact four tables are owned by migration-only schema history
+    and are intentionally left for the separate autogenerate-completeness lane.
+    This assertion does not install or duplicate that lane's object filter.
+    """
+
+    from core.db import load_canonical_orm_metadata
+    from core.db_alembic_comparison import compare_postgresql_server_default
+
+    metadata = load_canonical_orm_metadata()
+    comparison_context = MigrationContext.configure(
+        connection,
+        opts={
+            "compare_type": True,
+            "compare_server_default": compare_postgresql_server_default,
+        },
+    )
+    with warnings.catch_warnings(record=True) as comparison_warnings:
+        warnings.simplefilter("always")
+        migration_script = produce_migrations(comparison_context, metadata)
+
+    assert not comparison_warnings, tuple(
+        f"{warning.category.__name__}:{warning.message}" for warning in comparison_warnings
+    )
+    diffs = tuple(migration_script.upgrade_ops.as_diffs())
+    residual_keys: list[str] = []
+    for diff in diffs:
+        assert isinstance(diff, tuple) and len(diff) == 2
+        operation, subject = diff
+        assert operation == "remove_table"
+        assert isinstance(subject, Table)
+        assert subject.schema in {None, "public"}
+        residual_keys.append(f"public.{subject.name}")
+
+    assert len(residual_keys) == len(EXPECTED_POSTFIX_ALEMBIC_RESIDUAL)
+    assert frozenset(residual_keys) == EXPECTED_POSTFIX_ALEMBIC_RESIDUAL
+
+
+def _drift_unique_object_inventory(connection: Connection) -> tuple[tuple[object, ...], ...]:
+    """Return exact stable descriptors for the two reconciled unique objects."""
+
+    rows = connection.execute(text("""
+            SELECT
+                table_relation.relname AS table_name,
+                index_relation.relname AS index_name,
+                index_state.indisunique AS is_unique,
+                constraint_state.conname AS constraint_name,
+                ARRAY(
+                    SELECT attribute.attname
+                    FROM unnest(index_state.indkey) WITH ORDINALITY
+                        AS index_key(attribute_number, position)
+                    JOIN pg_attribute AS attribute
+                      ON attribute.attrelid = table_relation.oid
+                     AND attribute.attnum = index_key.attribute_number
+                    ORDER BY index_key.position
+                ) AS column_names
+            FROM pg_index AS index_state
+            JOIN pg_class AS index_relation
+              ON index_relation.oid = index_state.indexrelid
+            JOIN pg_class AS table_relation
+              ON table_relation.oid = index_state.indrelid
+            JOIN pg_namespace AS namespace
+              ON namespace.oid = table_relation.relnamespace
+            LEFT JOIN pg_constraint AS constraint_state
+              ON constraint_state.conindid = index_state.indexrelid
+            WHERE namespace.nspname = 'public'
+              AND (
+                    (table_relation.relname = 'analyzer_state'
+                     AND index_relation.relname IN (
+                         'uq_analyzer_state_user_key',
+                         'uq_analyzer_state_user_key_restore'
+                     ))
+                 OR (table_relation.relname = 'day_plans'
+                     AND index_relation.relname IN (
+                         'uq_day_plans_user_date',
+                         'ix_day_plans_user_date',
+                         'ix_day_plans_user_date_restore'
+                     ))
+              )
+            ORDER BY table_relation.relname COLLATE "C", index_relation.relname COLLATE "C"
+            """)).all()
+    return tuple(
+        (
+            str(row.table_name),
+            str(row.index_name),
+            bool(row.is_unique),
+            None if row.constraint_name is None else str(row.constraint_name),
+            tuple(str(column_name) for column_name in row.column_names),
+        )
+        for row in rows
+    )
 
 
 def _frame_postgres_payload(payload: bytes) -> bytes:
@@ -2164,12 +2272,107 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
         heads = tuple(scripts.get_heads())
         assert len(heads) == 1
         assert heads[0]
+        assert heads[0] == "202608290001"
+        with target_engine.connect() as connection:
+            _assert_exact_postfix_alembic_residual(connection)
+            assert _drift_unique_object_inventory(connection) == (
+                (
+                    "analyzer_state",
+                    "uq_analyzer_state_user_key",
+                    True,
+                    "uq_analyzer_state_user_key",
+                    ("user_id", "analyzer_key"),
+                ),
+                (
+                    "day_plans",
+                    "uq_day_plans_user_date",
+                    True,
+                    "uq_day_plans_user_date",
+                    ("user_id", "date"),
+                ),
+            )
         first_projection = _project_postgres_migration_state(target_engine)
         assert first_projection.head == heads[0]
 
         _run_alembic(target_url, "current", "--check-heads")
         _run_alembic(target_url, "upgrade", "head")
         assert _project_postgres_migration_state(target_engine) == first_projection
+
+        with target_engine.begin() as connection:
+            connection.execute(text("""
+                    INSERT INTO users (id, email, name)
+                    VALUES (900001, 'drift-proof@example.test', 'Drift Proof')
+                    """))
+            connection.execute(text("""
+                    INSERT INTO weekly_plans (
+                        id, user_id, start_date, end_date, plan_data
+                    ) VALUES (
+                        900001, 900001, DATE '2026-08-24', DATE '2026-08-30', '{}'::json
+                    )
+                    """))
+            connection.execute(text("""
+                    INSERT INTO day_plans (
+                        id, user_id, weekly_plan_id, date, plan_data
+                    ) VALUES (
+                        900001, 900001, 900001, DATE '2026-08-24', '{}'::json
+                    )
+                    """))
+            connection.execute(text("""
+                    INSERT INTO analyzer_state (
+                        id, user_id, analyzer_key, payload
+                    ) VALUES (
+                        900001, 900001, 'drift-proof', '{}'::jsonb
+                    )
+                    """))
+
+        seeded_head_projection = _project_postgres_migration_state(target_engine)
+        _run_alembic(target_url, "downgrade", PRE_DRIFT_RECONCILIATION_HEAD)
+        with target_engine.connect() as connection:
+            assert _drift_unique_object_inventory(connection) == (
+                (
+                    "analyzer_state",
+                    "uq_analyzer_state_user_key",
+                    True,
+                    None,
+                    ("user_id", "analyzer_key"),
+                ),
+                (
+                    "day_plans",
+                    "ix_day_plans_user_date",
+                    True,
+                    None,
+                    ("user_id", "date"),
+                ),
+            )
+            analyzer_row = connection.execute(
+                text("SELECT user_id, analyzer_key FROM analyzer_state WHERE id = 900001")
+            ).one()
+            day_row = connection.execute(
+                text("SELECT user_id, weekly_plan_id, date FROM day_plans WHERE id = 900001")
+            ).one()
+            assert tuple(analyzer_row) == (900001, "drift-proof")
+            assert tuple(day_row) == (900001, 900001, date(2026, 8, 24))
+
+        _run_alembic(target_url, "upgrade", "head")
+        with target_engine.connect() as connection:
+            _assert_exact_postfix_alembic_residual(connection)
+            assert _drift_unique_object_inventory(connection) == (
+                (
+                    "analyzer_state",
+                    "uq_analyzer_state_user_key",
+                    True,
+                    "uq_analyzer_state_user_key",
+                    ("user_id", "analyzer_key"),
+                ),
+                (
+                    "day_plans",
+                    "uq_day_plans_user_date",
+                    True,
+                    "uq_day_plans_user_date",
+                    ("user_id", "date"),
+                ),
+            )
+        assert _project_postgres_migration_state(target_engine) == seeded_head_projection
     except BaseException as exc:
         primary_failure = exc
     finally:

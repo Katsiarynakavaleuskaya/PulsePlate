@@ -77,13 +77,23 @@ class Recipe(Base):
 
     # Nutritional data (per serving, validated by CHECK constraints)
     kcal_per_serving: Mapped[float] = mapped_column(Float, nullable=False)
-    protein_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fat_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    carbs_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fiber_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    protein_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fat_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    carbs_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fiber_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
 
     # Recipe metadata
-    servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    servings: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
     ingredients: Mapped[dict[str, float]] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
@@ -152,10 +162,18 @@ class Meal(Base):
 
     # Nutritional data (validated by CHECK constraints)
     kcal: Mapped[float] = mapped_column(Float, nullable=False)
-    protein_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fat_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    carbs_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fiber_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    protein_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fat_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    carbs_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fiber_g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
 
     # Ingredient details
     grams_data: Mapped[dict[str, float]] = mapped_column(
@@ -203,10 +221,18 @@ class FoodItem(Base):
 
     # Nutritional data per 100g (validated by CHECK constraints)
     kcal_per_100g: Mapped[float] = mapped_column(Float, nullable=False)
-    protein_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fat_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    carbs_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    fiber_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    protein_g_per_100g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fat_g_per_100g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    carbs_g_per_100g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
+    fiber_g_per_100g: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default=text("0.0")
+    )
 
     # Micronutrients
     micros_data: Mapped[dict[str, Any] | None] = mapped_column(
