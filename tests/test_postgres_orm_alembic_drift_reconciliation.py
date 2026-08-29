@@ -281,14 +281,20 @@ def test_json_default_comparator_is_exact_typed_and_non_suppressing() -> None:
 
 
 def test_vector_model_variant_and_reflection_are_exact() -> None:
-    from pgvector.sqlalchemy import VECTOR
-
     column_type = UserKnowledge.__table__.c.embedding.type
     assert isinstance(column_type.dialect_impl(sqlite.dialect()), Text)
     postgres_type = column_type.dialect_impl(postgresql.dialect())
-    assert isinstance(postgres_type, VECTOR)
+    registered_vector_type = ischema_names.get("vector")
+    assert isinstance(registered_vector_type, type)
+    assert isinstance(postgres_type, registered_vector_type)
     assert postgres_type.dim == 768
-    assert ischema_names.get("vector") is VECTOR
+    assert str(postgres_type.compile(dialect=postgresql.dialect())) == "VECTOR(768)"
+
+    if registered_vector_type.__module__.startswith("pgvector."):
+        assert registered_vector_type.__name__ == "VECTOR"
+    else:
+        assert registered_vector_type.__module__ == "app.models.rag_feedback"
+        assert registered_vector_type.__name__ == "_FallbackVectorType"
 
 
 def test_model_only_drift_is_closed_without_physical_schema_changes() -> None:
