@@ -18,6 +18,7 @@ from tests.security._api_authz_contracts import (
     _contains_dependency,
     _flatten_dependency_calls,
     _load_routes,
+    is_bola_v1_eligible_contract,
     routes_by_key,
     sensitive_route_keys,
 )
@@ -175,4 +176,30 @@ def test_foreign_object_routes_document_negative_status() -> None:
         not missing_status
     ), "Foreign-object routes must document negative status evidence:\n" + "\n".join(
         f"{contract.method} {contract.path}" for contract in missing_status
+    )
+
+
+def test_bola_v1_oracle_ids_cover_exact_eligible_live_contracts(
+    contract_app: FastAPI,
+) -> None:
+    grouped_routes = routes_by_key(_load_routes(contract_app))
+    eligible_contracts = tuple(
+        contract for contract in API_AUTHZ_CONTRACTS if is_bola_v1_eligible_contract(contract)
+    )
+    non_eligible_with_oracles = tuple(
+        contract
+        for contract in API_AUTHZ_CONTRACTS
+        if not is_bola_v1_eligible_contract(contract) and contract.bola_oracle_id is not None
+    )
+    oracle_ids = tuple(contract.bola_oracle_id for contract in eligible_contracts)
+
+    assert eligible_contracts, "The finite BOLA v1 route universe must not be empty"
+    assert all(contract.key in grouped_routes for contract in eligible_contracts)
+    assert all(oracle_id is not None and oracle_id.strip() for oracle_id in oracle_ids)
+    assert len(set(oracle_ids)) == len(oracle_ids), "BOLA v1 oracle IDs must be unique"
+    assert (
+        not non_eligible_with_oracles
+    ), "Only finite BOLA v1 eligible contracts may carry executable oracle IDs:\n" + "\n".join(
+        f"{contract.method} {contract.path}: {contract.bola_oracle_id}"
+        for contract in non_eligible_with_oracles
     )
