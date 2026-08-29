@@ -7684,7 +7684,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (database migration correctness / drift detection)
   - Target PR: PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS
   - Status: ⏳ Planned; separate from canonical runtime ORM registration
-  - Prerequisite: `codex/reconcile-postgres-orm-alembic-drift` — IN PROGRESS (pre-open). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
+  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
   - Reason (EN): The current mapped runtime metadata excludes the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items`, and existing revision/runtime drift has not been reconciled. Runtime registration cannot support a zero-diff or completeness claim for Alembic autogenerate.
   - Links:
     - `alembic/env.py`
