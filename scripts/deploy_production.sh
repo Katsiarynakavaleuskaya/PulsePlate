@@ -2754,6 +2754,13 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     fi
   else
     echo "Fresh self-hosted PostgreSQL path admitted: rendered named volume is absent"
+    if require_absent_postgres_volume; then
+      :
+    else
+      fresh_volume_status=$?
+      echo "❌ Fresh self-hosted PostgreSQL volume revalidation failed; captured product writers remain quiesced" >&2
+      exit "$fresh_volume_status"
+    fi
   fi
 
   echo "Starting exact self-hosted PostgreSQL image without a registry pull..."

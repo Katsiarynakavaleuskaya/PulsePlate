@@ -2609,10 +2609,27 @@ def _write_executable(path: Path, content: str) -> None:
     exit "${{STUB_PG_RESTORE_LIST_STATUS:-0}}"
     ;;
   volume\\ ls\\ --quiet)
-    if [ "${{STUB_POSTGRES_VOLUME_LIST_STATUS:-0}}" -ne 0 ]; then
-      exit "${{STUB_POSTGRES_VOLUME_LIST_STATUS}}"
+    volume_list_status="${{STUB_POSTGRES_VOLUME_LIST_STATUS:-0}}"
+    volume_list_output="${{STUB_POSTGRES_VOLUME_LIST_OUTPUT:-}}"
+    if [ -n "${{STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE:-}}" ]; then
+      volume_list_count=0
+      if [ -f "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE" ]; then
+        IFS= read -r volume_list_count < "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE"
+      fi
+      case "$volume_list_count" in
+        ''|*[!0-9]*) exit 98 ;;
+      esac
+      volume_list_count=$((volume_list_count + 1))
+      printf '%s\\n' "$volume_list_count" > "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE"
+      if [ "$volume_list_count" -gt 1 ]; then
+        volume_list_status="${{STUB_POSTGRES_VOLUME_LIST_STATUS_AFTER_FIRST:-$volume_list_status}}"
+        volume_list_output="${{STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST:-$volume_list_output}}"
+      fi
     fi
-    printf '%s' "${{STUB_POSTGRES_VOLUME_LIST_OUTPUT:-}}"
+    if [ "$volume_list_status" -ne 0 ]; then
+      exit "$volume_list_status"
+    fi
+    printf '%s' "$volume_list_output"
     ;;
   image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
     if [ "${{STUB_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
@@ -6850,7 +6867,7 @@ def test_fresh_postgres_volume_probe_requires_definitive_absence(
     start = script.index(marker)
     end = script.index("\n}\n", start) + len("\n}\n")
     function_definition = script[start:end]
-    assert script.count("require_absent_postgres_volume") == 2
+    assert script.count("require_absent_postgres_volume") == 3
 
     docker_stub = tmp_path / f"{Path(relative_path).stem}-docker"
     response = (
@@ -6882,6 +6899,36 @@ def test_fresh_postgres_volume_probe_requires_definitive_absence(
         assert completed.stderr == ""
     else:
         assert expected_message in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "fresh_marker", "start_marker"),
+    (
+        (
+            "scripts/deploy.sh",
+            "Fresh PostgreSQL path admitted: rendered named volume is absent",
+            "Starting the already pulled exact PostgreSQL candidate without registry access",
+        ),
+        (
+            "scripts/deploy_production.sh",
+            "Fresh self-hosted PostgreSQL path admitted: rendered named volume is absent",
+            "Starting exact self-hosted PostgreSQL image without a registry pull",
+        ),
+    ),
+)
+def test_fresh_postgres_volume_recheck_is_the_last_gate_before_candidate_start(
+    relative_path: str,
+    fresh_marker: str,
+    start_marker: str,
+) -> None:
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    fresh_index = script.index(fresh_marker)
+    start_index = script.index(start_marker, fresh_index)
+    handoff_block = script[fresh_index:start_index]
+
+    assert handoff_block.count("require_absent_postgres_volume") == 1
+    assert "captured product writers remain quiesced" in handoff_block
+    assert "restart_captured_product_containers_after_failure" not in handoff_block
 
 
 def test_staging_orphan_postgres_volume_holds_before_quiesce_or_switch(tmp_path: Path) -> None:
@@ -6927,6 +6974,42 @@ def test_staging_absent_volume_uses_fresh_path_without_backup(tmp_path: Path) ->
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any(" stop worker caddy app" in line for line in log_lines)
     assert any(" up -d --pull never postgres" in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+
+
+def test_staging_fresh_volume_appearance_after_quiesce_holds_before_candidate_start(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    volume_counter = tmp_path / "postgres-volume-list-count"
+    env.update(
+        {
+            "STUB_POSTGRES_CONTAINER_ABSENT": "1",
+            "STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE": str(volume_counter),
+            "STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST": "pulseplate_postgres_data\n",
+        }
+    )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "volume exists without one trustworthy running container" in completed.stderr
+    assert "volume revalidation failed; captured product writers remain quiesced" in (
+        completed.stderr
+    )
+    assert volume_counter.read_text(encoding="utf-8") == "2\n"
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" stop worker caddy app" in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
     assert all(not line.startswith("backup ") for line in log_lines)
 
 

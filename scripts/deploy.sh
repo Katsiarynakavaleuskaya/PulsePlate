@@ -1016,6 +1016,13 @@ if [ "$postgres_transition" = "existing" ]; then
   fi
 else
   echo "Fresh PostgreSQL path admitted: rendered named volume is absent"
+  if require_absent_postgres_volume; then
+    :
+  else
+    fresh_volume_status=$?
+    echo "❌ Fresh PostgreSQL volume revalidation failed; captured product writers remain quiesced" >&2
+    exit "$fresh_volume_status"
+  fi
 fi
 
 echo "Starting the already pulled exact PostgreSQL candidate without registry access"
