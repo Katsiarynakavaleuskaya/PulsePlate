@@ -167,6 +167,15 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   non-initializing command. The mounted root must be empty `70:70:0700` before
   normal PostgreSQL initialization. This is bounded Docker-engine evidence,
   not universal runtime or existing-volume evidence.
+- The `postgres-pgvector-publish` canonical-tag write is provisional until an
+  immediate exact-main revalidation of the closed PostgreSQL material set
+  gates `runtime_ref` output and admission. If that post-write check detects a
+  superseding main commit, the publisher must fail without inspection output
+  or downstream admission. Do not roll the tag back or add another write: the
+  serialized replacement publisher is the sole repair owner, while consumers
+  remain bound to the immutable digest. This post-write gate is the declared
+  transaction boundary; stronger exclusivity requires a separate ownership
+  and threat-model lane rather than additional same-job race checks.
 - Repository/image admission is not activation. Volume census, backup,
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.
