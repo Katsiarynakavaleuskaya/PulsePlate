@@ -667,6 +667,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
     assert "--format spdx-json" in reuse_run
     assert "postgres-pgvector-reuse-current.spdx.json" in reuse_run
+    assert 'normalized.pop("name", None)' in reuse_run
     assert 'normalized.pop("documentNamespace", None)' in reuse_run
     assert 'creation_info.pop("created", None)' in reuse_run
     assert "normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx)" in reuse_run
@@ -1062,6 +1063,7 @@ def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
     (
         ("matching", True),
         ("volatile-metadata", True),
+        ("tag-derived-name", True),
         ("mismatching", False),
         ("relationship-mismatch", False),
         ("duplicate", False),
@@ -1093,8 +1095,10 @@ def test_cd_postgres_reuse_spdx_verifier_executes_exact_program(
     if variant == "volatile-metadata":
         observed["documentNamespace"] = "https://spdx.org/spdxdocs/pulseplate-historical"
         observed["creationInfo"]["created"] = "2026-08-28T00:00:00Z"
+    elif variant == "tag-derived-name":
+        observed["name"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-pgvector"
     elif variant == "mismatching":
-        observed["name"] = "historical-incomplete"
+        observed["packages"][0]["name"] = "historical-incomplete"
     elif variant == "relationship-mismatch":
         observed["relationships"][0]["relatedSpdxElement"] = "SPDXRef-Package-other"
     item = {

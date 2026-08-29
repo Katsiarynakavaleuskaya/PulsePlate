@@ -2331,6 +2331,7 @@ jobs:
 
           def normalize_spdx(document):
               normalized = copy.deepcopy(document)
+              normalized.pop("name", None)
               normalized.pop("documentNamespace", None)
               creation_info = normalized.get("creationInfo")
               if isinstance(creation_info, dict):
