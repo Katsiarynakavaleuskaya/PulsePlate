@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, Ref } from 'react';
+import type { Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useFocusTrap } from '../lib/useFocusTrap';
@@ -115,29 +115,36 @@ export function AppleProductInfoDialog({
       return;
     }
 
+    const handleDocumentKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || dialogRef.current?.contains(document.activeElement)) {
+        return;
+      }
+
+      event.preventDefault();
+      bmiLinkRef.current?.focus();
+    };
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     bmiLinkRef.current?.focus();
+    document.addEventListener('keydown', handleDocumentKeyDown);
 
     return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open]);
+  }, [onClose, open]);
 
   if (!open) {
     return null;
   }
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-
-    trapFocus(event);
-  };
 
   return (
     <div
@@ -151,7 +158,7 @@ export function AppleProductInfoDialog({
         aria-modal="true"
         className="relative w-full max-w-2xl"
         data-testid="apple-product-info-dialog"
-        onKeyDown={handleKeyDown}
+        onKeyDown={trapFocus}
         role="dialog"
       >
         <Card className="rounded-2xl bg-[var(--color-bg)] shadow-[var(--shadow-xl)]">

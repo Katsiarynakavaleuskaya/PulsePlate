@@ -98,10 +98,11 @@ describe('PremiumGate', () => {
       name: 'Learn about PulsePlate for Apple devices',
     });
     fireEvent.click(trigger);
-    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false);
 
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('');
 
     fireEvent.click(trigger);
     fireEvent.click(
@@ -199,6 +200,40 @@ describe('PremiumGate', () => {
         Reflect.deleteProperty(HTMLElement.prototype, 'offsetParent');
       }
     }
+  });
+
+  test('recovers document Tab and Shift+Tab from outside the dialog to the first safe link', () => {
+    renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
+      </PremiumGate>
+    );
+
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
+    });
+    fireEvent.click(trigger);
+    const firstSafeLink = screen.getByRole('link', { name: 'Try the free BMI calculator' });
+
+    trigger.focus();
+    expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false);
+    expect(firstSafeLink).toHaveFocus();
+
+    trigger.focus();
+    expect(fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(firstSafeLink).toHaveFocus();
+  });
+
+  test('handles document Escape once and removes the listener on unmount', () => {
+    const onClose = vi.fn();
+    const rendered = renderWithRouter(<AppleProductInfoDialog onClose={onClose} open />);
+
+    expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rendered.unmount();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test('has no targeted accessibility violations in the open dialog state', async () => {

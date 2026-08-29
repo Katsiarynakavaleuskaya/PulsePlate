@@ -1090,7 +1090,8 @@ Figma Component: `PP/Web/State/Offline`
    - Section title: "Quick Navigation" (20px Semibold)
    - Subtitle: "Jump to any section..." (14px, muted)
    - Primary CTA: "Configure Setup" (full width, primary lg button) -> CTA `web.home.open_setup`
-   - Secondary grid (3-col on sm+): "Nutrition Plate" / "Progress View" / "Learn about PulsePlate for Apple devices" -> CTAs `web.home.open_plate`, `web.home.open_progress`, `web.home.open_pro`
+   - Secondary grid (2-col on sm+): "Nutrition Plate" / "Progress View" -> CTAs `web.home.open_plate`, `web.home.open_progress`
+   - Guided Planning → Next action (`W_HOME_GUIDED_PLANNING_ACTIONS`): "Learn about PulsePlate for Apple devices" -> CTA `web.home.open_pro`
    - `web.home.open_pro` is a stable compatibility ID whose current V3 Link destination is `/marketing`
 6. **Footer spacing**: 96px for tab bar clearance
 7. **TabBar** (fixed bottom)
@@ -1263,7 +1264,7 @@ Behavioral details and code anchors: see
 | `web.home.open_setup` | "Configure Setup" | Primary | lg, full-width | none | none |
 | `web.home.open_plate` | "Nutrition Plate" | Secondary | md | none | requiresAuth redirect |
 | `web.home.open_progress` | "Progress View" | Secondary | md | none | requiresAuth redirect |
-| `web.home.open_pro` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | information-only `/marketing` handoff |
+| `web.home.open_pro` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | Guided Planning → Next action; information-only `/marketing` handoff in `W_HOME_GUIDED_PLANNING_ACTIONS` |
 | `web.plate.open_setup` | "Open Setup" | Link (inside gate) | md | none | PremiumGate inert |
 | `web.plate.open_progress` | "Open Progress" | Link (inside gate) | md | none | PremiumGate inert |
 | `web.plate.premium_gate_cta` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | opens information dialog when !isPremium |

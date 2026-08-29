@@ -204,13 +204,37 @@ interface GeneratedButtonInstruction {
   cta_key?: string;
   style?: string;
   variant?: string;
+  placement_zone?: string;
   prompt_stub?: string;
   figma_node_id?: string;
   states?: string[];
+  section_id?: string;
+  component_id?: string;
+  parent_component_id?: string | null;
+  hierarchy_level?: number;
+}
+
+interface GeneratedSection {
+  section_id: string;
+  name: string;
+  role: string;
+  component_ids: string[];
+}
+
+interface GeneratedHierarchyNode {
+  component_id: string;
+  canonical_component: string;
+  section_id: string;
+  parent_component_id: string | null;
+  hierarchy_level: number;
+  semantic_role: string;
+  source_ref: string;
 }
 
 interface GeneratedScreenInstruction {
   screen_id: string;
+  sections: GeneratedSection[];
+  component_hierarchy: GeneratedHierarchyNode[];
   instructions: GeneratedButtonInstruction[];
 }
 
@@ -236,6 +260,29 @@ function pythonCtaStates(source: string, ctaId: string): string[] {
   const statesMatch = block.match(/states=\[([^\]]+)]/);
   expect(statesMatch, `missing explicit generator states: ${ctaId}`).toBeTruthy();
   return [...(statesMatch?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
+function pythonCtaPlacementOverrideBlock(source: string, ctaId: string): string {
+  const registryStart = source.indexOf('CTA_PLACEMENT_OVERRIDES:');
+  const startMarker = `"${ctaId}": {`;
+  const startIndex = source.indexOf(startMarker, registryStart);
+  const endIndex = source.indexOf('\n    },', startIndex + startMarker.length);
+  expect(registryStart, 'missing finite placement override registry').toBeGreaterThanOrEqual(0);
+  expect(startIndex, `missing placement override: ${ctaId}`).toBeGreaterThanOrEqual(0);
+  expect(endIndex, `unterminated placement override: ${ctaId}`).toBeGreaterThan(startIndex);
+  return source.slice(startIndex, endIndex);
+}
+
+function pythonOverrideString(block: string, field: string): string {
+  const match = block.match(new RegExp(`"${field}": "([^"]+)"`));
+  expect(match, `missing placement override field: ${field}`).toBeTruthy();
+  return match?.[1] ?? '';
+}
+
+function pythonOverrideInteger(block: string, field: string): number {
+  const match = block.match(new RegExp(`"${field}": (\\d+)`));
+  expect(match, `missing placement override field: ${field}`).toBeTruthy();
+  return Number(match?.[1]);
 }
 
 function collectTypeScriptFiles(relativeRoot: string): string[] {
@@ -388,11 +435,27 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(homeRow).toContain('/marketing');
     expect(homeRow).toContain('PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)');
     expect(homeRow).toContain('stub://cta/information/apple-product');
+    expect(homeRow).toContain('Guided Planning → Next action');
     expect(plateRow).toContain('Learn about PulsePlate for Apple devices');
     expect(plateRow).toContain('Open the information-only Apple product handoff');
     expect(plateRow).toContain('PP/Web/Plate/PremiumGate/AppleProductInfo/Button/Default (TBD)');
     expect(plateRow).toContain('stub://cta/information/apple-product');
     expect(matrix).toContain('Their substrings grant no');
+    expect(matrix).toContain('| `web.home.open_pro` | `V3` | `W_HOME_GUIDED_PLANNING_ACTIONS` |');
+
+    const visualForecast = readRepo(
+      'docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md'
+    );
+    const figmaSpecification = readRepo('docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md');
+    expect(visualForecast).toContain(
+      '| `W_HOME_GUIDED_PLANNING_ACTIONS` | Home Guided Planning → Next action |'
+    );
+    expect(visualForecast).toContain(
+      '| Web | Home | `web.home.open_pro` | `W_HOME_GUIDED_PLANNING_ACTIONS` |'
+    );
+    expect(figmaSpecification).toContain(
+      'Guided Planning → Next action (`W_HOME_GUIDED_PLANNING_ACTIONS`)'
+    );
   });
 
   it('keeps generated Home and Plate instructions on the exact safe projections', () => {
@@ -415,6 +478,49 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(homeButtons.map((button) => button.cta_key)).toEqual(expectedHomeKeys);
     expect(plateButtons.map((button) => button.cta_key)).toEqual(expectedPlateKeys);
 
+    expect(home.sections.map((section) => section.section_id)).toEqual([
+      'hero-band',
+      'quick-actions',
+      'guided-planning',
+      'footer-nav',
+    ]);
+    expect(plate.sections.some((section) => section.section_id === 'guided-planning')).toBe(false);
+    expect(home.sections.find((section) => section.section_id === 'quick-actions')).toMatchObject({
+      component_ids: [
+        'web-home-actions',
+        'node:web.home.open_setup',
+        'node:web.home.open_plate',
+        'node:web.home.open_progress',
+      ],
+    });
+    expect(home.sections.find((section) => section.section_id === 'guided-planning')).toEqual({
+      section_id: 'guided-planning',
+      name: 'Guided Planning → Next action',
+      role: 'supporting_action',
+      component_ids: ['web-home-guided-planning-actions', 'node:web.home.open_pro'],
+    });
+
+    expect(
+      home.component_hierarchy.find(
+        (node) => node.component_id === 'web-home-guided-planning-actions'
+      )
+    ).toEqual({
+      component_id: 'web-home-guided-planning-actions',
+      canonical_component: 'card',
+      section_id: 'guided-planning',
+      parent_component_id: 'web-home-shell',
+      hierarchy_level: 1,
+      semantic_role: 'supporting_action_cluster',
+      source_ref: 'override:web.home:guided-planning-actions',
+    });
+    expect(
+      home.component_hierarchy.find((node) => node.component_id === 'node:web.home.open_pro')
+    ).toMatchObject({
+      section_id: 'guided-planning',
+      parent_component_id: 'web-home-guided-planning-actions',
+      hierarchy_level: 2,
+    });
+
     const homeInformation = homeButtons.find((button) => button.cta_key === 'web.home.open_pro');
     const plateInformation = plateButtons.find(
       (button) => button.cta_key === 'web.plate.premium_gate_cta'
@@ -423,9 +529,14 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
       name: 'Learn about PulsePlate for Apple devices',
       style: 'secondary',
       variant: 'V3',
+      placement_zone: 'W_HOME_GUIDED_PLANNING_ACTIONS',
       prompt_stub: 'stub://cta/information/apple-product',
       figma_node_id: 'PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)',
       states: [...informationOnlyWebStates],
+      section_id: 'guided-planning',
+      component_id: 'node:web.home.open_pro',
+      parent_component_id: 'web-home-guided-planning-actions',
+      hierarchy_level: 2,
     });
     expect(plateInformation).toMatchObject({
       name: 'Learn about PulsePlate for Apple devices',
@@ -437,6 +548,43 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     });
 
     const generator = readRepo('scripts/design/generate_figma_instructions.py');
+    const placementOverrideRegistry = sectionBetween(
+      generator,
+      'CTA_PLACEMENT_OVERRIDES:',
+      '# Screen dimension presets'
+    );
+    expect(
+      [...placementOverrideRegistry.matchAll(/^    "([^"]+)": \{$/gm)].map((match) => match[1])
+    ).toEqual(['web.home.open_pro']);
+    const homePlacementOverride = pythonCtaPlacementOverrideBlock(generator, 'web.home.open_pro');
+    expect(pythonOverrideString(homePlacementOverride, 'screen_id')).toBe('web.home');
+    expect(pythonOverrideString(homePlacementOverride, 'section_id')).toBe('guided-planning');
+    expect(pythonOverrideString(homePlacementOverride, 'section_name')).toBe(
+      home.sections.find((section) => section.section_id === 'guided-planning')?.name
+    );
+    expect(pythonOverrideString(homePlacementOverride, 'section_role')).toBe(
+      home.sections.find((section) => section.section_id === 'guided-planning')?.role
+    );
+    expect(pythonOverrideString(homePlacementOverride, 'insert_before_section_id')).toBe(
+      'footer-nav'
+    );
+    expect(pythonOverrideString(homePlacementOverride, 'parent_component_id')).toBe(
+      'web-home-guided-planning-actions'
+    );
+    expect(pythonOverrideString(homePlacementOverride, 'parent_parent_component_id')).toBe(
+      'web-home-shell'
+    );
+    expect(pythonOverrideInteger(homePlacementOverride, 'parent_hierarchy_level')).toBe(1);
+    expect(pythonOverrideString(homePlacementOverride, 'parent_semantic_role')).toBe(
+      'supporting_action_cluster'
+    );
+    expect(pythonOverrideInteger(homePlacementOverride, 'cta_hierarchy_level')).toBe(2);
+    expect(pythonOverrideString(homePlacementOverride, 'placement_zone')).toBe(
+      homeInformation?.placement_zone
+    );
+    expect(pythonCtaRegistryBlock(generator, 'web.home.open_pro')).toContain(
+      'placement_zone=CTA_PLACEMENT_OVERRIDES["web.home.open_pro"]["placement_zone"]'
+    );
     expect(pythonCtaStates(generator, 'web.home.open_pro')).toEqual(informationOnlyWebStates);
     expect(pythonCtaStates(generator, 'web.plate.premium_gate_cta')).toEqual(
       informationOnlyWebStates

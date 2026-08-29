@@ -25,7 +25,15 @@
         "web-home-actions",
         "node:web.home.open_setup",
         "node:web.home.open_plate",
-        "node:web.home.open_progress",
+        "node:web.home.open_progress"
+      ]
+    },
+    {
+      "section_id": "guided-planning",
+      "name": "Guided Planning \u2192 Next action",
+      "role": "supporting_action",
+      "component_ids": [
+        "web-home-guided-planning-actions",
         "node:web.home.open_pro"
       ]
     },
@@ -85,6 +93,15 @@
       "source_ref": "template:web.home:actions"
     },
     {
+      "component_id": "web-home-guided-planning-actions",
+      "canonical_component": "card",
+      "section_id": "guided-planning",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "supporting_action_cluster",
+      "source_ref": "override:web.home:guided-planning-actions"
+    },
+    {
       "component_id": "web-home-nav",
       "canonical_component": "navigation/tab-bar",
       "section_id": "footer-nav",
@@ -123,8 +140,8 @@
     {
       "component_id": "node:web.home.open_pro",
       "canonical_component": "button",
-      "section_id": "quick-actions",
-      "parent_component_id": "web-home-actions",
+      "section_id": "guided-planning",
+      "parent_component_id": "web-home-guided-planning-actions",
       "hierarchy_level": 2,
       "semantic_role": "secondary_cta",
       "source_ref": "cta:web.home.open_pro"
@@ -239,6 +256,17 @@
     },
     {
       "type": "create_frame",
+      "name": "web-home-guided-planning-actions",
+      "canonical_component": "card",
+      "section_id": "guided-planning",
+      "component_id": "web-home-guided-planning-actions",
+      "parent_component_id": "web-home-shell",
+      "hierarchy_level": 1,
+      "semantic_role": "supporting_action_cluster",
+      "order": 5
+    },
+    {
+      "type": "create_frame",
       "name": "web-home-nav",
       "canonical_component": "navigation/tab-bar",
       "section_id": "footer-nav",
@@ -246,7 +274,7 @@
       "parent_component_id": "web-home-shell",
       "hierarchy_level": 1,
       "semantic_role": "persistent_navigation",
-      "order": 5
+      "order": 6
     },
     {
       "type": "create_button",
@@ -270,7 +298,7 @@
       "parent_component_id": "web-home-actions",
       "hierarchy_level": 2,
       "semantic_role": "primary_cta",
-      "order": 6
+      "order": 7
     },
     {
       "type": "create_button",
@@ -294,7 +322,7 @@
       "parent_component_id": "web-home-actions",
       "hierarchy_level": 2,
       "semantic_role": "secondary_cta",
-      "order": 7
+      "order": 8
     },
     {
       "type": "create_button",
@@ -318,7 +346,7 @@
       "parent_component_id": "web-home-actions",
       "hierarchy_level": 2,
       "semantic_role": "secondary_cta",
-      "order": 8
+      "order": 9
     },
     {
       "type": "create_button",
@@ -326,7 +354,7 @@
       "cta_key": "web.home.open_pro",
       "style": "secondary",
       "variant": "V3",
-      "placement_zone": "W_HOME_QA_GRID",
+      "placement_zone": "W_HOME_GUIDED_PLANNING_ACTIONS",
       "figma_node_id": "PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)",
       "prompt_stub": "stub://cta/information/apple-product",
       "states": [
@@ -337,12 +365,12 @@
         "disabled"
       ],
       "canonical_component": "button",
-      "section_id": "quick-actions",
+      "section_id": "guided-planning",
       "component_id": "node:web.home.open_pro",
-      "parent_component_id": "web-home-actions",
+      "parent_component_id": "web-home-guided-planning-actions",
       "hierarchy_level": 2,
       "semantic_role": "secondary_cta",
-      "order": 9
+      "order": 10
     }
   ]
 }
