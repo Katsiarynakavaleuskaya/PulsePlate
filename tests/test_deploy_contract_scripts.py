@@ -1292,6 +1292,15 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     material_check = 'git diff --quiet "$GITHUB_SHA" "$current_main_sha"'
     assert material_check in promote_run
     assert promote_run.index(material_check) < promote_run.index("docker buildx imagetools create")
+    post_promotion_check = 'git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha"'
+    assert post_promotion_check in promote_run
+    assert promote_run.index("docker buildx imagetools create") < promote_run.index(
+        post_promotion_check
+    )
+    assert promote_run.index(post_promotion_check) < promote_run.index(
+        "docker buildx imagetools inspect"
+    )
+    assert "replacement publisher must repair it; HOLD" in promote_run
     assert ".github/workflows/cd.yml" in promote_run
     assert "deploy/postgres-pgvector/Containerfile" in promote_run
     assert "deploy/postgres-pgvector/image-manifest.json" in promote_run
@@ -1455,6 +1464,124 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
     )
     assert superseded.returncode != 0
     assert "image material or publication policy superseded" in superseded.stderr
+
+
+def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    publish = workflow["jobs"]["postgres-pgvector-publish"]
+    assert publish["concurrency"] == {
+        "group": "postgres-pgvector-canonical-tag-promotion",
+        "cancel-in-progress": False,
+    }
+    promote_program = next(
+        step["run"]
+        for step in steps
+        if step.get("name") == "Promote verified candidate digest to canonical tag without rebuild"
+    )
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    runner = tmp_path / "runner"
+    bin_dir = tmp_path / "bin"
+    docker_log = tmp_path / "docker.log"
+    output_path = tmp_path / "github-output.txt"
+
+    def git(cwd: Path, *arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=cwd,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    remote.mkdir()
+    git(remote, "init", "--bare", "-q")
+    source.mkdir()
+    git(source, "init", "-q")
+    git(source, "config", "user.name", "PulsePlate Test")
+    git(source, "config", "user.email", "pulseplate-test@example.invalid")
+    git(source, "checkout", "-qb", "main")
+    (source / ".github" / "workflows").mkdir(parents=True)
+    (source / "deploy" / "postgres-pgvector").mkdir(parents=True)
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: admitted\n", encoding="utf-8")
+    (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
+        "FROM scratch\n", encoding="utf-8"
+    )
+    (source / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "admitted material")
+    admitted_sha = git(source, "rev-parse", "HEAD")
+    git(source, "remote", "add", "origin", str(remote))
+    git(source, "push", "-q", "-u", "origin", "main")
+    git(tmp_path, "clone", "-q", str(remote), str(runner))
+    git(runner, "checkout", "-q", "--detach", admitted_sha)
+
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "docker %s\\n" "$*" >> "$DOCKER_LOG"\n'
+        'if [[ "$*" == buildx\\ imagetools\\ create\\ * ]]; then\n'
+        '  printf "name: superseding-after-promotion\\n" > '
+        '"$SOURCE_REPO/.github/workflows/cd.yml"\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" add .github/workflows/cd.yml\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" commit -qm "supersede after promotion"\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" push -q origin main\n'
+        "  exit 0\n"
+        "fi\n"
+        'if [[ "$*" == buildx\\ imagetools\\ inspect\\ * ]]; then exit 91; fi\n'
+        "exit 92\n",
+        encoding="utf-8",
+    )
+    docker_stub.chmod(0o755)
+    platform_digest = "sha256:" + "a" * 64
+    canonical_tag = "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-pgvector"
+    completed = subprocess.run(
+        [bash_bin, "-c", promote_program],
+        cwd=runner,
+        env={
+            **git_environment,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "GITHUB_SHA": admitted_sha,
+            "GITHUB_OUTPUT": str(output_path),
+            "RUNNER_TEMP": str(tmp_path),
+            "CANDIDATE_RUNTIME_REF": (
+                "ghcr.io/katsiarynakavaleuskaya/pulseplate:" f"candidate@{platform_digest}"
+            ),
+            "CANONICAL_TAG_REF": canonical_tag,
+            "EXPECTED_PLATFORM_DIGEST": platform_digest,
+            "EXPECTED_RUNTIME_REF": f"{canonical_tag}@{platform_digest}",
+            "DOCKER_LOG": str(docker_log),
+            "GIT_BIN": git_bin,
+            "SOURCE_REPO": str(source),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "superseded during promotion" in completed.stderr
+    log_lines = docker_log.read_text(encoding="utf-8").splitlines()
+    assert sum("buildx imagetools create" in line for line in log_lines) == 1
+    assert all("buildx imagetools inspect" not in line for line in log_lines)
+    assert not output_path.exists() or "runtime_ref=" not in output_path.read_text(encoding="utf-8")
+    assert git(source, "rev-parse", "HEAD") != admitted_sha
 
 
 def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:

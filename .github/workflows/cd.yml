@@ -1817,9 +1817,27 @@ jobs:
             echo "Current main PostgreSQL image material or publication policy superseded this publishing run" >&2
             exit 1
           fi
+          # The tag write is provisional until the post-promotion main check gates output/admission.
           docker buildx imagetools create \
             --tag "$CANONICAL_TAG_REF" \
             "$CANDIDATE_RUNTIME_REF"
+          git fetch --no-tags --prune --depth=1 origin \
+            +refs/heads/main:refs/remotes/origin/main
+          post_promotion_main_sha="$(git rev-parse refs/remotes/origin/main)"
+          for material_path in \
+            .github/workflows/cd.yml \
+            deploy/postgres-pgvector/Containerfile \
+            deploy/postgres-pgvector/image-manifest.json; do
+            git cat-file -e "${GITHUB_SHA}:${material_path}"
+            git cat-file -e "${post_promotion_main_sha}:${material_path}"
+          done
+          if ! git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha" -- \
+              .github/workflows/cd.yml \
+              deploy/postgres-pgvector/Containerfile \
+              deploy/postgres-pgvector/image-manifest.json; then
+            echo "Canonical PostgreSQL tag was mutated by a publisher superseded during promotion; replacement publisher must repair it; HOLD" >&2
+            exit 1
+          fi
           canonical_raw="${RUNNER_TEMP}/pulseplate-pgvector-canonical-manifest.json"
           docker buildx imagetools inspect --raw "$CANONICAL_TAG_REF" > "$canonical_raw"
           python3 - "$canonical_raw" <<'PY'
