@@ -167,6 +167,13 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   non-initializing command. The mounted root must be empty `70:70:0700` before
   normal PostgreSQL initialization. This is bounded Docker-engine evidence,
   not universal runtime or existing-volume evidence.
+- A fresh PostgreSQL transition must prove the rendered named volume absent
+  twice: once before product quiesce and once immediately before the single
+  no-pull Compose start. The second census is the declared fresh-volume
+  handoff boundary; any appearance, malformed listing, or listing error leaves
+  captured writers quiesced and returns `HOLD`. Do not add further same-step
+  polling or rollback writes; concurrent manual Compose/Docker mutation is
+  outside the admitted transition and requires a separate host-lock design.
 - The `postgres-pgvector-publish` canonical-tag write is provisional until an
   immediate exact-main revalidation of the closed PostgreSQL material set
   gates `runtime_ref` output and admission. If that post-write check detects a
