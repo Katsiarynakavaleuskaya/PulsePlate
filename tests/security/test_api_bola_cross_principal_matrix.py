@@ -27,6 +27,7 @@ from app.services import payments_activation, restaurant_partner_orders
 from core import db as core_db
 from tests.security._api_authz_contracts import (
     API_AUTHZ_CONTRACTS,
+    CONTRACT_BY_KEY,
     RouteKey,
     is_bola_v1_eligible_contract,
 )
@@ -104,6 +105,12 @@ def _request_bound_target(
         headers=headers,
         json=json_body,
     )
+
+
+def _expected_foreign_object_status(route_key: RouteKey) -> int:
+    status = CONTRACT_BY_KEY[route_key].foreign_object_status
+    assert status is not None
+    return int(status)
 
 
 def _payment_model_snapshot(
@@ -295,7 +302,7 @@ def _execute_activation_read(context: BolaExecutionContext, route_key: RouteKey)
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={
             "status": "error",
             "code": "forbidden",
@@ -340,7 +347,7 @@ def _execute_manual_intent_status(context: BolaExecutionContext, route_key: Rout
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={
             "status": "error",
             "code": "forbidden",
@@ -379,7 +386,7 @@ def _execute_restaurant_order_read(context: BolaExecutionContext, route_key: Rou
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={"detail": ORDER_ACCESS_FORBIDDEN_DETAIL},
     )
     assert _restaurant_state_snapshot() == before
@@ -423,7 +430,7 @@ def _execute_restaurant_order_confirm(context: BolaExecutionContext, route_key: 
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={"detail": ORDER_ACCESS_FORBIDDEN_DETAIL},
     )
     assert _restaurant_state_snapshot() == before
@@ -460,7 +467,7 @@ def _execute_restaurant_handoff_issue(context: BolaExecutionContext, route_key: 
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={"detail": SHARE_ACCESS_FORBIDDEN_DETAIL},
     )
     assert _restaurant_state_snapshot() == before
@@ -499,7 +506,7 @@ def _execute_restaurant_handoff_status(context: BolaExecutionContext, route_key:
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={"detail": SHARE_ACCESS_FORBIDDEN_DETAIL},
     )
     assert _restaurant_state_snapshot() == before
@@ -550,7 +557,7 @@ def _execute_restaurant_handoff_revoke(context: BolaExecutionContext, route_key:
     )
     _assert_json_response(
         foreign_response,
-        status_code=403,
+        status_code=_expected_foreign_object_status(route_key),
         payload={"detail": SHARE_ACCESS_FORBIDDEN_DETAIL},
     )
     assert _restaurant_state_snapshot() == before

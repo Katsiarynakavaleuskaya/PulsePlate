@@ -28,11 +28,13 @@
 - Executable posture: the finite v1 predicate at
   `tests/security/_api_authz_contracts.py:140` currently derives seven
   `AUTHENTICATED_SUBJECT` or `ISSUER_SCOPED` object routes. The literal matrix at
-  `tests/security/test_api_bola_cross_principal_matrix.py:559` proves exact
-  owner-authorized success, exact foreign-object `403` responses, and zero
-  changes to declared authorization-relevant payment or restaurant state. The
-  bound request helper derives target method/path from each scenario's
-  `RouteKey` and its call ledger fails callback/route mismatches closed.
+  `tests/security/test_api_bola_cross_principal_matrix.py:566` proves exact
+  owner-authorized success, exact foreign-object responses, and zero changes to
+  declared authorization-relevant payment or restaurant state. The bound
+  request helper derives target method/path from each scenario's `RouteKey`, the
+  expected denial status is read from the canonical contract for that same key
+  (currently `403` for all seven routes), and the call ledger fails
+  callback/route mismatches closed.
 - Principal evidence: PRO/VIP routes use two real validated, distinct
   principals after their restaurant issuer mappings are established through
   valid route activity. The manual rail keeps one configured requester key

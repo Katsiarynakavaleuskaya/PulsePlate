@@ -35,7 +35,7 @@ duplicate registrations for the same path, including VIP shoplist routes. A new
 sensitive route must be added to the registry before the contract test passes.
 
 Executable evidence is bound through the literal `BOLA_SCENARIOS` tuple at
-`tests/security/test_api_bola_cross_principal_matrix.py:559`. The existing
+`tests/security/test_api_bola_cross_principal_matrix.py:566`. The existing
 finite AST recognizer proves the contract/scenario bijection at
 `tests/security/test_api_authz_contract_static.py:168`, while the live contract
 pack rejects missing, duplicate, or out-of-cohort IDs at
@@ -56,16 +56,21 @@ The target operation method and path are derived only from the scenario's
 `RouteKey` by the bound request helper. The execution guard requires exactly one
 owner call and one foreign-object call recorded against that same key; an
 executor/callback mismatch or an executor that ignores the helper fails closed.
+The exact denial status is also resolved from the canonical
+`CONTRACT_BY_KEY[route_key].foreign_object_status`; it is not duplicated in the
+scenario tuple or executor. The current seven contracts all resolve to `403`,
+while future contract-authorized `404` concealment semantics would flow through
+the same bound lookup.
 
 For the manual rail, the configured requester key is never rotated: one owned
 intent proves `200`, a distinct valid service issuer owns the target intent, and
 the unchanged requester receives exact `403` for that target. Payment snapshots
 serialize every column of every `Subscription` and
 `SubscriptionActivationAudit` row using fresh sessions
-(`tests/security/test_api_bola_cross_principal_matrix.py:109`). Restaurant
+(`tests/security/test_api_bola_cross_principal_matrix.py:116`). Restaurant
 snapshots deep-copy the router issuer map plus orders, create events, confirm
 events, and shares under their owning locks
-(`tests/security/test_api_bola_cross_principal_matrix.py:136`). Both PRO and VIP
+(`tests/security/test_api_bola_cross_principal_matrix.py:143`). Both PRO and VIP
 issuer mappings are established through valid route activity and proved
 distinct before the denied snapshot, so lazy cache insertion cannot be mistaken
 for a denied-operation side effect.
@@ -84,8 +89,8 @@ Additional evidence anchors:
 - Foreign-object status invariant:
   `tests/security/test_api_auth_tier_contract_pack.py:161`
 - Same-principal, exact-denial, and zero-side-effect execution:
-  `tests/security/test_api_bola_cross_principal_matrix.py:270` and
-  `tests/security/test_api_bola_cross_principal_matrix.py:623`
+  `tests/security/test_api_bola_cross_principal_matrix.py:277` and
+  `tests/security/test_api_bola_cross_principal_matrix.py:630`
 - BOLA/idempotency regressions:
   `tests/security/test_api_bola_contract_pack.py:49`,
   `tests/security/test_api_bola_contract_pack.py:86`, and
@@ -106,7 +111,8 @@ Additional evidence anchors:
 - Every finite v1 eligible object route is bound to exactly one literal
   executable oracle, and non-eligible contracts cannot carry an oracle ID.
 - Each v1 oracle proves an owner-authorized success and an exact foreign-object
-  denial. PRO/VIP routes use a second validated principal; the manual rail uses
+  denial whose expected status comes from the canonical contract bound by
+  `RouteKey`. PRO/VIP routes use a second validated principal; the manual rail uses
   one unchanged validated requester against a separately service-owned target.
   Both shapes prove zero changes to the scenario's declared
   authorization-relevant subscription/audit or restaurant state, including the
