@@ -1048,9 +1048,9 @@ async def weekly_menu_plan_alias(
         ) from exc
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logging.exception("weekly-plan generation failed")
-        return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
+        return ErrorResponse(message="Weekly plan generation failed")
 
 
 @router.post("/menu/weekly/repair", dependencies=[Depends(require_vip_tier)])
@@ -1573,19 +1573,14 @@ async def get_recipe_templates(
             "total_templates": len(templates),
             "message": f"Retrieved {len(templates)} recipe templates",
         }
-    except Exception as e:
+    except Exception:
         # Handle any exceptions from recipe synthesizer or template access
-        logging.exception("Error retrieving recipe templates: %s", e)
-        payload = {
+        logging.exception("Error retrieving recipe templates")
+        return {
             "status": "error",
             "message": "An internal error occurred while retrieving recipe templates.",
             "templates": [],
         }
-        # Expose technical detail only outside production to keep tests/dev observable
-        is_production, _ = _is_production_environment()
-        if not is_production:
-            payload["detail"] = str(e)
-        return payload
 
 
 @router.post(
