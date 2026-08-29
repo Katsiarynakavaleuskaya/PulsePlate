@@ -28,9 +28,9 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Remove production-reachable Web payment actions
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P0 (public channel truth / payment safety / launch trust)
-  - Target PR: TBD (`codex/web-payment-desurfacing`); set the allocated PR number after opening
-  - Status: Implementation committed locally and awaiting governed PR review; closure is effective
-    only after the target PR merges
+  - Target PR: [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
+    (`codex/web-payment-desurfacing`)
+  - Status: In review in PR #2352; closure is effective only after the target PR merges
   - Area: frontend / Web monetization boundary / accessibility / public product copy
   - Reason (EN): The current public website must remain free and informational while paid product
     direction stays with PulsePlate for Apple devices. Production-reachable purchase, subscribe,
