@@ -665,6 +665,7 @@ jobs:
           changed=false
           while IFS= read -r path; do
             case "$path" in
+              .github/workflows/cd.yml | \
               deploy/postgres-pgvector/Containerfile | \
               deploy/postgres-pgvector/image-manifest.json)
                 changed=true
@@ -2302,6 +2303,7 @@ jobs:
             --source-ref refs/heads/main \
             --format json > postgres-pgvector-reuse-spdx.json
           python3 - <<'PY'
+          import copy
           import json
           from pathlib import Path
 
@@ -2324,7 +2326,18 @@ jobs:
           observed_spdx = matches[0].get("verificationResult", {}).get("statement", {}).get(
               "predicate"
           )
-          if observed_spdx != expected_spdx:
+          if not isinstance(expected_spdx, dict) or not isinstance(observed_spdx, dict):
+              raise SystemExit("Reused PostgreSQL SPDX predicate is malformed")
+
+          def normalize_spdx(document):
+              normalized = copy.deepcopy(document)
+              normalized.pop("documentNamespace", None)
+              creation_info = normalized.get("creationInfo")
+              if isinstance(creation_info, dict):
+                  creation_info.pop("created", None)
+              return normalized
+
+          if normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx):
               raise SystemExit(
                   "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM"
               )

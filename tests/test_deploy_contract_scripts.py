@@ -562,6 +562,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     classifier = jobs["postgres-pgvector-material-change"]
     classifier_run = classifier["steps"][1]["run"]
     for exact_path in (
+        ".github/workflows/cd.yml",
         "deploy/postgres-pgvector/Containerfile",
         "deploy/postgres-pgvector/image-manifest.json",
     ):
@@ -666,7 +667,9 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
     assert "--format spdx-json" in reuse_run
     assert "postgres-pgvector-reuse-current.spdx.json" in reuse_run
-    assert "observed_spdx != expected_spdx" in reuse_run
+    assert 'normalized.pop("documentNamespace", None)' in reuse_run
+    assert 'creation_info.pop("created", None)' in reuse_run
+    assert "normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx)" in reuse_run
     assert "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM" in (
         reuse_run
     )
@@ -833,7 +836,7 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
     policy_head = git("rev-parse", "HEAD")
     policy_result, policy_output = classify(base, policy_head)
     assert policy_result.returncode == 0, policy_result.stderr
-    assert policy_output == "changed=false\n"
+    assert policy_output == "changed=true\n"
 
     containerfile = fixture_root / "deploy" / "postgres-pgvector" / "Containerfile"
     containerfile.write_text("FROM scratch\nLABEL test=1\n", encoding="utf-8")
@@ -1056,17 +1059,44 @@ def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
 
 @pytest.mark.parametrize(
     ("variant", "expected_success"),
-    (("matching", True), ("mismatching", False), ("duplicate", False)),
+    (
+        ("matching", True),
+        ("volatile-metadata", True),
+        ("mismatching", False),
+        ("relationship-mismatch", False),
+        ("duplicate", False),
+    ),
 )
 def test_cd_postgres_reuse_spdx_verifier_executes_exact_program(
     tmp_path: Path,
     variant: str,
     expected_success: bool,
 ) -> None:
-    expected = {"SPDXID": "SPDXRef-DOCUMENT", "name": "pulseplate-pgvector"}
+    expected = {
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": "pulseplate-pgvector",
+        "documentNamespace": "https://spdx.org/spdxdocs/pulseplate-current",
+        "creationInfo": {
+            "created": "2026-08-29T00:00:00Z",
+            "creators": ["Tool: trivy-0.74.0"],
+        },
+        "packages": [{"SPDXID": "SPDXRef-Package-postgres", "name": "postgresql"}],
+        "relationships": [
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relationshipType": "DESCRIBES",
+                "relatedSpdxElement": "SPDXRef-Package-postgres",
+            }
+        ],
+    }
     observed = json.loads(json.dumps(expected))
-    if variant == "mismatching":
+    if variant == "volatile-metadata":
+        observed["documentNamespace"] = "https://spdx.org/spdxdocs/pulseplate-historical"
+        observed["creationInfo"]["created"] = "2026-08-28T00:00:00Z"
+    elif variant == "mismatching":
         observed["name"] = "historical-incomplete"
+    elif variant == "relationship-mismatch":
+        observed["relationships"][0]["relatedSpdxElement"] = "SPDXRef-Package-other"
     item = {
         "verificationResult": {
             "statement": {
