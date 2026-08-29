@@ -293,7 +293,9 @@ def test_json_default_comparator_is_exact_typed_and_non_suppressing() -> None:
             "123456789012345678901234567890.12345678901234567890",
             "123456789012345678901234567890.12345678901234567890",
         ),
-        ("1e999999999999999999999", "1e999999999999999999999"),
+        ("1", "1.0"),
+        ("1", "10e-1"),
+        ("1e10000", "10e9999"),
     )
     for inspected_payload, metadata_payload in equal_pairs:
         assert (
@@ -312,8 +314,6 @@ def test_json_default_comparator_is_exact_typed_and_non_suppressing() -> None:
         ("true", "1"),
         ("false", "0"),
         ("[1,2]", "[2,1]"),
-        ("1", "1.0"),
-        ("1e999999999999999999999", "10e999999999999999999998"),
         ("0.123456789012345678901", "0.123456789012345678902"),
     )
     for inspected_payload, metadata_payload in different_pairs:
@@ -396,6 +396,29 @@ def test_vector_factory_selection_and_registry_ownership_fail_closed() -> None:
     fallback = fallback_type(768)
     assert fallback.dim == 768
     assert str(fallback.compile(dialect=postgresql.dialect())) == "VECTOR(768)"
+
+
+def test_vector_fallback_bind_processor_is_package_free_and_exact() -> None:
+    model_module = importlib.import_module("app.models.rag_feedback")
+    fallback_type = getattr(model_module, "_FallbackVectorType")
+    adapter_type = getattr(model_module, "_VectorText")
+    adapter = adapter_type(fallback_type)
+    values = [float(index) / 768 for index in range(768)]
+    payload = json.dumps(values, separators=(",", ":"))
+
+    assert adapter.process_bind_param(payload, postgresql.dialect()) == payload
+    fallback_impl = adapter.load_dialect_impl(postgresql.dialect())
+    assert isinstance(fallback_impl, fallback_type)
+    assert fallback_impl.dim == 768
+
+    for invalid_payload in (
+        "not-json",
+        "[0.0]",
+        json.dumps([True] * 768),
+        "[NaN," + ",".join("0" for _ in range(767)) + "]",
+    ):
+        with pytest.raises(ValueError, match="vector_embedding_"):
+            adapter.process_bind_param(invalid_payload, postgresql.dialect())
 
 
 def test_vector_model_variant_binding_and_reflection_are_exact() -> None:
@@ -612,8 +635,18 @@ def test_forward_revision_index_admission_is_exact_and_fail_closed(
         require_adoptable(invalid, expected)
 
     upgrade_source = inspect.getsource(module.upgrade)
-    admission_index = upgrade_source.index("_require_adoptable_index")
     search_path_index = upgrade_source.index("SET LOCAL search_path TO pg_catalog, public")
+    descriptor_load_index = upgrade_source.index("_load_index_descriptor")
+    admission_index = upgrade_source.index("_require_adoptable_index")
     analyzer_adoption_index = upgrade_source.index("ALTER TABLE public.analyzer_state")
     day_adoption_index = upgrade_source.index("ALTER TABLE public.day_plans")
-    assert admission_index < search_path_index < analyzer_adoption_index < day_adoption_index
+    assert (
+        search_path_index
+        < descriptor_load_index
+        < admission_index
+        < analyzer_adoption_index
+        < day_adoption_index
+    )
+    assert "FROM pg_catalog.unnest(index_state.indkey)" in Path(revision.path).read_text(
+        encoding="utf-8"
+    )

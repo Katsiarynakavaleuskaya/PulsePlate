@@ -119,7 +119,7 @@ def _load_index_descriptor(bind: Connection, expected: _ExpectedIndex) -> _Index
                         WHEN index_key.attribute_number = 0 THEN NULL
                         ELSE attribute.attname
                     END
-                    FROM unnest(index_state.indkey) WITH ORDINALITY
+                    FROM pg_catalog.unnest(index_state.indkey) WITH ORDINALITY
                         AS index_key(attribute_number, position)
                     LEFT JOIN pg_catalog.pg_attribute AS attribute
                       ON attribute.attrelid = table_relation.oid
@@ -239,11 +239,11 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
+    op.execute("SET LOCAL search_path TO pg_catalog, public")
     descriptors = tuple(_load_index_descriptor(bind, expected) for expected in _EXPECTED_INDEXES)
     for descriptor, expected in zip(descriptors, _EXPECTED_INDEXES, strict=True):
         _require_adoptable_index(descriptor, expected)
 
-    op.execute("SET LOCAL search_path TO pg_catalog, public")
     op.execute(
         "ALTER TABLE public.analyzer_state "
         "ADD CONSTRAINT uq_analyzer_state_user_key "

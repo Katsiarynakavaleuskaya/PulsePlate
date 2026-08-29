@@ -142,9 +142,16 @@ class _VectorText(TypeDecorator[str]):
     cache_ok = True
     dimensions = 768
 
+    def __init__(
+        self,
+        vector_type_factory: type[UserDefinedType] = _vector_type_factory,
+    ) -> None:
+        super().__init__()
+        self._selected_vector_type_factory = vector_type_factory
+
     def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[object]:
         if dialect.name == "postgresql":
-            return dialect.type_descriptor(_vector_type_factory(self.dimensions))
+            return dialect.type_descriptor(self._selected_vector_type_factory(self.dimensions))
         return dialect.type_descriptor(Text())
 
     def process_bind_param(self, value: str | None, dialect: Dialect) -> object | None:
@@ -156,7 +163,10 @@ class _VectorText(TypeDecorator[str]):
             return value
         if not isinstance(value, str):
             raise ValueError("vector_embedding_postgresql_value_must_be_text")
-        return _normalize_vector_values(value, dimensions=self.dimensions)
+        normalized = _normalize_vector_values(value, dimensions=self.dimensions)
+        if self._selected_vector_type_factory is _FallbackVectorType:
+            return json.dumps(normalized, separators=(",", ":"))
+        return normalized
 
     def process_result_value(self, value: object | None, dialect: Dialect) -> str | None:
         if value is None:
@@ -265,7 +275,10 @@ class UserKnowledge(Base):
     # On Postgres with pgvector: VECTOR(768) (after migration 202602280003)
     # On SQLite (tests): TEXT storing JSON array; app-level cosine in vector_rag.py
     # See: core/rag/vector_rag.py for dialect-aware retrieval
-    embedding: Mapped[Optional[str]] = mapped_column(_VectorText(), nullable=True)
+    embedding: Mapped[Optional[str]] = mapped_column(
+        _VectorText(_vector_type_factory),
+        nullable=True,
+    )
 
     source: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 

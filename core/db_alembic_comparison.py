@@ -9,6 +9,7 @@ PostgreSQL does not define an equality operator for ``json`` values.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import json
 import re
 
@@ -23,9 +24,21 @@ _JSON_SQL_LITERAL = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class _JsonNumber:
-    """One exact JSON numeric token, preserved without float conversion."""
+    """One type-tagged exact JSON numeric value."""
 
-    lexeme: str
+    value: Decimal
+
+
+def _parse_json_number(lexeme: str) -> _JsonNumber:
+    """Parse a JSON number exactly without using binary floating point."""
+
+    try:
+        value = Decimal(lexeme)
+    except InvalidOperation as exc:
+        raise ValueError("json_number_unparseable") from exc
+    if not value.is_finite():
+        raise ValueError("json_number_non_finite")
+    return _JsonNumber(value)
 
 
 def _reject_json_constant(value: str) -> object:
@@ -55,8 +68,8 @@ def _parse_postgresql_json_default(value: str) -> object:
         return json.loads(
             payload,
             object_pairs_hook=_reject_duplicate_object_keys,
-            parse_float=_JsonNumber,
-            parse_int=_JsonNumber,
+            parse_float=_parse_json_number,
+            parse_int=_parse_json_number,
             parse_constant=_reject_json_constant,
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:

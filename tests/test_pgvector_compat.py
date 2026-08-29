@@ -2686,6 +2686,10 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
                 "ON hostile.analyzer_state (analyzer_key)"
             )
             connection.exec_driver_sql("SET LOCAL search_path TO hostile, public, pg_catalog")
+            connection.exec_driver_sql("SET LOCAL search_path TO pg_catalog, public")
+            assert connection.scalar(text("SELECT current_setting('search_path')")) == (
+                "pg_catalog, public"
+            )
 
             drift_revision = scripts.get_revision("202608290001")
             assert drift_revision is not None
