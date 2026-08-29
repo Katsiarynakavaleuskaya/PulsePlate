@@ -193,16 +193,16 @@ CODEQL_ACTION_V4_37_1_SHA = "".join(
 )
 SETUP_GO_NODE24_SHA = "".join(
     (
-        "4a36",
-        "0112",
-        "1dd0",
-        "1d16",
-        "26a1",
-        "e23e",
-        "3721",
-        "1e32",
-        "54c1",
-        "c06c",
+        "b7ad",
+        "1dad",
+        "31e0",
+        "6c59",
+        "25ef",
+        "5d2f",
+        "c7ad",
+        "053e",
+        "f454",
+        "303e",
     )
 )
 UPLOAD_ARTIFACT_NODE24_SHA = "".join(
@@ -2945,7 +2945,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
-            f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v6.4.0 / Node 24": 1,
+            f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 1,
         },
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: {
