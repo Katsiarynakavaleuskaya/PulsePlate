@@ -2891,14 +2891,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
 
 <a id="ledger-p1-bola-executable-evidence-matrix-v1"></a>
-- [ ] P1: Executable BOLA evidence matrix v1
+- [x] P1: Executable BOLA evidence matrix v1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/security-bola-oracle-matrix-v1`
-  - Status: 📋 Planned after terminal CodeQL/provider closure
+  - Target PR: [PR #2354](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2354) (`codex/security-bola-oracle-matrix-v1`)
+  - Status: ✅ Implemented in PR #2354 on synchronized base `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`; closure becomes authoritative only when this PR merges
   - Area: backend authorization / object-level access control / security evidence
   - Finding Type: executable cross-principal authorization evidence gap
   - Reason (EN): Current authorization coverage needs one finite, current-main matrix that binds every admitted object route to executable same-principal and foreign-principal outcomes without creating a second authorization registry or changing runtime/OpenAPI behavior. First-class authenticated principal mapping remains a downstream lane.
+  - Current implementation record (EN): The derived base census contains seven eligible routes, all bound to one literal executable scenario through the canonical authz contract. Same-owner controls and foreign-object denials pass through real route dependencies; exact denial status is resolved from the contract by `RouteKey`; every denied attempt preserves the complete declared payment or restaurant authorization state. Post-open QA, bug-hunter, security, and architecture review found one status-binding false green, fixed in commit `ff4047015f58a0d00e1feae851f925f0e7b4a235`. Runtime and OpenAPI remain unchanged.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`
