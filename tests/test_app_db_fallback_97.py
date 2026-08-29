@@ -9,7 +9,7 @@ Covers _attempt_db_fallback function branches:
 
 import os
 import inspect
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import pytest
 
@@ -27,6 +27,43 @@ class TestAppDBFallback97:
         fallback_mod.reset_fallback_state()
         for key in ("DB_HEALTH_DEGRADED", "DB_FALLBACK_URL", "DATABASE_URL"):
             monkeypatch.delenv(key, raising=False)
+
+    def test_loader_diagnostics_cover_empty_mapper_registry_in_process(self) -> None:
+        import core.db as db
+
+        registry_type = type(db.Base.registry)
+        with patch.object(
+            registry_type,
+            "mappers",
+            new_callable=PropertyMock,
+            return_value=frozenset(),
+        ):
+            with pytest.raises(RuntimeError) as exc_info:
+                db.load_canonical_orm_metadata()
+
+        message = str(exc_info.value)
+        assert message.startswith("Canonical ORM registry mismatch: missing_classes=[")
+        assert "mapper_count=0" in message
+        assert "extra_classes=[]" in message
+        assert "missing_tables=[]" in message
+        assert "extra_tables=[]" in message
+        assert "core.models.User" in message
+        assert "app.models.fitchef_support_outcomes.FitChefSupportOutcomeEvent" in message
+
+    def test_create_tables_uses_loaded_metadata_and_current_engine(self) -> None:
+        import core.db as db
+
+        metadata = Mock()
+        engine = object()
+        with (
+            patch.object(db, "load_canonical_orm_metadata", return_value=metadata) as load_metadata,
+            patch.object(db, "_get_raw_engine", return_value=engine) as get_raw_engine,
+        ):
+            db.create_tables()
+
+        load_metadata.assert_called_once_with()
+        get_raw_engine.assert_called_once_with()
+        metadata.create_all.assert_called_once_with(bind=engine)
 
     def test_attempt_db_fallback_production_inmemory_rejected(self) -> None:
         """Production environment rejects in-memory DB fallback."""
