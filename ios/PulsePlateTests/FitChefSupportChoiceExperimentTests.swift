@@ -795,6 +795,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             "UIScreen",
             "userInterfaceIdiom",
             ".padding(.horizontal, 12)",
+            ".padding(.horizontal, 16)",
             ".minimumScaleFactor(",
             ".lineLimit(",
             ".truncationMode(",
@@ -1115,6 +1116,13 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
         XCTAssertEqual(
             occurrenceCount(
+                of: ".padding(.horizontal, cardHorizontalPadding)",
+                in: body
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
                 of: ".padding(.horizontal, PPDesignTokens.Spacing.xLarge)",
                 in: source
             ),
@@ -1122,6 +1130,13 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
         XCTAssertEqual(
             occurrenceCount(of: ".padding(PPDesignTokens.Spacing.xLarge)", in: source),
+            0
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.vertical, PPDesignTokens.Spacing.xLarge)",
+                in: body
+            ),
             1
         )
         XCTAssertEqual(
@@ -1145,7 +1160,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let railPadding = try sourceSlice(
             source,
             from: "private var horizontalRailPadding: CGFloat",
-            to: "private var fitChefImageSize: CGFloat"
+            to: "private var cardHorizontalPadding: CGFloat"
         )
         assertOrdered(
             [
@@ -1169,6 +1184,33 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             1
         )
 
+        let cardPadding = try sourceSlice(
+            source,
+            from: "private var cardHorizontalPadding: CGFloat",
+            to: "private var fitChefImageSize: CGFloat"
+        )
+        assertOrdered(
+            [
+                "private var cardHorizontalPadding: CGFloat",
+                "dynamicTypeSize.isAccessibilitySize",
+                "? PPDesignTokens.Spacing.large",
+                ": PPDesignTokens.Spacing.xLarge",
+            ],
+            in: cardPadding
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "dynamicTypeSize.isAccessibilitySize", in: cardPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.large", in: cardPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.xLarge", in: cardPadding),
+            1
+        )
+
         let layoutState = try sourceSlice(
             source,
             from: "private let actionButtonSize: PPButtonSize",
@@ -1178,6 +1220,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             [
                 "private let actionButtonSize: PPButtonSize = .sm",
                 "private var horizontalRailPadding: CGFloat",
+                "private var cardHorizontalPadding: CGFloat",
                 "private var usesStackedActions: Bool",
                 "dynamicTypeSize.isAccessibilitySize || horizontalSizeClass != .regular",
                 "private var scrollAnchor: UnitPoint",
