@@ -1,67 +1,17 @@
-// RU: Страница PRO paywall - отображает модальное окно с предложением PRO функций
-// EN: PRO paywall page - displays modal dialog with PRO feature offer
+import { AppleProductInfoCard } from '../../components/AppleProductInfoDialog';
 
-import { useLocation, useNavigate } from 'react-router-dom';
-import BeforeAfter from '../../components/Paywall/BeforeAfter';
-import { purchasePremium } from '../../lib/paywallPurchase';
-
-const DEFAULT_PRO_PAYWALL_SOURCE = 'pro_page';
-const DEFAULT_PRO_PAYWALL_TRIGGER_REASON = 'unknown';
-
-type ProPaywallLocationState = {
-  exposureId?: string;
-  source?: string;
-  triggerReason?: string;
-  via?: string;
-  actionType?: string;
-  recommendedSurface?: string;
-  recommendedTier?: string;
-  whyNow?: string;
-};
-
+/**
+ * Compatibility owner for the public `/pro` URL.
+ *
+ * The route is information-only. Legacy location state is intentionally ignored
+ * so an old teaser or bookmark cannot recreate a Web purchase path.
+ */
 export default function ProPaywallPage(): JSX.Element {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const state = (location.state as ProPaywallLocationState | null) ?? null;
-  const source = state?.source ?? DEFAULT_PRO_PAYWALL_SOURCE;
-  const triggerReason = state?.triggerReason ?? DEFAULT_PRO_PAYWALL_TRIGGER_REASON;
-  const via = state?.via ?? 'pro_page';
-  const hasNextBestActionContext = Boolean(
-    state?.actionType &&
-      state?.recommendedSurface &&
-      state?.recommendedTier &&
-      state?.whyNow
-  );
-
-  const handleClose = (): void => {
-    navigate(-1); // Go back to previous page
-  };
-
-  const handlePurchase = async (): Promise<void> => {
-    await purchasePremium({
-      source,
-      via,
-      triggerReason,
-      ...(hasNextBestActionContext
-        ? {
-            actionType: state?.actionType,
-            recommendedSurface: state?.recommendedSurface,
-            recommendedTier: state?.recommendedTier,
-            whyNow: state?.whyNow,
-          }
-        : {}),
-    });
-    navigate(-1);
-  };
-
   return (
-    <BeforeAfter
-      onClose={handleClose}
-      onPurchase={handlePurchase}
-      initialExposureId={state?.exposureId}
-      source={source}
-      triggerReason={triggerReason}
-      via={via}
-    />
+    <main className="min-h-screen bg-[var(--color-surface)] px-4 py-10 sm:px-6 sm:py-16">
+      <div className="mx-auto flex max-w-4xl justify-center">
+        <AppleProductInfoCard />
+      </div>
+    </main>
   );
 }

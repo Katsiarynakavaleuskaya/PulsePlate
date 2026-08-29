@@ -21,6 +21,31 @@
 
 ---
 
+## Current public channel contract
+
+The tier and entitlement model below remains canonical backend product truth. It does not
+authorize a purchase surface in every client channel.
+
+- The current public Web surface is free to use and offers no purchase, subscription,
+  upgrade, trial, restore, or entitlement-acquisition action.
+- The public `/pro` URL remains a compatibility route, but its Web content is
+  information-only and links only to the free BMI calculator and the marketing page.
+- More advanced FitChef capabilities are an Apple-device product direction. This wording
+  does not prove availability on iPhone, iPad, Mac, or any individual device family.
+- An App Store link may appear only after its public availability and exact destination are
+  verified. Until then, the Web UI contains no external Store link or download claim.
+- “The website is free to use” records the current channel posture. It is not a perpetual
+  commercial promise, legal conclusion, or certification of tax or employment status.
+- A future paid Web channel requires a separate exact human GO, server-authoritative billing
+  and entitlement architecture, and its own reviewed carrier. This contract does not forbid
+  that separately admitted future work.
+
+Backend billing, Apple receipt verification, StoreKit, entitlement persistence, product-tier
+enums, API routes, and generated OpenAPI truth are unchanged by the current Web presentation
+boundary.
+
+---
+
 ## 1️⃣ FREE — BMI / Screening
 
 ### Бизнес-смысл

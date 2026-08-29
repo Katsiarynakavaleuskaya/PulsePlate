@@ -29,11 +29,27 @@ describe('PulsePlateMarketingPage', () => {
     expect(screen.getByLabelText('PulsePlate product preview')).toBeInTheDocument();
   });
 
-  it('keeps tier copy bounded without unsupported pricing or proof claims', () => {
+  it('keeps the Web tier area free and information-only', () => {
     const { container } = renderMarketingPage();
+    const tiers = container.querySelector('#tiers');
 
-    expect(screen.getByText(/VIP preview language without pricing or billing claims/i)).toBeInTheDocument();
-    expect(screen.getByText('Guided wellness prompts')).toBeInTheDocument();
+    if (!(tiers instanceof HTMLElement)) {
+      throw new Error('Marketing tiers section not found');
+    }
+
+    expect(screen.getByRole('heading', { name: 'Start here for free' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Free web tools' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'What we’re designing for FitChef' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'App Store link' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+      'href',
+      '/bmi'
+    );
+    expect(tiers.querySelectorAll('a')).toHaveLength(1);
+    expect(tiers).not.toHaveTextContent(/available now|explore pro|upgrade when ready/i);
+    expect(tiers.querySelector('a[href="/pro"]')).toBeNull();
     expect(container).not.toHaveTextContent(/Product Hunt|#1|doctor[-\s]?recommended|guaranteed|diagnose/i);
     expect(container).not.toHaveTextContent(/\$\d/);
   });

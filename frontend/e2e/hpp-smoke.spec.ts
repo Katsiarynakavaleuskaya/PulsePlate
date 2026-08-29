@@ -46,8 +46,27 @@ test('progress route renders', async ({ page }) => {
   }
 });
 
-test('pro paywall route renders', async ({ page }) => {
+test('pro compatibility route renders the Apple-product information boundary', async ({ page }) => {
   await page.goto('/pro');
-  await expect(page.getByTestId('paywall-cta')).toBeVisible();
-  await expect(page.getByTestId('paywall-cancel')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'PulsePlate for Apple devices' })
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+    'href',
+    '/bmi'
+  );
+  await expect(
+    page.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+  ).toHaveAttribute('href', '/marketing');
+  await expect(
+    page.getByRole('button', { name: /buy|subscribe|upgrade|trial|restore|payment/i })
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: /buy|subscribe|upgrade|trial|restore|payment/i })
+  ).toHaveCount(0);
+  await expect(page.getByTestId('paywall-cta')).toHaveCount(0);
+  await expect(page.getByTestId('paywall-cancel')).toHaveCount(0);
+  await expect(
+    page.locator('a[href^="https://apps.apple.com"], a[href^="itms-apps:"]')
+  ).toHaveCount(0);
 });

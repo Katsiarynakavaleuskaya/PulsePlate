@@ -219,7 +219,7 @@ export default function Home(): JSX.Element {
     });
   }
 
-  function trackContinuePlanning(routePath: '/plate' | '/progress' | '/pro'): void {
+  function trackContinuePlanning(routePath: '/plate' | '/progress'): void {
     persistGuidedPlanningDraft();
     trackGuidedPlanningEvent('planning_continue_clicked', {
       surface: 'app',
@@ -485,14 +485,13 @@ export default function Home(): JSX.Element {
                       Use progress check-ins
                     </Link>
                     <Link
-                      to="/pro"
-                      onClick={() => trackContinuePlanning('/pro')}
+                      to="/marketing"
                       className={buttonClasses({
                         variant: 'ghost',
                         className: 'rounded-2xl text-white hover:bg-white/[0.1]',
                       })}
                     >
-                      Unlock weekly planning
+                      Learn about PulsePlate for Apple devices
                     </Link>
                   </div>
                 </div>

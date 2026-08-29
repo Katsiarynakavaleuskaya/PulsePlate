@@ -47,18 +47,28 @@ Implement Progress Momentum Ring + Weekly Streak Badge to improve progress clari
 - `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 ```
 
-## Template 03: Premium Gate Value Frame (P0)
+## Template 03: Apple Product Information Frame (P0)
 
 ```md
 ## Summary
-Implement Premium Gate Value Frame for Plate/Pro conversion surfaces.
+Reconcile the existing Apple product information boundary on the public Web.
 
 ## Visual Scope
-- Visual element: Premium Gate Value Frame
-- Prompt pack: `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md`
+- Visual element: Apple Product Information Frame
+- Compatibility prompt-pack reference (not runtime authority): `docs/sora/prompts/hpp/p0_visibility/premium_gate_value_frame__plate_pro__v1.0.md`
 - Frontend paths:
   - `frontend/src/components/PremiumGate.tsx`
-  - `frontend/src/components/Paywall/BeforeAfter.tsx`
+  - `frontend/src/components/AppleProductInfoDialog.tsx`
+
+## Current Public-Web Contract
+- `This website is free to use.`
+- `We’re designing more advanced FitChef features for PulsePlate on Apple devices.`
+- `Purchases are not offered on this website.`
+- `We’ll add a verified App Store link when public availability is confirmed.`
+- `Try the free BMI calculator` → `/bmi`
+- `Learn about PulsePlate for Apple devices` → `/marketing`
+- Dismissal: `Not now`
+- Reuse the existing components, assets, tokens, and visual rules; do not add a new family.
 
 ## Validation References
 - `.github/PULL_REQUEST_TEMPLATE/visuals.md`

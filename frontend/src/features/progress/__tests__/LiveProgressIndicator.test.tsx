@@ -91,7 +91,7 @@ describe('LiveProgressIndicator', () => {
     timeSpy.mockRestore();
   });
 
-  it('tracks paywall open event for paywall-targeted cta', () => {
+  it('treats /pro as an ordinary information route without acquisition telemetry', () => {
     vi.mocked(useHppLiveIndicator).mockReturnValue({
       status: 'live',
       lastEventAt: 1710000000000,
@@ -100,43 +100,24 @@ describe('LiveProgressIndicator', () => {
 
     render(
       <MemoryRouter>
-        <LiveProgressIndicator source="plate" ctaTo="/pro" ctaLabel="Open Pro" />
+        <LiveProgressIndicator
+          source="plate"
+          ctaTo="/pro"
+          ctaLabel="Learn about PulsePlate for Apple devices"
+        />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('link', { name: 'Open Pro' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' }));
 
-    expect(mockTrackPaywallOpen).toHaveBeenCalledWith({
+    expect(mockTrackCtaClick).toHaveBeenCalledWith({
       source: 'hpp_live_indicator',
       placement: 'plate',
       live_status: 'live',
       variant: 'compact',
       cta_to: '/pro',
     });
-  });
-
-  it('tracks paywall open event for /paywall-targeted cta', () => {
-    vi.mocked(useHppLiveIndicator).mockReturnValue({
-      status: 'live',
-      lastEventAt: 1710000000000,
-      variant: 'compact',
-    });
-
-    render(
-      <MemoryRouter>
-        <LiveProgressIndicator source="plate" ctaTo="/paywall?plan=pro" ctaLabel="Open Pro Paywall" />
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByRole('link', { name: 'Open Pro Paywall' }));
-
-    expect(mockTrackPaywallOpen).toHaveBeenCalledWith({
-      source: 'hpp_live_indicator',
-      placement: 'plate',
-      live_status: 'live',
-      variant: 'compact',
-      cta_to: '/paywall?plan=pro',
-    });
+    expect(mockTrackPaywallOpen).not.toHaveBeenCalled();
   });
 
   it('uses explicit variant prop over hook variant for telemetry and DOM', () => {
@@ -148,11 +129,19 @@ describe('LiveProgressIndicator', () => {
 
     render(
       <MemoryRouter>
-        <LiveProgressIndicator source="progress" variant="emphasized" ctaTo="/pro" ctaLabel="Open Pro" />
+        <LiveProgressIndicator
+          source="progress"
+          variant="emphasized"
+          ctaTo="/progress"
+          ctaLabel="Open progress"
+        />
       </MemoryRouter>
     );
 
-    expect(screen.getByLabelText('Live progress indicator')).toHaveAttribute('data-variant', 'emphasized');
+    expect(screen.getByLabelText('Live progress indicator')).toHaveAttribute(
+      'data-variant',
+      'emphasized'
+    );
     expect(mockTrackLiveIndicatorImpression).toHaveBeenCalledWith({
       source: 'hpp_live_indicator',
       placement: 'progress',
@@ -160,14 +149,15 @@ describe('LiveProgressIndicator', () => {
       variant: 'emphasized',
     });
 
-    fireEvent.click(screen.getByRole('link', { name: 'Open Pro' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Open progress' }));
 
-    expect(mockTrackPaywallOpen).toHaveBeenCalledWith({
+    expect(mockTrackCtaClick).toHaveBeenCalledWith({
       source: 'hpp_live_indicator',
       placement: 'progress',
       live_status: 'live',
       variant: 'emphasized',
-      cta_to: '/pro',
+      cta_to: '/progress',
     });
+    expect(mockTrackPaywallOpen).not.toHaveBeenCalled();
   });
 });

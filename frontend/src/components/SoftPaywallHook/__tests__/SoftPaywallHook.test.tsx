@@ -1,250 +1,95 @@
 /** @vitest-environment jsdom */
-import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import SoftPaywallHook from "../SoftPaywallHook";
-import type { components } from "../../../api/schema";
+import '@testing-library/jest-dom/vitest';
+import '../../../i18n';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, it, vi } from 'vitest';
+import type { components } from '../../../api/schema';
+import SoftPaywallHook from '../SoftPaywallHook';
 
-const analyticsMock = vi.hoisted(() => ({
-  createAnalyticsEventId: vi.fn(),
-  logPaywallExposure: vi.fn(),
-}));
+const backendHook: components['schemas']['SoftPaywallHook'] = {
+  id: 'bmi.pro_interpretation_v1',
+  kind: 'cta',
+  position: 'post_result',
+  priority: 50,
+  target: 'pro_paywall',
+  message: {
+    lang: 'en',
+    title_key: 'soft_paywall.title',
+    body_key: 'soft_paywall.body',
+    cta_key: 'soft_paywall.cta',
+    default_title: 'Buy the browser plan now',
+    default_body: 'Start a trial and subscribe.',
+    default_cta: 'Upgrade',
+  },
+  availability: { pro_available: true },
+};
 
-vi.mock("../../../lib/analytics", () => analyticsMock);
+const backendNextAction: components['schemas']['NextBestAction'] = {
+  type: 'upgrade_for_export',
+  recommended_surface: 'pro_targets',
+  recommended_tier: 'PRO',
+  trigger_reason: 'targets_ready',
+  why_now: 'legacy_purchase_hint',
+};
 
-// Mock react-router-dom useNavigate
-const mockNavigate = vi.fn();
-vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual("react-router-dom");
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
+function renderHook(
+  hook: components['schemas']['SoftPaywallHook'] | null | undefined,
+  nextBestAction: components['schemas']['NextBestAction'] | null | undefined = undefined
+): ReturnType<typeof render> {
+  return render(
+    <MemoryRouter>
+      <SoftPaywallHook hook={hook} nextBestAction={nextBestAction} />
+    </MemoryRouter>
+  );
+}
 
-describe("SoftPaywallHook", () => {
-  const { createAnalyticsEventId, logPaywallExposure } = analyticsMock;
-  let analyticsIdCounter = 0;
-  const mockHook: components["schemas"]["SoftPaywallHook"] = {
-    id: "bmi.pro_interpretation_v1",
-    kind: "cta",
-    position: "post_result",
-    priority: 50,
-    target: "pro_paywall",
-    message: {
-      lang: "en",
-      title_key: "soft_paywall.title",
-      body_key: "soft_paywall.body",
-      cta_key: "soft_paywall.cta",
-      default_title: "More accurate interpretation",
-      default_body: "BMI doesn't account for muscle mass, bone density, and body composition. Get PRO insights.",
-      default_cta: "See PRO",
-    },
-    availability: { pro_available: true },
-  };
-  const mockNextBestAction: components["schemas"]["NextBestAction"] = {
-    type: "unlock_targets",
-    recommended_surface: "pro_targets",
-    recommended_tier: "PRO",
-    trigger_reason: "targets_ready",
-    why_now: "post_bmi_baseline_body_metrics",
-  };
+describe('SoftPaywallHook information boundary', () => {
+  it('renders fixed localized copy and only the marketing destination', () => {
+    renderHook(backendHook);
 
-  beforeEach((): void => {
-    vi.clearAllMocks();
-    analyticsIdCounter = 0;
-    createAnalyticsEventId.mockImplementation(() => `analytics-id-${++analyticsIdCounter}`);
+    expect(screen.getByRole('heading', { name: 'Keep exploring for free' })).toBeInTheDocument();
+    expect(screen.getByText('This website is free to use.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'We’re designing more advanced FitChef features for PulsePlate on Apple devices.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Purchases are not offered on this website.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'We’ll add a verified App Store link when public availability is confirmed.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+    ).toHaveAttribute('href', '/marketing');
+    expect(screen.queryByText(/buy the browser plan|start a trial|subscribe|upgrade/i)).not.toBeInTheDocument();
   });
 
-  afterEach((): void => {
-    cleanup();
-  });
+  it.each([null, undefined])('renders nothing for %s hook', (hook) => {
+    const { container } = renderHook(hook);
 
-  it("renders when hook provided", (): void => {
-    render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText("More accurate interpretation")).toBeInTheDocument();
-    expect(screen.getByText("BMI doesn't account for muscle mass, bone density, and body composition. Get PRO insights.")).toBeInTheDocument();
-    expect(screen.getByText("See PRO")).toBeInTheDocument();
-    expect(screen.getByTestId("soft-paywall-cta")).toBeInTheDocument();
-  });
-
-  it("does not crash and renders nothing for null hook", (): void => {
-    const { container } = render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={null} />
-      </MemoryRouter>
-    );
     expect(container.firstChild).toBeNull();
   });
 
-  it("does not crash and renders nothing for undefined hook", (): void => {
-    const { container } = render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={undefined} />
-      </MemoryRouter>
-    );
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("does not render when pro_available is false", (): void => {
-    const hookWithFalseAvailability: components["schemas"]["SoftPaywallHook"] = {
-      ...mockHook,
+  it('renders nothing when backend availability is false', () => {
+    const { container } = renderHook({
+      ...backendHook,
       availability: { pro_available: false },
-    };
+    });
 
-    const { container } = render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={hookWithFalseAvailability} />
-      </MemoryRouter>
-    );
     expect(container.firstChild).toBeNull();
   });
 
-  it("navigates to /pro on CTA click when no custom handler", (): void => {
-    render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} />
-      </MemoryRouter>
+  it('does not let next_best_action choose copy, navigation, or effects', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    renderHook(backendHook, backendNextAction);
+
+    expect(document.body).not.toHaveTextContent(
+      /upgrade_for_export|pro_targets|targets_ready|legacy_purchase_hint/i
     );
-
-    // Assert no navigation on mount
-    expect(mockNavigate).not.toHaveBeenCalled();
-
-    const ctaButton = screen.getByTestId("soft-paywall-cta");
-    fireEvent.click(ctaButton);
-
-    const ctaPayload = logPaywallExposure.mock.calls.at(-1)?.[0] as
-      | Record<string, unknown>
-      | undefined;
-
-    // Assert exactly one navigation call with correct path
-    expect(mockNavigate).toHaveBeenCalledTimes(1);
-    expect(mockNavigate).toHaveBeenCalledWith("/pro", {
-      state: {
-        exposureId: "analytics-id-1",
-        source: "bmi_soft_paywall",
-        triggerReason: "post_bmi",
-        via: "pro_page",
-      },
-    });
-    expect(ctaPayload?.event_name).toBe("cta_clicked");
-    expect(ctaPayload?.exposure_id).toBe("analytics-id-1");
-  });
-
-  it("reuses one exposure lifecycle id for shown and CTA events", (): void => {
-    render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} />
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByTestId("soft-paywall-cta"));
-    expect(logPaywallExposure).toHaveBeenCalledTimes(2);
-
-    const [shownPayload, ctaPayload] = logPaywallExposure.mock.calls.map(
-      ([payload]) => payload as Record<string, unknown>
-    );
-
-    expect(shownPayload).toMatchObject({
-      event_name: "shown",
-      source_surface: "bmi_soft_paywall",
-      trigger_reason: "post_bmi",
-      via: "soft_paywall_hook",
-      metadata: {
-        hook_id: "bmi.pro_interpretation_v1",
-        position: "post_result",
-        target: "pro_paywall",
-      },
-    });
-    expect(ctaPayload).toMatchObject({
-      event_name: "cta_clicked",
-      source_surface: "bmi_soft_paywall",
-      trigger_reason: "post_bmi",
-      via: "soft_paywall_hook",
-      metadata: {
-        hook_id: "bmi.pro_interpretation_v1",
-        position: "post_result",
-        target: "pro_paywall",
-      },
-    });
-    expect(shownPayload.exposure_id).toBe(ctaPayload.exposure_id);
-    expect(shownPayload.client_event_id).not.toBe(ctaPayload.client_event_id);
-  });
-
-  it("starts a fresh exposure lifecycle when the hook is hidden and shown again", (): void => {
-    const { rerender } = render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} />
-      </MemoryRouter>
-    );
-
-    rerender(
-      <MemoryRouter>
-        <SoftPaywallHook hook={null} />
-      </MemoryRouter>
-    );
-
-    rerender(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} />
-      </MemoryRouter>
-    );
-
-    const shownCalls = logPaywallExposure.mock.calls
-      .map(([payload]) => payload as Record<string, unknown>)
-      .filter((payload) => payload.event_name === "shown");
-
-    expect(shownCalls).toHaveLength(2);
-    expect(shownCalls[0].exposure_id).not.toBe(shownCalls[1].exposure_id);
-  });
-
-  it("calls custom onCtaClick handler when provided", (): void => {
-    const customHandler = vi.fn();
-
-    render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} onCtaClick={customHandler} />
-      </MemoryRouter>
-    );
-
-    const ctaButton = screen.getByTestId("soft-paywall-cta");
-    fireEvent.click(ctaButton);
-
-    expect(customHandler).toHaveBeenCalledTimes(1);
-    expect(mockNavigate).not.toHaveBeenCalled();
-  });
-
-  it("forwards next_best_action context through the existing paywall route state", (): void => {
-    render(
-      <MemoryRouter>
-        <SoftPaywallHook hook={mockHook} nextBestAction={mockNextBestAction} />
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByTestId("soft-paywall-cta"));
-
-    expect(mockNavigate).toHaveBeenCalledWith("/pro", {
-      state: {
-        exposureId: "analytics-id-1",
-        source: "bmi_soft_paywall",
-        triggerReason: "targets_ready",
-        via: "pro_page",
-        actionType: "unlock_targets",
-        recommendedSurface: "pro_targets",
-        recommendedTier: "PRO",
-        whyNow: "post_bmi_baseline_body_metrics",
-      },
-    });
-
-    const ctaPayload = logPaywallExposure.mock.calls.at(-1)?.[0] as
-      | Record<string, unknown>
-      | undefined;
-    expect(ctaPayload?.trigger_reason).toBe("targets_ready");
+    expect(screen.getByTestId('soft-paywall-cta')).toHaveAttribute('href', '/marketing');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
