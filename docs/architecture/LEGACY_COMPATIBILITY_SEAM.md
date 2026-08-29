@@ -181,6 +181,26 @@ Canonical router, schema, adapter, and service modules must never import or
 dynamically look up the legacy facade. Unknown external direct importers remain
 an explicit residual compatibility risk.
 
+PR #2343 merged the bounded fourth eight-name Insight retirement at
+`8243c30e7989713cc9c2d3d77ed5dd5ec389144b`. Before another legacy-retirement
+child, the operator selected canonical mapped-model registration as a separate
+prerequisite: `core/db.py:730` explicitly registers the current packet-bound
+mapped set for named schema-creation consumers, `core/db_fallback.py:93` reuses
+that action for fallback initialization, and `tests/test_db_model_registry.py:14`
+freezes the exact current class/table identities and import-order behavior. This
+prerequisite does not change model definitions, migration files, or schema
+declarations. It does change schema-creation output for fresh standalone
+`create_tables()` and local/dev/test fallback paths whose former independent
+imports exposed empty or core-only metadata: those paths now materialize the
+existing exact 16 mapped tables. It makes no Alembic revision/autogenerate
+parity, migration-only table, or OpenAPI completeness claim.
+The loader also rejects any missing or extra mapped class/table and completes
+SQLAlchemy mapper configuration before a named consumer initiates new
+engine/file/table schema work or calls `create_all`; registry and configuration
+failures propagate without partial schema creation from that consumer action.
+Pre-existing long-lived sync or async engine state may already exist and is not
+retroactively covered by this ordering claim.
+
 The current policy is compatibility first:
 
 - keep existing legacy routes callable when current clients still depend on
@@ -215,9 +235,11 @@ recognizer. PR #2336 merged at
 `ece5250305d3d65f47fa75c64bf9b55b5e5158de`, removing only the third
 eleven-name planning/export cohort plus the exact synthetic
 `legacy_app.routers.plan_export` namespace and extending the same recognizer to
-31 names. The bounded `codex/retire-legacy-insight-python-exports` successor
-removes only the fourth eight-name Insight Python projection and extends the
-same exact-name data to 39 without changing recognizer semantics. All retained
+31 names. PR #2343 merged at
+`8243c30e7989713cc9c2d3d77ed5dd5ec389144b`, removing only the fourth
+eight-name Insight Python projection and extending the same exact-name data to
+39 without changing recognizer semantics. The operator-selected canonical ORM
+registration prerequisite now precedes the next retirement child. All retained
 Insight HTTP routes, all four versioned nutrition aliases, and both root aliases
 remain callable; versioned-alias retirement, root-alias auth/sunset, retained
 Insight HTTP-alias retirement, and final legacy deletion remain separate ordered
