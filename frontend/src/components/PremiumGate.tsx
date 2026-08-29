@@ -55,7 +55,7 @@ export default function PremiumGate({ isPremium, children }: Props): JSX.Element
         type="button"
         aria-describedby={describedById}
         aria-haspopup="dialog"
-        className={buttonClasses({ className: 'mt-3' })}
+        className={buttonClasses({ variant: 'secondary', className: 'mt-3' })}
         onClick={() => setOpen(true)}
       >
         {t('appleProduct.learnMore')}

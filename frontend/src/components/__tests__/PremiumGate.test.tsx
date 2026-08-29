@@ -50,6 +50,15 @@ describe('PremiumGate', () => {
       name: 'Learn about PulsePlate for Apple devices',
     });
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveClass(
+      'border-[var(--color-border)]',
+      'bg-[var(--color-bg)]',
+      'text-[var(--color-text)]'
+    );
+    expect(trigger).not.toHaveClass(
+      'bg-[var(--color-primary)]',
+      'text-[var(--color-primary-foreground)]'
+    );
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole('dialog', { name: 'PulsePlate for Apple devices' });

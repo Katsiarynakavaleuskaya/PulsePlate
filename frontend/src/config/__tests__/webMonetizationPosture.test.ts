@@ -202,6 +202,7 @@ interface GeneratedButtonInstruction {
   type: string;
   name?: string;
   cta_key?: string;
+  style?: string;
   variant?: string;
   prompt_stub?: string;
   figma_node_id?: string;
@@ -420,6 +421,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     );
     expect(homeInformation).toMatchObject({
       name: 'Learn about PulsePlate for Apple devices',
+      style: 'secondary',
       variant: 'V3',
       prompt_stub: 'stub://cta/information/apple-product',
       figma_node_id: 'PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)',
@@ -427,6 +429,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     });
     expect(plateInformation).toMatchObject({
       name: 'Learn about PulsePlate for Apple devices',
+      style: 'secondary',
       variant: 'V3',
       prompt_stub: 'stub://cta/information/apple-product',
       figma_node_id: 'PP/Web/Plate/PremiumGate/AppleProductInfo/Button/Default (TBD)',
@@ -441,6 +444,11 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(generator).not.toContain('ui_label="Open Pro"');
     expect(generator).not.toContain('ui_label="Unlock Premium"');
     expect(generator).not.toContain('stub://cta/paywall-unlock');
+
+    const premiumGate = readFrontend('src/components/PremiumGate.tsx');
+    expect(premiumGate).toMatch(
+      /buttonClasses\(\{\s*variant:\s*'secondary',\s*className:\s*'mt-3'\s*\}\)/
+    );
   });
 
   it('keeps LiveProgressIndicator on ordinary CTA telemetry for information routes', () => {
