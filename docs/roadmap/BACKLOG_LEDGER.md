@@ -2848,10 +2848,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: `codex/security-bola-oracle-matrix-v1`
-  - Status: 📋 Planned after terminal CodeQL/provider closure
+  - Status: 🚧 Implementation in progress on base `942cc0f10995d89be74f5ffc7ab9329809865e0b`
   - Area: backend authorization / object-level access control / security evidence
   - Finding Type: executable cross-principal authorization evidence gap
   - Reason (EN): Current authorization coverage needs one finite, current-main matrix that binds every admitted object route to executable same-principal and foreign-principal outcomes without creating a second authorization registry or changing runtime/OpenAPI behavior. First-class authenticated principal mapping remains a downstream lane.
+  - Current implementation record (EN): The derived base census contains seven eligible routes, all with exact foreign-principal `403` semantics. The admitted carrier is limited to the existing authz contract, one literal executable scenario tuple, its finite guards, security posture/contract docs, and this exact ledger item; runtime and OpenAPI changes remain excluded.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`
