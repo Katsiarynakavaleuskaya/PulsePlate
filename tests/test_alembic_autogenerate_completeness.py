@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 import json
 from pathlib import Path
 import subprocess
@@ -13,6 +14,7 @@ from typing import cast
 from alembic.operations import ops
 import pytest
 from sqlalchemy import Column, Integer, MetaData, Table
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Connection
 
 import scripts.ci.check_alembic_autogenerate_completeness as checker
@@ -40,6 +42,45 @@ def _raw_expected_tree() -> ops.UpgradeOps:
             *(ops.DropTableOp(table_name) for table_name in checker.MIGRATION_OWNED_TABLE_KEYS),
         ]
     )
+
+
+def _replace_table(
+    table_name: str,
+    **changes: object,
+) -> tuple[checker.TableSignature, ...]:
+    return tuple(
+        replace(table, **changes) if table.name == table_name else table
+        for table in checker.EXPECTED_MIGRATION_TABLE_SIGNATURES
+    )
+
+
+def _patch_valid_phase_b_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        checker,
+        "_reflect_migration_table_signatures",
+        lambda connection: checker.EXPECTED_MIGRATION_TABLE_SIGNATURES,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_read_ownership_rows",
+        lambda connection: checker.EXPECTED_OWNERSHIP_ROWS,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_read_extension_signatures",
+        lambda connection: checker.EXPECTED_EXTENSIONS,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_read_rls_signatures",
+        lambda connection: checker.EXPECTED_RLS_TABLES,
+    )
+    monkeypatch.setattr(
+        checker,
+        "_read_critical_checks",
+        lambda connection: checker.EXPECTED_CRITICAL_CHECKS,
+    )
+    monkeypatch.setattr(checker, "_read_sequences", lambda connection: ())
 
 
 def test_env_wires_canonical_metadata_and_exact_callback_in_both_modes() -> None:
@@ -324,7 +365,7 @@ def test_exact_name_clone_metadata_fails_identity_before_connection_use() -> Non
     assert report.result == "fail"
 
 
-def test_phase_a_report_is_deterministic_and_explicitly_reserves_phase_b(
+def test_clean_phase_b_report_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     metadata = load_canonical_orm_metadata()
@@ -336,6 +377,7 @@ def test_phase_a_report_is_deterministic_and_explicitly_reserves_phase_b(
         "_reflect_physical_table_keys",
         lambda connection: checker.EXPECTED_PHYSICAL_TABLE_KEYS,
     )
+    _patch_valid_phase_b_inputs(monkeypatch)
 
     def fake_ops(
         connection: Connection,
@@ -358,12 +400,12 @@ def test_phase_a_report_is_deterministic_and_explicitly_reserves_phase_b(
 
     assert first == second
     assert first.material_digest.startswith("sha256:")
-    assert first.result == "fail"
-    assert first.reason_codes == ("phase_b_postgresql_descriptor_validation_required",)
-    assert first.extension_validation == "not_evaluated_phase_b"
-    assert first.rls_policy_validation == "not_evaluated_phase_b"
-    assert first.check_validation == "not_evaluated_phase_b"
-    assert first.sequence_validation == "not_evaluated_phase_b"
+    assert first.result == "pass"
+    assert first.reason_codes == ()
+    assert first.extension_validation == checker.VALIDATION_PASSED
+    assert first.rls_policy_validation == checker.VALIDATION_PASSED
+    assert first.check_validation == checker.VALIDATION_PASSED
+    assert first.sequence_validation == checker.VALIDATION_PASSED
     assert first.unknown_objects == ()
     assert first.unknown_operations == ()
 
@@ -444,16 +486,27 @@ def test_pass_requires_all_zero_and_validated_postconditions() -> None:
         "check_validation": checker.VALIDATION_PASSED,
         "sequence_validation": checker.VALIDATION_PASSED,
     }
+    admitted_root = checker.OperationDisposition(
+        "upgrade",
+        "UpgradeOps",
+        None,
+        None,
+        None,
+        "structural",
+        "admitted_root_container",
+    )
     clean = checker._make_report(  # pylint: disable=protected-access
         alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
         metadata_keys=metadata_keys,
         raw_operations=raw_records,
+        admitted_operations=(admitted_root,),
         **validated,
     )
     unknown_object = checker._make_report(  # pylint: disable=protected-access
         alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
         metadata_keys=metadata_keys,
         raw_operations=raw_records,
+        admitted_operations=(admitted_root,),
         unknown_objects=("physical_extra:public.shadow",),
         **validated,
     )
@@ -461,6 +514,7 @@ def test_pass_requires_all_zero_and_validated_postconditions() -> None:
         alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
         metadata_keys=metadata_keys,
         raw_operations=raw_records,
+        admitted_operations=(admitted_root,),
         unknown_operations=("upgrade/9:FutureOp:public.-:-",),
         **validated,
     )
@@ -468,13 +522,14 @@ def test_pass_requires_all_zero_and_validated_postconditions() -> None:
         alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
         metadata_keys=metadata_keys,
         raw_operations=raw_records,
-        admitted_operations=(raw_records[0],),
+        admitted_operations=(admitted_root, raw_records[0]),
         **validated,
     )
     pending_validation = checker._make_report(  # pylint: disable=protected-access
         alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
         metadata_keys=metadata_keys,
         raw_operations=raw_records,
+        admitted_operations=(admitted_root,),
     )
 
     assert clean.result == "pass"
@@ -482,6 +537,235 @@ def test_pass_requires_all_zero_and_validated_postconditions() -> None:
     assert unknown_operation.result == "fail"
     assert admitted_operation.result == "fail"
     assert pending_validation.result == "fail"
+
+
+def test_phase_b_exact_validator_baselines_and_reason_codes() -> None:
+    exact_sequence_rows = tuple(
+        checker.SequenceSignature("public", sequence, "public", table, "id", "a")
+        for sequence, table in (
+            ("analyzer_state_id_seq", "analyzer_state"),
+            ("context_id_seq", "context"),
+            ("day_plans_id_seq", "day_plans"),
+            ("food_items_id_seq", "food_items"),
+            ("meals_id_seq", "meals"),
+            ("nutrition_events_id_seq", "nutrition_events"),
+            ("rag_feedback_id_seq", "rag_feedback"),
+            ("recipes_id_seq", "recipes"),
+            ("user_knowledge_id_seq", "user_knowledge"),
+            ("users_id_seq", "users"),
+            ("weekly_plans_id_seq", "weekly_plans"),
+        )
+    )
+    exact_outcomes = (
+        checker._validate_migration_table_signatures(  # pylint: disable=protected-access
+            checker.EXPECTED_MIGRATION_TABLE_SIGNATURES
+        ),
+        checker._validate_ownership_rows(  # pylint: disable=protected-access
+            checker.EXPECTED_OWNERSHIP_ROWS
+        ),
+        checker._validate_extensions(  # pylint: disable=protected-access
+            checker.EXPECTED_EXTENSIONS
+        ),
+        checker._validate_rls(checker.EXPECTED_RLS_TABLES),  # pylint: disable=protected-access
+        checker._validate_critical_checks(  # pylint: disable=protected-access
+            checker.EXPECTED_CRITICAL_CHECKS
+        ),
+        checker._validate_sequences(exact_sequence_rows),  # pylint: disable=protected-access
+    )
+
+    assert all(
+        outcome == checker.ValidationOutcome("validated", (), ()) for outcome in exact_outcomes
+    )
+
+    missing_owner = checker._validate_ownership_rows(  # pylint: disable=protected-access
+        frozenset(tuple(checker.EXPECTED_OWNERSHIP_ROWS)[1:])
+    )
+    changed_extension = checker._validate_extensions(  # pylint: disable=protected-access
+        tuple(
+            (
+                replace(extension, installed_version="0.8.1")
+                if extension.name == "vector"
+                else extension
+            )
+            for extension in checker.EXPECTED_EXTENSIONS
+        )
+    )
+    changed_rls = checker._validate_rls(  # pylint: disable=protected-access
+        tuple(
+            replace(table, forced=False) if table.table == "rag_feedback" else table
+            for table in checker.EXPECTED_RLS_TABLES
+        )
+    )
+    changed_check = checker._validate_critical_checks(  # pylint: disable=protected-access
+        (
+            replace(checker.EXPECTED_CRITICAL_CHECKS[0], definition="CHECK (false)"),
+            *checker.EXPECTED_CRITICAL_CHECKS[1:],
+        )
+    )
+    unowned_sequence = checker._validate_sequences(  # pylint: disable=protected-access
+        exact_sequence_rows
+        + (checker.SequenceSignature("public", "shadow_seq", None, None, None, None),)
+    )
+
+    assert missing_owner.reason_codes == ("migration_ownership_registry_mismatch",)
+    assert changed_extension.reason_codes == ("extension_epoch_mismatch",)
+    assert changed_rls.reason_codes == ("rls_policy_epoch_mismatch",)
+    assert changed_check.reason_codes == ("critical_check_definition_mismatch",)
+    assert unowned_sequence.reason_codes == ("public_sequence_not_dependency_owned",)
+
+
+def test_migration_index_inventory_fails_for_missing_extra_and_different_names() -> None:
+    foods = next(
+        table for table in checker.EXPECTED_MIGRATION_TABLE_SIGNATURES if table.name == "foods"
+    )
+    first_index = foods.indexes[0]
+    mutations = (
+        foods.indexes[1:],
+        foods.indexes + (checker.IndexSignature("ix_shadow", ("brand",), False, "btree"),),
+        (replace(first_index, name="ix_different_name"), *foods.indexes[1:]),
+    )
+
+    for indexes in mutations:
+        outcome = checker._validate_migration_table_signatures(  # pylint: disable=protected-access
+            _replace_table("foods", indexes=tuple(sorted(indexes)))
+        )
+        assert outcome.reason_codes == ("migration_index_mismatch",)
+        assert outcome.status == "failed"
+
+
+def test_migration_columns_detect_numeric_default_and_json_type_drift() -> None:
+    foods = next(
+        table for table in checker.EXPECTED_MIGRATION_TABLE_SIGNATURES if table.name == "foods"
+    )
+
+    def changed_columns(column_name: str, **changes: object) -> tuple[checker.ColumnSignature, ...]:
+        return tuple(
+            sorted(
+                replace(column, **changes) if column.name == column_name else column
+                for column in foods.columns
+            )
+        )
+
+    numeric_type = checker._validate_migration_table_signatures(  # pylint: disable=protected-access
+        _replace_table("foods", columns=changed_columns("per_g", type_key="numeric:9:2"))
+    )
+    numeric_default = (
+        checker._validate_migration_table_signatures(  # pylint: disable=protected-access
+            _replace_table("foods", columns=changed_columns("per_g", default="99.00"))
+        )
+    )
+    json_vs_jsonb = (
+        checker._validate_migration_table_signatures(  # pylint: disable=protected-access
+            _replace_table("foods", columns=changed_columns("flags", type_key="jsonb"))
+        )
+    )
+
+    assert numeric_type.reason_codes == ("migration_column_type_mismatch",)
+    assert numeric_default.reason_codes == ("migration_column_default_mismatch",)
+    assert json_vs_jsonb.reason_codes == ("migration_column_type_mismatch",)
+
+
+def test_observed_canonical_drift_is_diagnostic_and_never_admitted() -> None:
+    drift_tree = ops.UpgradeOps(
+        ops=[
+            ops.ModifyTableOps(
+                "analyzer_state",
+                ops=[
+                    ops.DropIndexOp("uq_analyzer_state_user_key", table_name="analyzer_state"),
+                    ops.CreateUniqueConstraintOp(
+                        "uq_analyzer_state_user_key",
+                        "analyzer_state",
+                        ["user_id", "analyzer_key"],
+                    ),
+                ],
+            ),
+            ops.ModifyTableOps(
+                "food_items",
+                ops=[
+                    ops.AlterColumnOp(
+                        "food_items",
+                        "protein_g_per_100g",
+                        modify_server_default=None,
+                    )
+                ],
+            ),
+            ops.ModifyTableOps(
+                "paywall_exposure_ledger",
+                ops=[
+                    ops.AlterColumnOp(
+                        "paywall_exposure_ledger",
+                        "metadata_json",
+                        modify_type=postgresql.JSONB(),
+                    )
+                ],
+            ),
+            ops.ModifyTableOps(
+                "rag_feedback",
+                ops=[
+                    ops.DropIndexOp("idx_rag_feedback_user_id", table_name="rag_feedback"),
+                    ops.CreateIndexOp(
+                        "ix_rag_feedback_user_id",
+                        "rag_feedback",
+                        ["user_id"],
+                    ),
+                ],
+            ),
+            *(ops.DropTableOp(table_name) for table_name in checker.MIGRATION_OWNED_TABLE_KEYS),
+        ]
+    )
+
+    records, unknown, reasons = (
+        checker._classify_operation_tree(  # pylint: disable=protected-access
+            drift_tree,
+            rail="raw",
+        )
+    )
+    observed_reasons = {record.reason_code for record in records if record.disposition == "unknown"}
+
+    assert reasons == ()
+    assert {
+        "raw_unexpected_container",
+        "canonical_index_drift",
+        "canonical_unique_constraint_drift",
+        "canonical_column_default_drift",
+        "canonical_column_type_drift",
+    } <= observed_reasons
+    assert unknown
+    assert all(record.disposition == "unknown" for record in records[1:8])
+
+
+def test_json_default_failure_and_vector_warning_are_stable_secret_free_diagnostics() -> None:
+    runtime_marker = "-".join(("synthetic", "diagnostic", "carrier"))
+
+    class JsonDefaultFailure(RuntimeError):
+        def __init__(self) -> None:
+            super().__init__(runtime_marker)
+            self.orig = SimpleNamespace(sqlstate="42883")
+            self.statement = "SELECT '{}'::json = '{}' AS anon_1"
+
+    reason = checker._classify_autogenerate_failure(  # pylint: disable=protected-access
+        JsonDefaultFailure()
+    )
+    report = checker._make_report(  # pylint: disable=protected-access
+        alembic_head=checker.EXPECTED_ALEMBIC_HEAD,
+        metadata_keys=frozenset(load_canonical_orm_metadata().tables),
+        reason_codes=(reason,),
+    )
+
+    assert reason == "json_default_comparison_operator_unsupported"
+    assert runtime_marker not in report.to_json()
+    assert (
+        checker._classify_autogenerate_warning(  # pylint: disable=protected-access
+            "Did not recognize type 'vector' of column 'embedding'"
+        )
+        == "vector_reflection_type_unrecognized"
+    )
+    assert (
+        checker._classify_autogenerate_warning(  # pylint: disable=protected-access
+            "different warning"
+        )
+        == "autogenerate_warning_unclassified"
+    )
 
 
 def test_report_never_serializes_connection_failure_details(
