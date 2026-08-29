@@ -112,49 +112,71 @@ def _changed_paths_for_current_worktree() -> list[str]:
                 and re.fullmatch(r"[0-9a-f]{40}", base_sha)
                 and re.fullmatch(r"[0-9a-f]{40}", head_sha)
             ):
-                for depth in (100, 500, 2000):
-                    try:
-                        fetch_pr_bounds = subprocess.run(
-                            [
-                                git_bin,
-                                "fetch",
-                                "--no-tags",
-                                f"--depth={depth}",
-                                "origin",
-                                base_sha,
-                                head_sha,
-                            ],
+                # Main-test shards share one Git common directory. Prefer the
+                # full checkout before any depth-limited fetch can add a
+                # process-global shallow boundary under a parallel guard.
+                local_merge_base = subprocess.run(
+                    [git_bin, "merge-base", base_sha, head_sha],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                )
+                local_merge_base_sha = local_merge_base.stdout.strip()
+                if local_merge_base.returncode == 0 and re.fullmatch(
+                    r"[0-9a-f]{40}", local_merge_base_sha
+                ):
+                    diff_bases.append(f"{local_merge_base_sha}...{head_sha}")
+                else:
+                    detail = (local_merge_base.stderr or local_merge_base.stdout).strip()
+                    errors.append(
+                        f"local merge-base {base_sha} {head_sha}: "
+                        f"{detail or 'git merge-base failed'}"
+                    )
+                    for depth in (100, 500, 2000):
+                        try:
+                            fetch_pr_bounds = subprocess.run(
+                                [
+                                    git_bin,
+                                    "fetch",
+                                    "--no-tags",
+                                    f"--depth={depth}",
+                                    "origin",
+                                    base_sha,
+                                    head_sha,
+                                ],
+                                cwd=REPO_ROOT,
+                                check=False,
+                                text=True,
+                                capture_output=True,
+                                timeout=GIT_FETCH_TIMEOUT_SECONDS,
+                            )
+                        except subprocess.TimeoutExpired:
+                            errors.append(
+                                f"fetch depth={depth} {base_sha}..{head_sha}: "
+                                f"timed out after {GIT_FETCH_TIMEOUT_SECONDS}s"
+                            )
+                            continue
+                        if fetch_pr_bounds.returncode != 0:
+                            detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
+                            errors.append(
+                                f"fetch depth={depth} {base_sha}..{head_sha}: "
+                                f"{detail or 'git fetch failed'}"
+                            )
+                            continue
+                        merge_base = subprocess.run(
+                            [git_bin, "merge-base", base_sha, head_sha],
                             cwd=REPO_ROOT,
                             check=False,
                             text=True,
                             capture_output=True,
-                            timeout=GIT_FETCH_TIMEOUT_SECONDS,
                         )
-                    except subprocess.TimeoutExpired:
-                        errors.append(
-                            f"fetch depth={depth} {base_sha}..{head_sha}: "
-                            f"timed out after {GIT_FETCH_TIMEOUT_SECONDS}s"
-                        )
-                        continue
-                    if fetch_pr_bounds.returncode != 0:
-                        detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
-                        errors.append(
-                            f"fetch depth={depth} {base_sha}..{head_sha}: "
-                            f"{detail or 'git fetch failed'}"
-                        )
-                        continue
-                    merge_base = subprocess.run(
-                        [git_bin, "merge-base", base_sha, head_sha],
-                        cwd=REPO_ROOT,
-                        check=False,
-                        text=True,
-                        capture_output=True,
-                    )
-                    merge_base_sha = merge_base.stdout.strip()
-                    if merge_base.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", merge_base_sha):
-                        diff_bases.append(f"{merge_base_sha}...{head_sha}")
-                        break
-                    else:
+                        merge_base_sha = merge_base.stdout.strip()
+                        if merge_base.returncode == 0 and re.fullmatch(
+                            r"[0-9a-f]{40}", merge_base_sha
+                        ):
+                            diff_bases.append(f"{merge_base_sha}...{head_sha}")
+                            break
                         detail = (merge_base.stderr or merge_base.stdout).strip()
                         errors.append(
                             f"merge-base depth={depth} {base_sha} {head_sha}: "
@@ -179,6 +201,48 @@ def _changed_paths_for_current_worktree() -> list[str]:
         errors.append(f"{diff_base}: {detail or 'git diff failed'}")
 
     pytest.fail("Unable to inspect branch diff for Kimi docs-only guard: " + "; ".join(errors))
+
+
+def test_kimi_diff_uses_existing_pr_graph_before_network_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A full checkout must not be made shallow by a parallel docs guard."""
+
+    base_sha = "a" * 40
+    head_sha = "b" * 40
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"pull_request": {"base": {"sha": base_sha}, "head": {"sha": head_sha}}}),
+        encoding="utf-8",
+    )
+    commands: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        if command[1:] == ["merge-base", base_sha, head_sha]:
+            return Completed(stdout=f"{base_sha}\n")
+        if command[1:] == ["diff", "--name-only", f"{base_sha}...{head_sha}"]:
+            return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
+        if command[1] == "fetch":
+            raise AssertionError("full local PR graph must be used before network fetch")
+        return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+    assert _changed_paths_for_current_worktree() == ["docs/orchestration/KIMI_PROTOCOL.md"]
+    assert [command[1] for command in commands] == ["diff", "merge-base", "diff"]
 
 
 def test_kimi_diff_fetch_has_timeout_before_local_fallback(

@@ -3568,6 +3568,14 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
     assert "pre-commit run --all-files" in pre_commit_step["run"]
 
 
+def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
+    workflow = _load_ci_workflow()
+
+    checkout_step = _job_step_by_name(workflow, job_id="test-main", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+
 def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
     workflow = _load_ci_workflow()
 
