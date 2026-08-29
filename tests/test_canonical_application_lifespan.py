@@ -13,7 +13,6 @@ from typing import cast
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 import yaml
 
 import app.bootstrap.lifespan as lifespan_module
@@ -1474,14 +1473,14 @@ def test_legacy_created_app_runs_real_food_search_lifecycle(
 
         if body_raises:
             with pytest.raises(RuntimeError, match="body failed"):
-                with TestClient(legacy_app.app):
+                with open_test_client(legacy_app.app):
                     assert food_store.get_registered_strategy_search_backend_adapter() is not (
                         previous_backend
                     )
                     assert clients and clients[-1].is_closed is False
                     raise RuntimeError("body failed")
         else:
-            with TestClient(legacy_app.app):
+            with open_test_client(legacy_app.app):
                 assert food_store.get_registered_strategy_search_backend_adapter() is not (
                     previous_backend
                 )
