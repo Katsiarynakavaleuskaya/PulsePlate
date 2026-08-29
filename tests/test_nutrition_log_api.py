@@ -24,17 +24,7 @@ class TestNutritionLogAPI:
         # Ensure DB schema exists before tests (CI may run this file without app lifespan).
         import core.db as core_db
 
-        # Ensure app-owned tables are registered before init_db/create_all.
-        import app.models  # noqa: F401
-
         core_db.init_db()
-        # Guarantee analyzer_state exists on same engine (init_db imports core.models; idempotent).
-        import core.models  # noqa: F401
-        from core.db import Base
-
-        raw_engine = getattr(core_db, "_RAW_ENGINE", None)
-        if raw_engine is not None:
-            Base.metadata.create_all(bind=raw_engine)
 
     def teardown_method(self) -> None:
         try:
