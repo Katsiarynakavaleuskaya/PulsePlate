@@ -232,13 +232,13 @@ def _init_db_for_api_suite(configure_sqlite_database: Any) -> None:
     This fixture ensures SessionLocal is available for API tests that expect implicit DB initialization.
     Unit tests for core.db should use reset_db_for_tests() explicitly and should not depend on this.
 
-    CRITICAL: Import core.models here to ensure models are registered with the canonical Base
-    before any tests run. This prevents dual-Base issues.
+    CRITICAL: Load canonical ORM metadata before any tests run. This prevents dual-Base issues.
 
     CRITICAL: Depends on configure_sqlite_database to ensure per-worker DATABASE_URL is set first.
     """
     import core.db as core_db
-    import core.models  # noqa: F401  # Ensure models are registered with Base
+
+    core_db.load_canonical_orm_metadata()
 
     # Initialize DB if not already initialized
     # init_db() is idempotent, so safe to call multiple times
@@ -341,23 +341,19 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    # Import all models ONCE to register with Base.metadata
-    # The order matters: core.models first, then app.models package
-    import core.models  # noqa: F401
-    import app.models  # noqa: F401 - imports all models via __init__.py
+    metadata = db_module.load_canonical_orm_metadata()
 
     db_module.init_db()
 
     # Verification: ensure all expected tables exist
     # RU: Проверка, что init_db() создала все таблицы (без повторного create_all).
     # EN: Verify that init_db() created all tables (without redundant create_all).
-    from core.db import Base
     from sqlalchemy import inspect as sa_inspect
 
     engine = getattr(db_module, "_RAW_ENGINE", None) or getattr(db_module, "engine", None)
     if engine is not None:
         inspector = sa_inspect(engine)
-        expected = set(Base.metadata.tables.keys())
+        expected = set(metadata.tables.keys())
         actual = set(inspector.get_table_names())
         missing = expected - actual
         if missing:
