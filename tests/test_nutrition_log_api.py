@@ -81,9 +81,10 @@ class TestNutritionLogAPI:
         assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["n"] == 1
-        assert data["beta"] > 1.0
+        assert data["alpha"] == pytest.approx(1.0)
+        assert data["beta"] == pytest.approx(1.2)
         assert data["beta"] > data["alpha"]
-        assert data["risk_slip"] > 0.5
+        assert data["risk_slip"] == pytest.approx(1.2 / 2.2)
 
     def test_slip_meal_log_increases_beta(self) -> None:
         response = self.client.post(
@@ -147,7 +148,10 @@ class TestNutritionLogAPI:
 
     def test_partial_meal_boundary_values(self) -> None:
         """Verify partial logs accept boundary adherence_score values (0.0, 1.0)."""
-        for score, expected_n in ((0.0, 1), (1.0, 2)):
+        for score, expected_n, expected_beta, expected_risk in (
+            (0.0, 1, 2.0, 2.0 / 3.0),
+            (1.0, 2, 2.01, 2.01 / 3.01),
+        ):
             response = self.client.post(
                 "/api/v1/pro/nutrition/meal-log",
                 json={"log_type": "partial", "adherence_score": score},
@@ -157,5 +161,7 @@ class TestNutritionLogAPI:
             assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert data["n"] == expected_n
+            assert data["alpha"] == pytest.approx(1.0)
+            assert data["beta"] == pytest.approx(expected_beta)
             assert data["beta"] > data["alpha"]
-            assert data["risk_slip"] > 0.5
+            assert data["risk_slip"] == pytest.approx(expected_risk)
