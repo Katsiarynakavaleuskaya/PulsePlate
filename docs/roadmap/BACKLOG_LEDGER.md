@@ -2848,7 +2848,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2354](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2354) (`codex/security-bola-oracle-matrix-v1`)
-  - Status: ✅ Implemented in PR #2354 on base `942cc0f10995d89be74f5ffc7ab9329809865e0b`; closure becomes authoritative only when this PR merges
+  - Status: ✅ Implemented in PR #2354 on synchronized base `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`; closure becomes authoritative only when this PR merges
   - Area: backend authorization / object-level access control / security evidence
   - Finding Type: executable cross-principal authorization evidence gap
   - Reason (EN): Current authorization coverage needs one finite, current-main matrix that binds every admitted object route to executable same-principal and foreign-principal outcomes without creating a second authorization registry or changing runtime/OpenAPI behavior. First-class authenticated principal mapping remains a downstream lane.
