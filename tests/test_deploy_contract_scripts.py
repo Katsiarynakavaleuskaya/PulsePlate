@@ -2481,8 +2481,11 @@ def _write_executable(path: Path, content: str) -> None:
     cat >/dev/null
     exit "${{STUB_PG_RESTORE_LIST_STATUS:-0}}"
     ;;
-  volume\\ inspect\\ pulseplate_postgres_data*)
-    exit "${{STUB_POSTGRES_VOLUME_INSPECT_STATUS:-1}}"
+  volume\\ ls\\ --quiet)
+    if [ "${{STUB_POSTGRES_VOLUME_LIST_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_VOLUME_LIST_STATUS}}"
+    fi
+    printf '%s' "${{STUB_POSTGRES_VOLUME_LIST_OUTPUT:-}}"
     ;;
   image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
     if [ "${{STUB_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
@@ -6690,10 +6693,74 @@ def test_staging_rejects_unlistable_backup_before_postgres_switch(tmp_path: Path
     assert all(not line.startswith("docker stop a") for line in log_lines)
 
 
+@pytest.mark.parametrize("relative_path", ("scripts/deploy.sh", "scripts/deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("listing_status", "listing", "expected_status", "expected_message"),
+    (
+        (0, "", 0, None),
+        (
+            0,
+            "unrelated_volume\npulseplate_postgres_data\n",
+            1,
+            "volume exists without one trustworthy running container",
+        ),
+        (0, "invalid volume\n", 1, "volume listing is malformed"),
+        (47, "", 47, "Unable to establish PostgreSQL volume absence"),
+    ),
+)
+def test_fresh_postgres_volume_probe_requires_definitive_absence(
+    tmp_path: Path,
+    relative_path: str,
+    listing_status: int,
+    listing: str,
+    expected_status: int,
+    expected_message: str | None,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    marker = "require_absent_postgres_volume() {\n"
+    start = script.index(marker)
+    end = script.index("\n}\n", start) + len("\n}\n")
+    function_definition = script[start:end]
+    assert script.count("require_absent_postgres_volume") == 2
+
+    docker_stub = tmp_path / f"{Path(relative_path).stem}-docker"
+    response = (
+        f"exit {listing_status}" if listing_status != 0 else f"printf '%b' {json.dumps(listing)}"
+    )
+    _write_executable(
+        docker_stub,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [ "$*" != "volume ls --quiet" ]; then exit 99; fi\n'
+        f"{response}\n",
+    )
+    program = (
+        "set -euo pipefail\n"
+        f'DOCKER_BIN="{docker_stub}"\n'
+        'POSTGRES_VOLUME_NAME="pulseplate_postgres_data"\n'
+        f"{function_definition}\n"
+        "require_absent_postgres_volume\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_status
+    if expected_message is None:
+        assert completed.stderr == ""
+    else:
+        assert expected_message in completed.stderr
+
+
 def test_staging_orphan_postgres_volume_holds_before_quiesce_or_switch(tmp_path: Path) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
     env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
-    env["STUB_POSTGRES_VOLUME_INSPECT_STATUS"] = "0"
+    env["STUB_POSTGRES_VOLUME_LIST_OUTPUT"] = "pulseplate_postgres_data\n"
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
@@ -6717,7 +6784,6 @@ def test_staging_orphan_postgres_volume_holds_before_quiesce_or_switch(tmp_path:
 def test_staging_absent_volume_uses_fresh_path_without_backup(tmp_path: Path) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
     env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
-    env["STUB_POSTGRES_VOLUME_INSPECT_STATUS"] = "1"
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
@@ -6734,6 +6800,32 @@ def test_staging_absent_volume_uses_fresh_path_without_backup(tmp_path: Path) ->
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any(" stop worker caddy app" in line for line in log_lines)
     assert any(" up -d --pull never postgres" in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+
+
+def test_staging_ambiguous_volume_listing_holds_before_quiesce_or_switch(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    env["STUB_POSTGRES_VOLUME_LIST_STATUS"] = "47"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 47
+    assert "Unable to establish PostgreSQL volume absence; HOLD" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
     assert all(not line.startswith("backup ") for line in log_lines)
 
 

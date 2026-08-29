@@ -2069,6 +2069,33 @@ print(name)
 '
 }
 
+require_absent_postgres_volume() {
+  local volume_names=""
+  local volume_status=0
+  if volume_names="$("$DOCKER_BIN" volume ls --quiet)"; then
+    :
+  else
+    volume_status=$?
+    echo "❌ Unable to establish PostgreSQL volume absence; HOLD" >&2
+    return "$volume_status"
+  fi
+
+  local observed_volume=""
+  while IFS= read -r observed_volume; do
+    if [ -z "$observed_volume" ]; then
+      continue
+    fi
+    if [[ ! "$observed_volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$ ]]; then
+      echo "❌ Docker PostgreSQL volume listing is malformed; HOLD" >&2
+      return 1
+    fi
+    if [ "$observed_volume" = "$POSTGRES_VOLUME_NAME" ]; then
+      echo "❌ PostgreSQL volume exists without one trustworthy running container; HOLD" >&2
+      return 1
+    fi
+  done <<< "$volume_names"
+}
+
 read_existing_postgres_state() {
   local container_id="$1"
   "$DOCKER_BIN" inspect "$container_id" | "$PYTHON_BIN" -c '
@@ -2669,10 +2696,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       exit 1
     fi
   else
-    if "$DOCKER_BIN" volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
-      echo "❌ PostgreSQL volume exists without one trustworthy running container; HOLD" >&2
-      exit 1
-    fi
+    require_absent_postgres_volume
   fi
 
   if dc stop worker caddy app; then
