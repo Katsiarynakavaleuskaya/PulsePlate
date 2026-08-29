@@ -322,19 +322,19 @@
     },
     {
       "type": "create_button",
-      "name": "Open Pro",
+      "name": "Learn about PulsePlate for Apple devices",
       "cta_key": "web.home.open_pro",
       "style": "secondary",
-      "variant": "V2",
+      "variant": "V3",
       "placement_zone": "W_HOME_QA_GRID",
-      "figma_node_id": "PP/Web/Home/QuickActions/OpenPro/Button/Default (TBD)",
-      "prompt_stub": "stub://cta/secondary/open-pro",
+      "figma_node_id": "PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/information/apple-product",
       "states": [
         "default",
         "hover",
-        "disabled",
-        "loading",
-        "error"
+        "pressed",
+        "focus-visible",
+        "disabled"
       ],
       "canonical_component": "button",
       "section_id": "quick-actions",

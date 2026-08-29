@@ -2,7 +2,7 @@
 # PulsePlate Button Visual System + 5-Year Trend Intelligence (H+P+Pr)
 
 **Date:** February 18, 2026
-**Scope:** Home + Plate + Progress (`H+P+Pr`) for Web + iOS, including linked downstream CTA flows (setup/paywall/retry/edit)
+**Scope:** Home + Plate + Progress (`H+P+Pr`) for Web + iOS, including linked downstream CTA flows (setup/Apple-product information/retry/edit)
 **Language mode:** EN primary, RU notes for critical constraints
 
 ## 1) Purpose + SoT Links
@@ -92,14 +92,18 @@ RU (critical): в ошибках и блокировках избегаем ст
 
 ### 6.2 Mandatory state set
 
-Every CTA component in this scope must define:
+Every CTA component in this scope must define the applicable members of:
 
 - `default`
-- `hover/pressed`
+- `hover` (Web)
+- `pressed`
 - `focus-visible`
 - `disabled/locked`
-- `loading`
-- `error`
+- `loading` (async actions only)
+- `error` (fallible async actions only)
+
+Exact Web information state set: `default`, `hover`, `pressed`, `focus-visible`, `disabled`.
+The stable information parent IDs have no async state.
 
 ### 6.3 Icon/emblem rules
 
@@ -123,7 +127,7 @@ Every CTA component in this scope must define:
 | `W_HOME_QA_GRID` | Home quick actions grid | 2-column card rhythm, primary intent above fold |
 | `W_PLATE_GATE_ACTIONS` | Plate premium gate action strip | Locked-state hierarchy: informative secondary + unlock primary |
 | `W_PROGRESS_HEADER_UTIL` | Progress header utility zone | Utility actions on right side, never compete with chart focus |
-| `W_PAYWALL_MODAL_FOOTER` | Paywall modal footer | Primary purchase CTA + safe cancel secondary |
+| `W_APPLE_PRODUCT_INFO_ACTIONS` | Apple-product information card/dialog actions | Free BMI primary + marketing/dismiss secondary actions |
 | `W_SETUP_FORM_FOOTER` | Setup form footer | Single dominant submit action |
 | `W_SETUP_RESULT_ACTIONS` | Setup result recovery strip | Retry + edit actions with calm recovery semantics |
 
@@ -140,23 +144,28 @@ Every CTA component in this scope must define:
 
 ### 7.3 Linked downstream zones
 
-- `W_PAYWALL_MODAL_FOOTER`
+- `W_APPLE_PRODUCT_INFO_ACTIONS`
 - `W_SETUP_FORM_FOOTER`
 - `W_SETUP_RESULT_ACTIONS`
 
-## 8) Per-Button Visual Table (All H+P+Pr CTA IDs)
+## 8) Per-Button Visual Table (24 Design-Execution CTA IDs)
 
-State set for all rows: `default, hover/pressed, focus-visible, disabled/locked, loading, error`.
+The 24-row Figma/Sora/Code Connect subset is the complete matrix registry minus
+the three separately governed FitChef SupportChoice controls. Async controls use
+`default`, `hover`, `pressed`, `focus-visible`, `disabled/locked`, `loading`, and
+`error` where applicable. Exact Web information state set: `default`, `hover`,
+`pressed`, `focus-visible`, `disabled`. The information actions have no loading
+or error state because they start no asynchronous operation.
 
 | Platform | Screen | Button/CTA ID | Placement Zone | UX Intent | Variant A (V1) | Variant B (V2) | Variant C (V3) | Recommended Variant | State Set | Icon Rule | Sora Prompt IDs | Design Review Reference/TBD | Implement Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Web | Home | `web.home.open_setup` | `W_HOME_QA_GRID` | Start setup flow fast | Solid primary CTA with calm trust contrast | Soft-glass elevated tile CTA | Precision outline quick-action CTA | V1 | All mandatory states | Setup/support icon, no medical glyph | `SORA_BTN_web_home_open_setup_V1_default_V1` + same contract for V2/V3 and all states | TBD | Keep as primary Home CTA, test parity across desktop/mobile |
 | Web | Home | `web.home.open_plate` | `W_HOME_QA_GRID` | Navigate to Plate (auth-aware) | Solid secondary-primary bridge CTA | Soft-glass gated CTA with subtle lock affordance | Precision outline navigation CTA | V3 | All mandatory states | Plate icon must stay readable at 24 px | `SORA_BTN_web_home_open_plate_V3_default_V1` + full state contract | TBD | Add clearer locked/redirect visual affordance |
 | Web | Home | `web.home.open_progress` | `W_HOME_QA_GRID` | Navigate to Progress (auth-aware) | Solid progress action CTA | Soft-glass progress card CTA | Precision outline progress nav CTA | V3 | All mandatory states | Progress/chart icon, minimalist stroke | `SORA_BTN_web_home_open_progress_V3_default_V1` + full state contract | TBD | Align guard hint style with `open_plate` |
-| Web | Home | `web.home.open_pro` | `W_HOME_QA_GRID` | Enter Pro/Premium context | Solid premium CTA with controlled emphasis | Soft-glass premium highlight CTA | Precision outline premium teaser CTA | V2 | All mandatory states | Pro gem/star abstraction without copycat motifs | `SORA_BTN_web_home_open_pro_V2_default_V1` + full state contract | TBD | Keep “coming soon” tone without fake urgency |
+| Web | Home | `web.home.open_pro` | `W_HOME_QA_GRID` | Open the information-only Apple product handoff | Solid informational CTA | Soft-glass informational CTA | Precision outline informational CTA | V3 | Information-only states | Text-first; no Store or availability badge | `SORA_BTN_web_home_open_pro_V3_default_V1` + information-only state contract | `PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)` | Label is `Learn about PulsePlate for Apple devices`; destination is `/marketing` |
 | Web | Plate | `web.plate.open_setup` | `W_PLATE_GATE_ACTIONS` | Open setup from plate context | Solid primary recovery CTA | Soft-glass premium-context CTA | Precision outline fallback CTA | V1 | All mandatory states | Setup icon + calm orientation cue | `SORA_BTN_web_plate_open_setup_V1_default_V1` + full state contract | TBD | Improve non-premium explanatory state |
 | Web | Plate | `web.plate.open_progress` | `W_PLATE_GATE_ACTIONS` | Move from plate to progress | Solid action CTA | Soft-glass transition CTA | Precision outline context-switch CTA | V3 | All mandatory states | Progress icon with consistent stroke grammar | `SORA_BTN_web_plate_open_progress_V3_default_V1` + full state contract | TBD | Add premium/non-premium state visual parity |
-| Web | Plate | `web.plate.premium_gate_cta` | `W_PLATE_GATE_ACTIONS` | Open premium modal | Solid unlock CTA | Soft-glass premium unlock CTA | Precision outline unlock CTA | V2 | All mandatory states | Unlock icon must avoid aggressive urgency styling | `SORA_BTN_web_plate_premium_gate_cta_V2_default_V1` + full state contract | TBD | Purchase flow still callback-only, keep states explicit |
+| Web | Plate | `web.plate.premium_gate_cta` | `W_PLATE_GATE_ACTIONS` | Open the information-only Apple product handoff | Solid informational CTA | Soft-glass informational CTA | Precision outline informational CTA | V3 | Information-only states | Text-first; no Store or availability badge | `SORA_BTN_web_plate_premium_gate_cta_V3_default_V1` + information-only state contract | `PP/Web/Plate/PremiumGate/AppleProductInfo/Button/Default (TBD)` | Label is `Learn about PulsePlate for Apple devices`; opens the existing information dialog |
 | Web | Progress | `web.progress.export_pdf` | `W_PROGRESS_HEADER_UTIL` | Export report file | Solid utility-primary CTA | Soft-glass utility CTA | Precision outline utility CTA | V3 | All mandatory states | Export/download icon with 24 px clarity | `SORA_BTN_web_progress_export_pdf_V3_default_V1` + full state contract | TBD | Add deterministic error-state visual branch |
 | iOS | Home | `ios.home.bmi_calculator` | `I_HOME_QUICK_ACTIONS` | Start BMI flow | Solid row CTA with high tap confidence | Soft-glass row CTA | Precision outline row CTA | V1 | All mandatory states | BMI icon must avoid clinical cross symbols | `SORA_BTN_ios_home_bmi_calculator_V1_default_V1` + full state contract | TBD | Keep fast discoverability in top rows |
 | iOS | Home | `ios.home.profile_setup` | `I_HOME_QUICK_ACTIONS` | Open profile setup | Solid profile CTA | Soft-glass profile CTA | Precision outline profile CTA | V1 | All mandatory states | Profile icon with simple human silhouette | `SORA_BTN_ios_home_profile_setup_V1_default_V1` + full state contract | TBD | Needs nav outcome tests |
@@ -168,8 +177,9 @@ State set for all rows: `default, hover/pressed, focus-visible, disabled/locked,
 | iOS | Plate | `ios.plate.issue_action_dynamic` | `I_PLATE_ISSUE_RECOVERY` | Dynamic issue recovery action | Solid recovery CTA | Soft-glass recovery CTA | Precision outline recovery CTA | V1 | All mandatory states | Dynamic icon set: retry/profile/pro with shared stroke grammar | `SORA_BTN_ios_plate_issue_action_dynamic_V1_default_V1` + full state contract | TBD | Add branch-level visual QA per issue type |
 | iOS | Progress | `ios.progress.refresh` | `I_PROGRESS_EMPTY_RECOVERY` | Refresh data in empty state | Solid recovery CTA | Soft-glass recovery CTA | Precision outline utility refresh CTA | V1 | All mandatory states | Refresh icon with motion-safe loading pair | `SORA_BTN_ios_progress_refresh_V1_default_V1` + full state contract | TBD | Add no-data->loading->success visual test parity |
 | iOS | Progress | `ios.progress.issue_action_dynamic` | `I_PROGRESS_ISSUE_RECOVERY` | Dynamic issue recovery action | Solid recovery CTA | Soft-glass recovery CTA | Precision outline recovery CTA | V1 | All mandatory states | Dynamic issue icons aligned with Plate issue family | `SORA_BTN_ios_progress_issue_action_dynamic_V1_default_V1` + full state contract | TBD | Branch mapping visual checks needed |
-| Web (linked flow) | Paywall Modal | `web.paywall.modal.cta` | `W_PAYWALL_MODAL_FOOTER` | Confirm premium purchase path | Solid purchase CTA with trust tone | Soft-glass premium purchase CTA | Precision outline purchase CTA | V2 | All mandatory states | Purchase icon optional; never use fear cues | `SORA_BTN_web_paywall_modal_cta_V2_default_V1` + full state contract | TBD | Runtime purchase hook still partial |
-| Web (linked flow) | Paywall Modal | `web.paywall.modal.cancel` | `W_PAYWALL_MODAL_FOOTER` | Safe modal dismiss action | Solid cancel CTA | Soft-glass cancel CTA | Precision outline cancel CTA | V3 | All mandatory states | Cancel/close icon should be neutral and clear | `SORA_BTN_web_paywall_modal_cancel_V3_default_V1` + full state contract | TBD | Keep cancel always visible and calm |
+| Web (linked flow) | Apple Product Information | `web.apple_product_info.free_bmi` | `W_APPLE_PRODUCT_INFO_ACTIONS` | Open the free BMI calculator | Solid free-tool CTA | Soft-glass free-tool CTA | Precision outline free-tool CTA | V1 | Information-only states | BMI symbol remains wellness-safe and non-clinical | `SORA_BTN_web_apple_product_info_free_bmi_V1_default_V1` + information-only state contract | `PP/Web/AppleProductInfo/FreeBMI/Button/Default (TBD)` | Internal destination `/bmi` only |
+| Web (linked flow) | Apple Product Information | `web.apple_product_info.marketing` | `W_APPLE_PRODUCT_INFO_ACTIONS` | Open Apple-product marketing information | Solid informational CTA | Soft-glass informational CTA | Precision outline informational CTA | V3 | Information-only states | Text-first; no Store or availability badge | `SORA_BTN_web_apple_product_info_marketing_V3_default_V1` + information-only state contract | `PP/Web/AppleProductInfo/Marketing/Button/Default (TBD)` | Internal destination `/marketing` only |
+| Web (linked flow) | Apple Product Information | `web.apple_product_info.dismiss` | `W_APPLE_PRODUCT_INFO_ACTIONS` | Dismiss the information dialog | Solid neutral dismiss CTA | Soft-glass neutral dismiss CTA | Precision outline neutral dismiss CTA | V3 | Information-only states | Neutral close cue; never urgency styling | `SORA_BTN_web_apple_product_info_dismiss_V3_default_V1` + information-only state contract | `PP/Web/AppleProductInfo/Dialog/Dismiss/Button/Default (TBD)` | Preserves Escape, top close, explicit dismiss, and opener focus return |
 | Web (linked flow) | Nutrition Setup Form | `web.setup.submit_calculate` | `W_SETUP_FORM_FOOTER` | Submit setup and calculate plate | Solid dominant submit CTA | Soft-glass dominant submit CTA | Precision outline submit CTA | V1 | All mandatory states | Calculate icon optional, text-first clarity | `SORA_BTN_web_setup_submit_calculate_V1_default_V1` + full state contract | TBD | Preserve single clear primary action |
 | Web (linked flow) | Nutrition Setup Result | `web.setup.result.retry` | `W_SETUP_RESULT_ACTIONS` | Retry failed calculation | Solid recovery CTA | Soft-glass recovery CTA | Precision outline retry CTA | V1 | All mandatory states | Retry icon must convey recovery, not failure panic | `SORA_BTN_web_setup_result_retry_V1_default_V1` + full state contract | TBD | Extend error-branch visual QA |
 | Web (linked flow) | Nutrition Setup Result | `web.setup.result.edit` | `W_SETUP_RESULT_ACTIONS` | Return to edit input data | Solid edit CTA | Soft-glass edit CTA | Precision outline edit CTA | V3 | All mandatory states | Edit/pencil icon simple and readable | `SORA_BTN_web_setup_result_edit_V3_default_V1` + full state contract | TBD | Unify visual behavior for both edit entry points |
@@ -178,9 +188,9 @@ State set for all rows: `default, hover/pressed, focus-visible, disabled/locked,
 
 | Priority | Item | Why | Owner lane | Target PR |
 | --- | --- | --- | --- | --- |
-| P0 | Resolve partial runtime couplings for `ios.plate.add_meal`, `ios.plate.view_details`, `web.paywall.modal.cta` | Visual states must map to real outcomes | FE + iOS + Coordinator | Next runtime parity PR |
+| P0 | Resolve partial runtime couplings for `ios.plate.add_meal` and `ios.plate.view_details` | Visual states must map to real outcomes | iOS + Coordinator | Next runtime parity PR |
 | P0 | Add deterministic CTA-state QA for dynamic issue actions (Plate/Progress iOS) | Dynamic labels need state-consistent visuals | iOS + QA | Same PR wave as runtime couplings |
-| P1 | Roll out V1/V2/V3 harmonization across all 23 CTA IDs in Figma component sets | Prevent drift between screens/platforms | Creative + Sora + Figma coordinator | Figma component sync PR |
+| P1 | Roll out V1/V2/V3 harmonization across all 24 design-execution CTA IDs in Figma component sets | Prevent drift between screens/platforms | Creative + Sora + Figma coordinator | Figma component sync PR |
 | P1 | Materialize row-level Sora prompt outputs from prompt IDs in this document | Ensure deterministic prompt handoff | Sora prompt engineer | Prompt ops PR |
 | P2 | Backfill all `Design Review Reference` cells after component freeze | Complete tool-neutral design-to-code traceability | Design + FE + iOS | Design traceability PR |
 | P2 | Capture screenshot parity snapshots per CTA state family | Improve review reproducibility | QA + Coordinator | Visual QA hardening PR |

@@ -231,13 +231,13 @@ SCREEN_CONTENT_MODEL: dict[str, ScreenContentModel] = {
     "web.plate": {
         "surface": "web_plate_screen",
         "layout_archetype": "content_shell",
-        "layout_pattern": "content-card-with-upgrade-actions",
+        "layout_pattern": "content-card-with-information-actions",
         "layout_template_key": "content_actions",
         "cta_section_id": "plate-actions",
         "cta_parent_id": "web-plate-action-panel",
         "primary_components": ["card", "button"],
         "supporting_components": ["badge", "dialog", "progress"],
-        "states": ["default", "premium-gated", "loading", "error"],
+        "states": ["default", "information-boundary", "loading", "error"],
         "token_constraints": ["--pp-navy", "--color-primary", "--color-surface"],
         "interaction_contract": {
             "interaction_mode": "guided_adjustment",
@@ -435,13 +435,14 @@ CTA_REGISTRY = {
         cta_id="web.home.open_pro",
         platform="Web",
         screen="Home",
-        ui_label="Open Pro",
+        ui_label="Learn about PulsePlate for Apple devices",
         trigger_type="Link",
         status="Implemented",
-        variant="V2",
+        variant="V3",
         placement_zone="W_HOME_QA_GRID",
-        prompt_stub="stub://cta/secondary/open-pro",
-        figma_node_id="PP/Web/Home/QuickActions/OpenPro/Button/Default (TBD)",
+        prompt_stub="stub://cta/information/apple-product",
+        figma_node_id="PP/Web/Home/GuidedPlanning/AppleProductInfo/Button/Default (TBD)",
+        states=["default", "hover", "pressed", "focus-visible", "disabled"],
     ),
     # Web Plate CTAs
     "web.plate.open_setup": CTASpec(
@@ -472,13 +473,14 @@ CTA_REGISTRY = {
         cta_id="web.plate.premium_gate_cta",
         platform="Web",
         screen="Plate",
-        ui_label="Unlock Premium",
+        ui_label="Learn about PulsePlate for Apple devices",
         trigger_type="button",
         status="Implemented",
-        variant="V2",
+        variant="V3",
         placement_zone="W_PLATE_GATE_ACTIONS",
-        prompt_stub="stub://cta/paywall-unlock",
-        figma_node_id="PP/Web/Plate/PremiumGate/UnlockCTA/Button/Default (TBD)",
+        prompt_stub="stub://cta/information/apple-product",
+        figma_node_id="PP/Web/Plate/PremiumGate/AppleProductInfo/Button/Default (TBD)",
+        states=["default", "hover", "pressed", "focus-visible", "disabled"],
     ),
     # Web Progress CTAs
     "web.progress.export_pdf": CTASpec(
@@ -866,6 +868,7 @@ def main() -> int:
         instruction_dict = instruction_to_dict(instruction)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(instruction_dict, f, indent=2)
+            f.write("\n")
 
         print(f"\nInstruction written to: {output_path}")
 
