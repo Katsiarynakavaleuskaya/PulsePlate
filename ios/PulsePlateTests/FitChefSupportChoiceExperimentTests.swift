@@ -1061,9 +1061,9 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             pattern: #"if\s+isSelected\s*\{\s*Text\(detail\)"#
         )
         XCTAssertEqual(occurrenceCount(of: "Text(detail)", in: source), 1)
-        XCTAssertLessThanOrEqual(
+        XCTAssertEqual(
             disclosureRegex.numberOfMatches(in: source, range: range),
-            1
+            0
         )
     }
 
@@ -1144,6 +1144,20 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 of: ".padding(.horizontal, PPDesignTokens.Spacing.medium)",
                 in: source
             ),
+            0
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "horizontalPadding: choiceRowHorizontalPadding",
+                in: body
+            ),
+            2
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.horizontal, horizontalPadding)",
+                in: source
+            ),
             1
         )
         XCTAssertEqual(
@@ -1187,7 +1201,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         let cardPadding = try sourceSlice(
             source,
             from: "private var cardHorizontalPadding: CGFloat",
-            to: "private var fitChefImageSize: CGFloat"
+            to: "private var choiceRowHorizontalPadding: CGFloat"
         )
         assertOrdered(
             [
@@ -1211,6 +1225,33 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             1
         )
 
+        let choiceRowPadding = try sourceSlice(
+            source,
+            from: "private var choiceRowHorizontalPadding: CGFloat",
+            to: "private var fitChefImageSize: CGFloat"
+        )
+        assertOrdered(
+            [
+                "private var choiceRowHorizontalPadding: CGFloat",
+                "dynamicTypeSize.isAccessibilitySize",
+                "? PPDesignTokens.Spacing.small",
+                ": PPDesignTokens.Spacing.medium",
+            ],
+            in: choiceRowPadding
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "dynamicTypeSize.isAccessibilitySize", in: choiceRowPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.small", in: choiceRowPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.medium", in: choiceRowPadding),
+            1
+        )
+
         let layoutState = try sourceSlice(
             source,
             from: "private let actionButtonSize: PPButtonSize",
@@ -1221,6 +1262,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "private let actionButtonSize: PPButtonSize = .sm",
                 "private var horizontalRailPadding: CGFloat",
                 "private var cardHorizontalPadding: CGFloat",
+                "private var choiceRowHorizontalPadding: CGFloat",
                 "private var usesStackedActions: Bool",
                 "dynamicTypeSize.isAccessibilitySize || horizontalSizeClass != .regular",
                 "private var scrollAnchor: UnitPoint",
@@ -1294,6 +1336,54 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(
             occurrenceCount(of: "supportChoiceScrollView", in: versionedScrollAnchor),
             2
+        )
+
+        let choiceRow = try sourceSlice(
+            source,
+            from: "private struct FitChefSupportChoiceRow: View",
+            to: "#if DEBUG\nprivate enum FitChefSupportChoicePreviewFixtures"
+        )
+        assertOrdered(
+            [
+                "let title: String",
+                "let detail: String",
+                "let isSelected: Bool",
+                "let horizontalPadding: CGFloat",
+                "let action: () -> Void",
+                "HStack(alignment: .top, spacing: PPDesignTokens.Spacing.medium)",
+                "minWidth: PPAccessibility.minimumTouchTarget",
+                "minHeight: PPAccessibility.minimumTouchTarget",
+                "Text(detail)",
+                ".padding(.vertical, PPDesignTokens.Spacing.small)",
+                ".padding(.horizontal, horizontalPadding)",
+            ],
+            in: choiceRow
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "Text(detail)", in: choiceRow),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "HStack(alignment: .top, spacing: PPDesignTokens.Spacing.medium)",
+                in: choiceRow
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".padding(.vertical, PPDesignTokens.Spacing.small)", in: choiceRow),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".padding(.horizontal, horizontalPadding)", in: choiceRow),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.horizontal, PPDesignTokens.Spacing.medium)",
+                in: choiceRow
+            ),
+            0
         )
 
         let actions = try sourceSlice(
