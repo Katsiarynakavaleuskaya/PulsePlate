@@ -180,21 +180,18 @@ def require_feature(feature_key: str, reason: str) -> NoReturn:
     """Use the repository skip protocol for optional compatibility dependencies."""
 
     assert feature_key in {PGVECTOR_BINDING_FEATURE, PGVECTOR_DATABASE_FEATURE}
-    pytest.skip(f"feature_disabled:{feature_key} {reason}")
-    raise AssertionError("pytest.skip returned unexpectedly")
+    raise pytest.skip.Exception(f"feature_disabled:{feature_key} {reason}")
 
 
 def _skip_or_fail_binding(reason: str) -> NoReturn:
     if os.getenv("PRE_COMMIT", "").strip() == "1":
         require_feature(PGVECTOR_BINDING_FEATURE, reason)
-    pytest.fail(reason)
-    raise AssertionError("pytest.fail returned unexpectedly")
+    raise pytest.fail.Exception(reason)
 
 
 def _skip_or_fail_database(reason: str, *, required: bool) -> NoReturn:
     if required:
-        pytest.fail(reason)
-        raise AssertionError("pytest.fail returned unexpectedly")
+        raise pytest.fail.Exception(reason)
     require_feature(PGVECTOR_DATABASE_FEATURE, reason)
 
 
@@ -212,8 +209,7 @@ def _vector_type(
 
     vector_factory = getattr(module, "VECTOR", None)
     if vector_factory is None:
-        pytest.fail("pgvector.sqlalchemy.VECTOR is unavailable")
-        raise AssertionError("pytest.fail returned unexpectedly")
+        raise pytest.fail.Exception("pgvector.sqlalchemy.VECTOR is unavailable")
     vector_type = vector_factory(dimensions)
     assert isinstance(vector_type, UserDefinedType)
     return vector_type
@@ -406,14 +402,13 @@ def _fail_capped_identity_inventory(prefix: str, identities: Sequence[str]) -> N
 
     ordered_identities = sorted(identities)
     emitted_identities = ordered_identities[:UNEXPECTED_ALEMBIC_LEAF_REPORT_CAP]
-    pytest.fail(
+    raise pytest.fail.Exception(
         f"{prefix}:"
         f"count={len(ordered_identities)};"
         f"cap={UNEXPECTED_ALEMBIC_LEAF_REPORT_CAP};"
         f"truncated={len(ordered_identities) > len(emitted_identities)};"
         f"identities={json.dumps(emitted_identities, separators=(',', ':'))}"
     )
-    raise AssertionError("pytest.fail returned unexpectedly")
 
 
 def _assert_foundation_ownership_rows(connection: Connection) -> None:
@@ -454,11 +449,10 @@ def _assert_foundation_ownership_rows(connection: Connection) -> None:
 
 
 def _fail_foundation_index_descriptor(table_name: str, index_name: str, field: str) -> NoReturn:
-    pytest.fail(
+    raise pytest.fail.Exception(
         "foundation_index_descriptor_mismatch:"
         f"table=public.{table_name};object={index_name};field={field}"
     )
-    raise AssertionError("pytest.fail returned unexpectedly")
 
 
 def _assert_foundation_index_descriptors(connection: Connection) -> None:
@@ -2560,8 +2554,9 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
             connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
             created_oid = _database_oid(connection, database_name)
             if created_oid is None or created_oid <= 0:
-                pytest.fail("Created database has no unambiguous positive OID receipt")
-                raise AssertionError("pytest.fail returned unexpectedly")
+                raise pytest.fail.Exception(
+                    "Created database has no unambiguous positive OID receipt"
+                )
             receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
 
         target_url = parsed_url.set(database=database_name)
@@ -2803,8 +2798,9 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
             connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
             created_oid = _database_oid(connection, database_name)
             if created_oid is None or created_oid <= 0:
-                pytest.fail("FitChef outcome test database has no positive OID receipt")
-                raise AssertionError("pytest.fail returned unexpectedly")
+                raise pytest.fail.Exception(
+                    "FitChef outcome test database has no positive OID receipt"
+                )
             receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
             connection.exec_driver_sql(
                 f"CREATE ROLE {quoted_role} WITH LOGIN "
