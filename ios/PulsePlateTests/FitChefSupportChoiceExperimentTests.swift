@@ -794,9 +794,12 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             "UIDevice",
             "UIScreen",
             "userInterfaceIdiom",
+            ".padding(.horizontal, 12)",
             ".minimumScaleFactor(",
             ".lineLimit(",
             ".truncationMode(",
+            "\\n",
+            "\u{00A0}",
             ".save(",
             ".write(",
         ]
@@ -1105,8 +1108,26 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
         XCTAssertEqual(
             occurrenceCount(
-                of: ".padding(.horizontal, PPDesignTokens.Spacing.xLarge)",
+                of: ".padding(.horizontal, horizontalRailPadding)",
                 in: body
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.horizontal, PPDesignTokens.Spacing.xLarge)",
+                in: source
+            ),
+            0
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: ".padding(PPDesignTokens.Spacing.xLarge)", in: source),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: ".padding(.horizontal, PPDesignTokens.Spacing.medium)",
+                in: source
             ),
             1
         )
@@ -1121,6 +1142,33 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             body.contains(".padding(.bottom, PPDesignTokens.Spacing.xxLarge)")
         )
 
+        let railPadding = try sourceSlice(
+            source,
+            from: "private var horizontalRailPadding: CGFloat",
+            to: "private var fitChefImageSize: CGFloat"
+        )
+        assertOrdered(
+            [
+                "private var horizontalRailPadding: CGFloat",
+                "dynamicTypeSize.isAccessibilitySize",
+                "? PPDesignTokens.Spacing.medium",
+                ": PPDesignTokens.Spacing.xLarge",
+            ],
+            in: railPadding
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "dynamicTypeSize.isAccessibilitySize", in: railPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.medium", in: railPadding),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(of: "PPDesignTokens.Spacing.xLarge", in: railPadding),
+            1
+        )
+
         let layoutState = try sourceSlice(
             source,
             from: "private let actionButtonSize: PPButtonSize",
@@ -1129,6 +1177,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         assertOrdered(
             [
                 "private let actionButtonSize: PPButtonSize = .sm",
+                "private var horizontalRailPadding: CGFloat",
                 "private var usesStackedActions: Bool",
                 "dynamicTypeSize.isAccessibilitySize || horizontalSizeClass != .regular",
                 "private var scrollAnchor: UnitPoint",
