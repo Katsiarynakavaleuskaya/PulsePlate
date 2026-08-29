@@ -51,7 +51,6 @@ COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "test_app_creation_coverage",  # app creation coverage
     "test_final_coverage",
     "test_final_97_coverage",
-    "test_catalog_api",
     "test_vip_shoplist_preview",
     "test_vip_anonymous_api_key_safety",
     "test_vip_api",  # vip api tests
