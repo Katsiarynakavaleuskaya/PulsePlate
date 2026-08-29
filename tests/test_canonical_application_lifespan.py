@@ -1626,12 +1626,12 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
         "dc config --quiet",
         "dc pull app",
         "dc pull worker",
-        "dc stop worker",
-        "  dc rm -f worker",
+        "  if dc stop worker caddy app; then",
         "if dc run --rm --no-deps app alembic upgrade head; then",
         "sync_shell_bundle",
         "dc up -d --remove-orphans app",
         "  dc up -d --pull never --wait --wait-timeout 30 worker",
+        "  dc rm -f worker",
         "dc up -d --remove-orphans caddy",
         "  dc up -d --pull never --no-recreate --wait --wait-timeout 30 worker",
     ]
@@ -1652,12 +1652,12 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
     staging_lines = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8").splitlines()
     staging_order = [
         '"${COMPOSE[@]}" pull worker',
-        '"${COMPOSE[@]}" stop worker',
-        '  "${COMPOSE[@]}" rm -f worker',
-        'echo "[3/5] Start Postgres and create a pre-migration backup"',
+        'echo "[3/5] Census and quiesce the current product before PostgreSQL transition"',
+        'if "${COMPOSE[@]}" stop worker caddy app; then',
         'if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then',
         '"${COMPOSE[@]}" up -d --pull never app',
         '  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker',
+        '  "${COMPOSE[@]}" rm -f worker',
         '"${COMPOSE[@]}" up -d --pull never caddy',
         ('  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker'),
     ]
