@@ -1,7 +1,11 @@
-"""Guard test: prevent direct TestClient(app*.app) bypass.
+"""Guard the finite set of enumerated direct TestClient constructor spellings.
 
-Ensures all tests use canonical entrypoint via tests._client.get_client()
-or conftest fixtures, preventing 404 on /metrics and missing observability.
+At invocation time, the guard searches each exact ``BAD_PATTERNS`` substring in
+decoded ``tests/**/*.py`` sources remaining after ``ALLOWLIST`` and
+``COVERAGE_BOOST_PATTERNS`` exclusions. A passing result proves only zero enumerated
+literal hits in that bounded decoded-text universe. It does not prove that all tests
+use managed clients and does not resolve aliases, formatting variants, wrappers,
+reflection, dynamic lookup, generated code, or runtime mutation.
 """
 
 from __future__ import annotations
@@ -20,7 +24,8 @@ ALLOWLIST: Final[set[str]] = {
 # Patterns allowed in coverage boost files (tech debt, low priority).
 #
 # Tech-debt note:
-# These files predate `tests/_client.get_client()` and may still construct TestClient directly.
+# These files predate `tests._client.open_test_client(...)` and may still construct
+# TestClient directly.
 # Tracking: docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md • Owner: @Katsiarynakavaleuskaya • Target: 2026-03-31
 # Once migrated, remove the relevant patterns from this allowlist.
 COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
@@ -51,7 +56,6 @@ COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "test_vip_anonymous_api_key_safety",
     "test_vip_api",  # vip api tests
     "test_update_manager",
-    "test_health_db",
     "test_api.py",  # Legacy mega test file
     "disabled_hypothesis",  # Disabled tests
     "edges/",  # Edge case tests
@@ -65,15 +69,17 @@ BAD_PATTERNS: Final[tuple[str, ...]] = (
     "TestClient(cast(ASGIApp, app.app))",
     "TestClient(cast(ASGIApp, app_module.app))",
     "TestClient(cast(ASGIApp, app_mod.app))",
+    "TestClient(legacy_app.app)",
+    "TestClient(cast(ASGIApp, legacy_app.app))",
 )
 
 
 def test_no_direct_testclient_bypass() -> None:
-    """Enforce: all tests use get_client() or conftest fixtures.
+    """Reject the exact enumerated spellings outside the explicit exclusions.
 
     Rationale:
-    Direct TestClient(app.app) bypasses register_metrics() bootstrap,
-    causing 404 on /metrics and missing observability middleware.
+    The listed direct TestClient entrypoint forms bypass the canonical managed
+    lifecycle owner and can miss bootstrap or cleanup behavior.
 
     Allowed:
     - conftest.py: defines canonical fixtures
@@ -81,8 +87,10 @@ def test_no_direct_testclient_bypass() -> None:
     - test_legacy_app_diff_coverage.py: legacy suite (intentional)
 
     Forbidden:
-    - TestClient(app.app) anywhere else
-    - TestClient(app_module.app) anywhere else
+    - Exact BAD_PATTERNS substrings in other scan-time decoded tests/**/*.py files
+
+    Boundary:
+    - This substring scan does not resolve aliases, reflection, or runtime mutation.
     """
     repo = Path(__file__).resolve().parents[1]
     tests_dir = repo / "tests"
@@ -103,7 +111,10 @@ def test_no_direct_testclient_bypass() -> None:
                 bad_hits.append(f"{rel}: contains '{pattern}'")
 
     assert not bad_hits, (
-        "Direct TestClient(entrypoint.app) is forbidden outside allowlist.\n"
-        "Use: tests._client.get_client() or conftest client/client_with_vip_access fixtures.\n"
+        "Enumerated textual TestClient constructor forms were found in scanned "
+        "non-excluded test files.\n"
+        "Use: tests._client.open_test_client(...) or canonical conftest fixtures.\n"
+        "Scope: exact BAD_PATTERNS substring matches after ALLOWLIST and "
+        "COVERAGE_BOOST_PATTERNS exclusions.\n"
         "Violations:\n" + "\n".join(bad_hits)
     )
