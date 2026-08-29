@@ -763,13 +763,8 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
     }
 
-    func testCandidateViewStaticContractWhenCandidateIsPresent() throws {
-        guard let source = try fitChefCandidateViewSource() else {
-            XCTAssertFalse(
-                FileManager.default.fileExists(atPath: try fitChefCandidateViewURL().path)
-            )
-            return
-        }
+    func testCandidateViewStaticContract() throws {
+        let source = try fitChefCandidateViewSource()
 
         let forbiddenFragments = [
             "URLSession",
@@ -1067,10 +1062,8 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
     }
 
-    func testCandidateCommonLayoutAndButtonContractWhenCandidateIsPresent() throws {
-        guard let source = try fitChefCandidateViewSource() else {
-            return
-        }
+    func testCandidateCommonLayoutAndButtonContract() throws {
+        let source = try fitChefCandidateViewSource()
 
         let body = try sourceSlice(
             source,
@@ -1438,10 +1431,8 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(occurrenceCount(of: "size: actionButtonSize", in: source), 2)
     }
 
-    func testCandidateSemanticDeclarationOrderWhenCandidateIsPresent() throws {
-        guard let source = try fitChefCandidateViewSource() else {
-            return
-        }
+    func testCandidateSemanticDeclarationOrder() throws {
+        let source = try fitChefCandidateViewSource()
         let body = try sourceSlice(
             source,
             from: "var body: some View",
@@ -1643,11 +1634,8 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         )
     }
 
-    private func fitChefCandidateViewSource() throws -> String? {
+    private func fitChefCandidateViewSource() throws -> String {
         let url = try fitChefCandidateViewURL()
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            return nil
-        }
         return try String(contentsOf: url, encoding: .utf8)
     }
 
