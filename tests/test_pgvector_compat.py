@@ -2291,6 +2291,30 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
                     ("user_id", "date"),
                 ),
             )
+
+        from app.models import UserKnowledge
+
+        vector_values = [float(index) / 768 for index in range(768)]
+        vector_payload = json.dumps(vector_values, separators=(",", ":"))
+        with target_engine.begin() as connection:
+            connection.execute(text("SELECT set_config('app.current_user_id', '900001', true)"))
+            connection.execute(
+                insert(UserKnowledge.__table__),
+                {
+                    "id": 900001,
+                    "user_id": 900001,
+                    "content": "drift vector binding proof",
+                    "embedding": vector_payload,
+                    "source": "drift-proof",
+                },
+            )
+            stored_embedding = connection.scalar(
+                select(UserKnowledge.__table__.c.embedding).where(
+                    UserKnowledge.__table__.c.id == 900001
+                )
+            )
+            assert isinstance(stored_embedding, str)
+            assert json.loads(stored_embedding) == pytest.approx(vector_values)
         first_projection = _project_postgres_migration_state(target_engine)
         assert first_projection.head == heads[0]
 
@@ -2327,7 +2351,7 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
 
         seeded_head_projection = _project_postgres_migration_state(target_engine)
         _run_alembic(target_url, "downgrade", PRE_DRIFT_RECONCILIATION_HEAD)
-        with target_engine.connect() as connection:
+        with target_engine.begin() as connection:
             assert _drift_unique_object_inventory(connection) == (
                 (
                     "analyzer_state",
@@ -2352,6 +2376,41 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
             ).one()
             assert tuple(analyzer_row) == (900001, "drift-proof")
             assert tuple(day_row) == (900001, 900001, date(2026, 8, 24))
+
+            connection.exec_driver_sql("CREATE SCHEMA hostile")
+            connection.exec_driver_sql(
+                "CREATE TABLE hostile.analyzer_state (user_id integer, analyzer_key text)"
+            )
+            connection.exec_driver_sql(
+                "CREATE INDEX uq_analyzer_state_user_key "
+                "ON hostile.analyzer_state (analyzer_key)"
+            )
+            connection.exec_driver_sql("SET LOCAL search_path TO hostile, public, pg_catalog")
+
+            drift_revision = scripts.get_revision("202608290001")
+            assert drift_revision is not None
+            revision_module = drift_revision.module
+            expected_index = getattr(revision_module, "_EXPECTED_INDEXES")[0]
+            descriptor = getattr(revision_module, "_load_index_descriptor")(
+                connection,
+                expected_index,
+            )
+            getattr(revision_module, "_require_adoptable_index")(
+                descriptor,
+                expected_index,
+            )
+            assert descriptor.table_schema == "public"
+            assert descriptor.key_columns == ("user_id", "analyzer_key")
+            wrong_descriptor = descriptor._replace(key_columns=("analyzer_key", "user_id"))
+            with pytest.raises(
+                RuntimeError,
+                match="index_admission_failed:uq_analyzer_state_user_key:key_columns",
+            ):
+                getattr(revision_module, "_require_adoptable_index")(
+                    wrong_descriptor,
+                    expected_index,
+                )
+            connection.exec_driver_sql("DROP SCHEMA hostile CASCADE")
 
         _run_alembic(target_url, "upgrade", "head")
         with target_engine.connect() as connection:

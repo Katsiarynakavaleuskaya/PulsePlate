@@ -13,6 +13,7 @@ import ast
 import importlib
 import importlib.util
 import inspect
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -267,34 +268,174 @@ def test_json_default_comparator_is_exact_typed_and_non_suppressing() -> None:
 
     inspected_json = Column("payload", postgresql.JSON())
     metadata_json = Column("payload", JSON())
-    assert comparator(None, inspected_json, metadata_json, "'{}'::json", None, "'{}'") is False
-    assert (
-        comparator(None, inspected_json, metadata_json, "'{\"x\":1}'::json", None, "'{\"x\":2}'")
-        is True
+    assert comparator(None, inspected_json, metadata_json, "'{}'::json", None, "{}") is False
+    for raw_payload in ("[1,2.0,3e4000]", "true", "false", "1", "1.0", "1e999999"):
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                f"'{raw_payload}'::json",
+                None,
+                raw_payload,
+            )
+            is False
+        )
+    equal_pairs = (
+        ("{}", "{}"),
+        ("true", "true"),
+        ("false", "false"),
+        (
+            '{"outer":{"flag":true,"items":[1,2.0,3e4000]}}',
+            '{"outer":{"items":[1,2.0,3e4000],"flag":true}}',
+        ),
+        (
+            "123456789012345678901234567890.12345678901234567890",
+            "123456789012345678901234567890.12345678901234567890",
+        ),
+        ("1e999999999999999999999", "1e999999999999999999999"),
     )
-    with pytest.raises(ValueError, match="postgresql_json_default_unparseable"):
-        comparator(None, inspected_json, metadata_json, "'{broken'::json", None, "'{}'")
+    for inspected_payload, metadata_payload in equal_pairs:
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                f"'{inspected_payload}'::json",
+                None,
+                f"'{metadata_payload}'",
+            )
+            is False
+        )
+
+    different_pairs = (
+        ("true", "1"),
+        ("false", "0"),
+        ("[1,2]", "[2,1]"),
+        ("1", "1.0"),
+        ("1e999999999999999999999", "10e999999999999999999998"),
+        ("0.123456789012345678901", "0.123456789012345678902"),
+    )
+    for inspected_payload, metadata_payload in different_pairs:
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                f"'{inspected_payload}'::json",
+                None,
+                f"'{metadata_payload}'",
+            )
+            is True
+        )
+
+    for terminal_payload in ("{broken", '{"x":1,"x":2}', "NaN", "Infinity", "-Infinity"):
+        with pytest.raises(ValueError, match="postgresql_json_default_unparseable"):
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                f"'{terminal_payload}'::json",
+                None,
+                "'{}'",
+            )
+    for sql_expression in (
+        "('{}'::json)",
+        "json_build_object('x', 1)",
+        "CAST('{}' AS json)",
+        "1 + 1",
+    ):
+        with pytest.raises(ValueError, match="postgresql_json_default_unparseable"):
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                "'{}'::json",
+                None,
+                sql_expression,
+            )
 
     inspected_integer = Column("count", Integer())
     metadata_integer = Column("count", Integer())
     assert comparator(None, inspected_integer, metadata_integer, "0", None, "0") is None
 
 
-def test_vector_model_variant_and_reflection_are_exact() -> None:
+def test_vector_factory_selection_and_registry_ownership_fail_closed() -> None:
+    model_module = importlib.import_module("app.models.rag_feedback")
+    select_factory = getattr(model_module, "_select_vector_type_factory")
+    register_owner = getattr(model_module, "_register_vector_type_owner")
+    fallback_type = getattr(model_module, "_FallbackVectorType")
+    selected_type = getattr(model_module, "_vector_type_factory")
+
+    assert select_factory(selected_type, None) is selected_type
+    absent = ModuleNotFoundError("No module named 'pgvector'", name="pgvector")
+    assert select_factory(None, absent) is fallback_type
+
+    broken_errors: tuple[BaseException, ...] = (
+        ModuleNotFoundError("No module named 'pgvector.sqlalchemy'", name="pgvector.sqlalchemy"),
+        ModuleNotFoundError("No module named 'pgvector_internal'", name="pgvector_internal"),
+        ImportError("broken pgvector transitive dependency"),
+    )
+    for broken in broken_errors:
+        with pytest.raises(type(broken)) as raised:
+            select_factory(None, broken)
+        assert raised.value is broken
+
+    empty_registry: dict[str, object] = {}
+    assert register_owner(empty_registry, selected_type) is selected_type
+    assert empty_registry == {"vector": selected_type}
+
+    compatible_registry: dict[str, object] = {"vector": selected_type}
+    assert register_owner(compatible_registry, selected_type) is selected_type
+    assert compatible_registry == {"vector": selected_type}
+
+    incompatible_registry: dict[str, object] = {"vector": object()}
+    with pytest.raises(RuntimeError, match="postgresql_vector_registry_owner_incompatible"):
+        register_owner(incompatible_registry, selected_type)
+
+    fallback = fallback_type(768)
+    assert fallback.dim == 768
+    assert str(fallback.compile(dialect=postgresql.dialect())) == "VECTOR(768)"
+
+
+def test_vector_model_variant_binding_and_reflection_are_exact() -> None:
     column_type = UserKnowledge.__table__.c.embedding.type
-    assert isinstance(column_type.dialect_impl(sqlite.dialect()), Text)
+    sqlite_type = column_type.dialect_impl(sqlite.dialect())
+    assert isinstance(sqlite_type.impl, Text)
     postgres_type = column_type.dialect_impl(postgresql.dialect())
     registered_vector_type = ischema_names.get("vector")
     assert isinstance(registered_vector_type, type)
-    assert isinstance(postgres_type, registered_vector_type)
-    assert postgres_type.dim == 768
+    assert isinstance(postgres_type.impl, registered_vector_type)
+    assert getattr(postgres_type.impl, "dim") == 768
     assert str(postgres_type.compile(dialect=postgresql.dialect())) == "VECTOR(768)"
 
-    if registered_vector_type.__module__.startswith("pgvector."):
-        assert registered_vector_type.__name__ == "VECTOR"
-    else:
-        assert registered_vector_type.__module__ == "app.models.rag_feedback"
-        assert registered_vector_type.__name__ == "_FallbackVectorType"
+    payload = json.dumps([float(index) / 768 for index in range(768)])
+    bind_processor = postgres_type.bind_processor(postgresql.dialect())
+    result_processor = postgres_type.result_processor(postgresql.dialect(), None)
+    assert bind_processor is not None
+    assert result_processor is not None
+    encoded = bind_processor(payload)
+    assert isinstance(encoded, str)
+    round_tripped = result_processor(encoded)
+    assert isinstance(round_tripped, str)
+    assert json.loads(round_tripped) == pytest.approx(json.loads(payload))
+
+    sqlite_bind_processor = sqlite_type.bind_processor(sqlite.dialect())
+    assert sqlite_bind_processor is not None
+    assert sqlite_bind_processor("[0.1,0.2]") == "[0.1,0.2]"
+
+    invalid_payloads = (
+        "not-json",
+        "[0.0]",
+        json.dumps([True] * 768),
+        "[NaN," + ",".join("0" for _ in range(767)) + "]",
+        "[Infinity," + ",".join("0" for _ in range(767)) + "]",
+    )
+    for invalid_payload in invalid_payloads:
+        with pytest.raises(ValueError, match="vector_embedding_"):
+            bind_processor(invalid_payload)
+    with pytest.raises(ValueError, match="vector_embedding_postgresql_value_must_be_text"):
+        bind_processor([0.0] * 768)
 
 
 def test_model_only_drift_is_closed_without_physical_schema_changes() -> None:
@@ -350,52 +491,129 @@ def test_single_forward_revision_contains_only_schema_owned_operations() -> None
     functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
     assert set(functions) >= {"upgrade", "downgrade"}
     assert _operation_calls(functions["upgrade"]) == [
+        ("get_bind", None, None),
+        ("execute", "SET LOCAL search_path TO pg_catalog, public", None),
         (
             "execute",
-            "ALTER TABLE analyzer_state ADD CONSTRAINT uq_analyzer_state_user_key "
+            "ALTER TABLE public.analyzer_state ADD CONSTRAINT uq_analyzer_state_user_key "
             "UNIQUE USING INDEX uq_analyzer_state_user_key",
             None,
         ),
         (
             "execute",
-            "ALTER TABLE day_plans ADD CONSTRAINT uq_day_plans_user_date "
+            "ALTER TABLE public.day_plans ADD CONSTRAINT uq_day_plans_user_date "
             "UNIQUE USING INDEX ix_day_plans_user_date",
             None,
         ),
-        ("get_bind", None, None),
     ]
     assert _operation_calls(functions["downgrade"]) == [
         (
             "execute",
-            "CREATE UNIQUE INDEX ix_day_plans_user_date_restore " "ON day_plans (user_id, date)",
+            "CREATE UNIQUE INDEX ix_day_plans_user_date_restore "
+            "ON public.day_plans (user_id, date)",
             None,
         ),
         (
             "execute",
-            "ALTER TABLE day_plans DROP CONSTRAINT uq_day_plans_user_date",
+            "ALTER TABLE public.day_plans DROP CONSTRAINT uq_day_plans_user_date",
             None,
         ),
         (
             "execute",
-            "ALTER INDEX ix_day_plans_user_date_restore RENAME TO ix_day_plans_user_date",
+            "ALTER INDEX public.ix_day_plans_user_date_restore RENAME TO ix_day_plans_user_date",
             None,
         ),
         (
             "execute",
             "CREATE UNIQUE INDEX uq_analyzer_state_user_key_restore "
-            "ON analyzer_state (user_id, analyzer_key)",
+            "ON public.analyzer_state (user_id, analyzer_key)",
             None,
         ),
         (
             "execute",
-            "ALTER TABLE analyzer_state DROP CONSTRAINT uq_analyzer_state_user_key",
+            "ALTER TABLE public.analyzer_state DROP CONSTRAINT uq_analyzer_state_user_key",
             None,
         ),
         (
             "execute",
-            "ALTER INDEX uq_analyzer_state_user_key_restore "
+            "ALTER INDEX public.uq_analyzer_state_user_key_restore "
             "RENAME TO uq_analyzer_state_user_key",
             None,
         ),
         ("get_bind", None, None),
     ]
+
+    env_source = (REPO_ROOT / "alembic" / "env.py").read_text(encoding="utf-8")
+    assert env_source.count("compare_type=True") == 2
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value", "reason"),
+    (
+        ("table_schema", "hostile", "table_schema"),
+        ("table_name", "other", "table_name"),
+        ("index_schema", "hostile", "index_schema"),
+        ("index_name", "other", "index_name"),
+        ("key_columns", ("analyzer_key", "user_id"), "key_columns"),
+        ("access_method", "hash", "access_method"),
+        ("is_unique", False, "unique"),
+        ("is_valid", False, "valid"),
+        ("is_ready", False, "ready"),
+        ("is_live", False, "live"),
+        ("nulls_not_distinct", True, "nulls_not_distinct"),
+        ("key_options", (1, 0), "key_options"),
+        ("key_opclasses_default", (True, False), "key_opclasses"),
+        ("key_collations_match", (True, False), "key_collations"),
+        ("predicate", "user_id > 0", "predicate"),
+        ("expressions", "lower(analyzer_key)", "expressions"),
+        ("included_column_count", 1, "include_columns"),
+        ("constraint_owner", "already_owned", "constraint_owner"),
+    ),
+)
+def test_forward_revision_index_admission_is_exact_and_fail_closed(
+    field_name: str,
+    invalid_value: object,
+    reason: str,
+) -> None:
+    scripts = ScriptDirectory.from_config(Config(str(ALEMBIC_INI)))
+    revision = scripts.get_revision(scripts.get_current_head())
+    assert revision is not None
+    module = revision.module
+    descriptor_type = getattr(module, "_IndexDescriptor")
+    expected = getattr(module, "_EXPECTED_INDEXES")[0]
+    require_adoptable = getattr(module, "_require_adoptable_index")
+
+    valid = descriptor_type(
+        table_schema="public",
+        table_name="analyzer_state",
+        index_schema="public",
+        index_name="uq_analyzer_state_user_key",
+        key_columns=("user_id", "analyzer_key"),
+        access_method="btree",
+        is_unique=True,
+        is_valid=True,
+        is_ready=True,
+        is_live=True,
+        nulls_not_distinct=False,
+        key_options=(0, 0),
+        key_opclasses_default=(True, True),
+        key_collations_match=(True, True),
+        predicate=None,
+        expressions=None,
+        included_column_count=0,
+        constraint_owner=None,
+    )
+    require_adoptable(valid, expected)
+    invalid = valid._replace(**{field_name: invalid_value})
+    with pytest.raises(
+        RuntimeError,
+        match=rf"index_admission_failed:uq_analyzer_state_user_key:{reason}",
+    ):
+        require_adoptable(invalid, expected)
+
+    upgrade_source = inspect.getsource(module.upgrade)
+    admission_index = upgrade_source.index("_require_adoptable_index")
+    search_path_index = upgrade_source.index("SET LOCAL search_path TO pg_catalog, public")
+    analyzer_adoption_index = upgrade_source.index("ALTER TABLE public.analyzer_state")
+    day_adoption_index = upgrade_source.index("ALTER TABLE public.day_plans")
+    assert admission_index < search_path_index < analyzer_adoption_index < day_adoption_index

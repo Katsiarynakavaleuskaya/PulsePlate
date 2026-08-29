@@ -8,6 +8,7 @@ PostgreSQL does not define an equality operator for ``json`` values.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import re
 
@@ -18,6 +19,13 @@ _JSON_SQL_LITERAL = re.compile(
     r"^'(?P<payload>(?:[^']|'')*)'(?:\s*::\s*(?P<cast>json|jsonb))?$",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _JsonNumber:
+    """One exact JSON numeric token, preserved without float conversion."""
+
+    lexeme: str
 
 
 def _reject_json_constant(value: str) -> object:
@@ -38,16 +46,17 @@ def _reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, 
 
 
 def _parse_postgresql_json_default(value: str) -> object:
-    """Parse one exact SQL string literal with an optional JSON/JSONB cast."""
+    """Parse an exact SQL JSON literal or exact raw JSON text."""
 
-    match = _JSON_SQL_LITERAL.fullmatch(value.strip())
-    if match is None:
-        raise ValueError("postgresql_json_default_unparseable")
-    payload = match.group("payload").replace("''", "'")
+    stripped = value.strip()
+    match = _JSON_SQL_LITERAL.fullmatch(stripped)
+    payload = stripped if match is None else match.group("payload").replace("''", "'")
     try:
         return json.loads(
             payload,
             object_pairs_hook=_reject_duplicate_object_keys,
+            parse_float=_JsonNumber,
+            parse_int=_JsonNumber,
             parse_constant=_reject_json_constant,
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
