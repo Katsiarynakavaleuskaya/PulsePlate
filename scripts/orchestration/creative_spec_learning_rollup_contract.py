@@ -1215,7 +1215,8 @@ def _require_bool(
 ) -> bool:
     if payload.get(key) is not expected:
         raise CreativeSpecLearningRollupError(f"{label}.{key} must be {expected}.")
-    return expected
+    validated: bool = expected
+    return validated
 
 
 def _bounded_int(
