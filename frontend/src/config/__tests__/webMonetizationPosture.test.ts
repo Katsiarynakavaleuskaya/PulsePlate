@@ -44,7 +44,7 @@ const fitChefSupportChoiceIdentities = new Set<string>([
 ]);
 
 const designExecutionIdentities = completeMatrixIdentities.filter(
-  (identity) => !fitChefSupportChoiceIdentities.has(identity)
+  (identity) => !fitChefSupportChoiceIdentities.has(identity),
 );
 
 const informationOnlyWebStates = [
@@ -81,6 +81,26 @@ const authoritativeDesignPaths = [
   'scripts/design/instructions/web_home.json',
   'scripts/design/instructions/web_plate.json',
 ] as const;
+
+const reconciledAuthorityPaths = [
+  'docs/design/VISUAL_PR_DESCRIPTION_TEMPLATES.md',
+  'docs/product/FREE_PRO_SOFT_PAYWALL.md',
+  'docs/analytics/ANALYTICS_INDEX.md',
+  'docs/analytics/METRICS_CATALOG.md',
+  'docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md',
+  'docs/analytics/EXPERIMENTATION_FRAMEWORK.md',
+  'docs/analytics/EXPERIMENT_REGISTRY.md',
+  'frontend/src/lib/telemetry.md',
+] as const;
+
+const publicWebMeasurementAuthorityPaths = [
+  'docs/analytics/ANALYTICS_INDEX.md',
+  'docs/analytics/METRICS_CATALOG.md',
+  'docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md',
+  'frontend/src/lib/telemetry.md',
+] as const;
+
+const rejectedPaywallExperimentIds = ['EXP-PWL-001', 'EXP-PWL-002', 'EXP-PWL-003'] as const;
 
 const designRegistrySections = {
   'docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md': [
@@ -121,16 +141,14 @@ const retiredPurchasePaths = [
   'src/lib/paywallPurchase.ts',
 ] as const;
 
-const productionUiRoots = [
-  'src/components',
-  'src/features',
-  'src/hooks',
-  'src/pages',
-] as const;
+const productionUiRoots = ['src/components', 'src/features', 'src/hooks', 'src/pages'] as const;
 
 const productionUiEntries = ['src/App.tsx', 'src/main.tsx', 'src/config/routes.ts'] as const;
 
-const knownExecutableCarriers = [
+// Finite raw-source syntax fragments only. One-hop aliases/destructuring are intentionally
+// outside this guard; a materially novel carrier requires stop/rescope. String/comment matches
+// fail closed conservatively and are not evidence that an event executed.
+const knownDirectAcquisitionSyntaxFragments = [
   {
     id: 'retired_before_after_import',
     pattern: /from\s+['"][^'"]*Paywall\/BeforeAfter['"]|<BeforeAfter\b/,
@@ -140,8 +158,31 @@ const knownExecutableCarriers = [
     pattern: /from\s+['"][^'"]*lib\/paywallPurchase['"]|\bpurchasePremium\s*\(/,
   },
   { id: 'purchase_callback', pattern: /\bonPurchase\s*=/ },
-  { id: 'upgrade_telemetry_call', pattern: /\.\s*upgradeClicked\s*\(/ },
-  { id: 'trial_telemetry_call', pattern: /\.\s*trialStarted\s*\(/ },
+  {
+    id: 'paywall_view_telemetry_call',
+    pattern: /(?:\.\s*paywallViewed|\[\s*['"]paywallViewed['"]\s*\])\s*(?:\?\.\s*)?\(/,
+  },
+  {
+    id: 'paywall_dismiss_telemetry_call',
+    pattern: /(?:\.\s*paywallDismissed|\[\s*['"]paywallDismissed['"]\s*\])\s*(?:\?\.\s*)?\(/,
+  },
+  {
+    id: 'paywall_cta_telemetry_call',
+    pattern: /(?:\.\s*paywallCtaClicked|\[\s*['"]paywallCtaClicked['"]\s*\])\s*(?:\?\.\s*)?\(/,
+  },
+  {
+    id: 'upgrade_telemetry_call',
+    pattern: /(?:\.\s*upgradeClicked|\[\s*['"]upgradeClicked['"]\s*\])\s*(?:\?\.\s*)?\(/,
+  },
+  {
+    id: 'trial_telemetry_call',
+    pattern: /(?:\.\s*trialStarted|\[\s*['"]trialStarted['"]\s*\])\s*(?:\?\.\s*)?\(/,
+  },
+  {
+    id: 'direct_acquisition_event_call',
+    pattern:
+      /\b(?:trackEvent|trackVipEvent)\s*(?:\?\.\s*)?\(\s*EventType\.(?:PAYWALL_VIEWED|PAYWALL_CTA_CLICKED|TRIAL_STARTED|VIP_PAYWALL_VIEWED|VIP_PAYWALL_DISMISSED|VIP_UPGRADE_CLICKED)\b/,
+  },
   { id: 'paywall_exposure_call', pattern: /\blogPaywallExposure\s*\(/ },
   {
     id: 'live_paywall_telemetry_call',
@@ -149,7 +190,8 @@ const knownExecutableCarriers = [
   },
   {
     id: 'acquisition_event_emission',
-    pattern: /\blog\s*\(\s*Events\.(?:PURCHASE_ATTEMPT|PURCHASE_SUCCESS|PURCHASE_FAILURE|RESTORE_SUCCESS)\b/,
+    pattern:
+      /\blog\s*\(\s*Events\.(?:PURCHASE_ATTEMPT|PURCHASE_SUCCESS|PURCHASE_FAILURE|RESTORE_SUCCESS)\b/,
   },
   { id: 'legacy_purchase_test_id', pattern: /data-testid=['"]paywall-cta['"]/ },
   {
@@ -174,6 +216,12 @@ function sectionBetween(source: string, start: string, end: string): string {
   return source.slice(startIndex, endIndex);
 }
 
+function sectionFrom(source: string, start: string): string {
+  const startIndex = source.indexOf(start);
+  expect(startIndex, `missing start marker: ${start}`).toBeGreaterThanOrEqual(0);
+  return source.slice(startIndex);
+}
+
 function registryRowIdentities(source: string): string[] {
   return source.split('\n').flatMap((line) => {
     if (!/^\s*(?:\||-\s)/.test(line)) {
@@ -190,7 +238,7 @@ function registryRowIdentities(source: string): string[] {
 function matrixRowIdentities(source: string): string[] {
   const matrix = sectionBetween(source, '## 4) Button Interaction Matrix', '## 5) Prompt Stub');
   return [...matrix.matchAll(/^\|[^|\n]*\|[^|\n]*\|\s*`((?:web|ios)\.[a-z0-9_.]+)`\s*\|/gm)].map(
-    (match) => match[1]
+    (match) => match[1],
   );
 }
 
@@ -319,8 +367,8 @@ function productionUiSourcePaths(): string[] {
     .sort();
 }
 
-function executableCarrierIds(source: string): string[] {
-  return knownExecutableCarriers
+function knownDirectAcquisitionSyntaxFragmentIds(source: string): string[] {
+  return knownDirectAcquisitionSyntaxFragments
     .filter(({ pattern }) => pattern.test(source))
     .map(({ id }) => id);
 }
@@ -329,7 +377,9 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
   it('keeps /pro as a public compatibility route owned by the information-only page', () => {
     const routes = readFrontend('src/config/routes.ts');
 
-    expect(routes).toContain("{ path: '/pro', label: 'Pro', requiresAuth: false, component: ProPaywallPage");
+    expect(routes).toContain(
+      "{ path: '/pro', label: 'Pro', requiresAuth: false, component: ProPaywallPage",
+    );
   });
 
   it('has no retired purchase helper or dialog in the production graph', () => {
@@ -339,11 +389,14 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
 
     for (const path of correctedBoundaryPaths) {
       const source = readFrontend(path);
-      expect(executableCarrierIds(source), `${path} must stay information-only`).toEqual([]);
+      expect(
+        knownDirectAcquisitionSyntaxFragmentIds(source),
+        `${path} contains a known direct acquisition syntax fragment`,
+      ).toEqual([]);
     }
   });
 
-  it('mechanically censuses current production UI owners for known acquisition carriers', () => {
+  it('censuses production UI for the finite known direct acquisition syntax fragments', () => {
     const paths = productionUiSourcePaths();
 
     expect(paths).toContain('src/pages/Pro/ProPaywallPage.tsx');
@@ -351,27 +404,70 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(paths).not.toContain('src/config/__tests__/webMonetizationPosture.test.ts');
 
     for (const path of paths) {
-      expect(executableCarrierIds(readFrontend(path)), `${path} has an acquisition carrier`).toEqual(
-        []
-      );
+      expect(
+        knownDirectAcquisitionSyntaxFragmentIds(readFrontend(path)),
+        `${path} contains a known direct acquisition syntax fragment`,
+      ).toEqual([]);
     }
   });
 
-  it('detects executable carriers without treating inert contract identifiers as actions', () => {
-    expect(executableCarrierIds("track.upgradeClicked('home', 'cta')")).toContain(
-      'upgrade_telemetry_call'
-    );
-    expect(executableCarrierIds("import { purchasePremium } from '../lib/paywallPurchase'")).toContain(
-      'retired_purchase_helper'
-    );
-    expect(
-      executableCarrierIds(
-        "type EventName = 'purchase_attempt'; const endpoint = '/api/v1/payments/verify';"
-      )
-    ).toEqual([]);
-    expect(executableCarrierIds('trackHppPaywallOpenFromLive(payload)')).toContain(
-      'live_paywall_telemetry_call'
-    );
+  it('detects known direct syntax fragments without treating inert references as calls', () => {
+    const directSyntaxCases = [
+      ["track.paywallViewed('bmi', 'soft_hook')", 'paywall_view_telemetry_call'],
+      ["track?.paywallViewed('bmi', 'soft_hook')", 'paywall_view_telemetry_call'],
+      ["vipTelemetry.paywallDismissed('plate', 'close')", 'paywall_dismiss_telemetry_call'],
+      ["track.paywallDismissed?.('plate', 'close')", 'paywall_dismiss_telemetry_call'],
+      [
+        "growthTelemetry.paywallCtaClicked('home', 'learn_more', 'free')",
+        'paywall_cta_telemetry_call',
+      ],
+      [
+        "growthTelemetry['paywallCtaClicked']('home', 'learn_more', 'free')",
+        'paywall_cta_telemetry_call',
+      ],
+      ["track.upgradeClicked('home', 'cta')", 'upgrade_telemetry_call'],
+      ["vipTelemetry?.['upgradeClicked']?.('home', 'cta')", 'upgrade_telemetry_call'],
+      ["growthTelemetry.trialStarted('marketing', 'pro')", 'trial_telemetry_call'],
+      ['growthTelemetry["trialStarted"]("marketing", "pro")', 'trial_telemetry_call'],
+      ['trackEvent(EventType.PAYWALL_VIEWED, payload)', 'direct_acquisition_event_call'],
+      ['trackEvent?.(EventType.PAYWALL_VIEWED, payload)', 'direct_acquisition_event_call'],
+      ['trackVipEvent(EventType.PAYWALL_CTA_CLICKED, payload)', 'direct_acquisition_event_call'],
+      ['trackEvent(EventType.TRIAL_STARTED, payload)', 'direct_acquisition_event_call'],
+      ['trackVipEvent(EventType.VIP_PAYWALL_VIEWED, payload)', 'direct_acquisition_event_call'],
+      ['trackEvent(EventType.VIP_PAYWALL_DISMISSED, payload)', 'direct_acquisition_event_call'],
+      [
+        'telemetry.trackEvent(\n  EventType.VIP_UPGRADE_CLICKED,\n  payload\n)',
+        'direct_acquisition_event_call',
+      ],
+      ['trackVipEvent?.(EventType.VIP_UPGRADE_CLICKED, payload)', 'direct_acquisition_event_call'],
+      ["const example = 'track.paywallViewed()';", 'paywall_view_telemetry_call'],
+      ['// growthTelemetry["trialStarted"]()', 'trial_telemetry_call'],
+      ["import { purchasePremium } from '../lib/paywallPurchase'", 'retired_purchase_helper'],
+      ['trackHppPaywallOpenFromLive(payload)', 'live_paywall_telemetry_call'],
+    ] as const;
+
+    for (const [source, fragmentId] of directSyntaxCases) {
+      expect(knownDirectAcquisitionSyntaxFragmentIds(source), source).toContain(fragmentId);
+    }
+
+    const inertCases = [
+      "type EventName = 'purchase_attempt'; const endpoint = '/api/v1/payments/verify';",
+      'const eventType = EventType.PAYWALL_VIEWED;',
+      'type Payload = PaywallViewedPayload;',
+      'const schema = EVENT_REGISTRY[EventType.TRIAL_STARTED];',
+      'const helper = growthTelemetry.paywallViewed;',
+      "const bracketHelper = growthTelemetry['paywallViewed'];",
+      'const optionalHelper = track?.paywallDismissed;',
+      'const emitter = trackEvent; const eventType = EventType.VIP_PAYWALL_VIEWED;',
+      'trackEvent(EventType.VIP_MODULE_VIEWED, payload);',
+      'trackEvent(EventType.VIP_FEATURE_CLICKED, payload);',
+      'trackVipEvent(EventType.VIP_GATE_INTERACTED, payload);',
+      'trackVipEvent(EventType.VIP_BADGE_VIEWED, payload);',
+    ] as const;
+
+    for (const source of inertCases) {
+      expect(knownDirectAcquisitionSyntaxFragmentIds(source), source).toEqual([]);
+    }
   });
 
   it('derives the exact complete matrix and design-execution identity sets', () => {
@@ -382,7 +478,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(matrixIdentities).toHaveLength(completeMatrixIdentities.length);
     expect(sortedUnique(matrixIdentities)).toEqual(sortedUnique(completeMatrixIdentities));
     expect(designExecutionIdentities).toHaveLength(
-      completeMatrixIdentities.length - fitChefSupportChoiceIdentities.size
+      completeMatrixIdentities.length - fitChefSupportChoiceIdentities.size,
     );
   });
 
@@ -392,7 +488,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     for (const [path, [start, end]] of Object.entries(designRegistrySections)) {
       const registry = sectionBetween(readRepo(path), start, end);
       expect(sortedUnique(registryRowIdentities(registry)), `${path} identity drift`).toEqual(
-        expected
+        expected,
       );
     }
   });
@@ -421,7 +517,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     for (const path of informationStateDeclarationPaths) {
       expect(
         readRepo(path).replace(/\s+/g, ' '),
-        `${path} information-state vocabulary drift`
+        `${path} information-state vocabulary drift`,
       ).toContain(informationStateDeclaration);
     }
 
@@ -444,17 +540,17 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(matrix).toContain('| `web.home.open_pro` | `V3` | `W_HOME_GUIDED_PLANNING_ACTIONS` |');
 
     const visualForecast = readRepo(
-      'docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md'
+      'docs/design/PULSEPLATE_BUTTON_VISUAL_SYSTEM_TRENDS_AND_FORECAST.md',
     );
     const figmaSpecification = readRepo('docs/figma/PULSEPLATE_FIGMA_DESIGN_SPECIFICATION.md');
     expect(visualForecast).toContain(
-      '| `W_HOME_GUIDED_PLANNING_ACTIONS` | Home Guided Planning → Next action |'
+      '| `W_HOME_GUIDED_PLANNING_ACTIONS` | Home Guided Planning → Next action |',
     );
     expect(visualForecast).toContain(
-      '| Web | Home | `web.home.open_pro` | `W_HOME_GUIDED_PLANNING_ACTIONS` |'
+      '| Web | Home | `web.home.open_pro` | `W_HOME_GUIDED_PLANNING_ACTIONS` |',
     );
     expect(figmaSpecification).toContain(
-      'Guided Planning → Next action (`W_HOME_GUIDED_PLANNING_ACTIONS`)'
+      'Guided Planning → Next action (`W_HOME_GUIDED_PLANNING_ACTIONS`)',
     );
   });
 
@@ -502,8 +598,8 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
 
     expect(
       home.component_hierarchy.find(
-        (node) => node.component_id === 'web-home-guided-planning-actions'
-      )
+        (node) => node.component_id === 'web-home-guided-planning-actions',
+      ),
     ).toEqual({
       component_id: 'web-home-guided-planning-actions',
       canonical_component: 'card',
@@ -514,7 +610,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
       source_ref: 'override:web.home:guided-planning-actions',
     });
     expect(
-      home.component_hierarchy.find((node) => node.component_id === 'node:web.home.open_pro')
+      home.component_hierarchy.find((node) => node.component_id === 'node:web.home.open_pro'),
     ).toMatchObject({
       section_id: 'guided-planning',
       parent_component_id: 'web-home-guided-planning-actions',
@@ -523,7 +619,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
 
     const homeInformation = homeButtons.find((button) => button.cta_key === 'web.home.open_pro');
     const plateInformation = plateButtons.find(
-      (button) => button.cta_key === 'web.plate.premium_gate_cta'
+      (button) => button.cta_key === 'web.plate.premium_gate_cta',
     );
     expect(homeInformation).toMatchObject({
       name: 'Learn about PulsePlate for Apple devices',
@@ -551,43 +647,43 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     const placementOverrideRegistry = sectionBetween(
       generator,
       'CTA_PLACEMENT_OVERRIDES:',
-      '# Screen dimension presets'
+      '# Screen dimension presets',
     );
     expect(
-      [...placementOverrideRegistry.matchAll(/^    "([^"]+)": \{$/gm)].map((match) => match[1])
+      [...placementOverrideRegistry.matchAll(/^    "([^"]+)": \{$/gm)].map((match) => match[1]),
     ).toEqual(['web.home.open_pro']);
     const homePlacementOverride = pythonCtaPlacementOverrideBlock(generator, 'web.home.open_pro');
     expect(pythonOverrideString(homePlacementOverride, 'screen_id')).toBe('web.home');
     expect(pythonOverrideString(homePlacementOverride, 'section_id')).toBe('guided-planning');
     expect(pythonOverrideString(homePlacementOverride, 'section_name')).toBe(
-      home.sections.find((section) => section.section_id === 'guided-planning')?.name
+      home.sections.find((section) => section.section_id === 'guided-planning')?.name,
     );
     expect(pythonOverrideString(homePlacementOverride, 'section_role')).toBe(
-      home.sections.find((section) => section.section_id === 'guided-planning')?.role
+      home.sections.find((section) => section.section_id === 'guided-planning')?.role,
     );
     expect(pythonOverrideString(homePlacementOverride, 'insert_before_section_id')).toBe(
-      'footer-nav'
+      'footer-nav',
     );
     expect(pythonOverrideString(homePlacementOverride, 'parent_component_id')).toBe(
-      'web-home-guided-planning-actions'
+      'web-home-guided-planning-actions',
     );
     expect(pythonOverrideString(homePlacementOverride, 'parent_parent_component_id')).toBe(
-      'web-home-shell'
+      'web-home-shell',
     );
     expect(pythonOverrideInteger(homePlacementOverride, 'parent_hierarchy_level')).toBe(1);
     expect(pythonOverrideString(homePlacementOverride, 'parent_semantic_role')).toBe(
-      'supporting_action_cluster'
+      'supporting_action_cluster',
     );
     expect(pythonOverrideInteger(homePlacementOverride, 'cta_hierarchy_level')).toBe(2);
     expect(pythonOverrideString(homePlacementOverride, 'placement_zone')).toBe(
-      homeInformation?.placement_zone
+      homeInformation?.placement_zone,
     );
     expect(pythonCtaRegistryBlock(generator, 'web.home.open_pro')).toContain(
-      'placement_zone=CTA_PLACEMENT_OVERRIDES["web.home.open_pro"]["placement_zone"]'
+      'placement_zone=CTA_PLACEMENT_OVERRIDES["web.home.open_pro"]["placement_zone"]',
     );
     expect(pythonCtaStates(generator, 'web.home.open_pro')).toEqual(informationOnlyWebStates);
     expect(pythonCtaStates(generator, 'web.plate.premium_gate_cta')).toEqual(
-      informationOnlyWebStates
+      informationOnlyWebStates,
     );
     expect(generator).not.toContain('ui_label="Open Pro"');
     expect(generator).not.toContain('ui_label="Unlock Premium"');
@@ -595,7 +691,7 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
 
     const premiumGate = readFrontend('src/components/PremiumGate.tsx');
     expect(premiumGate).toMatch(
-      /buttonClasses\(\{\s*variant:\s*'secondary',\s*className:\s*'mt-3'\s*\}\)/
+      /buttonClasses\(\{\s*variant:\s*'secondary',\s*className:\s*'mt-3'\s*\}\)/,
     );
   });
 
@@ -634,11 +730,240 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(storySupport).not.toContain('PaywallDialogStorySurface');
   });
 
+  it('keeps the exact eight-file authority reconciliation closed and present', () => {
+    expect(reconciledAuthorityPaths).toHaveLength(8);
+    expect(new Set(reconciledAuthorityPaths).size).toBe(8);
+
+    for (const path of reconciledAuthorityPaths) {
+      expect(existsSync(resolve(repoRoot, path)), `${path} must exist`).toBe(true);
+    }
+  });
+
+  it('keeps visual Template 03 on existing information-only owners and actions', () => {
+    const templates = readRepo('docs/design/VISUAL_PR_DESCRIPTION_TEMPLATES.md');
+    const template03 = sectionBetween(templates, '## Template 03:', '## Template 04:');
+
+    for (const required of [
+      'frontend/src/components/PremiumGate.tsx',
+      'frontend/src/components/AppleProductInfoDialog.tsx',
+      'Compatibility prompt-pack reference (not runtime authority)',
+      'This website is free to use.',
+      'We’re designing more advanced FitChef features for PulsePlate on Apple devices.',
+      'Purchases are not offered on this website.',
+      'We’ll add a verified App Store link when public availability is confirmed.',
+      '`Try the free BMI calculator` → `/bmi`',
+      '`Learn about PulsePlate for Apple devices` → `/marketing`',
+      'Not now',
+      'Reuse the existing components, assets, tokens, and visual rules',
+    ]) {
+      expect(template03).toContain(required);
+    }
+
+    for (const retired of ['BeforeAfter', 'Plate/Pro conversion surfaces', 'Unlock Premium']) {
+      expect(template03).not.toContain(retired);
+    }
+  });
+
+  it('keeps the compatibility product doc subordinate to current Web contracts', () => {
+    const productDoc = readRepo('docs/product/FREE_PRO_SOFT_PAYWALL.md');
+    const currentContract = sectionBetween(
+      productDoc,
+      '## Current public Web contract',
+      '## Canonical sources',
+    );
+    const canonicalSources = sectionBetween(
+      productDoc,
+      '## Canonical sources',
+      '## Compatibility data boundary',
+    );
+    const compatibilityBoundary = sectionFrom(productDoc, '## Compatibility data boundary');
+
+    for (const required of [
+      'This website is free to use.',
+      'PulsePlate on Apple devices.',
+      'Purchases are not offered on this website.',
+      '`Try the free BMI calculator` → `/bmi`',
+      '`Learn about PulsePlate for Apple devices` → `/marketing`',
+      'Not now',
+    ]) {
+      expect(currentContract).toContain(required);
+    }
+    for (const compatibilityOnlyField of ['limitations', 'next_step', 'ctaAction']) {
+      expect(currentContract).not.toContain(compatibilityOnlyField);
+    }
+    expect(canonicalSources).toContain('docs/contracts/soft_paywall.md');
+    expect(canonicalSources).toContain('docs/contracts/PRODUCT_TIER_MAP.md');
+    expect(canonicalSources).toContain('appleProduct.*');
+    expect(canonicalSources).toContain('availability.pro_available');
+    expect(compatibilityBoundary).toContain('`message`, `target`, `limitations`, and');
+    expect(compatibilityBoundary).toContain('`next_step`');
+    expect(compatibilityBoundary).toContain('cannot author public-Web');
+    expect(compatibilityBoundary).toContain('it is not');
+    expect(compatibilityBoundary).toContain('proof that a Web purchase');
+
+    for (const compatibilityField of ['limitations', 'next_step']) {
+      const fieldPattern = new RegExp(`\\b${compatibilityField}\\b`, 'g');
+      expect(
+        productDoc.match(fieldPattern),
+        `${compatibilityField} full-doc cardinality`,
+      ).toHaveLength(1);
+      expect(
+        compatibilityBoundary.match(fieldPattern),
+        `${compatibilityField} compatibility-section cardinality`,
+      ).toHaveLength(1);
+    }
+    expect(productDoc).not.toContain('ctaAction');
+
+    const normalizedProductDoc = productDoc.toLowerCase();
+    for (const retiredProposition of [
+      'this result is preliminary.',
+      'explore extended insights',
+      'you understand your risk level.',
+      'want to turn this into a personalized nutrition plan?',
+      'health risk',
+      'extended assessment',
+      'personalized nutrition plan',
+      'ctaaction',
+      'interface softpaywallprops',
+      'frontend renders soft paywall based on',
+    ]) {
+      expect(normalizedProductDoc).not.toContain(retiredProposition);
+    }
+  });
+
+  it('keeps current public-Web paywall and trial measurement explicitly unavailable', () => {
+    for (const path of publicWebMeasurementAuthorityPaths) {
+      const source = readRepo(path);
+      expect(source, `${path} availability marker drift`).toContain(
+        'Current public-Web paywall/trial measurement: **UNAVAILABLE / NOT EMITTED**.',
+      );
+      expect(source, `${path} outage distinction drift`).toContain(
+        'This is the intended current posture, not an outage.',
+      );
+      expect(source, `${path} measured-zero distinction drift`).toContain(
+        'It must not be represented as `0`, `0%`, or any other zero-valued metric.',
+      );
+      expect(source, `${path} cross-channel boundary drift`).toContain(
+        'Apple-device, backend, billing, or subscription observations must not fill a',
+      );
+      expect(source, `${path} unique-user boundary drift`).toContain(
+        'Repeated event rows do not establish unique-user counts.',
+      );
+    }
+
+    const catalog = readRepo('docs/analytics/METRICS_CATALOG.md');
+    expect(catalog.match(/^## Event taxonomy \(growth funnel \+ coaching\)$/gm)).toHaveLength(1);
+    const trialToPaid = sectionBetween(catalog, '## Trial -> Paid conversion', '## Retention D30');
+    const softPaywall = sectionBetween(catalog, '## Soft paywall view rate', '## Trial start rate');
+    const trialStart = sectionBetween(catalog, '## Trial start rate', '## Retention D7');
+
+    for (const metricSection of [trialToPaid, softPaywall, trialStart]) {
+      expect(metricSection).toContain('**UNAVAILABLE / NOT EMITTED**');
+      expect(metricSection).toContain('not computed');
+      expect(metricSection).toContain('distinct_');
+    }
+  });
+
+  it('keeps public-Web paywall experiments not admitted and historical only', () => {
+    const framework = readRepo('docs/analytics/EXPERIMENTATION_FRAMEWORK.md');
+    const paywallAdmission = sectionBetween(
+      framework,
+      '## Public Web paywall experiments: NOT ADMITTED',
+      '## Onboarding Optimization Loop',
+    );
+
+    expect(paywallAdmission).toContain('did not run and produced no result');
+    expect(paywallAdmission).toContain('new external product,');
+    expect(paywallAdmission).toContain('legal, and architecture admission');
+    expect(framework).not.toMatch(/EXP-PWL-\d{3}/);
+    for (const retiredBaseline of ['~15%', '~8%', '~35%']) {
+      expect(framework).not.toContain(retiredBaseline);
+    }
+
+    const registry = readRepo('docs/analytics/EXPERIMENT_REGISTRY.md');
+    const active = sectionBetween(
+      registry,
+      '## Active Experiments',
+      '## Rejected / Not Admitted Experiments',
+    );
+    const rejected = sectionBetween(
+      registry,
+      '## Rejected / Not Admitted Experiments',
+      '## Completed Experiments',
+    );
+
+    expect(rejected).toContain('did not run and produced no result');
+    for (const experimentId of rejectedPaywallExperimentIds) {
+      expect(active).not.toContain(experimentId);
+      expect(rejected.match(new RegExp(experimentId, 'g'))).toHaveLength(1);
+      expect(registry.match(new RegExp(experimentId, 'g'))).toHaveLength(1);
+      expect(rejected).toMatch(
+        new RegExp(
+          `${experimentId}[^\\n]+REJECTED / NOT ADMITTED[^\\n]+Did not run[^\\n]+No result`,
+        ),
+      );
+    }
+  });
+
+  it('keeps telemetry documentation at compatibility evidence levels', () => {
+    const telemetryDoc = readRepo('frontend/src/lib/telemetry.md');
+    const normalizedTelemetryDoc = telemetryDoc.toLowerCase();
+    const evidenceLevels = sectionBetween(
+      telemetryDoc,
+      '## Evidence levels',
+      '## Current public-Web applicability',
+    );
+    const featureFlagBoundary = sectionBetween(
+      telemetryDoc,
+      '## Feature-flag boundary',
+      '## Data and privacy claims',
+    );
+
+    for (const level of [
+      '**Defined**',
+      '**Callable**',
+      '**Test-called**',
+      '**Production-called**',
+      '**Delivered**',
+      '**Stored**',
+      '**Queryable**',
+    ]) {
+      expect(evidenceLevels).toContain(level);
+    }
+    expect(featureFlagBoundary).toContain('only permits an explicit existing caller');
+    expect(featureFlagBoundary).toContain('does not mount a hook');
+
+    for (const executableExample of [
+      'vipTelemetry.paywallViewed(',
+      'vipTelemetry.upgradeClicked(',
+      'growthTelemetry.trialStarted(',
+      '```typescript',
+    ]) {
+      expect(telemetryDoc).not.toContain(executableExample);
+    }
+    for (const unsupportedClaimSeed of [
+      'automatically tracks',
+      'automatically emits',
+      'automatically emitted',
+      'tracks automatically',
+      'auto-tracking',
+      'emits on mount',
+      'emitted on mount',
+      'tracks on mount',
+    ]) {
+      expect(normalizedTelemetryDoc).not.toContain(unsupportedClaimSeed);
+    }
+    expect(normalizedTelemetryDoc).toContain('current ui does not invoke');
+    expect(normalizedTelemetryDoc).toContain('does not mount a hook');
+    expect(normalizedTelemetryDoc).toContain('unavailable / not emitted');
+  });
+
   it('keeps the same Apple-device information propositions in EN, RU, and ES', () => {
-    const locales = ['en', 'ru', 'es'].map((locale) =>
-      JSON.parse(readFrontend(`src/locales/${locale}.json`)) as {
-        appleProduct: Record<string, string>;
-      }
+    const locales = ['en', 'ru', 'es'].map(
+      (locale) =>
+        JSON.parse(readFrontend(`src/locales/${locale}.json`)) as {
+          appleProduct: Record<string, string>;
+        },
     );
     const expectedKeys = [
       'title',

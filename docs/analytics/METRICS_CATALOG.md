@@ -6,6 +6,25 @@
 
 ---
 
+## Current public-Web applicability
+
+Current public-Web paywall/trial measurement: **UNAVAILABLE / NOT EMITTED**.
+
+This is the intended current posture, not an outage.
+
+It must not be represented as `0`, `0%`, or any other zero-valued metric.
+
+Apple-device, backend, billing, or subscription observations must not fill a
+public-Web numerator or denominator.
+
+Repeated event rows do not establish unique-user counts.
+
+Event enums, payload schemas, callable helpers, unit-test calls, backend rows,
+and Apple-product vocabulary are not proof of a public-Web production caller,
+delivery, storage, queryable data, attribution, or entitlement acquisition.
+
+---
+
 ## Metric template (copy/paste)
 
 ### <Metric Name>
@@ -130,14 +149,20 @@ Daily
 
 #### Definition
 
-Percent of users who start a trial and become paid subscribers within the configured conversion window.
+For a separately admitted channel, the percent of distinct users who start a
+trial and become paid subscribers within the configured conversion window.
+The channel, eligibility policy, and attribution window must be explicit.
 
 #### Formula
 
 ```text
 trial_to_paid_conversion =
-  users_paid_after_trial / users_started_trial
+  distinct_users_paid_after_trial / distinct_users_started_trial
 ```
+
+For the current public Web this metric is **UNAVAILABLE / NOT EMITTED** and is
+not computed. A billing or Apple-device observation cannot supply either side
+of the public-Web ratio.
 
 #### Owner
 
@@ -145,11 +170,13 @@ Growth + Finance
 
 #### Update frequency
 
-Daily
+Daily only for a separately admitted, source-bound channel; not computed for
+the current public Web.
 
 #### Change history
 
 - 2026-02-20: initial Wave 1 definition
+- 2026-08-29: bounded the definition by channel and marked current public-Web data unavailable
 
 ---
 
@@ -324,14 +351,19 @@ Daily
 
 #### Definition
 
-Percent of active users (within attribution window) who see the soft paywall trigger at least once.
+For a separately admitted channel, the percent of distinct active users who see
+an admitted soft-paywall surface at least once within the attribution window.
 
 #### Formula
 
 ```text
 soft_paywall_view_rate =
-  users_who_saw_soft_paywall / active_users_window
+  distinct_users_who_saw_soft_paywall / distinct_active_users_window
 ```
+
+For the current public Web this metric is **UNAVAILABLE / NOT EMITTED** and is
+not computed. Defined event vocabulary and repeated rows do not prove a unique
+user or a production impression.
 
 #### Owner
 
@@ -339,11 +371,13 @@ Growth
 
 #### Update frequency
 
-Daily
+Daily only for a separately admitted, source-bound channel; not computed for
+the current public Web.
 
 #### Change history
 
 - 2026-02-21: initial Wave 1 definition (P0 Growth telemetry canon)
+- 2026-08-29: bounded the definition by channel and marked current public-Web data unavailable
 
 ---
 
@@ -351,14 +385,19 @@ Daily
 
 #### Definition
 
-Percent of users eligible for trial (e.g. saw paywall, not already subscribed) who start a trial within the attribution window.
+For a separately admitted channel, the percent of distinct trial-eligible users
+who start a trial within the explicit attribution window.
 
 #### Formula
 
 ```text
 trial_start_rate =
-  users_started_trial / users_eligible_for_trial
+  distinct_users_started_trial / distinct_users_eligible_for_trial
 ```
+
+For the current public Web this metric is **UNAVAILABLE / NOT EMITTED** and is
+not computed. Backend eligibility, billing, or Apple-device activity cannot
+substitute for a public-Web trial-start caller.
 
 #### Owner
 
@@ -366,11 +405,13 @@ Growth
 
 #### Update frequency
 
-Daily
+Daily only for a separately admitted, source-bound channel; not computed for
+the current public Web.
 
 #### Change history
 
 - 2026-02-21: initial Wave 1 definition (P0 Growth telemetry canon)
+- 2026-08-29: bounded the definition by channel and marked current public-Web data unavailable
 
 ---
 
@@ -509,7 +550,6 @@ Per offline replay run
 
 ---
 
-## Event taxonomy (growth funnel + coaching)
 ## Distortion reframe completion rate (`distortion_reframe_completion_rate`)
 
 #### Definition
@@ -824,19 +864,20 @@ Daily
 Canonical event families and payload contracts for the growth funnel
 (onboarding → paywall → conversion → retention) plus the planned coaching loop
 contract targets (start → structured reflection → next action → revisit).
-Runtime implementation today remains limited to the growth-funnel registry in
-`frontend/src/lib/telemetry/eventRegistry.ts`; coaching events below stay
-contract-frozen until the registry ships in a runtime lane. This section is the
-doc SoT for semantics and planned names, but planned coaching events must not be
-treated as emitted runtime telemetry yet.
+The registry in `frontend/src/lib/telemetry/eventRegistry.ts` defines
+compatibility vocabulary only. A defined enum, schema, callable helper, or test
+call does not prove a production call, delivery, storage, queryable dataset, or
+attribution. Coaching events below stay contract-frozen until a separate
+runtime lane admits them. Current public-Web paywall and trial events are
+**UNAVAILABLE / NOT EMITTED**.
 
 ### Funnel stages and owners
 
 | Stage | Owner | Cadence | Key events |
 |-------|-------|---------|------------|
 | Onboarding | Product + Growth | Daily | onboarding_started, onboarding_completed |
-| Paywall | Growth | Daily | paywall_viewed, paywall_cta_clicked, vip_paywall_* |
-| Conversion (trial) | Growth + Finance | Daily | trial_started |
+| Paywall | Growth | When separately admitted | compatibility: paywall_viewed, paywall_cta_clicked, vip_paywall_* |
+| Conversion (trial) | Growth + Finance | When separately admitted | compatibility: trial_started |
 | Retention | Product + Data | Daily / Weekly | retention_heartbeat (d1/d7/d30) |
 | Coaching | Product + Data | Daily | planned: coaching_session_started, coaching_reframe_completed, coaching_identity_map_completed, coaching_next_action_committed, coaching_revisit |
 
@@ -846,9 +887,9 @@ treated as emitted runtime telemetry yet.
 |-------|------------------|---------|
 | onboarding_started | source, variant | First-run entry |
 | onboarding_completed | source; optional: durationSec | Completion within session |
-| paywall_viewed | source, placement, tierContext (free/pro/vip) | Soft/hard paywall impression |
-| paywall_cta_clicked | source, ctaId, tierContext | CTA click for upgrade/trial |
-| trial_started | source, planType | User started trial |
+| paywall_viewed | source, placement, tierContext (free/pro/vip) | Compatibility payload; not emitted by current public Web |
+| paywall_cta_clicked | source, ctaId, tierContext | Compatibility payload; not emitted by current public Web |
+| trial_started | source, planType | Compatibility payload; not emitted by current public Web |
 | retention_heartbeat | dayBucket (d1/d7/d30), source | Cohort activity signal |
 | coaching_session_started | scenario, source, variant, tier, sessionId | Planned coaching loop entry for one bounded surface |
 | coaching_reframe_completed | scenario, source, variant, tier, sessionId | Planned Distortion Simulator completion signal |
@@ -857,6 +898,9 @@ treated as emitted runtime telemetry yet.
 | coaching_revisit | scenario, source, variant, tier, sessionId | Planned return signal for coaching continuity |
 
 ### VIP / paywall UX events (required fields)
+
+These rows define compatibility payloads. They do not establish current
+public-Web callers or acquisition attribution.
 
 | Event | Required fields | Context |
 |-------|------------------|---------|
@@ -869,9 +913,16 @@ treated as emitted runtime telemetry yet.
 | vip_badge_viewed | component, variant, isVip | Badge/upsell component view |
 
 Planning paywall ledger note:
-- Hidden first-party paywall ledger payloads may decorate these funnel families with planning-specific `source_surface` / `trigger_reason` pairs without renaming the canonical growth-event families above (see `app/routers/paywall_analytics.py:140`, `app/models/paywall_analytics.py:18`).
-- Planning vocabulary wired for this lane:
-  - `bmi_soft_paywall` / `post_bmi` (see `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:9`, `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:10`, `app/schemas/intervention.py:12`)
+- Historical backend planning records map `source_surface` / `trigger_reason`
+  inputs at `app/routers/paywall_analytics.py:89-90` and store those fields at
+  `app/models/paywall_analytics.py:47-48`. They cannot fill a current public-Web
+  numerator or denominator or prove a browser event was emitted.
+- Compatibility vocabulary retained in the repository:
+  - `bmi_soft_paywall` is historical/test compatibility vocabulary; no current
+    frontend owner is asserted here.
+  - `post_bmi` is current backend trigger-reason vocabulary at
+    `app/services/intervention_trigger_engine.py:29` and
+    `app/schemas/intervention.py:12`.
   - `pro_daily_plate` / `targets_ready` (see `app/services/intervention_trigger_engine.py:41`, `app/services/intervention_trigger_engine.py:43`, `app/schemas/intervention.py:11`, `app/schemas/intervention.py:12`)
 
 ### Base payload (optional on all events)
