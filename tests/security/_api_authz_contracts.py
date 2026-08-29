@@ -98,6 +98,7 @@ class ApiAuthzContract:
     ownership_policy: OwnershipPolicy
     exposure: ApiExposure
     foreign_object_status: int | None = None
+    bola_oracle_id: str | None = None
 
     @property
     def key(self) -> RouteKey:
@@ -113,6 +114,7 @@ def _contract(
     ownership_policy: OwnershipPolicy,
     exposure: ApiExposure = ApiExposure.PUBLIC_OPENAPI,
     foreign_object_status: int | None = None,
+    bola_oracle_id: str | None = None,
 ) -> ApiAuthzContract:
     return ApiAuthzContract(
         method=method,
@@ -123,6 +125,24 @@ def _contract(
         ownership_policy=ownership_policy,
         exposure=exposure,
         foreign_object_status=foreign_object_status,
+        bola_oracle_id=bola_oracle_id,
+    )
+
+
+BOLA_V1_OWNERSHIP_POLICIES = frozenset(
+    {
+        OwnershipPolicy.AUTHENTICATED_SUBJECT,
+        OwnershipPolicy.ISSUER_SCOPED,
+    }
+)
+
+
+def is_bola_v1_eligible_contract(contract: ApiAuthzContract) -> bool:
+    """Return whether the finite v1 contract requires an executable BOLA oracle."""
+
+    return (
+        contract.foreign_object_status is not None
+        and contract.ownership_policy in BOLA_V1_OWNERSHIP_POLICIES
     )
 
 
@@ -438,6 +458,7 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
         PrincipalSource.BILLING_ISSUER,
         OwnershipPolicy.ISSUER_SCOPED,
         foreign_object_status=403,
+        bola_oracle_id="payments.activation.read",
     ),
     _contract(
         "POST",
@@ -471,6 +492,7 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
         PrincipalSource.BILLING_ISSUER,
         OwnershipPolicy.ISSUER_SCOPED,
         foreign_object_status=403,
+        bola_oracle_id="payments.manual_intent.status",
     ),
     _contract("POST", "/api/v1/pro/restaurants/partner/orders", *PRO_SUBJECT),
     _contract("POST", "/api/v1/pro/restaurants/partner/orders/adapt/preview", *PRO_SUBJECT),
@@ -480,30 +502,35 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
         "/api/v1/pro/restaurants/partner/orders/{order_id}",
         *PRO_SUBJECT,
         foreign_object_status=403,
+        bola_oracle_id="restaurant.order.read",
     ),
     _contract(
         "POST",
         "/api/v1/pro/restaurants/partner/orders/{order_id}/confirm",
         *PRO_SUBJECT,
         foreign_object_status=403,
+        bola_oracle_id="restaurant.order.confirm",
     ),
     _contract(
         "POST",
         "/api/v1/pro/restaurants/partner/orders/{order_id}/handoff/shares",
         *PRO_SUBJECT,
         foreign_object_status=403,
+        bola_oracle_id="restaurant.handoff.issue",
     ),
     _contract(
         "GET",
         "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/status",
         *PRO_SUBJECT,
         foreign_object_status=403,
+        bola_oracle_id="restaurant.handoff.status",
     ),
     _contract(
         "POST",
         "/api/v1/pro/restaurants/partner/handoff/shares/{share_id}/revoke",
         *PRO_SUBJECT,
         foreign_object_status=403,
+        bola_oracle_id="restaurant.handoff.revoke",
     ),
     _contract(
         "PATCH",
