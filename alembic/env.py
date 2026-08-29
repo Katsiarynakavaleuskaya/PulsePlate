@@ -12,7 +12,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from core.db import Base, get_database_url
+from core.db_alembic_ownership import include_autogenerate_object
+from core.db import get_database_url, load_canonical_orm_metadata
 
 # Interpret the config file for Python logging.
 config = context.config
@@ -24,7 +25,7 @@ logger = logging.getLogger("alembic.env")
 # Set SQLAlchemy URL dynamically so env vars win over alembic.ini defaults.
 config.set_main_option("sqlalchemy.url", get_database_url())
 
-target_metadata = Base.metadata
+target_metadata = load_canonical_orm_metadata()
 
 
 def run_migrations_offline() -> None:
@@ -34,7 +35,14 @@ def run_migrations_offline() -> None:
     """
 
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        compare_type=True,
+        compare_server_default=True,
+        include_object=include_autogenerate_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -53,7 +61,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+            include_object=include_autogenerate_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
