@@ -5018,8 +5018,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: iOS unified FitChef Coach destination
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (paid coaching activation / consumer-first iOS composition)
-  - Target PR: PR-TBD (`codex/ios-fitchef-coach-hub`; replace with the exact PR number before material freeze)
-  - Status: 🚧 Implemented locally and in pre-open validation; not merged, not production-reachable, and no terminal status is claimed.
+  - Target PR: [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363) (`codex/ios-fitchef-coach-hub`)
+  - Status: 🚧 Open non-draft and in post-open review; not merged, not production-reachable, and no terminal status is claimed.
   - Area: iOS / SwiftUI / FitChef / navigation composition / accessibility
   - Reason (EN): The iOS client already has an admitted AI guidance flow and a Today/Week planning-direction seam, but no single consumer-facing FitChef destination. This lane creates one bounded `FitChef Coach` composition container with exactly those two implemented capabilities while keeping networking, consent, descriptors, outcomes, entitlement, planning, and execution authority inside their existing owners.
   - Exact IN:
