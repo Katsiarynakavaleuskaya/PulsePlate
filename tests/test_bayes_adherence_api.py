@@ -6,171 +6,175 @@ EN: Tests for Bayesian adherence API endpoints.
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app import app as fastapi_app
-from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP, derive_subject_id_from_api_key
-from core.models import AnalyzerStateModel
+from app.middleware.api_tiers import derive_subject_id_from_api_key
 
 
 class TestAdherenceAPI:
     """Test adherence event recording and risk retrieval."""
 
-    def _cleanup_analyzer_state(self) -> None:
-        """Remove adherence analyzer state for test subject IDs to avoid cross-test interference."""
-        # Import SessionLocal dynamically to get current value (not cached at module import time)
-        from core.db import SessionLocal
-
-        # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
-        # If None, it means reset_db_for_tests() was called unexpectedly in an API test
-        if SessionLocal is None:
-            raise AssertionError(
-                "SessionLocal is None in API test teardown. "
-                "API tests expect DB initialized; reset_db_for_tests() leaked into API scope."
-            )
-
-        session = SessionLocal()
-        try:
-            session.query(AnalyzerStateModel).filter(
-                AnalyzerStateModel.user_id.in_([self.user_id, self.vip_user_id])
-            ).delete(synchronize_session=False)
-            session.commit()
-        finally:
-            session.close()
-
-    def setup_method(self) -> None:
-        """Setup test client with PRO tier headers."""
-        self.headers_pro = {"X-API-Key": TEST_KEY_PRO}
-        self.headers_vip = {"X-API-Key": TEST_KEY_VIP}
-        self.client = TestClient(fastapi_app, headers=self.headers_pro)
-        self.user_id = derive_subject_id_from_api_key(TEST_KEY_PRO)
-        self.vip_user_id = derive_subject_id_from_api_key(TEST_KEY_VIP)
-        self._cleanup_analyzer_state()
-
-    def teardown_method(self) -> None:
-        """Clean up dependency overrides and database state after each test."""
-        fastapi_app.dependency_overrides.clear()
-        self._cleanup_analyzer_state()
-
-    def test_record_meal_logged_event(self) -> None:
+    def test_record_meal_logged_event(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test recording a successful meal_logged event."""
-        response = self.client.post(
+        user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "meal_logged",
                 "weight": 1.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
-        # Validate response structure
-        assert data["user_id"] == self.user_id
+        assert data["user_id"] == user_id
         assert data["analyzer_key"] == "v1:adherence"
+        assert data["alpha"] == 2.0
+        assert data["beta"] == 1.0
         assert data["n"] == 1
-        # Success event -> alpha should increase relative to beta
-        assert data["alpha"] > data["beta"]
-        assert data["alpha"] > 0
-        assert data["beta"] > 0
-        # Risk should be reasonable (lower for success events)
-        assert 0.0 <= data["risk_slip"] <= 1.0
-        assert 0.0 <= data["confidence"] <= 1.0
-        assert data["needs_more_data"] is True  # n=1 < 7
+        assert data["risk_slip"] == pytest.approx(1 / 3)
+        assert data["confidence"] == 0.35
+        assert data["needs_more_data"] is True
 
-    def test_record_slip_event(self) -> None:
+    def test_record_slip_event(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test recording a slip event."""
-        response = self.client.post(
+        user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "slip",
                 "weight": 1.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
-        assert data["user_id"] == self.user_id
+        assert data["user_id"] == user_id
+        assert data["analyzer_key"] == "v1:adherence"
+        assert data["alpha"] == 1.0
+        assert data["beta"] == 2.0
         assert data["n"] == 1
-        # Slip event -> beta should increase relative to alpha
-        assert data["beta"] > data["alpha"]
-        assert data["risk_slip"] > 0.5  # beta > alpha -> higher risk
+        assert data["risk_slip"] == pytest.approx(2 / 3)
+        assert data["confidence"] == 0.35
         assert data["needs_more_data"] is True
 
-    def test_get_risk_for_new_user(self) -> None:
+    def test_get_risk_for_new_user(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test getting risk for user with no events (default state)."""
-        response = self.client.get(
+        user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+
+        response = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
             params={"analyzer_key": "v1:adherence"},
+            headers=pro_headers,
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
-        assert data["user_id"] == self.user_id
-        # Symmetric prior -> equal alpha/beta
-        assert data["alpha"] == data["beta"]
+        assert data["user_id"] == user_id
+        assert data["alpha"] == 1.0
+        assert data["beta"] == 1.0
         assert data["n"] == 0
-        assert data["risk_slip"] == 0.5  # symmetric prior
-        assert data["confidence"] < 0.5  # low confidence (n=0 < 7)
+        assert data["risk_slip"] == 0.5
+        assert data["confidence"] == 0.35
         assert data["needs_more_data"] is True
 
-    def test_sequential_events_build_confidence(self) -> None:
+    def test_sequential_events_build_confidence(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test that confidence threshold flips at n=7."""
-        # All events use the subject_id derived from the API key
+        user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
 
-        # Record 6 events (below threshold)
         for _ in range(6):
-            response = self.client.post(
+            response = isolated_test_client.post(
                 "/api/v1/bayes/adherence/event",
                 json={
                     "event_type": "meal_logged",
                     "weight": 1.0,
                     "analyzer_key": "v1:adherence",
                 },
+                headers=pro_headers,
             )
             assert response.status_code == 200
 
-        # Check state at n=6 (still needs data)
-        response_6 = self.client.get(
+        response_6 = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
             params={"analyzer_key": "v1:adherence"},
+            headers=pro_headers,
         )
         assert response_6.status_code == 200
+        assert response_6.headers["content-type"].startswith("application/json")
         data_6 = response_6.json()
+        assert data_6["user_id"] == user_id
+        assert data_6["analyzer_key"] == "v1:adherence"
+        assert data_6["alpha"] == 7.0
+        assert data_6["beta"] == 1.0
         assert data_6["n"] == 6
+        assert data_6["risk_slip"] == pytest.approx(1 / 8)
+        assert data_6["confidence"] == 0.35
         assert data_6["needs_more_data"] is True
-        assert data_6["confidence"] < 0.8  # Low confidence
 
-        # Record 7th event (threshold)
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "meal_logged",
                 "weight": 1.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
         assert response.status_code == 200
 
-        # Check final state at n=7 (confidence flipped)
-        response_7 = self.client.get(
+        response_7 = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
             params={"analyzer_key": "v1:adherence"},
+            headers=pro_headers,
         )
         assert response_7.status_code == 200
+        assert response_7.headers["content-type"].startswith("application/json")
         data_7 = response_7.json()
+        assert data_7["user_id"] == user_id
+        assert data_7["analyzer_key"] == "v1:adherence"
+        assert data_7["alpha"] == 8.0
+        assert data_7["beta"] == 1.0
         assert data_7["n"] == 7
+        assert data_7["risk_slip"] == pytest.approx(1 / 9)
+        assert data_7["confidence"] == 0.85
         assert data_7["needs_more_data"] is False
-        assert data_7["confidence"] >= 0.8  # High confidence
-        assert data_7["risk_slip"] < 0.2  # Low risk (many successes)
 
-    def test_validation_rejects_user_id_payload(self) -> None:
+    def test_validation_rejects_user_id_payload(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test validation rejects unexpected user_id payloads."""
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "user_id": 1,
@@ -178,105 +182,155 @@ class TestAdherenceAPI:
                 "weight": 1.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
 
-    def test_validation_invalid_event_type(self) -> None:
+    def test_validation_invalid_event_type(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test validation rejects invalid event_type."""
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "invalid_type",
                 "weight": 1.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
 
-    def test_validation_weight_out_of_range(self) -> None:
+    def test_validation_weight_out_of_range(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test validation rejects weight > 10.0."""
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "meal_logged",
                 "weight": 15.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
 
-    def test_validation_weight_zero(self) -> None:
+    def test_validation_weight_zero(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test validation rejects weight = 0.0."""
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "meal_logged",
                 "weight": 0.0,
                 "analyzer_key": "v1:adherence",
             },
+            headers=pro_headers,
         )
 
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
 
-    def test_custom_analyzer_key(self) -> None:
+    def test_custom_analyzer_key(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+    ) -> None:
         """Test using custom analyzer key for isolation."""
+        user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
         custom_key = "test:custom"
 
-        # Record event with custom key
-        response = self.client.post(
+        response = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={
                 "event_type": "meal_logged",
                 "weight": 1.0,
                 "analyzer_key": custom_key,
             },
+            headers=pro_headers,
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
+        assert data["user_id"] == user_id
         assert data["analyzer_key"] == custom_key
+        assert data["alpha"] == 2.0
+        assert data["beta"] == 1.0
+        assert data["n"] == 1
 
-        # Verify default key is separate
-        response_default = self.client.get(
+        response_default = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
             params={"analyzer_key": "v1:adherence"},
+            headers=pro_headers,
         )
 
         assert response_default.status_code == 200
+        assert response_default.headers["content-type"].startswith("application/json")
         default_data = response_default.json()
-        assert default_data["n"] == 0  # No events on default key
+        assert default_data["user_id"] == user_id
+        assert default_data["analyzer_key"] == "v1:adherence"
+        assert default_data["alpha"] == 1.0
+        assert default_data["beta"] == 1.0
+        assert default_data["n"] == 0
 
-    def test_api_key_isolation(self) -> None:
+    def test_api_key_isolation(
+        self,
+        isolated_test_client: TestClient,
+        pro_headers: dict[str, str],
+        vip_headers: dict[str, str],
+    ) -> None:
         """Test that different API keys have isolated state."""
-        self.client.post(
+        pro_user_id = derive_subject_id_from_api_key(pro_headers["X-API-Key"])
+        vip_user_id = derive_subject_id_from_api_key(vip_headers["X-API-Key"])
+        assert pro_user_id != vip_user_id
+
+        pro_write = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={"event_type": "meal_logged", "weight": 1.0},
-            headers=self.headers_pro,
+            headers=pro_headers,
         )
+        assert pro_write.status_code == 200
+        assert pro_write.headers["content-type"].startswith("application/json")
 
-        self.client.post(
+        vip_write = isolated_test_client.post(
             "/api/v1/bayes/adherence/event",
             json={"event_type": "slip", "weight": 1.0},
-            headers=self.headers_vip,
+            headers=vip_headers,
         )
+        assert vip_write.status_code == 200
+        assert vip_write.headers["content-type"].startswith("application/json")
 
-        resp_pro = self.client.get(
+        resp_pro = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
-            headers=self.headers_pro,
+            headers=pro_headers,
         )
+        assert resp_pro.status_code == 200
+        assert resp_pro.headers["content-type"].startswith("application/json")
         data_pro = resp_pro.json()
-        assert data_pro["user_id"] == self.user_id
+        assert data_pro["user_id"] == pro_user_id
         assert data_pro["alpha"] == 2.0
         assert data_pro["beta"] == 1.0
+        assert data_pro["n"] == 1
 
-        resp_vip = self.client.get(
+        resp_vip = isolated_test_client.get(
             "/api/v1/bayes/adherence/risk",
-            headers=self.headers_vip,
+            headers=vip_headers,
         )
+        assert resp_vip.status_code == 200
+        assert resp_vip.headers["content-type"].startswith("application/json")
         data_vip = resp_vip.json()
-        assert data_vip["user_id"] == self.vip_user_id
+        assert data_vip["user_id"] == vip_user_id
         assert data_vip["alpha"] == 1.0
         assert data_vip["beta"] == 2.0
+        assert data_vip["n"] == 1
