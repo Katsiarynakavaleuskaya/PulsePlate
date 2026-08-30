@@ -78,7 +78,9 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
-        r"\s+scripts/redeploy_caddy\.sh",
+        r"\s+scripts/redeploy_caddy\.sh \\\n"
+        r"\s+scripts/ops/postgres_backup\.sh \\\n"
+        r"\s+deploy/postgres-pgvector/image-manifest\.json",
         re.MULTILINE,
     )
 
