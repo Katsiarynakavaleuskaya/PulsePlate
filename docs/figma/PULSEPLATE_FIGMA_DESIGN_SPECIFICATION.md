@@ -16,7 +16,7 @@ This document is the single authoritative blueprint for building PulsePlate Figm
 - All 18 pages/screens (8 iOS + 10 Web) with layer-by-layer breakdowns
 - Complete component library (30+ components with all states)
 - Full design token tables with inline values (hex, px, rem)
-- All 23 CTAs with interaction state specifications
+- All 24 design-execution CTAs with interaction state specifications; the three FitChef SupportChoice controls remain on their separate Storybook evidence rail
 - Accessibility, responsive behavior, and App Store assets
 - Full specs for both implemented AND to-be-designed elements
 
@@ -396,7 +396,7 @@ Base unit: 4px. Source: `frontend/src/styles/tokens.css:114`
 14_Web_Plate              Premium-gated nutrition view
 15_Web_Progress           Charts + export
 16_Web_Profile            Settings + API key
-17_Web_Paywall            BeforeAfter modal
+17_Web_AppleProductInfo   Information card + shared dialog
 18_Web_Onboarding         Enter key + onboarding flow (NEW DESIGN)
 19_Shared_Icons           Navigation, action, status icon sets
 20_App_Store_Assets       Screenshots, icon sizes, preview storyboard
@@ -481,7 +481,7 @@ Primary interactive element for all CTAs.
 | Default | 100% | 1.0 | - |
 | Hover (Web) | 100% | 1.0 | brightness 110% |
 | Pressed | 100% | 0.98 | brightness 90% |
-| Focused | 100% | 1.0 | 2px focus ring `#339FFF` + 2px offset |
+| Focus-visible | 100% | 1.0 | 2px focus ring `#339FFF` + 2px offset |
 | Disabled | 50% | 1.0 | `cursor-not-allowed` |
 | Loading | 70% | 1.0 | spinner icon replaces text |
 
@@ -656,79 +656,81 @@ Three chart types in a stacked layout.
 
 **Shared States:** Loading (skeleton), Populated, Empty ("No data yet"), Error ("Failed to load" + retry)
 
-### 5.11 PremiumGate
+### 5.11 PremiumGate Information Boundary
 
-Figma Component: `PP/Web/Paywall/PremiumGate`
+Figma Component: `PP/Web/Plate/PremiumGate/AppleProductInfo`
 
-Content overlay that gates premium content.
+The existing `PremiumGate` keeps its preview inert while presenting an
+information-only Apple-product handoff.
 
-**Locked State:**
-- Children rendered at 60% opacity
-- `pointer-events: none` (inert)
-- CTA button below: "Unlock Premium" (`#339FFF` bg, white text, `rounded-xl`, min-height 44px)
-- Screen reader description: hidden behind `sr-only` text
+**Information State:**
+- Children rendered with reduced emphasis and `inert`
+- Secondary V3 trigger below the preview
+- Exact label: `Learn about PulsePlate for Apple devices`
+- Exact intent: `Open the information-only Apple product handoff`
+- Trigger opens the existing `AppleProductInfoDialog`
+- Screen reader description remains in `sr-only` text
+- Exact Web information state set: `default`, `hover`, `pressed`, `focus-visible`, `disabled`
 
-**Unlocked State:**
+**Entitled State:**
 - Children rendered normally (100% opacity, interactive)
 
-**Implementation evidence:** `frontend/src/components/PremiumGate.tsx:33`
+**Implementation evidence:** `frontend/src/components/PremiumGate.tsx:24`
 
-### 5.12 SoftPaywallHook
+### 5.12 SoftPaywallHook Compatibility Surface
 
-Figma Component: `PP/Shared/Paywall/SoftPaywallHook`
+Figma Component: `PP/Shared/AppleProductInfo/SoftHook`
 
-Post-result upsell banner displayed after BMI calculation.
+The code name remains for response compatibility, while the rendered surface is
+an information card. Backend metadata may decide whether the card is present;
+it cannot choose visible copy, navigation, or channel behavior.
 
 **Properties:**
-- Background: linear gradient from `var(--color-surface)` to `var(--color-surface-muted)` (top to bottom)
-- Border: 1px solid `#BCCCDC`
+- Background: `var(--color-bg)`
 - Border radius: 16px
 - Padding: 24px
 - Shadow: `--shadow-sm`
 
-**Content (all from backend contract, no hardcoded text):**
-- Title: 18px Semibold, `#0F172A`
-- Body: 14px Regular, `#627D98`, 20px bottom margin
-- CTA Button: `rounded-full`, `#339FFF` bg, white text, 14px Semibold, min-height 44px, padding 8px 20px
+**Content:**
+- Localized Apple-product information heading and body
+- Explicit free-website and no-Web-acquisition propositions
+- Internal V3 link to `/marketing`
+- No external Store destination or async action state
 
-**States:** Visible (hook data present, pro_available=true), Hidden (hook null or pro_available=false)
+**States:** Visible (hook data present and `pro_available=true`), Hidden (hook null or `pro_available=false`)
 
-**Implementation evidence:** `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:45`
+**Implementation evidence:** `frontend/src/components/SoftPaywallHook/SoftPaywallHook.tsx:18`
 
-### 5.13 BeforeAfter (Paywall Modal)
+### 5.13 AppleProductInfo Card and Dialog
 
-Figma Component: `PP/Web/Paywall/BeforeAfterModal`
+Figma Components: `PP/Web/AppleProductInfo/Card` and
+`PP/Web/AppleProductInfo/Dialog`
 
-Full-screen modal dialog for premium upgrade.
+The direct `/pro` compatibility route renders the information card. The locked
+Plate state renders the same information in the existing focus-trapped dialog.
 
 **Overlay:** `rgba(0,0,0,0.6)`, centered grid placement
 
-**Dialog Container:**
-- Max width: 448px (`max-w-md`)
-- Max height: 85vh
+**Container:**
+- Max width: 672px (`max-w-2xl`)
 - Border radius: 16px
-- Background: `#FFFFFF`
-- Shadow: `--shadow-xl`
-- Overflow: scroll content area
+- Background: `var(--color-bg)`
+- Shadow: `--shadow-lg` for the card and `--shadow-xl` for the dialog
+- Dialog overflow remains scroll-safe on small viewports
 
 **Content Sections:**
-1. **PRO Badge:** Blue pill badge "PRO" (12px semibold, `#339FFF` text, surface bg)
-2. **Title:** 24px text
-3. **Subtitle:** 14px gray-600
-4. **Before/After Grid:** 2-column on sm+, 1-column on mobile
-   - Before card: border `#BCCCDC`, white bg, bulleted list
-   - After card: border `#D4AF37` (gold), surface-muted bg, bulleted list
-5. **Plan comparison:** 3-column grid (Free/Pro/VIP), Pro highlighted with primary border
-6. **Legal text:** 12px gray-500
+1. FitChef pill using existing tokens
+2. Localized `PulsePlate for Apple devices` heading
+3. Free-website, Apple-product direction, no-Web-acquisition, and verified-link-later propositions
+4. Primary internal `/bmi` link
+5. Secondary internal `/marketing` link
+6. Dialog-only neutral dismissal and top close actions
 
-**Footer (sticky):**
-- Border top: 1px `#BCCCDC`
-- Purchase CTA: full width, `#339FFF` bg, white text, `rounded-xl`, 48px height
-- Cancel: full width, transparent bg, gray-700 text, 44px height
+**States:** Exact Web information state set: `default`, `hover`, `pressed`,
+`focus-visible`, `disabled`. The information actions start no asynchronous
+operation.
 
-**States:** Default (CTA enabled), Processing (CTA disabled, processing label), Error (red error text below CTA), Disabled (CTA 50% opacity)
-
-**Implementation evidence:** `frontend/src/components/Paywall/BeforeAfter.tsx:117`
+**Implementation evidence:** `frontend/src/components/AppleProductInfoDialog.tsx:15`
 
 ### 5.14 FitChef Mascot
 
@@ -1088,7 +1090,9 @@ Figma Component: `PP/Web/State/Offline`
    - Section title: "Quick Navigation" (20px Semibold)
    - Subtitle: "Jump to any section..." (14px, muted)
    - Primary CTA: "Configure Setup" (full width, primary lg button) -> CTA `web.home.open_setup`
-   - Secondary grid (3-col on sm+): "Nutrition Plate" / "Progress View" / "Premium Features" -> CTAs `web.home.open_plate`, `web.home.open_progress`, `web.home.open_pro`
+   - Secondary grid (2-col on sm+): "Nutrition Plate" / "Progress View" -> CTAs `web.home.open_plate`, `web.home.open_progress`
+   - Guided Planning → Next action (`W_HOME_GUIDED_PLANNING_ACTIONS`): "Learn about PulsePlate for Apple devices" -> CTA `web.home.open_pro`
+   - `web.home.open_pro` is a stable compatibility ID whose current V3 Link destination is `/marketing`
 6. **Footer spacing**: 96px for tab bar clearance
 7. **TabBar** (fixed bottom)
 
@@ -1146,12 +1150,12 @@ Figma Component: `PP/Web/State/Offline`
 2. **Page Header**: "Nutrition Plate" title
 3. **LiveProgressIndicator**
 4. **PremiumGate Wrapper** (`isPremium` controls visibility):
-   - **When locked (non-premium):** Children at 60% opacity, inert, CTA button "Unlock Premium"
+   - **When locked (non-premium):** Children use reduced emphasis and remain inert; the V3 trigger reads "Learn about PulsePlate for Apple devices"
    - **When unlocked:** Full nutrition plate visualization
 5. **Gated Content:**
    - Link to Setup (CTA: `web.plate.open_setup`)
    - Link to Progress (CTA: `web.plate.open_progress`)
-   - Premium gate CTA (CTA: `web.plate.premium_gate_cta`) -> opens BeforeAfter modal
+   - Stable information trigger (CTA: `web.plate.premium_gate_cta`) -> opens the existing `AppleProductInfoDialog`
 6. Tab bar (visible)
 
 ### 6.14 Web: Progress
@@ -1185,18 +1189,19 @@ Figma Component: `PP/Web/State/Offline`
 4. **About Section**: "About PulsePlate" with brand description
 5. Tab bar (visible)
 
-### 6.16 Web: Paywall Modal
+### 6.16 Web: Apple Product Information
 
-**Figma Page:** `17_Web_Paywall`
-**Source:** `frontend/src/pages/Pro/ProPaywallPage.tsx:7`
+**Figma Page:** `17_Web_AppleProductInfo`
+**Sources:** `frontend/src/pages/Pro/ProPaywallPage.tsx:1`,
+`frontend/src/components/AppleProductInfoDialog.tsx:15`
 
-Thin wrapper around BeforeAfter component (see section 5.13).
-
-**Page-level:** Full screen, opens BeforeAfter modal with `purchaseDisabled` flag (purchase not yet wired).
+The public `/pro` compatibility route renders the existing information card.
+The Plate trigger renders the same propositions in the existing dialog.
 
 **CTAs:**
-- Purchase (CTA: `web.paywall.modal.cta`) - currently disabled/"coming soon"
-- Cancel (CTA: `web.paywall.modal.cancel`) - closes modal
+- `web.apple_product_info.free_bmi` -> internal `/bmi`
+- `web.apple_product_info.marketing` -> internal `/marketing`
+- `web.apple_product_info.dismiss` -> closes only the dialog and restores opener focus
 
 ### 6.17 Web: Onboarding - Enter Key
 
@@ -1245,9 +1250,12 @@ Thin wrapper around BeforeAfter component (see section 5.13).
 
 ---
 
-## 7. Button & CTA Specification (All 23)
+## 7. Button & CTA Specification (24 Design-Execution Identities)
 
-Complete visual specification for all CTAs. Behavioral details and code anchors: see `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+Complete visual specification for the matrix registry excluding only the three
+FitChef SupportChoice identities governed by `SupportChoiceCard.stories.tsx`.
+Behavioral details and code anchors: see
+`docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
 
 ### 7.1 Web CTAs
 
@@ -1256,13 +1264,14 @@ Complete visual specification for all CTAs. Behavioral details and code anchors:
 | `web.home.open_setup` | "Configure Setup" | Primary | lg, full-width | none | none |
 | `web.home.open_plate` | "Nutrition Plate" | Secondary | md | none | requiresAuth redirect |
 | `web.home.open_progress` | "Progress View" | Secondary | md | none | requiresAuth redirect |
-| `web.home.open_pro` | "Premium Features" | Secondary | md | none | none |
+| `web.home.open_pro` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | Guided Planning → Next action; information-only `/marketing` handoff in `W_HOME_GUIDED_PLANNING_ACTIONS` |
 | `web.plate.open_setup` | "Open Setup" | Link (inside gate) | md | none | PremiumGate inert |
 | `web.plate.open_progress` | "Open Progress" | Link (inside gate) | md | none | PremiumGate inert |
-| `web.plate.premium_gate_cta` | i18n `paywall.cta` | Primary | md | none | visible when !isPremium |
+| `web.plate.premium_gate_cta` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | opens information dialog when !isPremium |
 | `web.progress.export_pdf` | "Export PDF" | Secondary | md | download icon | none |
-| `web.paywall.modal.cta` | i18n `paywall.cta` | Primary | lg, full-width | none | purchaseDisabled flag |
-| `web.paywall.modal.cancel` | i18n `common.cancel` | Ghost | md, full-width | none | none |
+| `web.apple_product_info.free_bmi` | "Try the free BMI calculator" | Primary | md | none | internal `/bmi` only |
+| `web.apple_product_info.marketing` | "Learn about PulsePlate for Apple devices" | Secondary V3 | md | none | internal `/marketing` only |
+| `web.apple_product_info.dismiss` | "Not now" / localized equivalent | Ghost V3 | md | none | dialog presentation only |
 | `web.setup.submit_calculate` | "Calculate plate" | Primary (submit) | lg, full-width | none | none |
 | `web.setup.result.retry` | "Try again" | Primary | md | refresh icon | error state only |
 | `web.setup.result.edit` | "Edit" | Secondary | sm | pencil icon | result state |
@@ -1291,10 +1300,17 @@ All buttons must have these states designed in Figma:
 | Default | Base appearance | Idle |
 | Hover | Brightness +10% (Web only) | Mouse hover |
 | Pressed | Scale 0.98, Brightness -10% | Mouse down / touch |
-| Focused | 2px `#339FFF` ring, 2px offset | Tab focus (Web), VoiceOver (iOS) |
-| Disabled | 50% opacity, no pointer events | Auth gate, feature flag, purchaseDisabled |
+| Focus-visible | 2px `#339FFF` ring, 2px offset | Tab focus (Web), VoiceOver (iOS) |
+| Disabled | 50% opacity, no pointer events | Auth gate or feature flag |
 | Loading | Spinner icon, 70% opacity, no pointer events | Async operation in progress |
 | Error | Red border, error text below (if applicable) | Failed operation |
+
+Exact Web information state set: `default`, `hover`, `pressed`, `focus-visible`,
+`disabled`. Information-only Apple-product actions never receive Loading or
+Error because they start no asynchronous operation. The stable IDs `web.home.open_pro` and
+`web.plate.premium_gate_cta` are compatibility metadata only; their exact intent
+is `Open the information-only Apple product handoff`, their variant is `V3`, and
+their prompt stub is `stub://cta/information/apple-product`.
 
 **Figma Node ID status:** `blocked_by_node_id_capture` (`missing_node_id`) +
 `blocked_by_plan` (Design URL exists, node IDs pending refresh, Code Connect
@@ -1329,13 +1345,15 @@ seat unavailable). See `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` and
 | Web (mobile) | 44x44px | `--spacing-touch: 2.75rem` |
 | Web (desktop) | 32x32px | Acceptable with hover state |
 
-All buttons: `min-height: 44px` enforced via `style={{ minHeight: 44 }}` (see `frontend/src/components/PremiumGate.tsx:56`, `frontend/src/components/VipGate.tsx:110`, `frontend/src/components/Paywall/BeforeAfter.tsx:191`).
+All information-boundary actions meet the 44px target through the shared button
+primitives (see `frontend/src/components/PremiumGate.tsx:48`,
+`frontend/src/components/AppleProductInfoDialog.tsx:50`).
 
 ### 8.3 Focus Management
 
 **Web:**
 - Focus ring: 2px solid `#339FFF`, 2px offset
-- Focus trap in modals (BeforeAfter, dialogs)
+- Focus trap in the existing `AppleProductInfoDialog` and other dialogs
 - Skip navigation link (z-index 1600)
 - `inert` attribute on gated content (PremiumGate)
 - Escape key closes modals
@@ -1387,7 +1405,7 @@ All text in iOS must support Dynamic Type scaling:
 |------------|-------|----------------|
 | Mobile | < 640px | Single column, stacked cards, full-width buttons |
 | sm | >= 640px | 2-column status cards, 3-column action grid |
-| md | >= 768px | Side-by-side before/after in paywall |
+| md | >= 768px | Apple-product information actions may align side by side |
 | lg | >= 1024px | Wider max-width, more generous spacing |
 | xl | >= 1280px | Max content width reached |
 
@@ -1499,7 +1517,7 @@ Status claims below are target/roadmap assessments based on codebase analysis; f
 | **ProgressCharts** | Trusted empty state in release path; chart-rich design remains target-only | Skeleton only | P0-A |
 | **PremiumGate** | Implemented | N/A (StoreKit paywall) | - |
 | **SoftPaywallHook** | Implemented | Implemented | - |
-| **BeforeAfter Modal** | Implemented | N/A | - |
+| **AppleProductInfo Card/Dialog** | Implemented | N/A | - |
 | **FitChef Mascot** | NOT implemented | Implemented | P1 |
 | **MascotBubble** | NOT implemented | Implemented | P1 |
 | **ECG Pulse Line** | NOT implemented | NOT implemented | P1 |

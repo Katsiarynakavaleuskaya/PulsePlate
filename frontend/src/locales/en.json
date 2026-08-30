@@ -181,6 +181,18 @@
             }
         }
     },
+    "appleProduct": {
+        "title": "PulsePlate for Apple devices",
+        "websiteFree": "This website is free to use.",
+        "fitChefDirection": "We’re designing more advanced FitChef features for PulsePlate on Apple devices.",
+        "noWebPurchases": "Purchases are not offered on this website.",
+        "storeLinkLater": "We’ll add a verified App Store link when public availability is confirmed.",
+        "tryFreeBmi": "Try the free BMI calculator",
+        "learnMore": "Learn about PulsePlate for Apple devices",
+        "notNow": "Not now",
+        "close": "Close information about PulsePlate for Apple devices",
+        "softHeading": "Keep exploring for free"
+    },
     "nutritionSetup": {
         "title": "Nutrition Survey",
         "description": "Fill in your parameters for personalized plate calculation",

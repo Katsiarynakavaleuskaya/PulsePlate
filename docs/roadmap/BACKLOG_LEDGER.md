@@ -24,6 +24,53 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p0-web-production-payment-desurfacing"></a>
+- [ ] P0: Remove production-reachable Web payment actions
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P0 (public channel truth / payment safety / launch trust)
+  - Target PR: [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
+    (`codex/web-payment-desurfacing`)
+  - Status: In review in PR #2352; closure is effective only after the target PR merges
+  - Area: frontend / Web monetization boundary / accessibility / public product copy
+  - Reason (EN): The current public website must remain free and informational while paid product
+    direction stays with PulsePlate for Apple devices. Production-reachable purchase, subscribe,
+    upgrade, trial, restore, payment-error, and entitlement-acquisition actions contradicted that
+    channel posture and could mislead users or let client UI imply billing authority. This carrier
+    keeps `/pro` as an information-only compatibility URL, removes the dead Web purchase path, and
+    preserves separately admitted future Web monetization without making a legal or tax claim.
+  - Links:
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+    - `docs/contracts/soft_paywall.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `frontend/src/components/AppleProductInfoDialog.tsx`
+    - `frontend/src/config/__tests__/webMonetizationPosture.test.ts`
+  - DoD:
+    - direct `/pro`, PremiumGate, both VipGate modes, BMI soft-hook, Home, marketing tiers, barrel,
+      and Storybook expose no Web purchase, checkout, subscription, upgrade, trial, restore,
+      payment-error, or entitlement-acquisition action
+    - only the existing internal `/bmi`, `/marketing`, and dialog-dismissal actions remain on the
+      corrected information boundary; no external Store URL or named-platform availability claim
+      is rendered without verified release truth
+    - EN/RU/ES preserve equivalent free-Web and Apple-device-direction semantics, accessible dialog
+      naming/description, keyboard focus trapping, Escape, focus return, 44px targets, reduced-motion
+      behavior, mobile reflow, and text-spacing compatibility
+    - the legacy `BeforeAfter` dialog and `paywallPurchase` helper plus their tests, exports, and
+      Storybook consumers are deleted after exact zero-call-site proof
+    - the canonical product-tier, soft-paywall, and button-action contracts agree with the runtime;
+      the mechanical posture guard distinguishes executable acquisition carriers from inert backend,
+      generated OpenAPI, StoreKit, and telemetry declarations
+    - backend billing, Apple receipt verification, StoreKit, entitlement persistence/routing, iOS,
+      generated OpenAPI/schema, deployment, release, and Euler state remain unchanged
+    - focused frontend/accessibility/locale/Storybook tests, production build, OpenAPI no-drift,
+      design/token guards, narrow repository bundle, exact-head CI, review disposition, mapping/seal,
+      and mandatory review wait window all pass before merge authorization
+  - Rollback (EN): A full ordinary revert is not authorized because it would restore the misleading
+    Web payment UI. Use a bounded fix-forward or temporarily replace a regressed entry point with
+    static information-only content; backend and Apple monetization remain untouched.
+  - Deferred / follow-up (EN): A future paid or full-parity Web product requires a new exact human GO,
+    server-authoritative billing and entitlement architecture, and its own reviewed carrier. This
+    item grants no deployment, App Store, release, or permanent no-Web-monetization authority.
+
 <a id="ledger-p1-canonical-coaching-goal-source"></a>
 - [ ] P1: Implement the canonical backend source for coaching goal authority
   - Owner: Human Product Owner to assign a dedicated backend plus web/iOS lane

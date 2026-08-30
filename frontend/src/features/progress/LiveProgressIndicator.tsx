@@ -4,7 +4,6 @@ import {
   trackHppCtaClick,
   trackHppCtaImpression,
   trackHppLiveIndicatorImpression,
-  trackHppPaywallOpenFromLive,
 } from '../../lib/hppTelemetry';
 import { type HppLiveVariant, useHppLiveIndicator } from './useHppLiveIndicator';
 import { ProgressIndicator, buttonClasses } from '../../components/ui';
@@ -46,8 +45,6 @@ export default function LiveProgressIndicator({
   }, [ctaTo, resolvedVariant, source, status]);
 
   const statusLabel = status === 'live' ? 'Live updates on' : 'Static fallback';
-  const path = ctaTo.split('?')[0];
-  const isPaywallCta = /^\/pro(?:\/|$)/.test(path) || /^\/paywall(?:\/|$)/.test(path);
 
   return (
     <ProgressIndicator
@@ -69,9 +66,6 @@ export default function LiveProgressIndicator({
               cta_to: ctaTo,
             };
             trackHppCtaClick(basePayload);
-            if (isPaywallCta) {
-              trackHppPaywallOpenFromLive(basePayload);
-            }
           }}
         >
           {ctaLabel}
