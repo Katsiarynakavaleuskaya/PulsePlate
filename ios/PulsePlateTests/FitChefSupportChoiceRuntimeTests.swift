@@ -989,6 +989,8 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             APIError.api(statusCode: 503, message: "raw-store-secret"),
             APIError.transport("raw-transport-secret"),
             APIError.emptyResponse(statusCode: 204),
+            APIError.decodingFailed("raw-decoding-secret"),
+            APIError.invalidResponse,
             FitChefSupportContractError.invalidOutcomeReceipt,
         ]
 
@@ -1039,6 +1041,64 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
         }
     }
 
+    func testOutcomeUnexpectedContractAndOpaqueErrorsAreTerminalWithoutRetry() async throws {
+        let errors: [(String, Error)] = [
+            ("invalid handoff descriptor", FitChefSupportContractError.invalidHandoffDescriptor),
+            ("response need mismatch", FitChefSupportContractError.responseNeedMismatch),
+            ("custom error", FitChefUnexpectedOutcomeTestError.sentinel),
+            ("unknown API error", APIError.unknown("raw-unknown-secret")),
+            ("unhandled status", APIError.unhandledStatusCode(418)),
+        ]
+
+        for (label, error) in errors {
+            let descriptor = try makeDescriptor(need: .dailyStructure)
+            let service = FitChefRecordingService(
+                handoffResults: [.success(descriptor)],
+                outcomeResults: [.failure(error)]
+            )
+            let identifiers = UUIDSequence([UUID(uuidString: fixedUUIDString)!])
+            let viewModel = FitChefSupportFlowViewModel(
+                service: service,
+                apiKeyProvider: { "credential-one" },
+                makeClientEventID: { identifiers.next() }
+            )
+            viewModel.select(.dailyStructure)
+            viewModel.confirm()
+            await waitForState(viewModel) {
+                if case .presenting = $0 { return true }
+                return false
+            }
+            viewModel.acknowledge()
+            await waitForState(viewModel) {
+                if case .outcomeFailed = $0 { return true }
+                return false
+            }
+
+            guard case .outcomeFailed(_, let attempt, let failure) = viewModel.state else {
+                XCTFail("Expected outcome failure: \(label)")
+                continue
+            }
+            XCTAssertEqual(failure, .terminal, label)
+            XCTAssertEqual(attempt.supportNeed, .dailyStructure, label)
+            XCTAssertEqual(attempt.outcome, .acknowledged, label)
+            XCTAssertEqual(attempt.clientEventID, fixedUUIDString.lowercased(), label)
+            XCTAssertFalse(viewModel.canRetryOutcome, label)
+            XCTAssertFalse(viewModel.requiresNewLifecycle, label)
+            XCTAssertEqual(service.outcomeCalls.count, 1, label)
+            XCTAssertEqual(identifiers.readCount, 1, label)
+
+            viewModel.retryOutcome()
+            await drainMainActorTasks()
+            XCTAssertEqual(service.outcomeCalls.count, 1, label)
+            XCTAssertEqual(identifiers.readCount, 1, label)
+            guard case .outcomeFailed(_, let retainedAttempt, .terminal) = viewModel.state else {
+                XCTFail("Interaction truth changed after retry: \(label)")
+                continue
+            }
+            XCTAssertEqual(retainedAttempt, attempt, label)
+        }
+    }
+
     func testRawErrorsCredentialEventIDAndTargetSlugNeverReachUserFacingKeys() async throws {
         let descriptor = try makeDescriptor(need: .dailyStructure)
         let service = FitChefRecordingService(
@@ -1071,7 +1131,7 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
         let source = try viewModelSource()
         let handoff = try sourceSlice(
             source,
-            from: "private func performHandoff(",
+            from: "private func completeHandoff(",
             to: "private func handoffFailure"
         )
         assertOrderedSource(
@@ -1086,7 +1146,7 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
 
         let outcome = try sourceSlice(
             source,
-            from: "private func performOutcome(",
+            from: "private func completeOutcome(",
             to: "private func outcomeFailure"
         )
         assertOrderedSource(
@@ -1112,8 +1172,8 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
                 "case .outcomeFailed(let descriptor, let attempt, .retryable)",
                 "let apiKey = pinnedAPIKey",
                 "transition(to: .recording(descriptor, attempt))",
-                "Task {",
-                "await performOutcome",
+                "operationTask = Task { [weak self, service",
+                "await Self.performOutcome",
             ],
             in: retry
         )
@@ -1141,10 +1201,12 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             [
                 "case .selecting(let need?)",
                 "let apiKey",
+                "cancelOperationTask()",
                 "let generation = beginOperation()",
                 "transition(to: .requesting(need))",
-                "Task {",
-                "await performHandoff",
+                "operationTask = Task { [weak self, service",
+                "await Self.performHandoff",
+                "guard let self else { return }",
             ],
             in: confirm
         )
@@ -1158,10 +1220,12 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             [
                 "case .handoffFailed(let need, .retryable)",
                 "let apiKey = pinnedAPIKey",
+                "cancelOperationTask()",
                 "let generation = beginOperation()",
                 "transition(to: .requesting(need))",
-                "Task {",
-                "await performHandoff",
+                "operationTask = Task { [weak self, service",
+                "await Self.performHandoff",
+                "guard let self else { return }",
             ],
             in: retryHandoff
         )
@@ -1169,17 +1233,19 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
         let firstOutcome = try sourceSlice(
             source,
             from: "private func recordFirstOutcome(_ outcome: FitChefSupportOutcome)",
-            to: "private func performOutcome"
+            to: "private nonisolated static func performOutcome("
         )
         assertOrderedSource(
             [
                 "case .presenting(let descriptor)",
                 "let apiKey = pinnedAPIKey",
                 "let attempt = FitChefSupportOutcomeAttempt(",
+                "cancelOperationTask()",
                 "let generation = beginOperation()",
                 "transition(to: .recording(descriptor, attempt))",
-                "Task {",
-                "await performOutcome",
+                "operationTask = Task { [weak self, service",
+                "await Self.performOutcome",
+                "guard let self else { return }",
             ],
             in: firstOutcome
         )
@@ -1193,10 +1259,12 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             [
                 "case .outcomeFailed(let descriptor, let attempt, .retryable)",
                 "let apiKey = pinnedAPIKey",
+                "cancelOperationTask()",
                 "let generation = beginOperation()",
                 "transition(to: .recording(descriptor, attempt))",
-                "Task {",
-                "await performOutcome",
+                "operationTask = Task { [weak self, service",
+                "await Self.performOutcome",
+                "guard let self else { return }",
             ],
             in: retryOutcome
         )
@@ -1250,6 +1318,107 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
         XCTAssertEqual(service.outcomeCalls.count, 1)
     }
 
+    func testCancelCancelsPendingHandoffAndPreventsLateReplacement() async throws {
+        try await assertPendingHandoffCancellation()
+    }
+
+    func testCancelCancelsPendingOutcomeAndPreservesSingleAttempt() async throws {
+        try await assertPendingOutcomeCancellation()
+    }
+
+    func testResetCancelsPendingOutcomeRetryAndClearsRetryCredential() async throws {
+        let retryStarted = expectation(description: "outcome retry started")
+        let descriptor = try makeDescriptor(need: .dailyStructure)
+        let service = FitChefCancellationAwareSuspendingService(
+            immediateHandoff: descriptor,
+            firstOutcomeFailure: APIError.transport("first outcome fails"),
+            outcomeStarted: retryStarted
+        )
+        let credentials = CredentialSequence(["credential-one", "credential-two"])
+        let identifiers = UUIDSequence([UUID(uuidString: fixedUUIDString)!])
+        let viewModel = FitChefSupportFlowViewModel(
+            service: service,
+            apiKeyProvider: { credentials.next() },
+            makeClientEventID: { identifiers.next() }
+        )
+        viewModel.select(.dailyStructure)
+        viewModel.confirm()
+        await waitForState(viewModel) {
+            if case .presenting = $0 { return true }
+            return false
+        }
+        viewModel.acknowledge()
+        await waitForState(viewModel) {
+            if case .outcomeFailed(_, _, .retryable) = $0 { return true }
+            return false
+        }
+        guard case .outcomeFailed(_, let attempt, .retryable) = viewModel.state else {
+            XCTFail("Expected retryable outcome failure, got \(viewModel.state)")
+            return
+        }
+
+        viewModel.retryOutcome()
+        assertRecording(viewModel.state, descriptor: descriptor, attempt: attempt)
+        await fulfillment(of: [retryStarted], timeout: 2)
+        viewModel.startNewLifecycle()
+        assertSelecting(viewModel.state, need: nil)
+        let cancellationObserved = await waitForCondition {
+            service.outcomeCancellationCount == 1
+        }
+        XCTAssertEqual(service.outcomeCalls.count, 2)
+        XCTAssertEqual(service.outcomeCalls[0].attempt, attempt)
+        XCTAssertEqual(service.outcomeCalls[1].attempt, attempt)
+        XCTAssertEqual(identifiers.readCount, 1)
+        XCTAssertEqual(credentials.readCount, 1)
+
+        viewModel.select(.dailyStructure)
+        viewModel.confirm()
+        await waitForState(viewModel) {
+            if case .presenting = $0 { return true }
+            return false
+        }
+        XCTAssertEqual(service.handoffCalls.map(\.apiKey), ["credential-one", "credential-two"])
+        XCTAssertEqual(credentials.readCount, 2)
+        XCTAssertEqual(identifiers.readCount, 1)
+        service.resumeOutcomeForCleanup(
+            .success(FitChefSupportOutcomeReceipt(state: .recorded))
+        )
+        await drainMainActorTasks()
+        XCTAssertTrue(cancellationObserved)
+        XCTAssertEqual(service.outcomeCancellationCount, 1)
+        guard case .presenting = viewModel.state else {
+            XCTFail("Cancelled retry changed the new lifecycle: \(viewModel.state)")
+            return
+        }
+    }
+
+    func testViewModelDeallocatesAndCancelsWhileHandoffServiceIsSuspended() async throws {
+        let started = expectation(description: "deinit handoff started")
+        let descriptor = try makeDescriptor(need: .dailyStructure)
+        let service = FitChefCancellationAwareSuspendingService(
+            handoffStarted: started
+        )
+        var viewModel: FitChefSupportFlowViewModel? = makeViewModel(service: service)
+        viewModel?.select(.dailyStructure)
+        viewModel?.confirm()
+        await fulfillment(of: [started], timeout: 2)
+        weak var weakViewModel = viewModel
+
+        viewModel = nil
+        let releasedBeforeCleanup = await waitForCondition {
+            weakViewModel == nil && service.handoffCancellationCount == 1
+        }
+        let cancellationCountBeforeCleanup = service.handoffCancellationCount
+        service.resumeHandoffForCleanup(.success(descriptor))
+        await drainMainActorTasks()
+
+        XCTAssertTrue(releasedBeforeCleanup)
+        XCTAssertEqual(cancellationCountBeforeCleanup, 1)
+        XCTAssertNil(weakViewModel)
+        XCTAssertEqual(service.handoffCalls.count, 1)
+        XCTAssertEqual(service.outcomeCalls.count, 0)
+    }
+
     private func makeViewModel(
         service: FitChefSupportServicing
     ) -> FitChefSupportFlowViewModel {
@@ -1258,6 +1427,103 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             apiKeyProvider: { "credential-one" },
             makeClientEventID: { UUID(uuidString: fixedUUIDString)! }
         )
+    }
+
+    private func assertPendingHandoffCancellation() async throws {
+        let started = expectation(description: "handoff started")
+        let descriptor = try makeDescriptor(need: .weeklyStructure)
+        let service = FitChefCancellationAwareSuspendingService(
+            handoffStarted: started
+        )
+        let credentials = CredentialSequence(["credential-one", "credential-two"])
+        let identifiers = UUIDSequence([UUID(uuidString: fixedUUIDString)!])
+        let viewModel = FitChefSupportFlowViewModel(
+            service: service,
+            apiKeyProvider: { credentials.next() },
+            makeClientEventID: { identifiers.next() }
+        )
+        viewModel.select(.weeklyStructure)
+        viewModel.confirm()
+        assertRequesting(viewModel.state, need: .weeklyStructure)
+        await fulfillment(of: [started], timeout: 2)
+
+        viewModel.cancel()
+        assertSelecting(viewModel.state, need: nil)
+        let cancellationObserved = await waitForCondition {
+            service.handoffCancellationCount == 1
+        }
+        XCTAssertEqual(service.handoffCalls.count, 1)
+        XCTAssertEqual(service.handoffCalls[0].apiKey, "credential-one")
+        XCTAssertEqual(service.outcomeCalls.count, 0)
+        XCTAssertEqual(credentials.readCount, 1)
+        XCTAssertEqual(identifiers.readCount, 0)
+
+        viewModel.retryHandoff()
+        viewModel.acknowledge()
+        viewModel.dismissResult()
+        service.resumeHandoffForCleanup(.success(descriptor))
+        await drainMainActorTasks()
+        XCTAssertTrue(cancellationObserved)
+        XCTAssertEqual(service.handoffCancellationCount, 1)
+        assertSelecting(viewModel.state, need: nil)
+        XCTAssertEqual(service.handoffCalls.count, 1)
+        XCTAssertEqual(service.outcomeCalls.count, 0)
+        XCTAssertEqual(credentials.readCount, 1)
+        XCTAssertEqual(identifiers.readCount, 0)
+    }
+
+    private func assertPendingOutcomeCancellation() async throws {
+        let started = expectation(description: "outcome started")
+        let descriptor = try makeDescriptor(need: .dailyStructure)
+        let service = FitChefCancellationAwareSuspendingService(
+            immediateHandoff: descriptor,
+            outcomeStarted: started
+        )
+        let credentials = CredentialSequence(["credential-one", "credential-two"])
+        let identifiers = UUIDSequence([UUID(uuidString: fixedUUIDString)!])
+        let viewModel = FitChefSupportFlowViewModel(
+            service: service,
+            apiKeyProvider: { credentials.next() },
+            makeClientEventID: { identifiers.next() }
+        )
+        viewModel.select(.dailyStructure)
+        viewModel.confirm()
+        await waitForState(viewModel) {
+            if case .presenting = $0 { return true }
+            return false
+        }
+        viewModel.acknowledge()
+        guard case .recording(_, let attempt) = viewModel.state else {
+            XCTFail("Expected recording before reset, got \(viewModel.state)")
+            return
+        }
+        await fulfillment(of: [started], timeout: 2)
+
+        viewModel.cancel()
+        assertSelecting(viewModel.state, need: nil)
+        let cancellationObserved = await waitForCondition {
+            service.outcomeCancellationCount == 1
+        }
+        XCTAssertEqual(service.handoffCalls.count, 1)
+        XCTAssertEqual(service.outcomeCalls.count, 1)
+        XCTAssertEqual(service.outcomeCalls[0].attempt, attempt)
+        XCTAssertEqual(service.outcomeCalls[0].apiKey, "credential-one")
+        XCTAssertEqual(credentials.readCount, 1)
+        XCTAssertEqual(identifiers.readCount, 1)
+
+        viewModel.acknowledge()
+        viewModel.dismissResult()
+        viewModel.retryOutcome()
+        service.resumeOutcomeForCleanup(
+            .success(FitChefSupportOutcomeReceipt(state: .recorded))
+        )
+        await drainMainActorTasks()
+        XCTAssertTrue(cancellationObserved)
+        XCTAssertEqual(service.outcomeCancellationCount, 1)
+        assertSelecting(viewModel.state, need: nil)
+        XCTAssertEqual(service.outcomeCalls.count, 1)
+        XCTAssertEqual(credentials.readCount, 1)
+        XCTAssertEqual(identifiers.readCount, 1)
     }
 
     private func assertFirstOutcomeGestureClaimsSynchronously(
@@ -1340,6 +1606,19 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("Timed out waiting for state; current=\(viewModel.state)", file: file, line: line)
+    }
+
+    private func waitForCondition(
+        maxYields: Int = 1_000,
+        condition: () -> Bool
+    ) async -> Bool {
+        for _ in 0..<maxYields {
+            if condition() {
+                return true
+            }
+            await Task.yield()
+        }
+        return condition()
     }
 
     private func drainMainActorTasks(maxYields: Int = 100) async {
@@ -1728,6 +2007,23 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
         XCTAssertTrue(source.contains("PPCard"))
         XCTAssertTrue(source.contains("PPButton"))
         XCTAssertTrue(source.contains("PPAccessibility.minimumTouchTarget"))
+        XCTAssertTrue(source.contains("@ScaledMetric(relativeTo: .headline)"))
+        XCTAssertTrue(source.contains("@ScaledMetric(relativeTo: .caption)"))
+        XCTAssertTrue(source.contains("@ScaledMetric(relativeTo: .body)"))
+        assertOrdered(
+            [
+                "if case .presenting = viewModel.state",
+                "fitchef.support_flow.result.response_notice",
+            ],
+            in: source
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "fitchef.support_flow.result.response_notice",
+                in: source
+            ),
+            1
+        )
         XCTAssertTrue(source.contains(".defaultScrollAnchor(.top)"))
         XCTAssertTrue(source.contains("if #available(iOS 18.0, *)"))
         XCTAssertTrue(source.contains("for: .alignment"))
@@ -1825,6 +2121,7 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
         XCTAssertTrue(source.contains("Locale(identifier: \"es\")"))
         XCTAssertTrue(source.contains("traits: .fixedLayout(width: 390, height: 844)"))
         XCTAssertTrue(source.contains("traits: .fixedLayout(width: 834, height: 1194)"))
+        XCTAssertTrue(source.contains(".environment(\\.horizontalSizeClass, .regular)"))
     }
 
     private func loadFlowLocalization(locale: String) throws -> [String: String] {
@@ -2218,6 +2515,173 @@ private final class FitChefSuspendingService: FitChefSupportServicing, @unchecke
     }
 }
 
+// Test-only cancellation-aware service. Continuations are resumed exactly once on cancel/cleanup.
+private final class FitChefCancellationAwareSuspendingService:
+    FitChefSupportServicing,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let immediateHandoff: FitChefSupportHandoffDescriptor?
+    private let firstOutcomeFailure: Error?
+    private let handoffStarted: XCTestExpectation?
+    private let outcomeStarted: XCTestExpectation?
+    private var handoffContinuation:
+        CheckedContinuation<FitChefSupportHandoffDescriptor, Error>?
+    private var outcomeContinuation:
+        CheckedContinuation<FitChefSupportOutcomeReceipt, Error>?
+    private var handoffCancellationRequested = false
+    private var outcomeCancellationRequested = false
+    private var capturedHandoffCancellationCount = 0
+    private var capturedOutcomeCancellationCount = 0
+    private var capturedHandoffCalls: [FitChefHandoffCall] = []
+    private var capturedOutcomeCalls: [FitChefOutcomeCall] = []
+
+    init(
+        immediateHandoff: FitChefSupportHandoffDescriptor? = nil,
+        firstOutcomeFailure: Error? = nil,
+        handoffStarted: XCTestExpectation? = nil,
+        outcomeStarted: XCTestExpectation? = nil
+    ) {
+        self.immediateHandoff = immediateHandoff
+        self.firstOutcomeFailure = firstOutcomeFailure
+        self.handoffStarted = handoffStarted
+        self.outcomeStarted = outcomeStarted
+    }
+
+    var handoffCalls: [FitChefHandoffCall] {
+        withLock { capturedHandoffCalls }
+    }
+
+    var outcomeCalls: [FitChefOutcomeCall] {
+        withLock { capturedOutcomeCalls }
+    }
+
+    var handoffCancellationCount: Int {
+        withLock { capturedHandoffCancellationCount }
+    }
+
+    var outcomeCancellationCount: Int {
+        withLock { capturedOutcomeCancellationCount }
+    }
+
+    func requestHandoff(
+        for supportNeed: FitChefSupportNeed,
+        apiKey: String
+    ) async throws -> FitChefSupportHandoffDescriptor {
+        withLock {
+            capturedHandoffCalls.append(
+                FitChefHandoffCall(need: supportNeed, apiKey: apiKey)
+            )
+        }
+        if let immediateHandoff {
+            return immediateHandoff
+        }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let cancelImmediately = withLock {
+                    if handoffCancellationRequested || Task.isCancelled {
+                        return true
+                    }
+                    handoffContinuation = continuation
+                    return false
+                }
+                handoffStarted?.fulfill()
+                if cancelImmediately {
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        } onCancel: { [weak self] in
+            self?.cancelHandoff()
+        }
+    }
+
+    func recordOutcome(
+        _ attempt: FitChefSupportOutcomeAttempt,
+        apiKey: String
+    ) async throws -> FitChefSupportOutcomeReceipt {
+        let callNumber = withLock {
+            capturedOutcomeCalls.append(
+                FitChefOutcomeCall(attempt: attempt, apiKey: apiKey)
+            )
+            return capturedOutcomeCalls.count
+        }
+        if callNumber == 1, let firstOutcomeFailure {
+            throw firstOutcomeFailure
+        }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let cancelImmediately = withLock {
+                    if outcomeCancellationRequested || Task.isCancelled {
+                        return true
+                    }
+                    outcomeContinuation = continuation
+                    return false
+                }
+                outcomeStarted?.fulfill()
+                if cancelImmediately {
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        } onCancel: { [weak self] in
+            self?.cancelOutcome()
+        }
+    }
+
+    func resumeHandoffForCleanup(
+        _ result: Result<FitChefSupportHandoffDescriptor, Error>
+    ) {
+        let continuation = withLock {
+            let value = handoffContinuation
+            handoffContinuation = nil
+            return value
+        }
+        continuation?.resume(with: result)
+    }
+
+    func resumeOutcomeForCleanup(
+        _ result: Result<FitChefSupportOutcomeReceipt, Error>
+    ) {
+        let continuation = withLock {
+            let value = outcomeContinuation
+            outcomeContinuation = nil
+            return value
+        }
+        continuation?.resume(with: result)
+    }
+
+    private func cancelHandoff() {
+        let cancellation = withLock { () -> CheckedContinuation<FitChefSupportHandoffDescriptor, Error>? in
+            guard !handoffCancellationRequested else { return nil }
+            handoffCancellationRequested = true
+            capturedHandoffCancellationCount += 1
+            let value = handoffContinuation
+            handoffContinuation = nil
+            return value
+        }
+        cancellation?.resume(throwing: CancellationError())
+    }
+
+    private func cancelOutcome() {
+        let cancellation = withLock { () -> CheckedContinuation<FitChefSupportOutcomeReceipt, Error>? in
+            guard !outcomeCancellationRequested else { return nil }
+            outcomeCancellationRequested = true
+            capturedOutcomeCancellationCount += 1
+            let value = outcomeContinuation
+            outcomeContinuation = nil
+            return value
+        }
+        cancellation?.resume(throwing: CancellationError())
+    }
+
+    private func withLock<T>(_ operation: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return operation()
+    }
+}
+
 private enum FitChefRetryClaimMode {
     case handoff(FitChefSupportHandoffDescriptor)
     case outcome(FitChefSupportHandoffDescriptor)
@@ -2384,4 +2848,8 @@ private final class UUIDSequence: @unchecked Sendable {
 private enum FitChefRuntimeTestError: Error {
     case repositoryRootNotFound
     case sourceEnumerationUnavailable
+}
+
+private enum FitChefUnexpectedOutcomeTestError: Error {
+    case sentinel
 }

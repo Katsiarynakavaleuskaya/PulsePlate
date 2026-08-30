@@ -7,6 +7,12 @@ struct FitChefSupportFlowScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel: FitChefSupportFlowViewModel
+    @ScaledMetric(relativeTo: .headline) private var titleFontSize =
+        PPDesignTokens.Typography.sizeLG
+    @ScaledMetric(relativeTo: .caption) private var captionFontSize =
+        PPDesignTokens.Typography.sizeXS
+    @ScaledMetric(relativeTo: .body) private var bodyFontSize =
+        PPDesignTokens.Typography.sizeBase
 
     init(viewModel: FitChefSupportFlowViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -63,7 +69,7 @@ struct FitChefSupportFlowScreen: View {
 
                     if let messageKey = viewModel.userFacingMessageKey {
                         Text(localized(messageKey))
-                            .font(PPDesignTokens.Typography.body)
+                            .font(.system(size: bodyFontSize, weight: .regular))
                             .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -114,32 +120,34 @@ struct FitChefSupportFlowScreen: View {
             PPCard {
                 VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
                     Text(localized("fitchef.support_flow.result.title"))
-                        .font(PPDesignTokens.Typography.title)
+                        .font(.system(size: titleFontSize, weight: .semibold))
                         .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
 
                     VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
                         Text(localized("fitchef.support_flow.result.target_label"))
-                            .font(PPDesignTokens.Typography.caption)
+                            .font(.system(size: captionFontSize, weight: .regular))
                             .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
 
                         Text(localized(viewModel.targetDisplayKey))
-                            .font(PPDesignTokens.Typography.bodyStrong)
+                            .font(.system(size: bodyFontSize, weight: .semibold))
                             .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .accessibilityElement(children: .combine)
 
                     Text(localized("fitchef.support_flow.result.boundary"))
-                        .font(PPDesignTokens.Typography.body)
+                        .font(.system(size: bodyFontSize, weight: .regular))
                         .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(localized("fitchef.support_flow.result.response_notice"))
-                        .font(PPDesignTokens.Typography.body)
-                        .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if case .presenting = viewModel.state {
+                        Text(localized("fitchef.support_flow.result.response_notice"))
+                            .font(.system(size: bodyFontSize, weight: .regular))
+                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     resultActions
                 }
@@ -193,7 +201,7 @@ struct FitChefSupportFlowScreen: View {
         case .outcomeFailed:
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text(localized(viewModel.userFacingMessageKey))
-                    .font(PPDesignTokens.Typography.body)
+                    .font(.system(size: bodyFontSize, weight: .regular))
                     .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -218,7 +226,7 @@ struct FitChefSupportFlowScreen: View {
         case .completed:
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text(localized(viewModel.userFacingMessageKey))
-                    .font(PPDesignTokens.Typography.body)
+                    .font(.system(size: bodyFontSize, weight: .regular))
                     .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -432,6 +440,7 @@ private enum FitChefSupportFlowPreviewFixtures {
             )
         )
     )
+    .environment(\.horizontalSizeClass, .regular)
 }
 
 #Preview(

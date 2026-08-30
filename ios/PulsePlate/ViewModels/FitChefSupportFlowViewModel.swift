@@ -36,6 +36,7 @@ final class FitChefSupportFlowViewModel {
     @ObservationIgnored private let makeClientEventID: @Sendable () -> UUID
     @ObservationIgnored private var operationGeneration: UInt = 0
     @ObservationIgnored private var pinnedAPIKey: String?
+    @ObservationIgnored nonisolated(unsafe) private var operationTask: Task<Void, Never>?
 
     init(
         service: FitChefSupportServicing,
@@ -70,10 +71,18 @@ final class FitChefSupportFlowViewModel {
 
         let apiKey = providedAPIKey
         pinnedAPIKey = apiKey
+        let service = service
+        cancelOperationTask()
         let generation = beginOperation()
         transition(to: .requesting(need))
-        Task {
-            await performHandoff(for: need, apiKey: apiKey, generation: generation)
+        operationTask = Task { [weak self, service, need, apiKey, generation] in
+            let result = await Self.performHandoff(
+                service: service,
+                need: need,
+                apiKey: apiKey
+            )
+            guard let self else { return }
+            self.completeHandoff(result, need: need, generation: generation)
         }
     }
 
@@ -85,10 +94,18 @@ final class FitChefSupportFlowViewModel {
             return
         }
 
+        let service = service
+        cancelOperationTask()
         let generation = beginOperation()
         transition(to: .requesting(need))
-        Task {
-            await performHandoff(for: need, apiKey: apiKey, generation: generation)
+        operationTask = Task { [weak self, service, need, apiKey, generation] in
+            let result = await Self.performHandoff(
+                service: service,
+                need: need,
+                apiKey: apiKey
+            )
+            guard let self else { return }
+            self.completeHandoff(result, need: need, generation: generation)
         }
     }
 
@@ -108,13 +125,21 @@ final class FitChefSupportFlowViewModel {
             return
         }
 
+        let service = service
+        cancelOperationTask()
         let generation = beginOperation()
         transition(to: .recording(descriptor, attempt))
-        Task {
-            await performOutcome(
+        operationTask = Task { [weak self, service, descriptor, attempt, apiKey, generation] in
+            let result = await Self.performOutcome(
+                service: service,
                 attempt,
-                for: descriptor,
-                apiKey: apiKey,
+                apiKey: apiKey
+            )
+            guard let self else { return }
+            self.completeOutcome(
+                result,
+                descriptor: descriptor,
+                attempt: attempt,
                 generation: generation
             )
         }
@@ -198,20 +223,30 @@ final class FitChefSupportFlowViewModel {
         }
     }
 
-    private func performHandoff(
-        for need: FitChefSupportNeed,
-        apiKey: String,
-        generation: UInt
-    ) async {
+    private nonisolated static func performHandoff(
+        service: FitChefSupportServicing,
+        need: FitChefSupportNeed,
+        apiKey: String
+    ) async -> Result<FitChefSupportHandoffDescriptor, Error> {
         do {
-            let descriptor = try await service.requestHandoff(for: need, apiKey: apiKey)
-            try Task.checkCancellation()
-            guard isCurrent(generation) else { return }
-            transition(to: .presenting(descriptor))
-        } catch is CancellationError {
-            return
+            return .success(try await service.requestHandoff(for: need, apiKey: apiKey))
         } catch {
-            guard isCurrent(generation) else { return }
+            return .failure(error)
+        }
+    }
+
+    private func completeHandoff(
+        _ result: Result<FitChefSupportHandoffDescriptor, Error>,
+        need: FitChefSupportNeed,
+        generation: UInt
+    ) {
+        guard isCurrent(generation) else { return }
+        operationTask = nil
+        switch result {
+        case .success(let descriptor):
+            transition(to: .presenting(descriptor))
+        case .failure(let error):
+            if error is CancellationError { return }
             let failure = handoffFailure(for: error)
             if failure != .retryable {
                 pinnedAPIKey = nil
@@ -259,34 +294,52 @@ final class FitChefSupportFlowViewModel {
             outcome: outcome,
             clientEventID: makeClientEventID().uuidString.lowercased()
         )
+        let service = service
+        cancelOperationTask()
         let generation = beginOperation()
         transition(to: .recording(descriptor, attempt))
-        Task {
-            await performOutcome(
+        operationTask = Task { [weak self, service, descriptor, attempt, apiKey, generation] in
+            let result = await Self.performOutcome(
+                service: service,
                 attempt,
-                for: descriptor,
-                apiKey: apiKey,
+                apiKey: apiKey
+            )
+            guard let self else { return }
+            self.completeOutcome(
+                result,
+                descriptor: descriptor,
+                attempt: attempt,
                 generation: generation
             )
         }
     }
 
-    private func performOutcome(
+    private nonisolated static func performOutcome(
+        service: FitChefSupportServicing,
         _ attempt: FitChefSupportOutcomeAttempt,
-        for descriptor: FitChefSupportHandoffDescriptor,
-        apiKey: String,
-        generation: UInt
-    ) async {
+        apiKey: String
+    ) async -> Result<FitChefSupportOutcomeReceipt, Error> {
         do {
-            let receipt = try await service.recordOutcome(attempt, apiKey: apiKey)
-            try Task.checkCancellation()
-            guard isCurrent(generation) else { return }
+            return .success(try await service.recordOutcome(attempt, apiKey: apiKey))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func completeOutcome(
+        _ result: Result<FitChefSupportOutcomeReceipt, Error>,
+        descriptor: FitChefSupportHandoffDescriptor,
+        attempt: FitChefSupportOutcomeAttempt,
+        generation: UInt
+    ) {
+        guard isCurrent(generation) else { return }
+        operationTask = nil
+        switch result {
+        case .success(let receipt):
             pinnedAPIKey = nil
             transition(to: .completed(descriptor, attempt.outcome, receipt.state))
-        } catch is CancellationError {
-            return
-        } catch {
-            guard isCurrent(generation) else { return }
+        case .failure(let error):
+            if error is CancellationError { return }
             let failure = outcomeFailure(for: error)
             if failure != .retryable {
                 pinnedAPIKey = nil
@@ -296,11 +349,11 @@ final class FitChefSupportFlowViewModel {
     }
 
     private func outcomeFailure(for error: Error) -> FitChefSupportFlowFailure {
-        if error is FitChefSupportContractError {
-            return .retryable
+        if let contractError = error as? FitChefSupportContractError {
+            return contractError == .invalidOutcomeReceipt ? .retryable : .terminal
         }
         guard let apiError = error as? APIError else {
-            return .retryable
+            return .terminal
         }
         switch apiError {
         case .validation:
@@ -316,12 +369,18 @@ final class FitChefSupportFlowViewModel {
             default:
                 return .terminal
             }
-        case .emptyResponse, .transport, .decodingFailed, .invalidResponse,
-             .unknown, .unhandledStatusCode:
+        case .emptyResponse, .transport, .decodingFailed, .invalidResponse:
             return .retryable
         case .encodingFailed:
             return .terminal
+        case .unknown, .unhandledStatusCode:
+            return .terminal
         }
+    }
+
+    private func cancelOperationTask() {
+        operationTask?.cancel()
+        operationTask = nil
     }
 
     private func beginOperation() -> UInt {
@@ -334,6 +393,7 @@ final class FitChefSupportFlowViewModel {
     }
 
     private func resetLifecycle() {
+        cancelOperationTask()
         operationGeneration &+= 1
         pinnedAPIKey = nil
         transition(to: .selecting(nil))
@@ -344,7 +404,9 @@ final class FitChefSupportFlowViewModel {
     }
 
     // Teardown reads no actor-isolated state and must not require an executor hop.
-    nonisolated deinit {}
+    nonisolated deinit {
+        operationTask?.cancel()
+    }
 
     #if DEBUG
     init(
