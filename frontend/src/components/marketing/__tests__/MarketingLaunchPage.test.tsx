@@ -128,11 +128,11 @@ function cssBoundaryViolations(source: string): string[] {
     }
   });
 
-  const remoteUrlPattern = /url\(\s*["']?\s*(?:https?:)?\/\//i;
+  const literalRemoteAddressPattern = /(?:https?:\/\/|\/\/)[a-z0-9]/i;
   const comparisonCopyPattern =
     /\bCandidate\s*Y\b|\bGuided[\s_-]*Reveal\b|\bH2\b/i;
   root.walkDecls((declaration) => {
-    if (remoteUrlPattern.test(declaration.value)) {
+    if (literalRemoteAddressPattern.test(declaration.value)) {
       violations.add('remote-url');
     }
     if (
@@ -736,7 +736,7 @@ describe('FitChefValueDemo', (): void => {
       {
         name: 'escaped URL function',
         source: String.raw`.hero { background-image: u\72l("https://cdn.example/hero.png"); }`,
-        expected: ['css-escape-not-allowed'],
+        expected: ['css-escape-not-allowed', 'remote-url'],
       },
       {
         name: 'remote HTTPS import',
@@ -759,8 +759,23 @@ describe('FitChefValueDemo', (): void => {
         expected: ['remote-url'],
       },
       {
+        name: 'remote HTTPS asset URL',
+        source: `.hero { background-image: url("https://cdn.example/hero.png"); }`,
+        expected: ['remote-url'],
+      },
+      {
         name: 'protocol-relative asset URL',
         source: `.hero { background-image: url('//cdn.example/hero.png'); }`,
+        expected: ['remote-url'],
+      },
+      {
+        name: 'quoted HTTPS image-set address',
+        source: `.hero { background-image: image-set("https://css-boundary.invalid/image-set.png" 1x); }`,
+        expected: ['remote-url'],
+      },
+      {
+        name: 'protocol-relative image-set address',
+        source: `.hero { background-image: image-set("//css-boundary.invalid/image-set.png" 1x); }`,
         expected: ['remote-url'],
       },
       {
@@ -783,14 +798,41 @@ describe('FitChefValueDemo', (): void => {
     negativeFixtures.forEach(({ name, source, expected }) => {
       expect(cssBoundaryViolations(source), name).toEqual(expected);
     });
-    expect(
-      cssBoundaryViolations(`
-        /* @import "https://commented.example/ignored.css"; */
-        .hero { background-image: url('../assets/local-hero.png'); }
-        .hero::before { content: "Ready"; }
-        .note::before { content: "@import is inert text"; }
-      `),
-    ).toEqual([]);
+
+    const allowedFixtures = [
+      {
+        name: 'relative quoted image-set address',
+        source: `.hero { background-image: image-set("../assets/local-hero.png" 1x); }`,
+      },
+      {
+        name: 'root-local asset URL',
+        source: `.hero { background-image: url('/assets/local-hero.png'); }`,
+      },
+      {
+        name: 'ordinary harmless content',
+        source: `.hero::before { content: "Ready"; }`,
+      },
+      {
+        name: 'https word without address delimiter',
+        source: `.note::before { content: "https"; }`,
+      },
+      {
+        name: 'inert remote address comment',
+        source: `/* background-image: url("https://commented.example/ignored.png"); */`,
+      },
+      {
+        name: 'existing local URL and inert import content',
+        source: `
+          .hero { background-image: url('../assets/local-hero.png'); }
+          .hero::before { content: "Ready"; }
+          .note::before { content: "@import is inert text"; }
+        `,
+      },
+    ];
+
+    allowedFixtures.forEach(({ name, source }) => {
+      expect(cssBoundaryViolations(source), name).toEqual([]);
+    });
   });
 
   it('declares focus, reduced-motion, touch-target, and narrow-layout safeguards', () => {
