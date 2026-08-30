@@ -24,13 +24,91 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
+- [ ] P1: Add the public deterministic FitChef marketing demo
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (public value communication / free-Web activation / product trust)
+  - Target PR: [PR #2362](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2362)
+    (`codex/fitchef-public-marketing-demo`)
+  - Status: In review in PR #2362; close only after the current carrier merges with exact-head proof
+  - Area: frontend / public marketing / deterministic FitChef preview / accessibility
+  - Reason (EN): The free website needs one honest, interactive way to show the value of FitChef
+    without running AI, using personal data, opening a product area, saving state, implying payment,
+    or claiming App Store availability. The current carrier adds only the accepted immediate-choice
+    example to the shared `/` and `/marketing` page and records the work in its implementation PR.
+  - Links:
+    - `frontend/src/components/marketing/FitChefValueDemo.tsx`
+    - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
+    - `frontend/src/components/marketing/__tests__/MarketingLaunchPage.test.tsx`
+    - `frontend/e2e/hpp-smoke.spec.ts`
+  - DoD:
+    - one shared H1 immediate-choice demo renders on both `/` and `/marketing`, while comparison
+      candidates remain outside the production import graph and bundle
+    - the closed reducer exposes only idle, selected-today, selected-week, revealed-today, and
+      revealed-week semantics; switching choices clears a stale result and reset/remount return idle
+    - `today` maps only to `Daily Plate` and `week` maps only to `Weekly Planning`; neither result is
+      interactive and no product-area navigation occurs
+    - the demo imports only the existing FitChef asset plus shared `Button`, `Card`, `RadioGroup`,
+      `MarketingSection`, and `SectionHeader`, with no new asset, token, or component family
+    - the complete interaction performs no API, auth, analytics, storage, payment, outcome,
+      provider, RAG, LLM, timer, promise, or browser-network side effect
+    - keyboard, focus-visible, native radio semantics, polite result announcement, non-color
+      selection, 44px targets, reduced motion, 320px, text spacing, and effective 200% zoom checks
+      pass together with targeted `jest-axe`, focused frontend tests, build, and required PR gates
+    - adjacent marketing copy points acquisition only to `/bmi` and `#fitchef-demo`, describes the
+      Apple-device direction without availability claims, and uses soft user language rather than
+      internal implementation terms
+  - Rollback (EN): Revert or remove only the PR-2 demo runtime, adjacent marketing copy, and demo
+    tests, or fix forward. Preserve the already-merged PR #2352/#2360 closure, the P2 localization
+    follow-up, and the separately authorized outcome-transport dependency unless a new human
+    decision changes them. The demo creates no retained data or migration.
+  - Scope boundary (EN): This item is separate from
+    [the broader FitChef website brand rollout](#ledger-p1-fitchef-web-brand-rollout). It does not
+    close or advance mascot-variant migration, onboarding adoption, Storybook brand guidance, or
+    other brand-rollout DoD.
+
+<a id="ledger-p2-marketing-landing-en-ru-es-localization"></a>
+- [ ] P2: Localize the complete marketing landing in EN, RU, and ES
+  - Owner: frontend-engineer / localization reviewer
+  - Priority: P2 (cross-locale acquisition consistency / public copy quality)
+  - Target PR: PR-TBD after the deterministic marketing demo merges and receives a separate
+    localization/copy approval
+  - Status: Planned; the current demo carrier intentionally keeps the English marketing page
+    internally consistent instead of mixing localized demo copy into an English-only landing
+  - Area: frontend / marketing localization / accessibility / responsive copy QA
+  - Reason for deferral (EN): Full localization must cover the entire landing page as one reviewed
+    copy system. Translating only the new demo now would produce a mixed-language public page and
+    would widen the bounded implementation carrier into a separate copy and screenshot review lane.
+  - Links:
+    - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
+    - `frontend/src/locales/en.json`
+    - `frontend/src/locales/ru.json`
+    - `frontend/src/locales/es.json`
+  - DoD:
+    - every visible marketing section, CTA, prepared-demo state, disclosure, wellness note, footer,
+      accessible name, and result announcement is available in EN, RU, and ES with no mixed locale
+    - all three locales preserve the same free-Web, no-live-AI, no-personal-data, no-purchase, and
+      Apple-device-direction semantics without an unverified availability, price, or eligibility claim
+    - locale switching preserves the closed reducer state contract and never changes the static
+      `today -> Daily Plate` / `week -> Weekly Planning` correspondence
+    - copy-length, 320/768/1440 responsive layout, 200% zoom, text spacing, keyboard, screen-reader,
+      and targeted accessibility checks pass for every locale
+    - focused locale/marketing tests, production build, design/token guards, narrow repository
+      bundle, current-head CI, review disposition, and merge-readiness gates pass
+  - Rollback (EN): Revert only the future localization carrier to the already-merged English
+    marketing page; no data repair, migration, API change, or runtime entitlement change is needed.
+
 <a id="ledger-p0-web-production-payment-desurfacing"></a>
-- [ ] P0: Remove production-reachable Web payment actions
+- [x] P0: Remove production-reachable Web payment actions
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P0 (public channel truth / payment safety / launch trust)
   - Target PR: [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
     (`codex/web-payment-desurfacing`)
-  - Status: In review in PR #2352; closure is effective only after the target PR merges
+  - Status: ✅ Closed by merged [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
+    with squash merge `71e28d2736141156b4d3fe9f4e0ddb7da6c41a2e`; exact-main analytics-guard
+    stabilization then merged in [PR #2360](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2360)
+    with squash merge `4abd25b98771ac6f4b3bb6e4b3db5d5e4f1ad51d`. PR #2360 restored only the
+    required analytics index headings and added no payment, frontend product, or monetization scope.
   - Area: frontend / Web monetization boundary / accessibility / public product copy
   - Reason (EN): The current public website must remain free and informational while paid product
     direction stays with PulsePlate for Apple devices. Production-reachable purchase, subscribe,
@@ -3016,8 +3094,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), merged [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, squash merge `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`), merged [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) (TC2-09F, squash merge `cf096f335a53c1ce056f570142ca9b20a13eb0b1`), merged [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) (TC2-09G, squash merge `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`), and current [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) (TC2-09H, `codex/testclient-tc2-09h-import-order-lifecycle`, synchronized exact base `f519389e611ad73aa463e00b7449b753207b1581`); terminal TC2-10 remains TBD
-  - Status: 🟡 In progress — TC2-09G / PR #2361 is merged; TC2-09H / PR #2366 is the current bounded two-site executable-string import-order lifecycle carrier from synchronized exact base `f519389e611ad73aa463e00b7449b753207b1581`; the tracker remains open and TC2-10 remains blocked
+  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), merged [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, squash merge `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`), merged [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) (TC2-09F, squash merge `cf096f335a53c1ce056f570142ca9b20a13eb0b1`), merged [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) (TC2-09G, squash merge `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`), and current [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) (TC2-09H, `codex/testclient-tc2-09h-import-order-lifecycle`, synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`); terminal TC2-10 remains TBD
+  - Status: 🟡 In progress — TC2-09G / PR #2361 is merged; TC2-09H / PR #2366 is the current bounded two-site executable-string import-order lifecycle carrier from synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`; the tracker remains open and TC2-10 remains blocked
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
   - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
@@ -3040,7 +3118,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Merged TC2-09F nutrition-log lifecycle closure: [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) on branch `codex/testclient-tc2-09f-nutrition-log-lifecycle` squash-merged as `cf096f335a53c1ce056f570142ca9b20a13eb0b1` after migrating exactly three recognized direct constructions in `tests/test_nutrition_log_api.py` to the existing function-scoped `isolated_test_client` and explicit `pro_headers`, without changing shared fixtures or runtime. The same ten collected nodes retain eleven HTTP call sites / twelve runtime requests: nine authorized source sites / ten authorized requests preserve `8 × 200` and `2 × 422`, while the two explicit negative-auth requests preserve `1 × 401` and `1 × 403`. Seven source-level JSON parses, executed eight times because the boundary loop runs twice, require JSON Content-Type first. Exact fresh-state assertions require single-write `n == 1`, boundary state counts `1 → 2`, strict adherence/slip directions, direct `risk_slip` keys, and complete meal-POST / risk-GET state equality so a shared or stale analyzer state cannot false-green. Its measured bounded AST census moved from 366 sites / 90 files total and 365 / 89 outside `tests/_client.py` to 363 / 89 total and 362 / 88 outside the helper, with one canonical helper construction and target recognized sites `3 → 0`; the existing finite literal guard gained only the three removed target spellings.
     - Merged TC2-09G Bayesian adherence lifecycle carrier: [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) on branch `codex/testclient-tc2-09g-bayes-adherence-lifecycle` squash-merged as `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`; against synchronized exact base `a157d445c98c3e4bea76bd95c2a8d333c99725c1`, it migrated the sole recognized direct construction in `tests/test_bayes_adherence_api.py` to the existing function-scoped `isolated_test_client` with explicit `pro_headers` or `vip_headers` on every request, without changing shared fixtures or runtime. The same `10 → 10` collected nodes retained `17 → 17` HTTP source sites and `22 → 22` runtime requests with exact outcomes `18 × 200` and `4 × 422`; all nine JSON parses require JSON Content-Type first. Exact default, meal, slip, `n=6`, `n=7`, custom-key, and PRO/VIP state assertions prevent stale or cross-principal analyzer state from false-greening. The remeasured bounded AST census remained 363 sites / 89 files total and 362 / 88 outside `tests/_client.py` at that base, moving to 362 / 88 total and 361 / 87 outside the helper, with one canonical helper construction and target recognized sites `1 → 0`. The recognized target construction and the class-owned manual client/DB cleanup lifecycle owner each moved from `1 → 0`; the finite literal guard gained only the exact removed target spelling.
     - TC2-09G residual boundary: the census counts only direct `ast.Call` nodes whose `Name.id` or `Attribute.attr` callee ends with `TestClient`; the exact-string guard separately covers only its enumerated literals after its explicit exclusions. Neither result covers aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation, and neither proves universal TestClient absence. The strengthened fresh-state assertions cover only the ten selected SQLite-backed test nodes and do not prove production database, concurrency, or universal adherence correctness beyond the explicitly tested PRO/VIP principals and analyzer keys. The lifecycle checkbox and umbrella tracker remain open. TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
-    - Current TC2-09H import-order lifecycle carrier: [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) on branch `codex/testclient-tc2-09h-import-order-lifecycle`, against synchronized exact base `f519389e611ad73aa463e00b7449b753207b1581`, replaces exactly two executable-string raw constructors in the third node of `tests/test_app_main_import.py` with two `tests._client.open_test_client(...)` managed contexts. The same three collected nodes preserve package-facade-first import order, explicit later canonical-main import, `/health == 200`, built `middleware_stack`, explicit synthetic `X-API-Key` on `/metrics`, `/metrics == 200`, and subprocess return-code diagnostics. Because both migrated spellings live inside an executed string rather than target-file AST calls, the bounded AST census remains 362 sites / 88 files total and 361 / 87 outside `tests/_client.py`, with one canonical helper construction and target recognized sites remaining zero; the finite exact-string guard gains only `TestClient(app_package.app)` and `TestClient(main_module.app)`.
+    - Current TC2-09H import-order lifecycle carrier: [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) on branch `codex/testclient-tc2-09h-import-order-lifecycle`, against synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`, replaces exactly two executable-string raw constructors in the third node of `tests/test_app_main_import.py` with two `tests._client.open_test_client(...)` managed contexts. The same three collected nodes preserve package-facade-first import order, explicit later canonical-main import, `/health == 200`, built `middleware_stack`, explicit synthetic `X-API-Key` on `/metrics`, `/metrics == 200`, and subprocess return-code diagnostics. Because both migrated spellings live inside an executed string rather than target-file AST calls, the bounded AST census remains 362 sites / 88 files total and 361 / 87 outside `tests/_client.py`, with one canonical helper construction and target recognized sites remaining zero; the finite exact-string guard gains only `TestClient(app_package.app)` and `TestClient(main_module.app)`.
     - TC2-09H residual boundary: the lifecycle proof covers only the two enumerated executable-string constructors and the three-node import-order scenario. The unchanged AST census and expanded exact-string guard do not cover aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation and do not prove universal TestClient absence. The lifecycle checkbox and umbrella tracker remain open, and TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
     - TC2-09G closeout recovery boundary: after the authorized second main synchronization exposed the late stale-seal review root [discussion_r3890117016](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361#discussion_r3890117016), the operator approved one non-runtime synthetic governance successor so PR #2361 can record the already-pushed mapping-only fix `a60c5b29ce1ccdcaac05bf2519860a7ca1e8a0f4` through the ordinary canonical `FIXED` mapping path. This recovery changes no TestClient caller, helper, fixture, Bayesian state, route, response, OpenAPI, dependency, workflow, deployment, or product behavior and grants no TC2-10 admission, tracker closure, provider claim, review approval, or merge authority.
     - Closeout recovery boundary: after the authorized ancestry-preserving main synchronization exposed a late stale-seal review finding, the operator approved one non-runtime synthetic governance successor so PR #2351 can record that finding through the ordinary canonical mapping path. This recovery changes no TestClient caller, helper, fixture, route, response, OpenAPI, dependency, deployment, or product behavior and grants no TC2-10 admission or terminal tracker claim. Review evidence is commit-bound: historical `file:line` pointers in a FIXED block are evaluated in that block's mapped fix SHA; current-head proof uses the stable `ledger-p1-test-hygiene-client-lifecycle` anchor and the current Target PR/status plus carrier/census entries.

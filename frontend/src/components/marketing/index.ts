@@ -1,5 +1,6 @@
 export * from './CoreSurfacesSection';
 export * from './FinalCTASection';
+export * from './FitChefValueDemo';
 export * from './HeroSection';
 export * from './HowItWorksSection';
 export * from './MarketingPrimitives';

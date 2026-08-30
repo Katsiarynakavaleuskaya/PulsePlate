@@ -1,23 +1,31 @@
-import { Link } from "react-router-dom";
-import brandMark from "../../assets/brand/pulseplate-brand-mark.png";
-import { MarketingSection } from "./MarketingPrimitives";
+import { Link } from 'react-router-dom';
+import brandMark from '../../assets/brand/pulseplate-brand-mark.png';
+import { MarketingSection } from './MarketingPrimitives';
 
-const footerGroups = [
+type FooterLink =
+    | { kind: 'anchor'; label: string; href: string }
+    | { kind: 'route'; label: string; to: string };
+
+type FooterGroup = {
+    title: string;
+    links: FooterLink[];
+};
+
+const footerGroups: FooterGroup[] = [
     {
-        title: "Explore",
+        title: 'Explore',
         links: [
-            { label: "Product preview", href: "#product-preview" },
-            { label: "How it works", href: "#how-it-works" },
-            { label: "Surfaces", href: "#core-surfaces" },
-            { label: "Tiers", href: "#tiers" },
+            { kind: 'anchor', label: 'FitChef preview', href: '#fitchef-demo' },
+            { kind: 'anchor', label: 'How it works', href: '#how-it-works' },
+            { kind: 'route', label: 'Free BMI calculator', to: '/bmi' },
+            { kind: 'anchor', label: 'Free on the web', href: '#tiers' },
         ],
     },
     {
-        title: "Trust",
+        title: 'Trust',
         links: [
-            { label: "Trust & scope", href: "#trust-scope" },
-            { label: "See the product", to: "/welcome-gate-v1" },
-            { label: "Join early access", to: "/enter-key" },
+            { kind: 'anchor', label: 'What this preview does', href: '#trust-scope' },
+            { kind: 'anchor', label: 'Back to top', href: '#top' },
         ],
     },
 ];
@@ -39,12 +47,12 @@ export function SiteFooter() {
                                 <span className="ppm-brand-tag">Wellness</span>
                             </div>
                         </div>
-                        <p className="ppm-description" style={{ fontSize: "0.95rem" }}>
-                            A calm, premium wellness control panel built around real product
-                            surfaces, honest scope, and bounded guidance.
+                        <p className="ppm-description" style={{ fontSize: '0.95rem' }}>
+                            Use the free BMI calculator or choose Today or This week in the FitChef
+                            preview.
                         </p>
-                        <p className="ppm-footer-note" style={{ marginTop: "0.75rem" }}>
-                            Product-first clarity. Quiet confidence.
+                        <p className="ppm-footer-note" style={{ marginTop: '0.75rem' }}>
+                            Everyday wellness planning — not medical advice.
                         </p>
                     </div>
 
@@ -54,7 +62,7 @@ export function SiteFooter() {
                                 <h2 className="ppm-footer-group-title">{group.title}</h2>
                                 <div className="ppm-footer-link-list">
                                     {group.links.map((link) =>
-                                        "to" in link ? (
+                                        link.kind === 'route' ? (
                                             <Link
                                                 key={link.label}
                                                 className="ppm-footer-link"

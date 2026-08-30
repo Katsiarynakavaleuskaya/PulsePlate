@@ -33,6 +33,15 @@ describe('design preview routes', (): void => {
     );
   });
 
+  it('binds the root and marketing URLs to the same page component', (): void => {
+    const rootRoute = routes.find((route) => route.path === '/');
+    const marketingRoute = routes.find((route) => route.path === '/marketing');
+
+    expect(rootRoute).toBeDefined();
+    expect(marketingRoute).toBeDefined();
+    expect(rootRoute?.component).toBe(marketingRoute?.component);
+  });
+
   it('registers the design system preview as a hidden public route', (): void => {
     expect(routes).toContainEqual(
       expect.objectContaining({
