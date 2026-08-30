@@ -518,6 +518,11 @@ def test_single_forward_revision_contains_only_schema_owned_operations() -> None
         ("execute", "SET LOCAL search_path TO pg_catalog, public", None),
         (
             "execute",
+            "LOCK TABLE public.analyzer_state, public.day_plans IN ACCESS EXCLUSIVE MODE",
+            None,
+        ),
+        (
+            "execute",
             "ALTER TABLE public.analyzer_state ADD CONSTRAINT uq_analyzer_state_user_key "
             "UNIQUE USING INDEX uq_analyzer_state_user_key",
             None,
@@ -636,17 +641,20 @@ def test_forward_revision_index_admission_is_exact_and_fail_closed(
 
     upgrade_source = inspect.getsource(module.upgrade)
     search_path_index = upgrade_source.index("SET LOCAL search_path TO pg_catalog, public")
+    lock_index = upgrade_source.index("LOCK TABLE public.analyzer_state, public.day_plans ")
     descriptor_load_index = upgrade_source.index("_load_index_descriptor")
     admission_index = upgrade_source.index("_require_adoptable_index")
     analyzer_adoption_index = upgrade_source.index("ALTER TABLE public.analyzer_state")
     day_adoption_index = upgrade_source.index("ALTER TABLE public.day_plans")
     assert (
         search_path_index
+        < lock_index
         < descriptor_load_index
         < admission_index
         < analyzer_adoption_index
         < day_adoption_index
     )
+    assert "_load_index_descriptor" not in upgrade_source[:lock_index]
     assert "FROM pg_catalog.unnest(index_state.indkey)" in Path(revision.path).read_text(
         encoding="utf-8"
     )

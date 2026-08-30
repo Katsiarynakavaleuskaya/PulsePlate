@@ -240,6 +240,7 @@ def upgrade() -> None:
         return
 
     op.execute("SET LOCAL search_path TO pg_catalog, public")
+    op.execute("LOCK TABLE public.analyzer_state, public.day_plans " "IN ACCESS EXCLUSIVE MODE")
     descriptors = tuple(_load_index_descriptor(bind, expected) for expected in _EXPECTED_INDEXES)
     for descriptor, expected in zip(descriptors, _EXPECTED_INDEXES, strict=True):
         _require_adoptable_index(descriptor, expected)
