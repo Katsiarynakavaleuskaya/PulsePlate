@@ -5006,11 +5006,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: ER-IOS-2 FitChef recommendation/outcome capability
   - Owner: @katsiaryna_kavaleuskaya / frontend-engineer
   - Priority: P1 (iOS-first thin transport / bounded persistence truth)
-  - Target PR: PR-TBD (`codex/ios-fitchef-support-choice-outcome`; replace with
-    the exact PR number immediately after non-draft open)
-  - Status: In implementation. The model, service, finite state owner, screen-
-    local composition, deterministic previews, and tests are present, but the
-    capability is structurally unreachable from production Swift.
+  - Target PR: [PR #2364](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2364)
+    (`codex/ios-fitchef-support-choice-outcome`)
+  - Status: Non-draft PR open; current-head CI, live review, canonical closeout,
+    and human merge authorization remain pending. The capability is complete
+    but structurally unreachable from production Swift.
   - Area: iOS / FitChef / APIClient / strict DTO / finite state / previews
   - Reason (EN): After the Candidate X choice surface, iOS needs one closed
     capability that submits the explicit daily-or-weekly need, recognizes only
