@@ -5083,14 +5083,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 <a id="ledger-p1-fitchef-support-handoff-outcome-ios"></a>
 <a id="ledger-p1-er-ios-2-fitchef-runtime-handoff-integration"></a>
-- [ ] P1: ER-IOS-2 FitChef recommendation/outcome capability
+- [x] P1: ER-IOS-2 FitChef recommendation/outcome capability
   - Owner: @katsiaryna_kavaleuskaya / frontend-engineer
   - Priority: P1 (iOS-first thin transport / bounded persistence truth)
   - Target PR: [PR #2364](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2364)
     (`codex/ios-fitchef-support-choice-outcome`)
-  - Status: Non-draft PR open; current-head CI, live review, canonical closeout,
-    and human merge authorization remain pending. The capability is complete
-    but structurally unreachable from production Swift.
+  - Status: ✅ Merged via [PR #2364](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2364)
+    as `74a49df1509b65d6d8ce764b7300ebca81173ee6` on 2026-08-30. The capability
+    remains structurally unreachable from production Swift until the canonical
+    Hub/Home carriers bind it.
   - Area: iOS / FitChef / APIClient / strict DTO / finite state / previews
   - Reason (EN): After the Candidate X choice surface, iOS needs one closed
     capability that submits the explicit daily-or-weekly need, recognizes only
@@ -5105,12 +5106,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ios/PulsePlate/Views/FitChef/FitChefSupportFlowScreen.swift`
     - `ios/PulsePlateTests/FitChefSupportChoiceRuntimeTests.swift`
   - Blockers / ordering:
-    - terminal current-PR tests, review dispositions, mapping/seal, current-head
-      CI, and human merge authorization are still required
-    - ER-IOS-3 is the only future production destination owner and must not
-      start until ER-IOS-2 is terminal
-    - ER-IOS-4 is blocked on terminal ER-IOS-3 and owns the later single Home
-      button; it must not be absorbed into this PR
+    - terminal exact-head tests, review dispositions, mapping/seal, current-head
+      CI, and human merge authorization completed in PR #2364
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-fitchef-coach-hub` is the
+      canonical destination carrier; no separate ER-IOS-3 implementation branch
+      is authorized
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
+      owns the later single Home button and production child composition
   - DoD:
     - Candidate X becomes need-only while preserving Today/This week choices,
       EN/RU/ES parity, Dynamic Type, non-color selection, minimum targets, and
@@ -5139,13 +5141,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-er-ios-3-fitchef-coach-destination"></a>
-- [ ] P1: ER-IOS-3 unified FitChef Coach destination
+- [ ] P1: ER-IOS-3 unified FitChef Coach destination compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
   - Priority: P1 (single coherent paid-function destination / release safety)
-  - Target PR: PR-TBD after terminal ER-IOS-2
-  - Status: Planned and blocked by terminal ER-IOS-2. No destination, route,
-    tab, deep link, production factory, feature flag, or activation is currently
-    authorized.
+  - Target PR: [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363)
+    through `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-fitchef-coach-hub`;
+    remaining production construction/reachability belongs to
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
+  - Status: Compatibility alias only; no separate ER-IOS-3 carrier may open.
+    PR #2363 owns the bounded destination container, while the canonical Home
+    tracker owns its later production child binding and single entry.
   - Area: iOS / FitChef Coach / destination / presentation ownership
   - Reason (EN): The internal recommendation/outcome capability needs one
     unified product destination before any general app entry can expose it.
@@ -5156,32 +5161,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ios/PulsePlate/Views/FitChef/FitChefSupportFlowScreen.swift`
     - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
   - Blockers / ordering:
-    - ER-IOS-2 must be merged and revalidated on current `main`
-    - product/design must approve one destination composition and its exact
-      backend-authorized credential and entitlement boundary
-    - ER-IOS-4 Home entry remains blocked until this destination is terminal
+    - ER-IOS-2 is merged at `74a49df1509b65d6d8ce764b7300ebca81173ee6`
+    - PR #2363 must merge and release Hub ownership before production Home work
+    - the canonical Consumer-first Home tracker remains blocked until terminal
+      Hub closeout; this alias grants no independent mutation authority
   - DoD:
-    - introduce exactly one production FitChef Coach destination and one
-      reviewed presentation owner using existing design primitives and tokens
-    - bind only approved backend-driven capabilities through existing clients;
-      add no local nutrition math, raw-prose state, payment truth, target repair,
-      plan mutation, or automatic action
-    - freeze EN/RU/ES, Dynamic Type, VoiceOver, loading/failure/degraded states,
-      credential/auth behavior, rollback, and deterministic destination tests
-    - define any required feature flag only with a real caller and keep staging,
-      production, App Store, and paid-access activation separately authorized
-  - Rollback (EN): Remove the destination owner, route/binding, flag if added,
-    localized destination copy, and owning tests; retain the structurally
-    unreachable ER-IOS-2 capability.
+    - PR #2363 introduces exactly one internal `FitChefCoachView` container with
+      the two approved capabilities and existing design primitives/tokens
+    - the canonical Home carrier later injects only the existing AI and merged
+      ER-IOS-2 clients; it adds no local nutrition math, raw-prose state, payment
+      truth, target repair, plan mutation, or automatic action
+    - EN/RU/ES, Dynamic Type, VoiceOver, credential/auth boundaries, rollback,
+      and deterministic destination tests close in their owning canonical items
+    - staging, production, App Store, paid-access activation, and any feature
+      flag remain separately authorized
+  - Rollback (EN): Follow the rollback sections in the canonical Hub and Home
+    trackers; retain the structurally unreachable ER-IOS-2 capability.
 
 
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
-- [ ] P1: ER-IOS-4 single Home FitChef Coach entry
+- [ ] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
   - Priority: P1 (bounded discovery / no Home redesign)
-  - Target PR: PR-TBD after terminal ER-IOS-3
-  - Status: Planned and blocked by terminal ER-IOS-3. Home has no FitChef Coach
-    entry in ER-IOS-2.
+  - Target PR: PR-TBD through
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
+    after terminal [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363)
+  - Status: Compatibility alias only; no separate ER-IOS-4 carrier may open.
+    Home still has no FitChef Coach entry, and the canonical Consumer-first Home
+    tracker owns the complete state projection plus single entry.
   - Area: iOS / Home / FitChef Coach / single navigation entry
   - Reason (EN): After one unified FitChef Coach destination exists, Home may
     expose one discoverable button. The change must remain one bounded entry and
@@ -5192,10 +5199,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
   - Blockers / ordering:
-    - ER-IOS-3 destination, route contract, accessibility, and rollback proof
-      must be terminal on current `main`
-    - exact product copy, icon, feature/auth gate, and destination must be
-      approved before Home changes
+    - PR #2363 destination container, accessibility, rollback, exact-main proof,
+      and ownership release must be terminal
+    - exact Home copy, entitlement/profile projection, feature/auth boundary,
+      and destination construction close only in the canonical Home tracker
   - DoD:
     - add exactly one localized Home FitChef Coach button targeting only the
       ER-IOS-3 destination
@@ -5205,8 +5212,79 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - preserve existing Home sections and CTA behavior; add deterministic
       single-entry, gate, localization, 44-point target, VoiceOver, and route
       tests plus ordinary iOS/review/CI evidence
-  - Rollback (EN): Remove the single Home entry and its localized copy/tests;
-    leave the ER-IOS-3 destination and ER-IOS-2 capability unchanged.
+  - Rollback (EN): Follow the canonical Consumer-first Home rollback; leave the
+    Hub container and ER-IOS-2 capability unchanged.
+
+
+<a id="ledger-p1-ios-fitchef-coach-hub"></a>
+- [ ] P1: iOS unified FitChef Coach destination
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid coaching activation / consumer-first iOS composition)
+  - Target PR: [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363) (`codex/ios-fitchef-coach-hub`)
+  - Status: 🚧 Open non-draft and in post-open review; not merged, not production-reachable, and no terminal status is claimed.
+  - Area: iOS / SwiftUI / FitChef / navigation composition / accessibility
+  - Reason (EN): The iOS client already has an admitted AI guidance flow and a Today/Week planning-direction seam, but no single consumer-facing FitChef destination. This lane creates one bounded `FitChef Coach` composition container with exactly those two implemented capabilities while keeping networking, consent, descriptors, outcomes, entitlement, planning, and execution authority inside their existing owners.
+  - Exact IN:
+    - Internal `FitChefCoachView` with ordered `aiGuidance` and `planningDirection` capability inventory, lazy injected destinations, the approved static `FitChef` asset, existing `PPCard`/tokens, and no production navigation registration
+    - Exact EN/RU/ES `fitchef.coach_hub.*` copy, including `Ask FitChef` / `Спросить FitChef` and `Where to start?` / `С чего начать?`
+    - Focused deterministic tests, one canonical iOS test-target entry, same-PR ledger tracking, the later canonical PR mapping artifact, and exact-head reference-only Open Design/Drive evidence
+  - Exact OUT:
+    - `HomeView`, `RootTabs`, `PulsePlateApp`, deep links, production tabs/routes, backend/OpenAPI, AI or planning child behavior, networking/DTOs, feature flags, entitlement, StoreKit/paywall/billing, analytics, persistence, assets, DesignSystem primitives, tokens/generated mirrors, web, and deployment
+    - Distortion Simulator, Identity Loop Mapper, mascot insight, VIP chat, week-repair, disabled cards, Coming Soon promises, or any backend-only capability without a complete iOS client vertical
+  - Links:
+    - `ios/PulsePlate/Views/FitChef/FitChefCoachView.swift`
+    - `ios/PulsePlateTests/FitChefCoachViewTests.swift`
+    - [Restricted PulsePlate Design References folder](https://drive.google.com/drive/folders/1QeLsOsfPEjpcPBxLYFwbVlJHjp1qGdCc)
+    - [PulsePlate Design Train Index](https://docs.google.com/document/d/15PFCyUWvHzWQmZ-lx3hjdSbGJprdKUGQPf_zfeIehZ0/edit)
+    - Open Design project `nutrition ai assistant Design System`, dedicated Hub
+      conversation `od://app/projects/ds-nutrition-ai-assistant-design-system/conversations/c2c0902c-0e79-4ea7-8a3d-4f3437e8de90`
+  - DoD:
+    - Capability inventory contains exactly `aiGuidance` and `planningDirection`, preserves first-occurrence order, removes duplicates, omits missing capabilities, and never infers entitlement or availability from keys, tiers, StoreKit, HTTP status, or child output
+    - Rendering the Hub and its inventory makes no network, consent, persistence, analytics, descriptor/outcome, plan, or destination-builder call; concrete existing AI and Today/Week destinations type-check through test-only no-call composition
+    - User-facing copy contains no support/handoff/API/runtime/route terminology, no clinical authority or guaranteed-result claim, and maintains exact EN/RU/ES key parity
+    - Accessibility evidence covers header → Ask FitChef → Where to start VoiceOver order, decorative mascot hiding, full-card minimum targets, non-color affordance, Accessibility 5, compact phone, and representative iPad; binary/simulator evidence stays gitignored
+    - Focused Hub and child-boundary tests, full canonical iOS unit suite, narrow repository gates, design/token guards, actual-diff premortem, Experiment Runner oracle-only evidence, post-open role reviews, exact-head CI/review inventory, mapping/seal, strict readiness, and the mandatory wait window pass before merge
+    - PR-ready Open Design and restricted Drive packages bind the exact PR head, base, merge-base, selected product decision, synthetic simulator evidence, EN/RU/ES summary, provenance, and hashes as `REFERENCE_ONLY / NON-CANONICAL`; after merge the immutable snapshot remains unchanged and only the index gains merge status
+  - Future PRO/VIP follow-ups:
+    - Add Distortion Simulator, Identity Loop Mapper, mascot-insight, chat, or week-repair only through separate contract-first iOS vertical PRs after transport/DTO/service/view integration exists; no placeholder card is authorized by this item
+  - Rollback:
+    - Revert the whole implementation PR; no backend route, schema, DB, data, billing, entitlement, or migration repair is required. Mark an incorrect external snapshot `SUPERSEDED` and retain the previous immutable package.
+
+
+<a id="ledger-p1-ios-release-design-train-home"></a>
+- [ ] P1: iOS Consumer-first Home planning experience
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD after [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363) merges, exact-main CI is terminal, and Hub ownership is released
+  - Status: Planned and blocked by terminal FitChef Coach Hub closeout; no Home, RootTabs, entitlement, StoreKit, backend, or release mutation is authorized by this ledger entry alone.
+  - Area: iOS / Home / subscription projection / profile readiness / navigation / localization / accessibility
+  - Reason (EN): The current iOS Home is an engineering dashboard with raw key/tier and service terminology. After the unified Hub lands, one bounded Home carrier must project backend-confirmed subscription and profile truth into five consumer states, expose exactly one `FitChef Coach` entry for paid-ready users, and route to existing product destinations without moving entitlement, plan, nutrition, or billing authority into SwiftUI.
+  - Exact IN:
+    - `HomeExperienceState` with `loading`, `freeReady`, `paidNeedsProfile`, `paidReady`, and `unavailable`, derived only from the existing backend-confirmed `SubscriptionManager` state and existing `ProfileProviding`
+    - Consumer Home primary actions for BMI, profile completion, today's plate, or retry; paid-ready secondary actions exactly `FitChef Coach`, Week, and Shopping List
+    - One real `FitChefCoachView` composition that injects the existing AI and canonical merged Today/Week destinations without duplicating child networking, consent, descriptor, or outcome logic
+    - Canonical app-selected language propagation: the Home/Hub registration path must inject `LocalizationManager.shared.currentLanguage` through the reviewed locale environment boundary, with deterministic tests where app-selected language differs from device/default locale
+    - EN/RU/ES copy remediation, state/navigation tests, accessibility evidence, same-PR ledger update, canonical mapping, and exact-head Open Design/restricted Drive evidence
+  - Exact OUT:
+    - New tabs, RootTabs redesign, backend/OpenAPI, StoreKit or purchase/restore behavior, local entitlement inference, assets, DesignSystem primitives, token changes, analytics infrastructure, web, and any additional PRO/VIP FitChef capability
+    - Separate Home actions named AI Insight, FitChef Support, Support Handoff, recommend, outcome, endpoint, reader, generator, runtime, target surface, PRO tools, or API terminology
+  - Links:
+    - [FitChef Coach Hub PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363)
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `ios/PulsePlate/Services/SubscriptionManager.swift`
+    - `ios/PulsePlate/Services/ProfileProvider.swift`
+    - `ios/PulsePlate/Views/LanguagePickerView.swift`
+    - [PulsePlate Design Train Index](https://docs.google.com/document/d/15PFCyUWvHzWQmZ-lx3hjdSbGJprdKUGQPf_zfeIehZ0/edit)
+  - DoD:
+    - All five states are deterministic and fail closed; raw key presence, StoreKit transaction, local tier string, stale snapshot, refresh failure, or `.unlocked` without canonical entitlement proof never opens paid UI
+    - FREE routes to BMI, paid/incomplete routes to Profile, paid/ready routes to today's Plate, unavailable routes to retry with safe BMI/Profile access, and rendering performs no network call
+    - Paid-ready secondary actions are exactly `FitChef Coach`, Week, and Shopping List; no separate AI/support action or technical copy remains on Home
+    - The single Hub destination is concretely wired to the existing AI child and the one canonical merged Today/Week child; no dual compatibility route or placeholder capability is retained
+    - App-selected EN/RU/ES language reaches Home and Hub independently of the device locale, with key parity and an integration test that changes the in-app selection while holding the device/default locale constant
+    - Accessibility 5, compact/large phone, iPad, VoiceOver order, Reduce Motion, 44-point targets, non-color state, focused/full iOS tests, narrow repository gates, post-open reviews, exact-head CI/mapping/seal, and the mandatory wait window pass before merge
+    - PR-ready and post-merge Open Design/restricted Drive packages bind exact head/merge SHA and remain `REFERENCE_ONLY / NON-CANONICAL`
+  - Rollback:
+    - Revert the whole Home implementation PR to the previous Home router. No backend, DB, billing, entitlement, plan, data, migration, or asset repair is required; external snapshots are marked `SUPERSEDED`.
 
 
 <a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
