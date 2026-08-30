@@ -1,29 +1,27 @@
-import { Lock, ShieldCheck, Sparkles } from 'lucide-react';
+import { Compass, MousePointerClick, ShieldCheck } from 'lucide-react';
 import { MarketingCard, MarketingSection } from './MarketingPrimitives';
 
 const statusCards = [
   {
-    title: 'A real product, not a concept site',
-    label: 'Live now',
-    description:
-      'PulsePlate wraps existing Home, Setup, Plate, Progress, BMI, and Pro surfaces into one calm control flow.',
+    title: 'Use the BMI calculator',
+    label: 'Free website',
+    description: 'Check BMI with the free tool on this website.',
     icon: ShieldCheck,
     accent: 'var(--pp-green)',
   },
   {
-    title: 'Guidance with clear boundaries',
-    label: 'Wellness-safe',
-    description:
-      'AI remains an advisory layer inside the product. It does not replace the product experience or turn into medical framing.',
-    icon: Lock,
+    title: 'Choose Today or This week',
+    label: 'FitChef preview',
+    description: 'Both choices stay visible until you confirm.',
+    icon: MousePointerClick,
     accent: 'var(--pp-blue)',
   },
   {
-    title: 'VIP remains explicitly bounded',
-    label: 'Preview scope',
+    title: 'PulsePlate for Apple devices',
+    label: 'Apple devices',
     description:
-      'More personalized support and automation stay clearly labeled as preview or where available, without invented claims.',
-    icon: Sparkles,
+      'Read about the broader FitChef experience planned beyond the free website.',
+    icon: Compass,
     accent: 'var(--pp-gold)',
   },
 ];
