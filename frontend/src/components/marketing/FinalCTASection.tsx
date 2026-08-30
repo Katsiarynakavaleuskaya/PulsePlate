@@ -8,24 +8,20 @@ export function FinalCTASection() {
       <MarketingCard className="ppm-cta-card">
         <div className="ppm-cta-grid">
           <div>
-            <p className="ppm-eyebrow">Final CTA</p>
             <h2 className="ppm-title ppm-cta-title">
-              Ready to explore PulsePlate?
+              Try the BMI calculator or FitChef preview
             </h2>
-            <p className="ppm-description">
-              Start with calm clarity, move through the product at your pace, and unlock more depth
-              only when you need it.
-            </p>
+            <p className="ppm-description">Both are free to use on this website.</p>
           </div>
 
           <div className="ppm-cta-actions">
-            <Link className={marketingButtonClasses.primary} to="/welcome-gate-v1">
-              <span>See the product</span>
+            <Link className={marketingButtonClasses.primary} to="/bmi">
+              <span>Try free BMI</span>
               <ArrowRight size={16} />
             </Link>
-            <Link className={marketingButtonClasses.secondary} to="/enter-key">
-              Join early access
-            </Link>
+            <a className={marketingButtonClasses.secondary} href="#fitchef-demo">
+              Return to the FitChef preview
+            </a>
           </div>
         </div>
       </MarketingCard>
