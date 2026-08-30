@@ -5,7 +5,16 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -43,7 +52,10 @@ class WeeklyPlan(Base):
         passive_deletes=True,
     )
 
-    __table_args__ = (CheckConstraint("start_date <= end_date", name="ck_weekly_plan_date_order"),)
+    __table_args__ = (
+        CheckConstraint("start_date <= end_date", name="ck_weekly_plan_date_order"),
+        Index("ix_weekly_plans_user_date", "user_id", "start_date", unique=True),
+    )
 
 
 class DayPlan(Base):
