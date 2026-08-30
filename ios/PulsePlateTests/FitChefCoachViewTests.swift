@@ -525,8 +525,7 @@ final class FitChefCoachViewTests: XCTestCase {
                     "You stay in control of what happens next.",
                 "fitchef.coach_hub.ai_guidance.title": "Ask FitChef",
                 "fitchef.coach_hub.ai_guidance.detail":
-                    "Ask a wellness question and receive AI-generated guidance. "
-                    + "It does not provide diagnosis or treatment.",
+                    "Ask a wellness question and receive AI-generated guidance.",
                 "fitchef.coach_hub.ai_guidance.accessibility_hint":
                     "Opens Ask FitChef.",
                 "fitchef.coach_hub.planning_direction.title": "Where to start?",
@@ -542,8 +541,7 @@ final class FitChefCoachViewTests: XCTestCase {
                     "Вы сами решаете, что делать дальше.",
                 "fitchef.coach_hub.ai_guidance.title": "Спросить FitChef",
                 "fitchef.coach_hub.ai_guidance.detail":
-                    "Задайте вопрос о благополучии и получите AI-подсказку. "
-                    + "Это не диагностика и не лечение.",
+                    "Задайте вопрос о благополучии и получите AI-подсказку.",
                 "fitchef.coach_hub.ai_guidance.accessibility_hint":
                     "Открывает экран «Спросить FitChef».",
                 "fitchef.coach_hub.planning_direction.title": "С чего начать?",
@@ -559,8 +557,7 @@ final class FitChefCoachViewTests: XCTestCase {
                     "Tú decides qué hacer a continuación.",
                 "fitchef.coach_hub.ai_guidance.title": "Preguntar a FitChef",
                 "fitchef.coach_hub.ai_guidance.detail":
-                    "Haz una pregunta de bienestar y recibe orientación generada por AI. "
-                    + "No ofrece diagnóstico ni tratamiento.",
+                    "Haz una pregunta de bienestar y recibe orientación generada por AI.",
                 "fitchef.coach_hub.ai_guidance.accessibility_hint":
                     "Abre «Preguntar a FitChef».",
                 "fitchef.coach_hub.planning_direction.title":

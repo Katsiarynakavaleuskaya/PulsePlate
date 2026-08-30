@@ -220,7 +220,7 @@
 "fitchef.coach_hub.header.title" = "How would you like to continue?";
 "fitchef.coach_hub.header.description" = "You stay in control of what happens next.";
 "fitchef.coach_hub.ai_guidance.title" = "Ask FitChef";
-"fitchef.coach_hub.ai_guidance.detail" = "Ask a wellness question and receive AI-generated guidance. It does not provide diagnosis or treatment.";
+"fitchef.coach_hub.ai_guidance.detail" = "Ask a wellness question and receive AI-generated guidance.";
 "fitchef.coach_hub.ai_guidance.accessibility_hint" = "Opens Ask FitChef.";
 "fitchef.coach_hub.planning_direction.title" = "Where to start?";
 "fitchef.coach_hub.planning_direction.detail" = "You choose: Today or This week.";
