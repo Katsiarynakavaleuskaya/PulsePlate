@@ -4971,6 +4971,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Active and future channel posture is owned solely by `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#current-web-channel-posture`; this ledger item records only the bounded E1-05B lifecycle
 
 
+<a id="ledger-p1-er-ios-1-fitchef-support-choice-preview"></a>
+- [ ] P1: ER-IOS-1 FitChef support-choice native preview
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (native product-direction validation / thin-client integrity)
+  - Target PR: [PR #2358](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2358) (`codex/ios-fitchef-support-handoff-experience`)
+  - Status: 🚧 Implemented and in exact-head closeout; merge and post-merge proof remain pending and are not claimed by this ledger entry.
+  - Area: iOS / SwiftUI / FitChef / preview-only design validation
+  - Reason (EN): The landed deterministic support-handoff descriptor needs one code-native iOS composition before any runtime presentation owner is authorized. ER-IOS-1 keeps that comparison inside Xcode Preview, selects the Human Product Owner's H1 / Candidate X direction, and proves the client can preserve the exact daily-or-weekly descriptor without creating navigation, execution, persistence, payment, entitlement, analytics, or plan authority.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `ios/PulsePlate/Models/FitChef/FitChefSupportHandoffDescriptor.swift`
+    - `ios/PulsePlate/Views/FitChef/FitChefSupportChoiceExperience.swift`
+    - `ios/PulsePlateTests/FitChefSupportChoiceExperimentTests.swift`
+  - DoD:
+    - Exactly one Human Product Owner-selected winner, H1 / Candidate X / Immediate Choice, is present in the PR; Candidate Y remains local comparison evidence and H3 remains archived research
+    - The internal immutable descriptor and choices state accept only the frozen v1 daily/weekly pairs and exact authority values after Foundation JSON parsing, return the selected descriptor unchanged, and make no byte-level duplicate-member or shared-network-decoder compatibility claim
+    - The SwiftUI view compiles in Debug and Release, uses existing `PPCard`, `PPButton`, semantic tokens, and the unchanged FitChef asset, while remaining structurally unreachable from production navigation and services
+    - EN/RU/ES, Dynamic Type, non-color selection, minimum targets, scroll reachability, callback behavior, and phone/tablet layouts have deterministic native tests or rendered local evidence
+    - Focused iOS tests, narrow repository gates, design/token guards, role reviews, premortem, Experiment Runner, exact-head CI, canonical mapping/seal, strict readiness, and human exact-head merge authorization all pass before merge
+    - Post-merge proof synchronizes clean `main`, runs focused merged-main iOS sanity, preserves gitignored Open Design/X-Y/Canvas evidence, and removes only the completed lane's temporary worktrees and DerivedData
+
+
+<a id="ledger-p1-er-ios-2-fitchef-runtime-handoff-integration"></a>
+- [ ] P1: ER-IOS-2 FitChef runtime handoff integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (iOS nutrition activation / server-authoritative integration)
+  - Target PR: PR-TBD after PR #2358 merges with post-merge proof and a separate runtime GO
+  - Status: Planned and blocked by terminal ER-IOS-1 closeout; no endpoint, APIClient, navigation, entitlement, persistence, payment, analytics, or plan mutation is authorized here.
+  - Area: iOS / FitChef / APIClient / navigation / entitlement
+  - Reason (EN): ER-IOS-1 validates an inert native choice surface only. A separate runtime carrier must bind the backend descriptor to the existing thin-client transport and a real routed product flow without treating a target token, local selection, StoreKit result, or client-declared tier as execution or entitlement truth.
+  - Links:
+    - [ER-IOS-1 PR #2358](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2358)
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `ios/PulsePlate/Networking/APIClient.swift`
+    - `ios/PulsePlate/Networking/HTTPClient.swift`
+  - DoD:
+    - A new explicit GO revalidates the merged backend/OpenAPI schema and the two daily/weekly need-to-target pairs before any runtime code is authored
+    - Transport uses the existing `APIClient` / `HTTPClient` boundary with a reviewed feature-local strict-decoding seam; the global decoder is not weakened, and raw duplicate-member admission is either explicitly solved before decoding or explicitly excluded by a reviewed transport contract
+    - User confirmation remains mandatory; navigation resolves only to an existing routed surface, while execution, plan mutation, entitlement, billing, and persistence remain backend-authoritative and fail closed
+    - No direct `URLSession`, client-owned nutrition logic, client-declared entitlement truth, silent target repair, raw-prose parsing, or fallback action is introduced
+    - Deterministic contract, transport, auth, cancellation, retry, stale-response, navigation, accessibility, and nonreachability-negative tests pass together with current iOS CI and ordinary review/merge governance
+
+
 <a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
 - [ ] P1: FitChef support-outcome thin web transport
   - Owner: @katsiaryna_kavaleuskaya
