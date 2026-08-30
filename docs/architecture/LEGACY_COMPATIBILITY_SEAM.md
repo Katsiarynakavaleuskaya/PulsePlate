@@ -242,7 +242,8 @@ eight-name Insight Python projection and extending the same exact-name data to
 registration at `942cc0f109d3`, and PR #2355 merged the bounded PostgreSQL
 ORM/Alembic drift reconciliation at
 `a157d445c98c3e4bea76bd95c2a8d333c99725c1`. The current
-`codex/alembic-autogenerate-completeness` prerequisite adds only bounded
+[PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365)
+(`codex/alembic-autogenerate-completeness`) prerequisite adds only bounded
 exact-head comparison admission, physical PostgreSQL descriptor evidence, and
 CI routing; it does not change runtime behavior, register or access a FoodData
 database, or retire a legacy surface. A fresh residual facade census follows
