@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import importlib
 import json
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock, patch
 
 import asyncio
@@ -2205,6 +2205,250 @@ class TestVectorTypeFastLane:
         vector_type = vector_rag._build_sqlalchemy_vector_type(7)
 
         assert vector_type.get_col_spec() == "VECTOR(7)"
+
+
+class TestAlembicReconciliationFastLane:
+    """Exercise the bounded Alembic comparator and vector adapter in canonical CI coverage."""
+
+    @staticmethod
+    def _rag_model_module() -> ModuleType:
+        """Return the already-loaded canonical model module without import tricks."""
+
+        from app.models import UserKnowledge
+
+        module = sys.modules.get(UserKnowledge.__module__)
+        assert isinstance(module, ModuleType)
+        return module
+
+    def test_json_default_comparator_preserves_types_and_numeric_value(self) -> None:
+        """Equivalent JSON numbers stay equal while booleans remain a distinct type."""
+
+        from sqlalchemy import JSON, Column, Integer
+        from sqlalchemy.dialects import postgresql
+
+        import core.db_alembic_comparison as comparison
+
+        inspected_json = Column("payload", postgresql.JSONB())
+        metadata_json = Column("payload", JSON())
+        comparator = comparison.compare_postgresql_server_default
+
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                '\'{"b":1,"a":true}\'::jsonb',
+                object(),
+                '{"a":true,"b":10e-1}',
+            )
+            is False
+        )
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                "'1e10000'::json",
+                None,
+                "10e9999",
+            )
+            is False
+        )
+        assert comparator(None, inspected_json, metadata_json, "'true'::json", None, "1") is True
+        assert (
+            comparator(
+                None,
+                inspected_json,
+                metadata_json,
+                "'{\"x\":\"it''s\"}'::json",
+                None,
+                '{"x":"it\'s"}',
+            )
+            is False
+        )
+
+        sqlite_context = SimpleNamespace(dialect=SimpleNamespace(name="sqlite"))
+        assert comparator(sqlite_context, inspected_json, metadata_json, "'{}'", None, "{}") is None
+        integer_column = Column("count", Integer())
+        assert comparator(None, integer_column, integer_column, "0", None, "0") is None
+        assert comparator(None, inspected_json, metadata_json, None, object(), None) is False
+        assert comparator(None, inspected_json, metadata_json, None, None, "{}") is True
+        assert comparator(None, inspected_json, metadata_json, "'{}'::json", None, None) is True
+
+    @pytest.mark.parametrize(
+        "payload",
+        (
+            "{broken",
+            '{"x":1,"x":2}',
+            "NaN",
+            "Infinity",
+            "-Infinity",
+            "('{}'::json)",
+            "json_build_object('x', 1)",
+            "CAST('{}' AS json)",
+            "1 + 1",
+        ),
+    )
+    def test_json_default_comparator_rejects_unrecognized_values(self, payload: str) -> None:
+        """Malformed, ambiguous, and SQL-expression defaults remain terminal."""
+
+        from sqlalchemy import JSON, Column
+        from sqlalchemy.dialects import postgresql
+
+        import core.db_alembic_comparison as comparison
+
+        inspected_json = Column("payload", postgresql.JSON())
+        metadata_json = Column("payload", JSON())
+        with pytest.raises(ValueError, match="postgresql_json_default_unparseable"):
+            comparison.compare_postgresql_server_default(
+                None,
+                inspected_json,
+                metadata_json,
+                f"'{payload}'::json" if payload == "{broken" else payload,
+                None,
+                "{}",
+            )
+
+    def test_json_number_and_object_helpers_fail_closed(self) -> None:
+        """Private parser seams retain stable exact-number and duplicate-key failures."""
+
+        import core.db_alembic_comparison as comparison
+
+        parse_number = getattr(comparison, "_parse_json_number")
+        reject_constant = getattr(comparison, "_reject_json_constant")
+        build_object = getattr(comparison, "_reject_duplicate_object_keys")
+
+        assert parse_number("1") == parse_number("1.0")
+        assert build_object([("a", parse_number("1")), ("b", True)]) == {
+            "a": parse_number("10e-1"),
+            "b": True,
+        }
+        with pytest.raises(ValueError, match="json_number_unparseable"):
+            parse_number("not-a-number")
+        with pytest.raises(ValueError, match="json_number_non_finite"):
+            parse_number("NaN")
+        with pytest.raises(ValueError, match="non_standard_json_constant:Infinity"):
+            reject_constant("Infinity")
+        with pytest.raises(ValueError, match="duplicate_json_object_key:a"):
+            build_object([("a", 1), ("a", 2)])
+
+    def test_vector_factory_selection_and_registry_are_fail_closed(self) -> None:
+        """Only a truly absent top-level package selects the bounded vector fallback."""
+
+        module = self._rag_model_module()
+        fallback_type = cast(type[Any], getattr(module, "_FallbackVectorType"))
+        selected_type = cast(type[Any], getattr(module, "_vector_type_factory"))
+        select_factory = getattr(module, "_select_vector_type_factory")
+        register_owner = getattr(module, "_register_vector_type_owner")
+
+        assert fallback_type().get_col_spec() == "VECTOR"
+        assert fallback_type(768).get_col_spec() == "VECTOR(768)"
+        assert select_factory(selected_type, None) is selected_type
+        with pytest.raises(RuntimeError, match="postgresql_vector_factory_ambiguous"):
+            select_factory(selected_type, RuntimeError("simultaneous import failure"))
+
+        absent = ModuleNotFoundError("No module named 'pgvector'", name="pgvector")
+        assert select_factory(None, absent) is fallback_type
+        nested = ModuleNotFoundError(
+            "No module named 'pgvector.sqlalchemy'",
+            name="pgvector.sqlalchemy",
+        )
+        with pytest.raises(ModuleNotFoundError) as nested_failure:
+            select_factory(None, nested)
+        assert nested_failure.value is nested
+        with pytest.raises(
+            RuntimeError, match="postgresql_vector_factory_missing_without_import_error"
+        ):
+            select_factory(None, None)
+
+        empty_registry: dict[str, object] = {}
+        assert register_owner(empty_registry, selected_type) is selected_type
+        assert register_owner(empty_registry, selected_type) is selected_type
+        with pytest.raises(RuntimeError, match="postgresql_vector_registry_owner_incompatible"):
+            register_owner({"vector": object()}, selected_type)
+
+    def test_vector_normalization_accepts_supported_containers(self) -> None:
+        """String, list, tuple, and tolist inputs normalize to exact finite floats."""
+
+        module = self._rag_model_module()
+        normalize = getattr(module, "_normalize_vector_values")
+
+        class _ArrayLike:
+            def tolist(self) -> list[int]:
+                return [1, 2]
+
+        assert normalize("[1,2]", dimensions=2) == [1.0, 2.0]
+        assert normalize([1, 2], dimensions=2) == [1.0, 2.0]
+        assert normalize((1, 2), dimensions=2) == [1.0, 2.0]
+        assert normalize(_ArrayLike(), dimensions=2) == [1.0, 2.0]
+
+    def test_vector_normalization_rejects_invalid_inputs(self) -> None:
+        """Every malformed container, member, dimension, and finite-value case fails closed."""
+
+        from fractions import Fraction
+
+        module = self._rag_model_module()
+        normalize = getattr(module, "_normalize_vector_values")
+
+        class _BadArrayLike:
+            def tolist(self) -> object:
+                return object()
+
+        invalid_cases = (
+            ("not-json", 1, "vector_embedding_invalid_json"),
+            (object(), 1, "vector_embedding_invalid_container"),
+            (SimpleNamespace(tolist=None), 1, "vector_embedding_invalid_container"),
+            (_BadArrayLike(), 1, "vector_embedding_invalid_container"),
+            ([1], 2, "vector_embedding_wrong_dimension"),
+            ([True], 1, "vector_embedding_non_numeric"),
+            (["1"], 1, "vector_embedding_non_numeric"),
+            ([Fraction(10**10000, 1)], 1, "vector_embedding_non_finite"),
+            ([float("inf")], 1, "vector_embedding_non_finite"),
+            ("[NaN]", 1, "vector_embedding_invalid_json"),
+        )
+        for value, dimensions, reason in invalid_cases:
+            with pytest.raises(ValueError, match=reason):
+                normalize(value, dimensions=dimensions)
+
+    def test_vector_text_adapter_covers_both_dialects_and_factories(self) -> None:
+        """The ORM adapter preserves SQLite text and exact PostgreSQL bind/result behavior."""
+
+        from sqlalchemy import Text
+        from sqlalchemy.dialects import postgresql, sqlite
+
+        module = self._rag_model_module()
+        adapter_type = cast(type[Any], getattr(module, "_VectorText"))
+        fallback_type = cast(type[Any], getattr(module, "_FallbackVectorType"))
+        selected_type = cast(type[Any], getattr(module, "_vector_type_factory"))
+        values = [float(index) / 768 for index in range(768)]
+        payload = json.dumps(values, separators=(",", ":"))
+        postgresql_dialect = postgresql.dialect()
+        sqlite_dialect = sqlite.dialect()
+
+        default_adapter = adapter_type()
+        installed_adapter = adapter_type(selected_type)
+        fallback_adapter = adapter_type(fallback_type)
+        assert isinstance(default_adapter.load_dialect_impl(sqlite_dialect), Text)
+        assert isinstance(fallback_adapter.load_dialect_impl(postgresql_dialect), fallback_type)
+
+        assert installed_adapter.process_bind_param(None, postgresql_dialect) is None
+        selected_bind = installed_adapter.process_bind_param(payload, postgresql_dialect)
+        expected_selected_bind = payload if selected_type is fallback_type else values
+        assert selected_bind == expected_selected_bind
+        assert fallback_adapter.process_bind_param(payload, postgresql_dialect) == payload
+        assert installed_adapter.process_bind_param("short text", sqlite_dialect) == "short text"
+        with pytest.raises(ValueError, match="vector_embedding_sqlite_value_must_be_text"):
+            installed_adapter.process_bind_param([1.0], sqlite_dialect)
+        with pytest.raises(ValueError, match="vector_embedding_postgresql_value_must_be_text"):
+            installed_adapter.process_bind_param(values, postgresql_dialect)
+
+        assert installed_adapter.process_result_value(None, postgresql_dialect) is None
+        assert installed_adapter.process_result_value("short text", sqlite_dialect) == "short text"
+        with pytest.raises(ValueError, match="vector_embedding_sqlite_result_must_be_text"):
+            installed_adapter.process_result_value([1.0], sqlite_dialect)
+        postgresql_result = installed_adapter.process_result_value(values, postgresql_dialect)
+        assert isinstance(postgresql_result, str)
+        assert json.loads(postgresql_result) == pytest.approx(values)
 
 
 class TestDbGuardAndFallbackSmokeCoverage:

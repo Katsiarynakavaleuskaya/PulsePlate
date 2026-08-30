@@ -7772,10 +7772,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-alembic-autogenerate-completeness"></a>
 - [ ] P1: Prove Alembic autogenerate completeness against upgraded PostgreSQL
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (database migration correctness / drift detection)
-  - Target PR: PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS
-  - Status: ⏳ Planned; separate from canonical runtime ORM registration
-  - Reason (EN): The current mapped runtime metadata excludes the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items`, and existing revision/runtime drift has not been reconciled. Runtime registration cannot support a zero-diff or completeness claim for Alembic autogenerate.
+  - Priority: P1
+  - Target PR: [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) for the active drift-reconciliation prerequisite; final completeness carrier `PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS`
+  - Status: 🔄 In progress — prerequisite implementation is active in PR #2355; final autogenerate completeness remains Planned
+  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
+  - Reason (EN): PR #2355 reconciles the observed ORM/revision drift and wires Alembic to the canonical mapped metadata, while the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items` intentionally remain outside ORM ownership. A zero-diff completeness claim still requires their exact admission/filter policy plus independent PostgreSQL reflection proof.
   - Links:
     - `alembic/env.py`
     - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
