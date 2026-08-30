@@ -1776,6 +1776,10 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "  # Fast testing for feature branches",
         maxsplit=1,
     )[0]
+    route_contract_blocks = tuple(
+        section.split("                ;;", maxsplit=1)[0]
+        for section in workflow.split("              route_contract_safety)\n")[1:]
+    )
 
     direct_proof_inputs = (
         ".github/workflows/ci.yml",
@@ -1808,6 +1812,11 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "tests/test_db_rls.py",
     )
     assert all(path in compat_job for path in executable_proof_inputs)
+    assert len(route_contract_blocks) == 2
+    assert all(
+        block.count("tests/test_alembic_autogenerate_completeness.py") == 1
+        for block in route_contract_blocks
+    )
 
     merge_gate_needs = merge_gate.split("needs:", maxsplit=1)[1].splitlines()[0]
     security_needs = security_job.split("needs:", maxsplit=1)[1].splitlines()[0]
