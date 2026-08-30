@@ -573,6 +573,8 @@ def test_single_forward_revision_contains_only_schema_owned_operations() -> None
 
     env_source = (REPO_ROOT / "alembic" / "env.py").read_text(encoding="utf-8")
     assert env_source.count("compare_type=True") == 2
+    assert "target_metadata = load_canonical_orm_metadata()" in env_source
+    assert "Base.metadata" not in env_source
 
 
 @pytest.mark.parametrize(

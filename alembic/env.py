@@ -13,7 +13,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from core.db_alembic_comparison import compare_postgresql_server_default
-from core.db import Base, get_database_url
+from core.db import get_database_url, load_canonical_orm_metadata
 
 # Interpret the config file for Python logging.
 config = context.config
@@ -25,7 +25,7 @@ logger = logging.getLogger("alembic.env")
 # Set SQLAlchemy URL dynamically so env vars win over alembic.ini defaults.
 config.set_main_option("sqlalchemy.url", get_database_url())
 
-target_metadata = Base.metadata
+target_metadata = load_canonical_orm_metadata()
 
 
 def run_migrations_offline() -> None:
