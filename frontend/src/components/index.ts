@@ -9,12 +9,10 @@ export { default as TabBar } from './TabBar';
 export { default as GlassCard } from './GlassCard';
 export { default as NotFound } from './NotFound';
 export { default as PremiumGate } from './PremiumGate';
+export { AppleProductInfoCard, AppleProductInfoDialog } from './AppleProductInfoDialog';
 
 // VIP components
 export * from './VipFeature';
-
-// Paywall components
-export { default as BeforeAfter } from './Paywall/BeforeAfter';
 
 // Brand + design system components
 export * from './brand';
