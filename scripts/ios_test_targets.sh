@@ -23,6 +23,7 @@ TESTS=(
   "PulsePlateTests/DesignSystemAccessibilityContractTests"
   "PulsePlateTests/AIWellnessConsentTests"
   "PulsePlateTests/LottieAssetContractTests"
+  "PulsePlateTests/FitChefSupportChoiceExperimentTests"
 )
 
 # Output comma-separated for Makefile IOS_ONLY_TESTING parsing (no trailing newline)
