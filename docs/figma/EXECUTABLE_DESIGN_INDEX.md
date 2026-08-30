@@ -9,6 +9,11 @@
 
 This index maps design documentation to executable Figma MCP instructions and tracks execution status for each screen.
 
+The executable registry has 24 design-execution CTA identities: 18 emitted by
+the six screen instructions below plus six linked Web-flow identities recorded
+in the shared matrix. The three FitChef SupportChoice identities are excluded
+because their design evidence is governed by `SupportChoiceCard.stories.tsx`.
+
 ## Quick Start
 
 ```bash
@@ -91,7 +96,7 @@ python scripts/design/verify_design.py --all
 | web.home.open_setup | Open setup | V1 | Implemented |
 | web.home.open_plate | Open plate | V3 | Implemented |
 | web.home.open_progress | Open progress | V3 | Implemented |
-| web.home.open_pro | Open Pro | V2 | Implemented |
+| web.home.open_pro | Learn about PulsePlate for Apple devices | V3 | Implemented (information-only) |
 
 ### web.plate (3 CTAs)
 
@@ -99,13 +104,32 @@ python scripts/design/verify_design.py --all
 |---------|-------|---------|--------|
 | web.plate.open_setup | Open setup | V1 | Implemented |
 | web.plate.open_progress | Open progress | V3 | Implemented |
-| web.plate.premium_gate_cta | Unlock Premium | V2 | Implemented |
+| web.plate.premium_gate_cta | Learn about PulsePlate for Apple devices | V3 | Implemented (information-only) |
 
 ### web.progress (1 CTA)
 
 | CTA Key | Label | Variant | Status |
 |---------|-------|---------|--------|
 | web.progress.export_pdf | Export PDF | V3 | Implemented |
+
+### Linked Web flows (6 CTAs)
+
+| CTA Key | Label | Variant | Status |
+|---------|-------|---------|--------|
+| web.apple_product_info.free_bmi | Try the free BMI calculator | V1 | Implemented (information-only) |
+| web.apple_product_info.marketing | Learn about PulsePlate for Apple devices | V3 | Implemented (information-only) |
+| web.apple_product_info.dismiss | Not now / localized equivalent | V3 | Implemented (information-only) |
+| web.setup.submit_calculate | Calculate plate | V1 | Implemented |
+| web.setup.result.retry | Try again | V1 | Implemented |
+| web.setup.result.edit | Edit data / Edit form | V3 | Implemented |
+
+The stable screen keys `web.home.open_pro` and
+`web.plate.premium_gate_cta` are compatibility metadata only. Both use the
+intent `Open the information-only Apple product handoff`, the prompt stub
+`stub://cta/information/apple-product`, and one closed non-async vocabulary.
+Exact Web information state set: `default`, `hover`, `pressed`, `focus-visible`,
+`disabled`. Their names grant no payment, entitlement, telemetry, Store, label,
+route, or prompt authority.
 
 ## Execution Workflow
 

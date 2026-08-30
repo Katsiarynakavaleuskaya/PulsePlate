@@ -13,6 +13,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from core.db_alembic_ownership import include_autogenerate_object
+from core.db_alembic_comparison import compare_postgresql_server_default
 from core.db import get_database_url, load_canonical_orm_metadata
 
 # Interpret the config file for Python logging.
@@ -40,7 +41,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=compare_postgresql_server_default,
         include_object=include_autogenerate_object,
     )
 
@@ -65,7 +66,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
-            compare_server_default=True,
+            compare_server_default=compare_postgresql_server_default,
             include_object=include_autogenerate_object,
         )
 

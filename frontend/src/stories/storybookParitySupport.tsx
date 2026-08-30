@@ -1,14 +1,12 @@
 import { useLayoutEffect, type PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
-  INTERNAL_PAYWALL_EVENTS_PATH,
   PRO_SESSION_PATH,
   setApiClientDependencies,
   type ProSessionStatus,
 } from '../api/client';
 import { AuthProvider } from '../lib/auth';
 import { SettingsProvider } from '../lib/settings';
-import BeforeAfter from '../components/Paywall/BeforeAfter';
 import { DesignSystemCanvas, PanelShell } from '../components/design-system/shared';
 import Home from '../pages/Home';
 import NutritionSetupPage from '../pages/NutritionSetup';
@@ -70,10 +68,6 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
   if (pathname === PRO_SESSION_PATH) {
     const payload = sessionPayload(sessionState);
     return payload ? jsonResponse(payload) : jsonResponse({ detail: 'No active story session' }, 401);
-  }
-
-  if (pathname === INTERNAL_PAYWALL_EVENTS_PATH) {
-    return jsonResponse({ status: 'ok', storybook_fixture: true });
   }
 
   if (pathname === CBT_INSIGHT_PATH) {
@@ -248,39 +242,14 @@ export function NutritionSetupResultStorySurface() {
   );
 }
 
-export function ProPaywallStorySurface() {
+export function ProProductInfoStorySurface() {
   return (
     <StorybookApiStub sessionState="pro">
-      <MemoryRouter
-        initialEntries={[
-          {
-            pathname: '/pro',
-            state: {
-              exposureId: 'storybook-pro-paywall',
-              source: 'storybook_parity',
-              triggerReason: 'review_surface',
-              via: 'storybook',
-            },
-          },
-        ]}
-      >
+      <MemoryRouter initialEntries={['/pro']}>
         <Routes>
           <Route path="/pro" element={<ProPaywallPage />} />
         </Routes>
       </MemoryRouter>
     </StorybookApiStub>
-  );
-}
-
-export function PaywallDialogStorySurface() {
-  return (
-    <BeforeAfter
-      initialExposureId="storybook-paywall-dialog"
-      source="storybook_parity"
-      triggerReason="review_surface"
-      via="storybook"
-      onClose={() => undefined}
-      onPurchase={async () => undefined}
-    />
   );
 }

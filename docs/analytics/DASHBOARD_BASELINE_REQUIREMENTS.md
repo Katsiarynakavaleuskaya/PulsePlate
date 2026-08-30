@@ -1,68 +1,84 @@
 # Dashboard Baseline Requirements (Wave 1)
 
-**Purpose:** Define baseline requirements for Wave 1 analytics dashboards so that goals, segments, data sources, and KPIs are explicit and reviewable.
+**Purpose:** Define vendor-agnostic dashboard requirements without claiming that
+a channel emits or stores every cataloged event.
 
-**Status:** Canonical (docs-only). Vendor-agnostic.
+**Status:** Canonical (docs-only).
 
-**Related:** `ANALYTICS_INDEX.md` (dashboard list), `METRICS_CATALOG.md` (metric definitions).
+**Related:** `ANALYTICS_INDEX.md`, `METRICS_CATALOG.md`, and
+`EXPERIMENT_REGISTRY.md`.
 
 ---
+
+## Current public-Web applicability
+
+Current public-Web paywall/trial measurement: **UNAVAILABLE / NOT EMITTED**.
+
+This is the intended current posture, not an outage.
+
+It must not be represented as `0`, `0%`, or any other zero-valued metric.
+
+Apple-device, backend, billing, or subscription observations must not fill a
+public-Web numerator or denominator.
+
+Repeated event rows do not establish unique-user counts.
+
+A dashboard must preserve this state as unavailable. It must not render a
+zero-valued Web paywall rate, trial-start rate, or trial-to-paid conversion and
+must not borrow another channel’s data.
 
 ## Goals
 
-1. **Funnel visibility** — Product and Growth can monitor onboarding → paywall → trial → paid conversion in one place.
-2. **Retention visibility** — Product and Data can monitor D1/D7/D30 retention by cohort.
-3. **Cost visibility** — Platform and Finance can monitor LLM/API spend and cost per active user.
-4. **Coaching visibility** — Product and Data can monitor structured coaching usage, completion, and followthrough by scenario.
-
----
+1. Show only source-bound metrics whose channel, cohort, and attribution window
+   are explicit.
+2. Keep unavailable cells visibly distinct from a measured zero.
+3. Preserve retention and cost views only where their source contracts exist.
+4. Admit coaching or experiment views only with separate runtime and data proof.
 
 ## Segments and dimensions
 
-| Segment / dimension | Use case | SoT / notes |
-|--------------------|----------|-------------|
-| Tier (FREE / PRO / VIP) | Funnel and retention by tier | Backend `app/middleware/api_tiers.py` |
-| Cohort (activation date) | Retention by cohort | First success / activation date |
-| Placement (paywall placement id) | Paywall performance by placement | Event property `placement` |
-| Source (entry point) | Attribution (onboarding, paywall, CTA) | Event property `source` |
-| Scenario (`distortion_simulator`, `identity_loop_mapper`) | Coaching performance by bounded surface | Event property `scenario` |
-| Variant | Experiment comparison inside coaching wave | Event property `variant` |
-
----
+| Segment / dimension | Use case | Applicability rule |
+|--------------------|----------|--------------------|
+| Channel | Prevent cross-channel substitution | Required for acquisition metrics |
+| Tier (FREE / PRO / VIP) | General product segmentation | Backend tier truth does not prove Web acquisition |
+| Cohort (activation date) | Retention analysis | Requires a source-bound activation event |
+| Placement | Paywall analysis on admitted channels | Current public Web has no placement dataset |
+| Source | Attribution | Must name the emitting production caller and channel |
+| Scenario | Bounded coaching analysis | Requires separately admitted coaching telemetry |
+| Variant | Experiment comparison | Requires a registry state proving the experiment ran |
 
 ## Data sources
 
-| Dashboard | Primary data | Secondary / derived |
-|-----------|--------------|----------------------|
-| Funnel | Client events (onboarding_*, paywall_*, trial_started), Billing (trial/paid) | Primary DB (users, subscriptions) for eligibility |
-| Retention | Client events (retention_heartbeat, activation), Primary DB (cohort definition) | — |
-| Cost | Platform spend (LLM/API), Primary DB or usage logs (active users) | — |
-| Coaching | Client events (`coaching_*`), Primary DB or usage logs for revisit/followthrough | Experiment assignments, tier context |
+| Dashboard | Primary data | Current public-Web rule |
+|-----------|--------------|-------------------------|
+| Funnel | Explicit client events plus channel-matched billing | Paywall/trial cells are UNAVAILABLE / NOT EMITTED |
+| Retention | Source-bound activation and activity data | Do not infer activity from acquisition vocabulary |
+| Cost | Source-bound spend and usage logs | Do not imply current public-Web AI |
+| Coaching | Separately admitted coaching events | No dataset is implied by catalog entries |
 
-Schema and field semantics: `DATA_CATALOG.md`. Event taxonomy: `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching)".
-
----
+Event schemas and field semantics live in `DATA_CATALOG.md` and
+`METRICS_CATALOG.md`. A type, helper, test call, backend row, or feature flag
+is not delivery or storage evidence.
 
 ## KPI and update frequency
 
-| KPI | Owner | Update frequency | Definition |
-|-----|-------|------------------|------------|
-| Onboarding completion rate | Product + Growth | Daily | `METRICS_CATALOG.md` |
-| Activation (first_success) | Product + Data | Daily | `METRICS_CATALOG.md` |
-| Soft paywall view rate | Growth | Daily | `METRICS_CATALOG.md` |
-| Trial start rate | Growth | Daily | `METRICS_CATALOG.md` |
-| Trial → Paid conversion | Growth + Finance | Daily | `METRICS_CATALOG.md` |
-| Retention D7 | Product + Data | Daily | `METRICS_CATALOG.md` |
-| Retention D30 | Product + Data | Weekly | `METRICS_CATALOG.md` |
-| LLM cost per active user | Platform + Finance | Daily | `METRICS_CATALOG.md` |
-| Distortion reframe completion rate | Product + Data | Daily | `METRICS_CATALOG.md` |
-| Identity loop completion rate | Product + Data | Daily | `METRICS_CATALOG.md` |
-| Next action commit rate | Product + Growth | Daily | `METRICS_CATALOG.md` |
-| Identity to action followthrough D7 | Product + Data | Daily | `METRICS_CATALOG.md` |
-
----
+| KPI | Owner | General cadence | Current public-Web applicability |
+|-----|-------|-----------------|----------------------------------|
+| Onboarding completion rate | Product + Growth | Daily when admitted | Independently source-bound |
+| Activation (first_success) | Product + Data | Daily when admitted | Independently source-bound |
+| Soft paywall view rate | Growth | Daily when admitted | UNAVAILABLE / NOT EMITTED |
+| Trial start rate | Growth | Daily when admitted | UNAVAILABLE / NOT EMITTED |
+| Trial → Paid conversion | Growth + Finance | Daily when admitted | UNAVAILABLE / NOT EMITTED |
+| Retention D7 / D30 | Product + Data | Daily / Weekly when admitted | Independently source-bound |
+| LLM cost per active user | Platform + Finance | Daily when admitted | Not evidence of current public-Web AI |
+| Coaching metrics | Product + Data | Daily when admitted | Separate admission required |
 
 ## Guardrails and rollback
 
-- Dashboards must not expose raw PII (user_id only in trusted contexts; anonymize in exports).
-- Experiment guardrails (retention, churn, cost) are defined per experiment in `EXPERIMENT_REGISTRY.md`; dashboard alerts may reference those guardrail metrics for active experiments.
+- Dashboards must not expose raw PII.
+- Unique-user metrics require a stable deduplication key and explicit
+  attribution window; event-row counts are not a substitute.
+- A future public-Web monetization dashboard requires a new external product,
+  legal, architecture, runtime, and data admission.
+- Experiment guardrails apply only to experiments that the registry proves
+  reached a running state.

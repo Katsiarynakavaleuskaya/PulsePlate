@@ -101,8 +101,8 @@ def test_env_wires_canonical_metadata_and_exact_callback_in_both_modes() -> None
         keywords = {keyword.arg: keyword.value for keyword in call.keywords}
         assert isinstance(keywords["compare_type"], ast.Constant)
         assert keywords["compare_type"].value is True
-        assert isinstance(keywords["compare_server_default"], ast.Constant)
-        assert keywords["compare_server_default"].value is True
+        assert isinstance(keywords["compare_server_default"], ast.Name)
+        assert keywords["compare_server_default"].id == "compare_postgresql_server_default"
         assert isinstance(keywords["include_object"], ast.Name)
         assert keywords["include_object"].id == "include_autogenerate_object"
 

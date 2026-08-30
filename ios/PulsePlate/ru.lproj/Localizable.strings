@@ -221,3 +221,13 @@
 "ai_consent.point.voluntary" = "Вы можете отказаться в любой момент. AI-анализ не будет запущен без вашего согласия.";
 "ai_consent.accept" = "Я понимаю";
 "ai_consent.decline" = "Не сейчас";
+
+/* FitChef Support Choice Preview */
+"fitchef.support_choice.question" = "С чего хотите начать?";
+"fitchef.support_choice.daily.title" = "Сегодня";
+"fitchef.support_choice.daily.detail" = "Сначала разобраться с планом на день.";
+"fitchef.support_choice.weekly.title" = "Неделя";
+"fitchef.support_choice.weekly.detail" = "Сначала посмотреть на ближайшие семь дней.";
+"fitchef.support_choice.agency" = "FitChef покажет оба варианта, а выбор останется за вами.";
+"fitchef.support_choice.confirm" = "Подтвердить выбор";
+"fitchef.support_choice.dismiss" = "Не сейчас";

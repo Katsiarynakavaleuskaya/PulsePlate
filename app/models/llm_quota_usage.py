@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import Date, Integer, String
+from sqlalchemy import Date, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -28,4 +28,9 @@ class VipLlmMonthlyUsage(Base):
 
     key_fingerprint: Mapped[str] = mapped_column(String(64), primary_key=True)
     month_start_date: Mapped[date] = mapped_column(Date, primary_key=True)
-    used_requests: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    used_requests: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )

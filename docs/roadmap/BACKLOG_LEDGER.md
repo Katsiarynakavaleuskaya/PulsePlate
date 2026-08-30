@@ -24,6 +24,53 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p0-web-production-payment-desurfacing"></a>
+- [ ] P0: Remove production-reachable Web payment actions
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P0 (public channel truth / payment safety / launch trust)
+  - Target PR: [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
+    (`codex/web-payment-desurfacing`)
+  - Status: In review in PR #2352; closure is effective only after the target PR merges
+  - Area: frontend / Web monetization boundary / accessibility / public product copy
+  - Reason (EN): The current public website must remain free and informational while paid product
+    direction stays with PulsePlate for Apple devices. Production-reachable purchase, subscribe,
+    upgrade, trial, restore, payment-error, and entitlement-acquisition actions contradicted that
+    channel posture and could mislead users or let client UI imply billing authority. This carrier
+    keeps `/pro` as an information-only compatibility URL, removes the dead Web purchase path, and
+    preserves separately admitted future Web monetization without making a legal or tax claim.
+  - Links:
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+    - `docs/contracts/soft_paywall.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `frontend/src/components/AppleProductInfoDialog.tsx`
+    - `frontend/src/config/__tests__/webMonetizationPosture.test.ts`
+  - DoD:
+    - direct `/pro`, PremiumGate, both VipGate modes, BMI soft-hook, Home, marketing tiers, barrel,
+      and Storybook expose no Web purchase, checkout, subscription, upgrade, trial, restore,
+      payment-error, or entitlement-acquisition action
+    - only the existing internal `/bmi`, `/marketing`, and dialog-dismissal actions remain on the
+      corrected information boundary; no external Store URL or named-platform availability claim
+      is rendered without verified release truth
+    - EN/RU/ES preserve equivalent free-Web and Apple-device-direction semantics, accessible dialog
+      naming/description, keyboard focus trapping, Escape, focus return, 44px targets, reduced-motion
+      behavior, mobile reflow, and text-spacing compatibility
+    - the legacy `BeforeAfter` dialog and `paywallPurchase` helper plus their tests, exports, and
+      Storybook consumers are deleted after exact zero-call-site proof
+    - the canonical product-tier, soft-paywall, and button-action contracts agree with the runtime;
+      the mechanical posture guard distinguishes executable acquisition carriers from inert backend,
+      generated OpenAPI, StoreKit, and telemetry declarations
+    - backend billing, Apple receipt verification, StoreKit, entitlement persistence/routing, iOS,
+      generated OpenAPI/schema, deployment, release, and Euler state remain unchanged
+    - focused frontend/accessibility/locale/Storybook tests, production build, OpenAPI no-drift,
+      design/token guards, narrow repository bundle, exact-head CI, review disposition, mapping/seal,
+      and mandatory review wait window all pass before merge authorization
+  - Rollback (EN): A full ordinary revert is not authorized because it would restore the misleading
+    Web payment UI. Use a bounded fix-forward or temporarily replace a regressed entry point with
+    static information-only content; backend and Apple monetization remain untouched.
+  - Deferred / follow-up (EN): A future paid or full-parity Web product requires a new exact human GO,
+    server-authoritative billing and entitlement architecture, and its own reviewed carrier. This
+    item grants no deployment, App Store, release, or permanent no-Web-monetization authority.
+
 <a id="ledger-p1-canonical-coaching-goal-source"></a>
 - [ ] P1: Implement the canonical backend source for coaching goal authority
   - Owner: Human Product Owner to assign a dedicated backend plus web/iOS lane
@@ -2844,14 +2891,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - FastAPI test-startup symptom is reproduced and fixed or disproved with terminal negative evidence; current-head CI and post-merge sanity are terminal
 
 <a id="ledger-p1-bola-executable-evidence-matrix-v1"></a>
-- [ ] P1: Executable BOLA evidence matrix v1
+- [x] P1: Executable BOLA evidence matrix v1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/security-bola-oracle-matrix-v1`
-  - Status: 📋 Planned after terminal CodeQL/provider closure
+  - Target PR: [PR #2354](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2354) (`codex/security-bola-oracle-matrix-v1`)
+  - Status: ✅ Implemented in PR #2354 on synchronized base `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`; closure becomes authoritative only when this PR merges
   - Area: backend authorization / object-level access control / security evidence
   - Finding Type: executable cross-principal authorization evidence gap
   - Reason (EN): Current authorization coverage needs one finite, current-main matrix that binds every admitted object route to executable same-principal and foreign-principal outcomes without creating a second authorization registry or changing runtime/OpenAPI behavior. First-class authenticated principal mapping remains a downstream lane.
+  - Current implementation record (EN): The derived base census contains seven eligible routes, all bound to one literal executable scenario through the canonical authz contract. Same-owner controls and foreign-object denials pass through real route dependencies; exact denial status is resolved from the contract by `RouteKey`; every denied attempt preserves the complete declared payment or restaurant authorization state. Post-open QA, bug-hunter, security, and architecture review found one status-binding false green, fixed in commit `ff4047015f58a0d00e1feae851f925f0e7b4a235`. Runtime and OpenAPI remain unchanged.
   - Links:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-first-class-auth-principal-mapping`
@@ -2960,8 +3008,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), and current [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, `codex/testclient-tc2-09e-catalog-fixture`); terminal TC2-10 remains TBD
-  - Status: 🟡 In progress — TC2-09D / PR #2351 is merged; TC2-09E is the current bounded one-site catalog-fixture carrier from exact base `942cc0f10995d89be74f5ffc7ab9329809865e0b`; the tracker remains open and TC2-10 remains blocked
+  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), merged [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, squash merge `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`), and current [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) (TC2-09F, `codex/testclient-tc2-09f-nutrition-log-lifecycle`); terminal TC2-10 remains TBD
+  - Status: 🟡 In progress — TC2-09E / PR #2353 is merged; TC2-09F / PR #2357 is the current bounded three-site nutrition-log isolated-client carrier from synchronized exact base `4abd25b98771ac6f4b3bb6e4b3db5d5e4f1ad51d`; the tracker remains open and TC2-10 remains blocked
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
   - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
@@ -2980,8 +3028,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - TC2-09B registration-bootstrap closure: PR #2334 squash-merged as `c6e1e17ab6e0406b3949d9bbf8e922e385638edc` after migrating exactly three constructors across `tests/test_business_registration_bootstrap.py` and `tests/test_test_route_registration_bootstrap.py` to `tests._client.open_test_client`. Its exact post-merge census was 381 sites / 94 files total, 380 / 93 outside `tests/_client.py`, one canonical helper construction, and zero selected-cohort sites. No shared helper, runtime, API, OpenAPI, dependency, or workflow behavior changed.
     - TC2-09C metrics closure: PR #2342 squash-merged as `57a80c130f4ae7317b9b905b02fa116551a88076` after migrating only the three function-local `RawTestClient` construction sites in `tests/test_metrics.py`. Its exact post-merge bounded AST census, counting direct callees whose name or attribute ends in `TestClient`, was 378 sites / 93 files total and 377 / 92 outside `tests/_client.py`, with one canonical helper construction, zero target-file construction sites, and zero `RawTestClient` tokens.
     - Merged TC2-09D health/readiness lifecycle closure: [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) on branch `codex/testclient-tc2-09d-health-readiness` squash-merged as `e58f911c372bb46e1f0e99436feb0ca34c22b82d` after migrating exactly ten recognized direct construction sites across two test files: eight in `tests/test_health_db.py` (six `app.app`, two `legacy_app.app`) and the two `legacy_app.app` contexts exposed by the same bounded guard expansion in `tests/test_canonical_application_lifespan.py`. Its measured post-change census using the bounded AST recognizer was 367 sites / 91 files total and 366 / 90 outside `tests/_client.py`, with one canonical helper construction, zero recognized sites in each selected file, and zero across the combined ten-site cohort. The literal guard and census do not claim arbitrary aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation.
-    - Current TC2-09E catalog-fixture carrier: [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) on branch `codex/testclient-tc2-09e-catalog-fixture` starts from exact base `942cc0f10995d89be74f5ffc7ab9329809865e0b` and removes exactly one module-local fixture/direct construction in `tests/test_catalog_api.py` plus only that file's exact guard exclusion. The measured pre-change bounded AST census was 367 sites / 91 files total and 366 / 90 outside `tests/_client.py`; the measured post-change census is 366 / 90 total and 365 / 89 outside the helper, with one canonical helper construction. Target fixture owners, recognized target constructions, and target guard exclusions each move from one to zero, while the same two collected nodes and all five enumerated catalog requests retain their exact `200`/`422` statuses and payload assertions through the canonical managed fixture.
-    - Residual boundary: the TC2-09E counts are exact-head measurements of only direct `ast.Call` nodes whose `Name.id` or `Attribute.attr` callee ends with `TestClient`; the exact-string guard separately covers only its enumerated literals after its explicit exclusions. Neither result covers aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation, and neither proves universal TestClient absence. The lifecycle checkbox and umbrella tracker remain open. TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
+    - Merged TC2-09E catalog-fixture closure: [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) on branch `codex/testclient-tc2-09e-catalog-fixture` squash-merged as `74b3ef863d3f663400c11a11e0f9aa37012b2fdf` after removing exactly one module-local fixture/direct construction in `tests/test_catalog_api.py` plus only that file's exact guard exclusion. Its measured pre-change bounded AST census was 367 sites / 91 files total and 366 / 90 outside `tests/_client.py`; its measured post-change census was 366 / 90 total and 365 / 89 outside the helper, with one canonical helper construction. Target fixture owners, recognized target constructions, and target guard exclusions each moved from one to zero, while the same two collected nodes and all five enumerated catalog requests retained their exact `200`/`422` statuses and payload assertions through the canonical managed fixture.
+    - Current TC2-09F nutrition-log lifecycle carrier: [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) on branch `codex/testclient-tc2-09f-nutrition-log-lifecycle` is synchronized onto exact base `4abd25b98771ac6f4b3bb6e4b3db5d5e4f1ad51d` and migrates exactly three recognized direct constructions in `tests/test_nutrition_log_api.py` to the existing function-scoped `isolated_test_client` and explicit `pro_headers`, without changing shared fixtures or runtime. The same ten collected nodes retain eleven HTTP call sites / twelve runtime requests: nine authorized source sites / ten authorized requests preserve `8 × 200` and `2 × 422`, while the two explicit negative-auth requests preserve `1 × 401` and `1 × 403`. Seven source-level JSON parses, executed eight times because the boundary loop runs twice, now require JSON Content-Type first. Exact fresh-state assertions require single-write `n == 1`, boundary state counts `1 → 2`, strict adherence/slip directions, direct `risk_slip` keys, and complete meal-POST / risk-GET state equality so a shared or stale analyzer state cannot false-green. The measured bounded AST census moves from 366 sites / 90 files total and 365 / 89 outside `tests/_client.py` to 363 / 89 total and 362 / 88 outside the helper, with one canonical helper construction and target recognized sites `3 → 0`; the existing finite literal guard gains only the three removed target spellings.
+    - Residual boundary: the TC2-09F counts are exact-head measurements of only direct `ast.Call` nodes whose `Name.id` or `Attribute.attr` callee ends with `TestClient`; the exact-string guard separately covers only its enumerated literals after its explicit exclusions. Neither result covers aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation, and neither proves universal TestClient absence. The strengthened fresh-state assertions cover only the ten selected SQLite-backed test nodes and do not prove production database, concurrency, cross-principal, or universal adherence correctness. The lifecycle checkbox and umbrella tracker remain open. TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
     - Closeout recovery boundary: after the authorized ancestry-preserving main synchronization exposed a late stale-seal review finding, the operator approved one non-runtime synthetic governance successor so PR #2351 can record that finding through the ordinary canonical mapping path. This recovery changes no TestClient caller, helper, fixture, route, response, OpenAPI, dependency, deployment, or product behavior and grants no TC2-10 admission or terminal tracker claim. Review evidence is commit-bound: historical `file:line` pointers in a FIXED block are evaluated in that block's mapped fix SHA; current-head proof uses the stable `ledger-p1-test-hygiene-client-lifecycle` anchor and the current Target PR/status plus carrier/census entries.
     - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
   - DoD:
@@ -4920,6 +4969,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #2337 terminal merge and the bounded post-merge outcome are recorded in `docs/review/PR_2337_POST_MERGE_OUTCOME.md`; the outcome is historical evidence only and is not inferred from local events
     - Business utility remains explicitly unmeasured after implementation. E1-05B remains inside the current free web channel phase, grants no `FREE` tier access to the protected PRO route, and grants no future-carrier authority
     - Active and future channel posture is owned solely by `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#current-web-channel-posture`; this ledger item records only the bounded E1-05B lifecycle
+
+
+<a id="ledger-p1-er-ios-1-fitchef-support-choice-preview"></a>
+- [ ] P1: ER-IOS-1 FitChef support-choice native preview
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (native product-direction validation / thin-client integrity)
+  - Target PR: [PR #2358](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2358) (`codex/ios-fitchef-support-handoff-experience`)
+  - Status: 🚧 Implemented and in exact-head closeout; merge and post-merge proof remain pending and are not claimed by this ledger entry.
+  - Area: iOS / SwiftUI / FitChef / preview-only design validation
+  - Reason (EN): The landed deterministic support-handoff descriptor needs one code-native iOS composition before any runtime presentation owner is authorized. ER-IOS-1 keeps that comparison inside Xcode Preview, selects the Human Product Owner's H1 / Candidate X direction, and proves the client can preserve the exact daily-or-weekly descriptor without creating navigation, execution, persistence, payment, entitlement, analytics, or plan authority.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `ios/PulsePlate/Models/FitChef/FitChefSupportHandoffDescriptor.swift`
+    - `ios/PulsePlate/Views/FitChef/FitChefSupportChoiceExperience.swift`
+    - `ios/PulsePlateTests/FitChefSupportChoiceExperimentTests.swift`
+  - DoD:
+    - Exactly one Human Product Owner-selected winner, H1 / Candidate X / Immediate Choice, is present in the PR; Candidate Y remains local comparison evidence and H3 remains archived research
+    - The internal immutable descriptor and choices state accept only the frozen v1 daily/weekly pairs and exact authority values after Foundation JSON parsing, return the selected descriptor unchanged, and make no byte-level duplicate-member or shared-network-decoder compatibility claim
+    - The SwiftUI view compiles in Debug and Release, uses existing `PPCard`, `PPButton`, semantic tokens, and the unchanged FitChef asset, while remaining structurally unreachable from production navigation and services
+    - EN/RU/ES, Dynamic Type, non-color selection, minimum targets, scroll reachability, callback behavior, and phone/tablet layouts have deterministic native tests or rendered local evidence
+    - Focused iOS tests, narrow repository gates, design/token guards, role reviews, premortem, Experiment Runner, exact-head CI, canonical mapping/seal, strict readiness, and human exact-head merge authorization all pass before merge
+    - Post-merge proof synchronizes clean `main`, runs focused merged-main iOS sanity, preserves gitignored Open Design/X-Y/Canvas evidence, and removes only the completed lane's temporary worktrees and DerivedData
+
+
+<a id="ledger-p1-er-ios-2-fitchef-runtime-handoff-integration"></a>
+- [ ] P1: ER-IOS-2 FitChef runtime handoff integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (iOS nutrition activation / server-authoritative integration)
+  - Target PR: PR-TBD after PR #2358 merges with post-merge proof and a separate runtime GO
+  - Status: Planned and blocked by terminal ER-IOS-1 closeout; no endpoint, APIClient, navigation, entitlement, persistence, payment, analytics, or plan mutation is authorized here.
+  - Area: iOS / FitChef / APIClient / navigation / entitlement
+  - Reason (EN): ER-IOS-1 validates an inert native choice surface only. A separate runtime carrier must bind the backend descriptor to the existing thin-client transport and a real routed product flow without treating a target token, local selection, StoreKit result, or client-declared tier as execution or entitlement truth.
+  - Links:
+    - [ER-IOS-1 PR #2358](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2358)
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `ios/PulsePlate/Networking/APIClient.swift`
+    - `ios/PulsePlate/Networking/HTTPClient.swift`
+  - DoD:
+    - A new explicit GO revalidates the merged backend/OpenAPI schema and the two daily/weekly need-to-target pairs before any runtime code is authored
+    - Transport uses the existing `APIClient` / `HTTPClient` boundary with a reviewed feature-local strict-decoding seam; the global decoder is not weakened, and raw duplicate-member admission is either explicitly solved before decoding or explicitly excluded by a reviewed transport contract
+    - User confirmation remains mandatory; navigation resolves only to an existing routed surface, while execution, plan mutation, entitlement, billing, and persistence remain backend-authoritative and fail closed
+    - No direct `URLSession`, client-owned nutrition logic, client-declared entitlement truth, silent target repair, raw-prose parsing, or fallback action is introduced
+    - Deterministic contract, transport, auth, cancellation, retry, stale-response, navigation, accessibility, and nonreachability-negative tests pass together with current iOS CI and ordinary review/merge governance
 
 
 <a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
@@ -7680,10 +7772,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-alembic-autogenerate-completeness"></a>
 - [ ] P1: Prove Alembic autogenerate completeness against upgraded PostgreSQL
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (database migration correctness / drift detection)
-  - Target PR: PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS
-  - Status: ⏳ Planned; separate from canonical runtime ORM registration
-  - Reason (EN): The current mapped runtime metadata excludes the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items`, and existing revision/runtime drift has not been reconciled. Runtime registration cannot support a zero-diff or completeness claim for Alembic autogenerate.
+  - Priority: P1
+  - Target PR: [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) for the active drift-reconciliation prerequisite; final completeness carrier `PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS`
+  - Status: 🔄 In progress — prerequisite implementation is active in PR #2355; final autogenerate completeness remains Planned
+  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
+  - Reason (EN): PR #2355 reconciles the observed ORM/revision drift and wires Alembic to the canonical mapped metadata, while the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items` intentionally remain outside ORM ownership. A zero-diff completeness claim still requires their exact admission/filter policy plus independent PostgreSQL reflection proof.
   - Links:
     - `alembic/env.py`
     - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
