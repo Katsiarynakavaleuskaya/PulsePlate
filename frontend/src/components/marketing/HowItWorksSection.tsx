@@ -1,86 +1,75 @@
-import type { JSX } from "react";
-import type { LucideIcon } from "lucide-react";
-import { Activity, ChartLine, Settings2, Sparkles, Utensils } from "lucide-react";
-import { MarketingCard, MarketingSection, SectionHeader } from "./MarketingPrimitives";
+import type { JSX } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { Activity, CalendarDays, Compass, MousePointerClick } from 'lucide-react';
+import { MarketingCard, MarketingSection, SectionHeader } from './MarketingPrimitives';
 
 type HowItWorksStep = {
-    id: string;
-    title: string;
-    description: string;
-    icon: LucideIcon;
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
 };
 
 const steps: HowItWorksStep[] = [
-    {
-        id: "understand-metrics",
-        title: "Understand your metrics",
-        description:
-            "See your current baseline clearly. PulsePlate helps you understand where you are with BMI and wellness-oriented signals.",
-        icon: Activity,
-    },
-    {
-        id: "complete-setup",
-        title: "Complete setup",
-        description:
-            "Define your core nutrition inputs and preferences. Structured preparation helps PulsePlate guide you more clearly.",
-        icon: Settings2,
-    },
-    {
-        id: "open-plate",
-        title: "Open Plate",
-        description:
-            "Access your main daily nutrition surface. Plate is where you plan and structure your meals with calm clarity.",
-        icon: Utensils,
-    },
-    {
-        id: "review-progress",
-        title: "Review Progress",
-        description:
-            "Track trends and signals over time. Progress helps you see patterns and stay oriented without over-analysis.",
-        icon: ChartLine,
-    },
-    {
-        id: "pro-guidance",
-        title: "Unlock deeper Pro guidance",
-        description:
-            "Add more depth and structure with Pro. Access AI guidance, weekly insights, and more personalized support where available.",
-        icon: Sparkles,
-    },
+  {
+    id: 'free-bmi',
+    title: 'Open the free BMI calculator',
+    description: 'View your BMI result on the website.',
+    icon: Activity,
+  },
+  {
+    id: 'choose-start',
+    title: 'Choose Today or This week',
+    description: 'Both choices stay visible in the FitChef preview.',
+    icon: MousePointerClick,
+  },
+  {
+    id: 'see-pointer',
+    title: 'See the result',
+    description: 'The confirmed result stays in the preview card.',
+    icon: CalendarDays,
+  },
+  {
+    id: 'apple-direction',
+    title: 'Read about PulsePlate for Apple devices',
+    description: 'Learn where the more advanced FitChef experience is planned.',
+    icon: Compass,
+  },
 ];
 
 export function HowItWorksSection(): JSX.Element {
-    return (
-        <MarketingSection id="how-it-works">
-            <SectionHeader
-                description="A simple, product-first flow: understand where you are, structure what matters, and unlock more depth only when you need it."
-                eyebrow="How it works"
-                title="How PulsePlate works"
-            />
+  return (
+    <MarketingSection id="how-it-works">
+      <SectionHeader
+        description="Check BMI, choose Today or This week, and see the result in the same card."
+        eyebrow="How it works"
+        title="Use the calculator, then try FitChef"
+      />
 
-            <div className="ppm-step-grid">
-                {steps.map((step, index) => {
-                    const Icon = step.icon;
+      <div className="ppm-step-grid">
+        {steps.map((step, index) => {
+          const Icon = step.icon;
 
-                    return (
-                        <div key={step.id}>
-                            <MarketingCard className="ppm-step-card">
-                                <div className="ppm-step-top">
-                                    <div className="ppm-icon-box">
-                                        <Icon size={20} />
-                                    </div>
-                                    <span className="ppm-step-number">0{index + 1}</span>
-                                </div>
-                                <h3 className="ppm-step-title" style={{ marginTop: "1.5rem" }}>
-                                    {step.title}
-                                </h3>
-                                <p className="ppm-step-copy">{step.description}</p>
-                            </MarketingCard>
-                        </div>
-                    );
-                })}
+          return (
+            <div key={step.id}>
+              <MarketingCard className="ppm-step-card">
+                <div className="ppm-step-top">
+                  <div className="ppm-icon-box">
+                    <Icon size={20} />
+                  </div>
+                  <span className="ppm-step-number">0{index + 1}</span>
+                </div>
+                <h3 className="ppm-step-title" style={{ marginTop: '1.5rem' }}>
+                  {step.title}
+                </h3>
+                <p className="ppm-step-copy">{step.description}</p>
+              </MarketingCard>
             </div>
-        </MarketingSection>
-    );
+          );
+        })}
+      </div>
+    </MarketingSection>
+  );
 }
 
 export default HowItWorksSection;

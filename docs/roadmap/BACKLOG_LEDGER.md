@@ -24,13 +24,91 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
+- [ ] P1: Add the public deterministic FitChef marketing demo
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (public value communication / free-Web activation / product trust)
+  - Target PR: [PR #2362](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2362)
+    (`codex/fitchef-public-marketing-demo`)
+  - Status: In review in PR #2362; close only after the current carrier merges with exact-head proof
+  - Area: frontend / public marketing / deterministic FitChef preview / accessibility
+  - Reason (EN): The free website needs one honest, interactive way to show the value of FitChef
+    without running AI, using personal data, opening a product area, saving state, implying payment,
+    or claiming App Store availability. The current carrier adds only the accepted immediate-choice
+    example to the shared `/` and `/marketing` page and records the work in its implementation PR.
+  - Links:
+    - `frontend/src/components/marketing/FitChefValueDemo.tsx`
+    - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
+    - `frontend/src/components/marketing/__tests__/MarketingLaunchPage.test.tsx`
+    - `frontend/e2e/hpp-smoke.spec.ts`
+  - DoD:
+    - one shared H1 immediate-choice demo renders on both `/` and `/marketing`, while comparison
+      candidates remain outside the production import graph and bundle
+    - the closed reducer exposes only idle, selected-today, selected-week, revealed-today, and
+      revealed-week semantics; switching choices clears a stale result and reset/remount return idle
+    - `today` maps only to `Daily Plate` and `week` maps only to `Weekly Planning`; neither result is
+      interactive and no product-area navigation occurs
+    - the demo imports only the existing FitChef asset plus shared `Button`, `Card`, `RadioGroup`,
+      `MarketingSection`, and `SectionHeader`, with no new asset, token, or component family
+    - the complete interaction performs no API, auth, analytics, storage, payment, outcome,
+      provider, RAG, LLM, timer, promise, or browser-network side effect
+    - keyboard, focus-visible, native radio semantics, polite result announcement, non-color
+      selection, 44px targets, reduced motion, 320px, text spacing, and effective 200% zoom checks
+      pass together with targeted `jest-axe`, focused frontend tests, build, and required PR gates
+    - adjacent marketing copy points acquisition only to `/bmi` and `#fitchef-demo`, describes the
+      Apple-device direction without availability claims, and uses soft user language rather than
+      internal implementation terms
+  - Rollback (EN): Revert or remove only the PR-2 demo runtime, adjacent marketing copy, and demo
+    tests, or fix forward. Preserve the already-merged PR #2352/#2360 closure, the P2 localization
+    follow-up, and the separately authorized outcome-transport dependency unless a new human
+    decision changes them. The demo creates no retained data or migration.
+  - Scope boundary (EN): This item is separate from
+    [the broader FitChef website brand rollout](#ledger-p1-fitchef-web-brand-rollout). It does not
+    close or advance mascot-variant migration, onboarding adoption, Storybook brand guidance, or
+    other brand-rollout DoD.
+
+<a id="ledger-p2-marketing-landing-en-ru-es-localization"></a>
+- [ ] P2: Localize the complete marketing landing in EN, RU, and ES
+  - Owner: frontend-engineer / localization reviewer
+  - Priority: P2 (cross-locale acquisition consistency / public copy quality)
+  - Target PR: PR-TBD after the deterministic marketing demo merges and receives a separate
+    localization/copy approval
+  - Status: Planned; the current demo carrier intentionally keeps the English marketing page
+    internally consistent instead of mixing localized demo copy into an English-only landing
+  - Area: frontend / marketing localization / accessibility / responsive copy QA
+  - Reason for deferral (EN): Full localization must cover the entire landing page as one reviewed
+    copy system. Translating only the new demo now would produce a mixed-language public page and
+    would widen the bounded implementation carrier into a separate copy and screenshot review lane.
+  - Links:
+    - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
+    - `frontend/src/locales/en.json`
+    - `frontend/src/locales/ru.json`
+    - `frontend/src/locales/es.json`
+  - DoD:
+    - every visible marketing section, CTA, prepared-demo state, disclosure, wellness note, footer,
+      accessible name, and result announcement is available in EN, RU, and ES with no mixed locale
+    - all three locales preserve the same free-Web, no-live-AI, no-personal-data, no-purchase, and
+      Apple-device-direction semantics without an unverified availability, price, or eligibility claim
+    - locale switching preserves the closed reducer state contract and never changes the static
+      `today -> Daily Plate` / `week -> Weekly Planning` correspondence
+    - copy-length, 320/768/1440 responsive layout, 200% zoom, text spacing, keyboard, screen-reader,
+      and targeted accessibility checks pass for every locale
+    - focused locale/marketing tests, production build, design/token guards, narrow repository
+      bundle, current-head CI, review disposition, and merge-readiness gates pass
+  - Rollback (EN): Revert only the future localization carrier to the already-merged English
+    marketing page; no data repair, migration, API change, or runtime entitlement change is needed.
+
 <a id="ledger-p0-web-production-payment-desurfacing"></a>
-- [ ] P0: Remove production-reachable Web payment actions
+- [x] P0: Remove production-reachable Web payment actions
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P0 (public channel truth / payment safety / launch trust)
   - Target PR: [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
     (`codex/web-payment-desurfacing`)
-  - Status: In review in PR #2352; closure is effective only after the target PR merges
+  - Status: ✅ Closed by merged [PR #2352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2352)
+    with squash merge `71e28d2736141156b4d3fe9f4e0ddb7da6c41a2e`; exact-main analytics-guard
+    stabilization then merged in [PR #2360](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2360)
+    with squash merge `4abd25b98771ac6f4b3bb6e4b3db5d5e4f1ad51d`. PR #2360 restored only the
+    required analytics index headings and added no payment, frontend product, or monetization scope.
   - Area: frontend / Web monetization boundary / accessibility / public product copy
   - Reason (EN): The current public website must remain free and informational while paid product
     direction stays with PulsePlate for Apple devices. Production-reachable purchase, subscribe,
