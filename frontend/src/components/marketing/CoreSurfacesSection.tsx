@@ -1,49 +1,37 @@
-import { Activity, ChartColumnBig, Home, ShieldCheck, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { Activity, CalendarDays, ChartColumnBig, Compass, UtensilsCrossed } from 'lucide-react';
 import { MarketingCard, MarketingSection, SectionHeader, StatusPill } from './MarketingPrimitives';
 
 const surfaces = [
   {
-    title: 'Home',
-    description:
-      'Your calm dashboard overview. See session status, quick actions, and navigate to all product surfaces from one structured entry point.',
-    supporting: 'Dashboard & navigation',
-    icon: Home,
-  },
-  {
-    title: 'Setup',
-    description:
-      'Define your core nutrition inputs and preferences. Structured preparation to help PulsePlate guide you more clearly.',
-    supporting: 'Configuration & preparation',
-    icon: ShieldCheck,
-  },
-  {
-    title: 'Plate',
-    description:
-      'Your main daily nutrition surface. Plan and structure your meals with calm clarity and simple focus.',
-    supporting: 'Daily nutrition planning',
-    icon: UtensilsCrossed,
-  },
-  {
-    title: 'Progress',
-    description:
-      'Review trends and signals over time. See patterns and stay oriented without over-analysis.',
-    supporting: 'Trends & understanding',
-    icon: ChartColumnBig,
-  },
-  {
-    title: 'BMI',
-    description:
-      'Understand your baseline metrics with wellness-focused clarity. A practical starting point for self-awareness.',
-    supporting: 'Baseline metrics',
+    title: 'Free BMI calculator',
+    description: 'Use the calculator on this website.',
+    supporting: 'Free web tool',
     icon: Activity,
   },
   {
-    title: 'Pro',
+    title: 'FitChef preview',
+    description: 'Choose Today or This week, then confirm.',
+    supporting: 'Prepared example',
+    icon: Compass,
+  },
+  {
+    title: 'Daily Plate',
+    description: 'A day-focused area for planning meals.',
+    supporting: 'Today',
+    icon: UtensilsCrossed,
+  },
+  {
+    title: 'Weekly Planning',
+    description: 'A seven-day area for looking ahead.',
+    supporting: 'This week',
+    icon: CalendarDays,
+  },
+  {
+    title: 'PulsePlate for Apple devices',
     description:
-      'Unlock deeper guidance and structure. Access AI coaching, weekly insights, and more personalized support where available.',
-    supporting: 'Premium guidance & tools',
-    icon: Sparkles,
-    pillTone: 'premium',
+      'A broader daily and weekly experience is being designed beyond this free website.',
+    supporting: 'Apple devices',
+    icon: ChartColumnBig,
   },
 ];
 
@@ -51,31 +39,24 @@ export function CoreSurfacesSection() {
   return (
     <MarketingSection id="core-surfaces">
       <SectionHeader
-        description="The public site stays honest about the real product map: six clear surfaces, one calm navigation logic."
-        eyebrow="Product surfaces"
-        title="Inside PulsePlate"
+        description="These are the two planning areas named by the FitChef preview."
+        eyebrow="Explore PulsePlate"
+        title="Daily Plate and Weekly Planning"
       />
 
       <div className="ppm-surfaces-grid" style={{ marginTop: '2.5rem' }}>
-        {surfaces.map(({ title, description, supporting, icon: Icon, pillTone }) => (
+        {surfaces.map(({ title, description, supporting, icon: Icon }) => (
           <MarketingCard key={title} className="ppm-surface-card">
             <div className="ppm-surface-top">
               <div className="ppm-icon-box">
                 <Icon size={20} />
               </div>
-              <StatusPill
-                className={pillTone === 'premium' ? 'ppm-pill--premium' : 'ppm-pill--success'}
-              >
-                {pillTone === 'premium' ? 'Pro' : 'Available now'}
-              </StatusPill>
+              <StatusPill>{supporting}</StatusPill>
             </div>
             <h3 className="ppm-surface-title" style={{ marginTop: '1.5rem' }}>
               {title}
             </h3>
             <p className="ppm-surface-copy">{description}</p>
-            <p className="ppm-surface-support" style={{ marginTop: '1.25rem' }}>
-              {supporting}
-            </p>
           </MarketingCard>
         ))}
       </div>

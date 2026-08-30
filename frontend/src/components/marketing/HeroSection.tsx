@@ -1,5 +1,14 @@
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, Brain, Droplets, Lock, ShieldCheck, Sparkles, Target } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  CalendarDays,
+  Compass,
+  Lock,
+  ShieldCheck,
+  Sparkles,
+  UtensilsCrossed,
+} from 'lucide-react';
 import brandMark from '../../assets/brand/pulseplate-brand-mark.png';
 import fitChefHero from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
 import {
@@ -10,17 +19,17 @@ import {
 } from './MarketingPrimitives';
 
 const quickActions = [
-  { label: 'Open Plate', icon: Target, helper: 'Meal planning' },
-  { label: 'Check BMI', icon: Activity, helper: 'Baseline context' },
-  { label: 'Complete Setup', icon: ShieldCheck, helper: 'Personalization inputs' },
-  { label: 'View Progress', icon: Sparkles, helper: 'Gentle tracking' },
+  { label: 'Daily Plate', icon: UtensilsCrossed, helper: 'For today' },
+  { label: 'Free BMI calculator', icon: Activity, helper: 'On this website' },
+  { label: 'FitChef choice', icon: Compass, helper: 'Today or this week' },
+  { label: 'Weekly Planning', icon: CalendarDays, helper: 'For seven days' },
 ];
 
 const launchSignals = [
-  { label: 'Meals', value: 'Plan today', accent: 'ppm-dot--green' },
-  { label: 'Progress', value: 'Track gently', accent: 'ppm-dot--gold' },
-  { label: 'FitChef', value: 'Guided tips', accent: 'ppm-dot--blue' },
-  { label: 'Boundaries', value: 'Wellness only', accent: 'ppm-dot--green' },
+  { label: 'Website', value: 'Free BMI calculator', accent: 'ppm-dot--green' },
+  { label: 'FitChef', value: 'Today or this week', accent: 'ppm-dot--blue' },
+  { label: 'Today', value: 'Daily Plate', accent: 'ppm-dot--gold' },
+  { label: 'This week', value: 'Weekly Planning', accent: 'ppm-dot--green' },
 ];
 
 export function HeroSection() {
@@ -41,35 +50,35 @@ export function HeroSection() {
 
       <div className="ppm-hero-grid">
         <div className="ppm-hero-copy">
-          <p className="ppm-eyebrow">PulsePlate launch preview</p>
-          <h1 className="ppm-hero-title">Plan meals and progress with calmer structure</h1>
+          <p className="ppm-eyebrow">Free on the web</p>
+          <h1 className="ppm-hero-title">Check your BMI and see how FitChef works</h1>
           <p className="ppm-hero-body">
-            PulsePlate brings meal planning, setup context, and progress reflection into a
-            wellness-only space that helps you decide what to do next without medical claims.
+            Use the free BMI calculator, or choose Today or This week in the FitChef preview to see
+            whether it points to Daily Plate or Weekly Planning.
           </p>
 
           <div className="ppm-actions">
-            <Link className={marketingButtonClasses.primary} to="/app">
-              <span>Open the app</span>
+            <a className={marketingButtonClasses.primary} href="#fitchef-demo">
+              <span>See how FitChef works</span>
               <ArrowRight size={16} />
-            </Link>
-            <Link className={marketingButtonClasses.secondary} to="/enter-key">
-              Join early access
+            </a>
+            <Link className={marketingButtonClasses.secondary} to="/bmi">
+              Try the free BMI calculator
             </Link>
           </div>
 
           <div className="ppm-pill-row">
             <StatusPill className="ppm-pill--success">
               <span className="ppm-dot ppm-dot--green" />
-              Wellness planner
+              Free website
             </StatusPill>
             <StatusPill>
               <Lock size={14} />
-              Privacy-minded
+              No purchases here
             </StatusPill>
             <StatusPill className="ppm-pill--premium">
               <Sparkles size={14} />
-              Guided preview
+              Prepared FitChef preview
             </StatusPill>
           </div>
         </div>
@@ -79,18 +88,20 @@ export function HeroSection() {
             <img alt="FitChef wellness guide" className="ppm-fitchef-image" src={fitChefHero} />
             <div>
               <p className="ppm-fitchef-kicker">FitChef</p>
-              <p className="ppm-fitchef-copy">Friendly meal and habit guidance without medical claims.</p>
+              <p className="ppm-fitchef-copy">
+                A short preview of how FitChef connects a choice to a planning view.
+              </p>
             </div>
           </div>
 
           <div className="ppm-preview-row">
             <StatusPill className="ppm-pill--success">
               <span className="ppm-dot ppm-dot--green" />
-              Launch preview
+              Prepared example
             </StatusPill>
             <StatusPill className="ppm-pill--premium">
               <span className="ppm-dot ppm-dot--gold" />
-              Early access
+              Nothing is saved
             </StatusPill>
           </div>
 
@@ -108,8 +119,8 @@ export function HeroSection() {
 
           <div className="ppm-subsection">
             <div className="ppm-preview-row">
-              <p className="ppm-subsection-title">Launch actions</p>
-              <p className="ppm-subsection-meta">Existing routes</p>
+              <p className="ppm-subsection-title">Try the two choices</p>
+              <p className="ppm-subsection-meta">Today or this week</p>
             </div>
             <div className="ppm-action-grid" aria-hidden="true">
               {quickActions.map(({ label, icon: Icon, helper }) => (
@@ -129,26 +140,26 @@ export function HeroSection() {
           <div className="ppm-preview-lower">
             <div className="ppm-panel">
               <div className="ppm-preview-row">
-                <p className="ppm-subsection-title">Coach lanes</p>
-                <Brain size={16} color="var(--pp-blue)" />
+                <p className="ppm-subsection-title">Planning views</p>
+                <ShieldCheck size={16} color="var(--pp-blue)" />
               </div>
               <div className="ppm-tool-stack">
-                <div className="ppm-tool-item">Nutrition structure</div>
-                <div className="ppm-tool-item">Habit check-ins</div>
+                <div className="ppm-tool-item">Today’s plate</div>
+                <div className="ppm-tool-item">This week</div>
               </div>
             </div>
 
             <div className="ppm-insight-card">
               <div className="ppm-preview-row">
-                <p className="ppm-subsection-title">FitChef note</p>
-                <StatusPill className="ppm-pill--neutral">Advisory</StatusPill>
+                <p className="ppm-subsection-title">FitChef result</p>
+                <StatusPill className="ppm-pill--neutral">Prepared example</StatusPill>
               </div>
               <p className="ppm-insight-body">
-                Try pairing one repeatable meal habit with a simple weekly check-in.
+                Today points to Daily Plate. This week points to Weekly Planning.
               </p>
               <div className="ppm-insight-note">
-                <Droplets size={14} color="var(--pp-green)" />
-                Guidance with clear boundaries
+                <Lock size={14} color="var(--pp-green)" />
+                This preview uses no personal data.
               </div>
             </div>
           </div>

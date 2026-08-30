@@ -145,8 +145,8 @@
   outline-offset: 3px;
 }
 
-.ppm-btn--primary {
-  background: var(--pp-blue);
+.ppm-page .ppm-btn--primary {
+  background: var(--color-blue-600);
   color: var(--color-primary-foreground);
   box-shadow: 0 20px 40px rgba(51, 159, 255, 0.2);
 }
@@ -301,6 +301,201 @@
   line-height: 1.6;
 }
 
+.ppm-fitchef-demo-section {
+  scroll-margin-top: var(--spacing-4);
+}
+
+.ppm-page .ppm-fitchef-demo-card {
+  margin-top: var(--spacing-10);
+  padding: clamp(var(--spacing-5), 4vw, var(--spacing-10));
+  border-color: rgba(51, 159, 255, 0.24);
+  background: rgba(15, 23, 42, 0.84);
+}
+
+.ppm-fitchef-demo-layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(var(--spacing-6), 5vw, var(--spacing-12));
+  align-items: start;
+}
+
+.ppm-fitchef-demo-intro {
+  display: grid;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+.ppm-fitchef-demo-image {
+  width: min(100%, 15rem);
+  height: auto;
+  justify-self: center;
+  object-fit: contain;
+}
+
+.ppm-fitchef-demo-consequence,
+.ppm-fitchef-demo-wellness,
+.ppm-fitchef-demo-disclosure {
+  overflow-wrap: anywhere;
+}
+
+.ppm-fitchef-demo-consequence {
+  margin: 0;
+  color: var(--ppm-slate-200);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+}
+
+.ppm-fitchef-demo-wellness {
+  margin: var(--spacing-3) 0 0;
+  color: var(--ppm-slate-400);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.ppm-fitchef-choice-group {
+  min-width: 0;
+}
+
+.ppm-fitchef-choice-group legend {
+  margin-bottom: var(--spacing-2);
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.ppm-page .ppm-fitchef-option {
+  min-height: var(--spacing-touch-large);
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-primary-foreground);
+  transition:
+    border-color var(--motion-fast) ease,
+    border-width var(--motion-fast) ease,
+    background var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.ppm-page .ppm-fitchef-option:hover {
+  border-color: rgba(51, 159, 255, 0.52);
+  background: rgba(51, 159, 255, 0.08);
+}
+
+.ppm-page .ppm-fitchef-option--selected {
+  border-width: 2px;
+  border-color: var(--pp-blue);
+  background: rgba(51, 159, 255, 0.14);
+  box-shadow: inset var(--spacing-1) 0 0 var(--pp-blue);
+}
+
+.ppm-page .ppm-fitchef-option:has(input:focus-visible) {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
+}
+
+.ppm-page .ppm-fitchef-option input {
+  margin-top: var(--spacing-1);
+  accent-color: var(--pp-blue);
+}
+
+.ppm-page .ppm-fitchef-option input:focus-visible {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 2px;
+}
+
+.ppm-fitchef-option-label {
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-snug);
+}
+
+.ppm-fitchef-option-detail {
+  color: var(--ppm-slate-300);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.ppm-fitchef-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-6);
+}
+
+.ppm-fitchef-demo-actions > button {
+  min-height: var(--spacing-touch);
+}
+
+.ppm-page .ppm-fitchef-confirm {
+  background: var(--color-blue-600);
+  color: var(--color-primary-foreground);
+}
+
+.ppm-page .ppm-fitchef-secondary {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-primary-foreground);
+  box-shadow: none;
+}
+
+.ppm-page .ppm-fitchef-secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.ppm-page .ppm-fitchef-secondary:focus-visible {
+  outline: 2px solid var(--pp-blue);
+  outline-offset: 3px;
+}
+
+.ppm-fitchef-demo-result {
+  min-height: 5.5rem;
+  margin-top: var(--spacing-6);
+}
+
+.ppm-fitchef-demo-result:empty {
+  min-height: 0;
+  margin-top: 0;
+}
+
+.ppm-fitchef-demo-result > div {
+  padding: var(--spacing-4);
+  border: 1px solid rgba(32, 201, 151, 0.24);
+  border-radius: var(--radius-xl);
+  background: rgba(32, 201, 151, 0.1);
+}
+
+.ppm-fitchef-demo-result h3 {
+  margin: 0;
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.ppm-fitchef-demo-result p {
+  margin: var(--spacing-2) 0 0;
+  color: var(--ppm-slate-200);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+}
+
+.ppm-fitchef-demo-disclosure {
+  margin: var(--spacing-5) 0 0;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--ppm-slate-400);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppm-page .ppm-fitchef-option {
+    transition: none;
+  }
+}
+
 .ppm-preview-row {
   display: flex;
   align-items: center;
@@ -385,7 +580,7 @@
 }
 
 .ppm-subsection-meta {
-  color: var(--ppm-slate-500);
+  color: var(--ppm-slate-400);
   font-size: 0.72rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
@@ -532,7 +727,11 @@
   display: grid;
   gap: 1rem;
   margin-top: 2.5rem;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ppm-step-card {
+  height: 100%;
 }
 
 .ppm-step-top,
@@ -555,7 +754,7 @@
 .ppm-surface-support,
 .ppm-footer-note,
 .ppm-supporting {
-  color: var(--ppm-slate-500);
+  color: var(--ppm-slate-400);
   font-size: 0.72rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -648,7 +847,7 @@
 
 .ppm-footer-group-title {
   margin: 0;
-  color: var(--ppm-slate-500);
+  color: var(--ppm-slate-400);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.24em;
@@ -708,6 +907,14 @@
     align-items: flex-start;
     min-width: 0;
   }
+
+  .ppm-fitchef-demo-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ppm-fitchef-demo-image {
+    width: min(50vw, 13rem);
+  }
 }
 
 @media (max-width: 768px) {
@@ -757,7 +964,8 @@
   }
 
   .ppm-actions .ppm-btn,
-  .ppm-cta-actions .ppm-btn {
+  .ppm-cta-actions .ppm-btn,
+  .ppm-fitchef-demo-actions > button {
     width: 100%;
   }
 
