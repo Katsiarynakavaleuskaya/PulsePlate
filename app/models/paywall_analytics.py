@@ -9,7 +9,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Index, JSON, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, Index, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -52,4 +53,7 @@ class PaywallExposureLedger(Base):
     subject_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     auth_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     tier_snapshot: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+        nullable=True,
+    )
