@@ -745,6 +745,7 @@ final class FitChefCoachViewTests: XCTestCase {
     }
 }
 
+@MainActor
 private final class FitChefCoachDestinationBuildProbe {
     private(set) var aiGuidanceBuildCount = 0
     private(set) var planningDirectionBuildCount = 0
