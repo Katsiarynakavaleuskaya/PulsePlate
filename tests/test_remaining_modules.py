@@ -2432,7 +2432,9 @@ class TestAlembicReconciliationFastLane:
         assert isinstance(fallback_adapter.load_dialect_impl(postgresql_dialect), fallback_type)
 
         assert installed_adapter.process_bind_param(None, postgresql_dialect) is None
-        assert installed_adapter.process_bind_param(payload, postgresql_dialect) == values
+        selected_bind = installed_adapter.process_bind_param(payload, postgresql_dialect)
+        expected_selected_bind = payload if selected_type is fallback_type else values
+        assert selected_bind == expected_selected_bind
         assert fallback_adapter.process_bind_param(payload, postgresql_dialect) == payload
         assert installed_adapter.process_bind_param("short text", sqlite_dialect) == "short text"
         with pytest.raises(ValueError, match="vector_embedding_sqlite_value_must_be_text"):
