@@ -15,6 +15,7 @@ TESTS=(
   "PulsePlateTests/LocaleParsingTests"
   "PulsePlateTests/HTTPClientTests"
   "PulsePlateTests/APIClientTests"
+  "PulsePlateTests/APIClientJSONValueAdmissionTests"
   "PulsePlateTests/BMIServiceThinAdapterTests"
   "PulsePlateTests/SubscriptionBillingServiceTests"
   "PulsePlateTests/SubscriptionManagerTests"
@@ -24,6 +25,10 @@ TESTS=(
   "PulsePlateTests/AIWellnessConsentTests"
   "PulsePlateTests/LottieAssetContractTests"
   "PulsePlateTests/FitChefSupportChoiceExperimentTests"
+  "PulsePlateTests/FitChefSupportDTORecognitionTests"
+  "PulsePlateTests/FitChefSupportServiceTests"
+  "PulsePlateTests/FitChefSupportFlowViewModelTests"
+  "PulsePlateTests/FitChefSupportPresentationContractTests"
 )
 
 # Output comma-separated for Makefile IOS_ONLY_TESTING parsing (no trailing newline)
