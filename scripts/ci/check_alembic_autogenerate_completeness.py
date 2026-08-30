@@ -911,6 +911,8 @@ def _produce_upgrade_ops(
                 root = produce_migrations(context, target_metadata).upgrade_ops
         else:
             root = produce_migrations(context, target_metadata).upgrade_ops
+    if not isinstance(root, ops.UpgradeOps):
+        raise ValueError("autogenerate_upgrade_root_missing")
     categories = tuple(warning.category.__name__ for warning in caught)
     return root, categories
 
@@ -945,27 +947,55 @@ def _semantic_leaves(
     reasons: list[str] = []
     observed: list[str] = []
 
-    def walk(operation: object, *, depth: int) -> None:
+    def walk(
+        operation: object,
+        *,
+        depth: int,
+        parent_table_root: tuple[str, str] | None = None,
+    ) -> None:
         if isinstance(operation, ops.OpContainer):
+            child_parent = parent_table_root
             if isinstance(operation, ops.UpgradeOps):
                 if depth != 0:
                     reasons.append("autogenerate_container_topology_invalid")
                     observed.append("container:UpgradeOps:nested")
             elif isinstance(operation, ops.ModifyTableOps):
+                parent_schema = _bounded_identifier(operation.schema or default_schema_name)
+                parent_table = _bounded_identifier(operation.table_name)
+                child_parent = (parent_schema, parent_table)
                 if depth != 1:
                     reasons.append("autogenerate_container_topology_invalid")
                     observed.append("container:ModifyTableOps:invalid_depth")
+                if not operation.ops:
+                    reasons.append("autogenerate_modify_table_empty")
+                    observed.append(
+                        f"container:ModifyTableOps:{parent_schema}.{parent_table}:empty"
+                    )
             else:
                 reasons.append("autogenerate_container_unclassified")
                 observed.append(f"container:{type(operation).__name__}")
             for child in operation.ops:
-                walk(child, depth=depth + 1)
+                walk(child, depth=depth + 1, parent_table_root=child_parent)
             return
         leaf = _operation_leaf(operation, default_schema_name=default_schema_name)
         if leaf is None:
             reasons.append("autogenerate_operation_unclassified")
             observed.append(f"operation:{type(operation).__name__}")
             return
+        if isinstance(operation, ops.DropIndexOp):
+            leaf_root = (leaf.schema, leaf.table_name)
+            if parent_table_root is None:
+                reasons.append("autogenerate_drop_index_parent_missing")
+                observed.append(
+                    f"operation:DropIndexOp:{leaf.schema}.{leaf.table_name}:parent_missing"
+                )
+            elif leaf_root != parent_table_root:
+                reasons.append("autogenerate_drop_index_parent_mismatch")
+                observed.append(
+                    "operation:DropIndexOp:"
+                    f"parent={parent_table_root[0]}.{parent_table_root[1]}:"
+                    f"child={leaf.schema}.{leaf.table_name}"
+                )
         leaves.append(leaf)
 
     walk(root, depth=0)
@@ -1171,7 +1201,7 @@ def evaluate_alembic_autogenerate_admission(
     )
     reasons.extend(admitted_tree_reasons)
     observed.extend(admitted_tree_observed)
-    if admitted_leaves:
+    if not admitted_root.is_empty() or admitted_root.ops:
         reasons.append("admitted_operation_tree_not_empty")
         observed.extend(
             f"admitted:{leaf.operation}:{leaf.schema}.{leaf.table_name}:{leaf.object_name}"

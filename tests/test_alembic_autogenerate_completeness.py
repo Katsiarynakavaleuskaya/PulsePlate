@@ -230,6 +230,20 @@ def test_semantic_tree_counts_only_supported_leaves() -> None:
     assert observed == ()
 
 
+def test_raw_tree_rejects_extra_empty_modify_table_container() -> None:
+    raw_root = _raw_tree()
+    raw_root.ops.append(ops.ModifyTableOps("foods", [], schema="public"))
+
+    leaves, reasons, observed = checker._semantic_leaves(  # pylint: disable=protected-access
+        raw_root,
+        default_schema_name="public",
+    )
+
+    assert leaves == checker.EXPECTED_RAW_LEAVES
+    assert reasons == ("autogenerate_modify_table_empty",)
+    assert observed == ("container:ModifyTableOps:public.foods:empty",)
+
+
 @pytest.mark.parametrize("mutation", ["missing", "extra", "duplicate"])
 def test_raw_leaf_inventory_rejects_missing_extra_and_duplicate(mutation: str) -> None:
     leaves = list(checker.EXPECTED_RAW_LEAVES)
@@ -276,6 +290,50 @@ def test_nested_supported_container_is_structurally_rejected_but_leaves_recurse(
     assert leaves == (leaf,)
     assert reasons == ("autogenerate_container_topology_invalid",)
     assert observed == ("container:UpgradeOps:nested",)
+
+
+@pytest.mark.parametrize(
+    ("parent_schema", "parent_table", "child_schema", "child_table"),
+    (
+        ("public", "foods", "public", "restaurant_chains"),
+        ("private", "foods", "public", "foods"),
+    ),
+)
+def test_drop_index_leaf_must_match_parent_table_root(
+    parent_schema: str,
+    parent_table: str,
+    child_schema: str,
+    child_table: str,
+) -> None:
+    root = ops.UpgradeOps(
+        [
+            ops.ModifyTableOps(
+                parent_table,
+                [
+                    ops.DropIndexOp(
+                        "ix_foods_gtin",
+                        table_name=child_table,
+                        schema=child_schema,
+                    )
+                ],
+                schema=parent_schema,
+            )
+        ]
+    )
+
+    leaves, reasons, observed = checker._semantic_leaves(  # pylint: disable=protected-access
+        root,
+        default_schema_name="public",
+    )
+
+    assert leaves == (
+        checker.OperationLeaf("DropIndexOp", child_schema, child_table, "ix_foods_gtin"),
+    )
+    assert reasons == ("autogenerate_drop_index_parent_mismatch",)
+    assert observed == (
+        "operation:DropIndexOp:"
+        f"parent={parent_schema}.{parent_table}:child={child_schema}.{child_table}",
+    )
 
 
 def test_clean_evaluator_returns_only_bounded_pass_claim(
@@ -490,6 +548,38 @@ def test_admitted_comparison_rejects_warning_and_nonempty_operation(
         assert report.admitted_leaf_operations == (
             checker.OperationLeaf("DropTableOp", "public", "foods", "foods"),
         )
+
+
+def test_admitted_comparison_rejects_empty_modify_table_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _patch_valid_evaluator_inputs(monkeypatch)
+
+    def produce(
+        connection: Connection,
+        target_metadata: MetaData,
+        *,
+        admitted: bool,
+    ) -> tuple[ops.UpgradeOps, tuple[str, ...]]:
+        del connection, target_metadata
+        calls.append(admitted)
+        if not admitted:
+            return _raw_tree(), ()
+        return ops.UpgradeOps([ops.ModifyTableOps("foods", [], schema="public")]), ()
+
+    monkeypatch.setattr(checker, "_produce_upgrade_ops", produce)
+
+    report = checker.evaluate_alembic_autogenerate_admission(
+        _fake_connection(),
+        load_canonical_orm_metadata(),
+    )
+
+    assert report.reason_codes == (
+        "admitted_operation_tree_not_empty",
+        "autogenerate_modify_table_empty",
+    )
+    assert report.admitted_leaf_operations == ()
+    assert calls == [False, True]
 
 
 @pytest.mark.parametrize(
