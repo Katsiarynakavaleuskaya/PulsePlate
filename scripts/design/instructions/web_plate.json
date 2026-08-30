@@ -4,7 +4,7 @@
   "platform": "Web",
   "surface": "web_plate_screen",
   "layout_archetype": "content_shell",
-  "layout_pattern": "content-card-with-upgrade-actions",
+  "layout_pattern": "content-card-with-information-actions",
   "sections": [
     {
       "section_id": "plate-summary",
@@ -124,7 +124,7 @@
   ],
   "states": [
     "default",
-    "premium-gated",
+    "information-boundary",
     "loading",
     "error"
   ],
@@ -281,19 +281,19 @@
     },
     {
       "type": "create_button",
-      "name": "Unlock Premium",
+      "name": "Learn about PulsePlate for Apple devices",
       "cta_key": "web.plate.premium_gate_cta",
       "style": "secondary",
-      "variant": "V2",
+      "variant": "V3",
       "placement_zone": "W_PLATE_GATE_ACTIONS",
-      "figma_node_id": "PP/Web/Plate/PremiumGate/UnlockCTA/Button/Default (TBD)",
-      "prompt_stub": "stub://cta/paywall-unlock",
+      "figma_node_id": "PP/Web/Plate/PremiumGate/AppleProductInfo/Button/Default (TBD)",
+      "prompt_stub": "stub://cta/information/apple-product",
       "states": [
         "default",
         "hover",
-        "disabled",
-        "loading",
-        "error"
+        "pressed",
+        "focus-visible",
+        "disabled"
       ],
       "canonical_component": "button",
       "section_id": "plate-actions",

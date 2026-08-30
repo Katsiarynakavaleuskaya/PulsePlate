@@ -3,7 +3,7 @@
 **Date:** 2026-02-21
 **Status:** Active policy (Wave 2)
 **Exit Criteria:** This policy becomes permanent when: (1) first A/B experiment completes full lifecycle, (2) guardrail metrics are automated in analytics pipeline
-**Purpose:** Establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion optimization
+**Purpose:** Establish a repeatable A/B lifecycle with measurable guardrails for onboarding and separately admitted product experiments
 
 ---
 
@@ -104,29 +104,20 @@ Consider iteration when:
 
 ---
 
-## Paywall Optimization Loop (Wave 2 Focus)
+## Public Web paywall experiments: NOT ADMITTED
 
-### Current State (Baseline)
+The current public Web is free and information-only. No public-Web paywall,
+trial, upgrade, checkout, or entitlement-acquisition experiment is admitted,
+running, or collecting data. No baseline or target may be inferred for that
+surface.
 
-| Metric | Baseline Value | Target (Wave 2) | Owner |
-|--------|----------------|-----------------|-------|
-| Soft paywall view rate | ~15% | ≥25% | Growth |
-| Trial start rate | ~8% | ≥12% | Growth |
-| Trial → Paid conversion | ~35% | ≥40% | Growth + Finance |
+The historical proposals are recorded only in
+`docs/analytics/EXPERIMENT_REGISTRY.md`, which is the sole lifecycle record.
+They did not run and produced no result.
 
-### Optimization Sequence
-
-1. **Timing Optimization** (EXP-PWL-001): When to show paywall
-2. **CTA Optimization** (EXP-PWL-002): How to frame the value proposition
-3. **Friction Reduction** (EXP-PWL-003): Reduce steps to trial start
-
-### Guardrails for Paywall Experiments
-
-| Guardrail | Threshold | Rationale |
-|-----------|-----------|-----------|
-| D7 Retention | Drop ≤ 1pp | Aggressive paywall timing hurts retention |
-| Onboarding completion | Drop ≤ 2pp | Early paywall blocks core value discovery |
-| Support tickets (paywall-related) | Increase ≤ 5% | Confusion or perceived bait-and-switch |
+Any future public-Web monetization experiment requires a new external product,
+legal, and architecture admission plus explicit runtime, telemetry, data,
+privacy, and rollback contracts. This framework does not grant that admission.
 
 ---
 
@@ -187,4 +178,4 @@ Consider iteration when:
 
 ---
 
-**Last updated:** 2026-02-21
+**Last updated:** 2026-08-29
