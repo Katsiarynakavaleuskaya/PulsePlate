@@ -599,6 +599,11 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     ]
     assert ci_admission["permissions"] == {"contents": "read"}
     assert ci_admission["timeout-minutes"] == 30
+    assert ci_admission["env"] == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
+    }
+    assert "environment" not in ci_admission
     assert workflow.get("concurrency") is None
     postgres_service = ci_admission["services"]["postgres"]
     assert postgres_service["image"] == (
@@ -606,16 +611,24 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
         "sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f"
     )
     assert postgres_service["ports"] == ["5432:5432"]
-    assert len(ci_admission["steps"]) == 3
+    assert len(ci_admission["steps"]) == 4
     assert ci_admission["steps"][0]["name"] == "Checkout exact main compatibility source"
-    setup_step = ci_admission["steps"][1]
+    proxy_step = ci_admission["steps"][1]
+    assert proxy_step["name"] == "Validate credential-free compatibility package proxy"
+    proxy_run = proxy_step["run"]
+    assert "PULSEPLATE_PYTHON_INDEX_URL:?" in proxy_run
+    assert "*://*@*" in proxy_run
+    assert "must be credential-free" in proxy_run
+    assert "must be single-line values" in proxy_run
+    setup_step = ci_admission["steps"][2]
     assert setup_step["uses"] == "./.github/actions/python-setup"
+    assert "env" not in setup_step
     assert setup_step["with"] == {
         "python-version": "3.13.14",
         "requirements-profile": "ci-test",
         "install-mode": "direct-proxy",
     }
-    ci_admission_step = ci_admission["steps"][2]
+    ci_admission_step = ci_admission["steps"][3]
     assert ci_admission_step["env"] == {
         "PGVECTOR_COMPAT_DATABASE_URL": (
             "postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@"  # pragma: allowlist secret
@@ -630,6 +643,9 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     ):
         assert required in ci_admission_run
     ci_admission_text = json.dumps(ci_admission, sort_keys=True)
+    assert "${{ secrets." not in ci_admission_text
+    assert "DEVPI_CI_USER" not in ci_admission_text
+    assert "DEVPI_CI_PASSWORD" not in ci_admission_text
     assert "actions/workflows/ci.yml/runs" not in ci_admission_text
     assert "DHI_ACCESS_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
     assert "GHCR_TOKEN" not in json.dumps(ci_admission, sort_keys=True)

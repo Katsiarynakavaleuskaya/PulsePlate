@@ -684,6 +684,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
     services:
       postgres:
         image: pgvector/pgvector:0.8.6-pg15-trixie@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f
@@ -704,11 +707,25 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate credential-free compatibility package proxy
+        run: |
+          set -euo pipefail
+          : "${PULSEPLATE_PYTHON_INDEX_URL:?Set the credential-free PULSEPLATE_PYTHON_INDEX_URL repository variable.}"
+          case "$PULSEPLATE_PYTHON_INDEX_URL" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free for PostgreSQL compatibility admission."
+              exit 1
+              ;;
+          esac
+          case "$PULSEPLATE_PYTHON_INDEX_URL${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Compatibility package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+
       - name: Install locked compatibility runtime without publication credentials
         uses: ./.github/actions/python-setup
-        env:
-          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
-          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
         with:
           python-version: "3.13.14"
           requirements-profile: ci-test
