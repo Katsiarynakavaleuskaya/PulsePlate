@@ -60,11 +60,13 @@ COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "edges/",  # Edge case tests
 )
 
-# Forbidden patterns (bypass canonical entrypoint)
+# Forbidden patterns (bypass canonical managed lifecycle owner)
 BAD_PATTERNS: Final[tuple[str, ...]] = (
     "TestClient(app.app)",
+    "TestClient(app_package.app)",
     "TestClient(app_module.app)",
     "TestClient(app_mod.app)",
+    "TestClient(main_module.app)",
     "TestClient(cast(ASGIApp, app.app))",
     "TestClient(cast(ASGIApp, app_module.app))",
     "TestClient(cast(ASGIApp, app_mod.app))",
