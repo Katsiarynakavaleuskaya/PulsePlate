@@ -209,7 +209,8 @@ private final class RawJSONAdmissionURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private final class SequentialFitChefURLProtocol: URLProtocol {
+// NSLock protects every access to the shared scripted responses and captured requests.
+private final class SequentialFitChefURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var responseBodies: [Data] = []
     nonisolated(unsafe) private static var requests: [URLRequest] = []
