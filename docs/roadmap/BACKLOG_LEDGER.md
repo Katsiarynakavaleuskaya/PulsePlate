@@ -5051,7 +5051,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-ios-release-design-train-home"></a>
 - [ ] P1: iOS Consumer-first Home planning experience
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (activation / retention / paid planning entry)
+  - Priority: P1
   - Target PR: PR-TBD after [PR #2363](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2363) merges, exact-main CI is terminal, and Hub ownership is released
   - Status: Planned and blocked by terminal FitChef Coach Hub closeout; no Home, RootTabs, entitlement, StoreKit, backend, or release mutation is authorized by this ledger entry alone.
   - Area: iOS / Home / subscription projection / profile readiness / navigation / localization / accessibility
