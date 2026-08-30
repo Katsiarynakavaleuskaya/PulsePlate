@@ -53,7 +53,7 @@ next action → revisit** for a separately admitted coaching surface.
 | Action commitment | Product + Growth | Daily when admitted | `METRICS_CATALOG.md` |
 | Followthrough / revisit | Product + Data | Daily when admitted | `METRICS_CATALOG.md` |
 
-## Metric catalog
+## Tracked Metrics
 
 | Metric | Scope | Current public-Web applicability |
 |--------|-------|----------------------------------|
@@ -69,7 +69,7 @@ next action → revisit** for a separately admitted coaching surface.
 “Source of truth” means semantic definition in `METRICS_CATALOG.md`, not a
 dashboard and not proof that a dataset currently exists.
 
-## Data sources
+## Data Sources
 
 | Source | Type | Schema/contract location | Applicability rule |
 |--------|------|--------------------------|--------------------|
