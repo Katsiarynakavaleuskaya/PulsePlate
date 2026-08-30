@@ -231,3 +231,13 @@
 "fitchef.support_choice.agency" = "FitChef покажет оба варианта, а выбор останется за вами.";
 "fitchef.support_choice.confirm" = "Подтвердить выбор";
 "fitchef.support_choice.dismiss" = "Не сейчас";
+
+"fitchef.coach_hub.navigation.title" = "FitChef Coach";
+"fitchef.coach_hub.header.title" = "Как вы хотите продолжить?";
+"fitchef.coach_hub.header.description" = "Вы сами решаете, что делать дальше.";
+"fitchef.coach_hub.ai_guidance.title" = "Спросить FitChef";
+"fitchef.coach_hub.ai_guidance.detail" = "Задайте вопрос о благополучии и получите AI-подсказку. Это не диагностика и не лечение.";
+"fitchef.coach_hub.ai_guidance.accessibility_hint" = "Открывает экран «Спросить FitChef».";
+"fitchef.coach_hub.planning_direction.title" = "С чего начать?";
+"fitchef.coach_hub.planning_direction.detail" = "Вы сами выбираете: «Сегодня» или «Неделя».";
+"fitchef.coach_hub.planning_direction.accessibility_hint" = "Открывает выбор «Сегодня» или «Неделя».";
