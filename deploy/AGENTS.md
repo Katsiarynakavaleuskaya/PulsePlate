@@ -183,6 +183,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   remain bound to the immutable digest. This post-write gate is the declared
   transaction boundary; stronger exclusivity requires a separate ownership
   and threat-model lane rather than additional same-job race checks.
+- The preceding `postgres-pgvector-ci-admission` compatibility job must remain
+  credential-free even on its trusted main-only path. It may consume only the
+  single-line, credential-free repository proxy variables; it must not receive
+  `DEVPI_CI_*`, publication credentials, an environment-secret grant, or any
+  other `secrets.*` expression. The protected `pgvector-publish` environment
+  begins only at the publisher job after compatibility admission succeeds.
 - Repository/image admission is not activation. Volume census, backup,
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.
