@@ -1,42 +1,42 @@
-import { Brain, Eye, Shield, Sparkles } from 'lucide-react';
+import { Compass, Eye, Shield, Sparkles } from 'lucide-react';
 import { MarketingCard, MarketingSection, SectionHeader, StatusPill } from './MarketingPrimitives';
 
 const trustItems = [
   {
-    title: 'Wellness-focused, not medical advice',
+    title: 'For everyday planning, not medical advice',
     description:
-      'PulsePlate supports interpretation and planning in a wellness context. It does not position itself as diagnosis, treatment, or clinician workflow.',
+      'PulsePlate supports everyday wellness planning. It does not diagnose, treat, or replace professional care.',
     icon: Shield,
   },
   {
-    title: 'Privacy-conscious by design',
+    title: 'The prepared preview uses no personal data',
     description:
-      'Secure session state, bounded product surfaces, and calm product framing keep the experience grounded in trust instead of noisy growth claims.',
+      'Your choice stays in this card. The example does not save it, open another area, or change a plan.',
     icon: Eye,
   },
   {
-    title: 'AI stays inside clear product boundaries',
+    title: 'The website does not run FitChef AI',
     description:
-      'AI guidance is advisory and gated. The product remains the hero, with structured Home, Setup, Plate, Progress, BMI, and Pro surfaces.',
-    icon: Brain,
+      'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
+    icon: Compass,
   },
 ];
 
 const faqItems = [
   {
-    question: 'What is available now?',
+    question: 'What can I use on this website?',
     answer:
-      'Home, Setup, Plate, Progress, BMI, Pro, secure session state, premium indicators, compact status cards, quick actions, and gated AI insight.',
+      'You can use the free BMI calculator and try the prepared FitChef preview without a purchase step.',
   },
   {
-    question: 'What is still marked as preview?',
+    question: 'Does the FitChef preview run AI?',
     answer:
-      'Expanded Pro tools, richer progress views, saved insight history, refined onboarding presentation, FAQ and launch updates, and deeper VIP personalization where available.',
+      'No. It uses one fixed result for each of the two choices.',
   },
   {
-    question: 'What will not appear on this site?',
+    question: 'Where are more advanced FitChef ideas planned?',
     answer:
-      'Invented features like barcode scanning, restaurant ordering, meal delivery, social feed, wearable sync, clinician portal, fake testimonials, or fake checkout flows.',
+      'PulsePlate is being designed for Apple devices. This page does not claim current App Store availability.',
   },
 ];
 
@@ -44,9 +44,9 @@ export function TrustScopeSection() {
   return (
     <MarketingSection id="trust-scope">
       <SectionHeader
-        description="Trust comes from constraints: honest availability labels, privacy-conscious framing, and zero invented product claims."
-        eyebrow="Trust / scope"
-        title="Built with care and clarity"
+        description="Learn what the free website offers, how the FitChef preview works, and what is planned for Apple devices."
+        eyebrow="Clear boundaries"
+        title="Know what to expect"
       />
 
       <div className="ppm-trust-layout" style={{ marginTop: '2.5rem' }}>
@@ -67,14 +67,14 @@ export function TrustScopeSection() {
         <MarketingCard className="ppm-trust-card">
           <div className="ppm-faq-top" style={{ justifyContent: 'space-between' }}>
             <div>
-              <p className="ppm-eyebrow">Honest availability</p>
+              <p className="ppm-eyebrow">Questions you may have</p>
               <h3 className="ppm-tier-title" style={{ marginTop: '0.5rem' }}>
-                FAQ and scope snapshot
+                A quick, honest guide
               </h3>
             </div>
             <StatusPill>
               <Sparkles size={14} />
-              Preview aware
+              Clear boundaries
             </StatusPill>
           </div>
 

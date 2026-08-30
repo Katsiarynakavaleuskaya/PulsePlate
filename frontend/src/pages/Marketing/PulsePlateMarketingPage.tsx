@@ -5,6 +5,7 @@ import "../../components/marketing/marketing.css";
 import {
     CoreSurfacesSection,
     FinalCTASection,
+    FitChefValueDemo,
     HeroSection,
     HowItWorksSection,
     ProductStatusBand,
@@ -26,6 +27,7 @@ export default function PulsePlateMarketingPage(): JSX.Element {
     return (
         <main className="ppm-page" data-testid="marketing-page">
             <HeroSection />
+            <FitChefValueDemo />
             <ProductStatusBand />
             <HowItWorksSection />
             <CoreSurfacesSection />
