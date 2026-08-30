@@ -6,7 +6,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '../../i18n';
 import {
   NutritionSetupResultStorySurface,
-  ProPaywallStorySurface,
+  ProProductInfoStorySurface,
   StorybookApiStub,
 } from '../storybookParitySupport';
 
@@ -121,15 +121,25 @@ describe('PR-8 Storybook parity surfaces', () => {
     }
   });
 
-  it('renders the Pro paywall review surface behind the local API stub', async () => {
+  it('renders the /pro information surface behind the local API stub', async () => {
     const originalFetch = window.fetch;
     const liveFetch = vi.fn(async () => new Response('live backend should not be called'));
     window.fetch = liveFetch as unknown as typeof window.fetch;
 
     try {
-      render(createElement(ProPaywallStorySurface));
+      render(createElement(ProProductInfoStorySurface));
 
-      expect(await screen.findByTestId('paywall-cta')).toBeInTheDocument();
+      expect(
+        await screen.findByRole('heading', { name: 'PulsePlate for Apple devices' })
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+        'href',
+        '/bmi'
+      );
+      expect(
+        screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+      ).toHaveAttribute('href', '/marketing');
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
       await waitFor(() => {
         expect(liveFetch).not.toHaveBeenCalled();
       });

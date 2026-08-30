@@ -181,6 +181,18 @@
             }
         }
     },
+    "appleProduct": {
+        "title": "PulsePlate para dispositivos Apple",
+        "websiteFree": "Este sitio web es gratuito.",
+        "fitChefDirection": "Estamos creando funciones más avanzadas de FitChef para PulsePlate en dispositivos Apple.",
+        "noWebPurchases": "No ofrecemos compras en este sitio web.",
+        "storeLinkLater": "Añadiremos un enlace verificado a la App Store cuando se confirme la disponibilidad pública.",
+        "tryFreeBmi": "Probar la calculadora gratuita de IMC",
+        "learnMore": "Más información sobre PulsePlate para dispositivos Apple",
+        "notNow": "Ahora no",
+        "close": "Cerrar la información sobre PulsePlate para dispositivos Apple",
+        "softHeading": "Sigue explorando gratis"
+    },
     "nutritionSetup": {
         "title": "Encuesta Nutricional",
         "description": "Complete sus parámetros para el cálculo del plato personalizado",

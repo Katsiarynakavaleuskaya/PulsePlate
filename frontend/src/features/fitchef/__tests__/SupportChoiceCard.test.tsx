@@ -771,7 +771,11 @@ describe('SupportChoiceCard', () => {
     expect(screen.getByRole('link', { name: 'Continue planning' })).toBeVisible();
     expect(screen.getByRole('link', { name: /Continue into the plate flow/i })).toBeVisible();
     expect(screen.getByRole('link', { name: /Use progress check-ins/i })).toBeVisible();
-    expect(screen.getByRole('link', { name: /Unlock weekly planning/i })).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+    ).toHaveAttribute('href', '/marketing');
+    expect(screen.queryByRole('link', { name: /Unlock weekly planning/i })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href="/pro"]')).toBeNull();
   });
 });
 

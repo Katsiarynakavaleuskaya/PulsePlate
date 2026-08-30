@@ -61,7 +61,7 @@ Use this block as the canonical instruction payload for Figma AI in the current 
 # PulsePlate Figma AI Rules (H+P+Pr)
 
 ## Scope lock
-- Work only on Home, Plate, Progress (Web + iOS) and directly linked CTA downstream flows (setup/paywall/retry/edit).
+- Work only on Home, Plate, Progress (Web + iOS) and directly linked CTA downstream flows (setup/Apple-product information/retry/edit).
 - Do not introduce unrelated feature surfaces in this pass.
 
 ## Brand and tone lock (non-negotiable)
@@ -97,7 +97,10 @@ Use this block as the canonical instruction payload for Figma AI in the current 
 ## CTA lock (button-level SoT)
 - Every CTA must map to an existing Button/CTA ID from the matrix document.
 - For each CTA, define these states when applicable:
-  default, hover/pressed, focus-visible, disabled/locked, loading, error.
+  default, hover, pressed, focus-visible, disabled/locked, loading, error.
+- Exact Web information state set: `default`, `hover`, `pressed`, `focus-visible`, `disabled`.
+  Do not invent loading, error, purchase, availability, or Store states for
+  information navigation and dismissal.
 - Keep CTA hierarchy consistent: primary > secondary > utility.
 
 ## Accessibility lock
@@ -159,7 +162,11 @@ Reference:
 
 ## 4) CTA Registry Index (H+P+Pr)
 
-This list is the baseline set to register in Figma as components/variants.
+This list is the 24-ID design-execution subset to register in Figma as
+components/variants. It is derived from the complete 27-ID matrix by excluding
+only the separately governed FitChef SupportChoice IDs
+`web.home.fitchef_show_next_step`, `web.home.fitchef_confirm_pointer`, and
+`web.home.fitchef_dismiss_pointer`.
 
 ### 4.1 Web
 
@@ -171,8 +178,9 @@ This list is the baseline set to register in Figma as components/variants.
 - `web.plate.open_progress`
 - `web.plate.premium_gate_cta`
 - `web.progress.export_pdf`
-- `web.paywall.modal.cta`
-- `web.paywall.modal.cancel`
+- `web.apple_product_info.free_bmi`
+- `web.apple_product_info.marketing`
+- `web.apple_product_info.dismiss`
 - `web.setup.submit_calculate`
 - `web.setup.result.retry`
 - `web.setup.result.edit`
@@ -191,6 +199,13 @@ This list is the baseline set to register in Figma as components/variants.
 - `ios.progress.issue_action_dynamic`
 
 Canonical source: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`.
+
+The stable identifiers `web.home.open_pro` and `web.plate.premium_gate_cta`
+are compatibility metadata only. Their names grant no purchase, upgrade,
+checkout, entitlement, acquisition-telemetry, Store-destination, label, prompt,
+or route authority. Both map to the information-only label
+`Learn about PulsePlate for Apple devices`, variant `V3`, and the stub
+`stub://cta/information/apple-product`.
 
 ## 5) Prompt Stub Index for Figma AI
 

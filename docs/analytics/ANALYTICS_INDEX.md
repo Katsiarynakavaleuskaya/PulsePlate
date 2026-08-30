@@ -1,94 +1,104 @@
 # Analytics Index (Catalog)
 
-**Purpose:** A vendor-agnostic catalog of what we measure and where it lives.
+**Purpose:** A vendor-agnostic catalog of metric semantics and their applicability.
 
 **Status:** Canonical (docs-only). Runtime telemetry is out of scope here.
 
 ---
 
+## Current public-Web applicability
+
+Current public-Web paywall/trial measurement: **UNAVAILABLE / NOT EMITTED**.
+
+This is the intended current posture, not an outage.
+
+It must not be represented as `0`, `0%`, or any other zero-valued metric.
+
+Apple-device, backend, billing, or subscription observations must not fill a
+public-Web numerator or denominator.
+
+Repeated event rows do not establish unique-user counts.
+
+The event enums, helpers, schemas, tests, backend records, and Apple-product
+vocabulary retained in the repository are compatibility or cross-channel
+vocabulary. Their presence does not prove a current public-Web production call,
+delivery, storage, queryable dataset, acquisition attribution, or entitlement
+change.
+
 ## Core funnel semantics
 
-Canonical funnel: **onboarding → paywall → conversion → retention**.
+The general product funnel remains **onboarding → paywall → conversion →
+retention** for channels that have separately admitted runtime and data sources.
+It is not a claim that every stage is active on the current public Web.
 
-| Stage | Owner | Update cadence | SoT |
-|-------|-------|-----------------|-----|
-| Onboarding | Product + Growth | Daily | `METRICS_CATALOG.md` (Onboarding completion rate) |
-| Paywall | Growth | Daily | `METRICS_CATALOG.md` (Soft paywall view rate, Trial start rate) |
-| Conversion | Growth + Finance | Daily | `METRICS_CATALOG.md` (Trial → Paid conversion) |
-| Retention | Product + Data | Daily / Weekly | `METRICS_CATALOG.md` (Retention D7, Retention D30) |
+| Stage | Owner | General cadence | Current public-Web applicability | SoT |
+|-------|-------|-----------------|----------------------------------|-----|
+| Onboarding | Product + Growth | Daily when admitted | Independently source-bound | `METRICS_CATALOG.md` |
+| Paywall | Growth | Daily when admitted | UNAVAILABLE / NOT EMITTED | `METRICS_CATALOG.md` |
+| Conversion | Growth + Finance | Daily when admitted | UNAVAILABLE / NOT EMITTED | `METRICS_CATALOG.md` |
+| Retention | Product + Data | Daily / Weekly when admitted | Independently source-bound | `METRICS_CATALOG.md` |
 
-Event taxonomy (names, required fields): `METRICS_CATALOG.md` → "Event taxonomy (growth funnel + coaching contract targets)".
-
----
+Event names and required fields are defined in `METRICS_CATALOG.md`. Definitions
+do not establish emission.
 
 ## Coaching loop semantics
 
-Canonical coaching loop: **start → structured reflection → next action → revisit**.
+Canonical coaching-loop vocabulary remains **start → structured reflection →
+next action → revisit** for a separately admitted coaching surface.
 
-| Stage | Owner | Update cadence | SoT |
+| Stage | Owner | General cadence | SoT |
 |-------|-------|-----------------|-----|
-| Coaching entry | Product + Data | Daily | `METRICS_CATALOG.md` (`coaching_session_started`) |
-| Structured completion | Product + Data | Daily | `METRICS_CATALOG.md` (`Distortion reframe completion rate`, `Identity loop completion rate`) |
-| Action commitment | Product + Growth | Daily | `METRICS_CATALOG.md` (`Next action commit rate`) |
-| Followthrough / revisit | Product + Data | Daily | `METRICS_CATALOG.md` (`Identity to action followthrough D7`, `coaching_revisit`) |
+| Coaching entry | Product + Data | Daily when admitted | `METRICS_CATALOG.md` |
+| Structured completion | Product + Data | Daily when admitted | `METRICS_CATALOG.md` |
+| Action commitment | Product + Growth | Daily when admitted | `METRICS_CATALOG.md` |
+| Followthrough / revisit | Product + Data | Daily when admitted | `METRICS_CATALOG.md` |
 
----
+## Metric catalog
 
-## Tracked Metrics
+| Metric | Scope | Current public-Web applicability |
+|--------|-------|----------------------------------|
+| Onboarding completion rate | General product definition | Independently source-bound |
+| Activation (first_success) | General product definition | Independently source-bound |
+| Soft paywall view rate | Cross-channel definition | UNAVAILABLE / NOT EMITTED |
+| Trial start rate | Cross-channel definition | UNAVAILABLE / NOT EMITTED |
+| Trial → Paid conversion | Cross-channel definition | UNAVAILABLE / NOT EMITTED |
+| Retention D7 / D30 | General cohort definitions | Independently source-bound |
+| LLM cost per active user | Platform definition | Not evidence of current public-Web AI |
+| Coaching metrics | Separately admitted surfaces only | Not implied by this index |
 
-| Metric | Definition (short) | Owner | Source of truth | Update frequency |
-|--------|---------------------|-------|-----------------|------------------|
-| Onboarding completion rate | % users that complete onboarding after first launch | Product + Growth | `METRICS_CATALOG.md` | Daily |
-| Activation (first_success) | % users who complete first core success action | Product + Data | `METRICS_CATALOG.md` | Daily |
-| Soft paywall view rate | % active users who see soft paywall trigger | Growth | `METRICS_CATALOG.md` | Daily |
-| Trial start rate | % eligible users starting trial after paywall | Growth | `METRICS_CATALOG.md` | Daily |
-| Trial → Paid conversion | % trials converting to paid within policy window | Growth + Finance | `METRICS_CATALOG.md` | Daily |
-| Retention D7 | % users active on day 7 after activation | Product + Data | `METRICS_CATALOG.md` | Daily |
-| Retention D30 | % users active on day 30 after activation | Product + Data | `METRICS_CATALOG.md` | Weekly |
-| LLM cost per active user | AI spend normalized by active users | Platform + Finance | `METRICS_CATALOG.md` | Daily |
-| Distortion reframe completion rate | % Distortion Simulator sessions completing a balanced reframe | Product + Data | `METRICS_CATALOG.md` | Daily |
-| Identity loop completion rate | % Identity Loop Mapper sessions completing a structured loop | Product + Data | `METRICS_CATALOG.md` | Daily |
-| Next action commit rate | % completed coaching sessions with one explicit next-step commitment | Product + Growth | `METRICS_CATALOG.md` | Daily |
-| Identity to action followthrough D7 | % completed identity maps that lead to action within 7 days | Product + Data | `METRICS_CATALOG.md` | Daily |
+“Source of truth” means semantic definition in `METRICS_CATALOG.md`, not a
+dashboard and not proof that a dataset currently exists.
 
-Notes:
-- “Source of truth” for metric semantics is `METRICS_CATALOG.md` (not dashboards).
+## Data sources
 
----
+| Source | Type | Schema/contract location | Applicability rule |
+|--------|------|--------------------------|--------------------|
+| Primary DB | Transactional | `DATA_CATALOG.md` | Use only for the channel and cohort it records |
+| Client events | Telemetry vocabulary | `DATA_CATALOG.md` | Require an explicit production caller and delivered dataset |
+| Billing | Payments/subscriptions | `DATA_CATALOG.md` | Never substitute for a public-Web acquisition event |
+| Feature flags | Experiment state | `EXPERIMENT_REGISTRY.md` | A flag or registry row does not prove an experiment ran |
 
-## Data Sources
+## Dashboard catalog
 
-| Source | Type | Schema/contract location | Access control | Notes |
-|--------|------|---------------------------|----------------|-------|
-| Primary DB | transactional | `DATA_CATALOG.md` | service account (read-only) | Source for retention, activation cohorts |
-| Client events | telemetry/events | `DATA_CATALOG.md` | analytics pipeline role | Event taxonomy is defined in `METRICS_CATALOG.md` |
-| Billing | payments/subscriptions | `DATA_CATALOG.md` | finance-limited role | Source for trial/paid conversion |
-| Feature flags | experiment state | `EXPERIMENT_REGISTRY.md` | product + growth | Used for A/B segmentation |
+| Dashboard | Owner | Applicability |
+|-----------|-------|---------------|
+| Funnel dashboard | Product + Growth | General/cross-channel design; current Web paywall/trial cells stay unavailable |
+| Retention dashboard | Product + Data | Only for source-bound cohorts |
+| Cost dashboard | Platform + Finance | Only for source-bound spend and usage |
+| Coaching dashboard | Product + Data | Only after separate runtime and data admission |
 
----
+Baseline requirements live in `DASHBOARD_BASELINE_REQUIREMENTS.md`.
 
-## Dashboards (Wave 1 baseline)
+## Event taxonomy anchor
 
-| Dashboard | Tool | Owner | Update frequency | Notes |
-|----------|------|-------|------------------|------|
-| Funnel dashboard | Vendor-agnostic BI | Product + Growth | Daily | onboarding -> paywall -> trial -> paid |
-| Retention dashboard | Vendor-agnostic BI | Product + Data | Daily | D1/D7/D30 by cohort |
-| Cost dashboard | Vendor-agnostic BI | Platform + Finance | Daily | LLM/API spend anomalies |
-| Coaching dashboard | Vendor-agnostic BI | Product + Data | Daily | scenario -> completion -> next action -> revisit |
+The following families remain bounded compatibility vocabulary:
 
-Dashboard baseline requirements (goals, segments, data sources, KPI): `DASHBOARD_BASELINE_REQUIREMENTS.md`.
+- `onboarding_*`
+- `paywall_*`
+- `trial_*`
+- `retention_*`
+- `coaching_*`
 
-## Event Taxonomy Anchor (Wave 1)
-
-Canonical funnel event families:
-
-- `onboarding_*` (entry/completion/skip)
-- `paywall_*` (view/dismiss/cta_click)
-- `trial_*` (start/cancel/convert)
-- `retention_*` (weekly activity heartbeat)
-- `coaching_*` (bounded coaching loop signals)
-
-Runtime event implementation should remain aligned with:
-
-- `frontend/src/lib/telemetry/eventRegistry.ts`
-- `frontend/src/lib/telemetry.ts`
+Definitions may exist in `frontend/src/lib/telemetry/eventRegistry.ts` and
+`frontend/src/lib/telemetry.ts`. Defined, callable, or test-called does not
+mean production-called, delivered, stored, queryable, or attributable.

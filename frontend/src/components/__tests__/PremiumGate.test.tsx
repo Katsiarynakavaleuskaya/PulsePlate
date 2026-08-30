@@ -1,125 +1,306 @@
-/* @vitest-environment jsdom */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import PremiumGate from "../PremiumGate";
-// Initialize i18n so t() resolves labels
-import "../../i18n";
-// Import test setup for jest-dom matchers
-import "../../test/setup";
-import { vi, describe, test, expect, beforeEach } from "vitest";
+/** @vitest-environment jsdom */
+import '../../test/setup';
+import '../../i18n';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { axe } from 'jest-axe';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import i18n from '../../i18n';
+import { AppleProductInfoDialog } from '../AppleProductInfoDialog';
+import PremiumGate from '../PremiumGate';
 
-const telemetryTrack = vi.hoisted(() => ({
-  gateInteracted: vi.fn(),
-  upgradeClicked: vi.fn(),
-  paywallDismissed: vi.fn(),
-  moduleViewed: vi.fn(),
-  featureClicked: vi.fn(),
-  paywallViewed: vi.fn(),
-  badgeViewed: vi.fn(),
-}));
+function renderWithRouter(element: JSX.Element): ReturnType<typeof render> {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}
 
-const beforeAfterPropsSpy = vi.hoisted(() => vi.fn());
-
-const { gateInteracted, upgradeClicked, paywallDismissed } = telemetryTrack;
-
-vi.mock("../../lib/useTelemetry", () => ({
-  useTelemetry: () => ({
-    track: telemetryTrack,
-    isEnabled: true,
-    isVip: false,
-  }),
-}));
-
-vi.mock("../Paywall/BeforeAfter", () => {
-  return {
-    default: (props: { onClose: () => void; source?: string; triggerReason?: string }) => {
-      beforeAfterPropsSpy(props);
-      return (
-        <div role="dialog">
-        Mocked Paywall
-        <button onClick={props.onClose}>Close</button>
-        </div>
-      );
-    },
-  };
+afterEach(async () => {
+  cleanup();
+  vi.restoreAllMocks();
+  document.body.style.overflow = '';
+  await i18n.changeLanguage('en');
 });
 
-describe("PremiumGate", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  test("shows children directly when premium", () => {
+describe('PremiumGate', () => {
+  test('shows children directly when premium', () => {
     render(
-      <PremiumGate isPremium={true}>
+      <PremiumGate isPremium>
         <div data-testid="content">Premium content</div>
       </PremiumGate>
     );
-    expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  test("dims and gates content when not premium, opens Paywall on click", () => {
-    render(
+  test('keeps the preview inert and opens the shared information dialog', async () => {
+    renderWithRouter(
       <PremiumGate isPremium={false}>
-        <div data-testid="content">Gated content</div>
+        <button data-testid="content" type="button">
+          Gated content
+        </button>
       </PremiumGate>
     );
 
-    expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
-
-    const unlock = screen.getByRole("button", { name: /continue/i });
-    expect(unlock).toHaveAttribute("aria-haspopup", "dialog");
-    expect(unlock.className).toContain("min-h-11");
-    expect(unlock.className).toContain("bg-[var(--pp-primary)]");
-    expect(unlock.className).toContain("text-[var(--color-primary-foreground)]");
-    fireEvent.click(unlock);
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-  });
-
-  test("preview has no aria-label (sr-only copy + inert handle context); telemetry and focus restore on close", async () => {
-    render(
-      <PremiumGate isPremium={false} source="plate_test">
-        <div data-testid="content">Gated content</div>
-      </PremiumGate>
+    const preview = screen.getByTestId('content').parentElement;
+    expect(preview?.hasAttribute('inert') || preview?.getAttribute('aria-hidden') === 'true').toBe(
+      true
     );
 
-    const preview = screen.getByTestId("content").parentElement;
-    expect(preview).not.toHaveAttribute("aria-label");
-
-    const unlock = screen.getByRole("button", { name: /continue/i });
-    fireEvent.click(unlock);
-
-    expect(gateInteracted).toHaveBeenCalledWith("premium_preview", "click");
-    expect(upgradeClicked).toHaveBeenCalledWith("plate_test", "premium_preview_gate");
-
-    fireEvent.click(screen.getByText("Close"));
-
-    expect(paywallDismissed).toHaveBeenCalledWith("plate_test", "close_button");
-    await waitFor(() => {
-      expect(document.activeElement).toBe(unlock);
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
     });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveClass(
+      'border-[var(--color-border)]',
+      'bg-[var(--color-bg)]',
+      'text-[var(--color-text)]'
+    );
+    expect(trigger).not.toHaveClass(
+      'bg-[var(--color-primary)]',
+      'text-[var(--color-primary-foreground)]'
+    );
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: 'PulsePlate for Apple devices' });
+    expect(dialog).toBeInTheDocument();
+    const descriptionId = dialog.getAttribute('aria-describedby');
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? '')).toHaveTextContent(
+      'This website is free to use.'
+    );
+    expect(document.getElementById(descriptionId ?? '')).toHaveTextContent(
+      'Purchases are not offered on this website.'
+    );
+    expect(document.body.style.overflow).toBe('hidden');
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveFocus();
+    });
+    expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+      'href',
+      '/bmi'
+    );
+    expect(
+      screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+    ).toHaveAttribute('href', '/marketing');
+    expect(
+      screen.queryByRole('button', { name: /buy|subscribe|upgrade|trial|restore/i })
+    ).not.toBeInTheDocument();
   });
 
-  test("forwards planning trigger reason to the paywall seam when provided", () => {
-    render(
-      <PremiumGate
-        isPremium={false}
-        source="plate_page"
-        paywallSource="pro_daily_plate"
-        triggerReason="targets_ready"
-      >
-        <div data-testid="content">Gated content</div>
+  test('restores trigger focus after Escape, top close, and Not now', async () => {
+    renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
       </PremiumGate>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
+    });
+    fireEvent.click(trigger);
+    expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false);
 
-    expect(beforeAfterPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: "pro_daily_plate",
-        triggerReason: "targets_ready",
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('');
+
+    fireEvent.click(trigger);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Close information about PulsePlate for Apple devices',
       })
     );
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('');
   });
+
+  test('restores the previous body scroll state when the open gate unmounts', async () => {
+    const previousOverflow = 'scroll';
+    document.body.style.overflow = previousOverflow;
+    const rendered = renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
+      </PremiumGate>
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Learn about PulsePlate for Apple devices' })
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveFocus();
+    });
+
+    rendered.unmount();
+    expect(document.body.style.overflow).toBe(previousOverflow);
+  });
+
+  test('renders no dialog when the shared information boundary is closed', () => {
+    renderWithRouter(<AppleProductInfoDialog onClose={vi.fn()} open={false} />);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('cycles Tab and Shift+Tab within the information dialog', () => {
+    const rect = {
+      bottom: 44,
+      height: 44,
+      left: 0,
+      right: 100,
+      top: 0,
+      width: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect;
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
+      rect,
+    ] as unknown as DOMRectList);
+    const offsetParentDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get: () => document.body,
+    });
+
+    try {
+      renderWithRouter(
+        <PremiumGate isPremium={false}>
+          <div>Gated content</div>
+        </PremiumGate>
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Learn about PulsePlate for Apple devices' })
+      );
+
+      const dialog = screen.getByRole('dialog');
+      const close = screen.getByRole('button', {
+        name: 'Close information about PulsePlate for Apple devices',
+      });
+      const notNow = screen.getByRole('button', { name: 'Not now' });
+
+      notNow.focus();
+      fireEvent.keyDown(dialog, { key: 'Tab' });
+      expect(close).toHaveFocus();
+
+      close.focus();
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+      expect(notNow).toHaveFocus();
+    } finally {
+      if (offsetParentDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetParent', offsetParentDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'offsetParent');
+      }
+    }
+  });
+
+  test('recovers document Tab and Shift+Tab from outside the dialog to the first safe link', () => {
+    renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
+      </PremiumGate>
+    );
+
+    const trigger = screen.getByRole('button', {
+      name: 'Learn about PulsePlate for Apple devices',
+    });
+    fireEvent.click(trigger);
+    const firstSafeLink = screen.getByRole('link', { name: 'Try the free BMI calculator' });
+
+    trigger.focus();
+    expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false);
+    expect(firstSafeLink).toHaveFocus();
+
+    trigger.focus();
+    expect(fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(firstSafeLink).toHaveFocus();
+  });
+
+  test('handles document Escape once and removes the listener on unmount', () => {
+    const onClose = vi.fn();
+    const rendered = renderWithRouter(<AppleProductInfoDialog onClose={onClose} open />);
+
+    expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rendered.unmount();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('has no targeted accessibility violations in the open dialog state', async () => {
+    const { container } = renderWithRouter(
+      <PremiumGate isPremium={false}>
+        <div>Gated content</div>
+      </PremiumGate>
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Learn about PulsePlate for Apple devices' })
+    );
+
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  test('accepts old source metadata without giving it visible or action authority', () => {
+    renderWithRouter(
+      <PremiumGate
+        isPremium={false}
+        paywallSource="pro_daily_plate"
+        source="plate_page"
+        triggerReason="upgrade_for_export"
+      >
+        <div>Gated content</div>
+      </PremiumGate>
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Learn about PulsePlate for Apple devices' })
+    );
+    expect(document.body).not.toHaveTextContent(/plate_page|pro_daily_plate|upgrade_for_export/i);
+    expect(
+      screen.queryByRole('button', { name: /buy|upgrade|subscribe|trial|restore/i })
+    ).not.toBeInTheDocument();
+  });
+
+  test.each([
+    [
+      'ru',
+      'PulsePlate для устройств Apple',
+      'Не сейчас',
+      'Этим сайтом можно пользоваться бесплатно.',
+      'На этом сайте мы не предлагаем покупки.',
+    ],
+    [
+      'es',
+      'PulsePlate para dispositivos Apple',
+      'Ahora no',
+      'Este sitio web es gratuito.',
+      'No ofrecemos compras en este sitio web.',
+    ],
+  ])(
+    'keeps the information boundary localized in %s',
+    async (language, title, dismiss, websiteFree, noPurchases) => {
+      await i18n.changeLanguage(language);
+      renderWithRouter(
+        <PremiumGate isPremium={false}>
+          <div>Gated content</div>
+        </PremiumGate>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: i18n.t('appleProduct.learnMore') }));
+
+      expect(screen.getByRole('dialog', { name: title })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: dismiss })).toBeInTheDocument();
+      expect(screen.getByText(websiteFree)).toBeInTheDocument();
+      expect(screen.getByText(noPurchases)).toBeInTheDocument();
+    }
+  );
 });
