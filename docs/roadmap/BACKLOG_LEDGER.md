@@ -28,9 +28,9 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Add the public deterministic FitChef marketing demo
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (public value communication / free-Web activation / product trust)
-  - Target PR: Current carrier `codex/fitchef-public-marketing-demo`; replace with the exact PR
-    link after the non-draft PR opens
-  - Status: In implementation; close only after the current carrier merges with exact-head proof
+  - Target PR: [PR #2362](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2362)
+    (`codex/fitchef-public-marketing-demo`)
+  - Status: In review in PR #2362; close only after the current carrier merges with exact-head proof
   - Area: frontend / public marketing / deterministic FitChef preview / accessibility
   - Reason (EN): The free website needs one honest, interactive way to show the value of FitChef
     without running AI, using personal data, opening a product area, saving state, implying payment,
