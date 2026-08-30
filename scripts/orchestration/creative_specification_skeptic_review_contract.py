@@ -1081,7 +1081,8 @@ def _require_bool(
     value = payload.get(key)
     if value is not expected:
         raise CreativeSpecificationSkepticReviewError(f"{label}.{key} must be {expected!r}.")
-    return expected
+    validated: bool = expected
+    return validated
 
 
 def _require_id(payload: Mapping[str, Any], key: str, *, label: str) -> str:

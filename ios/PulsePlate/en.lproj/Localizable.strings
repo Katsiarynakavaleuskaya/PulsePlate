@@ -205,3 +205,13 @@
 "ai_consent.point.voluntary" = "You may decline at any time. The AI insight will not run without your consent.";
 "ai_consent.accept" = "I Understand";
 "ai_consent.decline" = "Not Now";
+
+/* FitChef Support Choice Preview */
+"fitchef.support_choice.question" = "Where would you like to start?";
+"fitchef.support_choice.daily.title" = "Today";
+"fitchef.support_choice.daily.detail" = "Start with the plan for today.";
+"fitchef.support_choice.weekly.title" = "This week";
+"fitchef.support_choice.weekly.detail" = "Look at the next seven days.";
+"fitchef.support_choice.agency" = "FitChef shows both options. The choice is yours.";
+"fitchef.support_choice.confirm" = "Confirm choice";
+"fitchef.support_choice.dismiss" = "Not now";
