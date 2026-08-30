@@ -20,12 +20,18 @@ const componentPath = resolve(currentDirectory, '../FitChefValueDemo.tsx');
 const marketingComponentsDirectory = resolve(currentDirectory, '..');
 const frontendSourceDirectory = resolve(currentDirectory, '../../..');
 const storybookConfigDirectory = resolve(currentDirectory, '../../../../.storybook');
+const storybookMainPath = resolve(storybookConfigDirectory, 'main.ts');
 const marketingPagePath = resolve(
   currentDirectory,
   '../../../pages/Marketing/PulsePlateMarketingPage.tsx',
 );
 const routesPath = resolve(currentDirectory, '../../../config/routes.ts');
 const marketingStylesPath = resolve(currentDirectory, '../marketing.css');
+const hppTokenGuidelinesPath = resolve(currentDirectory, '../../../stories/HppTokenGuidelines.mdx');
+const designSystemGuidelinesPath = resolve(
+  currentDirectory,
+  '../../../stories/PulsePlateDesignSystemGuidelines.mdx',
+);
 
 const excludedSourceDirectories = new Set(['__tests__', '__snapshots__', 'evidence']);
 
@@ -58,20 +64,40 @@ function collectTypeScriptSources(
     .sort();
 }
 
+function collectStorybookSources(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const path = resolve(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        return excludedSourceDirectories.has(entry.name) ? [] : collectStorybookSources(path);
+      }
+
+      if (!entry.isFile() || !/\.(ts|tsx|mdx)$/.test(entry.name)) {
+        return [];
+      }
+      if (/\.(test|spec)\.(ts|tsx|mdx)$/.test(entry.name)) {
+        return [];
+      }
+
+      return [path];
+    })
+    .sort();
+}
+
 const marketingProductionModulePaths = collectTypeScriptSources(marketingComponentsDirectory, {
   excludeStories: true,
 });
 const marketingRuntimeSourcePaths = Array.from(
   new Set([...marketingProductionModulePaths, marketingPagePath, routesPath]),
 ).sort();
-const frontendTypeScriptSources = collectTypeScriptSources(frontendSourceDirectory, {
-  excludeStories: false,
-});
+const frontendStorybookSources = collectStorybookSources(frontendSourceDirectory);
 const storybookSourcePaths = Array.from(
   new Set([
-    ...collectTypeScriptSources(storybookConfigDirectory, { excludeStories: false }),
-    ...frontendTypeScriptSources.filter(
-      (path) => /\.stories\.(ts|tsx)$/.test(path) || path.includes('/src/stories/'),
+    ...collectStorybookSources(storybookConfigDirectory),
+    ...frontendStorybookSources.filter(
+      (path) =>
+        /\.stories\.(ts|tsx)$/.test(path) || path.endsWith('.mdx') || path.includes('/src/stories/'),
     ),
   ]),
 ).sort();
@@ -443,6 +469,10 @@ describe('FitChefValueDemo', (): void => {
       expect.arrayContaining([componentPath, marketingPagePath, routesPath]),
     );
     expect(storybookSourcePaths.length).toBeGreaterThan(2);
+    expect(readFileSync(storybookMainPath, 'utf8')).toContain("'../src/**/*.mdx'");
+    expect(storybookSourcePaths).toEqual(
+      expect.arrayContaining([hppTokenGuidelinesPath, designSystemGuidelinesPath]),
+    );
     expect(completeCensusGraph).not.toMatch(/Candidate Y|Guided Reveal|FitChefValueDemoH2/i);
     expect(completeCensusGraph).not.toMatch(comparisonTogglePattern);
     expect(marketingRuntimeGraph).not.toMatch(/searchParams|URLSearchParams/);
