@@ -433,179 +433,55 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertEqual(Set([daily, equalDaily, weekly]).count, 2)
     }
 
-    func testValidatedChoicesAdmitCanonicalSlotsAndPreserveEqualityAndHashing() throws {
-        let daily = try decodeDescriptor(canonicalPayload())
-        let weekly = try decodeDescriptor(
-            canonicalPayload(
-                supportNeed: "weekly_structure",
-                targetSurface: "pro_weekly_plan"
-            )
-        )
-        let choices = try FitChefSupportHandoffChoices(
-            dailyDescriptor: daily,
-            weeklyDescriptor: weekly
-        )
-        let equalChoices = try FitChefSupportHandoffChoices(
-            dailyDescriptor: daily,
-            weeklyDescriptor: weekly
-        )
-
-        XCTAssertEqual(choices.dailyDescriptor, daily)
-        XCTAssertEqual(choices.weeklyDescriptor, weekly)
-        XCTAssertEqual(choices, equalChoices)
-        XCTAssertEqual(Set([choices, equalChoices]).count, 1)
-    }
-
-    func testChoicesRejectSwappedRoles() throws {
-        let daily = try decodeDescriptor(canonicalPayload())
-        let weekly = try decodeDescriptor(
-            canonicalPayload(
-                supportNeed: "weekly_structure",
-                targetSurface: "pro_weekly_plan"
-            )
-        )
-
-        XCTAssertThrowsError(
-            try FitChefSupportHandoffChoices(
-                dailyDescriptor: weekly,
-                weeklyDescriptor: daily
-            )
-        ) { error in
-            XCTAssertEqual(
-                error as? FitChefSupportHandoffChoicesError,
-                .invalidSlotAssignment
-            )
-        }
-    }
-
-    func testChoicesRejectDuplicateDailyAndWeeklyDescriptorsDeterministically() throws {
-        let daily = try decodeDescriptor(canonicalPayload())
-        let weekly = try decodeDescriptor(
-            canonicalPayload(
-                supportNeed: "weekly_structure",
-                targetSurface: "pro_weekly_plan"
-            )
-        )
-
-        for descriptor in [daily, weekly] {
-            XCTAssertThrowsError(
-                try FitChefSupportHandoffChoices(
-                    dailyDescriptor: descriptor,
-                    weeklyDescriptor: descriptor
-                )
-            ) { error in
-                XCTAssertEqual(
-                    error as? FitChefSupportHandoffChoicesError,
-                    .duplicateDescriptors
-                )
-            }
-        }
-    }
-
-    func testSelectionStateStartsEmptySwitchesClearsAndReturnsExactDescriptor() throws {
-        let daily = try decodeDescriptor(canonicalPayload())
-        let weekly = try decodeDescriptor(
-            canonicalPayload(
-                supportNeed: "weekly_structure",
-                targetSurface: "pro_weekly_plan"
-            )
-        )
+    func testSelectionStateStartsEmptySwitchesClearsAndReturnsOnlyTheNeed() {
         var state = FitChefSupportChoiceSelectionState()
 
-        XCTAssertNil(state.selectedDescriptor)
-        XCTAssertNil(state.confirmationDescriptor)
+        XCTAssertNil(state.selectedNeed)
+        XCTAssertNil(state.confirmationNeed)
         XCTAssertFalse(state.canConfirm)
 
-        state.select(daily)
-        XCTAssertEqual(state.selectedDescriptor, daily)
-        XCTAssertEqual(state.confirmationDescriptor, daily)
+        state.select(.dailyStructure)
+        XCTAssertEqual(state.selectedNeed, .dailyStructure)
+        XCTAssertEqual(state.confirmationNeed, .dailyStructure)
         XCTAssertTrue(state.canConfirm)
 
-        state.select(daily)
-        XCTAssertEqual(state.confirmationDescriptor, daily)
+        state.select(.dailyStructure)
+        XCTAssertEqual(state.confirmationNeed, .dailyStructure)
 
-        state.select(weekly)
-        XCTAssertEqual(state.selectedDescriptor, weekly)
-        XCTAssertEqual(state.confirmationDescriptor, weekly)
-        XCTAssertNotEqual(state.confirmationDescriptor, daily)
+        state.select(.weeklyStructure)
+        XCTAssertEqual(state.selectedNeed, .weeklyStructure)
+        XCTAssertEqual(state.confirmationNeed, .weeklyStructure)
+        XCTAssertNotEqual(state.confirmationNeed, .dailyStructure)
 
         state.clear()
-        XCTAssertNil(state.selectedDescriptor)
-        XCTAssertNil(state.confirmationDescriptor)
+        XCTAssertNil(state.selectedNeed)
+        XCTAssertNil(state.confirmationNeed)
         XCTAssertFalse(state.canConfirm)
     }
 
-    func testSelectionRevalidationPreservesExactMemberOfCurrentChoices() throws {
-        let daily = try decodeDescriptor(canonicalPayload())
-        let weekly = try decodeDescriptor(
-            canonicalPayload(
-                supportNeed: "weekly_structure",
-                targetSurface: "pro_weekly_plan"
-            )
-        )
-        let choices = try FitChefSupportHandoffChoices(
-            dailyDescriptor: daily,
-            weeklyDescriptor: weekly
-        )
-        let equalChoices = try FitChefSupportHandoffChoices(
-            dailyDescriptor: try decodeDescriptor(canonicalPayload()),
-            weeklyDescriptor: try decodeDescriptor(
-                canonicalPayload(
-                    supportNeed: "weekly_structure",
-                    targetSurface: "pro_weekly_plan"
-                )
-            )
-        )
-        var state = FitChefSupportChoiceSelectionState()
-
-        state.select(daily)
-        state.revalidate(against: choices)
-        XCTAssertEqual(state.confirmationDescriptor, daily)
-
-        state.revalidate(against: equalChoices)
-        XCTAssertEqual(state.confirmationDescriptor, daily)
-
-        state.select(weekly)
-        state.revalidate(against: equalChoices)
-        XCTAssertEqual(state.confirmationDescriptor, weekly)
-
-        state.clear()
-        state.revalidate(against: choices)
-        XCTAssertNil(state.confirmationDescriptor)
-    }
-
-    func testCatalogAndSelectionExposeOnlyClosedConstructionAndSelection() throws {
+    func testSelectionExposesOnlyClosedNeedConstructionAndSelection() throws {
         let source = try fitChefFoundationSource()
-        let catalogStart = try XCTUnwrap(
-            source.range(of: "struct FitChefSupportHandoffChoices:")?.lowerBound
-        )
         let selectionStart = try XCTUnwrap(
             source.range(of: "struct FitChefSupportChoiceSelectionState:")?.lowerBound
         )
         let codingKeyStart = try XCTUnwrap(
             source.range(of: "private struct FitChefSupportDynamicCodingKey:")?.lowerBound
         )
-        let catalogSource = String(source[catalogStart..<selectionStart])
         let selectionSource = String(source[selectionStart..<codingKeyStart])
 
-        XCTAssertEqual(occurrenceCount(of: "init(", in: catalogSource), 1)
-        XCTAssertTrue(catalogSource.contains(") throws {"))
         XCTAssertEqual(occurrenceCount(of: "init(", in: selectionSource), 1)
         XCTAssertTrue(selectionSource.contains("init()"))
         XCTAssertTrue(
             selectionSource.contains(
-                "mutating func select(_ descriptor: FitChefSupportHandoffDescriptor)"
+                "mutating func select(_ need: FitChefSupportNeed)"
             )
         )
-        XCTAssertTrue(selectionSource.contains("selectedDescriptor = descriptor"))
+        XCTAssertTrue(selectionSource.contains("selectedNeed = need"))
         XCTAssertTrue(selectionSource.contains("mutating func clear()"))
-        XCTAssertTrue(
-            selectionSource.contains(
-                "mutating func revalidate(against choices: FitChefSupportHandoffChoices)"
-            )
-        )
-        XCTAssertFalse(selectionSource.contains("private let choices"))
-        XCTAssertFalse(selectionSource.contains("init(choices:"))
+        XCTAssertFalse(source.contains("FitChefSupportHandoffChoices"))
+        XCTAssertFalse(selectionSource.contains("selectedDescriptor"))
+        XCTAssertFalse(selectionSource.contains("revalidate"))
+        XCTAssertFalse(selectionSource.contains("FitChefSupportHandoffDescriptor"))
     }
 
     func testFitChefSupportChoiceLocalizationKeysMatchAndValuesAreFrozen() throws {
@@ -614,8 +490,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "fitchef.support_choice.question":
                     "Where would you like to start?",
                 "fitchef.support_choice.daily.title": "Today",
-                "fitchef.support_choice.daily.detail":
-                    "Start with the plan for today.",
+                "fitchef.support_choice.daily.detail": "Focus on today.",
                 "fitchef.support_choice.weekly.title": "This week",
                 "fitchef.support_choice.weekly.detail":
                     "Look at the next seven days.",
@@ -628,7 +503,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "fitchef.support_choice.question": "С чего хотите начать?",
                 "fitchef.support_choice.daily.title": "Сегодня",
                 "fitchef.support_choice.daily.detail":
-                    "Сначала разобраться с планом на день.",
+                    "Сначала сосредоточиться на сегодняшнем дне.",
                 "fitchef.support_choice.weekly.title": "Неделя",
                 "fitchef.support_choice.weekly.detail":
                     "Сначала посмотреть на ближайшие семь дней.",
@@ -641,8 +516,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 "fitchef.support_choice.question":
                     "¿Por dónde quieres empezar?",
                 "fitchef.support_choice.daily.title": "Hoy",
-                "fitchef.support_choice.daily.detail":
-                    "Empezar por el plan de hoy.",
+                "fitchef.support_choice.daily.detail": "Centrarte en el día de hoy.",
                 "fitchef.support_choice.weekly.title": "Esta semana",
                 "fitchef.support_choice.weekly.detail":
                     "Ver los próximos siete días.",
@@ -668,6 +542,15 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             XCTAssertTrue(removedUILocalizationKeys.isDisjoint(with: localizedValues.keys))
             XCTAssertTrue(localizedValues.values.allSatisfy { !$0.isEmpty })
             XCTAssertEqual(localizedValues, expectedValues[locale])
+        }
+        let retiredDefinitePlanCopy: Set<String> = [
+            "Start with the plan for today.",
+            "Сначала разобраться с планом на день.",
+            "Empezar por el plan de hoy.",
+        ]
+        for locale in ["en", "ru", "es"] {
+            let localizedValues = try loadFitChefLocalization(locale: locale)
+            XCTAssertTrue(retiredDefinitePlanCopy.isDisjoint(with: localizedValues.values))
         }
     }
 
@@ -706,7 +589,7 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertFalse(source.contains("Analytics"))
     }
 
-    func testCandidateViewHasNoProductionRegistrationOutsideItsOwnFile() throws {
+    func testCandidateViewMayOnlyBeComposedByItsScreenLocalFitChefOwner() throws {
         let root = try repositoryRoot().appendingPathComponent("ios/PulsePlate")
         let candidatePath = "Views/FitChef/FitChefSupportChoiceExperience.swift"
         let references = try swiftSources(under: root)
@@ -716,7 +599,10 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
                 return source.contains("FitChefSupportChoiceExperience") ? url.path : nil
             }
 
-        XCTAssertEqual(references, [])
+        XCTAssertTrue(
+            references.allSatisfy { $0.contains("/Views/FitChef/") },
+            "The Candidate X choice must not be registered directly outside its screen-local owner."
+        )
     }
 
     func testSwiftSourceEnumerationFailsClosedForNonDirectoryRoot() throws {
@@ -772,6 +658,41 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             ),
             1
         )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/APIClientJSONValueAdmissionTests",
+                in: testTargets
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/FitChefSupportDTORecognitionTests",
+                in: testTargets
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/FitChefSupportServiceTests",
+                in: testTargets
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/FitChefSupportFlowViewModelTests",
+                in: testTargets
+            ),
+            1
+        )
+        XCTAssertEqual(
+            occurrenceCount(
+                of: "PulsePlateTests/FitChefSupportPresentationContractTests",
+                in: testTargets
+            ),
+            1
+        )
     }
 
     func testCandidateViewStaticContract() throws {
@@ -816,17 +737,19 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
 
         XCTAssertTrue(
             source.contains(
-                "FitChefSupportChoiceExperience(choices:onConfirm:onDismiss:)"
+                "FitChefSupportChoiceExperience(onConfirm:onDismiss:)"
             ) || source.contains("struct FitChefSupportChoiceExperience: View")
         )
         XCTAssertTrue(source.contains("@State private var selectionState"))
         XCTAssertTrue(source.contains("FitChefSupportChoiceSelectionState()"))
-        XCTAssertTrue(source.contains("selectionState.select(choices.dailyDescriptor)"))
-        XCTAssertTrue(source.contains("selectionState.select(choices.weeklyDescriptor)"))
-        XCTAssertTrue(source.contains("selectionState.revalidate(against: newChoices)"))
-        XCTAssertTrue(source.contains("onConfirm(descriptor)"))
+        XCTAssertTrue(source.contains("selectionState.select(.dailyStructure)"))
+        XCTAssertTrue(source.contains("selectionState.select(.weeklyStructure)"))
+        XCTAssertTrue(source.contains("onConfirm(need)"))
         XCTAssertTrue(source.contains(".disabled(!selectionState.canConfirm)"))
         XCTAssertTrue(source.contains("onDismiss()"))
+        XCTAssertFalse(source.contains("FitChefSupportHandoffChoices"))
+        XCTAssertFalse(source.contains("selectedDescriptor"))
+        XCTAssertFalse(source.contains("revalidate"))
         XCTAssertFalse(source.contains("captionFontSize"))
         XCTAssertFalse(source.contains("boundaryCopy"))
         XCTAssertFalse(source.contains("fitchef.support_choice.consequence"))
@@ -1045,14 +968,8 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
             ],
             in: englishTabletPreview
         )
-        XCTAssertTrue(source.contains("decoder.keyDecodingStrategy = .useDefaultKeys"))
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "\"wellness_boundary\": \"wellness_planning_only\"",
-                in: source
-            ),
-            1
-        )
+        XCTAssertFalse(source.contains("JSONDecoder"))
+        XCTAssertFalse(source.contains("wellness_boundary"))
 
         let range = NSRange(source.startIndex..<source.endIndex, in: source)
         let headerLayoutRegex = try NSRegularExpression(

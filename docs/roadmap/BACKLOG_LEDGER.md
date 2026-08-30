@@ -183,13 +183,19 @@ If it is not recorded here — it does not exist.
     umbrella. This shadow contract alone opens none of those gates.
 
 <a id="ledger-p1-pr-evidence-sidecar-v1"></a>
-- [ ] P1: TELO-OPS-1 local PR evidence sidecar v1 umbrella
+- [x] P1: TELO-OPS-1 local PR evidence sidecar v1 umbrella
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (bounded orchestration evidence and operator-effort visibility)
   - Target PR: [PR #2344](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2344)
     (`codex/pr-evidence-sidecar-v1`)
-  - Status: In review in PR #2344; first fresh receipt is deferred to the next
-    lane after merge, with no retrospective receipt for this PR
+  - Status: Merged via PR #2344 on 2026-08-28 at
+    `1b0b5fc9c8b06f8bee3c2b158b82581a333aeccb`. The first prospective fresh-lane
+    exercise is the iOS FitChef outcome lane: `prepare` authored one immutable
+    start receipt for packet `1c15d84dc3aa` and base
+    `6c14bae635cc18f663e2faa0f7636c0a2134840e`; current `validate` returns
+    `receipt_state=start_recorded`, and current `report` returns one start-only
+    receipt and zero terminal receipts. Finalize remains terminal work for that
+    lane and is not claimed here.
   - Reason (EN): TaskNormative and the existing Euler and Experiment Runner
     rails need one local structural start/terminal carrier for bounded counts
     without creating a second orchestration authority or interpreting external
@@ -207,7 +213,9 @@ If it is not recorded here — it does not exist.
     - terminal rails preserve exact applicability and reference truth; operator
       observations contain only minutes plus review/repair cycle counts, and
       aggregate output makes no GO, causality, or external-terminal claim
-    - first production-of-evidence exercise occurs on the next fresh lane
+    - first production-of-evidence exercise occurred prospectively on packet
+      `1c15d84dc3aa`; terminal finalize/validate/report remains bound to the
+      actual lane result
     - TaskNormative N1 `p1-05`, future N2, and Euler enrollment/admission remain
       unchanged and require their own authority
   - Rollback (EN): Remove the tool, starter/renderer integration, tests, and
@@ -4997,42 +5005,159 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Post-merge proof synchronizes clean `main`, runs focused merged-main iOS sanity, preserves gitignored Open Design/X-Y/Canvas evidence, and removes only the completed lane's temporary worktrees and DerivedData
 
 
+<a id="ledger-p1-fitchef-support-handoff-outcome-ios"></a>
 <a id="ledger-p1-er-ios-2-fitchef-runtime-handoff-integration"></a>
-- [ ] P1: ER-IOS-2 FitChef runtime handoff integration
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (iOS nutrition activation / server-authoritative integration)
-  - Target PR: PR-TBD after PR #2358 merges with post-merge proof and a separate runtime GO
-  - Status: Planned and blocked by terminal ER-IOS-1 closeout; no endpoint, APIClient, navigation, entitlement, persistence, payment, analytics, or plan mutation is authorized here.
-  - Area: iOS / FitChef / APIClient / navigation / entitlement
-  - Reason (EN): ER-IOS-1 validates an inert native choice surface only. A separate runtime carrier must bind the backend descriptor to the existing thin-client transport and a real routed product flow without treating a target token, local selection, StoreKit result, or client-declared tier as execution or entitlement truth.
+- [ ] P1: ER-IOS-2 FitChef recommendation/outcome capability
+  - Owner: @katsiaryna_kavaleuskaya / frontend-engineer
+  - Priority: P1 (iOS-first thin transport / bounded persistence truth)
+  - Target PR: [PR #2364](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2364)
+    (`codex/ios-fitchef-support-choice-outcome`)
+  - Status: Non-draft PR open; current-head CI, live review, canonical closeout,
+    and human merge authorization remain pending. The capability is complete
+    but structurally unreachable from production Swift.
+  - Area: iOS / FitChef / APIClient / strict DTO / finite state / previews
+  - Reason (EN): After the Candidate X choice surface, iOS needs one closed
+    capability that submits the explicit daily-or-weekly need, recognizes only
+    the exact backend descriptor, and persists only the first explicit
+    result-stage response. This PR must prove the transport and authority
+    boundary without creating a FitChef destination or Home entry.
   - Links:
     - [ER-IOS-1 PR #2358](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2358)
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
-    - `ios/PulsePlate/Networking/APIClient.swift`
-    - `ios/PulsePlate/Networking/HTTPClient.swift`
+    - `ios/PulsePlate/Services/FitChefSupportService.swift`
+    - `ios/PulsePlate/ViewModels/FitChefSupportFlowViewModel.swift`
+    - `ios/PulsePlate/Views/FitChef/FitChefSupportFlowScreen.swift`
+    - `ios/PulsePlateTests/FitChefSupportChoiceRuntimeTests.swift`
+  - Blockers / ordering:
+    - terminal current-PR tests, review dispositions, mapping/seal, current-head
+      CI, and human merge authorization are still required
+    - ER-IOS-3 is the only future production destination owner and must not
+      start until ER-IOS-2 is terminal
+    - ER-IOS-4 is blocked on terminal ER-IOS-3 and owns the later single Home
+      button; it must not be absorbed into this PR
   - DoD:
-    - A new explicit GO revalidates the merged backend/OpenAPI schema and the two daily/weekly need-to-target pairs before any runtime code is authored
-    - Transport uses the existing `APIClient` / `HTTPClient` boundary with a reviewed feature-local strict-decoding seam; the global decoder is not weakened, and raw duplicate-member admission is either explicitly solved before decoding or explicitly excluded by a reviewed transport contract
-    - User confirmation remains mandatory; navigation resolves only to an existing routed surface, while execution, plan mutation, entitlement, billing, and persistence remain backend-authoritative and fail closed
-    - No direct `URLSession`, client-owned nutrition logic, client-declared entitlement truth, silent target repair, raw-prose parsing, or fallback action is introduced
-    - Deterministic contract, transport, auth, cancellation, retry, stale-response, navigation, accessibility, and nonreachability-negative tests pass together with current iOS CI and ordinary review/merge governance
+    - Candidate X becomes need-only while preserving Today/This week choices,
+      EN/RU/ES parity, Dynamic Type, non-color selection, minimum targets, and
+      the iOS 17/18 scroll contract
+    - both requests use the existing `APIClient.post` and `JSONValue`; the
+      feature-local recognizer uses sorted re-encoding, a fresh
+      `.useDefaultKeys` decoder, exact key/literal/boolean/diagonal checks, and
+      submitted-need echo without a second transport or raw-byte claim
+    - the finite `@MainActor @Observable` owner creates one in-memory lowercase
+      event id only after the first eligible result action, pins the successful
+      credential, rejects stale completion, and admits only explicit same-
+      attempt retry under the frozen `401`/`403`/`409`/`422`/`429`/5xx policy
+    - the 20 localized visible values use consumer-natural Thanks / Спасибо /
+      Gracias and Today/Week language without exposing wire, transport,
+      credential, entitlement, or consent terminology
+    - `FitChefSupportFlowScreen` is constructed only in its own DEBUG previews;
+      `HomeView`, `FeatureFlags`, tabs, routers, deep links, and every other
+      production Swift file contain no capability binding
+    - raw-key transport admission, DTO/service/FSM/presentation, Candidate X,
+      APIClient, thin-client, security, and accessibility tests pass with the
+      ordinary narrow local and current-head review/CI gates
+  - Rollback (EN): Remove the feature-local screen, view model, service, outcome
+    DTOs, consumer copy, tests, and this entry. Because there is no production
+    constructor, flag, Home entry, durable client queue, or local persistence,
+    rollback needs no iOS data migration or server change.
+
+
+<a id="ledger-p1-er-ios-3-fitchef-coach-destination"></a>
+- [ ] P1: ER-IOS-3 unified FitChef Coach destination
+  - Owner: @katsiaryna_kavaleuskaya / iOS product owner
+  - Priority: P1 (single coherent paid-function destination / release safety)
+  - Target PR: PR-TBD after terminal ER-IOS-2
+  - Status: Planned and blocked by terminal ER-IOS-2. No destination, route,
+    tab, deep link, production factory, feature flag, or activation is currently
+    authorized.
+  - Area: iOS / FitChef Coach / destination / presentation ownership
+  - Reason (EN): The internal recommendation/outcome capability needs one
+    unified product destination before any general app entry can expose it.
+    That destination must compose approved FitChef capabilities without
+    turning target tokens into navigation, entitlement, or plan authority.
+  - Links:
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `ios/PulsePlate/Views/FitChef/FitChefSupportFlowScreen.swift`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+  - Blockers / ordering:
+    - ER-IOS-2 must be merged and revalidated on current `main`
+    - product/design must approve one destination composition and its exact
+      backend-authorized credential and entitlement boundary
+    - ER-IOS-4 Home entry remains blocked until this destination is terminal
+  - DoD:
+    - introduce exactly one production FitChef Coach destination and one
+      reviewed presentation owner using existing design primitives and tokens
+    - bind only approved backend-driven capabilities through existing clients;
+      add no local nutrition math, raw-prose state, payment truth, target repair,
+      plan mutation, or automatic action
+    - freeze EN/RU/ES, Dynamic Type, VoiceOver, loading/failure/degraded states,
+      credential/auth behavior, rollback, and deterministic destination tests
+    - define any required feature flag only with a real caller and keep staging,
+      production, App Store, and paid-access activation separately authorized
+  - Rollback (EN): Remove the destination owner, route/binding, flag if added,
+    localized destination copy, and owning tests; retain the structurally
+    unreachable ER-IOS-2 capability.
+
+
+<a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
+- [ ] P1: ER-IOS-4 single Home FitChef Coach entry
+  - Owner: @katsiaryna_kavaleuskaya / iOS product owner
+  - Priority: P1 (bounded discovery / no Home redesign)
+  - Target PR: PR-TBD after terminal ER-IOS-3
+  - Status: Planned and blocked by terminal ER-IOS-3. Home has no FitChef Coach
+    entry in ER-IOS-2.
+  - Area: iOS / Home / FitChef Coach / single navigation entry
+  - Reason (EN): After one unified FitChef Coach destination exists, Home may
+    expose one discoverable button. The change must remain one bounded entry and
+    must not become a Consumer Home redesign or duplicate capability-specific
+    actions.
+  - Links:
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+  - Blockers / ordering:
+    - ER-IOS-3 destination, route contract, accessibility, and rollback proof
+      must be terminal on current `main`
+    - exact product copy, icon, feature/auth gate, and destination must be
+      approved before Home changes
+  - DoD:
+    - add exactly one localized Home FitChef Coach button targeting only the
+      ER-IOS-3 destination
+    - do not redesign Home, add a tab, expose separate recommendation/outcome
+      buttons, infer entitlement from local key presence, or add analytics
+      without separate authority
+    - preserve existing Home sections and CTA behavior; add deterministic
+      single-entry, gate, localization, 44-point target, VoiceOver, and route
+      tests plus ordinary iOS/review/CI evidence
+  - Rollback (EN): Remove the single Home entry and its localized copy/tests;
+    leave the ER-IOS-3 destination and ER-IOS-2 capability unchanged.
 
 
 <a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
-- [ ] P1: FitChef support-outcome thin web transport
+- [x] P1: FitChef support-outcome thin web transport
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (bounded measurement transport / thin-client integrity)
-  - Target PR: PR-TBD after an exact authenticated web-channel authority decision
-  - Status: Planned; the backend intake does not authorize or imply a web caller.
-  - Reason (EN): The support-outcome ledger is backend-first and default-off. A separate thin-client carrier must prove that transport originates only from the guarded acknowledgement or eligible dismissal handlers, never from selection, render, stale response, unmount, or inferred navigation. The protected PRO contract and current free-web channel posture remain unchanged until that exact carrier is authorized.
+  - Target PR: WON'T DO — superseded by the explicit iOS-first persisted-outcome
+    channel decision and the current ER-IOS-2 internal iOS capability
+  - Status: Closed as WON'T DO. No web outcome request is added; historical PR
+    #2337 remains `transport=none`, `production_counts=unavailable`, and
+    `causal_status=not_assessed`.
+  - Reason (EN): The complete FREE web product remains the BMI calculator with
+    questionnaire and results, allowed education and information, bounded chat,
+    marketing/capability demonstration, and iOS handoff. Persisted FitChef
+    outcomes are assigned to the structurally unreachable ER-IOS-2 capability
+    and its separately governed future destination, so a competing web outcome
+    transport would violate the current channel decision.
   - Links:
     - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md#support-outcome-ledger-contract`
     - `frontend/src/features/fitchef/SupportChoiceCard.tsx`
   - DoD:
-    - Use generated OpenAPI types and the shared web HTTP/session boundary; add no direct fetch or client-owned entitlement truth
-    - Emit one opaque random `client_event_id` only from explicit eligible acknowledgement/dismissal handlers and never retry a divergent payload under the same id
-    - Prove abort, stale response, retry, unmount, auth, `409`, `422`, `429`, and `503` behavior deterministically
-    - Preserve `transport=none` in historical PR #2337 evidence; the new transport cannot retroactively prove a click, navigation, plan execution, effectiveness, retention, conversion, or causality
+    - No web call to `POST /api/v1/pro/fitchef/recommend/outcome` is introduced
+    - Historical PR #2337 evidence remains `transport=none`; no click,
+      persistence, navigation, execution, effectiveness, retention, conversion,
+      or causality is inferred retroactively
+    - The complete FREE web product posture and the protected server-authorized
+      PRO route boundary remain explicit in the structured-coach contract
 
 
 <a id="ledger-p1-fitchef-support-outcome-coaching-state-projection"></a>

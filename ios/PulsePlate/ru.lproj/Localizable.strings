@@ -225,9 +225,31 @@
 /* FitChef Support Choice Preview */
 "fitchef.support_choice.question" = "С чего хотите начать?";
 "fitchef.support_choice.daily.title" = "Сегодня";
-"fitchef.support_choice.daily.detail" = "Сначала разобраться с планом на день.";
+"fitchef.support_choice.daily.detail" = "Сначала сосредоточиться на сегодняшнем дне.";
 "fitchef.support_choice.weekly.title" = "Неделя";
 "fitchef.support_choice.weekly.detail" = "Сначала посмотреть на ближайшие семь дней.";
 "fitchef.support_choice.agency" = "FitChef покажет оба варианта, а выбор останется за вами.";
 "fitchef.support_choice.confirm" = "Подтвердить выбор";
 "fitchef.support_choice.dismiss" = "Не сейчас";
+
+/* FitChef Support Outcome Flow */
+"fitchef.support_flow.loading" = "Готовим следующий шаг…";
+"fitchef.support_flow.result.title" = "На чем сосредоточиться";
+"fitchef.support_flow.result.target_label" = "Начать с";
+"fitchef.support_flow.result.target.daily" = "Сегодня";
+"fitchef.support_flow.result.target.weekly" = "Неделя";
+"fitchef.support_flow.result.boundary" = "Ничего не откроется и не изменится автоматически.";
+"fitchef.support_flow.result.response_notice" = "Выберите «Спасибо» или «Не сейчас». Ваш ответ будет сохранен.";
+"fitchef.support_flow.action.acknowledge" = "Спасибо";
+"fitchef.support_flow.action.dismiss" = "Не сейчас";
+"fitchef.support_flow.recording" = "Сохраняем ответ…";
+"fitchef.support_flow.recorded" = "Ответ сохранен.";
+"fitchef.support_flow.replayed" = "Этот ответ уже был сохранен.";
+"fitchef.support_flow.handoff_failed" = "Не удалось загрузить следующий шаг.";
+"fitchef.support_flow.unavailable" = "Сейчас этот вариант недоступен.";
+"fitchef.support_flow.outcome_retryable" = "Не удалось подтвердить, был ли сохранен ваш ответ. Повторите попытку, когда будете готовы.";
+"fitchef.support_flow.outcome_restart" = "Не удалось сохранить ответ. Закройте экран и начните заново.";
+"fitchef.support_flow.outcome_terminal" = "Не удалось сохранить ответ. Закройте этот экран.";
+"fitchef.support_flow.action.retry" = "Повторить";
+"fitchef.support_flow.action.close" = "Закрыть";
+"fitchef.support_flow.action.done" = "Готово";
