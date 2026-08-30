@@ -162,69 +162,27 @@ struct FitChefSupportHandoffDescriptor: Decodable, Equatable, Hashable, Sendable
     }
 }
 
-enum FitChefSupportHandoffChoicesError: Error, Equatable, Sendable {
-    case duplicateDescriptors
-    case invalidSlotAssignment
-}
-
-struct FitChefSupportHandoffChoices: Equatable, Hashable, Sendable {
-    let dailyDescriptor: FitChefSupportHandoffDescriptor
-    let weeklyDescriptor: FitChefSupportHandoffDescriptor
-
-    init(
-        dailyDescriptor: FitChefSupportHandoffDescriptor,
-        weeklyDescriptor: FitChefSupportHandoffDescriptor
-    ) throws {
-        guard dailyDescriptor != weeklyDescriptor else {
-            throw FitChefSupportHandoffChoicesError.duplicateDescriptors
-        }
-
-        let dailySlotIsValid = dailyDescriptor.supportNeed == .dailyStructure
-            && dailyDescriptor.action.targetSurface == .proDailyPlate
-        let weeklySlotIsValid = weeklyDescriptor.supportNeed == .weeklyStructure
-            && weeklyDescriptor.action.targetSurface == .proWeeklyPlan
-        guard dailySlotIsValid, weeklySlotIsValid else {
-            throw FitChefSupportHandoffChoicesError.invalidSlotAssignment
-        }
-
-        self.dailyDescriptor = dailyDescriptor
-        self.weeklyDescriptor = weeklyDescriptor
-    }
-
-}
-
 struct FitChefSupportChoiceSelectionState: Equatable, Sendable {
-    private(set) var selectedDescriptor: FitChefSupportHandoffDescriptor?
+    private(set) var selectedNeed: FitChefSupportNeed?
 
     init() {
-        selectedDescriptor = nil
+        selectedNeed = nil
     }
 
-    mutating func select(_ descriptor: FitChefSupportHandoffDescriptor) {
-        selectedDescriptor = descriptor
+    mutating func select(_ need: FitChefSupportNeed) {
+        selectedNeed = need
     }
 
     mutating func clear() {
-        selectedDescriptor = nil
-    }
-
-    mutating func revalidate(against choices: FitChefSupportHandoffChoices) {
-        guard
-            let selectedDescriptor,
-            selectedDescriptor != choices.dailyDescriptor,
-            selectedDescriptor != choices.weeklyDescriptor
-        else {
-            return
-        }
-        clear()
+        selectedNeed = nil
     }
 
     var canConfirm: Bool {
-        selectedDescriptor != nil
+        selectedNeed != nil
     }
 
-    var confirmationDescriptor: FitChefSupportHandoffDescriptor? {
-        selectedDescriptor
+    var confirmationNeed: FitChefSupportNeed? {
+        selectedNeed
     }
 }
 
@@ -272,4 +230,58 @@ private func fitChefSupportDataCorrupted(
             debugDescription: description
         )
     )
+}
+
+enum FitChefSupportOutcome: String, Equatable, Hashable, Sendable {
+    case acknowledged
+    case dismissed
+}
+
+enum FitChefSupportOutcomeState: String, Decodable, Equatable, Hashable, Sendable {
+    case recorded
+    case replayed
+}
+
+struct FitChefSupportOutcomeAttempt: Equatable, Hashable, Sendable {
+    let supportNeed: FitChefSupportNeed
+    let outcome: FitChefSupportOutcome
+    let clientEventID: String
+}
+
+struct FitChefSupportOutcomeReceipt: Decodable, Equatable, Hashable, Sendable {
+    let state: FitChefSupportOutcomeState
+
+    private static let allowedKeys: Set<String> = [
+        "schema_version",
+        "state",
+    ]
+
+    init(state: FitChefSupportOutcomeState) {
+        self.state = state
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: FitChefSupportDynamicCodingKey.self)
+        try rejectUnknownFitChefSupportKeys(
+            in: container,
+            allowedKeys: Self.allowedKeys,
+            objectName: "FitChefSupportOutcomeReceipt"
+        )
+
+        let schemaVersion = try container.decode(
+            String.self,
+            forKey: FitChefSupportDynamicCodingKey("schema_version")
+        )
+        guard schemaVersion == "fitchef_support_outcome_v1" else {
+            throw fitChefSupportDataCorrupted(
+                "schema_version must be exactly fitchef_support_outcome_v1",
+                codingPath: container.codingPath
+                    + [FitChefSupportDynamicCodingKey("schema_version")]
+            )
+        }
+        state = try container.decode(
+            FitChefSupportOutcomeState.self,
+            forKey: FitChefSupportDynamicCodingKey("state")
+        )
+    }
 }

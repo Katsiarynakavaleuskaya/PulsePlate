@@ -2,8 +2,7 @@ import Foundation
 import SwiftUI
 
 struct FitChefSupportChoiceExperience: View {
-    let choices: FitChefSupportHandoffChoices
-    let onConfirm: (FitChefSupportHandoffDescriptor) -> Void
+    let onConfirm: (FitChefSupportNeed) -> Void
     let onDismiss: () -> Void
 
     @Environment(\.locale) private var locale
@@ -16,11 +15,9 @@ struct FitChefSupportChoiceExperience: View {
         PPDesignTokens.Typography.sizeBase
 
     init(
-        choices: FitChefSupportHandoffChoices,
-        onConfirm: @escaping (FitChefSupportHandoffDescriptor) -> Void,
+        onConfirm: @escaping (FitChefSupportNeed) -> Void,
         onDismiss: @escaping () -> Void
     ) {
-        self.choices = choices
         self.onConfirm = onConfirm
         self.onDismiss = onDismiss
         _selectionState = State(initialValue: FitChefSupportChoiceSelectionState())
@@ -70,9 +67,6 @@ struct FitChefSupportChoiceExperience: View {
 
             versionedSupportChoiceScrollView
         }
-        .onChange(of: choices) { _, newChoices in
-            selectionState.revalidate(against: newChoices)
-        }
     }
 
     private var supportChoiceScrollView: some View {
@@ -84,21 +78,19 @@ struct FitChefSupportChoiceExperience: View {
                     FitChefSupportChoiceRow(
                         title: localized("fitchef.support_choice.daily.title"),
                         detail: localized("fitchef.support_choice.daily.detail"),
-                        isSelected: selectionState.selectedDescriptor
-                            == choices.dailyDescriptor,
+                        isSelected: selectionState.selectedNeed == .dailyStructure,
                         horizontalPadding: choiceRowHorizontalPadding
                     ) {
-                        selectionState.select(choices.dailyDescriptor)
+                        selectionState.select(.dailyStructure)
                     }
 
                     FitChefSupportChoiceRow(
                         title: localized("fitchef.support_choice.weekly.title"),
                         detail: localized("fitchef.support_choice.weekly.detail"),
-                        isSelected: selectionState.selectedDescriptor
-                            == choices.weeklyDescriptor,
+                        isSelected: selectionState.selectedNeed == .weeklyStructure,
                         horizontalPadding: choiceRowHorizontalPadding
                     ) {
-                        selectionState.select(choices.weeklyDescriptor)
+                        selectionState.select(.weeklyStructure)
                     }
 
                     actions
@@ -227,31 +219,24 @@ struct FitChefSupportChoiceExperience: View {
     }
 
     private func confirmSelection() {
-        guard let descriptor = selectionState.confirmationDescriptor else {
+        guard let need = selectionState.confirmationNeed else {
             return
         }
-        onConfirm(descriptor)
+        onConfirm(need)
     }
 
     #if DEBUG
     fileprivate init(
-        choices: FitChefSupportHandoffChoices,
         selectedNeed: FitChefSupportNeed?,
-        onConfirm: @escaping (FitChefSupportHandoffDescriptor) -> Void,
+        onConfirm: @escaping (FitChefSupportNeed) -> Void,
         onDismiss: @escaping () -> Void
     ) {
-        self.choices = choices
         self.onConfirm = onConfirm
         self.onDismiss = onDismiss
 
         var initialState = FitChefSupportChoiceSelectionState()
-        switch selectedNeed {
-        case .dailyStructure:
-            initialState.select(choices.dailyDescriptor)
-        case .weeklyStructure:
-            initialState.select(choices.weeklyDescriptor)
-        case nil:
-            break
+        if let selectedNeed {
+            initialState.select(selectedNeed)
         }
         _selectionState = State(initialValue: initialState)
     }
@@ -350,59 +335,8 @@ private struct FitChefSupportChoiceRow: View {
 
 #if DEBUG
 private enum FitChefSupportChoicePreviewFixtures {
-    static let choices = makeChoices()
-
-    private static func makeChoices() -> FitChefSupportHandoffChoices {
-        let daily = descriptor(
-            supportNeed: "daily_structure",
-            targetSurface: "pro_daily_plate"
-        )
-        let weekly = descriptor(
-            supportNeed: "weekly_structure",
-            targetSurface: "pro_weekly_plan"
-        )
-
-        do {
-            return try FitChefSupportHandoffChoices(
-                dailyDescriptor: daily,
-                weeklyDescriptor: weekly
-            )
-        } catch {
-            preconditionFailure("Invalid FitChef support-choice preview catalog: \(error)")
-        }
-    }
-
-    private static func descriptor(
-        supportNeed: String,
-        targetSurface: String
-    ) -> FitChefSupportHandoffDescriptor {
-        let json = Data(
-            """
-            {
-              "schema_version": "fitchef_support_handoff.v1",
-              "scenario": "support_handoff",
-              "support_need": "\(supportNeed)",
-              "action": {
-                "action_type": "handoff_to_product_surface",
-                "target_surface": "\(targetSurface)"
-              },
-              "user_confirmation_required": true,
-              "execution_authority": false,
-              "plan_mutation_authority": false,
-              "used_llm": false,
-              "wellness_boundary": "wellness_planning_only"
-            }
-            """.utf8
-        )
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .useDefaultKeys
-
-        do {
-            return try decoder.decode(FitChefSupportHandoffDescriptor.self, from: json)
-        } catch {
-            preconditionFailure("Invalid FitChef support-choice preview fixture: \(error)")
-        }
-    }
+    static let dailyNeed = FitChefSupportNeed.dailyStructure
+    static let weeklyNeed = FitChefSupportNeed.weeklyStructure
 }
 
 #Preview(
@@ -410,7 +344,6 @@ private enum FitChefSupportChoicePreviewFixtures {
     traits: .fixedLayout(width: 390, height: 844)
 ) {
     FitChefSupportChoiceExperience(
-        choices: FitChefSupportChoicePreviewFixtures.choices,
         selectedNeed: nil,
         onConfirm: { _ in },
         onDismiss: {}
@@ -426,8 +359,7 @@ private enum FitChefSupportChoicePreviewFixtures {
     traits: .fixedLayout(width: 390, height: 844)
 ) {
     FitChefSupportChoiceExperience(
-        choices: FitChefSupportChoicePreviewFixtures.choices,
-        selectedNeed: .weeklyStructure,
+        selectedNeed: FitChefSupportChoicePreviewFixtures.weeklyNeed,
         onConfirm: { _ in },
         onDismiss: {}
     )
@@ -442,8 +374,7 @@ private enum FitChefSupportChoicePreviewFixtures {
     traits: .fixedLayout(width: 390, height: 844)
 ) {
     FitChefSupportChoiceExperience(
-        choices: FitChefSupportChoicePreviewFixtures.choices,
-        selectedNeed: .dailyStructure,
+        selectedNeed: FitChefSupportChoicePreviewFixtures.dailyNeed,
         onConfirm: { _ in },
         onDismiss: {}
     )
@@ -458,8 +389,7 @@ private enum FitChefSupportChoicePreviewFixtures {
     traits: .fixedLayout(width: 834, height: 1194)
 ) {
     FitChefSupportChoiceExperience(
-        choices: FitChefSupportChoicePreviewFixtures.choices,
-        selectedNeed: .weeklyStructure,
+        selectedNeed: FitChefSupportChoicePreviewFixtures.weeklyNeed,
         onConfirm: { _ in },
         onDismiss: {}
     )
