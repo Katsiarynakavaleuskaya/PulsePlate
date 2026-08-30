@@ -7729,7 +7729,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-alembic-autogenerate-completeness"></a>
 - [ ] P1: Prove Alembic autogenerate completeness against upgraded PostgreSQL
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (database migration correctness / drift detection)
+  - Priority: P1
   - Target PR: PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS
   - Status: ⏳ Planned; separate from canonical runtime ORM registration
   - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
