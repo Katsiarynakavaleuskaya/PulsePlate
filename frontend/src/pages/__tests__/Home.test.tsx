@@ -80,7 +80,10 @@ function renderHomeRoutes(onSettings?: (settings: Settings) => void): ReturnType
             element={renderConfiguredRoute('/progress', <div data-testid="progress-route">Progress route</div>)}
           />
           <Route path="/bmi" element={renderConfiguredRoute('/bmi', <div data-testid="bmi-route">BMI route</div>)} />
-          <Route path="/pro" element={renderConfiguredRoute('/pro', <div data-testid="pro-route">Pro route</div>)} />
+          <Route
+            path="/marketing"
+            element={renderConfiguredRoute('/marketing', <div data-testid="marketing-route">Marketing route</div>)}
+          />
           <Route path="/enter-key" element={renderConfiguredRoute('/enter-key', <EnterKeyProbe />)} />
         </Routes>
         <SettingsProbe onSettings={onSettings} />
@@ -635,7 +638,7 @@ describe('Home Guided Planning Preview', () => {
     expect(screen.getByTestId('progress-route')).toBeInTheDocument();
   });
 
-  it('emits authenticated continuation evidence for protected and upgrade routes', async () => {
+  it('emits authenticated continuation evidence only for protected planning routes', async () => {
     vi.mocked(useAuth).mockReturnValue({
       apiKey: null,
       isAuthenticated: true,
@@ -658,8 +661,10 @@ describe('Home Guided Planning Preview', () => {
     progressRender.unmount();
 
     renderHomeRoutes();
-    await user.click(screen.getByRole('link', { name: /Unlock weekly planning/i }));
-    expect(screen.getByTestId('pro-route')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('link', { name: 'Learn about PulsePlate for Apple devices' })
+    );
+    expect(screen.getByTestId('marketing-route')).toBeInTheDocument();
 
     expect(guidedPlanningEvents).toEqual(
       expect.arrayContaining([
@@ -683,18 +688,13 @@ describe('Home Guided Planning Preview', () => {
             authState: 'authenticated',
           },
         },
-        {
-          name: 'planning_continue_clicked',
-          payload: {
-            surface: 'app',
-            componentId: 'planning-continue-cta',
-            routePath: '/pro',
-            optionId: 'standard',
-            authState: 'authenticated',
-          },
-        },
       ])
     );
+    expect(
+      guidedPlanningEvents.some(
+        (event) => event.name === 'planning_continue_clicked' && event.payload.routePath === '/pro'
+      )
+    ).toBe(false);
   });
 
   it('keeps the page token-backed and tabbar-compatible', () => {

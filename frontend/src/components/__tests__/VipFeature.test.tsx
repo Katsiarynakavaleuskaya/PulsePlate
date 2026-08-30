@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import {
   VipFeature,
   VipBadge,
@@ -40,15 +41,9 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock Paywall component
-vi.mock('../Paywall/BeforeAfter', () => ({
-  default: ({ onClose, onPurchase }: { onClose: () => void; onPurchase: () => void }) => (
-    <div data-testid="paywall">
-      <button onClick={onClose}>Close</button>
-      <button onClick={onPurchase}>Purchase</button>
-    </div>
-  ),
-}));
+function renderWithRouter(element: JSX.Element): ReturnType<typeof render> {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}
 
 describe('VipFeature', () => {
   beforeEach(() => {
@@ -162,7 +157,7 @@ describe('VipFeature', () => {
       );
 
       expect(screen.getByTestId('vip-content')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /vip.cta/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'appleProduct.learnMore' })).toBeInTheDocument();
     });
 
     it('should apply accessibility attributes when VIP is disabled', () => {
@@ -178,31 +173,20 @@ describe('VipFeature', () => {
         previewWrapper?.getAttribute('aria-hidden') === 'true'
       ).toBe(true);
 
-      // Check for offscreen description (mocked translation keys)
-      const description = screen.getByText(/vip\.title.*vip\.subtitle/);
+      const description = screen.getByText(/appleProduct\.title.*appleProduct\.websiteFree/);
       expect(description).toHaveClass('sr-only');
 
-      // Check that button has proper ARIA attributes
-      const button = screen.getByRole('button', { name: /vip\.cta/i });
+      const button = screen.getByRole('button', { name: 'appleProduct.learnMore' });
       expect(button).toHaveAttribute('aria-haspopup', 'dialog');
       expect(button).toHaveAttribute('aria-describedby');
     });
 
-    it('should render legacy gate UI when no children provided', () => {
+    it('renders the no-children compatibility mode as information only', () => {
       render(<VipGate />);
 
-      expect(screen.getByText('VIP Feature')).toBeInTheDocument();
-      expect(screen.getByText('vip.subtitle')).toBeInTheDocument();
-      expect(screen.getByText('vip.cta')).toBeInTheDocument();
-    });
-
-    it('should render legacy gate UI with custom message', () => {
-      const customMessage = 'Custom VIP message';
-      render(<VipGate message={customMessage} />);
-
-      expect(screen.getByText('VIP Feature')).toBeInTheDocument();
-      expect(screen.getByText(customMessage)).toBeInTheDocument();
-      expect(screen.getByText('vip.cta')).toBeInTheDocument();
+      expect(screen.getByText('appleProduct.softHeading')).toBeInTheDocument();
+      expect(screen.getByText('appleProduct.fitChefDirection')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'appleProduct.learnMore' })).toBeInTheDocument();
     });
 
     it('should use useVipModule hook when isVip not provided', () => {
@@ -217,58 +201,41 @@ describe('VipFeature', () => {
       expect(screen.getByTestId('vip-content')).toBeInTheDocument();
     });
 
-    it('opens paywall on CTA click', () => {
-      render(
+    it('opens the shared information dialog on CTA click', () => {
+      renderWithRouter(
         <VipGate isVip={false}>
           <div>Preview</div>
         </VipGate>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
-      expect(screen.getByTestId('paywall')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'appleProduct.learnMore' }));
+      expect(screen.getByRole('dialog', { name: 'appleProduct.title' })).toBeInTheDocument();
     });
 
-    it('should track telemetry events on gate interaction', () => {
-
-      render(
+    it('does not emit acquisition telemetry from the preview mode', () => {
+      renderWithRouter(
         <VipGate isVip={false} source="dashboard">
           <div>Preview</div>
         </VipGate>
       );
 
-      // Click the CTA button
-      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
-
-      expect(mockTrack.gateInteracted).toHaveBeenCalledWith('preview_gate', 'click');
-      expect(mockTrack.upgradeClicked).toHaveBeenCalledWith('dashboard', 'preview_gate');
+      fireEvent.click(screen.getByRole('button', { name: 'appleProduct.learnMore' }));
+      expect(mockTrack.gateInteracted).not.toHaveBeenCalled();
+      expect(mockTrack.upgradeClicked).not.toHaveBeenCalled();
+      expect(mockTrack.paywallDismissed).not.toHaveBeenCalled();
     });
 
-    it('should track paywall dismissal', () => {
-
-      render(
+    it('restores focus when information is dismissed', async () => {
+      renderWithRouter(
         <VipGate isVip={false} source="dashboard">
           <div>Preview</div>
         </VipGate>
       );
 
-      // Open paywall
-      fireEvent.click(screen.getByRole('button', { name: /vip\.cta/i }));
-
-      // Close paywall
-      fireEvent.click(screen.getByText('Close'));
-
-      expect(mockTrack.paywallDismissed).toHaveBeenCalledWith('dashboard', 'close_button');
-    });
-
-    it('should track legacy gate telemetry events', () => {
-
-      render(<VipGate source="dashboard" />);
-
-      // Click the CTA button
-      fireEvent.click(screen.getByRole('button', { name: /Upgrade to VIP access/i }));
-
-      expect(mockTrack.gateInteracted).toHaveBeenCalledWith('legacy_gate', 'click');
-      expect(mockTrack.upgradeClicked).toHaveBeenCalledWith('dashboard', 'legacy_gate');
+      const trigger = screen.getByRole('button', { name: 'appleProduct.learnMore' });
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole('button', { name: 'appleProduct.notNow' }));
+      await waitFor(() => expect(trigger).toHaveFocus());
     });
   });
 

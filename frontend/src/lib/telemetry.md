@@ -1,237 +1,72 @@
-# VIP Telemetry Foundation
+# Telemetry Compatibility Reference
 
-## Overview
+## Purpose
 
-The VIP Telemetry system provides comprehensive event tracking for VIP features and user interactions. It's designed to be type-safe, feature-flag aware, and easily extensible.
+This document describes the limits of the legacy telemetry vocabulary. It is
+not proof that an event is emitted, delivered, stored, queryable, or suitable
+for attribution.
 
-## Architecture
+## Evidence levels
 
-### Core Components
+Telemetry claims must distinguish these levels:
 
-1. **`telemetry.ts`** - Core telemetry functions and type definitions
-2. **`useTelemetry.ts`** - React hooks for component integration
-3. **Event Types** - Type-safe event definitions with payload validation
+1. **Defined** — an enum, payload type, or registry entry exists.
+2. **Callable** — a helper can be invoked by another module.
+3. **Test-called** — a unit test invokes the helper.
+4. **Production-called** — a production module contains an explicit call site.
+5. **Delivered** — an admitted transport confirms receipt.
+6. **Stored** — an admitted data sink confirms durable storage.
+7. **Queryable** — a governed dataset and query contract exist.
 
-### Event Types
+Evidence at one level does not prove any later level. In particular, a defined
+or callable paywall, trial, or upgrade helper does not prove a current
+production call or acquisition event.
 
-The system tracks the following VIP-specific events:
+## Current public-Web applicability
 
-- `vip_module_viewed` - When VIP module is accessed
-- `vip_feature_clicked` - When a VIP feature is interacted with
-- `vip_paywall_viewed` - When paywall is displayed
-- `vip_paywall_dismissed` - When paywall is closed
-- `vip_upgrade_clicked` - When upgrade CTA is clicked
-- `vip_gate_interacted` - When VIP gate is interacted with
-- `vip_badge_viewed` - When VIP badge is displayed
+Current public-Web paywall/trial measurement: **UNAVAILABLE / NOT EMITTED**.
 
-## Usage
+This is the intended current posture, not an outage.
 
-### Basic Telemetry
+It must not be represented as `0`, `0%`, or any other zero-valued metric.
 
-```typescript
-import { vipTelemetry } from '../lib/telemetry';
+Apple-device, backend, billing, or subscription observations must not fill a
+public-Web numerator or denominator.
 
-// Track a VIP feature click
-vipTelemetry.featureClicked('advanced_analytics', 'dashboard', false);
+Repeated event rows do not establish unique-user counts.
 
-// Track paywall view
-vipTelemetry.paywallViewed('dashboard', 'feature_gate', true);
-```
+The public Web is free and information-only. Its current UI does not invoke
+paywall-view, paywall-dismiss, upgrade-click, trial-start, purchase, restore, or
+checkout telemetry as acquisition actions.
 
-### React Hook Integration
+## Compatibility surface
 
-```typescript
-import { useTelemetry } from '../lib/useTelemetry';
+The following files retain type and helper vocabulary for compatibility:
 
-function VipFeature() {
-  const { track, isEnabled, isVip } = useTelemetry();
+- `telemetry/eventRegistry.ts` — event names and payload validation
+- `telemetry.ts` — callable helpers and feature-flag checks
+- `useTelemetry.ts` — opt-in React wrappers
+- `__tests__/telemetry.test.ts` and `__tests__/useTelemetry.test.tsx` —
+  test-called evidence only
 
-  const handleFeatureClick = () => {
-    track.featureClicked('advanced_analytics', 'dashboard');
-  };
+A production caller must be identified separately for each event. For example,
+an explicit non-acquisition badge-view call does not establish a paywall view,
+trial start, upgrade click, purchase, or entitlement change.
 
-  return (
-    <button onClick={handleFeatureClick}>
-      Advanced Analytics
-    </button>
-  );
-}
-```
+## Feature-flag boundary
 
-### Auto-tracking VIP Module Views
+`VITE_ANALYTICS_ENABLED` only permits an explicit existing caller to continue
+through the helper. The flag does not mount a hook, create a caller, emit every
+defined event, deliver data, create storage, or make a dataset queryable.
 
-```typescript
-import { useVipModuleTracking } from '../lib/useTelemetry';
+## Data and privacy claims
 
-function VipDashboard() {
-  // Automatically tracks module view on mount
-  useVipModuleTracking('dashboard');
+The local helper hands a validated payload to the configured logging seam when
+an explicit caller runs and analytics is enabled. This document does not claim
+that all events are non-blocking, contain no personal data, reach a remote
+provider, persist successfully, or satisfy an attribution contract. Those
+claims require separate runtime, transport, privacy, storage, and query
+evidence.
 
-  return <div>VIP Dashboard</div>;
-}
-```
-
-## Event Payloads
-
-### Base Event Structure
-
-All events include:
-
-- `timestamp` - Event occurrence time
-- `sessionId` - User session identifier (optional)
-- `featureFlags` - Feature flag state (optional)
-
-### VIP-Specific Payloads
-
-#### VipModuleViewedPayload
-
-```typescript
-{
-  source: string;        // Source page/component
-  vipEnabled: boolean;   // VIP module state
-}
-```
-
-#### VipFeatureClickedPayload
-
-```typescript
-{
-  featureName: string;   // Name of VIP feature
-  source: string;        // Component/page context
-  isVip: boolean;        // User VIP status
-}
-```
-
-#### VipPaywallViewedPayload
-
-```typescript
-{
-  source: string;        // Trigger source
-  context: string;       // Paywall context
-  isRetry?: boolean;     // Retry indicator
-}
-```
-
-## Integration with Components
-
-### VipGate Integration
-
-The `VipGate` component automatically tracks:
-
-- Gate interactions (clicks, hovers)
-- Upgrade button clicks
-- Paywall views and dismissals
-
-### VipBadge Integration
-
-The `VipBadge` component automatically tracks:
-
-- Badge views on component mount
-- Component and variant information
-
-## Feature Flag Integration
-
-Telemetry respects the `VITE_ANALYTICS_ENABLED` feature flag:
-
-- When `false` - No events are tracked
-- When `true` (default) - All events are tracked
-
-## Testing
-
-### Mocking Telemetry
-
-```typescript
-import { vi } from 'vitest';
-
-const mockUseTelemetry = vi.fn();
-vi.mock('../lib/useTelemetry', () => ({
-  useTelemetry: () => mockUseTelemetry(),
-}));
-
-// Setup mock in tests
-mockUseTelemetry.mockReturnValue({
-  track: {
-    featureClicked: vi.fn(),
-    // ... other track functions
-  },
-  isEnabled: true,
-  isVip: false,
-});
-```
-
-### Testing Event Tracking
-
-```typescript
-it('should track feature click', () => {
-  const mockTrack = { featureClicked: vi.fn() };
-  mockUseTelemetry.mockReturnValue({ track: mockTrack, isEnabled: true, isVip: false });
-
-  render(<VipFeature />);
-  fireEvent.click(screen.getByRole('button'));
-
-  expect(mockTrack.featureClicked).toHaveBeenCalledWith('advanced_analytics', 'dashboard');
-});
-```
-
-## Future Extensions
-
-### Adding New Events
-
-1. Add event type to `VipEventType` union
-2. Define payload interface extending `BaseEventPayload`
-3. Add to `VipEventPayload` union
-4. Add convenience function to `vipTelemetry` object
-5. Add hook method to `useTelemetry`
-
-### Example: Adding `vip_tutorial_started`
-
-```typescript
-// 1. Add to VipEventType
-export type VipEventType =
-  | 'vip_tutorial_started'
-  | // ... existing types
-
-// 2. Define payload
-export interface VipTutorialStartedPayload extends BaseEventPayload {
-  tutorialId: string;
-  source: string;
-}
-
-// 3. Add to union
-export type VipEventPayload =
-  | VipTutorialStartedPayload
-  | // ... existing payloads
-
-// 4. Add convenience function
-export const vipTelemetry = {
-  tutorialStarted: (tutorialId: string, source: string) => {
-    trackVipEvent('vip_tutorial_started', { tutorialId, source });
-  },
-  // ... existing functions
-};
-
-// 5. Add hook method
-export function useTelemetry() {
-  const track = {
-    tutorialStarted: useCallback((tutorialId: string, source: string) => {
-      if (!isEnabled) return;
-      vipTelemetry.tutorialStarted(tutorialId, source);
-    }, [isEnabled]),
-    // ... existing methods
-  };
-}
-```
-
-## Performance Considerations
-
-- Events are only tracked when analytics is enabled
-- Timestamps are added automatically if not provided
-- Hook functions are memoized to prevent unnecessary re-renders
-- Telemetry calls are non-blocking and don't affect UI performance
-
-## Privacy and Compliance
-
-- All events are logged to console in development
-- No personal data is collected in event payloads
-- Feature flag integration allows easy disabling
-- Events can be filtered by VIP status for privacy
+Any future public-Web monetization telemetry requires a new external product,
+legal, architecture, runtime, data, and privacy admission.
