@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
+import postcss from 'postcss';
+import type { Root } from 'postcss';
 import { MemoryRouter } from 'react-router-dom';
+import * as ts from 'typescript';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import PulsePlateMarketingPage from '../../../pages/Marketing/PulsePlateMarketingPage';
 import {
@@ -27,6 +30,7 @@ const marketingPagePath = resolve(
 );
 const routesPath = resolve(currentDirectory, '../../../config/routes.ts');
 const marketingStylesPath = resolve(currentDirectory, '../marketing.css');
+const marketingTokensPath = resolve(currentDirectory, '../marketing-tokens.css');
 const hppTokenGuidelinesPath = resolve(currentDirectory, '../../../stories/HppTokenGuidelines.mdx');
 const designSystemGuidelinesPath = resolve(
   currentDirectory,
@@ -34,6 +38,113 @@ const designSystemGuidelinesPath = resolve(
 );
 
 const excludedSourceDirectories = new Set(['__tests__', '__snapshots__', 'evidence']);
+const allowedDemoDependencies = [
+  'react',
+  '../../assets/brand/fitchef-onboarding-welcome-v1.png',
+  '../ui/Button',
+  '../ui/Card',
+  '../ui/RadioGroup',
+  './MarketingPrimitives',
+].sort();
+const forbiddenDependencyFamilyPattern =
+  /(^|[/._-])(api|auth|analytics|storage|payment|outcome|provider|rag|llm)([/._-]|$)|SupportChoiceCard/i;
+
+function enumerateModuleDependencies(source: string): string[] {
+  return Array.from(
+    new Set(
+      ts.preProcessFile(source, true, true).importedFiles.map((imported) => imported.fileName),
+    ),
+  ).sort();
+}
+
+function executableLoaderViolations(source: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    'FitChefValueDemo.fixture.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const violations = new Set<string>();
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        violations.add('dynamic-import-call');
+      } else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+        violations.add('commonjs-require-call');
+      } else if (ts.isPropertyAccessExpression(node.expression)) {
+        const callee = node.expression;
+        const owner = callee.expression;
+        if (
+          (callee.name.text === 'glob' || callee.name.text === 'globEager') &&
+          ts.isMetaProperty(owner) &&
+          owner.keywordToken === ts.SyntaxKind.ImportKeyword &&
+          owner.name.text === 'meta'
+        ) {
+          violations.add('vite-meta-import');
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return Array.from(violations).sort();
+}
+
+function dependencyBoundaryViolations(source: string): string[] {
+  const allowed = new Set(allowedDemoDependencies);
+  const violations = enumerateModuleDependencies(source).flatMap((dependency) => {
+    if (forbiddenDependencyFamilyPattern.test(dependency)) {
+      return [`forbidden-family:${dependency}`];
+    }
+    return allowed.has(dependency) ? [] : [`dependency-not-allowed:${dependency}`];
+  });
+
+  violations.push(...executableLoaderViolations(source));
+
+  return violations.sort();
+}
+
+function cssBoundaryViolations(source: string): string[] {
+  const violations = new Set<string>();
+  let root: Root;
+
+  if (source.includes('\\')) {
+    violations.add('css-escape-not-allowed');
+  }
+
+  try {
+    root = postcss.parse(source);
+  } catch {
+    violations.add('css-parse-error');
+    return Array.from(violations).sort();
+  }
+
+  root.walkAtRules((rule) => {
+    if (rule.name.trim().toLowerCase() === 'import') {
+      violations.add('css-import');
+    }
+  });
+
+  const remoteUrlPattern = /url\(\s*["']?\s*(?:https?:)?\/\//i;
+  const comparisonCopyPattern =
+    /\bCandidate\s*Y\b|\bGuided[\s_-]*Reveal\b|\bH2\b/i;
+  root.walkDecls((declaration) => {
+    if (remoteUrlPattern.test(declaration.value)) {
+      violations.add('remote-url');
+    }
+    if (
+      declaration.prop.trim().toLowerCase() === 'content' &&
+      comparisonCopyPattern.test(declaration.value)
+    ) {
+      violations.add('comparison-content');
+    }
+  });
+
+  return Array.from(violations).sort();
+}
 
 function collectTypeScriptSources(
   directory: string,
@@ -89,7 +200,13 @@ const marketingProductionModulePaths = collectTypeScriptSources(marketingCompone
   excludeStories: true,
 });
 const marketingRuntimeSourcePaths = Array.from(
-  new Set([...marketingProductionModulePaths, marketingPagePath, routesPath]),
+  new Set([
+    ...marketingProductionModulePaths,
+    marketingStylesPath,
+    marketingTokensPath,
+    marketingPagePath,
+    routesPath,
+  ]),
 ).sort();
 const frontendStorybookSources = collectStorybookSources(frontendSourceDirectory);
 const storybookSourcePaths = Array.from(
@@ -379,7 +496,7 @@ describe('FitChefValueDemo', (): void => {
     ).toBeVisible();
   });
 
-  it('has no demo-local network, storage, cookie, or beacon side effects', async () => {
+  it('has no interaction-handler network, storage, cookie, or beacon side effects', async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.fn();
     const xhrSpy = vi.fn();
@@ -453,29 +570,102 @@ describe('FitChefValueDemo', (): void => {
 
   it('keeps imports and runtime constructs inside the static preview boundary', () => {
     const source = readFileSync(componentPath, 'utf8');
-    const importSpecifiers = Array.from(source.matchAll(/from\s+['"]([^'"]+)['"]/g), (match) =>
-      match[1],
-    );
+    const dependencies = enumerateModuleDependencies(source);
 
-    expect(new Set(importSpecifiers)).toEqual(
-      new Set([
-        'react',
-        '../../assets/brand/fitchef-onboarding-welcome-v1.png',
-        '../ui/Button',
-        '../ui/Card',
-        '../ui/RadioGroup',
-        './MarketingPrimitives',
-      ]),
-    );
+    expect(dependencies).toEqual(allowedDemoDependencies);
+    expect(dependencies.join('\n')).not.toMatch(forbiddenDependencyFamilyPattern);
+    expect(dependencyBoundaryViolations(source)).toEqual([]);
     expect(source).not.toMatch(
       /\b(useEffect|fetch|XMLHttpRequest|WebSocket|sendBeacon|localStorage|sessionStorage|indexedDB|setTimeout|setInterval|Promise)\b/,
     );
-    expect(source).not.toMatch(/\bimport\s*\(/);
     expect(source).not.toMatch(/\b(gtag|dataLayer|PaymentRequest|cookieStore)\b|document\.cookie/);
     expect(source).not.toMatch(/\b(location|history)\b/);
-    expect(importSpecifiers.join('\n')).not.toMatch(
-      /api|auth|analytics|storage|payment|outcome|provider|rag|llm|SupportChoiceCard/i,
+  });
+
+  it('uses the TypeScript parser for every supported module dependency carrier', () => {
+    const parserFixture = `
+      import defaultExport from 'default-import';
+      import { named } from 'named-import';
+      import 'bare-import';
+      export { value } from 're-export';
+      const commonJs = require('commonjs-require');
+      const dynamic = import('dynamic-import');
+    `;
+
+    expect(enumerateModuleDependencies(parserFixture)).toEqual(
+      [
+        'default-import',
+        'named-import',
+        'bare-import',
+        're-export',
+        'commonjs-require',
+        'dynamic-import',
+      ].sort(),
     );
+  });
+
+  it('rejects forbidden dependency families, dynamic imports, and Vite meta-import carriers', () => {
+    const negativeFixtures = [
+      {
+        name: 'bare analytics import',
+        source: `import 'analytics/sink';`,
+        expected: ['forbidden-family:analytics/sink'],
+      },
+      {
+        name: 'CommonJS auth require',
+        source: `const auth = require('../auth/session');`,
+        expected: ['commonjs-require-call', 'forbidden-family:../auth/session'],
+      },
+      {
+        name: 'CommonJS storage require',
+        source: `const storage = require('../storage/cache');`,
+        expected: ['commonjs-require-call', 'forbidden-family:../storage/cache'],
+      },
+      {
+        name: 'CommonJS payment require',
+        source: `const payment = require('../payment/client');`,
+        expected: ['commonjs-require-call', 'forbidden-family:../payment/client'],
+      },
+      {
+        name: 'literal dynamic import',
+        source: `void import('./comparison-candidate');`,
+        expected: ['dependency-not-allowed:./comparison-candidate', 'dynamic-import-call'],
+      },
+      {
+        name: 'variable dynamic import',
+        source: `const path = './comparison-candidate'; void import(path);`,
+        expected: ['dynamic-import-call'],
+      },
+      {
+        name: 'template dynamic import',
+        source: `const variant = 'candidate'; void import(\`./\${variant}.tsx\`);`,
+        expected: ['dynamic-import-call'],
+      },
+      {
+        name: 'variable CommonJS require',
+        source: `const path = '../auth/session'; const auth = require(path);`,
+        expected: ['commonjs-require-call'],
+      },
+      {
+        name: 'computed CommonJS require',
+        source: `const family = 'auth'; const auth = require('../' + family + '/client');`,
+        expected: ['commonjs-require-call', 'dependency-not-allowed:../'],
+      },
+      {
+        name: 'Vite glob carrier',
+        source: `const variants = import.meta.glob('./variants/*.tsx');`,
+        expected: ['vite-meta-import'],
+      },
+      {
+        name: 'Vite eager glob carrier',
+        source: `const variants = import.meta.globEager('./variants/*.tsx');`,
+        expected: ['vite-meta-import'],
+      },
+    ];
+
+    negativeFixtures.forEach(({ name, source, expected }) => {
+      expect(dependencyBoundaryViolations(source), name).toEqual(expected);
+    });
   });
 
   it('keeps comparison candidates out of the complete finite marketing and Storybook census', () => {
@@ -493,7 +683,13 @@ describe('FitChefValueDemo', (): void => {
 
     expect(marketingProductionModulePaths).toContain(componentPath);
     expect(marketingRuntimeSourcePaths).toEqual(
-      expect.arrayContaining([componentPath, marketingPagePath, routesPath]),
+      expect.arrayContaining([
+        componentPath,
+        marketingStylesPath,
+        marketingTokensPath,
+        marketingPagePath,
+        routesPath,
+      ]),
     );
     expect(storybookSourcePaths.length).toBeGreaterThan(2);
     expect(readFileSync(storybookMainPath, 'utf8')).toContain("'../src/**/*.mdx'");
@@ -504,6 +700,97 @@ describe('FitChefValueDemo', (): void => {
     expect(completeCensusGraph).not.toMatch(comparisonTogglePattern);
     expect(marketingRuntimeGraph).not.toMatch(/searchParams|URLSearchParams/);
     expect(storybookGraph).not.toMatch(comparisonTogglePattern);
+  });
+
+  it('keeps both marketing stylesheets inside the finite local CSS boundary', () => {
+    [marketingStylesPath, marketingTokensPath].forEach((path) => {
+      expect(cssBoundaryViolations(readFileSync(path, 'utf8')), path).toEqual([]);
+    });
+
+    const negativeFixtures = [
+      {
+        name: 'quoted comment delimiters cannot hide an import at-rule',
+        source: `@charset "/*"; @import "https://cdn.example/remote.css"; :root { --note: "*/"; }`,
+        expected: ['css-import'],
+      },
+      {
+        name: 'quoted comment delimiters cannot hide remote URL or comparison content',
+        source: `@charset "/*"; .hero { --note: "*/"; background-image: url("https://cdn.example/hero.png"); content: "Candidate Y"; }`,
+        expected: ['comparison-content', 'remote-url'],
+      },
+      {
+        name: 'invalid CSS fails closed',
+        source: `.broken { color: red;`,
+        expected: ['css-parse-error'],
+      },
+      {
+        name: 'escaped import at-rule',
+        source: String.raw`@im\70ort "https://cdn.example/remote.css";`,
+        expected: ['css-escape-not-allowed'],
+      },
+      {
+        name: 'escaped content property',
+        source: String.raw`.variant::before { c\6fntent: "Candidate Y"; }`,
+        expected: ['css-escape-not-allowed'],
+      },
+      {
+        name: 'escaped URL function',
+        source: String.raw`.hero { background-image: u\72l("https://cdn.example/hero.png"); }`,
+        expected: ['css-escape-not-allowed'],
+      },
+      {
+        name: 'remote HTTPS import',
+        source: `@import "https://cdn.example/remote.css";`,
+        expected: ['css-import'],
+      },
+      {
+        name: 'protocol-relative import',
+        source: `@import url("//cdn.example/remote.css");`,
+        expected: ['css-import'],
+      },
+      {
+        name: 'local import',
+        source: `@import "./local-marketing.css";`,
+        expected: ['css-import'],
+      },
+      {
+        name: 'remote HTTP asset URL',
+        source: `.hero { background-image: url(http://cdn.example/hero.png); }`,
+        expected: ['remote-url'],
+      },
+      {
+        name: 'protocol-relative asset URL',
+        source: `.hero { background-image: url('//cdn.example/hero.png'); }`,
+        expected: ['remote-url'],
+      },
+      {
+        name: 'Candidate Y generated content',
+        source: `.variant::before { content: "Candidate Y"; }`,
+        expected: ['comparison-content'],
+      },
+      {
+        name: 'Guided Reveal generated content',
+        source: `.variant::before { content: "Guided Reveal"; }`,
+        expected: ['comparison-content'],
+      },
+      {
+        name: 'H2 generated content',
+        source: `.variant::before { content: "H2 comparison"; }`,
+        expected: ['comparison-content'],
+      },
+    ];
+
+    negativeFixtures.forEach(({ name, source, expected }) => {
+      expect(cssBoundaryViolations(source), name).toEqual(expected);
+    });
+    expect(
+      cssBoundaryViolations(`
+        /* @import "https://commented.example/ignored.css"; */
+        .hero { background-image: url('../assets/local-hero.png'); }
+        .hero::before { content: "Ready"; }
+        .note::before { content: "@import is inert text"; }
+      `),
+    ).toEqual([]);
   });
 
   it('declares focus, reduced-motion, touch-target, and narrow-layout safeguards', () => {
