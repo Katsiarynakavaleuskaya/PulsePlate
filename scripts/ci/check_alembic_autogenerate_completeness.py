@@ -772,7 +772,7 @@ def _read_ownership_rows(connection: Connection) -> tuple[tuple[str, str, str, s
                      table_name COLLATE "C", object_name COLLATE "C"
             LIMIT 65
             """)).all()
-    return tuple(tuple(str(value) for value in row) for row in rows)
+    return tuple((str(row[0]), str(row[1]), str(row[2]), str(row[3])) for row in rows)
 
 
 def _read_rls(connection: Connection) -> tuple[RlsDescriptor, ...]:
