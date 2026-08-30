@@ -7,13 +7,17 @@ EN: Alembic configuration for managing database migrations.
 from __future__ import annotations
 
 import logging
+from contextlib import nullcontext
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from core.db_alembic_ownership import include_autogenerate_object
-from core.db_alembic_comparison import compare_postgresql_server_default
+from core.db_alembic_comparison import (
+    compare_postgresql_server_default,
+    include_autogenerate_object,
+    proven_autogenerate_default_schema,
+)
 from core.db import get_database_url, load_canonical_orm_metadata
 
 # Interpret the config file for Python logging.
@@ -62,16 +66,22 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=compare_postgresql_server_default,
-            include_object=include_autogenerate_object,
+        schema_scope = (
+            proven_autogenerate_default_schema(str(connection.dialect.default_schema_name))
+            if connection.dialect.name == "postgresql"
+            else nullcontext()
         )
+        with schema_scope:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                compare_type=True,
+                compare_server_default=compare_postgresql_server_default,
+                include_object=include_autogenerate_object,
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
 
 
 if context.is_offline_mode():
