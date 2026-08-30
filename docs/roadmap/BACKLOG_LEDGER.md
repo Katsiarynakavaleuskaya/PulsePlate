@@ -6802,8 +6802,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus PR #1875 (`codex/node24-runtime-baseline`, operational runtime baseline)
-  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; cache-warning audit remains open pending fresh representative PR evidence
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus PR #1875 (`codex/node24-runtime-baseline`, operational runtime baseline); bounded setup-go v7 carrier: [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; the bounded setup-go v7 identity migration is in review in PR #2356, while the broader cache-warning audit remains open pending fresh representative PR evidence
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
   - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
@@ -6825,6 +6825,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #1871 updates the pinned Trivy wrapper action to `ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path` and guards the old wrapper/cache warning source
     - Current `codex/node24-runtime-baseline` lane moves `.nvmrc`, frontend engines, devcontainer, and frontend Caddy builder to Node 24.16.0, normalizes remaining active `upload-artifact` / actionlint checkout pins, and adds positive active-workflow enumeration guards
     - Broader cache-warning DoD remains open until fresh current-head PR logs prove warning cleanup and remaining cache-warning disposition
+  - Current evidence (2026-08-30, PR #2356 pre-closeout):
+    - The Greenlight iOS `Setup Go` step is pinned to exact identity `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` with `go-version: "1.24"`; the focused positive-enumeration contract, immutable action-pin guard, workflow validation, and `make validate-changed` pass on the synchronized pre-ledger head `65b03f63cc5e18c19d5a0cbd21b74ee88010557a`
+    - Exact-head Greenlight run `33299230032` succeeded on prior synchronized head `540c2c44be8110194d0e3cde169864d9031c01ca`; the post-ledger commit must obtain fresh current-head CI before closeout, and this bounded evidence proves neither cache-warning cleanup, upstream provenance, vulnerability closure, security PASS, nor merge readiness
 
 <a id="ledger-p2-ios-agents-only-testing-centralize"></a>
 - [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
