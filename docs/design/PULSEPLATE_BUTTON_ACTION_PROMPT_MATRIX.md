@@ -98,6 +98,36 @@ Connect work is explicitly in scope.
 | Web (linked flow) | Nutrition Setup Result | `web.setup.result.retry` | Try again | `button` | `frontend/src/pages/NutritionSetup/ResultView.tsx:71` -> `setRetryKey` (`frontend/src/pages/NutritionSetup/ResultView.tsx:33`) | Re-fetch result data | Re-triggers canonical BMR (`frontend/src/pages/NutritionSetup/hooks.ts:408`), plate (`frontend/src/pages/NutritionSetup/hooks.ts:423`), and targets (`frontend/src/pages/NutritionSetup/hooks.ts:539`) | Appears on error state | Implemented | No contract test for all auth/error branches in retry mode | Add retry tests for 401/403 + generic failure mapping | Retry test exists: `frontend/src/pages/NutritionSetup/__tests__/ResultView.test.tsx:354` | `PP/Web/Setup/Result/Error/Retry/Button/Default (TBD)` | `stub://cta/error-state/retry` |
 | Web (linked flow) | Nutrition Setup Result | `web.setup.result.edit` | Edit data / Edit form | `button` | `frontend/src/pages/NutritionSetup/ResultView.tsx:78` and header edit at `frontend/src/pages/NutritionSetup/ResultView.tsx:103` | Return to Setup form (`setValues(null)`) | No direct API call; local state transition | No gate | Implemented | Two edit entrypoints share behavior, no unified UX spec | Create one visual/state spec for both edit triggers | Edit action test: `frontend/src/pages/NutritionSetup/__tests__/ResultView.test.tsx:348` | `PP/Web/Setup/Result/Header/Edit/Button/Default (TBD)` | `stub://cta/secondary/edit-input` |
 
+### Structurally unreachable iOS FitChef capability
+
+The iOS FitChef carrier reuses the Human Product Owner-selected Candidate X
+composition and existing `PPCard`, `PPButton`, and token primitives. It adds no
+new design-execution identity, production presentation owner, or shared visual
+rule in this matrix:
+
+- selecting daily or weekly is local-only; Confirm sends the selected need once
+  to `POST /api/v1/pro/fitchef/recommend` through `APIClient`, while pre-result
+  Not now and screen dismissal send no outcome
+- the exact backend target is rendered as plain non-interactive text; it never
+  opens a route, invokes a target, executes an action, or mutates a plan
+- the first result-stage Thanks or Not now gesture maps internally to the
+  matching closed outcome and sends it to the backend intake; pending and
+  failure states make no persistence-success claim, and retry is manual
+- `recorded` and `replayed` describe only the exact backend receipt; neither
+  state proves understanding, consent, entitlement, navigation, execution, or
+  product value
+- the web FitChef rows above remain unchanged and retain historical
+  `transport=none`; the complete FREE web BMI questionnaire, results,
+  information, bounded chat, marketing/demonstration, and iOS handoff posture
+  is not narrowed by this iOS-first outcome decision
+
+`FitChefSupportFlowScreen` is constructed only inside its own DEBUG previews.
+No Home row, feature flag, tab, router, deep link, or production factory is
+added. ER-IOS-3 separately owns the future unified FitChef Coach destination;
+after that lands, ER-IOS-4 may add exactly one Home FitChef Coach button and
+must not redesign Home. This carrier has no staging, production, App Store,
+credential-provisioning, billing, or activation authority.
+
 ### Stable compatibility identifiers are not action authority
 
 The complete matrix contains 27 unique current identities. The Figma, Sora, and

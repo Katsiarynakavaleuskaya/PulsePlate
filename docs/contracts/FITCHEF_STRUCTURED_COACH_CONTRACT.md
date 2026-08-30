@@ -76,10 +76,14 @@ At the named PR #2337 evidence cutoff (`2026-08-26T22:19:41Z`, merge
 `d5ef261473bb76fcaa57a6a982013a2424263dfa`), bounded examples of the current
 free web channel posture were BMI, wellness and nutrition education, bounded
 informational chat, acquisition and iOS referral, and the FitChef
-support-choice consumer. These examples describe the recorded channel posture
-at that cutoff only. They authorize no unnamed web capability, new route, or
-future carrier and are not asserted as an exhaustive repository-wide inventory.
-This is a channel-posture statement, not a product-tier grant.
+support-choice consumer. The web product is not advertising-only: its complete
+FREE product posture includes the BMI calculator questionnaire, FREE results,
+and allowed education and information surfaces, alongside bounded chat,
+marketing and capability demonstration, and the iOS handoff. These examples
+describe the recorded channel posture at that cutoff only. They authorize no
+unnamed paid web capability, new route, or future carrier and are not asserted
+as an exhaustive repository-wide inventory. This is a channel-posture
+statement, not a product-tier grant.
 
 For this phase, `free web channel` means that the web client does not originate
 a FitChef sale, checkout, or paid entitlement and has no client-side billing or
@@ -98,6 +102,12 @@ any future activation.
 This posture reconciliation preserves the landed PR #2337 implementation. It
 adds no runtime, payment, entitlement, persistence, navigation, execution, or
 plan-mutation authority.
+
+PR #2337 remains historical `transport=none` evidence for support outcomes.
+The web support-choice acknowledgement stays local and no web handler calls
+`POST /api/v1/pro/fitchef/recommend/outcome`. The explicit current channel
+decision assigns the first persisted-outcome consumer to iOS; it does not
+remove or narrow the complete FREE web product posture above.
 
 ## Support-outcome ledger contract
 
@@ -160,6 +170,46 @@ divergent `409`; the metric has no subject, event-id, credential, path, error,
 plan, goal, or timestamp label. The flow directly sends no outcome field or row
 to an AI provider or other third-party processor; aggregate metrics remain
 subject to configured telemetry policy.
+
+## Internal iOS recommendation/outcome capability
+
+ER-IOS-2 is one thin, testable capability with no production presentation
+owner. `FitChefSupportFlowScreen` is constructed only by its own deterministic
+DEBUG previews; Home, tabs, routers, deep links, and other production Swift
+files do not construct it.
+
+The internal flow contract is:
+
+1. The user locally chooses `daily_structure` or `weekly_structure`; selection,
+   rendering, and pre-result dismissal perform no network call.
+2. Explicit confirmation sends only that need through the existing
+   `APIClient` to `POST /api/v1/pro/fitchef/recommend`.
+3. The feature accepts only an exact, fail-closed descriptor whose need echoes
+   the request and whose backend-owned target remains an inert localized text
+   label in previews.
+4. The first explicit result-stage Thanks or Not now action maps internally to
+   `acknowledged` or `dismissed`, creates one in-memory opaque event id, and
+   sends the exact four-field outcome body.
+5. Only an exact `recorded` or `replayed` receipt permits persistence-success
+   copy. Retryable failures require a new gesture and reuse the same attempt and
+   credential; `409` and `422` are terminal, while `401` and `403` require a new
+   lifecycle.
+
+The client reuses the exact credential that successfully obtained the
+descriptor for the matching outcome attempt. The credential and event id are
+not logged or durably stored. The carrier has no automatic retry, outbox,
+analytics, target navigation, target invocation, entitlement or billing
+inference, plan lookup, plan execution, or plan mutation.
+
+No feature flag or Home action is introduced because neither has a live caller
+in ER-IOS-2. ER-IOS-3 is the separately governed future owner for one unified
+FitChef Coach destination. Only after ER-IOS-3 lands may ER-IOS-4 add one Home
+FitChef Coach button; ER-IOS-4 explicitly excludes a Home redesign. Neither
+future lane is implemented or authorized by this capability PR.
+
+Structural nonreachability does not activate either backend feature flag,
+provision a credential, prove entitlement, authorize staging or production
+writes, or satisfy the separate activation-readiness work.
 
 ## Wave-aligned capability mapping
 
@@ -482,8 +532,9 @@ Future structured coach implementation must:
 - adding any new backend runtime surface beyond the landed PRO explain route, the
   landed PR #2320 support-handoff route, and the bounded VIP Identity
   Loop Mapper route
-- adding iOS FitChef consumers or frontend behavior beyond the separately
-  governed E1-05B descriptor consumer
+- adding a production iOS presentation owner, FitChef Coach destination, Home
+  button or redesign, staging/production activation, target navigation, or any
+  entitlement or plan authority
 - mixing website brand rollout or App Store assets into this contract lane
 
 ## Evidence anchors

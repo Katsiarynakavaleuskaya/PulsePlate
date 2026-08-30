@@ -209,7 +209,7 @@
 /* FitChef Support Choice Preview */
 "fitchef.support_choice.question" = "Where would you like to start?";
 "fitchef.support_choice.daily.title" = "Today";
-"fitchef.support_choice.daily.detail" = "Start with the plan for today.";
+"fitchef.support_choice.daily.detail" = "Focus on today.";
 "fitchef.support_choice.weekly.title" = "This week";
 "fitchef.support_choice.weekly.detail" = "Look at the next seven days.";
 "fitchef.support_choice.agency" = "FitChef shows both options. The choice is yours.";
@@ -225,3 +225,25 @@
 "fitchef.coach_hub.planning_direction.title" = "Where to start?";
 "fitchef.coach_hub.planning_direction.detail" = "You choose: Today or This week.";
 "fitchef.coach_hub.planning_direction.accessibility_hint" = "Opens choices for Today or This week.";
+
+/* FitChef Support Outcome Flow */
+"fitchef.support_flow.loading" = "Getting things ready…";
+"fitchef.support_flow.result.title" = "Your next focus";
+"fitchef.support_flow.result.target_label" = "Start with";
+"fitchef.support_flow.result.target.daily" = "Today";
+"fitchef.support_flow.result.target.weekly" = "This week";
+"fitchef.support_flow.result.boundary" = "Nothing opens or changes automatically.";
+"fitchef.support_flow.result.response_notice" = "Choose Thanks or Not now. Your response will be saved.";
+"fitchef.support_flow.action.acknowledge" = "Thanks";
+"fitchef.support_flow.action.dismiss" = "Not now";
+"fitchef.support_flow.recording" = "Saving your response…";
+"fitchef.support_flow.recorded" = "Your response was saved.";
+"fitchef.support_flow.replayed" = "This response was already saved.";
+"fitchef.support_flow.handoff_failed" = "We couldn't load the next step.";
+"fitchef.support_flow.unavailable" = "This option isn't available right now.";
+"fitchef.support_flow.outcome_retryable" = "We couldn't confirm whether your response was saved. Try again when you're ready.";
+"fitchef.support_flow.outcome_restart" = "We couldn't save your response. Close this screen and start again.";
+"fitchef.support_flow.outcome_terminal" = "We couldn't save your response. Close this screen.";
+"fitchef.support_flow.action.retry" = "Try again";
+"fitchef.support_flow.action.close" = "Close";
+"fitchef.support_flow.action.done" = "Done";

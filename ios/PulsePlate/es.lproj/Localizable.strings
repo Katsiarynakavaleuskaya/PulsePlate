@@ -225,7 +225,7 @@
 /* FitChef Support Choice Preview */
 "fitchef.support_choice.question" = "¿Por dónde quieres empezar?";
 "fitchef.support_choice.daily.title" = "Hoy";
-"fitchef.support_choice.daily.detail" = "Empezar por el plan de hoy.";
+"fitchef.support_choice.daily.detail" = "Centrarte en el día de hoy.";
 "fitchef.support_choice.weekly.title" = "Esta semana";
 "fitchef.support_choice.weekly.detail" = "Ver los próximos siete días.";
 "fitchef.support_choice.agency" = "FitChef te muestra ambas opciones. Tú eliges.";
@@ -241,3 +241,25 @@
 "fitchef.coach_hub.planning_direction.title" = "¿Por dónde quieres empezar?";
 "fitchef.coach_hub.planning_direction.detail" = "Tú eliges: «Hoy» o «Esta semana».";
 "fitchef.coach_hub.planning_direction.accessibility_hint" = "Abre las opciones «Hoy» o «Esta semana».";
+
+/* FitChef Support Outcome Flow */
+"fitchef.support_flow.loading" = "Preparando el siguiente paso…";
+"fitchef.support_flow.result.title" = "Tu próximo enfoque";
+"fitchef.support_flow.result.target_label" = "Empieza por";
+"fitchef.support_flow.result.target.daily" = "Hoy";
+"fitchef.support_flow.result.target.weekly" = "Esta semana";
+"fitchef.support_flow.result.boundary" = "Nada se abre ni cambia automáticamente.";
+"fitchef.support_flow.result.response_notice" = "Elige «Gracias» o «Ahora no». Tu respuesta se guardará.";
+"fitchef.support_flow.action.acknowledge" = "Gracias";
+"fitchef.support_flow.action.dismiss" = "Ahora no";
+"fitchef.support_flow.recording" = "Guardando tu respuesta…";
+"fitchef.support_flow.recorded" = "Tu respuesta se guardó.";
+"fitchef.support_flow.replayed" = "Esta respuesta ya estaba guardada.";
+"fitchef.support_flow.handoff_failed" = "No pudimos cargar el siguiente paso.";
+"fitchef.support_flow.unavailable" = "Esta opción no está disponible ahora.";
+"fitchef.support_flow.outcome_retryable" = "No pudimos confirmar si tu respuesta se guardó. Inténtalo de nuevo cuando quieras.";
+"fitchef.support_flow.outcome_restart" = "No pudimos guardar tu respuesta. Cierra esta pantalla y vuelve a empezar.";
+"fitchef.support_flow.outcome_terminal" = "No pudimos guardar tu respuesta. Cierra esta pantalla.";
+"fitchef.support_flow.action.retry" = "Intentar de nuevo";
+"fitchef.support_flow.action.close" = "Cerrar";
+"fitchef.support_flow.action.done" = "Listo";

@@ -119,17 +119,18 @@ final class FitChefCoachViewTests: XCTestCase {
     }
 
     func testConcreteExistingDestinationsTypeCheckWithoutEagerBuilderEvaluation() async throws {
-        let service = FitChefCoachNoCallAIService()
+        let aiService = FitChefCoachNoCallAIService()
+        let supportService = FitChefCoachNoCallSupportService()
         let destinationProbe = FitChefCoachConcreteDestinationProbe(
-            service: service,
+            aiService: aiService,
             consentProvider: FitChefCoachNoCallAIConsentProvider(),
-            choices: try makeFitChefSupportChoices()
+            supportService: supportService
         )
         let availability = FitChefCoachAvailability(
             capabilities: [.aiGuidance, .planningDirection]
         )
 
-        let hub: FitChefCoachView<AIInsightView, FitChefSupportChoiceExperience> =
+        let hub: FitChefCoachView<AIInsightView, FitChefSupportFlowScreen> =
             FitChefCoachView(
                 availability: availability,
                 aiGuidanceDestination: {
@@ -143,8 +144,10 @@ final class FitChefCoachViewTests: XCTestCase {
         XCTAssertEqual(hub.availability, availability)
         XCTAssertEqual(destinationProbe.aiGuidanceBuildCount, 0)
         XCTAssertEqual(destinationProbe.planningDirectionBuildCount, 0)
-        let serviceCallCount = await service.recordedCallCount()
-        XCTAssertEqual(serviceCallCount, 0)
+        let aiServiceCallCount = await aiService.recordedCallCount()
+        let supportServiceCallCount = await supportService.recordedCallCount()
+        XCTAssertEqual(aiServiceCallCount, 0)
+        XCTAssertEqual(supportServiceCallCount, 0)
     }
 
     func testFrozenInventoryRenderMatrixDoesNotEvaluateDestinationBuilders() throws {
@@ -581,43 +584,6 @@ final class FitChefCoachViewTests: XCTestCase {
         )
     }
 
-    private func makeFitChefSupportChoices() throws -> FitChefSupportHandoffChoices {
-        let dailyDescriptor = try decodeFitChefSupportDescriptor(
-            supportNeed: "daily_structure",
-            targetSurface: "pro_daily_plate"
-        )
-        let weeklyDescriptor = try decodeFitChefSupportDescriptor(
-            supportNeed: "weekly_structure",
-            targetSurface: "pro_weekly_plan"
-        )
-        return try FitChefSupportHandoffChoices(
-            dailyDescriptor: dailyDescriptor,
-            weeklyDescriptor: weeklyDescriptor
-        )
-    }
-
-    private func decodeFitChefSupportDescriptor(
-        supportNeed: String,
-        targetSurface: String
-    ) throws -> FitChefSupportHandoffDescriptor {
-        let payload: [String: Any] = [
-            "schema_version": "fitchef_support_handoff.v1",
-            "scenario": "support_handoff",
-            "support_need": supportNeed,
-            "action": [
-                "action_type": "handoff_to_product_surface",
-                "target_surface": targetSurface,
-            ],
-            "user_confirmation_required": true,
-            "execution_authority": false,
-            "plan_mutation_authority": false,
-            "used_llm": false,
-            "wellness_boundary": "wellness_planning_only",
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        return try JSONDecoder().decode(FitChefSupportHandoffDescriptor.self, from: data)
-    }
-
     private func repositoryRoot() throws -> URL {
         var candidate = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let fileManager = FileManager.default
@@ -763,40 +729,42 @@ private final class FitChefCoachDestinationBuildProbe {
 
 @MainActor
 private final class FitChefCoachConcreteDestinationProbe {
-    private let service: FitChefCoachNoCallAIService
+    private let aiService: FitChefCoachNoCallAIService
     private let consentProvider: FitChefCoachNoCallAIConsentProvider
-    private let choices: FitChefSupportHandoffChoices
+    private let supportService: FitChefCoachNoCallSupportService
 
     private(set) var aiGuidanceBuildCount = 0
     private(set) var planningDirectionBuildCount = 0
 
     init(
-        service: FitChefCoachNoCallAIService,
+        aiService: FitChefCoachNoCallAIService,
         consentProvider: FitChefCoachNoCallAIConsentProvider,
-        choices: FitChefSupportHandoffChoices
+        supportService: FitChefCoachNoCallSupportService
     ) {
-        self.service = service
+        self.aiService = aiService
         self.consentProvider = consentProvider
-        self.choices = choices
+        self.supportService = supportService
     }
 
     func makeAIInsightDestination() -> AIInsightView {
         aiGuidanceBuildCount += 1
         return AIInsightView(
             vm: AIInsightViewModel(
-                service: service,
+                service: aiService,
                 apiKeyProvider: { nil },
                 consentProvider: consentProvider
             )
         )
     }
 
-    func makePlanningDirectionDestination() -> FitChefSupportChoiceExperience {
+    func makePlanningDirectionDestination() -> FitChefSupportFlowScreen {
         planningDirectionBuildCount += 1
-        return FitChefSupportChoiceExperience(
-            choices: choices,
-            onConfirm: { _ in },
-            onDismiss: {}
+        return FitChefSupportFlowScreen(
+            viewModel: FitChefSupportFlowViewModel(
+                service: supportService,
+                apiKeyProvider: { nil },
+                makeClientEventID: { UUID() }
+            )
         )
     }
 }
@@ -807,6 +775,30 @@ private actor FitChefCoachNoCallAIService: CBTInsightServicing {
     func fetchInsight(query: String, apiKey: String) async throws -> CBTInsightResponseDTO {
         callCount += 1
         throw FitChefCoachViewTestError.unexpectedAIServiceCall
+    }
+
+    func recordedCallCount() -> Int {
+        callCount
+    }
+}
+
+private actor FitChefCoachNoCallSupportService: FitChefSupportServicing {
+    private var callCount = 0
+
+    func requestHandoff(
+        for supportNeed: FitChefSupportNeed,
+        apiKey: String
+    ) async throws -> FitChefSupportHandoffDescriptor {
+        callCount += 1
+        throw FitChefCoachViewTestError.unexpectedSupportServiceCall
+    }
+
+    func recordOutcome(
+        _ attempt: FitChefSupportOutcomeAttempt,
+        apiKey: String
+    ) async throws -> FitChefSupportOutcomeReceipt {
+        callCount += 1
+        throw FitChefCoachViewTestError.unexpectedSupportServiceCall
     }
 
     func recordedCallCount() -> Int {
@@ -830,4 +822,5 @@ private enum FitChefCoachViewTestError: Error {
     case sourceRootNotDirectory
     case sourceEnumerationUnavailable
     case unexpectedAIServiceCall
+    case unexpectedSupportServiceCall
 }
