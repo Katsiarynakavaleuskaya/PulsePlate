@@ -903,9 +903,9 @@ def _produce_upgrade_ops(
     }
     if admitted:
         options["include_object"] = include_autogenerate_object
-    context = MigrationContext.configure(connection, opts=options)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
+        context = MigrationContext.configure(connection, opts=options)
         if admitted:
             with proven_autogenerate_default_schema(str(connection.dialect.default_schema_name)):
                 root = produce_migrations(context, target_metadata).upgrade_ops

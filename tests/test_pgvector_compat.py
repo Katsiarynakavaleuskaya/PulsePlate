@@ -1412,10 +1412,10 @@ def _raise_preserved_failures(
 class _CreatedDatabaseReceipt:
     database_name: str
     oid: int
-    cluster_identifier: str = ""
-    user_name: str = ""
-    server_address: str = ""
-    server_port: int = 0
+    cluster_identifier: str
+    user_name: str
+    server_address: str
+    server_port: int
 
 
 @dataclass(frozen=True)
@@ -2008,43 +2008,74 @@ def _identity_test_values() -> tuple[
     return receipt, target, admin
 
 
+def test_created_database_receipt_requires_every_identity_field() -> None:
+    parameters = inspect.signature(_CreatedDatabaseReceipt).parameters
+
+    assert tuple(parameters) == (
+        "database_name",
+        "oid",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
+    )
+    assert all(parameter.default is inspect.Parameter.empty for parameter in parameters.values())
+
+
+def _mismatched_database_identity(
+    identity: _DatabaseIdentity,
+    field_name: str,
+) -> _DatabaseIdentity:
+    if field_name == "database_name":
+        return replace(identity, database_name="other_database")
+    if field_name == "database_oid":
+        return replace(identity, database_oid=4343)
+    if field_name == "cluster_identifier":
+        return replace(identity, cluster_identifier="cluster-2")
+    if field_name == "user_name":
+        return replace(identity, user_name="other_user")
+    if field_name == "server_address":
+        return replace(identity, server_address="127.0.0.2")
+    if field_name == "server_port":
+        return replace(identity, server_port=5433)
+    raise AssertionError(f"Unsupported identity field: {field_name}")
+
+
 @pytest.mark.parametrize(
-    ("field_name", "mismatched_value"),
+    "field_name",
     (
-        ("database_name", "other_database"),
-        ("database_oid", 4343),
-        ("cluster_identifier", "cluster-2"),
-        ("user_name", "other_user"),
-        ("server_address", "127.0.0.2"),
-        ("server_port", 5433),
+        "database_name",
+        "database_oid",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
     ),
 )
 def test_target_identity_predicate_rejects_every_authority_mismatch(
     field_name: str,
-    mismatched_value: object,
 ) -> None:
     receipt, target, _ = _identity_test_values()
 
     assert _target_identity_matches_receipt(target, receipt)
     assert not _target_identity_matches_receipt(
-        replace(target, **{field_name: mismatched_value}),
+        _mismatched_database_identity(target, field_name),
         receipt,
     )
 
 
 @pytest.mark.parametrize(
-    ("field_name", "mismatched_value"),
+    "field_name",
     (
-        ("database_name", "other_admin_database"),
-        ("cluster_identifier", "cluster-2"),
-        ("user_name", "other_user"),
-        ("server_address", "127.0.0.2"),
-        ("server_port", 5433),
+        "database_name",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
     ),
 )
 def test_cleanup_predicate_rejects_every_admin_authority_mismatch(
     field_name: str,
-    mismatched_value: object,
 ) -> None:
     receipt, _, admin = _identity_test_values()
 
@@ -2056,7 +2087,7 @@ def test_cleanup_predicate_rejects_every_admin_authority_mismatch(
     )
     assert not _database_drop_admitted(
         target_disposed=True,
-        admin_identity=replace(admin, **{field_name: mismatched_value}),
+        admin_identity=_mismatched_database_identity(admin, field_name),
         receipt=receipt,
         current_target_oid=receipt.oid,
     )
@@ -2672,6 +2703,10 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
 
     try:
         with admin_engine.connect() as connection:
+            identity = _database_identity(connection)
+            assert identity.database_name == "pgvector_compat"
+            assert identity.user_name == "pgvector_compat"
+            assert identity.server_port == 5432
             assert _database_oid(connection, database_name) is None
             connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
             created_oid = _database_oid(connection, database_name)
@@ -2679,7 +2714,14 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
                 raise pytest.fail.Exception(
                     "FitChef outcome test database has no positive OID receipt"
                 )
-            receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
+            receipt = _CreatedDatabaseReceipt(
+                database_name=database_name,
+                oid=created_oid,
+                cluster_identifier=identity.cluster_identifier,
+                user_name=identity.user_name,
+                server_address=identity.server_address,
+                server_port=identity.server_port,
+            )
             connection.exec_driver_sql(
                 f"CREATE ROLE {quoted_role} WITH LOGIN "
                 f"PASSWORD '{OWNER_PASSWORD}' NOSUPERUSER NOBYPASSRLS"
@@ -2839,10 +2881,16 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
         try:
             if receipt is not None and target_disposed:
                 with admin_engine.connect() as connection:
+                    cleanup_identity = _database_identity(connection)
                     current_oid = _database_oid(connection, receipt.database_name)
-                    if current_oid != receipt.oid:
+                    if not _database_drop_admitted(
+                        target_disposed=target_disposed,
+                        admin_identity=cleanup_identity,
+                        receipt=receipt,
+                        current_target_oid=current_oid,
+                    ):
                         raise AssertionError(
-                            "FitChef outcome database cleanup receipt no longer matches OID"
+                            "FitChef outcome database cleanup authority no longer matches"
                         )
                     connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")
                     if role_created:

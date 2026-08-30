@@ -8,6 +8,7 @@ import inspect as python_inspect
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
+import warnings
 
 from alembic.operations import ops
 import pytest
@@ -153,6 +154,37 @@ def test_env_wires_canonical_metadata_and_comparison_policy_in_both_modes() -> N
     assert "core.db_alembic_ownership" not in source
     assert "scripts.ci.check_alembic_autogenerate_completeness" not in source
     assert load_canonical_orm_metadata() is Base.metadata
+
+
+def test_online_schema_proof_is_scoped_only_to_autogenerate_execution() -> None:
+    source = ENV_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(ENV_PATH))
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_is_autogenerate_execution"
+    )
+    online = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "run_migrations_online"
+    )
+    helper_source = ast.get_source_segment(source, helper)
+    online_source = ast.get_source_segment(source, online)
+
+    assert helper_source is not None
+    assert 'context.get_context().opts.get("revision_context")' in helper_source
+    assert 'getattr(revision_context, "command_args", None)' in helper_source
+    assert 'command_args.get("autogenerate") is True' in helper_source
+    assert online_source is not None
+    assert online_source.index("context.configure(") < online_source.index(
+        "_is_autogenerate_execution()"
+    )
+    assert (
+        'connection.dialect.name == "postgresql" and _is_autogenerate_execution()' in online_source
+    )
+    assert online_source.count("proven_autogenerate_default_schema(") == 1
+    assert online_source.count("else nullcontext()") == 1
 
 
 def test_comparison_module_is_the_only_exact_policy_owner() -> None:
@@ -482,6 +514,31 @@ def test_raw_warning_blocks_descriptors_and_admitted_comparison(
     assert report.reason_codes == ("raw_autogenerate_warning",)
     assert report.warning_categories == ("raw:SAWarning",)
     assert calls == [False]
+
+
+def test_migration_context_configuration_warning_is_captured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def configure(connection: Connection, *, opts: dict[str, object]) -> object:
+        del connection, opts
+        warnings.warn("configuration warning", UserWarning, stacklevel=1)
+        return object()
+
+    monkeypatch.setattr(checker.MigrationContext, "configure", configure)
+    monkeypatch.setattr(
+        checker,
+        "produce_migrations",
+        lambda context, metadata: SimpleNamespace(upgrade_ops=ops.UpgradeOps([])),
+    )
+
+    root, categories = checker._produce_upgrade_ops(  # pylint: disable=protected-access
+        _fake_connection(),
+        MetaData(),
+        admitted=False,
+    )
+
+    assert root.is_empty()
+    assert categories == ("UserWarning",)
 
 
 def test_descriptor_failure_blocks_admitted_comparison(
