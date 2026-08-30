@@ -722,7 +722,12 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
     func testSwiftSourceEnumerationFailsClosedForNonDirectoryRoot() throws {
         let sourceFile = try fitChefCandidateViewURL()
 
-        XCTAssertThrowsError(try swiftSources(under: sourceFile))
+        XCTAssertThrowsError(try swiftSources(under: sourceFile)) { error in
+            guard case FitChefSupportChoiceTestError.sourceRootNotDirectory = error else {
+                XCTFail("Expected sourceRootNotDirectory error.")
+                return
+            }
+        }
     }
 
     func testFileSystemSynchronizedTargetsOwnAppAndTestSourcesSeparately() throws {
@@ -1646,6 +1651,10 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
     }
 
     private func swiftSources(under root: URL) throws -> [URL] {
+        let rootValues = try root.resourceValues(forKeys: [.isDirectoryKey])
+        guard rootValues.isDirectory == true else {
+            throw FitChefSupportChoiceTestError.sourceRootNotDirectory
+        }
         let resourceKeys: [URLResourceKey] = [.isRegularFileKey]
         var traversalError: Error?
         guard let enumerator = FileManager.default.enumerator(
@@ -1712,5 +1721,6 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
 private enum FitChefSupportChoiceTestError: Error {
     case invalidLocalizationFile(String)
     case repositoryRootNotFound
+    case sourceRootNotDirectory
     case sourceEnumerationUnavailable
 }
