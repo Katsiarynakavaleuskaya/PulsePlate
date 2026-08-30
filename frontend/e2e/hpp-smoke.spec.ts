@@ -100,15 +100,77 @@ for (const route of ['/', '/marketing'] as const) {
 
     const today = page.getByRole('radio', { name: /Today/ });
     const week = page.getByRole('radio', { name: /This week/ });
+    const todayLabel = today.locator('..');
+    const weekLabel = week.locator('..');
     const confirm = page.getByRole('button', { name: 'Confirm choice' });
+    const readOptionVisualTreatment = async (radio: Locator, label: Locator) => {
+      const labelVisual = await label.evaluate((element) => {
+        const style = window.getComputedStyle(element);
+        return {
+          borderWidth: Number.parseFloat(style.borderTopWidth),
+          boxShadow: style.boxShadow,
+          background: style.backgroundColor,
+          outlineWidth: Number.parseFloat(style.outlineWidth),
+          outlineStyle: style.outlineStyle,
+        };
+      });
+      const inputVisual = await radio.evaluate((element) => {
+        const style = window.getComputedStyle(element);
+        return {
+          outlineWidth: Number.parseFloat(style.outlineWidth),
+          outlineStyle: style.outlineStyle,
+        };
+      });
+
+      return { label: labelVisual, input: inputVisual };
+    };
+    const hasVisibleOutline = (
+      treatment: Awaited<ReturnType<typeof readOptionVisualTreatment>>,
+    ): boolean =>
+      (treatment.label.outlineWidth >= 2 && treatment.label.outlineStyle !== 'none') ||
+      (treatment.input.outlineWidth >= 2 && treatment.input.outlineStyle !== 'none');
+
+    const unselectedToday = await readOptionVisualTreatment(today, todayLabel);
+    const unselectedWeek = await readOptionVisualTreatment(week, weekLabel);
+    expect(unselectedToday.label.borderWidth).toBe(1);
+    expect(unselectedToday.label.boxShadow).toBe('none');
+    expect(unselectedToday.label.background).toBe(unselectedWeek.label.background);
 
     await expect(confirm).toBeDisabled();
     await today.focus();
     await page.keyboard.press('Space');
     await expect(today).toBeChecked();
+    await expect
+      .poll(async () => (await readOptionVisualTreatment(today, todayLabel)).label.borderWidth)
+      .toBe(2);
+    const selectedToday = await readOptionVisualTreatment(today, todayLabel);
+    expect(selectedToday.label.borderWidth).toBe(2);
+    expect(selectedToday.label.boxShadow).not.toBe('none');
+    expect(selectedToday.label.boxShadow).toContain('inset');
+    expect(selectedToday.label.background).not.toBe(unselectedToday.label.background);
+    expect(hasVisibleOutline(selectedToday)).toBe(true);
+
     await page.keyboard.press('ArrowRight');
     await expect(week).toBeFocused();
     await expect(week).toBeChecked();
+    await expect(today).not.toBeChecked();
+    await expect
+      .poll(async () => ({
+        today: (await readOptionVisualTreatment(today, todayLabel)).label.borderWidth,
+        week: (await readOptionVisualTreatment(week, weekLabel)).label.borderWidth,
+      }))
+      .toEqual({ today: 1, week: 2 });
+    const clearedToday = await readOptionVisualTreatment(today, todayLabel);
+    const selectedWeek = await readOptionVisualTreatment(week, weekLabel);
+    expect(clearedToday.label.borderWidth).toBe(1);
+    expect(clearedToday.label.boxShadow).toBe('none');
+    expect(clearedToday.label.background).toBe(unselectedToday.label.background);
+    expect(selectedWeek.label.borderWidth).toBe(2);
+    expect(selectedWeek.label.boxShadow).not.toBe('none');
+    expect(selectedWeek.label.boxShadow).toContain('inset');
+    expect(selectedWeek.label.background).not.toBe(unselectedWeek.label.background);
+    expect(hasVisibleOutline(selectedWeek)).toBe(true);
+
     await expect(confirm).toBeEnabled();
     await confirm.focus();
     await page.keyboard.press('Enter');

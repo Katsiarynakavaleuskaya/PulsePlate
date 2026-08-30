@@ -117,23 +117,42 @@ afterEach((): void => {
   vi.unstubAllGlobals();
 });
 
+type ProductionStateCaseName<State extends FitChefDemoState> =
+  State extends { status: 'idle' }
+    ? 'idle'
+    : State extends { status: infer Status extends string; choice: infer Choice extends string }
+      ? `${Status}${Capitalize<Choice>}`
+      : State extends { status: infer Status extends string }
+        ? Status
+        : never;
+
+type ProductionEventCaseName<Event extends FitChefDemoEvent> =
+  Event extends { type: 'select'; choice: infer Choice extends string }
+    ? `select${Capitalize<Choice>}`
+    : Event extends { type: infer Type extends string }
+      ? Type
+      : never;
+
+type DerivedDemoStateName = ProductionStateCaseName<FitChefDemoState>;
+type DerivedDemoEventName = ProductionEventCaseName<FitChefDemoEvent>;
+
 const demoStates = {
   idle: FITCHEF_DEMO_INITIAL_STATE,
   selectedToday: { status: 'selected', choice: 'today' },
   selectedWeek: { status: 'selected', choice: 'week' },
   revealedToday: { status: 'revealed', choice: 'today' },
   revealedWeek: { status: 'revealed', choice: 'week' },
-} satisfies Record<string, FitChefDemoState>;
+} satisfies Record<DerivedDemoStateName, FitChefDemoState>;
 
 const demoEvents = {
   selectToday: { type: 'select', choice: 'today' },
   selectWeek: { type: 'select', choice: 'week' },
   confirm: { type: 'confirm' },
   reset: { type: 'reset' },
-} satisfies Record<string, FitChefDemoEvent>;
+} satisfies Record<DerivedDemoEventName, FitChefDemoEvent>;
 
-type DemoStateName = keyof typeof demoStates;
-type DemoEventName = keyof typeof demoEvents;
+type DemoStateName = DerivedDemoStateName;
+type DemoEventName = DerivedDemoEventName;
 type ReferenceExpectation = 'same' | 'new' | 'initial';
 
 const transitionTable: ReadonlyArray<{
@@ -170,8 +189,16 @@ const transitionTable: ReadonlyArray<{
 
 describe('FitChef demo reducer', (): void => {
   it('exhaustively covers all five states by all four valid events', (): void => {
-    expect(transitionTable).toHaveLength(20);
-    expect(new Set(transitionTable.map(({ from, event }) => `${from}:${event}`)).size).toBe(20);
+    const expectedTransitionPairs = (Object.keys(demoStates) as DemoStateName[])
+      .flatMap((from) =>
+        (Object.keys(demoEvents) as DemoEventName[]).map((event) => `${from}:${event}`),
+      )
+      .sort();
+    const actualTransitionPairs = transitionTable
+      .map(({ from, event }) => `${from}:${event}`)
+      .sort();
+
+    expect(actualTransitionPairs).toEqual(expectedTransitionPairs);
 
     transitionTable.forEach(({ from, event, to, reference }) => {
       const sourceState = demoStates[from];
@@ -517,6 +544,7 @@ describe('FitChefValueDemo', (): void => {
       'friendly look',
       'choose at your pace',
       'clear words about',
+      'product-area correspondence',
     ];
 
     finiteRetiredGenericPhrases.forEach((phrase) => {
@@ -739,6 +767,26 @@ describe('PulsePlateMarketingPage', (): void => {
     expect(exactText(trust.querySelector('.ppm-header > .ppm-description'), 'trust description')).toBe(
       'Learn what the free website offers, how the FitChef preview works, and what is planned for Apple devices.',
     );
+    expect(Array.from(trust.querySelectorAll('.ppm-trust-grid .ppm-trust-card'), (card) => ({
+      title: exactText(card.querySelector('.ppm-trust-title'), 'trust card title'),
+      body: exactText(card.querySelector('.ppm-trust-copy'), 'trust card body'),
+    }))).toEqual([
+      {
+        title: 'For everyday planning, not medical advice',
+        body:
+          'PulsePlate supports everyday wellness planning. It does not diagnose, treat, or replace professional care.',
+      },
+      {
+        title: 'The prepared preview uses no personal data',
+        body:
+          'Your choice stays in this card. The example does not save it, open another area, or change a plan.',
+      },
+      {
+        title: 'The website does not run FitChef AI',
+        body:
+          'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
+      },
+    ]);
     expect(Array.from(trust.querySelectorAll('.ppm-faq-item'), (item) => ({
       question: exactText(item.querySelector('.ppm-faq-title'), 'trust FAQ question'),
       answer: exactText(item.querySelector('.ppm-faq-copy'), 'trust FAQ answer'),
@@ -780,11 +828,19 @@ describe('PulsePlateMarketingPage', (): void => {
     );
   });
 
-  it('uses only the free BMI and FitChef-preview acquisition destinations', () => {
+  it('allows only the exact current free-route and in-page acquisition destinations', () => {
     const { container } = renderMarketingPage();
-    const hrefs = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'), (link) =>
-      link.getAttribute('href'),
-    );
+    const allowedHrefs = new Set<string>([
+      '/bmi',
+      '#fitchef-demo',
+      '#trust-scope',
+      '#how-it-works',
+      '#tiers',
+      '#top',
+    ]);
+    const hrefs = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'))
+      .map((link) => link.getAttribute('href'))
+      .filter((href): href is string => href !== null);
 
     expect(screen.getByRole('link', { name: 'See how FitChef works' })).toHaveAttribute(
       'href',
@@ -798,6 +854,11 @@ describe('PulsePlateMarketingPage', (): void => {
       'href',
       '#fitchef-demo',
     );
+    expect(Array.from(new Set(hrefs)).sort()).toEqual(Array.from(allowedHrefs).sort());
+    hrefs.forEach((href) => expect(allowedHrefs.has(href)).toBe(true));
+    hrefs
+      .filter((href) => href.startsWith('#'))
+      .forEach((href) => expect(container.querySelector(href)).toBeInstanceOf(HTMLElement));
     ['/app', '/pro', '/enter-key', '/welcome-gate-v1'].forEach((forbiddenHref) => {
       expect(hrefs).not.toContain(forbiddenHref);
     });

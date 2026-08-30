@@ -17,7 +17,7 @@ const trustItems = [
   {
     title: 'The website does not run FitChef AI',
     description:
-      'The result is prepared in advance to show the simple choice-to-product-area correspondence.',
+      'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
     icon: Compass,
   },
 ];
