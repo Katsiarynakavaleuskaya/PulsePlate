@@ -7690,7 +7690,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) -> `codex/alembic-autogenerate-completeness` (current completeness PR) -> PR-TBD-FRESH-RESIDUAL-FACADE-CENSUS -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7715,16 +7715,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `8243c30e7989713cc9c2d3d77ed5dd5ec389144b`, retiring only eight Insight
     Python facade projections while preserving their canonical schema/service
     owners and every HTTP, VIP, input-guard, transparency, quota, rate-limit,
-    error-envelope, OpenAPI, and app-identity contract. The current bounded
-    child is the operator-selected canonical ORM registration prerequisite;
-    it does not retire another legacy surface. This parent stays open:
+    error-envelope, OpenAPI, and app-identity contract. PR #2349 then merged
+    canonical ORM registration at `942cc0f109d3`, and PR #2355 merged bounded
+    PostgreSQL ORM/Alembic drift reconciliation at `a157d445c98c`. The current
+    completeness child is non-runtime and does not retire another legacy
+    surface; a fresh residual facade census follows it. This parent stays open:
     telemetry-admitted versioned aliases, retained Insight HTTP aliases,
     root-alias auth/sunset, residual facade census, and final facade deletion
     remain separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
-    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
     - app/routers/api_key.py
     - app/services/scheduler_access.py
     - app/services/legacy_premium_weekly_plan.py
@@ -7773,9 +7774,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Prove Alembic autogenerate completeness against upgraded PostgreSQL
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) for the active drift-reconciliation prerequisite; final completeness carrier `PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS`
-  - Status: 🔄 In progress — prerequisite implementation is active in PR #2355; final autogenerate completeness remains Planned
-  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
+  - Target PR: current carrier `codex/alembic-autogenerate-completeness` (bind the live PR number after open); prerequisite [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355)
+  - Status: 🔄 In progress on `codex/alembic-autogenerate-completeness`; keep unchecked until the implementation PR merges
+  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) merged at `a157d445c98c3e4bea76bd95c2a8d333c99725c1`. Its canonical metadata/type/default comparison baseline is inherited here and does not close this item.
   - Reason (EN): PR #2355 reconciles the observed ORM/revision drift and wires Alembic to the canonical mapped metadata, while the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items` intentionally remain outside ORM ownership. A zero-diff completeness claim still requires their exact admission/filter policy plus independent PostgreSQL reflection proof.
   - Links:
     - `alembic/env.py`
