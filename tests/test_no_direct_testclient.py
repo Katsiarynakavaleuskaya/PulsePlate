@@ -72,6 +72,7 @@ BAD_PATTERNS: Final[tuple[str, ...]] = (
     "TestClient(cast(ASGIApp, legacy_app.app))",
     "TestClient(fastapi_app)",
     "TestClient(fastapi_app, headers=self.headers)",
+    "TestClient(fastapi_app, headers=self.headers_pro)",
     'TestClient(fastapi_app, headers={"X-API-Key": "invalid_key"})',
 )
 
