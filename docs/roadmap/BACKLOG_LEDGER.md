@@ -5014,6 +5014,40 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic contract, transport, auth, cancellation, retry, stale-response, navigation, accessibility, and nonreachability-negative tests pass together with current iOS CI and ordinary review/merge governance
 
 
+<a id="ledger-p1-ios-fitchef-coach-hub"></a>
+- [ ] P1: iOS unified FitChef Coach destination
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid coaching activation / consumer-first iOS composition)
+  - Target PR: PR-TBD (`codex/ios-fitchef-coach-hub`; replace with the exact PR number before material freeze)
+  - Status: 🚧 Implemented locally and in pre-open validation; not merged, not production-reachable, and no terminal status is claimed.
+  - Area: iOS / SwiftUI / FitChef / navigation composition / accessibility
+  - Reason (EN): The iOS client already has an admitted AI guidance flow and a Today/Week planning-direction seam, but no single consumer-facing FitChef destination. This lane creates one bounded `FitChef Coach` composition container with exactly those two implemented capabilities while keeping networking, consent, descriptors, outcomes, entitlement, planning, and execution authority inside their existing owners.
+  - Exact IN:
+    - Internal `FitChefCoachView` with ordered `aiGuidance` and `planningDirection` capability inventory, lazy injected destinations, the approved static `FitChef` asset, existing `PPCard`/tokens, and no production navigation registration
+    - Exact EN/RU/ES `fitchef.coach_hub.*` copy, including `Ask FitChef` / `Спросить FitChef` and `Where to start?` / `С чего начать?`
+    - Focused deterministic tests, one canonical iOS test-target entry, same-PR ledger tracking, the later canonical PR mapping artifact, and exact-head reference-only Open Design/Drive evidence
+  - Exact OUT:
+    - `HomeView`, `RootTabs`, `PulsePlateApp`, deep links, production tabs/routes, backend/OpenAPI, AI or planning child behavior, networking/DTOs, feature flags, entitlement, StoreKit/paywall/billing, analytics, persistence, assets, DesignSystem primitives, tokens/generated mirrors, web, and deployment
+    - Distortion Simulator, Identity Loop Mapper, mascot insight, VIP chat, week-repair, disabled cards, Coming Soon promises, or any backend-only capability without a complete iOS client vertical
+  - Links:
+    - `ios/PulsePlate/Views/FitChef/FitChefCoachView.swift`
+    - `ios/PulsePlateTests/FitChefCoachViewTests.swift`
+    - [Restricted PulsePlate Design References folder](https://drive.google.com/drive/folders/1QeLsOsfPEjpcPBxLYFwbVlJHjp1qGdCc)
+    - [PulsePlate Design Train Index](https://docs.google.com/document/d/15PFCyUWvHzWQmZ-lx3hjdSbGJprdKUGQPf_zfeIehZ0/edit)
+    - Existing Open Design project conversation `IOS-FITCHEF-HUB-1 FitChef Coach`; attach its exact reference link before material freeze
+  - DoD:
+    - Capability inventory contains exactly `aiGuidance` and `planningDirection`, preserves first-occurrence order, removes duplicates, omits missing capabilities, and never infers entitlement or availability from keys, tiers, StoreKit, HTTP status, or child output
+    - Rendering the Hub and its inventory makes no network, consent, persistence, analytics, descriptor/outcome, plan, or destination-builder call; concrete existing AI and Today/Week destinations type-check through test-only no-call composition
+    - User-facing copy contains no support/handoff/API/runtime/route terminology, no clinical authority or guaranteed-result claim, and maintains exact EN/RU/ES key parity
+    - Accessibility evidence covers header → Ask FitChef → Where to start VoiceOver order, decorative mascot hiding, full-card minimum targets, non-color affordance, Accessibility 5, compact phone, and representative iPad; binary/simulator evidence stays gitignored
+    - Focused Hub and child-boundary tests, full canonical iOS unit suite, narrow repository gates, design/token guards, actual-diff premortem, Experiment Runner oracle-only evidence, post-open role reviews, exact-head CI/review inventory, mapping/seal, strict readiness, and the mandatory wait window pass before merge
+    - PR-ready Open Design and restricted Drive packages bind the exact PR head, base, merge-base, selected product decision, synthetic simulator evidence, EN/RU/ES summary, provenance, and hashes as `REFERENCE_ONLY / NON-CANONICAL`; after merge the immutable snapshot remains unchanged and only the index gains merge status
+  - Future PRO/VIP follow-ups:
+    - Add Distortion Simulator, Identity Loop Mapper, mascot-insight, chat, or week-repair only through separate contract-first iOS vertical PRs after transport/DTO/service/view integration exists; no placeholder card is authorized by this item
+  - Rollback:
+    - Revert the whole implementation PR; no backend route, schema, DB, data, billing, entitlement, or migration repair is required. Mark an incorrect external snapshot `SUPERSEDED` and retain the previous immutable package.
+
+
 <a id="ledger-p1-fitchef-support-outcome-thin-web-transport"></a>
 - [ ] P1: FitChef support-outcome thin web transport
   - Owner: @katsiaryna_kavaleuskaya
