@@ -639,7 +639,8 @@ def _validate_ledger_dir(ledger_dir: Path, *, repo_root: Path) -> Path:
         raise OperatorLedgerError(
             "Experiment operator ledger directory must stay under artifacts/orchestration/experiments."
         ) from exc
-    return candidate
+    validated: Path = candidate
+    return validated
 
 
 def _validate_activation_evidence_dir(evidence_dir: Path, *, repo_root: Path) -> Path:
@@ -677,7 +678,8 @@ def _validate_activation_evidence_dir(evidence_dir: Path, *, repo_root: Path) ->
             "Experiment private-pilot activation evidence directory must stay under "
             "artifacts/orchestration/experiments."
         ) from exc
-    return candidate
+    validated: Path = candidate
+    return validated
 
 
 def _validate_output_path(
@@ -717,7 +719,8 @@ def _validate_output_path(
         raise OperatorLedgerError(
             "Experiment operator ledger output must stay under artifacts/orchestration/experiments."
         ) from exc
-    return candidate
+    validated: Path = candidate
+    return validated
 
 
 def _unlink_if_exists(path: Path) -> None:
