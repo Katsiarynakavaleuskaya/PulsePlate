@@ -52,6 +52,11 @@ ORCHESTRATION_AGENTS = REPO_ROOT / "docs/orchestration/AGENTS.md"
 LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 
 
+def _fake_git_which(name: str) -> str | None:
+    """Resolve only the Git executable for deterministic subprocess tests."""
+    return "/usr/bin/git" if name == "git" else None
+
+
 def _read(path: Path) -> str:
     """Read a UTF-8 markdown fixture from the repository."""
     return path.read_text(encoding="utf-8")
@@ -200,7 +205,7 @@ def test_kimi_diff_uses_exact_local_event_range_without_fetch(
             return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
         raise AssertionError(f"unexpected or mutating command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
@@ -255,7 +260,7 @@ def test_kimi_diff_event_fails_closed_without_fetch_or_fallback(
                 return Completed(returncode=1, stderr="exact diff unavailable")
         raise AssertionError(f"unexpected fetch or fallback command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
@@ -293,7 +298,7 @@ def test_kimi_diff_push_event_uses_non_mutating_local_fallback(
             return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
         raise AssertionError(f"unexpected or mutating command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
@@ -330,7 +335,7 @@ def test_kimi_diff_pull_request_rejects_non_object_event_root(
             return Completed(stdout="")
         raise AssertionError(f"unexpected Git command for malformed event: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
@@ -365,7 +370,7 @@ def test_kimi_diff_fails_closed_without_first_parent_fallback(
             return Completed(returncode=1, stderr="missing stable base")
         return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
