@@ -804,7 +804,7 @@ describe('FitChefValueDemo', (): void => {
       vip: [
         'PulsePlate VIP',
         'Your personal AI nutrition guide',
-        'FitChef brings your measurements, goals and routines into everyday action: reshaping menus when plans change and finding a practical next step when progress slows.',
+        'Imagine PulsePlate VIP with FitChef connecting your measurements, goals and routines with everyday action: adapting menus as plans change and suggesting a practical next step when progress slows.',
         'For everyday wellbeing, training, strength and muscle-building goals.',
         'Support to keep you moving forward.',
       ],

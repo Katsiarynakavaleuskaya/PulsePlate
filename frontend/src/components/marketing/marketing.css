@@ -1421,6 +1421,46 @@
     min-height: 15rem;
   }
 
+  .ppm-fitchef-daily-flow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-12);
+  }
+
+  .ppm-page .ppm-fitchef-choice-card,
+  .ppm-page .ppm-fitchef-reveal-card {
+    width: min(100%, 42rem);
+    justify-self: center;
+  }
+
+  .ppm-fitchef-reveal-card {
+    min-height: 0;
+    grid-template-rows: auto auto;
+  }
+
+  .ppm-fitchef-reveal-photo {
+    aspect-ratio: 1;
+  }
+
+  .ppm-fitchef-reveal-photo img {
+    object-fit: contain;
+  }
+
+  .ppm-fitchef-reveal-card::before {
+    top: calc(-1 * var(--spacing-10));
+    left: calc(50% - 1px);
+    width: 3px;
+    height: var(--spacing-8);
+    background: linear-gradient(180deg, rgba(51, 159, 255, 0.3), var(--pp-blue));
+  }
+
+  .ppm-fitchef-reveal-card::after {
+    top: calc(-1 * var(--spacing-5));
+    left: calc(50% - var(--spacing-2));
+    border-top: 0;
+    border-right: 3px solid var(--pp-blue);
+    border-bottom: 3px solid var(--pp-blue);
+  }
+
   .ppm-fitchef-weekly-flow {
     grid-template-columns: 1fr;
     gap: var(--spacing-6);
@@ -1528,11 +1568,6 @@
     margin-left: 50%;
   }
 
-  .ppm-fitchef-daily-flow {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--spacing-12);
-  }
-
   .ppm-page .ppm-fitchef-choice-card {
     padding: var(--spacing-5);
   }
@@ -1554,32 +1589,22 @@
     grid-template-columns: 1fr;
   }
 
-  .ppm-fitchef-reveal-card {
-    min-height: 28rem;
-  }
-
-  .ppm-fitchef-reveal-card::before {
-    top: calc(-1 * var(--spacing-10));
-    left: calc(50% - 1px);
-    width: 3px;
-    height: var(--spacing-8);
-    background: linear-gradient(180deg, rgba(51, 159, 255, 0.3), var(--pp-blue));
-  }
-
-  .ppm-fitchef-reveal-card::after {
-    top: calc(-1 * var(--spacing-5));
-    left: calc(50% - var(--spacing-2));
-    border-top: 0;
-    border-right: 3px solid var(--pp-blue);
-    border-bottom: 3px solid var(--pp-blue);
-  }
-
   .ppm-fitchef-food-output-panes {
     grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, auto);
+    align-content: start;
   }
 
   .ppm-fitchef-food-output {
-    min-height: 46rem;
+    min-height: 0;
+  }
+
+  .ppm-fitchef-food-output figure {
+    aspect-ratio: 1;
+  }
+
+  .ppm-fitchef-food-output figure img {
+    object-fit: contain;
   }
 
   .ppm-fitchef-vip-story {

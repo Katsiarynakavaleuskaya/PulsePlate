@@ -163,7 +163,7 @@ English:
   `Restaurant or chef`; `Shopping and stores`; `A food photo`;
   `One flexible plan`.
 - VIP: `PulsePlate VIP`; `Your personal AI nutrition guide`;
-  `FitChef brings your measurements, goals and routines into everyday action: reshaping menus when plans change and finding a practical next step when progress slows.`;
+  `Imagine PulsePlate VIP with FitChef connecting your measurements, goals and routines with everyday action: adapting menus as plans change and suggesting a practical next step when progress slows.`;
   `For everyday wellbeing, training, strength and muscle-building goals.`;
   `Support to keep you moving forward.`
 
@@ -184,7 +184,7 @@ Russian:
   `Ресторан или повар`; `Покупки и магазины`; `Фото блюда`;
   `Гибкий план питания`.
 - VIP: `PulsePlate VIP`; `Ваш личный ИИ-помощник по питанию`;
-  `FitChef помогает связывать ваши показатели, цели и привычки с ежедневными действиями: перестраивать меню, когда планы меняются, и находить разумный следующий шаг, если прогресс замедлился.`;
+  `Представьте PulsePlate VIP, где FitChef связывает ваши показатели, цели и привычки с повседневными действиями: адаптирует меню при изменении планов и предлагает разумный следующий шаг, если прогресс замедляется.`;
   `Для повседневного благополучия, тренировок, силы и набора мышечной массы.`;
   `Поддержка, чтобы продолжать двигаться вперёд.`
 
@@ -205,7 +205,7 @@ Spanish:
   `Ingredientes en casa`; `Restaurante o chef`; `Compras y tiendas`;
   `Una foto de la comida`; `Un plan flexible`.
 - VIP: `PulsePlate VIP`; `Tu guía personal de nutrición con IA`;
-  `FitChef reúne tus indicadores, objetivos y rutinas en acciones cotidianas: adapta los menús cuando cambian los planes y te ayuda a elegir un próximo paso sensato cuando el progreso se ralentiza.`;
+  `Imagina PulsePlate VIP con FitChef conectando tus indicadores, objetivos y rutinas con acciones cotidianas: adaptando los menús cuando cambien los planes y sugiriendo un próximo paso práctico cuando el progreso se ralentice.`;
   `Para el bienestar diario, el entrenamiento, la fuerza y los objetivos de ganancia muscular.`;
   `Apoyo para seguir avanzando.`
 

@@ -13,6 +13,7 @@ async function expectProtectedRouteOrAuthPrompt(routeHeading: Locator, authField
 const marketingViewportCases = [
   { width: 320, height: 900, dailyColumns: 1 },
   { width: 768, height: 1000, dailyColumns: 1 },
+  { width: 900, height: 1100, dailyColumns: 1 },
   { width: 1440, height: 1000, dailyColumns: 2 },
 ] as const;
 
@@ -507,6 +508,69 @@ for (const viewport of marketingViewportCases) {
     expect(layout.storyOverflows).toEqual([false, false, false, false]);
   });
 }
+
+test('FitChef planning imagery stays square and uncropped at tablet and narrow widths', async ({
+  page,
+}) => {
+  const assertSquareMedia = async (figures: Locator): Promise<void> => {
+    await expect(figures).not.toHaveCount(0);
+
+    for (let index = 0; index < (await figures.count()); index += 1) {
+      const figure = figures.nth(index);
+      const image = figure.locator('img');
+      await figure.scrollIntoViewIfNeeded();
+      await image.evaluate(async (node) => {
+        const candidate = node as HTMLImageElement;
+        if (!candidate.complete || candidate.naturalWidth === 0) {
+          await candidate.decode();
+        }
+      });
+
+      const media = await figure.evaluate((node) => {
+        const candidate = node as HTMLElement;
+        const bounds = candidate.getBoundingClientRect();
+        const imageNode = candidate.querySelector('img');
+
+        if (!(imageNode instanceof HTMLImageElement)) {
+          throw new Error('Planning figure image not found');
+        }
+
+        return {
+          aspect: bounds.width / bounds.height,
+          objectFit: window.getComputedStyle(imageNode).objectFit,
+          naturalAspect: imageNode.naturalWidth / imageNode.naturalHeight,
+        };
+      });
+
+      expect(media.aspect).toBeGreaterThanOrEqual(0.99);
+      expect(media.aspect).toBeLessThanOrEqual(1.01);
+      expect(media.objectFit).toBe('contain');
+      expect(media.naturalAspect).toBe(1);
+    }
+  };
+
+  for (const viewport of [
+    { width: 900, height: 1100 },
+    { width: 320, height: 900 },
+  ] as const) {
+    await page.setViewportSize(viewport);
+    await page.goto('/marketing');
+
+    const demo = page.getByTestId('fitchef-value-demo');
+    const dailyStory = demo.locator('[data-fitchef-story="daily"]');
+    await dailyStory.getByRole('radio', { name: /Today/ }).click();
+    await dailyStory.getByRole('button', { name: 'Confirm choice' }).click();
+    const reveal = dailyStory.getByRole('status');
+    await expectDecodedRevealImage(reveal, 'daily-plate-a-salmon-1024.webp');
+    await assertSquareMedia(reveal.locator('.ppm-fitchef-reveal-photo'));
+
+    if (viewport.width === 320) {
+      await assertSquareMedia(
+        demo.locator('[data-fitchef-story="food-context"] .ppm-fitchef-food-output figure'),
+      );
+    }
+  }
+});
 
 test('FitChef preview stays usable at 320px, text spacing, and effective 200% zoom', async ({
   page,

@@ -483,8 +483,9 @@ function VipStory(): JSX.Element {
           <p className="ppm-fitchef-vip-eyebrow">PulsePlate VIP</p>
           <h2>Your personal AI nutrition guide</h2>
           <p>
-            FitChef brings your measurements, goals and routines into everyday action: reshaping
-            menus when plans change and finding a practical next step when progress slows.
+            Imagine PulsePlate VIP with FitChef connecting your measurements, goals and routines
+            with everyday action: adapting menus as plans change and suggesting a practical next
+            step when progress slows.
           </p>
           <p className="ppm-fitchef-vip-support">
             For everyday wellbeing, training, strength and muscle-building goals.
