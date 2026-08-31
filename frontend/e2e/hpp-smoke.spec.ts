@@ -262,6 +262,10 @@ for (const route of ['/', '/marketing'] as const) {
     await expect(
       demo.getByRole('heading', { name: 'Your personal AI nutrition guide' }),
     ).toBeVisible();
+    await expect(demo.getByText('Maintain', { exact: true })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
     await expect(page.getByRole('link', { name: 'Return to the FitChef preview' })).toHaveAttribute(
       'href',
       '#fitchef-demo',
@@ -316,14 +320,25 @@ for (const route of ['/', '/marketing'] as const) {
 
     const cardImages = demo.locator('.ppm-fitchef-photo-card img');
     await expect(cardImages).toHaveCount(8);
-    expect(
-      await cardImages.evaluateAll((images) =>
-        images.map((image) => {
-          const candidate = image as HTMLImageElement;
-          return { width: candidate.naturalWidth, height: candidate.naturalHeight };
-        }),
-      ),
-    ).toEqual(Array.from({ length: 8 }, () => ({ width: 410, height: 512 })));
+    const cardImageDimensions: Array<{ width: number; height: number }> = [];
+    for (let imageIndex = 0; imageIndex < (await cardImages.count()); imageIndex += 1) {
+      const dimensions = await cardImages.nth(imageIndex).evaluate(
+        async (node: Element): Promise<{ width: number; height: number }> => {
+          if (!(node instanceof HTMLImageElement)) {
+            throw new Error('FitChef card asset is not an image');
+          }
+          await node.decode();
+          return { width: node.naturalWidth, height: node.naturalHeight };
+        },
+      );
+      cardImageDimensions.push(dimensions);
+    }
+    expect(cardImageDimensions).toEqual(
+      Array.from({ length: 8 }, (): { width: number; height: number } => ({
+        width: 410,
+        height: 512,
+      })),
+    );
 
     const foodStory = demo.locator('[data-fitchef-story="food-context"]');
     await expect(foodStory.getByRole('img', { name: 'Daily Plate example' })).toBeVisible();

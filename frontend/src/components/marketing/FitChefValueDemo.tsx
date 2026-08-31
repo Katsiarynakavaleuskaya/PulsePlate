@@ -211,7 +211,10 @@ function GoalSpectrum(): JSX.Element {
         <StatusPill className="ppm-fitchef-goal-state ppm-fitchef-goal-state--reduce">
           Reduce
         </StatusPill>
-        <StatusPill className="ppm-fitchef-goal-state ppm-fitchef-goal-state--maintain">
+        <StatusPill
+          aria-current="true"
+          className="ppm-fitchef-goal-state ppm-fitchef-goal-state--maintain"
+        >
           Maintain
         </StatusPill>
         <StatusPill className="ppm-fitchef-goal-state ppm-fitchef-goal-state--gain">

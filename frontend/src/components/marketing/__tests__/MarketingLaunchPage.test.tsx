@@ -140,6 +140,8 @@ const promotedAssetContract = [
   },
 ] as const;
 
+type PromotedAssetContractEntry = (typeof promotedAssetContract)[number];
+
 const idleAssetMarkerMultiset = [
   'activity-palette/endurance.webp',
   'activity-palette/strength-power.webp',
@@ -824,6 +826,13 @@ describe('FitChefValueDemo', (): void => {
       ]);
     });
 
+    expect(within(root).getByText('Maintain', { exact: true })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(within(root).getByText('Reduce', { exact: true })).not.toHaveAttribute('aria-current');
+    expect(within(root).getByText('Gain', { exact: true })).not.toHaveAttribute('aria-current');
+
     const storyWithExtraCopy = requireStory('weekly').cloneNode(true) as HTMLElement;
     const unapprovedCopy = document.createElement('p');
     unapprovedCopy.textContent = 'Internal pipeline state';
@@ -992,16 +1001,21 @@ describe('FitChefValueDemo', (): void => {
     });
 
     const runtimeBytes = promotedAssetContract.reduce(
-      (total, asset) => total + asset.runtimeBytes,
+      (total: number, asset: PromotedAssetContractEntry): number =>
+        total + asset.runtimeBytes,
       0,
     );
     const cardBytes = promotedAssetContract
       .filter(
-        ({ relativePath }) =>
-          relativePath.startsWith('activity-palette/') ||
-          relativePath.startsWith('food-context/'),
+        (asset: PromotedAssetContractEntry): boolean =>
+          asset.relativePath.startsWith('activity-palette/') ||
+          asset.relativePath.startsWith('food-context/'),
       )
-      .reduce((total, asset) => total + asset.runtimeBytes, 0);
+      .reduce(
+        (total: number, asset: PromotedAssetContractEntry): number =>
+          total + asset.runtimeBytes,
+        0,
+      );
 
     expect(runtimeBytes).toBe(1906308);
     expect(cardBytes).toBe(583578);
