@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+from functools import cache
 import hashlib
 import json
 from fnmatch import fnmatch
+import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, NoReturn, Optional
 
 import pytest
 from packaging.requirements import InvalidRequirement
@@ -88,6 +90,7 @@ CRYPTOGRAPHY_F_CUTOFF = {
     "GHSA-g6cj-pr64-35w5": ">=44.0.0,<50.0.0",
     "GHSA-jwv3-5hgf-82ww": ">=0,<49.0.0",
 }
+LOWERCASE_GIT_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
@@ -682,6 +685,7 @@ def _git_command(arguments: list[str]) -> str:
     git = shutil.which("git")
     if git is None:
         pytest.fail("dependency-remediation admission requires an available git executable")
+    assert git is not None
     result = subprocess.run(
         [git, *arguments],
         cwd=REPO_ROOT,
@@ -694,7 +698,60 @@ def _git_command(arguments: list[str]) -> str:
             f"dependency-remediation admission git command failed: {' '.join(arguments)}: "
             f"{result.stderr.strip()}"
         )
-    return result.stdout
+    stdout = result.stdout
+    if not isinstance(stdout, str):
+        pytest.fail("dependency-remediation admission git command returned non-text output")
+    return stdout
+
+
+@cache
+def _immutable_evidence_head() -> str:
+    """Resolve one repository-addressable commit for historical Git evidence."""
+
+    github_actions = os.getenv("CI") == "true" and os.getenv("GITHUB_ACTIONS") == "true"
+    if github_actions:
+        github_sha = os.getenv("GITHUB_SHA")
+        if github_sha is None or LOWERCASE_GIT_COMMIT_RE.fullmatch(github_sha) is None:
+            pytest.fail(
+                "dependency-remediation admission requires an exact lowercase 40-hex "
+                "GITHUB_SHA in GitHub Actions"
+            )
+        assert github_sha is not None
+        try:
+            resolved = _git_command(["rev-parse", "--verify", f"{github_sha}^{{commit}}"]).strip()
+        except pytest.fail.Exception:
+            pytest.fail(
+                "dependency-remediation admission GITHUB_SHA is not a "
+                "repository-addressable commit"
+            )
+        if resolved != github_sha:
+            pytest.fail(
+                "dependency-remediation admission GITHUB_SHA did not resolve to its exact commit"
+            )
+        return github_sha
+
+    try:
+        resolved = _git_command(["rev-parse", "--verify", "HEAD^{commit}"]).strip()
+    except pytest.fail.Exception:
+        pytest.fail("dependency-remediation admission could not resolve local HEAD")
+    if LOWERCASE_GIT_COMMIT_RE.fullmatch(resolved) is None:
+        pytest.fail(
+            "dependency-remediation admission local HEAD must resolve to a lowercase 40-hex commit"
+        )
+    return resolved
+
+
+def _assert_remediation_base_is_ancestor() -> None:
+    """Require the frozen remediation base to reach the immutable evidence head."""
+
+    _git_command(
+        [
+            "merge-base",
+            "--is-ancestor",
+            CRYPTOGRAPHY_REMEDIATION_BASE,
+            _immutable_evidence_head(),
+        ]
+    )
 
 
 def _snapshot_introduction_revision() -> str:
@@ -707,7 +764,7 @@ def _snapshot_introduction_revision() -> str:
                 "log",
                 f"-S{SNAPSHOT_START}",
                 "--format=%H",
-                f"{CRYPTOGRAPHY_REMEDIATION_BASE}..HEAD",
+                f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{_immutable_evidence_head()}",
                 "--",
                 owner_path,
             ]
@@ -928,7 +985,11 @@ def _immutable_replay_witness_evidence() -> tuple[str, str, dict[str, str]]:
         ["rev-list", "--parents", "-n", "1", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS]
     ).strip()
     merge_base = _git_command(
-        ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS, "HEAD"]
+        [
+            "merge-base",
+            CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS,
+            _immutable_evidence_head(),
+        ]
     ).strip()
     replay_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS)
     return parent_record, merge_base, replay_texts
@@ -968,7 +1029,7 @@ def _assert_immutable_replay_witness(
     ], "immutable replay witness must have the exact remediation base as its sole parent"
     assert (
         merge_base == CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS
-    ), "immutable replay witness must remain an ancestor of HEAD"
+    ), "immutable replay witness must remain an ancestor of the immutable evidence head"
 
     expected_classes = {
         **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
@@ -1413,9 +1474,161 @@ def test_dependency_security_guard_enforces_live_lock_carrier_class(
             test_dependency_security_guard_enforces_min_versions(lock_surface)
 
 
+def test_immutable_evidence_head_selects_valid_actions_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github_sha = "a" * 40
+    calls: list[list[str]] = []
+
+    def resolved_git(arguments: list[str]) -> str:
+        calls.append(arguments)
+        return f"{github_sha}\n"
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    monkeypatch.setitem(globals(), "_git_command", resolved_git)
+    _immutable_evidence_head.cache_clear()
+    try:
+        assert _immutable_evidence_head() == github_sha
+        assert _immutable_evidence_head() == github_sha
+        assert calls == [["rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
+    finally:
+        _immutable_evidence_head.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "github_sha",
+    (None, "not-a-sha", "A" * 40),
+    ids=("missing", "malformed", "uppercase"),
+)
+def test_immutable_evidence_head_rejects_invalid_actions_sha_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    github_sha: str | None,
+) -> None:
+    calls: list[list[str]] = []
+
+    def unexpected_git(arguments: list[str]) -> str:
+        calls.append(arguments)
+        return ""
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    if github_sha is None:
+        monkeypatch.delenv("GITHUB_SHA", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_SHA", github_sha)
+    monkeypatch.setitem(globals(), "_git_command", unexpected_git)
+    _immutable_evidence_head.cache_clear()
+    try:
+        with pytest.raises(pytest.fail.Exception, match="exact lowercase 40-hex GITHUB_SHA"):
+            _immutable_evidence_head()
+        assert calls == []
+    finally:
+        _immutable_evidence_head.cache_clear()
+
+
+def test_immutable_evidence_head_rejects_unresolvable_actions_sha_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    github_sha = "b" * 40
+    calls: list[list[str]] = []
+
+    def unresolved_git(arguments: list[str]) -> NoReturn:
+        calls.append(arguments)
+        pytest.fail("synthetic unresolvable commit")
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    monkeypatch.setitem(globals(), "_git_command", unresolved_git)
+    _immutable_evidence_head.cache_clear()
+    try:
+        with pytest.raises(pytest.fail.Exception, match="not a repository-addressable commit"):
+            _immutable_evidence_head()
+        assert calls == [["rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
+        assert all("HEAD" not in argument for arguments in calls for argument in arguments)
+    finally:
+        _immutable_evidence_head.cache_clear()
+
+
+def test_immutable_evidence_head_resolves_local_head_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_sha = "c" * 40
+    calls: list[list[str]] = []
+
+    def resolved_git(arguments: list[str]) -> str:
+        calls.append(arguments)
+        return f"{local_sha}\n"
+
+    monkeypatch.setenv("CI", "false")
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", "A" * 40)
+    monkeypatch.setitem(globals(), "_git_command", resolved_git)
+    _immutable_evidence_head.cache_clear()
+    try:
+        assert _immutable_evidence_head() == local_sha
+        assert _immutable_evidence_head() == local_sha
+        assert calls == [["rev-parse", "--verify", "HEAD^{commit}"]]
+    finally:
+        _immutable_evidence_head.cache_clear()
+
+
+def test_historical_git_arguments_use_explicit_immutable_evidence_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence_head = "d" * 40
+    snapshot_revision = "e" * 40
+    calls: list[list[str]] = []
+
+    def evidence_git(arguments: list[str]) -> str:
+        calls.append(arguments)
+        if arguments[0] == "log":
+            return f"{snapshot_revision}\n"
+        if arguments[0] == "rev-list":
+            return (
+                f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS} " f"{CRYPTOGRAPHY_REMEDIATION_BASE}\n"
+            )
+        if arguments[:2] == ["merge-base", "--is-ancestor"]:
+            return ""
+        if arguments[0] == "merge-base":
+            return f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS}\n"
+        raise AssertionError(f"unexpected historical Git command: {arguments}")
+
+    monkeypatch.setitem(globals(), "_immutable_evidence_head", lambda: evidence_head)
+    monkeypatch.setitem(globals(), "_git_command", evidence_git)
+    monkeypatch.setitem(globals(), "_discover_cryptography_surfaces", lambda revision: {})
+
+    assert _snapshot_introduction_revision() == snapshot_revision
+    _immutable_replay_witness_evidence()
+    _assert_remediation_base_is_ancestor()
+
+    assert [
+        "log",
+        f"-S{SNAPSHOT_START}",
+        "--format=%H",
+        f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{evidence_head}",
+        "--",
+        ADMISSION_DOC_PATH.relative_to(REPO_ROOT).as_posix(),
+    ] in calls
+    assert ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS, evidence_head] in calls
+    assert [
+        "merge-base",
+        "--is-ancestor",
+        CRYPTOGRAPHY_REMEDIATION_BASE,
+        evidence_head,
+    ] in calls
+    assert all(
+        argument != "HEAD" and not argument.endswith("..HEAD")
+        for arguments in calls
+        for argument in arguments
+    )
+
+
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
     """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
-    _git_command(["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, "HEAD"])
+    _assert_remediation_base_is_ancestor()
     snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
     _assert_cryptography_remediation_admission(
         base_occurrences=base_occurrences,
@@ -1578,7 +1791,7 @@ def test_cryptography_50_admission_rejects_carrier_semantics_mismatch(
     ("failure_mode", "expected_message"),
     (
         ("parent", "exact remediation base as its sole parent"),
-        ("reachability", "must remain an ancestor of HEAD"),
+        ("reachability", "must remain an ancestor of the immutable evidence head"),
         ("transition", "unrelated semantic transition"),
         ("lock_bytes", "replay C_R lock bytes differ from frozen S_head"),
     ),
