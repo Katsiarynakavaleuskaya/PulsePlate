@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-from functools import cache
 import hashlib
 import json
 from fnmatch import fnmatch
@@ -13,7 +12,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Iterable, NoReturn, Optional
+from typing import Iterable, Optional
 
 import pytest
 from packaging.requirements import InvalidRequirement
@@ -51,6 +50,30 @@ SNAPSHOT_ALLOWLIST_LINE = "<!-- pragma: allowlist nextline secret -->"
 SNAPSHOT_KIND = "dependency-remediation-admission-v1-evidence"
 SNAPSHOT_CUTOFF = "2026-08-04T10:18:11Z"
 SNAPSHOT_TARGET = "50.0.0"
+GIT_EVIDENCE_ACTIONS_MODE_FAILURE = (
+    "dependency-remediation Git evidence: GITHUB_ACTIONS must be absent locally or exactly "
+    "'true' in GitHub Actions"
+)
+GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE = (
+    "dependency-remediation Git evidence: GitHub Actions requires canonical lowercase full "
+    "GITHUB_SHA"
+)
+GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE = (
+    "dependency-remediation Git evidence: GITHUB_SHA must resolve exactly to a commit in the "
+    "current repository"
+)
+GIT_EVIDENCE_CHECKOUT_FAILURE = (
+    "dependency-remediation Git evidence: checked-out HEAD must resolve canonically and equal "
+    "GITHUB_SHA"
+)
+GIT_EVIDENCE_LOCAL_HEAD_FAILURE = (
+    "dependency-remediation Git evidence: local HEAD must resolve exactly to a lowercase full "
+    "commit"
+)
+GIT_EVIDENCE_BASE_ANCESTRY_FAILURE = (
+    "dependency-remediation Git evidence: remediation base must remain an ancestor of the frozen "
+    "evidence head"
+)
 
 REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements.in",
@@ -90,7 +113,6 @@ CRYPTOGRAPHY_F_CUTOFF = {
     "GHSA-g6cj-pr64-35w5": ">=44.0.0,<50.0.0",
     "GHSA-jwv3-5hgf-82ww": ">=0,<49.0.0",
 }
-LOWERCASE_GIT_COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
@@ -680,81 +702,106 @@ def _packages_present_in_file(path: Path) -> set[str]:
     return packages
 
 
-def _git_command(arguments: list[str]) -> str:
+def _git_subprocess_environment() -> dict[str, str]:
+    """Return an isolated Git environment without mutating the process environment."""
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
+    )
+    return environment
+
+
+def _git_command(arguments: list[str], *, failure_message: str | None = None) -> str:
     """Run git through its resolved absolute executable for finite admission evidence."""
     git = shutil.which("git")
     if git is None:
-        pytest.fail("dependency-remediation admission requires an available git executable")
-    assert git is not None
+        if failure_message is not None:
+            pytest.fail(failure_message)
+        pytest.fail("dependency-remediation Git evidence requires an available git executable")
     result = subprocess.run(
         [git, *arguments],
         cwd=REPO_ROOT,
+        env=_git_subprocess_environment(),
         text=True,
         capture_output=True,
         check=False,
     )
     if result.returncode:
+        if failure_message is not None:
+            pytest.fail(failure_message)
         pytest.fail(
-            f"dependency-remediation admission git command failed: {' '.join(arguments)}: "
+            f"dependency-remediation Git evidence command failed: {' '.join(arguments)}: "
             f"{result.stderr.strip()}"
         )
-    stdout = result.stdout
-    if not isinstance(stdout, str):
-        pytest.fail("dependency-remediation admission git command returned non-text output")
-    return stdout
+    return result.stdout
 
 
-@cache
-def _immutable_evidence_head() -> str:
-    """Resolve one repository-addressable commit for historical Git evidence."""
+def _is_lowercase_full_git_sha(value: object) -> bool:
+    """Return whether value is the canonical full commit spelling accepted here."""
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None
 
-    github_actions = os.getenv("CI") == "true" and os.getenv("GITHUB_ACTIONS") == "true"
-    if github_actions:
-        github_sha = os.getenv("GITHUB_SHA")
-        if github_sha is None or LOWERCASE_GIT_COMMIT_RE.fullmatch(github_sha) is None:
-            pytest.fail(
-                "dependency-remediation admission requires an exact lowercase 40-hex "
-                "GITHUB_SHA in GitHub Actions"
-            )
-        assert github_sha is not None
-        try:
-            resolved = _git_command(["rev-parse", "--verify", f"{github_sha}^{{commit}}"]).strip()
-        except pytest.fail.Exception:
-            pytest.fail(
-                "dependency-remediation admission GITHUB_SHA is not a "
-                "repository-addressable commit"
-            )
-        if resolved != github_sha:
-            pytest.fail(
-                "dependency-remediation admission GITHUB_SHA did not resolve to its exact commit"
-            )
-        return github_sha
 
-    try:
-        resolved = _git_command(["rev-parse", "--verify", "HEAD^{commit}"]).strip()
-    except pytest.fail.Exception:
-        pytest.fail("dependency-remediation admission could not resolve local HEAD")
-    if LOWERCASE_GIT_COMMIT_RE.fullmatch(resolved) is None:
-        pytest.fail(
-            "dependency-remediation admission local HEAD must resolve to a lowercase 40-hex commit"
+def _resolve_dependency_evidence_head() -> str:
+    """Resolve one immutable full commit for every head-dependent Git witness query."""
+    if "GITHUB_ACTIONS" not in os.environ:
+        resolved_head_output = _git_command(
+            ["rev-parse", "--verify", "HEAD^{commit}"],
+            failure_message=GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
         )
-    return resolved
+        resolved_head = resolved_head_output.removesuffix("\n")
+        if resolved_head_output != f"{resolved_head}\n":
+            pytest.fail(GIT_EVIDENCE_LOCAL_HEAD_FAILURE)
+        if not _is_lowercase_full_git_sha(resolved_head):
+            pytest.fail(GIT_EVIDENCE_LOCAL_HEAD_FAILURE)
+        return resolved_head
+
+    if os.environ["GITHUB_ACTIONS"] != "true":
+        pytest.fail(GIT_EVIDENCE_ACTIONS_MODE_FAILURE)
+    if "GITHUB_SHA" not in os.environ:
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE)
+
+    github_sha = os.environ["GITHUB_SHA"]
+    if not _is_lowercase_full_git_sha(github_sha):
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE)
+    resolved_github_sha_output = _git_command(
+        ["rev-parse", "--verify", f"{github_sha}^{{commit}}"],
+        failure_message=GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
+    )
+    if resolved_github_sha_output != f"{github_sha}\n":
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE)
+
+    resolved_head_output = _git_command(
+        ["rev-parse", "--verify", "HEAD^{commit}"],
+        failure_message=GIT_EVIDENCE_CHECKOUT_FAILURE,
+    )
+    resolved_head = resolved_head_output.removesuffix("\n")
+    if resolved_head_output != f"{resolved_head}\n":
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
+    if not _is_lowercase_full_git_sha(resolved_head):
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
+    if resolved_head != github_sha:
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
+    return github_sha
 
 
-def _assert_remediation_base_is_ancestor() -> None:
-    """Require the frozen remediation base to reach the immutable evidence head."""
-
+def _assert_remediation_base_is_ancestor(evidence_head: str) -> None:
+    """Require the immutable remediation base to remain below the frozen evidence head."""
     _git_command(
         [
             "merge-base",
             "--is-ancestor",
             CRYPTOGRAPHY_REMEDIATION_BASE,
-            _immutable_evidence_head(),
-        ]
+            evidence_head,
+        ],
+        failure_message=GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
     )
 
 
-def _snapshot_introduction_revision() -> str:
+def _snapshot_introduction_revision(evidence_head: str) -> str:
     """Locate the unique reachable commit that introduced the owner snapshot marker."""
     owner_path = ADMISSION_DOC_PATH.relative_to(REPO_ROOT).as_posix()
     revisions = [
@@ -764,7 +811,7 @@ def _snapshot_introduction_revision() -> str:
                 "log",
                 f"-S{SNAPSHOT_START}",
                 "--format=%H",
-                f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{_immutable_evidence_head()}",
+                f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{evidence_head}",
                 "--",
                 owner_path,
             ]
@@ -969,8 +1016,10 @@ def _load_admission_snapshot(document: str) -> dict:
     return snapshot
 
 
-def _historical_snapshot_evidence() -> tuple[dict, dict[str, str], dict[str, str]]:
-    snapshot_revision = _snapshot_introduction_revision()
+def _historical_snapshot_evidence(
+    evidence_head: str,
+) -> tuple[dict, dict[str, str], dict[str, str]]:
+    snapshot_revision = _snapshot_introduction_revision(evidence_head)
     owner_path = ADMISSION_DOC_PATH.relative_to(REPO_ROOT).as_posix()
     snapshot_document = _git_command(["show", f"{snapshot_revision}:{owner_path}"])
     snapshot = _load_admission_snapshot(snapshot_document)
@@ -979,17 +1028,13 @@ def _historical_snapshot_evidence() -> tuple[dict, dict[str, str], dict[str, str
     return snapshot, base_texts, head_texts
 
 
-def _immutable_replay_witness_evidence() -> tuple[str, str, dict[str, str]]:
+def _immutable_replay_witness_evidence(evidence_head: str) -> tuple[str, str, dict[str, str]]:
     """Open the immutable replay commit and its current-head reachability proof."""
     parent_record = _git_command(
         ["rev-list", "--parents", "-n", "1", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS]
     ).strip()
     merge_base = _git_command(
-        [
-            "merge-base",
-            CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS,
-            _immutable_evidence_head(),
-        ]
+        ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS, evidence_head]
     ).strip()
     replay_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS)
     return parent_record, merge_base, replay_texts
@@ -1029,7 +1074,7 @@ def _assert_immutable_replay_witness(
     ], "immutable replay witness must have the exact remediation base as its sole parent"
     assert (
         merge_base == CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS
-    ), "immutable replay witness must remain an ancestor of the immutable evidence head"
+    ), "immutable replay witness must remain an ancestor of HEAD"
 
     expected_classes = {
         **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
@@ -1108,14 +1153,14 @@ def _assert_snapshot_receipts(snapshot: dict, head_texts: dict[str, str]) -> Non
             assert file_hash == record["file_sha256"], f"{name}: compiled replay receipt mismatch"
 
 
-def _historical_admission_inputs() -> tuple[
+def _historical_admission_inputs(evidence_head: str) -> tuple[
     dict,
     dict[str, Version],
     dict[str, Version],
     dict[str, str],
 ]:
     """Build immutable admission inputs without reading live requirement surfaces."""
-    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence()
+    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence(evidence_head)
     snapshot = _load_admission_snapshot(ADMISSION_DOC_PATH.read_text(encoding="utf-8"))
     assert (
         snapshot == historical_snapshot
@@ -1126,7 +1171,7 @@ def _historical_admission_inputs() -> tuple[
     assert base_surfaces | head_surfaces == declared_surfaces, "S_base/S_head union drifted"
     assert not base_surfaces ^ head_surfaces, "S_base/S_head topology deltas are forbidden"
     _assert_snapshot_receipts(snapshot, head_texts)
-    parent_record, merge_base, replay_texts = _immutable_replay_witness_evidence()
+    parent_record, merge_base, replay_texts = _immutable_replay_witness_evidence(evidence_head)
     _assert_immutable_replay_witness(
         parent_record=parent_record,
         merge_base=merge_base,
@@ -1394,6 +1439,512 @@ def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
         test_dependency_security_guard_enforces_min_versions(source_surface)
 
 
+def test_dependency_git_command_isolates_git_environment_and_uses_absolute_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sole subprocess boundary removes ambient Git controls without global mutation."""
+    hostile_git_environment = {
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": "/tmp/hostile-alternates",
+        "GIT_CONFIG_GLOBAL": "/tmp/hostile-global-config",
+        "GIT_CONFIG_NOSYSTEM": "0",
+        "GIT_DIR": "/tmp/hostile-git-dir",
+        "GIT_NO_REPLACE_OBJECTS": "0",
+        "GIT_OBJECT_DIRECTORY": "/tmp/hostile-objects",
+        "GIT_REPLACE_REF_BASE": "refs/replace/hostile",
+        "GIT_SYNTHETIC_CONTROL": "hostile",
+    }
+    for key, value in hostile_git_environment.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("git_lowercase_control", "preserved")
+    process_environment = dict(os.environ)
+    observed: dict[str, object] = {}
+
+    def fake_which(command: str) -> str:
+        observed["which"] = command
+        return "/usr/bin/git"
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed["command"] = command
+        observed["kwargs"] = kwargs
+        return subprocess.CompletedProcess(command, 0, stdout="evidence\n", stderr="")
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert _git_command(["status", "--short"]) == "evidence\n"
+
+    expected_environment = {
+        key: value for key, value in process_environment.items() if not key.startswith("GIT_")
+    }
+    expected_environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
+    )
+    assert observed["which"] == "git"
+    assert observed["command"] == ["/usr/bin/git", "status", "--short"]
+    assert observed["kwargs"] == {
+        "cwd": REPO_ROOT,
+        "env": expected_environment,
+        "text": True,
+        "capture_output": True,
+        "check": False,
+    }
+    assert all(
+        key not in expected_environment
+        for key in hostile_git_environment
+        if key
+        not in {
+            "GIT_CONFIG_NOSYSTEM",
+            "GIT_CONFIG_GLOBAL",
+            "GIT_NO_REPLACE_OBJECTS",
+        }
+    )
+    assert expected_environment["git_lowercase_control"] == "preserved"
+    assert dict(os.environ) == process_environment
+
+
+def test_dependency_git_authority_diagnostics_are_distinct_and_fixed() -> None:
+    assert (
+        GIT_EVIDENCE_ACTIONS_MODE_FAILURE,
+        GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE,
+        GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
+        GIT_EVIDENCE_CHECKOUT_FAILURE,
+        GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
+        GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
+    ) == (
+        "dependency-remediation Git evidence: GITHUB_ACTIONS must be absent locally or exactly "
+        "'true' in GitHub Actions",
+        "dependency-remediation Git evidence: GitHub Actions requires canonical lowercase full "
+        "GITHUB_SHA",
+        "dependency-remediation Git evidence: GITHUB_SHA must resolve exactly to a commit in the "
+        "current repository",
+        "dependency-remediation Git evidence: checked-out HEAD must resolve canonically and equal "
+        "GITHUB_SHA",
+        "dependency-remediation Git evidence: local HEAD must resolve exactly to a lowercase full "
+        "commit",
+        "dependency-remediation Git evidence: remediation base must remain an ancestor of the "
+        "frozen evidence head",
+    )
+    assert (
+        len(
+            {
+                GIT_EVIDENCE_ACTIONS_MODE_FAILURE,
+                GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE,
+                GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
+                GIT_EVIDENCE_CHECKOUT_FAILURE,
+                GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
+                GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
+            }
+        )
+        == 6
+    )
+
+
+@pytest.mark.parametrize(
+    "github_actions",
+    ("", "TRUE", "True", "1", " true", "true ", "true\n"),
+    ids=("empty", "upper", "title", "one", "leading-space", "trailing-space", "newline"),
+)
+def test_dependency_evidence_head_rejects_noncanonical_github_actions(
+    monkeypatch: pytest.MonkeyPatch,
+    github_actions: str,
+) -> None:
+    """Presence selects CI mode, where only the byte-exact value true is accepted."""
+    monkeypatch.setenv("GITHUB_ACTIONS", github_actions)
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+
+    def unexpected_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        raise AssertionError(f"unexpected Git call: {arguments!r}, {failure_message!r}")
+
+    monkeypatch.setitem(
+        _resolve_dependency_evidence_head.__globals__, "_git_command", unexpected_git
+    )
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_ACTIONS_MODE_FAILURE
+    assert repr(github_actions) not in message
+
+
+@pytest.mark.parametrize(
+    "github_sha",
+    (
+        None,
+        "a" * 39,
+        "A" * 40,
+        f" {'a' * 40}",
+        f"{'a' * 40} ",
+        f"{'a' * 40}\n",
+        f"{'a' * 40}\n{'b' * 40}",
+    ),
+    ids=(
+        "missing",
+        "short",
+        "uppercase",
+        "leading-whitespace",
+        "trailing-whitespace",
+        "newline",
+        "multiline",
+    ),
+)
+def test_dependency_evidence_head_rejects_noncanonical_github_sha_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    github_sha: str | None,
+) -> None:
+    """CI evidence never trims, case-folds, echoes, or falls back from an invalid SHA."""
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    if github_sha is None:
+        monkeypatch.delenv("GITHUB_SHA", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_SHA", github_sha)
+
+    def unexpected_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        raise AssertionError(f"unexpected Git call: {arguments!r}, {failure_message!r}")
+
+    monkeypatch.setitem(
+        _resolve_dependency_evidence_head.__globals__, "_git_command", unexpected_git
+    )
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE
+    assert repr(github_sha) not in message
+
+
+@pytest.mark.parametrize(
+    "resolved_output",
+    (
+        "",
+        "a" * 40,
+        f"{'A' * 40}\n",
+        f"{'a' * 40} \n",
+        f"{'a' * 40}\n{'b' * 40}\n",
+    ),
+    ids=("empty", "missing-newline", "uppercase", "whitespace", "multiline"),
+)
+def test_dependency_evidence_head_rejects_noncanonical_local_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    resolved_output: str,
+) -> None:
+    """Local resolution accepts only one canonical lowercase full SHA line."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+        return resolved_output
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+    assert repr(resolved_output) not in message
+    assert calls == [("rev-parse", "--verify", "HEAD^{commit}")]
+
+
+@pytest.mark.parametrize(
+    "git_path",
+    (None, "/usr/bin/git"),
+    ids=("missing-git-binary", "rev-parse-failure"),
+)
+def test_dependency_evidence_head_rejects_unresolvable_local_head_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    git_path: str | None,
+) -> None:
+    """A local Git failure stays within the local-HEAD diagnostic boundary."""
+    orphan_sha = f"hostile-orphan\n{'b' * 40}"
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv("GITHUB_SHA", orphan_sha)
+    monkeypatch.setattr(shutil, "which", lambda _command: git_path)
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if git_path is None:
+            raise AssertionError(f"unexpected subprocess call: {command!r}")
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 128, stdout="", stderr="hostile-local-error")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+    assert orphan_sha not in message
+    assert "hostile-local-error" not in message
+    expected_commands = (
+        [] if git_path is None else [[git_path, "rev-parse", "--verify", "HEAD^{commit}"]]
+    )
+    assert commands == expected_commands
+
+
+def test_dependency_evidence_head_local_mode_ignores_orphan_github_sha_and_resolves_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An orphan GITHUB_SHA has no authority when GITHUB_ACTIONS is absent."""
+    frozen_head = "a" * 40
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv("GITHUB_SHA", f"orphan\n{'b' * 40}")
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+        return f"{frozen_head}\n"
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+
+    assert _resolve_dependency_evidence_head() == frozen_head
+    assert calls == [("rev-parse", "--verify", "HEAD^{commit}")]
+
+
+def test_dependency_evidence_head_rejects_unresolvable_ci_sha_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unresolved canonical CI SHA fails at its first and only attempted resolution."""
+    github_sha = "a" * 40
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    monkeypatch.setattr(shutil, "which", lambda _command: "/usr/bin/git")
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 128, stdout="", stderr="unresolvable")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+    assert github_sha not in message
+    assert "unresolvable" not in message
+    assert commands == [["/usr/bin/git", "rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
+
+
+def test_dependency_evidence_head_rejects_ci_sha_resolution_mismatch_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A canonical input resolving to another commit never falls back to checkout HEAD."""
+    github_sha = "a" * 40
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        assert failure_message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+        return f"{'b' * 40}\n"
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+    assert github_sha not in message
+    assert "b" * 40 not in message
+    assert calls == [("rev-parse", "--verify", f"{github_sha}^{{commit}}")]
+
+
+@pytest.mark.parametrize(
+    "checkout_output",
+    (
+        None,
+        f"{'A' * 40}\n",
+        f"{'a' * 40}\n{'b' * 40}\n",
+        f"{'b' * 40}\n",
+    ),
+    ids=("command-failure", "uppercase-output", "multiline-output", "commit-mismatch"),
+)
+def test_dependency_evidence_head_rejects_checkout_mismatch_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    checkout_output: str | None,
+) -> None:
+    """CI evidence binds both the event SHA object and the independently resolved checkout."""
+    github_sha = "a" * 40
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        expected_failure = (
+            GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+            if arguments[-1] == f"{github_sha}^{{commit}}"
+            else GIT_EVIDENCE_CHECKOUT_FAILURE
+        )
+        assert failure_message == expected_failure
+        if arguments[-1] == f"{github_sha}^{{commit}}":
+            return f"{github_sha}\n"
+        if checkout_output is None:
+            pytest.fail(failure_message)
+        return checkout_output
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_CHECKOUT_FAILURE
+    assert github_sha not in message
+    assert repr(checkout_output) not in message
+    assert calls == [
+        ("rev-parse", "--verify", f"{github_sha}^{{commit}}"),
+        ("rev-parse", "--verify", "HEAD^{commit}"),
+    ]
+
+
+def test_dependency_evidence_base_ancestry_failure_is_fixed_and_non_echoing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed base relation does not expose the selected graph objects."""
+    frozen_head = "a" * 40
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        assert failure_message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
+        pytest.fail(failure_message)
+
+    monkeypatch.setitem(_assert_remediation_base_is_ancestor.__globals__, "_git_command", fake_git)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _assert_remediation_base_is_ancestor(frozen_head)
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
+    assert frozen_head not in message
+    assert CRYPTOGRAPHY_REMEDIATION_BASE not in message
+    assert calls == [("merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, frozen_head)]
+
+
+def test_dependency_evidence_head_accepts_exact_ci_sha_and_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A canonical event SHA is frozen only after both independent resolutions agree."""
+    github_sha = "a" * 40
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_SHA", github_sha)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        expected_failure = (
+            GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+            if arguments[-1] == f"{github_sha}^{{commit}}"
+            else GIT_EVIDENCE_CHECKOUT_FAILURE
+        )
+        assert failure_message == expected_failure
+        return f"{github_sha}\n"
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+
+    assert _resolve_dependency_evidence_head() == github_sha
+    assert calls == [
+        ("rev-parse", "--verify", f"{github_sha}^{{commit}}"),
+        ("rev-parse", "--verify", "HEAD^{commit}"),
+    ]
+
+
+def test_dependency_git_witness_threads_one_frozen_head_after_checkout_moves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every head-dependent graph query consumes the one local resolution."""
+    frozen_head = "a" * 40
+    moved_head = "b" * 40
+    snapshot_revision = "c" * 40
+    current_head = [frozen_head]
+    calls: list[tuple[str, ...]] = []
+    discovered_revisions: list[str] = []
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        if arguments == ["rev-parse", "--verify", "HEAD^{commit}"]:
+            assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+            return f"{current_head[0]}\n"
+        if arguments[:2] == ["log", f"-S{SNAPSHOT_START}"]:
+            return f"{snapshot_revision}\n"
+        if arguments[:3] == ["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE]:
+            assert failure_message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
+            return ""
+        if arguments[:4] == [
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+        ]:
+            return (
+                f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS} " f"{CRYPTOGRAPHY_REMEDIATION_BASE}\n"
+            )
+        if arguments[:2] == ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS]:
+            return f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS}\n"
+        if arguments[0] == "show" and arguments[1].startswith(f"{snapshot_revision}:"):
+            return "snapshot-document"
+        raise AssertionError(f"unexpected Git call: {arguments!r}")
+
+    def fake_discover(revision: str) -> dict[str, str]:
+        discovered_revisions.append(revision)
+        return {}
+
+    monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
+    monkeypatch.setitem(
+        _historical_snapshot_evidence.__globals__,
+        "_load_admission_snapshot",
+        lambda _document: {"snapshot": True},
+    )
+    monkeypatch.setitem(
+        _historical_snapshot_evidence.__globals__,
+        "_discover_cryptography_surfaces",
+        fake_discover,
+    )
+
+    evidence_head = _resolve_dependency_evidence_head()
+    current_head[0] = moved_head
+    _assert_remediation_base_is_ancestor(evidence_head)
+    snapshot, _, _ = _historical_snapshot_evidence(evidence_head)
+    _immutable_replay_witness_evidence(evidence_head)
+
+    assert snapshot == {"snapshot": True}
+    assert discovered_revisions == [
+        CRYPTOGRAPHY_REMEDIATION_BASE,
+        snapshot_revision,
+        CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS,
+    ]
+    graph_calls = calls[1:]
+    owner_path = ADMISSION_DOC_PATH.relative_to(REPO_ROOT).as_posix()
+    assert (
+        "log",
+        f"-S{SNAPSHOT_START}",
+        "--format=%H",
+        f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{frozen_head}",
+        "--",
+        owner_path,
+    ) in graph_calls
+    assert (
+        "merge-base",
+        "--is-ancestor",
+        CRYPTOGRAPHY_REMEDIATION_BASE,
+        frozen_head,
+    ) in graph_calls
+    assert (
+        "merge-base",
+        CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS,
+        frozen_head,
+    ) in graph_calls
+    assert all("HEAD" not in argument for command in graph_calls for argument in command)
+    assert all(moved_head not in command for command in graph_calls)
+
+
 def test_dependency_security_guard_allows_schema_driven_live_floor_rotation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1421,7 +1972,10 @@ def test_dependency_security_guard_allows_schema_driven_live_floor_rotation(
         )
         test_dependency_security_guard_enforces_min_versions(surface)
 
-    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
+    evidence_head = _resolve_dependency_evidence_head()
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs(
+        evidence_head
+    )
     assert snapshot["target"] == "50.0.0"
     _assert_cryptography_remediation_admission(
         base_occurrences=base_occurrences,
@@ -1474,162 +2028,13 @@ def test_dependency_security_guard_enforces_live_lock_carrier_class(
             test_dependency_security_guard_enforces_min_versions(lock_surface)
 
 
-def test_immutable_evidence_head_selects_valid_actions_sha(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    github_sha = "a" * 40
-    calls: list[list[str]] = []
-
-    def resolved_git(arguments: list[str]) -> str:
-        calls.append(arguments)
-        return f"{github_sha}\n"
-
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setenv("GITHUB_SHA", github_sha)
-    monkeypatch.setitem(globals(), "_git_command", resolved_git)
-    _immutable_evidence_head.cache_clear()
-    try:
-        assert _immutable_evidence_head() == github_sha
-        assert _immutable_evidence_head() == github_sha
-        assert calls == [["rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
-    finally:
-        _immutable_evidence_head.cache_clear()
-
-
-@pytest.mark.parametrize(
-    "github_sha",
-    (None, "not-a-sha", "A" * 40),
-    ids=("missing", "malformed", "uppercase"),
-)
-def test_immutable_evidence_head_rejects_invalid_actions_sha_without_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-    github_sha: str | None,
-) -> None:
-    calls: list[list[str]] = []
-
-    def unexpected_git(arguments: list[str]) -> str:
-        calls.append(arguments)
-        return ""
-
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    if github_sha is None:
-        monkeypatch.delenv("GITHUB_SHA", raising=False)
-    else:
-        monkeypatch.setenv("GITHUB_SHA", github_sha)
-    monkeypatch.setitem(globals(), "_git_command", unexpected_git)
-    _immutable_evidence_head.cache_clear()
-    try:
-        with pytest.raises(pytest.fail.Exception, match="exact lowercase 40-hex GITHUB_SHA"):
-            _immutable_evidence_head()
-        assert calls == []
-    finally:
-        _immutable_evidence_head.cache_clear()
-
-
-def test_immutable_evidence_head_rejects_unresolvable_actions_sha_without_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    github_sha = "b" * 40
-    calls: list[list[str]] = []
-
-    def unresolved_git(arguments: list[str]) -> NoReturn:
-        calls.append(arguments)
-        pytest.fail("synthetic unresolvable commit")
-
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setenv("GITHUB_SHA", github_sha)
-    monkeypatch.setitem(globals(), "_git_command", unresolved_git)
-    _immutable_evidence_head.cache_clear()
-    try:
-        with pytest.raises(pytest.fail.Exception, match="not a repository-addressable commit"):
-            _immutable_evidence_head()
-        assert calls == [["rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
-        assert all("HEAD" not in argument for arguments in calls for argument in arguments)
-    finally:
-        _immutable_evidence_head.cache_clear()
-
-
-def test_immutable_evidence_head_resolves_local_head_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    local_sha = "c" * 40
-    calls: list[list[str]] = []
-
-    def resolved_git(arguments: list[str]) -> str:
-        calls.append(arguments)
-        return f"{local_sha}\n"
-
-    monkeypatch.setenv("CI", "false")
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setenv("GITHUB_SHA", "A" * 40)
-    monkeypatch.setitem(globals(), "_git_command", resolved_git)
-    _immutable_evidence_head.cache_clear()
-    try:
-        assert _immutable_evidence_head() == local_sha
-        assert _immutable_evidence_head() == local_sha
-        assert calls == [["rev-parse", "--verify", "HEAD^{commit}"]]
-    finally:
-        _immutable_evidence_head.cache_clear()
-
-
-def test_historical_git_arguments_use_explicit_immutable_evidence_head(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    evidence_head = "d" * 40
-    snapshot_revision = "e" * 40
-    calls: list[list[str]] = []
-
-    def evidence_git(arguments: list[str]) -> str:
-        calls.append(arguments)
-        if arguments[0] == "log":
-            return f"{snapshot_revision}\n"
-        if arguments[0] == "rev-list":
-            return (
-                f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS} " f"{CRYPTOGRAPHY_REMEDIATION_BASE}\n"
-            )
-        if arguments[:2] == ["merge-base", "--is-ancestor"]:
-            return ""
-        if arguments[0] == "merge-base":
-            return f"{CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS}\n"
-        raise AssertionError(f"unexpected historical Git command: {arguments}")
-
-    monkeypatch.setitem(globals(), "_immutable_evidence_head", lambda: evidence_head)
-    monkeypatch.setitem(globals(), "_git_command", evidence_git)
-    monkeypatch.setitem(globals(), "_discover_cryptography_surfaces", lambda revision: {})
-
-    assert _snapshot_introduction_revision() == snapshot_revision
-    _immutable_replay_witness_evidence()
-    _assert_remediation_base_is_ancestor()
-
-    assert [
-        "log",
-        f"-S{SNAPSHOT_START}",
-        "--format=%H",
-        f"{CRYPTOGRAPHY_REMEDIATION_BASE}..{evidence_head}",
-        "--",
-        ADMISSION_DOC_PATH.relative_to(REPO_ROOT).as_posix(),
-    ] in calls
-    assert ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS, evidence_head] in calls
-    assert [
-        "merge-base",
-        "--is-ancestor",
-        CRYPTOGRAPHY_REMEDIATION_BASE,
-        evidence_head,
-    ] in calls
-    assert all(
-        argument != "HEAD" and not argument.endswith("..HEAD")
-        for arguments in calls
-        for argument in arguments
-    )
-
-
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
     """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
-    _assert_remediation_base_is_ancestor()
-    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
+    evidence_head = _resolve_dependency_evidence_head()
+    _assert_remediation_base_is_ancestor(evidence_head)
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs(
+        evidence_head
+    )
     _assert_cryptography_remediation_admission(
         base_occurrences=base_occurrences,
         head_occurrences=head_occurrences,
@@ -1672,7 +2077,8 @@ def test_cryptography_50_admission_rejects_unversioned_surface_occurrence() -> N
 
 
 def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> None:
-    _, base_texts, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    _, base_texts, head_texts = _historical_snapshot_evidence(evidence_head)
     head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
         "click==8.3.3", "click==8.3.4", 1
     )
@@ -1688,7 +2094,8 @@ def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> No
     ),
 )
 def test_cryptography_50_admission_rejects_changed_pip_directive(directive: str) -> None:
-    _, base_texts, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    _, base_texts, head_texts = _historical_snapshot_evidence(evidence_head)
     head_texts["requirements.in"] = f"{head_texts['requirements.in']}\n{directive}\n"
     with pytest.raises(AssertionError, match="unrelated semantic transition"):
         _derive_material_transitions(base_texts, head_texts)
@@ -1704,7 +2111,8 @@ def test_cryptography_50_admission_rejects_changed_pip_directive(directive: str)
 def test_cryptography_50_admission_rejects_changed_requirement_semantics(
     before: str, after: str
 ) -> None:
-    _, base_texts, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    _, base_texts, head_texts = _historical_snapshot_evidence(evidence_head)
     head_texts["requirements.in"] = f"{head_texts['requirements.in']}\n{after}\n"
     base_texts["requirements.in"] = f"{base_texts['requirements.in']}\n{before}\n"
     with pytest.raises(AssertionError, match="unrelated semantic transition"):
@@ -1712,7 +2120,8 @@ def test_cryptography_50_admission_rejects_changed_requirement_semantics(
 
 
 def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
-    loaded_snapshot, _, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    loaded_snapshot, _, head_texts = _historical_snapshot_evidence(evidence_head)
     snapshot = deepcopy(loaded_snapshot)
     snapshot["surfaces"]["requirements.txt"]["file_sha256"] = "0" * 64
     with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
@@ -1723,7 +2132,8 @@ def test_cryptography_50_admission_rejects_current_owner_snapshot_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence(evidence_head)
     owner_document = ADMISSION_DOC_PATH.read_text(encoding="utf-8")
     recorded_hash = historical_snapshot["surfaces"]["requirements.txt"]["file_sha256"]
     drifted_owner = tmp_path / ADMISSION_DOC_PATH.name
@@ -1731,7 +2141,7 @@ def test_cryptography_50_admission_rejects_current_owner_snapshot_drift(
     monkeypatch.setitem(
         _historical_admission_inputs.__globals__,
         "_historical_snapshot_evidence",
-        lambda: (historical_snapshot, base_texts, head_texts),
+        lambda _evidence_head: (historical_snapshot, base_texts, head_texts),
     )
     monkeypatch.setitem(
         _historical_admission_inputs.__globals__,
@@ -1740,11 +2150,12 @@ def test_cryptography_50_admission_rejects_current_owner_snapshot_drift(
     )
 
     with pytest.raises(AssertionError, match="current owner snapshot must equal"):
-        _historical_admission_inputs()
+        _historical_admission_inputs(evidence_head)
 
 
 def test_cryptography_50_admission_rejects_snapshot_head_inventory_drift() -> None:
-    snapshot, _, head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    snapshot, _, head_texts = _historical_snapshot_evidence(evidence_head)
     renamed_head_texts = dict(head_texts)
     renamed_head_texts["renamed-requirements.txt"] = renamed_head_texts.pop("requirements.txt")
     with pytest.raises(AssertionError, match="independently discovered S_head inventory"):
@@ -1771,7 +2182,8 @@ def test_cryptography_50_admission_rejects_carrier_semantics_mismatch(
     surface_class: str,
     replacement: str,
 ) -> None:
-    loaded_snapshot, _, loaded_head_texts = _historical_snapshot_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    loaded_snapshot, _, loaded_head_texts = _historical_snapshot_evidence(evidence_head)
     snapshot = deepcopy(loaded_snapshot)
     head_texts = dict(loaded_head_texts)
     record = snapshot["surfaces"][surface_name]
@@ -1791,7 +2203,7 @@ def test_cryptography_50_admission_rejects_carrier_semantics_mismatch(
     ("failure_mode", "expected_message"),
     (
         ("parent", "exact remediation base as its sole parent"),
-        ("reachability", "must remain an ancestor of the immutable evidence head"),
+        ("reachability", "must remain an ancestor of HEAD"),
         ("transition", "unrelated semantic transition"),
         ("lock_bytes", "replay C_R lock bytes differ from frozen S_head"),
     ),
@@ -1800,8 +2212,11 @@ def test_cryptography_50_immutable_replay_witness_fails_closed(
     failure_mode: str,
     expected_message: str,
 ) -> None:
-    _, base_texts, frozen_head_texts = _historical_snapshot_evidence()
-    parent_record, merge_base, loaded_replay_texts = _immutable_replay_witness_evidence()
+    evidence_head = _resolve_dependency_evidence_head()
+    _, base_texts, frozen_head_texts = _historical_snapshot_evidence(evidence_head)
+    parent_record, merge_base, loaded_replay_texts = _immutable_replay_witness_evidence(
+        evidence_head
+    )
     replay_texts = dict(loaded_replay_texts)
 
     if failure_mode == "parent":
@@ -1933,7 +2348,10 @@ def test_cryptography_50_historical_snapshot_is_independent_of_future_live_rotat
 ) -> None:
     monkeypatch.setitem(CURRENT_ENFORCED_RUNTIME_FLOORS, "cryptography", "50.0.1")
     assert CURRENT_ENFORCED_RUNTIME_FLOORS["cryptography"] == "50.0.1"
-    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
+    evidence_head = _resolve_dependency_evidence_head()
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs(
+        evidence_head
+    )
     assert snapshot["target"] == "50.0.0"
     assert all(version == Version("50.0.0") for version in head_occurrences.values())
     assert all(
