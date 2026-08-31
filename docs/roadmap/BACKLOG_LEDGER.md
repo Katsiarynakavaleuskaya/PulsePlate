@@ -9880,8 +9880,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     (`codex/fitchef-public-visual-story`)
   - Status: 🚧 In review in PR #2369. The current carrier promotes the owner-approved
     Daily/Weekly/Food Context/VIP photographic story and removes the old onboarding mascot from
-    the shared marketing graph. The umbrella stays open for remaining onboarding-consumer,
-    mascot-variant, Storybook guidance, and responsive image-delivery/transfer-budget work.
+    the shared marketing graph. It also closes the first public-demo transfer-budget slice: eight
+    card-only assets now use measured 410x512 derivatives and the complete 12-file pack is
+    1906308 bytes. The umbrella stays open for remaining onboarding-consumer, mascot-variant,
+    Storybook guidance, and evidence-driven delivery work for other eligible consumers.
   - Area: design / frontend / marketing
   - Finding Type: brand rollout
   - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
@@ -9898,7 +9900,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Current `FitChefMascot` consumers migrate from legacy alias-only usage
     - Canonical source PNGs remain preserved while Web delivery gains measured responsive
       derivatives or an equivalent transfer-budget strategy without visual drift
-      where appropriate
+      where appropriate; PR #2369 satisfies this for the public demo's eight card-only images,
+      while other consumers remain part of the open umbrella
     - Marketing/storybook guidance reflects the same variant contract
     - `make verify` passes with updated web tests if consumers change
   - Blockers: Depends on repo mascot canon landing first
