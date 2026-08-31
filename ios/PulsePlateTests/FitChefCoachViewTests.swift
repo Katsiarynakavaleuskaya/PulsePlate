@@ -386,18 +386,36 @@ final class FitChefCoachViewTests: XCTestCase {
         }
     }
 
-    func testHubHasNoProductionRegistrationOutsideItsOwnFile() throws {
+    func testHubHasExactlyOneProductionRegistrationThroughHomeLazyDestination() throws {
         let root = try repositoryRoot()
         let productionRoot = root.appendingPathComponent("ios/PulsePlate")
         let candidateURL = try fitChefCoachSourceURL().standardizedFileURL
-        let hubSymbols = [
-            "FitChefCoachView",
-            "FitChefCoachAvailability",
-            "FitChefCoachCapability",
-        ]
+        let constructionReferences = try swiftSources(under: productionRoot)
+            .filter { $0.standardizedFileURL != candidateURL }
+            .compactMap { url -> String? in
+                let source = try String(contentsOf: url, encoding: .utf8)
+                return source.contains("FitChefCoachView(") ? url.path : nil
+            }
+
+        XCTAssertEqual(
+            constructionReferences,
+            [root.appendingPathComponent("ios/PulsePlate/Views/HomeView.swift").path]
+        )
+
+        let home = try String(
+            contentsOf: root.appendingPathComponent("ios/PulsePlate/Views/HomeView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertEqual(occurrenceCount(of: "FitChefCoachView(", in: home), 1)
+        let homeExperience = try String(
+            contentsOf: root.appendingPathComponent(
+                "ios/PulsePlate/Views/Home/HomeExperience.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(homeExperience.contains("HomeLazyDestination"))
 
         for relativePath in [
-            "ios/PulsePlate/Views/HomeView.swift",
             "ios/PulsePlate/Views/RootTabs.swift",
             "ios/PulsePlate/PulsePlateApp.swift",
         ] {
@@ -405,20 +423,8 @@ final class FitChefCoachViewTests: XCTestCase {
                 contentsOf: root.appendingPathComponent(relativePath),
                 encoding: .utf8
             )
-            XCTAssertFalse(
-                hubSymbols.contains { source.contains($0) },
-                "The Hub must remain unregistered in \(relativePath)."
-            )
+            XCTAssertFalse(source.contains("FitChefCoachView("), relativePath)
         }
-
-        let references = try swiftSources(under: productionRoot)
-            .filter { $0.standardizedFileURL != candidateURL }
-            .compactMap { url -> String? in
-                let source = try String(contentsOf: url, encoding: .utf8)
-                return hubSymbols.contains { source.contains($0) } ? url.path : nil
-            }
-
-        XCTAssertEqual(references, [])
     }
 
     func testLocalizationContractHasExactNineKeyParityAndFrozenCopy() throws {
