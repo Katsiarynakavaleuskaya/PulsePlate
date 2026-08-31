@@ -5182,17 +5182,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
-- [ ] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
+- [x] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
   - Priority: P1 (compatibility alias / canonical Home ownership)
-  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367) through
+  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367),
+    squash merge `1d94a8eea923206d176ac21654009e62091a612a`, through
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
     on branch `codex/ios-consumer-home-planning`
-  - Status: Compatibility alias bound to active [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367);
-    no separate ER-IOS-4 carrier may open. The canonical Consumer-first Home
-    carrier owns the complete state projection and the one FitChef Coach entry;
-    this alias neither narrows that scope nor creates a second implementation
-    lane.
+  - Status: ✅ MERGED / closed in PR #2367 at
+    `1d94a8eea923206d176ac21654009e62091a612a`; no separate ER-IOS-4 carrier may
+    open. The canonical Consumer-first Home carrier owns the complete state
+    projection and the one FitChef Coach entry; this alias neither narrows that
+    scope nor creates a second implementation lane.
   - Area: iOS / Home / FitChef Coach / single navigation entry
   - Reason (EN): Historical ER-IOS-4 naming identifies the one discoverable
     FitChef Coach entry now delivered inside the canonical Consumer-first Home
@@ -5252,15 +5253,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-ios-release-design-train-home"></a>
-- [ ] P1: iOS Consumer-first Home planning experience
+- [x] P1: iOS Consumer-first Home planning experience
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367)
-    (`codex/ios-consumer-home-planning`)
-  - Status: Active implementation / in review. The operator explicitly admitted
-    start from pending `main`; pending exact-main or overlapping ledger/workflow
-    work does not block this lane, but it grants no readiness or mergeability
-    claim.
+    (`codex/ios-consumer-home-planning`), squash merge
+    `1d94a8eea923206d176ac21654009e62091a612a`
+  - Status: ✅ MERGED / closed in PR #2367 at
+    `1d94a8eea923206d176ac21654009e62091a612a`. The implementation preserves the
+    controlled Week/Shopping projection and AI capability boundaries recorded
+    below; this closure creates no follow-up docs-only PR.
   - Area: iOS / Home / subscription projection / profile readiness / navigation / localization / accessibility
   - Reason (EN): The current iOS Home is an engineering dashboard with raw-key
     and service terminology. This bounded carrier projects the existing
@@ -7154,6 +7156,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - User-facing dashboard copy avoids diagnostic or therapist framing
     - Every exposed chart/card has owner, metric definition, and decision rule
     - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
+
+<a id="ledger-p2-greenlight-setup-go-v7-identity"></a>
+- [x] P2: Greenlight setup-go v7 immutable identity transition
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI dependency identity / workflow reliability)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Completed in implementation PR #2356; no separate docs-only backlog-close PR is required
+  - Area: ci / github-actions / dependency identity
+  - Finding Type: bounded dependency-version carrier
+  - Reason (EN): The stale Dependabot setup-go carrier was based on obsolete `main` ancestry and retained the v6.4.0 annotation. PR #2356 recreates the transition on current ancestry, pins the immutable setup-go v7.0.0 commit, synchronizes the existing positive-enumeration contract, and fixes the shared-checkout Git-history mutation exposed by the required Python matrix. This item closes only that exact bounded carrier; the broader Node 24/cache-warning audit remains open below.
+  - Links:
+    - [`.github/workflows/greenlight-ios.yml`](../../.github/workflows/greenlight-ios.yml)
+    - [`tests/test_ci_workflow_pr_size_governance_contract.py`](../../tests/test_ci_workflow_pr_size_governance_contract.py)
+    - [`tests/test_design_automation_next_lane_docs.py`](../../tests/test_design_automation_next_lane_docs.py)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - The active Greenlight `Setup Go` step uses exact commit `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` with annotation `v7.0.0 / Node 24`
+    - `go-version: "1.24"`, workflow permissions, triggers, timeout, cache inputs, Greenlight version, and report-only posture remain unchanged
+    - The existing structured workflow contract and immutable action-pin guard enforce the selected identity without introducing a second parser or dependency framework
+    - Pull-request changed-path detection is read-only and fail-closed, with no depth fetch capable of mutating shared shallow-history evidence before dependency-security tests
+    - The accepted Experiment Runner oracle, narrow local bundle, current-head GitHub CI, mapping/review dispositions, and strict readiness pass before squash merge
 
 <a id="ledger-p2-gha-node24-cache-warning-cleanup"></a>
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
