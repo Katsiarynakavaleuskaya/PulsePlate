@@ -50,7 +50,30 @@ SNAPSHOT_ALLOWLIST_LINE = "<!-- pragma: allowlist nextline secret -->"
 SNAPSHOT_KIND = "dependency-remediation-admission-v1-evidence"
 SNAPSHOT_CUTOFF = "2026-08-04T10:18:11Z"
 SNAPSHOT_TARGET = "50.0.0"
-DEPENDENCY_GIT_EVIDENCE_FAILURE = "dependency-remediation Git evidence validation failed"
+GIT_EVIDENCE_ACTIONS_MODE_FAILURE = (
+    "dependency-remediation Git evidence: GITHUB_ACTIONS must be absent locally or exactly "
+    "'true' in GitHub Actions"
+)
+GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE = (
+    "dependency-remediation Git evidence: GitHub Actions requires canonical lowercase full "
+    "GITHUB_SHA"
+)
+GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE = (
+    "dependency-remediation Git evidence: GITHUB_SHA must resolve exactly to a commit in the "
+    "current repository"
+)
+GIT_EVIDENCE_CHECKOUT_FAILURE = (
+    "dependency-remediation Git evidence: checked-out HEAD must resolve canonically and equal "
+    "GITHUB_SHA"
+)
+GIT_EVIDENCE_LOCAL_HEAD_FAILURE = (
+    "dependency-remediation Git evidence: local HEAD must resolve exactly to a lowercase full "
+    "commit"
+)
+GIT_EVIDENCE_BASE_ANCESTRY_FAILURE = (
+    "dependency-remediation Git evidence: remediation base must remain an ancestor of the frozen "
+    "evidence head"
+)
 
 REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements.in",
@@ -696,6 +719,8 @@ def _git_command(arguments: list[str], *, failure_message: str | None = None) ->
     """Run git through its resolved absolute executable for finite admission evidence."""
     git = shutil.which("git")
     if git is None:
+        if failure_message is not None:
+            pytest.fail(failure_message)
         pytest.fail("dependency-remediation Git evidence requires an available git executable")
     result = subprocess.run(
         [git, *arguments],
@@ -725,41 +750,41 @@ def _resolve_dependency_evidence_head() -> str:
     if "GITHUB_ACTIONS" not in os.environ:
         resolved_head_output = _git_command(
             ["rev-parse", "--verify", "HEAD^{commit}"],
-            failure_message=DEPENDENCY_GIT_EVIDENCE_FAILURE,
+            failure_message=GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
         )
         resolved_head = resolved_head_output.removesuffix("\n")
         if resolved_head_output != f"{resolved_head}\n":
-            pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+            pytest.fail(GIT_EVIDENCE_LOCAL_HEAD_FAILURE)
         if not _is_lowercase_full_git_sha(resolved_head):
-            pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+            pytest.fail(GIT_EVIDENCE_LOCAL_HEAD_FAILURE)
         return resolved_head
 
     if os.environ["GITHUB_ACTIONS"] != "true":
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_ACTIONS_MODE_FAILURE)
     if "GITHUB_SHA" not in os.environ:
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE)
 
     github_sha = os.environ["GITHUB_SHA"]
     if not _is_lowercase_full_git_sha(github_sha):
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE)
     resolved_github_sha_output = _git_command(
         ["rev-parse", "--verify", f"{github_sha}^{{commit}}"],
-        failure_message=DEPENDENCY_GIT_EVIDENCE_FAILURE,
+        failure_message=GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
     )
     if resolved_github_sha_output != f"{github_sha}\n":
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE)
 
     resolved_head_output = _git_command(
         ["rev-parse", "--verify", "HEAD^{commit}"],
-        failure_message=DEPENDENCY_GIT_EVIDENCE_FAILURE,
+        failure_message=GIT_EVIDENCE_CHECKOUT_FAILURE,
     )
     resolved_head = resolved_head_output.removesuffix("\n")
     if resolved_head_output != f"{resolved_head}\n":
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
     if not _is_lowercase_full_git_sha(resolved_head):
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
     if resolved_head != github_sha:
-        pytest.fail(DEPENDENCY_GIT_EVIDENCE_FAILURE)
+        pytest.fail(GIT_EVIDENCE_CHECKOUT_FAILURE)
     return github_sha
 
 
@@ -772,7 +797,7 @@ def _assert_remediation_base_is_ancestor(evidence_head: str) -> None:
             CRYPTOGRAPHY_REMEDIATION_BASE,
             evidence_head,
         ],
-        failure_message=DEPENDENCY_GIT_EVIDENCE_FAILURE,
+        failure_message=GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
     )
 
 
@@ -1481,6 +1506,43 @@ def test_dependency_git_command_isolates_git_environment_and_uses_absolute_binar
     assert dict(os.environ) == process_environment
 
 
+def test_dependency_git_authority_diagnostics_are_distinct_and_fixed() -> None:
+    assert (
+        GIT_EVIDENCE_ACTIONS_MODE_FAILURE,
+        GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE,
+        GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
+        GIT_EVIDENCE_CHECKOUT_FAILURE,
+        GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
+        GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
+    ) == (
+        "dependency-remediation Git evidence: GITHUB_ACTIONS must be absent locally or exactly "
+        "'true' in GitHub Actions",
+        "dependency-remediation Git evidence: GitHub Actions requires canonical lowercase full "
+        "GITHUB_SHA",
+        "dependency-remediation Git evidence: GITHUB_SHA must resolve exactly to a commit in the "
+        "current repository",
+        "dependency-remediation Git evidence: checked-out HEAD must resolve canonically and equal "
+        "GITHUB_SHA",
+        "dependency-remediation Git evidence: local HEAD must resolve exactly to a lowercase full "
+        "commit",
+        "dependency-remediation Git evidence: remediation base must remain an ancestor of the "
+        "frozen evidence head",
+    )
+    assert (
+        len(
+            {
+                GIT_EVIDENCE_ACTIONS_MODE_FAILURE,
+                GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE,
+                GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE,
+                GIT_EVIDENCE_CHECKOUT_FAILURE,
+                GIT_EVIDENCE_LOCAL_HEAD_FAILURE,
+                GIT_EVIDENCE_BASE_ANCESTRY_FAILURE,
+            }
+        )
+        == 6
+    )
+
+
 @pytest.mark.parametrize(
     "github_actions",
     ("", "TRUE", "True", "1", " true", "true ", "true\n"),
@@ -1503,7 +1565,9 @@ def test_dependency_evidence_head_rejects_noncanonical_github_actions(
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_ACTIONS_MODE_FAILURE
+    assert repr(github_actions) not in message
 
 
 @pytest.mark.parametrize(
@@ -1547,7 +1611,9 @@ def test_dependency_evidence_head_rejects_noncanonical_github_sha_without_fallba
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_SHAPE_FAILURE
+    assert repr(github_sha) not in message
 
 
 @pytest.mark.parametrize(
@@ -1571,15 +1637,53 @@ def test_dependency_evidence_head_rejects_noncanonical_local_resolution(
 
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
-        assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+        assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
         return resolved_output
 
     monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+    assert repr(resolved_output) not in message
     assert calls == [("rev-parse", "--verify", "HEAD^{commit}")]
+
+
+@pytest.mark.parametrize(
+    "git_path",
+    (None, "/usr/bin/git"),
+    ids=("missing-git-binary", "rev-parse-failure"),
+)
+def test_dependency_evidence_head_rejects_unresolvable_local_head_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    git_path: str | None,
+) -> None:
+    """A local Git failure stays within the local-HEAD diagnostic boundary."""
+    orphan_sha = f"hostile-orphan\n{'b' * 40}"
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv("GITHUB_SHA", orphan_sha)
+    monkeypatch.setattr(shutil, "which", lambda _command: git_path)
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if git_path is None:
+            raise AssertionError(f"unexpected subprocess call: {command!r}")
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 128, stdout="", stderr="hostile-local-error")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _resolve_dependency_evidence_head()
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
+    assert orphan_sha not in message
+    assert "hostile-local-error" not in message
+    expected_commands = (
+        [] if git_path is None else [[git_path, "rev-parse", "--verify", "HEAD^{commit}"]]
+    )
+    assert commands == expected_commands
 
 
 def test_dependency_evidence_head_local_mode_ignores_orphan_github_sha_and_resolves_once(
@@ -1593,7 +1697,7 @@ def test_dependency_evidence_head_local_mode_ignores_orphan_github_sha_and_resol
 
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
-        assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+        assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
         return f"{frozen_head}\n"
 
     monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
@@ -1620,7 +1724,10 @@ def test_dependency_evidence_head_rejects_unresolvable_ci_sha_without_fallback(
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+    assert github_sha not in message
+    assert "unresolvable" not in message
     assert commands == [["/usr/bin/git", "rev-parse", "--verify", f"{github_sha}^{{commit}}"]]
 
 
@@ -1635,43 +1742,89 @@ def test_dependency_evidence_head_rejects_ci_sha_resolution_mismatch_without_fal
 
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
-        assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+        assert failure_message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
         return f"{'b' * 40}\n"
 
     monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+    assert github_sha not in message
+    assert "b" * 40 not in message
     assert calls == [("rev-parse", "--verify", f"{github_sha}^{{commit}}")]
 
 
+@pytest.mark.parametrize(
+    "checkout_output",
+    (
+        None,
+        f"{'A' * 40}\n",
+        f"{'a' * 40}\n{'b' * 40}\n",
+        f"{'b' * 40}\n",
+    ),
+    ids=("command-failure", "uppercase-output", "multiline-output", "commit-mismatch"),
+)
 def test_dependency_evidence_head_rejects_checkout_mismatch_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
+    checkout_output: str | None,
 ) -> None:
     """CI evidence binds both the event SHA object and the independently resolved checkout."""
     github_sha = "a" * 40
-    moved_head = "b" * 40
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_SHA", github_sha)
     calls: list[tuple[str, ...]] = []
 
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
-        assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+        expected_failure = (
+            GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+            if arguments[-1] == f"{github_sha}^{{commit}}"
+            else GIT_EVIDENCE_CHECKOUT_FAILURE
+        )
+        assert failure_message == expected_failure
         if arguments[-1] == f"{github_sha}^{{commit}}":
             return f"{github_sha}\n"
-        return f"{moved_head}\n"
+        if checkout_output is None:
+            pytest.fail(failure_message)
+        return checkout_output
 
     monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
 
     with pytest.raises(pytest.fail.Exception) as exc_info:
         _resolve_dependency_evidence_head()
-    assert str(exc_info.value) == DEPENDENCY_GIT_EVIDENCE_FAILURE
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_CHECKOUT_FAILURE
+    assert github_sha not in message
+    assert repr(checkout_output) not in message
     assert calls == [
         ("rev-parse", "--verify", f"{github_sha}^{{commit}}"),
         ("rev-parse", "--verify", "HEAD^{commit}"),
     ]
+
+
+def test_dependency_evidence_base_ancestry_failure_is_fixed_and_non_echoing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed base relation does not expose the selected graph objects."""
+    frozen_head = "a" * 40
+    calls: list[tuple[str, ...]] = []
+
+    def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
+        calls.append(tuple(arguments))
+        assert failure_message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
+        pytest.fail(failure_message)
+
+    monkeypatch.setitem(_assert_remediation_base_is_ancestor.__globals__, "_git_command", fake_git)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        _assert_remediation_base_is_ancestor(frozen_head)
+    message = str(exc_info.value)
+    assert message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
+    assert frozen_head not in message
+    assert CRYPTOGRAPHY_REMEDIATION_BASE not in message
+    assert calls == [("merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, frozen_head)]
 
 
 def test_dependency_evidence_head_accepts_exact_ci_sha_and_checkout(
@@ -1685,7 +1838,12 @@ def test_dependency_evidence_head_accepts_exact_ci_sha_and_checkout(
 
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
-        assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+        expected_failure = (
+            GIT_EVIDENCE_GITHUB_SHA_RESOLUTION_FAILURE
+            if arguments[-1] == f"{github_sha}^{{commit}}"
+            else GIT_EVIDENCE_CHECKOUT_FAILURE
+        )
+        assert failure_message == expected_failure
         return f"{github_sha}\n"
 
     monkeypatch.setitem(_resolve_dependency_evidence_head.__globals__, "_git_command", fake_git)
@@ -1712,12 +1870,12 @@ def test_dependency_git_witness_threads_one_frozen_head_after_checkout_moves(
     def fake_git(arguments: list[str], *, failure_message: str | None = None) -> str:
         calls.append(tuple(arguments))
         if arguments == ["rev-parse", "--verify", "HEAD^{commit}"]:
-            assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+            assert failure_message == GIT_EVIDENCE_LOCAL_HEAD_FAILURE
             return f"{current_head[0]}\n"
         if arguments[:2] == ["log", f"-S{SNAPSHOT_START}"]:
             return f"{snapshot_revision}\n"
         if arguments[:3] == ["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE]:
-            assert failure_message == DEPENDENCY_GIT_EVIDENCE_FAILURE
+            assert failure_message == GIT_EVIDENCE_BASE_ANCESTRY_FAILURE
             return ""
         if arguments[:4] == [
             "rev-list",
