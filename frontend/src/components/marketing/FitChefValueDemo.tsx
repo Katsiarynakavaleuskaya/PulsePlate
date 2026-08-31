@@ -231,7 +231,7 @@ function RevealedPlanningView({ choice }: { choice: FitChefDemoChoice }): JSX.El
   const image = isToday ? dailyPlateImage : weeklyPlanningImage;
 
   return (
-    <Card aria-atomic="true" aria-live="polite" className="ppm-fitchef-reveal-card" role="status">
+    <>
       <h3>{heading}</h3>
       <figure className="ppm-fitchef-reveal-photo">
         <img
@@ -245,7 +245,7 @@ function RevealedPlanningView({ choice }: { choice: FitChefDemoChoice }): JSX.El
           width={1024}
         />
       </figure>
-    </Card>
+    </>
   );
 }
 
@@ -328,7 +328,19 @@ function DailyStory(): JSX.Element {
           </div>
         </Card>
 
-        {state.status === 'revealed' ? <RevealedPlanningView choice={state.choice} /> : null}
+        <Card
+          aria-atomic="true"
+          aria-live="polite"
+          className={[
+            'ppm-fitchef-reveal-card',
+            state.status === 'revealed' ? '' : 'ppm-fitchef-reveal-card--empty',
+          ]
+            .join(' ')
+            .trim()}
+          role="status"
+        >
+          {state.status === 'revealed' ? <RevealedPlanningView choice={state.choice} /> : null}
+        </Card>
       </div>
     </section>
   );
@@ -445,7 +457,7 @@ function FoodContextStory(): JSX.Element {
       <Card className="ppm-fitchef-food-output">
         <h3>One flexible plan</h3>
         <div className="ppm-fitchef-food-output-panes">
-          <figure>
+          <figure aria-label="Daily Plate example" role="img">
             <img
               alt=""
               aria-hidden="true"
@@ -457,7 +469,7 @@ function FoodContextStory(): JSX.Element {
               width={1024}
             />
           </figure>
-          <figure>
+          <figure aria-label="Weekly Planning example" role="img">
             <img
               alt=""
               aria-hidden="true"

@@ -499,6 +499,7 @@
 }
 
 .ppm-fitchef-daily-flow {
+  position: relative;
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(25rem, 0.98fr) minmax(0, 1.02fr);
@@ -658,6 +659,19 @@
   padding: var(--spacing-6);
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--spacing-5);
+}
+
+.ppm-page .ppm-fitchef-reveal-card.ppm-fitchef-reveal-card--empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .ppm-fitchef-reveal-card::before {

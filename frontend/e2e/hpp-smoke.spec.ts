@@ -314,6 +314,21 @@ for (const route of ['/', '/marketing'] as const) {
       )
       .toBe(true);
 
+    const cardImages = demo.locator('.ppm-fitchef-photo-card img');
+    await expect(cardImages).toHaveCount(8);
+    expect(
+      await cardImages.evaluateAll((images) =>
+        images.map((image) => {
+          const candidate = image as HTMLImageElement;
+          return { width: candidate.naturalWidth, height: candidate.naturalHeight };
+        }),
+      ),
+    ).toEqual(Array.from({ length: 8 }, () => ({ width: 410, height: 512 })));
+
+    const foodStory = demo.locator('[data-fitchef-story="food-context"]');
+    await expect(foodStory.getByRole('img', { name: 'Daily Plate example' })).toBeVisible();
+    await expect(foodStory.getByRole('img', { name: 'Weekly Planning example' })).toBeVisible();
+
     const storageBefore = await page.evaluate(() => ({
       local: Object.entries(localStorage).sort(),
       session: Object.entries(sessionStorage).sort(),
@@ -330,11 +345,15 @@ for (const route of ['/', '/marketing'] as const) {
     const weekLabel = week.locator('..');
     const confirm = dailyStory.getByRole('button', { name: 'Confirm choice' });
     const notNow = dailyStory.getByRole('button', { name: 'Not now' });
+    const persistentStatus = dailyStory.getByRole('status');
     await expect(
       dailyStory.getByRole('group', { name: 'Where would you like to start?' }),
     ).toHaveCount(1);
     await expect(dailyStory.getByRole('radio')).toHaveCount(2);
     await expect(dailyStory.getByRole('button')).toHaveCount(2);
+    await expect(persistentStatus).toHaveCount(1);
+    await expect(persistentStatus).toBeEmpty();
+    await expect(persistentStatus).toHaveClass(/ppm-fitchef-reveal-card--empty/);
     const readOptionVisualTreatment = async (radio: Locator, label: Locator) => {
       const labelVisual = await label.evaluate((element) => {
         const style = window.getComputedStyle(element);
@@ -384,7 +403,7 @@ for (const route of ['/', '/marketing'] as const) {
 
     await confirm.focus();
     await page.keyboard.press('Enter');
-    const todayResult = dailyStory.getByRole('status');
+    const todayResult = persistentStatus;
     await expect(todayResult.getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
     await expect(todayResult.locator('img')).toHaveAttribute(
       'data-fitchef-asset',
@@ -400,7 +419,8 @@ for (const route of ['/', '/marketing'] as const) {
     await expect(week).toBeFocused();
     await expect(week).toBeChecked();
     await expect(today).not.toBeChecked();
-    await expect(dailyStory.getByRole('status')).toHaveCount(0);
+    await expect(persistentStatus).toBeEmpty();
+    await expect(persistentStatus).toHaveClass(/ppm-fitchef-reveal-card--empty/);
     await expect(dailyStory.getByRole('heading', { name: 'Daily Plate' })).toHaveCount(0);
     await expect
       .poll(async () => ({
@@ -422,7 +442,7 @@ for (const route of ['/', '/marketing'] as const) {
     await expect(confirm).toBeEnabled();
     await confirm.focus();
     await page.keyboard.press('Enter');
-    const weekResult = dailyStory.getByRole('status');
+    const weekResult = persistentStatus;
     await expect(weekResult.getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
     await expect(weekResult.locator('img')).toHaveAttribute(
       'data-fitchef-asset',
@@ -434,7 +454,8 @@ for (const route of ['/', '/marketing'] as const) {
     );
 
     await today.click();
-    await expect(dailyStory.getByRole('status')).toHaveCount(0);
+    await expect(persistentStatus).toBeEmpty();
+    await expect(persistentStatus).toHaveClass(/ppm-fitchef-reveal-card--empty/);
     await expect(dailyStory.getByRole('heading', { name: 'Weekly Planning' })).toHaveCount(0);
     await notNow.click();
     await expect(today).not.toBeChecked();
@@ -644,7 +665,8 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
     await expect(result.getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
     await expectDecodedRevealImage(result, 'daily-plate-a-salmon-1024.webp');
     await notNow.click();
-    await expect(result).toHaveCount(0);
+    await expect(result).toBeEmpty();
+    await expect(result).toHaveClass(/ppm-fitchef-reveal-card--empty/);
     await expect(today).not.toBeChecked();
     await expect(confirm).toBeDisabled();
   };

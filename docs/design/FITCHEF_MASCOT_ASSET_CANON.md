@@ -118,24 +118,28 @@ starts only at the repo paths below.
 
 | Runtime path under `frontend/src/assets/brand/fitchef-public-demo/v1/` | Open Design PNG SHA-256 | Runtime WebP SHA-256 | Pixels | Web delivery |
 | --- | --- | --- | --- | --- |
-| `activity-palette/endurance.webp` | `687a5a49c8fe321990f036cb6efdd1889bd08c5ff38983cf6eda94a3546bcda2` | `7e0b3d0aef31c1b4d2e3d23c43632b1f298d49b25d20db89e8d1958f9b522d96` | `1122x1402 RGB` | q96, 447238 B, PSNR 43.2483 dB, sRGB ICC |
-| `activity-palette/movement-everyday-fitness.webp` | `d0b9be1359c0f56c6fd6dfffe849c4f6de2c699c8acfe8fb204f2a890e2ec1d5` | `24e316cc365ccd5da8235e0011cbc77e5f8ab0699c82c8a589c97e1e733736c8` | `1122x1402 RGB` | q95, 453154 B, PSNR 42.5998 dB, sRGB ICC |
-| `activity-palette/strength-power.webp` | `0e04ea90a7d657c9c7ae03f793c2fb2da46ae418b682ed67e882401f0c08381c` | `e90019e23372c0ce6577468ebd5d0238a6e9f646e1eb21ba6cdca5deacdbcb08` | `1122x1402 RGB` | q96, 189792 B, PSNR 45.2864 dB, sRGB ICC |
-| `activity-palette/team-combat.webp` | `389fba16715bd7b1e16650feb87ab7b274a6b5baebb57a18359e8dc0337440a7` | `13f50eb45192766b08fa5fefdd28f2347f9d8d45c324bb65501823566e4e760d` | `1122x1402 RGB` | q96, 366414 B, PSNR 44.5797 dB, sRGB ICC |
+| `activity-palette/endurance.webp` | `687a5a49c8fe321990f036cb6efdd1889bd08c5ff38983cf6eda94a3546bcda2` | `09d238901bf22f79525c1b597e1e6cf9b5ce2ceb602f8fa82e9439df7bf998f0` | `410x512 RGB` | q96, 88776 B, resized-reference PSNR 40.3768 dB, sRGB ICC |
+| `activity-palette/movement-everyday-fitness.webp` | `d0b9be1359c0f56c6fd6dfffe849c4f6de2c699c8acfe8fb204f2a890e2ec1d5` | `7472fb52b167bed135a76e95f40d681e9962c515d9038a8158611683f436a620` | `410x512 RGB` | q96, 94298 B, resized-reference PSNR 38.0093 dB, sRGB ICC |
+| `activity-palette/strength-power.webp` | `0e04ea90a7d657c9c7ae03f793c2fb2da46ae418b682ed67e882401f0c08381c` | `4a154769734dedbbe2ad7fb250e45a371071316971bc27761aee62611c3758d0` | `410x512 RGB` | q96, 33474 B, resized-reference PSNR 44.0667 dB, sRGB ICC |
+| `activity-palette/team-combat.webp` | `389fba16715bd7b1e16650feb87ab7b274a6b5baebb57a18359e8dc0337440a7` | `80627dd04d4d1ac099e826741e1a10d099ab254bc4e49b45c47b8ae6eb75be8d` | `410x512 RGB` | q96, 65154 B, resized-reference PSNR 41.6872 dB, sRGB ICC |
 | `daily-plate-a-salmon-1024.webp` | `5bb635cdf4a86359d2763235dd31e7ef8f7d5b8c5776826823c5ff0a63806331` | `ae1410aeaabf59389ef244cab577ad9d7a82ef5ffc4338ac41f256a034be2149` | `1024x1024 RGB` | q96, 245002 B, PSNR 40.9164 dB, sRGB ICC |
-| `food-context/food-context-ingredients-at-home.webp` | `69bdd1f50666964308e4a89494095dde5b86fd906b04c6824f02a9b7ebbe67b0` | `75bcaa6104a1c26a6560dfad7a8b5d9d78af618f3850cf289c94f80d9fb0cbd3` | `1122x1402 RGB` | q96, 273234 B, PSNR 44.5394 dB, sRGB ICC |
-| `food-context/food-context-meal-photo.webp` | `12501b21584f9369574630268489b40430b643a97aa22d69fe61b4a16a7846ba` | `2e65391e5932aaf5ece8ea87293b0bd6967328022a4745a1c53c9ba549929b09` | `1122x1402 RGB` | q96, 337684 B, PSNR 44.4897 dB, sRGB ICC |
-| `food-context/food-context-restaurant-chef.webp` | `ae932ce5aeb858cb86a9ed98694cd55292495f450ced6c60118c233da86adab4` | `b15b74a17dea9e4be67a930f3bac497ed601099c12f1efb148999ad396ddb158` | `1122x1402 RGB` | q96, 272400 B, PSNR 44.7366 dB, sRGB ICC |
-| `food-context/food-context-shopping-stores.webp` | `2bd534f149fd0804986800ae939f3b7bdbf56ea52d2946f4a87c4a2d6ba113a5` | `bd241c8b0be6f1f76d3307d423e5cf3edfe8eb6b933a01ff1e764e112f585e4c` | `1122x1402 RGB` | q96, 423618 B, PSNR 42.1631 dB, sRGB ICC |
+| `food-context/food-context-ingredients-at-home.webp` | `69bdd1f50666964308e4a89494095dde5b86fd906b04c6824f02a9b7ebbe67b0` | `7759e414df893aea1261e69a84228ebc144f458eeebbee344fb2dd8041b45dfd` | `410x512 RGB` | q96, 64556 B, resized-reference PSNR 41.2113 dB, sRGB ICC |
+| `food-context/food-context-meal-photo.webp` | `12501b21584f9369574630268489b40430b643a97aa22d69fe61b4a16a7846ba` | `579e19094f5b5b3e33df260d7c71199b7c665cf77f7252a61a3b2383fb3fa2a1` | `410x512 RGB` | q96, 76426 B, resized-reference PSNR 40.3378 dB, sRGB ICC |
+| `food-context/food-context-restaurant-chef.webp` | `ae932ce5aeb858cb86a9ed98694cd55292495f450ced6c60118c233da86adab4` | `09dc0969eb4a9fc6e9cf469b5f3a83a075cbad298101ab26602d0ec2ed5725c0` | `410x512 RGB` | q96, 64116 B, resized-reference PSNR 40.6184 dB, sRGB ICC |
+| `food-context/food-context-shopping-stores.webp` | `2bd534f149fd0804986800ae939f3b7bdbf56ea52d2946f4a87c4a2d6ba113a5` | `214a0dcbcfb11caa97a645e1b9b3b66e16da3fc659b0c71c08191c8873441239` | `410x512 RGB` | q96, 96778 B, resized-reference PSNR 36.4094 dB, sRGB ICC |
 | `vip/fitchef-vip-editorial-owner-approved-logo-v2.webp` | `14223bd347c5b81f58a90da28fdf4a8243b90b9b0b156d8a6caa555144309d64` | `324d63729b745d17a0a7706a55bd74979a40a7db8820958a024e4ad73000d8f7` | `1122x1402 RGB` | q96, 368238 B, PSNR 44.5484 dB, sRGB ICC |
 | `weekly-planning-a-meal-grid-1024.webp` | `d6cff5674fb8b74cbae348c88f6bf41682e0ea7a73c961d69cfadb76ec75a46a` | `678a55fd171bd40112377e160794019112dee3c1f8e6cb0d29c99f6058380d8a` | `1024x1024 RGB` | q96, 332828 B, PSNR 39.6382 dB, sRGB ICC |
 | `weekly-planning-b-notebook-1024.webp` | `1943c4fd28fef04b697c243be450a3c0e74c2a8dd039b1828402394c14db0e40` | `8d8f4d53b3f55e323a346520313d5e98021aca94734117e855d1d9b4953fc73d` | `1024x1024 RGB` | q96, 376662 B, PSNR 39.1452 dB, sRGB ICC |
 
-All twelve runtime files preserve the source dimensions and carry an explicit
-sRGB ICC profile. They use reviewed WebP quality 95-96, stay below the
-repository's 500 KiB added-file limit, and reduce the complete Web pack from
-24875178 to 4086264 bytes. The original PNG bytes and their source hashes remain
-the Open Design and future iOS authority. The existing
+The eight activity and food-context images are deterministic 410x512 card-sized
+derivatives; their PSNR is measured against a Lanczos 410x512 resize of the
+unchanged Open Design PNG. The four planning/VIP derivatives preserve their
+1024+ source dimensions. All twelve carry the frozen explicit sRGB ICC profile,
+stay below the repository's 500 KiB added-file limit, and reduce the complete
+Web pack from 24875178 to 1906308 bytes. The card-only subset is 583578 bytes,
+down from 2763534 bytes in the first full-resolution Web promotion. The original
+PNG bytes and their source hashes remain the Open Design and future iOS
+authority. The existing
 `fitchef-portrait-neutral-v1.png` remains the neutral H1 mascot and is not a
 thirteenth public-demo derivative.
 

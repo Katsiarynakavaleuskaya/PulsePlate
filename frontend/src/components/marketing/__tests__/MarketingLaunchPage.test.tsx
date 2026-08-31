@@ -56,31 +56,31 @@ const excludedSourceDirectories = new Set(['__tests__', '__snapshots__', 'eviden
 const promotedAssetContract = [
   {
     relativePath: 'activity-palette/endurance.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 447238,
-    sha256: '7e0b3d0aef31c1b4d2e3d23c43632b1f298d49b25d20db89e8d1958f9b522d96', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 88776,
+    sha256: '09d238901bf22f79525c1b597e1e6cf9b5ce2ceb602f8fa82e9439df7bf998f0', // pragma: allowlist secret
   },
   {
     relativePath: 'activity-palette/movement-everyday-fitness.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 453154,
-    sha256: '24e316cc365ccd5da8235e0011cbc77e5f8ab0699c82c8a589c97e1e733736c8', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 94298,
+    sha256: '7472fb52b167bed135a76e95f40d681e9962c515d9038a8158611683f436a620', // pragma: allowlist secret
   },
   {
     relativePath: 'activity-palette/strength-power.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 189792,
-    sha256: 'e90019e23372c0ce6577468ebd5d0238a6e9f646e1eb21ba6cdca5deacdbcb08', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 33474,
+    sha256: '4a154769734dedbbe2ad7fb250e45a371071316971bc27761aee62611c3758d0', // pragma: allowlist secret
   },
   {
     relativePath: 'activity-palette/team-combat.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 366414,
-    sha256: '13f50eb45192766b08fa5fefdd28f2347f9d8d45c324bb65501823566e4e760d', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 65154,
+    sha256: '80627dd04d4d1ac099e826741e1a10d099ab254bc4e49b45c47b8ae6eb75be8d', // pragma: allowlist secret
   },
   {
     relativePath: 'daily-plate-a-salmon-1024.webp',
@@ -91,31 +91,31 @@ const promotedAssetContract = [
   },
   {
     relativePath: 'food-context/food-context-ingredients-at-home.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 273234,
-    sha256: '75bcaa6104a1c26a6560dfad7a8b5d9d78af618f3850cf289c94f80d9fb0cbd3', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 64556,
+    sha256: '7759e414df893aea1261e69a84228ebc144f458eeebbee344fb2dd8041b45dfd', // pragma: allowlist secret
   },
   {
     relativePath: 'food-context/food-context-meal-photo.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 337684,
-    sha256: '2e65391e5932aaf5ece8ea87293b0bd6967328022a4745a1c53c9ba549929b09', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 76426,
+    sha256: '579e19094f5b5b3e33df260d7c71199b7c665cf77f7252a61a3b2383fb3fa2a1', // pragma: allowlist secret
   },
   {
     relativePath: 'food-context/food-context-restaurant-chef.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 272400,
-    sha256: 'b15b74a17dea9e4be67a930f3bac497ed601099c12f1efb148999ad396ddb158', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 64116,
+    sha256: '09dc0969eb4a9fc6e9cf469b5f3a83a075cbad298101ab26602d0ec2ed5725c0', // pragma: allowlist secret
   },
   {
     relativePath: 'food-context/food-context-shopping-stores.webp',
-    width: 1122,
-    height: 1402,
-    runtimeBytes: 423618,
-    sha256: 'bd241c8b0be6f1f76d3307d423e5cf3edfe8eb6b933a01ff1e764e112f585e4c', // pragma: allowlist secret
+    width: 410,
+    height: 512,
+    runtimeBytes: 96778,
+    sha256: '214a0dcbcfb11caa97a645e1b9b3b66e16da3fc659b0c71c08191c8873441239', // pragma: allowlist secret
   },
   {
     relativePath: 'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp',
@@ -856,15 +856,20 @@ describe('FitChefValueDemo', (): void => {
     expect(confirm).toHaveClass('ppm-fitchef-confirm');
     expect(notNow).toBeEnabled();
     expect(notNow).toHaveClass('ppm-fitchef-secondary');
-    expect(within(dailyStory).queryByRole('status')).not.toBeInTheDocument();
+    const persistentStatus = within(dailyStory).getByRole('status');
+    expect(persistentStatus).toBeEmptyDOMElement();
+    expect(persistentStatus).toHaveClass('ppm-fitchef-reveal-card--empty');
     expect(demoSection.querySelectorAll('a')).toHaveLength(0);
 
     await user.click(demo.getByRole('radio', { name: /Today/ }));
     expect(confirm).toBeEnabled();
-    expect(within(dailyStory).queryByRole('status')).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBe(persistentStatus);
+    expect(persistentStatus).toBeEmptyDOMElement();
     await user.click(confirm);
 
     const todayResult = within(dailyStory).getByRole('status');
+    expect(todayResult).toBe(persistentStatus);
+    expect(todayResult).not.toHaveClass('ppm-fitchef-reveal-card--empty');
     expect(within(todayResult).getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
     const todayImage = todayResult.querySelector('img');
     expect(todayImage).toHaveAttribute('data-fitchef-asset', 'daily-plate-a-salmon-1024.webp');
@@ -876,7 +881,9 @@ describe('FitChefValueDemo', (): void => {
     expect(todayResult.querySelector('a, button')).toBeNull();
 
     await user.click(demo.getByRole('radio', { name: /This week/ }));
-    expect(within(dailyStory).queryByRole('status')).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBe(persistentStatus);
+    expect(persistentStatus).toBeEmptyDOMElement();
+    expect(persistentStatus).toHaveClass('ppm-fitchef-reveal-card--empty');
     expect(
       within(dailyStory).queryByRole('heading', { name: 'Daily Plate' }),
     ).not.toBeInTheDocument();
@@ -910,6 +917,15 @@ describe('FitChefValueDemo', (): void => {
 
       expect(collectStaticInteractionViolations(story), storyName).toHaveLength(0);
     });
+
+    const foodStory = root.querySelector<HTMLElement>('[data-fitchef-story="food-context"]');
+    if (!foodStory) {
+      throw new Error('FitChef food-context story not found');
+    }
+    expect(within(foodStory).getByRole('img', { name: 'Daily Plate example' })).toBeInTheDocument();
+    expect(
+      within(foodStory).getByRole('img', { name: 'Weekly Planning example' }),
+    ).toBeInTheDocument();
 
     expect(container.querySelectorAll('[data-fitchef-story="daily"] fieldset')).toHaveLength(1);
     expect(
@@ -974,6 +990,22 @@ describe('FitChefValueDemo', (): void => {
       expect(webp.chunks, relativePath).toEqual([...frozenWebPChunkSequence]);
       expect(webp.iccProfileSha256, relativePath).toBe(frozenWebPIccProfileSha256);
     });
+
+    const runtimeBytes = promotedAssetContract.reduce(
+      (total, asset) => total + asset.runtimeBytes,
+      0,
+    );
+    const cardBytes = promotedAssetContract
+      .filter(
+        ({ relativePath }) =>
+          relativePath.startsWith('activity-palette/') ||
+          relativePath.startsWith('food-context/'),
+      )
+      .reduce((total, asset) => total + asset.runtimeBytes, 0);
+
+    expect(runtimeBytes).toBe(1906308);
+    expect(cardBytes).toBe(583578);
+    expect(cardBytes).toBeLessThanOrEqual(600 * 1024);
   });
 
   it('fails the asset census closed for unexpected file and directory symlinks', () => {
@@ -1053,7 +1085,10 @@ describe('FitChefValueDemo', (): void => {
 
     await user.click(screen.getByRole('radio', { name: /This week/ }));
 
-    expect(within(dailyStory).queryByRole('status')).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBeEmptyDOMElement();
+    expect(within(dailyStory).getByRole('status')).toHaveClass(
+      'ppm-fitchef-reveal-card--empty',
+    );
     expect(
       within(dailyStory).queryByRole('heading', { name: 'Daily Plate' }),
     ).not.toBeInTheDocument();
@@ -1076,7 +1111,8 @@ describe('FitChefValueDemo', (): void => {
     await user.click(screen.getByRole('radio', { name: /This week/ }));
     await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
     await user.click(notNow);
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(screen.getByRole('status')).toHaveClass('ppm-fitchef-reveal-card--empty');
 
     firstRender.unmount();
     render(<FitChefValueDemo />);
