@@ -279,11 +279,9 @@ final class HomeExperienceTests: XCTestCase {
                 probe: probe
             )
             let renderer = ImageRenderer(
-                content: NavigationStack {
-                    screen
-                }
-                .environment(\.locale, Locale(identifier: "en"))
-                .frame(width: 390, height: 844)
+                content: screen
+                    .environment(\.locale, Locale(identifier: "en"))
+                    .frame(width: 390, height: 844)
             )
             renderer.scale = 1
             renderer.proposedSize = ProposedViewSize(width: 390, height: 844)
@@ -312,13 +310,11 @@ final class HomeExperienceTests: XCTestCase {
                     planningToolsEnabled: true,
                     probe: probe
                 )
-                let content = NavigationStack {
-                    screen
-                }
-                .environment(\.locale, Locale(identifier: "en"))
-                .environment(\.horizontalSizeClass, sizeClass)
-                .dynamicTypeSize(dynamicTypeSize)
-                .frame(width: width, height: height)
+                let content = screen
+                    .environment(\.locale, Locale(identifier: "en"))
+                    .environment(\.horizontalSizeClass, sizeClass)
+                    .dynamicTypeSize(dynamicTypeSize)
+                    .frame(width: width, height: height)
                 let renderer = ImageRenderer(content: content)
                 renderer.scale = 1
                 renderer.proposedSize = ProposedViewSize(width: width, height: height)
