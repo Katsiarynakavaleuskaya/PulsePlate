@@ -30,8 +30,9 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (iOS build integrity / false-green prevention / release evidence)
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
-  - Status: Open non-draft; exact-head local evidence is complete, while GitHub current-head CI,
-    post-open review, mapping/seal, the wait window, and merge remain pending
+  - Status: Open non-draft; post-sync local evidence passes the complete 276-test target in EN/US
+    and RU/RU, while the Runner refresh, exact-material self-review, mapping reseal, GitHub
+    current-head CI, the wait window, and merge remain pending
   - Area: iOS unit-test selection / CI routing / local Swift syntax diagnostics / localization tests
   - Reason (EN): At the CAB-01 base, the canonical iOS lane selected a maintained class allowlist,
     so an enabled test could be omitted without making the blocking job fail. The base pre-commit
@@ -42,6 +43,7 @@ If it is not recorded here — it does not exist.
     - `scripts/ios_test_targets.sh`
     - `scripts/ci/check_ios_swift_syntax.sh`
     - `.github/workflows/ci.yml`
+    - `ios/PulsePlateTests/HomeExperienceTests.swift`
     - `ios/PulsePlateTests/PlateLoadIssueTests.swift`
     - `ios/PulsePlateTests/PlateViewTests.swift`
   - DoD:
@@ -4918,8 +4920,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
   - Priority: P1
-  - Status: Active in CAB-01; exact-head local EN/RU target evidence is complete, while GitHub
-    current-head CI, post-open review, mapping/seal, the wait window, and merge remain pending
+  - Status: Active in CAB-01; post-sync local EN/US and RU/RU target evidence passes 276 tests,
+    while the Runner refresh, exact-material self-review, mapping reseal, GitHub current-head CI,
+    the wait window, and merge remain pending
   - Reason: PlateViewTests were unstable historically. CAB-01 now owns their locale-safe
     stabilization and inclusion through the complete `PulsePlateTests` target while preserving the
     separate UI-smoke lane.
