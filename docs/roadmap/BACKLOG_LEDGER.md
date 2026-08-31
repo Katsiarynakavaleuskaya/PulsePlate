@@ -5185,13 +5185,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
   - Priority: P1 (compatibility alias / canonical Home ownership)
-  - Target PR: PR-TBD through
+  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367) through
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
     on branch `codex/ios-consumer-home-planning`
-  - Status: Compatibility alias only; no separate ER-IOS-4 carrier may open.
-    The active canonical Consumer-first Home carrier owns the complete state
-    projection and the one FitChef Coach entry; this alias neither narrows that
-    scope nor creates a second implementation lane.
+  - Status: Compatibility alias bound to active [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367);
+    no separate ER-IOS-4 carrier may open. The canonical Consumer-first Home
+    carrier owns the complete state projection and the one FitChef Coach entry;
+    this alias neither narrows that scope nor creates a second implementation
+    lane.
   - Area: iOS / Home / FitChef Coach / single navigation entry
   - Reason (EN): Historical ER-IOS-4 naming identifies the one discoverable
     FitChef Coach entry now delivered inside the canonical Consumer-first Home
@@ -5254,10 +5255,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: iOS Consumer-first Home planning experience
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`codex/ios-consumer-home-planning`)
-  - Status: Active implementation. The operator explicitly admitted start from
-    pending `main`; pending exact-main or overlapping ledger/workflow work does
-    not block this lane, but it grants no readiness or mergeability claim.
+  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367)
+    (`codex/ios-consumer-home-planning`)
+  - Status: Active implementation / in review. The operator explicitly admitted
+    start from pending `main`; pending exact-main or overlapping ledger/workflow
+    work does not block this lane, but it grants no readiness or mergeability
+    claim.
   - Area: iOS / Home / subscription projection / profile readiness / navigation / localization / accessibility
   - Reason (EN): The current iOS Home is an engineering dashboard with raw-key
     and service terminology. This bounded carrier projects the existing
