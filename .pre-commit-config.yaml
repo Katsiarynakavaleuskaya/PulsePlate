@@ -191,11 +191,11 @@ repos:
       # ios syntax check — run on pre-commit if iOS files changed (macOS only)
       - id: ios-syntax-check
         name: ios syntax check (swift)
-        entry: bash -c "if [ '$(uname)' == 'Darwin' ] && [ -d ios ]; then cd ios && swift build -c release > /dev/null 2>&1 || echo '⚠️  iOS build warnings (non-blocking)'; else echo '⚠️  Skipping iOS check (not macOS or no ios/ dir)'; fi"
+        entry: scripts/ci/check_ios_swift_syntax.sh
         language: system
-        pass_filenames: false
+        pass_filenames: true
         stages: [pre-commit]
-        files: ^ios/.*\.swift$
+        files: (?s)^ios/.*\.swift$
 
       # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
