@@ -561,12 +561,13 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     jobs = workflow["jobs"]
     classifier = jobs["postgres-pgvector-material-change"]
     classifier_run = classifier["steps"][1]["run"]
-    for exact_path in (
+    for classifier_pattern in (
         ".github/workflows/cd.yml",
-        "deploy/postgres-pgvector/Containerfile",
-        "deploy/postgres-pgvector/image-manifest.json",
+        ".github/workflows/ci.yml",
+        "deploy/postgres-pgvector/*",
+        "alembic/versions/*",
     ):
-        assert exact_path in classifier_run
+        assert classifier_pattern in classifier_run
     assert "--diff-filter=ACDMRTUXB" in classifier_run
     assert 'git merge-base --is-ancestor "$BEFORE_SHA" "$AFTER_SHA"' in classifier_run
 
@@ -781,13 +782,162 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
         assert "did not become complete before timeout" in completed.stderr
 
 
+def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    reuse_steps = workflow["jobs"]["postgres-pgvector-reuse"]["steps"]
+    assert reuse_steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    reuse_run = reuse_steps[1]["run"]
+    marker = "# Final read-only transaction boundary."
+    terminal_program = reuse_run[reuse_run.index(marker) :]
+    assert reuse_run.index(marker) > reuse_run.index(
+        'index .Config.Labels "com.pulseplate.pgvector.version"'
+    )
+
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    runner = tmp_path / "runner"
+
+    def git(cwd: Path, *arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=cwd,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    remote.mkdir()
+    git(remote, "init", "--bare", "-q")
+    source.mkdir()
+    git(source, "init", "-q")
+    git(source, "config", "user.name", "PulsePlate Test")
+    git(source, "config", "user.email", "pulseplate-test@example.invalid")
+    git(source, "checkout", "-qb", "main")
+    required_files = (
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci.yml",
+        "constraints.txt",
+        "requirements-ci-lite.txt",
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+        "requirements-test.in",
+        "requirements-test.txt",
+        "scripts/ci/emergency_python_wheels.json",
+        "scripts/ci/install_locked_python_requirements.py",
+        "scripts/deploy.sh",
+        "scripts/deploy_production.sh",
+        "deploy/docker-compose.staging.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+        "deploy/postgres-pgvector/Containerfile",
+        "core/rag/vector_rag.py",
+        "core/db_rls.py",
+        "alembic.ini",
+        "alembic/env.py",
+        "alembic/versions/base.py",
+        "tests/test_deploy_contract_scripts.py",
+        "tests/test_pgvector_compat.py",
+        "tests/test_pgvector_embedding_migration.py",
+        "tests/test_vector_rag.py",
+        "tests/test_db_rls.py",
+        "docs/note.md",
+    )
+    for relative_path in required_files:
+        path = source / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("base\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "base")
+    base_sha = git(source, "rev-parse", "HEAD")
+    git(source, "remote", "add", "origin", str(remote))
+    git(source, "push", "-q", "-u", "origin", "main")
+    git(tmp_path, "clone", "-q", str(remote), str(runner))
+    git(runner, "checkout", "-q", "--detach", base_sha)
+
+    program = (
+        "set -euo pipefail\n"
+        "docker() {\n"
+        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
+        '    [ "$STUB_TAG_READY" = "1" ]\n'
+        "    return\n"
+        "  fi\n"
+        "  return 0\n"
+        "}\n"
+        'canonical_tag_selects_expected_digest() { [ "$STUB_TAG_READY" = "1" ]; }\n'
+        + terminal_program
+    )
+
+    def terminal_recheck(tag_ready: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [bash_bin, "-c", program],
+            cwd=runner,
+            env={
+                **git_environment,
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_REF": "refs/heads/main",
+                "GITHUB_SHA": base_sha,
+                "RUNTIME_REF": POSTGRES_RUNTIME_REF,
+                "STUB_TAG_READY": tag_ready,
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    (source / "docs" / "note.md").write_text("unrelated\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "unrelated main advance")
+    git(source, "push", "-q", "origin", "main")
+    unrelated = terminal_recheck("1")
+    assert unrelated.returncode == 0, unrelated.stderr
+
+    tag_drift = terminal_recheck("0")
+    assert tag_drift.returncode != 0
+    assert "tag or immutable digest drifted" in tag_drift.stderr
+
+    (source / "requirements-test.txt").write_text("superseding\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "superseding compatibility material")
+    git(source, "push", "-q", "origin", "main")
+    superseded = terminal_recheck("1")
+    assert superseded.returncode != 0
+    assert "compatibility surface superseded" in superseded.stderr
+
+
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
     tmp_path: Path,
 ) -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    ci_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
     jobs = workflow["jobs"]
     classifier_program = jobs["postgres-pgvector-material-change"]["steps"][1]["run"]
     admission_program = jobs["postgres-pgvector-admission"]["steps"][0]["run"]
+    filter_step = next(
+        step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
+    )
+    pgvector_compat_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
+    for compatibility_path in pgvector_compat_paths:
+        classifier_pattern = compatibility_path
+        if compatibility_path.startswith("deploy/postgres-pgvector/"):
+            classifier_pattern = "deploy/postgres-pgvector/*"
+        elif compatibility_path.startswith("alembic/versions/"):
+            classifier_pattern = "alembic/versions/*"
+        assert classifier_pattern in classifier_program
+    assert ".github/workflows/cd.yml" in classifier_program
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
     assert git_bin is not None and bash_bin is not None
@@ -864,7 +1014,25 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
     assert material_result.returncode == 0, material_result.stderr
     assert material_output == "changed=true\n"
 
-    zero_result, zero_output = classify("0" * 40, material_head)
+    migration_path = fixture_root / "alembic" / "versions" / "compatibility_probe.py"
+    migration_path.parent.mkdir(parents=True)
+    migration_path.write_text("revision = 'compatibility-probe'\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "pgvector compatibility surface")
+    compatibility_head = git("rev-parse", "HEAD")
+    compatibility_result, compatibility_output = classify(material_head, compatibility_head)
+    assert compatibility_result.returncode == 0, compatibility_result.stderr
+    assert compatibility_output == "changed=true\n"
+
+    (fixture_root / "docs" / "note.md").write_text("unrelated\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "unrelated docs")
+    unrelated_head = git("rev-parse", "HEAD")
+    unrelated_result, unrelated_output = classify(compatibility_head, unrelated_head)
+    assert unrelated_result.returncode == 0, unrelated_result.stderr
+    assert unrelated_output == "changed=false\n"
+
+    zero_result, zero_output = classify("0" * 40, unrelated_head)
     assert zero_result.returncode == 0
     assert zero_output == "changed=true\n"
     malformed_result, _ = classify("not-a-sha", material_head)
@@ -2575,6 +2743,26 @@ set -euo pipefail
     assert not log_file.exists()
 
 
+def _staging_compose_fixture_json() -> str:
+    payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    payload["services"]["postgres"]["environment"].update(
+        {
+            "POSTGRES_DB": "pulseplate",
+            "POSTGRES_USER": "pulseplate",
+            "POSTGRES_PASSWORD": "test-only",  # pragma: allowlist secret
+        }
+    )
+    local_database_url = (
+        "postgresql+psycopg://pulseplate:test-only@postgres/pulseplate"  # pragma: allowlist secret
+    )
+    payload["services"]["app"] = {"environment": {"DATABASE_URL": local_database_url}}
+    payload["services"]["worker"] = {"environment": {"DATABASE_URL": local_database_url}}
+    return json.dumps(payload, separators=(",", ":"))
+
+
+FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
+
+
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
         contract_responses = f"""case \"$*\" in
@@ -2585,7 +2773,7 @@ def _write_executable(path: Path, content: str) -> None:
     if [ -n \"${{STUB_PROMETHEUS_COMPOSE_JSON+x}}\" ]; then
       printf '%s\\n' \"$STUB_PROMETHEUS_COMPOSE_JSON\"
     else
-      printf '%s\\n' '{FAKE_PROMETHEUS_COMPOSE_JSON}'
+      printf '%s\\n' '{FAKE_STAGING_COMPOSE_JSON}'
     fi
     ;;
   run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
@@ -2974,14 +3162,25 @@ def test_staging_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
 
 @pytest.mark.parametrize(
     "variant",
-    ("missing", "wrong-image", "wrong-platform", "wrong-pgdata", "wrong-volume", "ports"),
+    (
+        "missing",
+        "wrong-image",
+        "wrong-platform",
+        "wrong-pgdata",
+        "wrong-volume",
+        "ports",
+        "missing-app",
+        "missing-worker",
+        "app-external-dsn",
+        "worker-dsn-drift",
+    ),
 )
 def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
     tmp_path: Path,
     variant: str,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
-    rendered = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    rendered = json.loads(FAKE_STAGING_COMPOSE_JSON)
     postgres = rendered["services"]["postgres"]
     if variant == "missing":
         del rendered["services"]["postgres"]
@@ -2995,6 +3194,18 @@ def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
         postgres["volumes"][0]["target"] = "/var/lib/postgresql/15/data"
     elif variant == "ports":
         postgres["ports"] = [{"target": 5432, "published": "5432"}]
+    elif variant == "missing-app":
+        del rendered["services"]["app"]
+    elif variant == "missing-worker":
+        del rendered["services"]["worker"]
+    elif variant == "app-external-dsn":
+        rendered["services"]["app"]["environment"][
+            "DATABASE_URL"
+        ] = "postgresql+psycopg://pulseplate:test-only@db.example.com/pulseplate"  # pragma: allowlist secret
+    elif variant == "worker-dsn-drift":
+        rendered["services"]["worker"]["environment"][
+            "DATABASE_URL"
+        ] = "postgresql+psycopg://pulseplate:test-only@postgres/other"  # pragma: allowlist secret
     else:
         raise AssertionError(f"unsupported rendered PostgreSQL variant: {variant}")
     env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(rendered)

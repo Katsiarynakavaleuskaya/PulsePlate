@@ -183,6 +183,19 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   remain bound to the immutable digest. This post-write gate is the declared
   transaction boundary; stronger exclusivity requires a separate ownership
   and threat-model lane rather than additional same-job race checks.
+- The PostgreSQL material classifier must cover the complete finite
+  compatibility surface owned by the canonical CI `pgvector_compat` filter,
+  plus the publication workflow itself. A main push that changes any migration,
+  dependency, Compose, deploy, pgvector runtime, or compatibility-test owner
+  must take the credential-free compatibility and publisher path; it must not
+  fall through to reuse.
+- Read-only PostgreSQL reuse has one terminal transaction boundary after scans,
+  attestations, and runtime checks: a main run must refetch `main`, prove that
+  the complete compatibility surface is unchanged from its exact run SHA, and
+  all reuse events must recheck that the canonical tag still selects the frozen
+  digest. This final check is read-only and single-pass. Do not add a polling
+  loop or tag rollback; stronger exclusion requires a separate ownership/lock
+  lane.
 - The preceding `postgres-pgvector-ci-admission` compatibility job must remain
   credential-free even on its trusted main-only path. It may consume only the
   single-line, credential-free repository proxy variables; it must not receive

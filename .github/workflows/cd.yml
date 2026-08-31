@@ -666,8 +666,32 @@ jobs:
           while IFS= read -r path; do
             case "$path" in
               .github/workflows/cd.yml | \
-              deploy/postgres-pgvector/Containerfile | \
-              deploy/postgres-pgvector/image-manifest.json)
+              .github/workflows/ci.yml | \
+              constraints.txt | \
+              requirements-ci-lite.txt | \
+              requirements-rag-vector.in | \
+              requirements-rag-vector.txt | \
+              requirements-rag-vector-cpu.in | \
+              requirements-rag-vector-cpu.txt | \
+              requirements-test.in | \
+              requirements-test.txt | \
+              scripts/ci/emergency_python_wheels.json | \
+              scripts/ci/install_locked_python_requirements.py | \
+              scripts/deploy.sh | \
+              scripts/deploy_production.sh | \
+              deploy/docker-compose.staging.yaml | \
+              deploy/docker-compose.production.selfhosted.yaml | \
+              deploy/postgres-pgvector/* | \
+              core/rag/vector_rag.py | \
+              core/db_rls.py | \
+              alembic.ini | \
+              alembic/env.py | \
+              alembic/versions/* | \
+              tests/test_deploy_contract_scripts.py | \
+              tests/test_pgvector_compat.py | \
+              tests/test_pgvector_embedding_migration.py | \
+              tests/test_vector_rag.py | \
+              tests/test_db_rls.py)
                 changed=true
                 ;;
             esac
@@ -2046,6 +2070,7 @@ jobs:
       - name: Checkout immutable PostgreSQL admission contract
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Read-only admit the existing exact PostgreSQL digest
@@ -2385,6 +2410,57 @@ jobs:
             '["/usr/local/bin/docker-entrypoint.sh"]'
           test "$(docker image inspect "$RUNTIME_REF" \
             --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
+          # Final read-only transaction boundary. Stronger exclusion requires a separate
+          # host-lock/ownership lane rather than another same-job polling loop.
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            pgvector_relevant_paths=(
+              .github/workflows/cd.yml
+              .github/workflows/ci.yml
+              constraints.txt
+              requirements-ci-lite.txt
+              requirements-rag-vector.in
+              requirements-rag-vector.txt
+              requirements-rag-vector-cpu.in
+              requirements-rag-vector-cpu.txt
+              requirements-test.in
+              requirements-test.txt
+              scripts/ci/emergency_python_wheels.json
+              scripts/ci/install_locked_python_requirements.py
+              scripts/deploy.sh
+              scripts/deploy_production.sh
+              deploy/docker-compose.staging.yaml
+              deploy/docker-compose.production.selfhosted.yaml
+              deploy/postgres-pgvector
+              core/rag/vector_rag.py
+              core/db_rls.py
+              alembic.ini
+              alembic/env.py
+              alembic/versions
+              tests/test_deploy_contract_scripts.py
+              tests/test_pgvector_compat.py
+              tests/test_pgvector_embedding_migration.py
+              tests/test_vector_rag.py
+              tests/test_db_rls.py
+            )
+            git fetch --no-tags --prune origin \
+              +refs/heads/main:refs/remotes/origin/main
+            reuse_terminal_main_sha="$(git rev-parse refs/remotes/origin/main)"
+            git merge-base --is-ancestor "$GITHUB_SHA" "$reuse_terminal_main_sha"
+            for material_path in "${pgvector_relevant_paths[@]}"; do
+              git cat-file -e "${GITHUB_SHA}:${material_path}"
+              git cat-file -e "${reuse_terminal_main_sha}:${material_path}"
+            done
+            if ! git diff --quiet "$GITHUB_SHA" "$reuse_terminal_main_sha" -- \
+                "${pgvector_relevant_paths[@]}"; then
+              echo "Current main PostgreSQL compatibility surface superseded this reuse run; HOLD" >&2
+              exit 1
+            fi
+          fi
+          if ! docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1 || \
+             ! canonical_tag_selects_expected_digest; then
+            echo "Canonical PostgreSQL tag or immutable digest drifted before terminal reuse admission; HOLD" >&2
+            exit 1
+          fi
 
   postgres-pgvector-admission:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()

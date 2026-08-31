@@ -487,6 +487,73 @@ if type(repo_digests) is not list or expected not in repo_digests:
 ' "$platform_digest"
 }
 
+validate_staging_database_binding() {
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
+import json
+import sys
+from urllib.parse import unquote, urlsplit
+
+def reject_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
+except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("Rendered Compose JSON is malformed") from exc
+services = payload.get("services") if type(payload) is dict else None
+postgres = services.get("postgres") if type(services) is dict else None
+postgres_environment = postgres.get("environment") if type(postgres) is dict else None
+required_postgres_environment = ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+if type(postgres_environment) is not dict or any(
+    type(postgres_environment.get(key)) is not str or not postgres_environment[key]
+    for key in required_postgres_environment
+):
+    raise SystemExit("Rendered staging PostgreSQL credentials are missing or malformed")
+
+database_urls = []
+for service_name in ("app", "worker"):
+    service = services.get(service_name)
+    service_environment = service.get("environment") if type(service) is dict else None
+    database_url = (
+        service_environment.get("DATABASE_URL")
+        if type(service_environment) is dict
+        else None
+    )
+    if type(database_url) is not str or not database_url:
+        raise SystemExit(
+            f"Rendered staging {service_name} must define one PostgreSQL DATABASE_URL"
+        )
+    try:
+        parsed = urlsplit(database_url)
+        port = parsed.port
+    except ValueError as exc:
+        raise SystemExit(
+            f"Rendered staging {service_name} DATABASE_URL is malformed"
+        ) from exc
+    if (
+        parsed.scheme not in {"postgresql", "postgresql+psycopg"}
+        or parsed.hostname != "postgres"
+        or port not in (None, 5432)
+        or parsed.query
+        or parsed.fragment
+        or unquote(parsed.username or "") != postgres_environment["POSTGRES_USER"]
+        or unquote(parsed.password or "") != postgres_environment["POSTGRES_PASSWORD"]
+        or unquote(parsed.path.removeprefix("/")) != postgres_environment["POSTGRES_DB"]
+    ):
+        raise SystemExit(
+            f"Rendered staging {service_name} DATABASE_URL does not target the local PostgreSQL service"
+        )
+    database_urls.append(database_url)
+if len(set(database_urls)) != 1:
+    raise SystemExit("Rendered staging app and worker DATABASE_URL identities differ")
+'
+}
+
 validate_pulled_postgres_mountpoint() {
   local runtime_ref="$1"
   "$DOCKER_BIN" run --rm \
@@ -845,6 +912,7 @@ esac
 "${COMPOSE[@]}" config --quiet
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
 validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
+validate_staging_database_binding
 POSTGRES_VOLUME_NAME="$(read_rendered_postgres_volume_name)"
 readonly POSTGRES_VOLUME_NAME
 
