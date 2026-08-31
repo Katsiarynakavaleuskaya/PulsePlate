@@ -28,12 +28,14 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (iOS build integrity / false-green prevention / release evidence)
-  - Target PR: current carrier `codex/ios-complete-unit-signal` (PR number assigned when opened)
-  - Status: Active implementation; exact-head local and CI evidence remains pending
+  - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
+    (`codex/ios-complete-unit-signal`)
+  - Status: Open non-draft; exact-head local evidence is complete, while GitHub current-head CI,
+    post-open review, mapping/seal, the wait window, and merge remain pending
   - Area: iOS unit-test selection / CI routing / local Swift syntax diagnostics / localization tests
-  - Reason (EN): The canonical iOS lane currently selects a maintained class allowlist, so an
-    enabled test can be omitted without making the blocking job fail. The local pre-commit hook also
-    turns an incompatible `swift build` failure into success. CAB-01 is the first bounded carrier in
+  - Reason (EN): At the CAB-01 base, the canonical iOS lane selected a maintained class allowlist,
+    so an enabled test could be omitted without making the blocking job fail. The base pre-commit
+    hook also turned an incompatible `swift build` failure into success. CAB-01 is the first bounded carrier in
     CLIENT-ARCH-1 and replaces those two false-green surfaces without changing production Swift,
     Xcode build settings, public API contracts, product copy, assets, or the separate UI-test lane.
   - Links:
@@ -4913,9 +4915,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: current CLIENT-ARCH-1 / CAB-01 carrier `codex/ios-complete-unit-signal`
+  - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
+    (`codex/ios-complete-unit-signal`)
   - Priority: P1
-  - Status: Active in CAB-01; closure remains pending exact-head evidence and merge
+  - Status: Active in CAB-01; exact-head local EN/RU target evidence is complete, while GitHub
+    current-head CI, post-open review, mapping/seal, the wait window, and merge remain pending
   - Reason: PlateViewTests were unstable historically. CAB-01 now owns their locale-safe
     stabilization and inclusion through the complete `PulsePlateTests` target while preserving the
     separate UI-smoke lane.
