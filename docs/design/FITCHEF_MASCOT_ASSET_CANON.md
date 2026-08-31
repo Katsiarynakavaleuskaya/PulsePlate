@@ -155,7 +155,8 @@ English:
   `Where would you like to start?`;
   `FitChef shows both options. The choice is yours.`; `Today`;
   `Start with the plan for today.`; `This week`;
-  `Look at the next seven days.`; `Confirm choice`; `Not now`; `Daily Plate`.
+  `Look at the next seven days.`; `Confirm choice`; `Not now`; `Daily Plate`;
+  `Weekly Planning`.
 - Weekly: `A week that changes with you`; `Starting week`; `What changed`;
   `Your goal changes`; `A meal out`; `Use what’s at home`; `Updated week`.
 - Food Context: `A food plan built around real life`; `Ingredients at home`;
@@ -175,7 +176,7 @@ Russian:
   `FitChef покажет оба варианта, а выбор останется за вами.`; `Сегодня`;
   `Сначала разобраться с планом на день.`; `Неделя`;
   `Сначала посмотреть на ближайшие семь дней.`; `Подтвердить выбор`;
-  `Не сейчас`; `План питания на день`.
+  `Не сейчас`; `План питания на день`; `План на неделю`.
 - Weekly: `Неделя, которая меняется вместе с вами`; `Начало недели`;
   `Что изменилось`; `Изменилась цель`; `Еда вне дома`;
   `Использовать продукты дома`; `Обновлённая неделя`.
@@ -196,7 +197,7 @@ Spanish:
   `FitChef te muestra ambas opciones. Tú eliges.`; `Hoy`;
   `Empezar por el plan de hoy.`; `Esta semana`;
   `Ver los próximos siete días.`; `Confirmar elección`; `Ahora no`;
-  `Plan del día`.
+  `Plan del día`; `Plan semanal`.
 - Weekly: `Una semana que cambia contigo`; `Semana inicial`; `Qué cambió`;
   `Cambia tu objetivo`; `Una comida fuera`; `Usa lo que tienes en casa`;
   `Semana actualizada`.

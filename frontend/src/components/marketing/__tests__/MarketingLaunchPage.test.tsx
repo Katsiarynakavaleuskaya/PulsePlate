@@ -321,7 +321,11 @@ function collectRelativeFiles(root: string, relativeDirectory = ''): string[] {
 }
 
 function collectVisibleStoryCopy(story: HTMLElement): string[] {
-  const walker = story.ownerDocument.createTreeWalker(story, 4);
+  const nodeFilter = story.ownerDocument.defaultView?.NodeFilter;
+  if (!nodeFilter) {
+    throw new Error('Story copy census requires a DOM NodeFilter implementation');
+  }
+  const walker = story.ownerDocument.createTreeWalker(story, nodeFilter.SHOW_TEXT);
   const copy: string[] = [];
   let node = walker.nextNode();
 
