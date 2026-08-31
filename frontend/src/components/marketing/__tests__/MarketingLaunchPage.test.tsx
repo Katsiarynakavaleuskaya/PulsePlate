@@ -1,6 +1,19 @@
 /** @vitest-environment jsdom */
-import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -31,6 +44,7 @@ const marketingPagePath = resolve(
 const routesPath = resolve(currentDirectory, '../../../config/routes.ts');
 const marketingStylesPath = resolve(currentDirectory, '../marketing.css');
 const marketingTokensPath = resolve(currentDirectory, '../marketing-tokens.css');
+const promotedAssetRoot = resolve(frontendSourceDirectory, 'assets/brand/fitchef-public-demo/v1');
 const hppTokenGuidelinesPath = resolve(currentDirectory, '../../../stories/HppTokenGuidelines.mdx');
 const designSystemGuidelinesPath = resolve(
   currentDirectory,
@@ -38,9 +52,150 @@ const designSystemGuidelinesPath = resolve(
 );
 
 const excludedSourceDirectories = new Set(['__tests__', '__snapshots__', 'evidence']);
+
+const promotedAssetContract = [
+  {
+    relativePath: 'activity-palette/endurance.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 88776,
+    sha256: '09d238901bf22f79525c1b597e1e6cf9b5ce2ceb602f8fa82e9439df7bf998f0', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'activity-palette/movement-everyday-fitness.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 94298,
+    sha256: '7472fb52b167bed135a76e95f40d681e9962c515d9038a8158611683f436a620', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'activity-palette/strength-power.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 33474,
+    sha256: '4a154769734dedbbe2ad7fb250e45a371071316971bc27761aee62611c3758d0', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'activity-palette/team-combat.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 65154,
+    sha256: '80627dd04d4d1ac099e826741e1a10d099ab254bc4e49b45c47b8ae6eb75be8d', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'daily-plate-a-salmon-1024.webp',
+    width: 1024,
+    height: 1024,
+    runtimeBytes: 245002,
+    sha256: 'ae1410aeaabf59389ef244cab577ad9d7a82ef5ffc4338ac41f256a034be2149', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'food-context/food-context-ingredients-at-home.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 64556,
+    sha256: '7759e414df893aea1261e69a84228ebc144f458eeebbee344fb2dd8041b45dfd', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'food-context/food-context-meal-photo.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 76426,
+    sha256: '579e19094f5b5b3e33df260d7c71199b7c665cf77f7252a61a3b2383fb3fa2a1', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'food-context/food-context-restaurant-chef.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 64116,
+    sha256: '09dc0969eb4a9fc6e9cf469b5f3a83a075cbad298101ab26602d0ec2ed5725c0', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'food-context/food-context-shopping-stores.webp',
+    width: 410,
+    height: 512,
+    runtimeBytes: 96778,
+    sha256: '214a0dcbcfb11caa97a645e1b9b3b66e16da3fc659b0c71c08191c8873441239', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp',
+    width: 1122,
+    height: 1402,
+    runtimeBytes: 368238,
+    sha256: '324d63729b745d17a0a7706a55bd74979a40a7db8820958a024e4ad73000d8f7', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'weekly-planning-a-meal-grid-1024.webp',
+    width: 1024,
+    height: 1024,
+    runtimeBytes: 332828,
+    sha256: '678a55fd171bd40112377e160794019112dee3c1f8e6cb0d29c99f6058380d8a', // pragma: allowlist secret
+  },
+  {
+    relativePath: 'weekly-planning-b-notebook-1024.webp',
+    width: 1024,
+    height: 1024,
+    runtimeBytes: 376662,
+    sha256: '8d8f4d53b3f55e323a346520313d5e98021aca94734117e855d1d9b4953fc73d', // pragma: allowlist secret
+  },
+] as const;
+
+type PromotedAssetContractEntry = (typeof promotedAssetContract)[number];
+
+const idleAssetMarkerMultiset = [
+  'activity-palette/endurance.webp',
+  'activity-palette/strength-power.webp',
+  'activity-palette/team-combat.webp',
+  'activity-palette/movement-everyday-fitness.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'weekly-planning-a-meal-grid-1024.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-shopping-stores.webp',
+  'food-context/food-context-meal-photo.webp',
+  'daily-plate-a-salmon-1024.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp',
+].sort();
+
+const forbiddenStaticInteractionSelector = [
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'fieldset',
+  'form',
+  'details',
+  'summary',
+  'audio[controls]',
+  'video[controls]',
+  'iframe',
+  'object',
+  'embed',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="radio"]',
+  '[role="group"]',
+  '[role="status"]',
+  '[aria-live]',
+].join(', ');
+
+const frozenWebPChunkSequence = ['VP8X', 'ICCP', 'VP8 '] as const;
+const frozenWebPIccProfileBytes = 588;
+const frozenWebPIccProfileSha256 =
+  '86453c6e1ee138f0be42c75ab37a6d73422df68e4767da1b1d3ae6c05aa20e39'; // pragma: allowlist secret
+
+const promotedAssetDependencies = promotedAssetContract.map(
+  ({ relativePath }) => `../../assets/brand/fitchef-public-demo/v1/${relativePath}`,
+);
 const allowedDemoDependencies = [
   'react',
-  '../../assets/brand/fitchef-onboarding-welcome-v1.png',
+  '../../assets/brand/fitchef-portrait-neutral-v1.png',
+  ...promotedAssetDependencies,
   '../ui/Button',
   '../ui/Card',
   '../ui/RadioGroup',
@@ -129,8 +284,7 @@ function cssBoundaryViolations(source: string): string[] {
   });
 
   const literalRemoteAddressPattern = /(?:https?:\/\/|\/\/)[a-z0-9]/i;
-  const comparisonCopyPattern =
-    /\bCandidate\s*Y\b|\bGuided[\s_-]*Reveal\b|\bH2\b/i;
+  const comparisonCopyPattern = /\bCandidate\s*Y\b|\bGuided[\s_-]*Reveal\b|\bH2\b/i;
   root.walkDecls((declaration) => {
     if (literalRemoteAddressPattern.test(declaration.value)) {
       violations.add('remote-url');
@@ -144,6 +298,200 @@ function cssBoundaryViolations(source: string): string[] {
   });
 
   return Array.from(violations).sort();
+}
+
+function collectRelativeFiles(root: string, relativeDirectory = ''): string[] {
+  const directory = resolve(root, relativeDirectory);
+
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Asset census rejects symbolic links: ${relativePath}`);
+      }
+      if (entry.isDirectory()) {
+        return collectRelativeFiles(root, relativePath);
+      }
+      if (!entry.isFile()) {
+        throw new Error(`Asset census rejects non-regular entries: ${relativePath}`);
+      }
+
+      return [relativePath];
+    })
+    .sort();
+}
+
+function collectVisibleStoryCopy(story: HTMLElement): string[] {
+  const nodeFilter = story.ownerDocument.defaultView?.NodeFilter;
+  if (!nodeFilter) {
+    throw new Error('Story copy census requires a DOM NodeFilter implementation');
+  }
+  const walker = story.ownerDocument.createTreeWalker(story, nodeFilter.SHOW_TEXT);
+  const copy: string[] = [];
+  let node = walker.nextNode();
+
+  while (node) {
+    const parent = node.parentElement;
+    const normalized = node.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    if (normalized && parent && !parent.closest('[aria-hidden="true"], [hidden], script, style')) {
+      copy.push(normalized);
+    }
+    node = walker.nextNode();
+  }
+
+  return copy;
+}
+
+function collectAssetMarkerMultiset(root: HTMLElement): string[] {
+  return Array.from(
+    root.querySelectorAll<HTMLImageElement>('img[data-fitchef-asset]'),
+    (image) => image.dataset.fitchefAsset ?? '',
+  ).sort();
+}
+
+function collectStaticInteractionViolations(root: HTMLElement): Element[] {
+  const violations = new Set<Element>(root.querySelectorAll(forbiddenStaticInteractionSelector));
+  root.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    if (element.tabIndex >= 0) {
+      violations.add(element);
+    }
+  });
+  return Array.from(violations);
+}
+
+function inspectWebP(buffer: Buffer): {
+  width: number;
+  height: number;
+  chunks: string[];
+  iccProfileSha256: string;
+} {
+  if (
+    buffer.length < 30 ||
+    buffer.toString('ascii', 0, 4) !== 'RIFF' ||
+    buffer.toString('ascii', 8, 12) !== 'WEBP'
+  ) {
+    throw new Error('Invalid or truncated WebP RIFF signature');
+  }
+  if (buffer.readUInt32LE(4) !== buffer.length - 8) {
+    throw new Error('WebP RIFF size must match the complete file');
+  }
+
+  const chunks: string[] = [];
+  let offset = 12;
+  let width: number | null = null;
+  let height: number | null = null;
+  let iccProfile: Buffer | null = null;
+
+  while (offset < buffer.length) {
+    if (offset + 8 > buffer.length) {
+      throw new Error('Truncated WebP chunk header');
+    }
+
+    const type = buffer.toString('ascii', offset, offset + 4);
+    const dataLength = buffer.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+    const nextOffset = dataOffset + dataLength + (dataLength % 2);
+
+    if (nextOffset > buffer.length) {
+      throw new Error(`Truncated WebP chunk: ${type}`);
+    }
+    if (dataLength % 2 === 1 && buffer[dataOffset + dataLength] !== 0) {
+      throw new Error(`WebP chunk padding must be zero: ${type}`);
+    }
+
+    chunks.push(type);
+    if (type === 'VP8X') {
+      if (dataLength !== 10) {
+        throw new Error('WebP VP8X canvas header must be exactly 10 bytes');
+      }
+      if (
+        buffer[dataOffset] !== 0x20 ||
+        buffer[dataOffset + 1] !== 0 ||
+        buffer[dataOffset + 2] !== 0 ||
+        buffer[dataOffset + 3] !== 0
+      ) {
+        throw new Error('WebP VP8X flags must declare only the frozen ICC profile');
+      }
+      width = buffer.readUIntLE(dataOffset + 4, 3) + 1;
+      height = buffer.readUIntLE(dataOffset + 7, 3) + 1;
+    } else if (type === 'ICCP') {
+      if (dataLength !== frozenWebPIccProfileBytes) {
+        throw new Error('WebP ICC profile length does not match the frozen profile');
+      }
+      iccProfile = Buffer.from(buffer.subarray(dataOffset, dataOffset + dataLength));
+    } else if (type === 'VP8 ' && dataLength === 0) {
+      throw new Error('WebP VP8 payload must be non-empty');
+    }
+    offset = nextOffset;
+  }
+
+  if (offset !== buffer.length || width === null || height === null || iccProfile === null) {
+    throw new Error('WebP must terminate exactly after a VP8X canvas');
+  }
+  if (chunks.join('|') !== frozenWebPChunkSequence.join('|')) {
+    throw new Error('WebP chunk sequence must equal VP8X, ICCP, VP8 exactly once');
+  }
+
+  const iccProfileSha256 = createHash('sha256').update(iccProfile).digest('hex');
+  if (iccProfileSha256 !== frozenWebPIccProfileSha256) {
+    throw new Error('WebP ICC profile hash does not match the frozen sRGB profile');
+  }
+
+  return {
+    width,
+    height,
+    chunks,
+    iccProfileSha256,
+  };
+}
+
+interface FixtureWebPChunk {
+  type: string;
+  payload: Buffer;
+}
+
+function readFixtureWebPChunks(buffer: Buffer): FixtureWebPChunk[] {
+  const chunks: FixtureWebPChunk[] = [];
+  let offset = 12;
+
+  while (offset < buffer.length) {
+    const type = buffer.toString('ascii', offset, offset + 4);
+    const dataLength = buffer.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+    chunks.push({
+      type,
+      payload: Buffer.from(buffer.subarray(dataOffset, dataOffset + dataLength)),
+    });
+    offset = dataOffset + dataLength + (dataLength % 2);
+  }
+
+  return chunks;
+}
+
+function buildFixtureWebP(
+  chunks: FixtureWebPChunk[],
+  {
+    paddingByte = 0,
+    omitFinalPadding = false,
+  }: { paddingByte?: number; omitFinalPadding?: boolean } = {},
+): Buffer {
+  const parts = chunks.flatMap(({ type, payload }, index) => {
+    const header = Buffer.alloc(8);
+    header.write(type, 0, 4, 'ascii');
+    header.writeUInt32LE(payload.length, 4);
+    const needsPadding = payload.length % 2 === 1;
+    const omitPadding = omitFinalPadding && index === chunks.length - 1;
+    return needsPadding && !omitPadding
+      ? [header, payload, Buffer.from([paddingByte])]
+      : [header, payload];
+  });
+  const body = Buffer.concat(parts);
+  const header = Buffer.alloc(12);
+  header.write('RIFF', 0, 4, 'ascii');
+  header.writeUInt32LE(body.length + 4, 4);
+  header.write('WEBP', 8, 4, 'ascii');
+  return Buffer.concat([header, body]);
 }
 
 function collectTypeScriptSources(
@@ -214,7 +562,9 @@ const storybookSourcePaths = Array.from(
     ...collectStorybookSources(storybookConfigDirectory),
     ...frontendStorybookSources.filter(
       (path) =>
-        /\.stories\.(ts|tsx)$/.test(path) || path.endsWith('.mdx') || path.includes('/src/stories/'),
+        /\.stories\.(ts|tsx)$/.test(path) ||
+        path.endsWith('.mdx') ||
+        path.includes('/src/stories/'),
     ),
   ]),
 ).sort();
@@ -234,21 +584,22 @@ afterEach((): void => {
   vi.unstubAllGlobals();
 });
 
-type ProductionStateCaseName<State extends FitChefDemoState> =
-  State extends { status: 'idle' }
-    ? 'idle'
-    : State extends { status: infer Status extends string; choice: infer Choice extends string }
-      ? `${Status}${Capitalize<Choice>}`
-      : State extends { status: infer Status extends string }
-        ? Status
-        : never;
-
-type ProductionEventCaseName<Event extends FitChefDemoEvent> =
-  Event extends { type: 'select'; choice: infer Choice extends string }
-    ? `select${Capitalize<Choice>}`
-    : Event extends { type: infer Type extends string }
-      ? Type
+type ProductionStateCaseName<State extends FitChefDemoState> = State extends { status: 'idle' }
+  ? 'idle'
+  : State extends { status: infer Status extends string; choice: infer Choice extends string }
+    ? `${Status}${Capitalize<Choice>}`
+    : State extends { status: infer Status extends string }
+      ? Status
       : never;
+
+type ProductionEventCaseName<Event extends FitChefDemoEvent> = Event extends {
+  type: 'select';
+  choice: infer Choice extends string;
+}
+  ? `select${Capitalize<Choice>}`
+  : Event extends { type: infer Type extends string }
+    ? Type
+    : never;
 
 type DerivedDemoStateName = ProductionStateCaseName<FitChefDemoState>;
 type DerivedDemoEventName = ProductionEventCaseName<FitChefDemoEvent>;
@@ -334,6 +685,35 @@ describe('FitChef demo reducer', (): void => {
   });
 
   it('fails closed for malformed and unknown event families from every state', (): void => {
+    const accessorType = {};
+    Object.defineProperty(accessorType, 'type', {
+      enumerable: true,
+      get: () => {
+        throw new Error('type getter must not execute');
+      },
+    });
+    const accessorChoice = { type: 'select' };
+    Object.defineProperty(accessorChoice, 'choice', {
+      enumerable: true,
+      get: () => {
+        throw new Error('choice getter must not execute');
+      },
+    });
+    const inheritedReset = Object.create({ type: 'reset' }) as object;
+    const inheritedChoice = Object.create({ choice: 'today' }) as { type?: string };
+    inheritedChoice.type = 'select';
+    const nonEnumerableExtra = { type: 'reset' };
+    Object.defineProperty(nonEnumerableExtra, 'extra', { value: true });
+    const symbolExtra = { type: 'reset', [Symbol('extra')]: true };
+    const nullPrototype = Object.assign(Object.create(null) as object, { type: 'reset' });
+    const throwingProxy = new Proxy(
+      { type: 'reset' },
+      {
+        ownKeys: () => {
+          throw new Error('ownKeys trap');
+        },
+      },
+    );
     const malformedEvents: unknown[] = [
       undefined,
       null,
@@ -347,12 +727,24 @@ describe('FitChef demo reducer', (): void => {
       { type: 'select' },
       { type: 'select', choice: null },
       { type: 'select', choice: 'month' },
+      { type: 'select', choice: 'today', extra: true },
+      { type: 'confirm', choice: 'week' },
+      { type: 'reset', choice: 'today' },
       { type: 'open' },
+      accessorType,
+      accessorChoice,
+      inheritedReset,
+      inheritedChoice,
+      nonEnumerableExtra,
+      symbolExtra,
+      nullPrototype,
+      throwingProxy,
       Symbol('unknown-event'),
     ];
 
     Object.values(demoStates).forEach((state) => {
       malformedEvents.forEach((event) => {
+        expect(() => fitChefValueDemoReducer(state, event)).not.toThrow();
         expect(fitChefValueDemoReducer(state, event)).toBe(state);
       });
     });
@@ -360,89 +752,363 @@ describe('FitChef demo reducer', (): void => {
 });
 
 describe('FitChefValueDemo', (): void => {
-  it('renders every approved copy item and both confirmed correspondences inside the demo', async () => {
+  it('renders the four approved story families once with exact English copy', () => {
+    const { container } = render(<FitChefValueDemo />);
+    const root = screen.getByTestId('fitchef-value-demo');
+    const storyElements = Array.from(root.querySelectorAll<HTMLElement>('[data-fitchef-story]'));
+    const requireStory = (story: string): HTMLElement => {
+      const element = root.querySelector<HTMLElement>(`[data-fitchef-story="${story}"]`);
+
+      if (!element) {
+        throw new Error(`FitChef story not found: ${story}`);
+      }
+
+      return element;
+    };
+    const approvedStoryCopy = {
+      daily: [
+        'See how FitChef helps you choose where to start',
+        'FitChef shows both options. The choice is yours.',
+        'Ways to move',
+        'Endurance',
+        'Strength & Power',
+        'Team & Combat',
+        'Movement & Everyday Fitness',
+        'Goal',
+        'Reduce',
+        'Maintain',
+        'Gain',
+        'Where would you like to start?',
+        'Today',
+        'Start with the plan for today.',
+        'This week',
+        'Look at the next seven days.',
+        'Confirm choice',
+        'Not now',
+      ],
+      weekly: [
+        'A week that changes with you',
+        'Starting week',
+        'What changed',
+        'Your goal changes',
+        'A meal out',
+        'Use what’s at home',
+        'Updated week',
+      ],
+      'food-context': [
+        'A food plan built around real life',
+        'Ingredients at home',
+        'Restaurant or chef',
+        'Shopping and stores',
+        'A food photo',
+        'One flexible plan',
+      ],
+      vip: [
+        'PulsePlate VIP',
+        'Your personal AI nutrition guide',
+        'Imagine PulsePlate VIP with FitChef connecting your measurements, goals and routines with everyday action: adapting menus as plans change and suggesting a practical next step when progress slows.',
+        'For everyday wellbeing, training, strength and muscle-building goals.',
+        'Support to keep you moving forward.',
+      ],
+    } as const;
+
+    expect(container.querySelectorAll('[data-testid="fitchef-value-demo"]')).toHaveLength(1);
+    expect(storyElements.map((story) => story.dataset.fitchefStory)).toEqual([
+      'daily',
+      'weekly',
+      'food-context',
+      'vip',
+    ]);
+
+    Object.entries(approvedStoryCopy).forEach(([storyName, expectedCopy]) => {
+      expect(collectVisibleStoryCopy(requireStory(storyName)), storyName).toEqual([
+        ...expectedCopy,
+      ]);
+    });
+
+    expect(within(root).getByText('Maintain', { exact: true })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(within(root).getByText('Reduce', { exact: true })).not.toHaveAttribute('aria-current');
+    expect(within(root).getByText('Gain', { exact: true })).not.toHaveAttribute('aria-current');
+
+    const storyWithExtraCopy = requireStory('weekly').cloneNode(true) as HTMLElement;
+    const unapprovedCopy = document.createElement('p');
+    unapprovedCopy.textContent = 'Internal pipeline state';
+    storyWithExtraCopy.append(unapprovedCopy);
+    expect(collectVisibleStoryCopy(storyWithExtraCopy)).not.toEqual([...approvedStoryCopy.weekly]);
+  });
+
+  it('keeps one H1 control group and reveals the exact Today and Week media', async () => {
     const user = userEvent.setup();
     const { container } = render(<FitChefValueDemo />);
-    const demoSection = container.querySelector('#fitchef-demo');
+    const demoSection = container.querySelector<HTMLElement>('#fitchef-demo');
 
-    if (!(demoSection instanceof HTMLElement)) {
+    if (!demoSection) {
       throw new Error('FitChef demo section not found');
     }
 
     const demo = within(demoSection);
+    const dailyStory = demoSection.querySelector<HTMLElement>('[data-fitchef-story="daily"]');
 
-    expect(
-      demo.getByRole('heading', {
-        level: 2,
-        name: 'See how FitChef helps you choose where to start',
-      }),
-    ).toBeVisible();
-    expect(demo.getByText('Where would you like to start?')).toBeVisible();
-    expect(demo.getByText('FitChef shows both options. The choice is yours.')).toBeVisible();
-    expect(demo.getByText('Today')).toBeVisible();
-    expect(demo.getByText('Start with the plan for today.')).toBeVisible();
-    expect(demo.getByText('This week')).toBeVisible();
-    expect(demo.getByText('Look at the next seven days.')).toBeVisible();
-    expect(
-      demo.getByText(
-        'For now, you’re only choosing where to start. Nothing will open, be saved, or change.',
-      ),
-    ).toBeVisible();
-    expect(demo.getByText('For everyday planning — not medical advice.')).toBeVisible();
-    expect(
-      demo.getByText(
-        'This is a prepared website example. It does not run AI, use personal data, open anything, or change a plan.',
-      ),
-    ).toBeVisible();
+    if (!dailyStory) {
+      throw new Error('FitChef daily story not found');
+    }
 
     const confirm = demo.getByRole('button', { name: 'Confirm choice' });
     const notNow = demo.getByRole('button', { name: 'Not now' });
+    expect(demo.getAllByRole('group', { name: 'Where would you like to start?' })).toHaveLength(1);
+    expect(demo.getAllByRole('radio')).toHaveLength(2);
+    expect(demo.getAllByRole('button')).toHaveLength(2);
     expect(confirm).toBeDisabled();
     expect(confirm).toHaveClass('ppm-fitchef-confirm');
     expect(notNow).toBeEnabled();
     expect(notNow).toHaveClass('ppm-fitchef-secondary');
-    expect(demo.queryByRole('heading', { name: 'A place to begin' })).not.toBeInTheDocument();
+    const persistentStatus = within(dailyStory).getByRole('status');
+    expect(persistentStatus).toBeEmptyDOMElement();
+    expect(persistentStatus).toHaveClass('ppm-fitchef-reveal-card--empty');
     expect(demoSection.querySelectorAll('a')).toHaveLength(0);
 
     await user.click(demo.getByRole('radio', { name: /Today/ }));
     expect(confirm).toBeEnabled();
-    expect(demo.queryByRole('heading', { name: 'A place to begin' })).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBe(persistentStatus);
+    expect(persistentStatus).toBeEmptyDOMElement();
     await user.click(confirm);
 
-    expect(demo.getByRole('heading', { name: 'A place to begin' })).toBeVisible();
-    expect(demo.getByText('For today, FitChef would point to Daily Plate.')).toBeVisible();
-    expect(demo.getByRole('status')).toHaveAttribute('aria-live', 'polite');
-    expect(demo.getByRole('status').querySelector('a, button')).toBeNull();
+    const todayResult = within(dailyStory).getByRole('status');
+    expect(todayResult).toBe(persistentStatus);
+    expect(todayResult).not.toHaveClass('ppm-fitchef-reveal-card--empty');
+    expect(within(todayResult).getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
+    const todayImage = todayResult.querySelector('img');
+    expect(todayImage).toHaveAttribute('data-fitchef-asset', 'daily-plate-a-salmon-1024.webp');
+    expect(todayImage?.getAttribute('src')).toMatch(/daily-plate-a-salmon-1024\.webp$/);
+    expect(collectAssetMarkerMultiset(demoSection)).toEqual(
+      [...idleAssetMarkerMultiset, 'daily-plate-a-salmon-1024.webp'].sort(),
+    );
+    expect(todayResult).toHaveAttribute('aria-live', 'polite');
+    expect(todayResult.querySelector('a, button')).toBeNull();
 
     await user.click(demo.getByRole('radio', { name: /This week/ }));
-    expect(demo.queryByText('For today, FitChef would point to Daily Plate.')).not.toBeInTheDocument();
-    expect(demo.queryByRole('heading', { name: 'A place to begin' })).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBe(persistentStatus);
+    expect(persistentStatus).toBeEmptyDOMElement();
+    expect(persistentStatus).toHaveClass('ppm-fitchef-reveal-card--empty');
+    expect(
+      within(dailyStory).queryByRole('heading', { name: 'Daily Plate' }),
+    ).not.toBeInTheDocument();
     await user.click(confirm);
 
-    expect(demo.getByRole('heading', { name: 'A place to begin' })).toBeVisible();
-    expect(
-      demo.getByText('For this week, FitChef would point to Weekly Planning.'),
-    ).toBeVisible();
+    const weekResult = within(dailyStory).getByRole('status');
+    expect(within(weekResult).getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
+    const weekImage = weekResult.querySelector('img');
+    expect(weekImage).toHaveAttribute(
+      'data-fitchef-asset',
+      'weekly-planning-a-meal-grid-1024.webp',
+    );
+    expect(weekImage?.getAttribute('src')).toMatch(/weekly-planning-a-meal-grid-1024\.webp$/);
+    expect(collectAssetMarkerMultiset(demoSection)).toEqual(
+      [...idleAssetMarkerMultiset, 'weekly-planning-a-meal-grid-1024.webp'].sort(),
+    );
     expect(demoSection.querySelectorAll('a')).toHaveLength(0);
+  });
+
+  it('keeps Weekly, Food Context, and VIP static and non-live', () => {
+    const { container } = render(<FitChefValueDemo />);
+    const root = screen.getByTestId('fitchef-value-demo');
+    const staticStoryNames = ['weekly', 'food-context', 'vip'] as const;
+
+    staticStoryNames.forEach((storyName) => {
+      const story = root.querySelector<HTMLElement>(`[data-fitchef-story="${storyName}"]`);
+
+      if (!story) {
+        throw new Error(`Static FitChef story not found: ${storyName}`);
+      }
+
+      expect(collectStaticInteractionViolations(story), storyName).toHaveLength(0);
+    });
+
+    const foodStory = root.querySelector<HTMLElement>('[data-fitchef-story="food-context"]');
+    if (!foodStory) {
+      throw new Error('FitChef food-context story not found');
+    }
+    expect(within(foodStory).getByRole('img', { name: 'Daily Plate example' })).toBeInTheDocument();
+    expect(
+      within(foodStory).getByRole('img', { name: 'Weekly Planning example' }),
+    ).toBeInTheDocument();
+
+    expect(container.querySelectorAll('[data-fitchef-story="daily"] fieldset')).toHaveLength(1);
+    expect(
+      container.querySelectorAll('[data-fitchef-story]:not([data-fitchef-story="daily"]) fieldset'),
+    ).toHaveLength(0);
+
+    const interactiveFixture = document.createElement('div');
+    const details = document.createElement('details');
+    details.append(document.createElement('summary'));
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    const tabbable = document.createElement('div');
+    tabbable.tabIndex = 0;
+    interactiveFixture.append(details, editable, tabbable);
+    expect(collectStaticInteractionViolations(interactiveFixture).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('uses every promoted visual exactly from the closed twelve-asset family', () => {
+    render(<FitChefValueDemo />);
+    const root = screen.getByTestId('fitchef-value-demo');
+    const expectedPaths = promotedAssetContract.map(({ relativePath }) => relativePath).sort();
+    const runtimeImages = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
+    const runtimePaths = runtimeImages
+      .map((image) => image.dataset.fitchefAsset)
+      .filter((path): path is string => path !== undefined);
+
+    expect(runtimePaths).not.toContain('');
+    expect(Array.from(new Set(runtimePaths)).sort()).toEqual(expectedPaths);
+    expect(runtimePaths.sort()).toEqual(idleAssetMarkerMultiset);
+    runtimeImages.forEach((image) => {
+      expect(image).toHaveAttribute('loading', 'lazy');
+      expect(image).toHaveAttribute('decoding', 'async');
+    });
+  });
+
+  it('locks promoted WebP hashes, dimensions, profiles, budgets, and exact membership', () => {
+    const expectedPaths = promotedAssetContract.map(({ relativePath }) => relativePath).sort();
+    const canonicalAssetRoot = realpathSync(promotedAssetRoot);
+
+    expect(collectRelativeFiles(promotedAssetRoot)).toEqual(expectedPaths);
+
+    promotedAssetContract.forEach(({ relativePath, width, height, runtimeBytes, sha256 }) => {
+      const path = resolve(promotedAssetRoot, relativePath);
+      const file = lstatSync(path);
+
+      expect(file.isFile(), relativePath).toBe(true);
+      expect(file.isSymbolicLink(), relativePath).toBe(false);
+      expect(file.size, relativePath).toBe(runtimeBytes);
+      expect(
+        file.size,
+        `${relativePath} must stay within the 500 KiB repository budget`,
+      ).toBeLessThanOrEqual(500 * 1024);
+      expect(realpathSync(path).startsWith(`${canonicalAssetRoot}${sep}`), relativePath).toBe(true);
+
+      const buffer = readFileSync(path);
+      const webp = inspectWebP(buffer);
+      expect(createHash('sha256').update(buffer).digest('hex'), relativePath).toBe(sha256);
+      expect({ width: webp.width, height: webp.height }, relativePath).toEqual({
+        width,
+        height,
+      });
+      expect(webp.chunks, relativePath).toEqual([...frozenWebPChunkSequence]);
+      expect(webp.iccProfileSha256, relativePath).toBe(frozenWebPIccProfileSha256);
+    });
+
+    const runtimeBytes = promotedAssetContract.reduce(
+      (total: number, asset: PromotedAssetContractEntry): number =>
+        total + asset.runtimeBytes,
+      0,
+    );
+    const cardBytes = promotedAssetContract
+      .filter(
+        (asset: PromotedAssetContractEntry): boolean =>
+          asset.relativePath.startsWith('activity-palette/') ||
+          asset.relativePath.startsWith('food-context/'),
+      )
+      .reduce(
+        (total: number, asset: PromotedAssetContractEntry): number =>
+          total + asset.runtimeBytes,
+        0,
+      );
+
+    expect(runtimeBytes).toBe(1906308);
+    expect(cardBytes).toBe(583578);
+    expect(cardBytes).toBeLessThanOrEqual(600 * 1024);
+  });
+
+  it('fails the asset census closed for unexpected file and directory symlinks', () => {
+    const fixtureRoot = mkdtempSync(resolve(tmpdir(), 'pulseplate-fitchef-assets-'));
+
+    try {
+      const fileCase = resolve(fixtureRoot, 'file-case');
+      const directoryCase = resolve(fixtureRoot, 'directory-case');
+      mkdirSync(fileCase);
+      mkdirSync(directoryCase);
+      const regularFile = resolve(fileCase, 'regular.webp');
+      writeFileSync(regularFile, Buffer.from('regular'));
+      symlinkSync(regularFile, resolve(fileCase, 'unexpected.webp'), 'file');
+
+      const realDirectory = resolve(directoryCase, 'real');
+      mkdirSync(realDirectory);
+      symlinkSync(realDirectory, resolve(directoryCase, 'unexpected-directory'), 'dir');
+
+      expect(() => collectRelativeFiles(fileCase)).toThrow(/rejects symbolic links/);
+      expect(() => collectRelativeFiles(directoryCase)).toThrow(/rejects symbolic links/);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects duplicate, unknown, padded, oversized, and truncated WebP carriers', () => {
+    const referencePath = resolve(promotedAssetRoot, promotedAssetContract[0].relativePath);
+    const reference = readFileSync(referencePath);
+    const chunks = readFixtureWebPChunks(reference);
+    const [vp8x, iccp, vp8] = chunks;
+    if (!vp8x || !iccp || !vp8) {
+      throw new Error('Reference WebP must expose the frozen three-chunk profile');
+    }
+    const animatedVp8x = {
+      ...vp8x,
+      payload: Buffer.from(vp8x.payload),
+    };
+    animatedVp8x.payload[0] |= 0x02;
+    const oddIccp = { ...iccp, payload: Buffer.concat([iccp.payload, Buffer.from([0])]) };
+    const oddVp8 = { ...vp8, payload: Buffer.concat([vp8.payload, Buffer.from([0])]) };
+    const oversizedDeclaration = Buffer.from(reference);
+    oversizedDeclaration.writeUInt32LE(0xffffffff, 16);
+
+    const rejectedFixtures = [
+      buildFixtureWebP([vp8x, vp8x, iccp, vp8]),
+      buildFixtureWebP([vp8x, iccp, iccp, vp8]),
+      buildFixtureWebP([vp8x, iccp, vp8, { type: 'JUNK', payload: Buffer.alloc(0) }]),
+      buildFixtureWebP([animatedVp8x, iccp, vp8]),
+      buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 }),
+      buildFixtureWebP([vp8x, iccp, oddVp8], { omitFinalPadding: true }),
+      oversizedDeclaration,
+      reference.subarray(0, -1),
+      Buffer.concat([reference, Buffer.from([0])]),
+    ];
+
+    rejectedFixtures.forEach((fixture) => {
+      expect(() => inspectWebP(fixture)).toThrow();
+    });
+    expect(() => buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 })).not.toThrow();
+    expect(() => inspectWebP(buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 }))).toThrow(
+      /padding must be zero/,
+    );
   });
 
   it('clears a revealed result immediately when the choice changes', async () => {
     const user = userEvent.setup();
-    render(<FitChefValueDemo />);
+    const { container } = render(<FitChefValueDemo />);
+    const dailyStory = container.querySelector<HTMLElement>('[data-fitchef-story="daily"]');
+
+    if (!dailyStory) {
+      throw new Error('FitChef daily story not found');
+    }
 
     await user.click(screen.getByRole('radio', { name: /Today/ }));
     await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
-    expect(screen.getByText('For today, FitChef would point to Daily Plate.')).toBeVisible();
+    expect(within(dailyStory).getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
 
     await user.click(screen.getByRole('radio', { name: /This week/ }));
 
-    expect(screen.queryByText('For today, FitChef would point to Daily Plate.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'A place to begin' })).not.toBeInTheDocument();
+    expect(within(dailyStory).getByRole('status')).toBeEmptyDOMElement();
+    expect(within(dailyStory).getByRole('status')).toHaveClass(
+      'ppm-fitchef-reveal-card--empty',
+    );
+    expect(
+      within(dailyStory).queryByRole('heading', { name: 'Daily Plate' }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
-    expect(
-      screen.getByText('For this week, FitChef would point to Weekly Planning.'),
-    ).toBeVisible();
+    expect(within(dailyStory).getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
   });
 
   it('resets from every interactive state and remounts in idle', async () => {
@@ -459,7 +1125,8 @@ describe('FitChefValueDemo', (): void => {
     await user.click(screen.getByRole('radio', { name: /This week/ }));
     await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
     await user.click(notNow);
-    expect(screen.queryByRole('heading', { name: 'A place to begin' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    expect(screen.getByRole('status')).toHaveClass('ppm-fitchef-reveal-card--empty');
 
     firstRender.unmount();
     render(<FitChefValueDemo />);
@@ -491,12 +1158,10 @@ describe('FitChefValueDemo', (): void => {
     await user.tab();
     expect(screen.getByRole('button', { name: 'Confirm choice' })).toHaveFocus();
     await user.keyboard('[Enter]');
-    expect(
-      screen.getByText('For this week, FitChef would point to Weekly Planning.'),
-    ).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
   });
 
-  it('has no interaction-handler network, storage, cookie, or beacon side effects', async () => {
+  it('has no interaction-handler request, console, storage, analytics, or navigation side effects', async () => {
     const user = userEvent.setup();
     const fetchSpy = vi.fn();
     const xhrSpy = vi.fn();
@@ -504,16 +1169,27 @@ describe('FitChefValueDemo', (): void => {
     const indexedDbOpenSpy = vi.fn();
     const indexedDbDeleteSpy = vi.fn();
     const beaconSpy = vi.fn();
+    const openSpy = vi.fn();
+    const gtagSpy = vi.fn();
+    const dataLayerPushSpy = vi.fn();
+    const consoleErrorSpy = vi.spyOn(console, 'error');
+    const consoleWarnSpy = vi.spyOn(console, 'warn');
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
     const storageGetSpy = vi.spyOn(Storage.prototype, 'getItem');
     const storageSetSpy = vi.spyOn(Storage.prototype, 'setItem');
     const storageRemoveSpy = vi.spyOn(Storage.prototype, 'removeItem');
     const storageClearSpy = vi.spyOn(Storage.prototype, 'clear');
     const cookieBefore = document.cookie;
+    const locationBefore = window.location.href;
     const beaconDescriptor = Object.getOwnPropertyDescriptor(navigator, 'sendBeacon');
 
     vi.stubGlobal('fetch', fetchSpy);
     vi.stubGlobal('XMLHttpRequest', xhrSpy);
     vi.stubGlobal('WebSocket', webSocketSpy);
+    vi.stubGlobal('open', openSpy);
+    vi.stubGlobal('gtag', gtagSpy);
+    vi.stubGlobal('dataLayer', { push: dataLayerPushSpy });
     vi.stubGlobal('indexedDB', {
       open: indexedDbOpenSpy,
       deleteDatabase: indexedDbDeleteSpy,
@@ -535,6 +1211,13 @@ describe('FitChefValueDemo', (): void => {
       expect(xhrSpy).not.toHaveBeenCalled();
       expect(webSocketSpy).not.toHaveBeenCalled();
       expect(beaconSpy).not.toHaveBeenCalled();
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(gtagSpy).not.toHaveBeenCalled();
+      expect(dataLayerPushSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
+      expect(pushStateSpy).not.toHaveBeenCalled();
+      expect(replaceStateSpy).not.toHaveBeenCalled();
       expect(indexedDbOpenSpy).not.toHaveBeenCalled();
       expect(indexedDbDeleteSpy).not.toHaveBeenCalled();
       expect(storageGetSpy).not.toHaveBeenCalled();
@@ -542,6 +1225,7 @@ describe('FitChefValueDemo', (): void => {
       expect(storageRemoveSpy).not.toHaveBeenCalled();
       expect(storageClearSpy).not.toHaveBeenCalled();
       expect(document.cookie).toBe(cookieBefore);
+      expect(window.location.href).toBe(locationBefore);
     } finally {
       if (beaconDescriptor) {
         Object.defineProperty(navigator, 'sendBeacon', beaconDescriptor);
@@ -551,19 +1235,30 @@ describe('FitChefValueDemo', (): void => {
     }
   });
 
-  it('passes targeted accessibility checks', async () => {
+  it('passes targeted accessibility checks in idle', async () => {
     const { container } = render(<FitChefValueDemo />);
 
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('passes targeted accessibility checks after a result is revealed', async () => {
+  it('passes targeted accessibility checks after Today is revealed', async () => {
     const user = userEvent.setup();
     const { container } = render(<FitChefValueDemo />);
 
     await user.click(screen.getByRole('radio', { name: /Today/ }));
     await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
-    expect(screen.getByText('For today, FitChef would point to Daily Plate.')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
+
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('passes targeted accessibility checks after This week is revealed', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<FitChefValueDemo />);
+
+    await user.click(screen.getByRole('radio', { name: /This week/ }));
+    await user.click(screen.getByRole('button', { name: 'Confirm choice' }));
+    expect(screen.getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
 
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -696,8 +1391,11 @@ describe('FitChefValueDemo', (): void => {
     expect(storybookSourcePaths).toEqual(
       expect.arrayContaining([hppTokenGuidelinesPath, designSystemGuidelinesPath]),
     );
-    expect(completeCensusGraph).not.toMatch(/Candidate Y|Guided Reveal|FitChefValueDemoH2/i);
+    expect(completeCensusGraph).not.toMatch(
+      /Candidate Y|Guided Reveal|FitChefValueDemoH2|Staged Review|FitChefValueDemoH3|Candidate Z/i,
+    );
     expect(completeCensusGraph).not.toMatch(comparisonTogglePattern);
+    expect(marketingRuntimeGraph).not.toContain('fitchef-onboarding-welcome-v1.png');
     expect(marketingRuntimeGraph).not.toMatch(/searchParams|URLSearchParams/);
     expect(storybookGraph).not.toMatch(comparisonTogglePattern);
   });
@@ -997,11 +1695,13 @@ describe('PulsePlateMarketingPage', (): void => {
     ).toBe('This preview uses no personal data.');
 
     const statusCards = requiredElement('.ppm-status-grid').querySelectorAll('.ppm-band-card');
-    expect(Array.from(statusCards, (card) => ({
-      title: exactText(card.querySelector('.ppm-band-card-title'), 'status title'),
-      label: exactText(card.querySelector('.ppm-supporting'), 'status label'),
-      body: exactText(card.querySelector('.ppm-band-card-copy'), 'status body'),
-    }))).toEqual([
+    expect(
+      Array.from(statusCards, (card) => ({
+        title: exactText(card.querySelector('.ppm-band-card-title'), 'status title'),
+        label: exactText(card.querySelector('.ppm-supporting'), 'status label'),
+        body: exactText(card.querySelector('.ppm-band-card-copy'), 'status body'),
+      })),
+    ).toEqual([
       {
         title: 'Use the BMI calculator',
         label: 'Free website',
@@ -1026,11 +1726,13 @@ describe('PulsePlateMarketingPage', (): void => {
     expect(exactText(how.querySelector('.ppm-header > .ppm-description'), 'how description')).toBe(
       'Check BMI, choose Today or This week, and see the result in the same card.',
     );
-    expect(Array.from(how.querySelectorAll('.ppm-step-card'), (card) => ({
-      number: exactText(card.querySelector('.ppm-step-number'), 'step number'),
-      title: exactText(card.querySelector('.ppm-step-title'), 'step title'),
-      body: exactText(card.querySelector('.ppm-step-copy'), 'step body'),
-    }))).toEqual([
+    expect(
+      Array.from(how.querySelectorAll('.ppm-step-card'), (card) => ({
+        number: exactText(card.querySelector('.ppm-step-number'), 'step number'),
+        title: exactText(card.querySelector('.ppm-step-title'), 'step title'),
+        body: exactText(card.querySelector('.ppm-step-copy'), 'step body'),
+      })),
+    ).toEqual([
       {
         number: '01',
         title: 'Open the free BMI calculator',
@@ -1057,14 +1759,16 @@ describe('PulsePlateMarketingPage', (): void => {
     expect(exactText(within(core).getByRole('heading', { level: 2 }), 'core h2')).toBe(
       'Daily Plate and Weekly Planning',
     );
-    expect(exactText(core.querySelector('.ppm-header > .ppm-description'), 'core description')).toBe(
-      'These are the two planning areas named by the FitChef preview.',
-    );
-    expect(Array.from(core.querySelectorAll('.ppm-surface-card'), (card) => ({
-      title: exactText(card.querySelector('.ppm-surface-title'), 'surface title'),
-      label: exactText(card.querySelector('.ppm-pill'), 'surface label'),
-      body: exactText(card.querySelector('.ppm-surface-copy'), 'surface body'),
-    }))).toEqual([
+    expect(
+      exactText(core.querySelector('.ppm-header > .ppm-description'), 'core description'),
+    ).toBe('These are the two planning areas named by the FitChef preview.');
+    expect(
+      Array.from(core.querySelectorAll('.ppm-surface-card'), (card) => ({
+        title: exactText(card.querySelector('.ppm-surface-title'), 'surface title'),
+        label: exactText(card.querySelector('.ppm-pill'), 'surface label'),
+        body: exactText(card.querySelector('.ppm-surface-copy'), 'surface body'),
+      })),
+    ).toEqual([
       {
         title: 'Free BMI calculator',
         label: 'Free web tool',
@@ -1093,33 +1797,36 @@ describe('PulsePlateMarketingPage', (): void => {
     ]);
 
     const trust = requiredElement('#trust-scope');
-    expect(exactText(trust.querySelector('.ppm-header > .ppm-description'), 'trust description')).toBe(
+    expect(
+      exactText(trust.querySelector('.ppm-header > .ppm-description'), 'trust description'),
+    ).toBe(
       'Learn what the free website offers, how the FitChef preview works, and what is planned for Apple devices.',
     );
-    expect(Array.from(trust.querySelectorAll('.ppm-trust-grid .ppm-trust-card'), (card) => ({
-      title: exactText(card.querySelector('.ppm-trust-title'), 'trust card title'),
-      body: exactText(card.querySelector('.ppm-trust-copy'), 'trust card body'),
-    }))).toEqual([
+    expect(
+      Array.from(trust.querySelectorAll('.ppm-trust-grid .ppm-trust-card'), (card) => ({
+        title: exactText(card.querySelector('.ppm-trust-title'), 'trust card title'),
+        body: exactText(card.querySelector('.ppm-trust-copy'), 'trust card body'),
+      })),
+    ).toEqual([
       {
         title: 'For everyday planning, not medical advice',
-        body:
-          'PulsePlate supports everyday wellness planning. It does not diagnose, treat, or replace professional care.',
+        body: 'PulsePlate supports everyday wellness planning. It does not diagnose, treat, or replace professional care.',
       },
       {
         title: 'The prepared preview uses no personal data',
-        body:
-          'Your choice stays in this card. The example does not save it, open another area, or change a plan.',
+        body: 'Your choice stays in this card. The example does not save it, open another area, or change a plan.',
       },
       {
         title: 'The website does not run FitChef AI',
-        body:
-          'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
+        body: 'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
       },
     ]);
-    expect(Array.from(trust.querySelectorAll('.ppm-faq-item'), (item) => ({
-      question: exactText(item.querySelector('.ppm-faq-title'), 'trust FAQ question'),
-      answer: exactText(item.querySelector('.ppm-faq-copy'), 'trust FAQ answer'),
-    }))).toEqual([
+    expect(
+      Array.from(trust.querySelectorAll('.ppm-faq-item'), (item) => ({
+        question: exactText(item.querySelector('.ppm-faq-title'), 'trust FAQ question'),
+        answer: exactText(item.querySelector('.ppm-faq-copy'), 'trust FAQ answer'),
+      })),
+    ).toEqual([
       {
         question: 'What can I use on this website?',
         answer:
@@ -1149,9 +1856,9 @@ describe('PulsePlateMarketingPage', (): void => {
     ]);
 
     const footer = requiredElement('footer');
-    expect(exactText(footer.querySelector('.ppm-footer-copy > .ppm-description'), 'footer body')).toBe(
-      'Use the free BMI calculator or choose Today or This week in the FitChef preview.',
-    );
+    expect(
+      exactText(footer.querySelector('.ppm-footer-copy > .ppm-description'), 'footer body'),
+    ).toBe('Use the free BMI calculator or choose Today or This week in the FitChef preview.');
     expect(exactText(footer.querySelector('.ppm-footer-note'), 'footer wellness line')).toBe(
       'Everyday wellness planning — not medical advice.',
     );
@@ -1191,27 +1898,53 @@ describe('PulsePlateMarketingPage', (): void => {
     ['/app', '/pro', '/enter-key', '/welcome-gate-v1'].forEach((forbiddenHref) => {
       expect(hrefs).not.toContain(forbiddenHref);
     });
-    within(container).queryAllByRole('button').forEach((button) =>
-      expect(button).not.toHaveTextContent(/buy|subscribe|upgrade|trial|restore|download|payment/i),
-    );
-    within(container).queryAllByRole('link').forEach((link) =>
-      expect(link).not.toHaveTextContent(/buy|subscribe|upgrade|trial|restore|download|payment/i),
-    );
+    within(container)
+      .queryAllByRole('button')
+      .forEach((button) =>
+        expect(button).not.toHaveTextContent(
+          /buy|subscribe|upgrade|trial|restore|download|payment/i,
+        ),
+      );
+    within(container)
+      .queryAllByRole('link')
+      .forEach((link) =>
+        expect(link).not.toHaveTextContent(/buy|subscribe|upgrade|trial|restore|download|payment/i),
+      );
   });
 
   it('keeps the free-Web and prepared-example boundary explicit without internal language', () => {
     const { container } = renderMarketingPage();
     const visibleCopy = container.textContent ?? '';
+    const demo = container.querySelector<HTMLElement>('#fitchef-demo');
+    const trust = container.querySelector<HTMLElement>('#trust-scope');
+
+    if (!demo || !trust) {
+      throw new Error('Marketing FitChef or TrustScope section not found');
+    }
 
     expect(visibleCopy).toContain('This website is free to use. Purchases are not offered here.');
-    expect(visibleCopy).toContain(
+    expect(demo).not.toHaveTextContent(
+      'For now, you’re only choosing where to start. Nothing will open, be saved, or change.',
+    );
+    expect(demo).not.toHaveTextContent('For everyday planning — not medical advice.');
+    expect(demo).not.toHaveTextContent(
       'This is a prepared website example. It does not run AI, use personal data, open anything, or change a plan.',
     );
-    expect(visibleCopy).not.toMatch(
-      /\b(structure|structuring|daily_structure|weekly_structure|target_surface|authority|pipeline|best|personalized|generated for you|Pro|VIP)\b/i,
+    expect(trust).toHaveTextContent(
+      'PulsePlate supports everyday wellness planning. It does not diagnose, treat, or replace professional care.',
     );
-    expect(visibleCopy).not.toMatch(/available now|live now|browser upgrade|AI[- ]powered|AI coaching/i);
-    expect(container.querySelector('a[href^="https://apps.apple.com"], a[href^="itms-apps:"]')).toBeNull();
+    expect(trust).toHaveTextContent(
+      'The result is prepared in advance. Today points to Daily Plate, and This week points to Weekly Planning.',
+    );
+    expect(visibleCopy).not.toMatch(
+      /\b(structure|structuring|daily_structure|weekly_structure|target_surface|authority|pipeline|best|personalized|generated for you|Pro)\b/i,
+    );
+    expect(visibleCopy).not.toMatch(
+      /available now|live now|browser upgrade|AI[- ]powered|AI coaching/i,
+    );
+    expect(
+      container.querySelector('a[href^="https://apps.apple.com"], a[href^="itms-apps:"]'),
+    ).toBeNull();
     expect(visibleCopy).not.toMatch(/\$\d|price|trial|eligibility/i);
   });
 });
