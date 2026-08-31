@@ -778,12 +778,14 @@ final class HomeExperienceTests: XCTestCase {
     }
 }
 
-private final class HomeRenderProbe {
+private final class HomeRenderProbe: @unchecked Sendable {
+    // Test-only probe. Confined to one serial XCTest executor.
     var destinationBuildCount = 0
     var retryCount = 0
 }
 
 private final class HomeDestinationFactoryProbe: @unchecked Sendable {
+    // Test-only factory probe. Confined to one serial XCTest executor.
     private(set) var aiServiceFactoryCount = 0
     private(set) var consentFactoryCount = 0
     private(set) var supportServiceFactoryCount = 0
@@ -822,6 +824,7 @@ private final class HomeDestinationFactoryProbe: @unchecked Sendable {
 }
 
 private final class HomeNoCallAPIClient: APIClientProtocol, @unchecked Sendable {
+    // Test-only API spy. Confined to one serial XCTest executor.
     private(set) var callCount = 0
 
     func postRaw<Response: Decodable>(
@@ -946,7 +949,8 @@ private final class HomeSubscriptionBillingStub: SubscriptionBillingServicing {
     }
 }
 
-private final class HomeActivationPointerStore: ActivationPointerStoring {
+private final class HomeActivationPointerStore: ActivationPointerStoring, @unchecked Sendable {
+    // Test-only in-memory store. Confined to one serial XCTest executor.
     private var activationID: String?
 
     init(activationID: String?) {
@@ -961,6 +965,7 @@ private final class HomeActivationPointerStore: ActivationPointerStoring {
 }
 
 private final class MutableHomeProfileProvider: ProfileProviding, @unchecked Sendable {
+    // Test-only mutable provider. Confined to one serial XCTest executor.
     var profile: ProNutritionProfile?
     private(set) var readCount = 0
 
