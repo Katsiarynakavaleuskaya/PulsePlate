@@ -8,4 +8,5 @@ struct RootView: View {
 
 #Preview {
     RootView()
+        .environmentObject(SubscriptionManager())
 }
