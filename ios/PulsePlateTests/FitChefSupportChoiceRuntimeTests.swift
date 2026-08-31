@@ -1872,7 +1872,7 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
         }
     }
 
-    func testCapabilityIsAbsentFromHomeFeatureFlagsAndHomeLocalization() throws {
+    func testSupportFlowIsAvailableOnlyAsPlanningChildOfSingleHomeCoachEntry() throws {
         let featureFlags = try source(at: "ios/PulsePlate/Utilities/FeatureFlags.swift")
         let home = try source(at: "ios/PulsePlate/Views/HomeView.swift")
 
@@ -1886,12 +1886,30 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
         for forbidden in [
             "fitChefSupportOutcomeFlowEnabled",
             "FITCHEF_SUPPORT_OUTCOME_FLOW_ENABLED",
-            "FitChefSupportFlowScreen",
-            "makeFitChefSupportFlowScreen",
             "home.action.fitchef_support",
+            "home.action.ai_insight",
+            "home.action.recommend",
+            "home.action.outcome",
         ] {
             XCTAssertFalse(home.contains(forbidden), forbidden)
         }
+        XCTAssertEqual(occurrenceCount(of: "FitChefCoachView(", in: home), 1)
+        XCTAssertEqual(occurrenceCount(of: "FitChefSupportFlowScreen(", in: home), 1)
+        XCTAssertEqual(
+            occurrenceCount(of: "makeFitChefSupportScreen()", in: home),
+            2,
+            "One lazy child call plus its single factory declaration are required."
+        )
+        assertOrdered(
+            [
+                "FitChefCoachView(",
+                "planningDirectionDestination:",
+                "makeFitChefSupportScreen()",
+                "private func makeFitChefSupportScreen()",
+                "FitChefSupportFlowScreen(",
+            ],
+            in: home
+        )
 
         for locale in ["en", "ru", "es"] {
             let values = try loadLocalization(locale: locale)
@@ -1899,10 +1917,14 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
                 values.keys.allSatisfy { !$0.hasPrefix("home.action.fitchef_support.") },
                 locale
             )
+            XCTAssertTrue(
+                values.keys.allSatisfy { !$0.hasPrefix("home.action.ai_insight.") },
+                locale
+            )
         }
     }
 
-    func testNoProductionSwiftOutsideTheFeatureFileConstructsFlowScreen() throws {
+    func testOnlyHomeConstructsOneProductionFlowScreenOutsideFeaturePreviews() throws {
         let root = try repositoryRoot().appendingPathComponent("ios/PulsePlate")
         let flowScreenPath = "/Views/FitChef/FitChefSupportFlowScreen.swift"
         let constructions = try swiftSources(under: root)
@@ -1912,7 +1934,10 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
                 return value.contains("FitChefSupportFlowScreen(") ? url.path : nil
             }
 
-        XCTAssertEqual(constructions, [])
+        XCTAssertEqual(
+            constructions,
+            [root.appendingPathComponent("Views/HomeView.swift").path]
+        )
     }
 
     func testEveryFlowScreenConstructionIsConfinedToSameFileDEBUGPreviews() throws {
