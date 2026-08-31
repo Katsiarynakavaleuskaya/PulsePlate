@@ -33,6 +33,127 @@ const promotedFitChefAssetPaths = [
 
 const staticFitChefStoryNames = ['weekly', 'food-context', 'vip'] as const;
 
+const idleFitChefAssetMarkers = [
+  'activity-palette/endurance.webp',
+  'activity-palette/strength-power.webp',
+  'activity-palette/team-combat.webp',
+  'activity-palette/movement-everyday-fitness.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'weekly-planning-a-meal-grid-1024.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-shopping-stores.webp',
+  'food-context/food-context-meal-photo.webp',
+  'daily-plate-a-salmon-1024.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp',
+].sort();
+
+const forbiddenStaticInteractionSelector = [
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'fieldset',
+  'form',
+  'details',
+  'summary',
+  'audio[controls]',
+  'video[controls]',
+  'iframe',
+  'object',
+  'embed',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="radio"]',
+  '[role="group"]',
+  '[role="status"]',
+  '[aria-live]',
+].join(', ');
+
+const criticalFitChefCopySelector = [
+  'h2',
+  'h3',
+  'p',
+  'legend',
+  'label',
+  'button',
+  '.ppm-fitchef-photo-card > span',
+  '.ppm-fitchef-goal-state',
+  '.ppm-fitchef-change > span:not(.ppm-fitchef-change-thumb)',
+].join(', ');
+
+async function readAssetMarkerMultiset(root: Locator): Promise<string[]> {
+  return root
+    .locator('img[data-fitchef-asset]')
+    .evaluateAll((images) =>
+      images.map((image) => image.getAttribute('data-fitchef-asset') ?? '').sort(),
+    );
+}
+
+async function expectDecodedRevealImage(result: Locator, expectedBasename: string): Promise<void> {
+  const image = result.locator('img');
+  await expect(image).toHaveCount(1);
+  await image.scrollIntoViewIfNeeded();
+  await expect(image).toBeVisible();
+  const decoded = await image.evaluate(async (node) => {
+    const candidate = node as HTMLImageElement;
+    if (!candidate.complete || candidate.naturalWidth === 0) {
+      await candidate.decode();
+    }
+    return {
+      path: new URL(candidate.currentSrc || candidate.src, document.baseURI).pathname,
+      complete: candidate.complete,
+      naturalWidth: candidate.naturalWidth,
+      naturalHeight: candidate.naturalHeight,
+    };
+  });
+
+  expect(decoded.path.endsWith(`/${expectedBasename}`)).toBe(true);
+  expect(decoded.complete).toBe(true);
+  expect(decoded.naturalWidth).toBeGreaterThan(0);
+  expect(decoded.naturalHeight).toBeGreaterThan(0);
+}
+
+async function expectNoCriticalFitChefClipping(root: Locator): Promise<void> {
+  const issues = await root.locator(criticalFitChefCopySelector).evaluateAll((elements) =>
+    elements.flatMap((element) => {
+      const candidate = element as HTMLElement;
+      const style = window.getComputedStyle(candidate);
+      const bounds = candidate.getBoundingClientRect();
+      if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        bounds.width === 0 ||
+        bounds.height === 0
+      ) {
+        return [];
+      }
+      const range = document.createRange();
+      range.selectNodeContents(candidate);
+      const textIsClipped = Array.from(range.getClientRects()).some(
+        (rect) =>
+          rect.left < bounds.left - 1 ||
+          rect.right > bounds.right + 1 ||
+          rect.top < bounds.top - 1 ||
+          rect.bottom > bounds.bottom + 1,
+      );
+      const boxIsClipped =
+        (candidate.clientWidth > 0 && candidate.scrollWidth > candidate.clientWidth + 1) ||
+        (candidate.clientHeight > 0 && candidate.scrollHeight > candidate.clientHeight + 1);
+      return textIsClipped || boxIsClipped
+        ? [{ tag: candidate.tagName, text: candidate.textContent?.trim() ?? '' }]
+        : [];
+    }),
+  );
+
+  expect(issues).toEqual([]);
+}
+
 test('home shell renders', async ({ page }) => {
   // Canonical in-app Home lives at /app; / is the marketing landing (hideTabBar).
   await page.goto('/app');
@@ -98,7 +219,7 @@ for (const route of ['/', '/marketing'] as const) {
   test(`${route} renders the same bounded four-part FitChef visual story`, async ({ page }) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
-    const interactionRequests: Array<{ resourceType: string; url: string }> = [];
+    const observedRequests: Array<{ resourceType: string; url: string }> = [];
 
     page.on('console', (message) => {
       if (message.type() === 'error') {
@@ -106,6 +227,9 @@ for (const route of ['/', '/marketing'] as const) {
       }
     });
     page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('request', (request) => {
+      observedRequests.push({ resourceType: request.resourceType(), url: request.url() });
+    });
 
     await page.goto(route);
 
@@ -145,11 +269,15 @@ for (const route of ['/', '/marketing'] as const) {
     for (const storyName of staticFitChefStoryNames) {
       const story = demo.locator(`[data-fitchef-story="${storyName}"]`);
       await expect(story).toBeVisible();
-      await expect(
-        story.locator(
-          'a, button, input, select, textarea, fieldset, [role="button"], [role="link"], [role="radio"], [role="group"], [role="status"], [aria-live]',
-        ),
-      ).toHaveCount(0);
+      await expect(story.locator(forbiddenStaticInteractionSelector)).toHaveCount(0);
+      expect(
+        await story
+          .locator('*')
+          .evaluateAll(
+            (elements) =>
+              elements.filter((element) => (element as HTMLElement).tabIndex >= 0).length,
+          ),
+      ).toBe(0);
     }
 
     const promotedAssetMarkers = await demo
@@ -161,13 +289,13 @@ for (const route of ['/', '/marketing'] as const) {
     expect(Array.from(new Set(promotedAssetMarkers)).sort()).toEqual(
       [...promotedFitChefAssetPaths].sort(),
     );
+    expect(promotedAssetMarkers.sort()).toEqual(idleFitChefAssetMarkers);
     const demoImages = demo.locator('img');
     expect(
       await demoImages.evaluateAll((images) =>
         images.every(
           (image) =>
-            image.getAttribute('loading') === 'lazy' &&
-            image.getAttribute('decoding') === 'async',
+            image.getAttribute('loading') === 'lazy' && image.getAttribute('decoding') === 'async',
         ),
       ),
     ).toBe(true);
@@ -193,9 +321,6 @@ for (const route of ['/', '/marketing'] as const) {
       hasDataLayer: typeof (window as Window & { dataLayer?: unknown }).dataLayer !== 'undefined',
     }));
     const urlBefore = page.url();
-    page.on('request', (request) => {
-      interactionRequests.push({ resourceType: request.resourceType(), url: request.url() });
-    });
 
     const dailyStory = demo.locator('[data-fitchef-story="daily"]');
     const today = dailyStory.getByRole('radio', { name: /Today/ });
@@ -264,6 +389,10 @@ for (const route of ['/', '/marketing'] as const) {
       'data-fitchef-asset',
       'daily-plate-a-salmon-1024.webp',
     );
+    await expectDecodedRevealImage(todayResult, 'daily-plate-a-salmon-1024.webp');
+    expect(await readAssetMarkerMultiset(demo)).toEqual(
+      [...idleFitChefAssetMarkers, 'daily-plate-a-salmon-1024.webp'].sort(),
+    );
 
     await today.focus();
     await page.keyboard.press('ArrowRight');
@@ -298,6 +427,10 @@ for (const route of ['/', '/marketing'] as const) {
       'data-fitchef-asset',
       'weekly-planning-a-meal-grid-1024.webp',
     );
+    await expectDecodedRevealImage(weekResult, 'weekly-planning-a-meal-grid-1024.webp');
+    expect(await readAssetMarkerMultiset(demo)).toEqual(
+      [...idleFitChefAssetMarkers, 'weekly-planning-a-meal-grid-1024.webp'].sort(),
+    );
 
     await today.click();
     await expect(dailyStory.getByRole('status')).toHaveCount(0);
@@ -314,10 +447,10 @@ for (const route of ['/', '/marketing'] as const) {
       hasGtag: typeof (window as Window & { gtag?: unknown }).gtag !== 'undefined',
       hasDataLayer: typeof (window as Window & { dataLayer?: unknown }).dataLayer !== 'undefined',
     }));
-    const forbiddenInteractionRequests = interactionRequests.filter(({ resourceType }) =>
+    const forbiddenInteractionRequests = observedRequests.filter(({ resourceType }) =>
       ['fetch', 'xhr', 'eventsource', 'websocket'].includes(resourceType),
     );
-    const externalInteractionRequests = interactionRequests.filter(({ url }) => {
+    const externalInteractionRequests = observedRequests.filter(({ url }) => {
       const candidate = new URL(url);
       return candidate.origin !== new URL(urlBefore).origin;
     });
@@ -399,6 +532,58 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
   const landing = page.locator('.ppm-page');
   await demo.scrollIntoViewIfNeeded();
   await expect(demo).toBeVisible();
+  const dailyStory = demo.locator('[data-fitchef-story="daily"]');
+  const today = dailyStory.getByRole('radio', { name: /Today/ });
+  const option = today.locator('..');
+  const confirm = dailyStory.getByRole('button', { name: 'Confirm choice' });
+  const notNow = dailyStory.getByRole('button', { name: 'Not now' });
+
+  const expectCoreStoryVisibleAndUnclipped = async (): Promise<void> => {
+    for (const heading of [
+      'See how FitChef helps you choose where to start',
+      'A week that changes with you',
+      'A food plan built around real life',
+      'Your personal AI nutrition guide',
+    ]) {
+      await expect(demo.getByRole('heading', { name: heading })).toBeVisible();
+    }
+    await expect(
+      dailyStory.getByRole('group', { name: 'Where would you like to start?' }),
+    ).toBeVisible();
+    await expect(today).toBeVisible();
+    await expect(dailyStory.getByRole('radio', { name: /This week/ })).toBeVisible();
+    await expect(confirm).toBeVisible();
+    await expect(notNow).toBeVisible();
+    await expectNoCriticalFitChefClipping(demo);
+    expect(
+      await demo.locator('[data-fitchef-story]').evaluateAll((stories) =>
+        stories.map((story) => {
+          const bounds = story.getBoundingClientRect();
+          return bounds.left >= -1 && bounds.right <= document.documentElement.clientWidth + 1;
+        }),
+      ),
+    ).toEqual([true, true, true, true]);
+  };
+
+  const expectTouchTargets = async (): Promise<void> => {
+    for (const target of [option, confirm, notNow]) {
+      const box = await target.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    }
+  };
+
+  const exerciseTransformedChoice = async (): Promise<void> => {
+    await today.click();
+    await confirm.click();
+    const result = dailyStory.getByRole('status');
+    await expect(result.getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
+    await expectDecodedRevealImage(result, 'daily-plate-a-salmon-1024.webp');
+    await notNow.click();
+    await expect(result).toHaveCount(0);
+    await expect(today).not.toBeChecked();
+    await expect(confirm).toBeDisabled();
+  };
 
   const hasNarrowOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -408,13 +593,8 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
     false,
   );
 
-  const option = page.getByRole('radio', { name: /Today/ }).locator('..');
-  const optionBox = await option.boundingBox();
-  const confirmBox = await page.getByRole('button', { name: 'Confirm choice' }).boundingBox();
-  const notNowBox = await page.getByRole('button', { name: 'Not now' }).boundingBox();
-  expect(optionBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(confirmBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(notNowBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await expectCoreStoryVisibleAndUnclipped();
+  await expectTouchTargets();
 
   const optionTransition = await option.evaluate(
     (element) => window.getComputedStyle(element).transitionDuration,
@@ -442,6 +622,7 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
     { lineCount: 1, overflows: false },
     { lineCount: 1, overflows: false },
   ]);
+  await exerciseTransformedChoice();
 
   await page.setViewportSize({ width: 640, height: 900 });
   await page.evaluate(() => {
@@ -454,4 +635,7 @@ test('FitChef preview stays usable at 320px, text spacing, and effective 200% zo
   expect(await landing.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
     false,
   );
+  await expectCoreStoryVisibleAndUnclipped();
+  await expectTouchTargets();
+  await exerciseTransformedChoice();
 });

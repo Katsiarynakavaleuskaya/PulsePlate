@@ -1,8 +1,19 @@
 /** @vitest-environment jsdom */
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -129,6 +140,53 @@ const promotedAssetContract = [
   },
 ] as const;
 
+const idleAssetMarkerMultiset = [
+  'activity-palette/endurance.webp',
+  'activity-palette/strength-power.webp',
+  'activity-palette/team-combat.webp',
+  'activity-palette/movement-everyday-fitness.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'weekly-planning-a-meal-grid-1024.webp',
+  'food-context/food-context-ingredients-at-home.webp',
+  'food-context/food-context-restaurant-chef.webp',
+  'food-context/food-context-shopping-stores.webp',
+  'food-context/food-context-meal-photo.webp',
+  'daily-plate-a-salmon-1024.webp',
+  'weekly-planning-b-notebook-1024.webp',
+  'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp',
+].sort();
+
+const forbiddenStaticInteractionSelector = [
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'fieldset',
+  'form',
+  'details',
+  'summary',
+  'audio[controls]',
+  'video[controls]',
+  'iframe',
+  'object',
+  'embed',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="radio"]',
+  '[role="group"]',
+  '[role="status"]',
+  '[aria-live]',
+].join(', ');
+
+const frozenWebPChunkSequence = ['VP8X', 'ICCP', 'VP8 '] as const;
+const frozenWebPIccProfileBytes = 588;
+const frozenWebPIccProfileSha256 =
+  '86453c6e1ee138f0be42c75ab37a6d73422df68e4767da1b1d3ae6c05aa20e39'; // pragma: allowlist secret
+
 const promotedAssetDependencies = promotedAssetContract.map(
   ({ relativePath }) => `../../assets/brand/fitchef-public-demo/v1/${relativePath}`,
 );
@@ -247,19 +305,60 @@ function collectRelativeFiles(root: string, relativeDirectory = ''): string[] {
     .flatMap((entry) => {
       const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
 
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Asset census rejects symbolic links: ${relativePath}`);
+      }
       if (entry.isDirectory()) {
         return collectRelativeFiles(root, relativePath);
       }
+      if (!entry.isFile()) {
+        throw new Error(`Asset census rejects non-regular entries: ${relativePath}`);
+      }
 
-      return entry.isFile() ? [relativePath] : [];
+      return [relativePath];
     })
     .sort();
+}
+
+function collectVisibleStoryCopy(story: HTMLElement): string[] {
+  const walker = story.ownerDocument.createTreeWalker(story, 4);
+  const copy: string[] = [];
+  let node = walker.nextNode();
+
+  while (node) {
+    const parent = node.parentElement;
+    const normalized = node.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    if (normalized && parent && !parent.closest('[aria-hidden="true"], [hidden], script, style')) {
+      copy.push(normalized);
+    }
+    node = walker.nextNode();
+  }
+
+  return copy;
+}
+
+function collectAssetMarkerMultiset(root: HTMLElement): string[] {
+  return Array.from(
+    root.querySelectorAll<HTMLImageElement>('img[data-fitchef-asset]'),
+    (image) => image.dataset.fitchefAsset ?? '',
+  ).sort();
+}
+
+function collectStaticInteractionViolations(root: HTMLElement): Element[] {
+  const violations = new Set<Element>(root.querySelectorAll(forbiddenStaticInteractionSelector));
+  root.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    if (element.tabIndex >= 0) {
+      violations.add(element);
+    }
+  });
+  return Array.from(violations);
 }
 
 function inspectWebP(buffer: Buffer): {
   width: number;
   height: number;
   chunks: string[];
+  iccProfileSha256: string;
 } {
   if (
     buffer.length < 30 ||
@@ -276,6 +375,7 @@ function inspectWebP(buffer: Buffer): {
   let offset = 12;
   let width: number | null = null;
   let height: number | null = null;
+  let iccProfile: Buffer | null = null;
 
   while (offset < buffer.length) {
     if (offset + 8 > buffer.length) {
@@ -290,27 +390,102 @@ function inspectWebP(buffer: Buffer): {
     if (nextOffset > buffer.length) {
       throw new Error(`Truncated WebP chunk: ${type}`);
     }
+    if (dataLength % 2 === 1 && buffer[dataOffset + dataLength] !== 0) {
+      throw new Error(`WebP chunk padding must be zero: ${type}`);
+    }
 
     chunks.push(type);
     if (type === 'VP8X') {
-      if (dataLength < 10) {
-        throw new Error('Truncated WebP VP8X canvas header');
+      if (dataLength !== 10) {
+        throw new Error('WebP VP8X canvas header must be exactly 10 bytes');
+      }
+      if (
+        buffer[dataOffset] !== 0x20 ||
+        buffer[dataOffset + 1] !== 0 ||
+        buffer[dataOffset + 2] !== 0 ||
+        buffer[dataOffset + 3] !== 0
+      ) {
+        throw new Error('WebP VP8X flags must declare only the frozen ICC profile');
       }
       width = buffer.readUIntLE(dataOffset + 4, 3) + 1;
       height = buffer.readUIntLE(dataOffset + 7, 3) + 1;
+    } else if (type === 'ICCP') {
+      if (dataLength !== frozenWebPIccProfileBytes) {
+        throw new Error('WebP ICC profile length does not match the frozen profile');
+      }
+      iccProfile = Buffer.from(buffer.subarray(dataOffset, dataOffset + dataLength));
+    } else if (type === 'VP8 ' && dataLength === 0) {
+      throw new Error('WebP VP8 payload must be non-empty');
     }
     offset = nextOffset;
   }
 
-  if (offset !== buffer.length || width === null || height === null) {
+  if (offset !== buffer.length || width === null || height === null || iccProfile === null) {
     throw new Error('WebP must terminate exactly after a VP8X canvas');
+  }
+  if (chunks.join('|') !== frozenWebPChunkSequence.join('|')) {
+    throw new Error('WebP chunk sequence must equal VP8X, ICCP, VP8 exactly once');
+  }
+
+  const iccProfileSha256 = createHash('sha256').update(iccProfile).digest('hex');
+  if (iccProfileSha256 !== frozenWebPIccProfileSha256) {
+    throw new Error('WebP ICC profile hash does not match the frozen sRGB profile');
   }
 
   return {
     width,
     height,
     chunks,
+    iccProfileSha256,
   };
+}
+
+interface FixtureWebPChunk {
+  type: string;
+  payload: Buffer;
+}
+
+function readFixtureWebPChunks(buffer: Buffer): FixtureWebPChunk[] {
+  const chunks: FixtureWebPChunk[] = [];
+  let offset = 12;
+
+  while (offset < buffer.length) {
+    const type = buffer.toString('ascii', offset, offset + 4);
+    const dataLength = buffer.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+    chunks.push({
+      type,
+      payload: Buffer.from(buffer.subarray(dataOffset, dataOffset + dataLength)),
+    });
+    offset = dataOffset + dataLength + (dataLength % 2);
+  }
+
+  return chunks;
+}
+
+function buildFixtureWebP(
+  chunks: FixtureWebPChunk[],
+  {
+    paddingByte = 0,
+    omitFinalPadding = false,
+  }: { paddingByte?: number; omitFinalPadding?: boolean } = {},
+): Buffer {
+  const parts = chunks.flatMap(({ type, payload }, index) => {
+    const header = Buffer.alloc(8);
+    header.write(type, 0, 4, 'ascii');
+    header.writeUInt32LE(payload.length, 4);
+    const needsPadding = payload.length % 2 === 1;
+    const omitPadding = omitFinalPadding && index === chunks.length - 1;
+    return needsPadding && !omitPadding
+      ? [header, payload, Buffer.from([paddingByte])]
+      : [header, payload];
+  });
+  const body = Buffer.concat(parts);
+  const header = Buffer.alloc(12);
+  header.write('RIFF', 0, 4, 'ascii');
+  header.writeUInt32LE(body.length + 4, 4);
+  header.write('WEBP', 8, 4, 'ascii');
+  return Buffer.concat([header, body]);
 }
 
 function collectTypeScriptSources(
@@ -504,6 +679,35 @@ describe('FitChef demo reducer', (): void => {
   });
 
   it('fails closed for malformed and unknown event families from every state', (): void => {
+    const accessorType = {};
+    Object.defineProperty(accessorType, 'type', {
+      enumerable: true,
+      get: () => {
+        throw new Error('type getter must not execute');
+      },
+    });
+    const accessorChoice = { type: 'select' };
+    Object.defineProperty(accessorChoice, 'choice', {
+      enumerable: true,
+      get: () => {
+        throw new Error('choice getter must not execute');
+      },
+    });
+    const inheritedReset = Object.create({ type: 'reset' }) as object;
+    const inheritedChoice = Object.create({ choice: 'today' }) as { type?: string };
+    inheritedChoice.type = 'select';
+    const nonEnumerableExtra = { type: 'reset' };
+    Object.defineProperty(nonEnumerableExtra, 'extra', { value: true });
+    const symbolExtra = { type: 'reset', [Symbol('extra')]: true };
+    const nullPrototype = Object.assign(Object.create(null) as object, { type: 'reset' });
+    const throwingProxy = new Proxy(
+      { type: 'reset' },
+      {
+        ownKeys: () => {
+          throw new Error('ownKeys trap');
+        },
+      },
+    );
     const malformedEvents: unknown[] = [
       undefined,
       null,
@@ -517,12 +721,24 @@ describe('FitChef demo reducer', (): void => {
       { type: 'select' },
       { type: 'select', choice: null },
       { type: 'select', choice: 'month' },
+      { type: 'select', choice: 'today', extra: true },
+      { type: 'confirm', choice: 'week' },
+      { type: 'reset', choice: 'today' },
       { type: 'open' },
+      accessorType,
+      accessorChoice,
+      inheritedReset,
+      inheritedChoice,
+      nonEnumerableExtra,
+      symbolExtra,
+      nullPrototype,
+      throwingProxy,
       Symbol('unknown-event'),
     ];
 
     Object.values(demoStates).forEach((state) => {
       malformedEvents.forEach((event) => {
+        expect(() => fitChefValueDemoReducer(state, event)).not.toThrow();
         expect(fitChefValueDemoReducer(state, event)).toBe(state);
       });
     });
@@ -543,11 +759,52 @@ describe('FitChefValueDemo', (): void => {
 
       return element;
     };
-    const expectExactCopyOnce = (story: HTMLElement, copies: string[]): void => {
-      copies.forEach((copy) => {
-        expect(within(story).getAllByText(copy, { exact: true }), copy).toHaveLength(1);
-      });
-    };
+    const approvedStoryCopy = {
+      daily: [
+        'See how FitChef helps you choose where to start',
+        'FitChef shows both options. The choice is yours.',
+        'Ways to move',
+        'Endurance',
+        'Strength & Power',
+        'Team & Combat',
+        'Movement & Everyday Fitness',
+        'Goal',
+        'Reduce',
+        'Maintain',
+        'Gain',
+        'Where would you like to start?',
+        'Today',
+        'Start with the plan for today.',
+        'This week',
+        'Look at the next seven days.',
+        'Confirm choice',
+        'Not now',
+      ],
+      weekly: [
+        'A week that changes with you',
+        'Starting week',
+        'What changed',
+        'Your goal changes',
+        'A meal out',
+        'Use what’s at home',
+        'Updated week',
+      ],
+      'food-context': [
+        'A food plan built around real life',
+        'Ingredients at home',
+        'Restaurant or chef',
+        'Shopping and stores',
+        'A food photo',
+        'One flexible plan',
+      ],
+      vip: [
+        'PulsePlate VIP',
+        'Your personal AI nutrition guide',
+        'FitChef brings your measurements, goals and routines into everyday action: reshaping menus when plans change and finding a practical next step when progress slows.',
+        'For everyday wellbeing, training, strength and muscle-building goals.',
+        'Support to keep you moving forward.',
+      ],
+    } as const;
 
     expect(container.querySelectorAll('[data-testid="fitchef-value-demo"]')).toHaveLength(1);
     expect(storyElements.map((story) => story.dataset.fitchefStory)).toEqual([
@@ -557,50 +814,17 @@ describe('FitChefValueDemo', (): void => {
       'vip',
     ]);
 
-    expectExactCopyOnce(requireStory('daily'), [
-      'See how FitChef helps you choose where to start',
-      'Ways to move',
-      'Endurance',
-      'Strength & Power',
-      'Team & Combat',
-      'Movement & Everyday Fitness',
-      'Goal',
-      'Reduce',
-      'Maintain',
-      'Gain',
-      'Where would you like to start?',
-      'FitChef shows both options. The choice is yours.',
-      'Today',
-      'Start with the plan for today.',
-      'This week',
-      'Look at the next seven days.',
-      'Confirm choice',
-      'Not now',
-    ]);
-    expectExactCopyOnce(requireStory('weekly'), [
-      'A week that changes with you',
-      'Starting week',
-      'What changed',
-      'Your goal changes',
-      'A meal out',
-      'Use what’s at home',
-      'Updated week',
-    ]);
-    expectExactCopyOnce(requireStory('food-context'), [
-      'A food plan built around real life',
-      'Ingredients at home',
-      'Restaurant or chef',
-      'Shopping and stores',
-      'A food photo',
-      'One flexible plan',
-    ]);
-    expectExactCopyOnce(requireStory('vip'), [
-      'PulsePlate VIP',
-      'Your personal AI nutrition guide',
-      'FitChef brings your measurements, goals and routines into everyday action: reshaping menus when plans change and finding a practical next step when progress slows.',
-      'For everyday wellbeing, training, strength and muscle-building goals.',
-      'Support to keep you moving forward.',
-    ]);
+    Object.entries(approvedStoryCopy).forEach(([storyName, expectedCopy]) => {
+      expect(collectVisibleStoryCopy(requireStory(storyName)), storyName).toEqual([
+        ...expectedCopy,
+      ]);
+    });
+
+    const storyWithExtraCopy = requireStory('weekly').cloneNode(true) as HTMLElement;
+    const unapprovedCopy = document.createElement('p');
+    unapprovedCopy.textContent = 'Internal pipeline state';
+    storyWithExtraCopy.append(unapprovedCopy);
+    expect(collectVisibleStoryCopy(storyWithExtraCopy)).not.toEqual([...approvedStoryCopy.weekly]);
   });
 
   it('keeps one H1 control group and reveals the exact Today and Week media', async () => {
@@ -638,9 +862,11 @@ describe('FitChefValueDemo', (): void => {
 
     const todayResult = within(dailyStory).getByRole('status');
     expect(within(todayResult).getByRole('heading', { name: 'Daily Plate' })).toBeVisible();
-    expect(todayResult.querySelector('img')).toHaveAttribute(
-      'data-fitchef-asset',
-      'daily-plate-a-salmon-1024.webp',
+    const todayImage = todayResult.querySelector('img');
+    expect(todayImage).toHaveAttribute('data-fitchef-asset', 'daily-plate-a-salmon-1024.webp');
+    expect(todayImage?.getAttribute('src')).toMatch(/daily-plate-a-salmon-1024\.webp$/);
+    expect(collectAssetMarkerMultiset(demoSection)).toEqual(
+      [...idleAssetMarkerMultiset, 'daily-plate-a-salmon-1024.webp'].sort(),
     );
     expect(todayResult).toHaveAttribute('aria-live', 'polite');
     expect(todayResult.querySelector('a, button')).toBeNull();
@@ -654,9 +880,14 @@ describe('FitChefValueDemo', (): void => {
 
     const weekResult = within(dailyStory).getByRole('status');
     expect(within(weekResult).getByRole('heading', { name: 'Weekly Planning' })).toBeVisible();
-    expect(weekResult.querySelector('img')).toHaveAttribute(
+    const weekImage = weekResult.querySelector('img');
+    expect(weekImage).toHaveAttribute(
       'data-fitchef-asset',
       'weekly-planning-a-meal-grid-1024.webp',
+    );
+    expect(weekImage?.getAttribute('src')).toMatch(/weekly-planning-a-meal-grid-1024\.webp$/);
+    expect(collectAssetMarkerMultiset(demoSection)).toEqual(
+      [...idleAssetMarkerMultiset, 'weekly-planning-a-meal-grid-1024.webp'].sort(),
     );
     expect(demoSection.querySelectorAll('a')).toHaveLength(0);
   });
@@ -673,18 +904,23 @@ describe('FitChefValueDemo', (): void => {
         throw new Error(`Static FitChef story not found: ${storyName}`);
       }
 
-      expect(
-        story.querySelectorAll(
-          'a, button, input, select, textarea, fieldset, [role="button"], [role="link"], [role="radio"], [role="group"], [role="status"], [aria-live]',
-        ),
-        storyName,
-      ).toHaveLength(0);
+      expect(collectStaticInteractionViolations(story), storyName).toHaveLength(0);
     });
 
     expect(container.querySelectorAll('[data-fitchef-story="daily"] fieldset')).toHaveLength(1);
     expect(
       container.querySelectorAll('[data-fitchef-story]:not([data-fitchef-story="daily"]) fieldset'),
     ).toHaveLength(0);
+
+    const interactiveFixture = document.createElement('div');
+    const details = document.createElement('details');
+    details.append(document.createElement('summary'));
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    const tabbable = document.createElement('div');
+    tabbable.tabIndex = 0;
+    interactiveFixture.append(details, editable, tabbable);
+    expect(collectStaticInteractionViolations(interactiveFixture).length).toBeGreaterThanOrEqual(3);
   });
 
   it('uses every promoted visual exactly from the closed twelve-asset family', () => {
@@ -698,7 +934,7 @@ describe('FitChefValueDemo', (): void => {
 
     expect(runtimePaths).not.toContain('');
     expect(Array.from(new Set(runtimePaths)).sort()).toEqual(expectedPaths);
-    runtimePaths.forEach((runtimePath) => expect(expectedPaths).toContain(runtimePath));
+    expect(runtimePaths.sort()).toEqual(idleAssetMarkerMultiset);
     runtimeImages.forEach((image) => {
       expect(image).toHaveAttribute('loading', 'lazy');
       expect(image).toHaveAttribute('decoding', 'async');
@@ -707,30 +943,95 @@ describe('FitChefValueDemo', (): void => {
 
   it('locks promoted WebP hashes, dimensions, profiles, budgets, and exact membership', () => {
     const expectedPaths = promotedAssetContract.map(({ relativePath }) => relativePath).sort();
+    const canonicalAssetRoot = realpathSync(promotedAssetRoot);
 
     expect(collectRelativeFiles(promotedAssetRoot)).toEqual(expectedPaths);
 
     promotedAssetContract.forEach(({ relativePath, width, height, runtimeBytes, sha256 }) => {
       const path = resolve(promotedAssetRoot, relativePath);
       const file = lstatSync(path);
-      const buffer = readFileSync(path);
-      const webp = inspectWebP(buffer);
 
       expect(file.isFile(), relativePath).toBe(true);
       expect(file.isSymbolicLink(), relativePath).toBe(false);
       expect(file.size, relativePath).toBe(runtimeBytes);
-      expect(file.size, `${relativePath} must stay within the 500 KiB repository budget`).toBeLessThanOrEqual(
-        500 * 1024,
-      );
+      expect(
+        file.size,
+        `${relativePath} must stay within the 500 KiB repository budget`,
+      ).toBeLessThanOrEqual(500 * 1024);
+      expect(realpathSync(path).startsWith(`${canonicalAssetRoot}${sep}`), relativePath).toBe(true);
+
+      const buffer = readFileSync(path);
+      const webp = inspectWebP(buffer);
       expect(createHash('sha256').update(buffer).digest('hex'), relativePath).toBe(sha256);
       expect({ width: webp.width, height: webp.height }, relativePath).toEqual({
         width,
         height,
       });
-      expect(webp.chunks, relativePath).toContain('VP8X');
-      expect(webp.chunks, relativePath).toContain('ICCP');
-      expect(webp.chunks, relativePath).toContain('VP8 ');
+      expect(webp.chunks, relativePath).toEqual([...frozenWebPChunkSequence]);
+      expect(webp.iccProfileSha256, relativePath).toBe(frozenWebPIccProfileSha256);
     });
+  });
+
+  it('fails the asset census closed for unexpected file and directory symlinks', () => {
+    const fixtureRoot = mkdtempSync(resolve(tmpdir(), 'pulseplate-fitchef-assets-'));
+
+    try {
+      const fileCase = resolve(fixtureRoot, 'file-case');
+      const directoryCase = resolve(fixtureRoot, 'directory-case');
+      mkdirSync(fileCase);
+      mkdirSync(directoryCase);
+      const regularFile = resolve(fileCase, 'regular.webp');
+      writeFileSync(regularFile, Buffer.from('regular'));
+      symlinkSync(regularFile, resolve(fileCase, 'unexpected.webp'), 'file');
+
+      const realDirectory = resolve(directoryCase, 'real');
+      mkdirSync(realDirectory);
+      symlinkSync(realDirectory, resolve(directoryCase, 'unexpected-directory'), 'dir');
+
+      expect(() => collectRelativeFiles(fileCase)).toThrow(/rejects symbolic links/);
+      expect(() => collectRelativeFiles(directoryCase)).toThrow(/rejects symbolic links/);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects duplicate, unknown, padded, oversized, and truncated WebP carriers', () => {
+    const referencePath = resolve(promotedAssetRoot, promotedAssetContract[0].relativePath);
+    const reference = readFileSync(referencePath);
+    const chunks = readFixtureWebPChunks(reference);
+    const [vp8x, iccp, vp8] = chunks;
+    if (!vp8x || !iccp || !vp8) {
+      throw new Error('Reference WebP must expose the frozen three-chunk profile');
+    }
+    const animatedVp8x = {
+      ...vp8x,
+      payload: Buffer.from(vp8x.payload),
+    };
+    animatedVp8x.payload[0] |= 0x02;
+    const oddIccp = { ...iccp, payload: Buffer.concat([iccp.payload, Buffer.from([0])]) };
+    const oddVp8 = { ...vp8, payload: Buffer.concat([vp8.payload, Buffer.from([0])]) };
+    const oversizedDeclaration = Buffer.from(reference);
+    oversizedDeclaration.writeUInt32LE(0xffffffff, 16);
+
+    const rejectedFixtures = [
+      buildFixtureWebP([vp8x, vp8x, iccp, vp8]),
+      buildFixtureWebP([vp8x, iccp, iccp, vp8]),
+      buildFixtureWebP([vp8x, iccp, vp8, { type: 'JUNK', payload: Buffer.alloc(0) }]),
+      buildFixtureWebP([animatedVp8x, iccp, vp8]),
+      buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 }),
+      buildFixtureWebP([vp8x, iccp, oddVp8], { omitFinalPadding: true }),
+      oversizedDeclaration,
+      reference.subarray(0, -1),
+      Buffer.concat([reference, Buffer.from([0])]),
+    ];
+
+    rejectedFixtures.forEach((fixture) => {
+      expect(() => inspectWebP(fixture)).toThrow();
+    });
+    expect(() => buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 })).not.toThrow();
+    expect(() => inspectWebP(buildFixtureWebP([vp8x, oddIccp, vp8], { paddingByte: 1 }))).toThrow(
+      /padding must be zero/,
+    );
   });
 
   it('clears a revealed result immediately when the choice changes', async () => {

@@ -16,12 +16,7 @@ import fitChefNeutral from '../../assets/brand/fitchef-portrait-neutral-v1.png';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { RadioGroup, RadioGroupOption } from '../ui/RadioGroup';
-import {
-  MarketingCard,
-  MarketingSection,
-  SectionHeader,
-  StatusPill,
-} from './MarketingPrimitives';
+import { MarketingCard, MarketingSection, SectionHeader, StatusPill } from './MarketingPrimitives';
 
 export type FitChefDemoChoice = 'today' | 'week';
 
@@ -41,15 +36,59 @@ function isChoice(value: unknown): value is FitChefDemoChoice {
   return value === 'today' || value === 'week';
 }
 
-export function fitChefValueDemoReducer(
-  state: FitChefDemoState,
-  event: unknown,
-): FitChefDemoState {
-  if (typeof event !== 'object' || event === null || !('type' in event)) {
-    return state;
+function normalizeFitChefDemoEvent(event: unknown): FitChefDemoEvent | null {
+  if (typeof event !== 'object' || event === null || Array.isArray(event)) {
+    return null;
   }
 
-  const candidate = event as { type?: unknown; choice?: unknown };
+  try {
+    if (Object.getPrototypeOf(event) !== Object.prototype) {
+      return null;
+    }
+
+    const keys = Reflect.ownKeys(event);
+    if (keys.some((key) => typeof key === 'symbol')) {
+      return null;
+    }
+
+    const stringKeys = (keys as string[]).sort();
+    const descriptors = Object.getOwnPropertyDescriptors(event);
+    const typeDescriptor = descriptors.type;
+    if (!typeDescriptor || !('value' in typeDescriptor)) {
+      return null;
+    }
+
+    if (typeDescriptor.value === 'confirm' || typeDescriptor.value === 'reset') {
+      return stringKeys.length === 1 && stringKeys[0] === 'type'
+        ? { type: typeDescriptor.value }
+        : null;
+    }
+
+    if (
+      typeDescriptor.value !== 'select' ||
+      stringKeys.length !== 2 ||
+      stringKeys[0] !== 'choice' ||
+      stringKeys[1] !== 'type'
+    ) {
+      return null;
+    }
+
+    const choiceDescriptor = descriptors.choice;
+    if (!choiceDescriptor || !('value' in choiceDescriptor) || !isChoice(choiceDescriptor.value)) {
+      return null;
+    }
+
+    return { type: 'select', choice: choiceDescriptor.value };
+  } catch {
+    return null;
+  }
+}
+
+export function fitChefValueDemoReducer(state: FitChefDemoState, event: unknown): FitChefDemoState {
+  const candidate = normalizeFitChefDemoEvent(event);
+  if (!candidate) {
+    return state;
+  }
 
   if (candidate.type === 'reset') {
     return state.status === 'idle' ? state : FITCHEF_DEMO_INITIAL_STATE;
@@ -192,12 +231,7 @@ function RevealedPlanningView({ choice }: { choice: FitChefDemoChoice }): JSX.El
   const image = isToday ? dailyPlateImage : weeklyPlanningImage;
 
   return (
-    <Card
-      aria-atomic="true"
-      aria-live="polite"
-      className="ppm-fitchef-reveal-card"
-      role="status"
-    >
+    <Card aria-atomic="true" aria-live="polite" className="ppm-fitchef-reveal-card" role="status">
       <h3>{heading}</h3>
       <figure className="ppm-fitchef-reveal-photo">
         <img
@@ -265,9 +299,7 @@ function DailyStory(): JSX.Element {
                     ]
                       .join(' ')
                       .trim()}
-                    description={
-                      <span className="ppm-fitchef-option-detail">{copy.detail}</span>
-                    }
+                    description={<span className="ppm-fitchef-option-detail">{copy.detail}</span>}
                     label={<span className="ppm-fitchef-option-label">{copy.label}</span>}
                     name="fitchef-start"
                     value={choice}
@@ -296,9 +328,7 @@ function DailyStory(): JSX.Element {
           </div>
         </Card>
 
-        {state.status === 'revealed' ? (
-          <RevealedPlanningView choice={state.choice} />
-        ) : null}
+        {state.status === 'revealed' ? <RevealedPlanningView choice={state.choice} /> : null}
       </div>
     </section>
   );
