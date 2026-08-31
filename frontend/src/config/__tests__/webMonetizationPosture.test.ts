@@ -22,8 +22,11 @@ const completeMatrixIdentities = [
   'ios.home.bmi_calculator',
   'ios.home.profile_setup',
   'ios.home.open_plate',
+  'ios.home.open_progress',
+  'ios.home.fitchef_coach',
   'ios.home.weekly_plan_reader',
   'ios.home.shopping_list_generator',
+  'ios.home.retry_entitlement',
   'ios.plate.add_meal',
   'ios.plate.view_details',
   'ios.plate.issue_action_dynamic',
@@ -43,8 +46,16 @@ const fitChefSupportChoiceIdentities = new Set<string>([
   'web.home.fitchef_dismiss_pointer',
 ]);
 
+const runtimeOnlyIosHomeIdentities = new Set<string>([
+  'ios.home.open_progress',
+  'ios.home.fitchef_coach',
+  'ios.home.retry_entitlement',
+]);
+
 const designExecutionIdentities = completeMatrixIdentities.filter(
-  (identity) => !fitChefSupportChoiceIdentities.has(identity),
+  (identity) =>
+    !fitChefSupportChoiceIdentities.has(identity) &&
+    !runtimeOnlyIosHomeIdentities.has(identity),
 );
 
 const informationOnlyWebStates = [
@@ -478,7 +489,9 @@ describe(`current Web monetization posture: ${CURRENT_WEB_MONETIZATION_POSTURE}`
     expect(matrixIdentities).toHaveLength(completeMatrixIdentities.length);
     expect(sortedUnique(matrixIdentities)).toEqual(sortedUnique(completeMatrixIdentities));
     expect(designExecutionIdentities).toHaveLength(
-      completeMatrixIdentities.length - fitChefSupportChoiceIdentities.size,
+      completeMatrixIdentities.length -
+        fitChefSupportChoiceIdentities.size -
+        runtimeOnlyIosHomeIdentities.size,
     );
   });
 
