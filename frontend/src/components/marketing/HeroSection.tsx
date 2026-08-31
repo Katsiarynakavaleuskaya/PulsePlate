@@ -10,7 +10,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import brandMark from '../../assets/brand/pulseplate-brand-mark.png';
-import fitChefHero from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
+import fitChefHero from '../../assets/brand/fitchef-portrait-neutral-v1.png';
 import {
   MarketingCard,
   MarketingSection,
