@@ -21,7 +21,7 @@ from scripts import verify_premium_alias_telemetry as verifier
 
 _DIGEST_A = "sha256:" + "a" * 64
 _DIGEST_B = "sha256:" + "b" * 64
-_PROMETHEUS_REFERENCE = "prom/prometheus:v3.14.0-distroless@" + _DIGEST_B
+_PROMETHEUS_REFERENCE = "prom/prometheus@" + _DIGEST_B
 _RELEASE_A = "1" * 40
 _RELEASE_B = "2" * 40
 _APP_CONTAINER_A = "a" * 64
@@ -1501,7 +1501,7 @@ def test_container_config_tar_rejects_oversized_payload(
 @pytest.mark.parametrize(
     "image_reference",
     [
-        "prom/prometheus:v3.14.0-distroless",
+        "prom/prometheus:main-distroless",
         "https://registry.example/prometheus@" + _DIGEST_B,
         "user:password@registry.example/prometheus@" + _DIGEST_B,
         "prom/prometheus@sha256:" + "A" * 64,

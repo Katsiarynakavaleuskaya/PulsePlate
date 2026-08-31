@@ -7157,6 +7157,44 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Every exposed chart/card has owner, metric definition, and decision rule
     - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
 
+<a id="ledger-p1-prometheus-cve-2026-56854-immutable-bridge"></a>
+- [x] P1: Remediate Prometheus CVE-2026-56854 with an immutable upstream-main bridge
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (required security gate / deployment image identity)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Completed in implementation PR #2356 with a digest-only, revision-bound temporary bridge; no suppression or separate docs-only closure PR is used
+  - Area: security / prometheus / OCI identity / CD
+  - Finding Type: CRITICAL transitive Go dependency in an immutable deployment image
+  - Reason (EN): The suppression-free Prometheus CD scan began reporting `CVE-2026-56854` because the released v3.14.0 distroless image embeds `golang.org/x/crypto v0.54.0`; the reviewed fix is v0.55.0. The official latest semver release remains v3.14.0, so PR #2356 temporarily selects one official upstream-main distroless build by immutable index and linux/amd64 manifest digests, binds its exact reported source revision, and preserves all runtime and deployment contracts without relying on the mutable discovery tag.
+  - Links:
+    - [Go vulnerability GO-2026-6303](https://pkg.go.dev/vuln/GO-2026-6303)
+    - [Prometheus source revision `09fdfcd2659d`](https://github.com/prometheus/prometheus/commit/09fdfcd2659dd9c816e9e23c992fc161c0091757)
+    - [`deploy/prometheus/image-manifest.json`](../../deploy/prometheus/image-manifest.json)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - One exact v2 manifest binds repository, source revision, immutable index digest, unique linux/amd64 platform digest, and digest-only runtime reference
+    - All three Compose contours and both deployment validators consume the same exact identity with no mutable tag fallback
+    - CD hashes and cross-binds raw OCI index/platform manifests, verifies exact binary revision and unchanged image config, validates the existing Prometheus config with `promtool`, and preserves the non-root/network/volume runtime contract
+    - The exact image passes the existing empty-ignore, suppression-free Trivy `CRITICAL,HIGH` scan; no ignore, waiver, severity reduction, `continue-on-error`, or `--ignore-unfixed` is added
+    - Focused deploy tests, current-head CD/security CI, mapping/review dispositions, and strict readiness pass before squash merge
+  - Rollback / exit: Before merge, restore the prior exact record atomically only if it still passes current security policy. After merge, use a forward PR. Replace this upstream-main bridge with the next suitable official semver release after it passes the same identity, runtime, `promtool`, suppression-free scan, and repository gates.
+
+<a id="ledger-p1-prometheus-next-semver-release-exit"></a>
+- [ ] P1: Replace the temporary Prometheus upstream-main bridge with the next fixed semver release
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (temporary security bridge retirement)
+  - Target PR: TBD — the first suitable official Prometheus semver release after v3.14.0
+  - Status: ⏳ Blocked on upstream release availability; current official latest remains v3.14.0
+  - Area: security / prometheus / release identity
+  - Reason (EN): The digest-pinned bridge fixes the current scan without mutable runtime identity, but it is an unreleased upstream-main build and must not silently become the permanent production baseline.
+  - Links:
+    - [Prometheus releases](https://github.com/prometheus/prometheus/releases)
+    - [`ledger-p1-prometheus-cve-2026-56854-immutable-bridge`](#ledger-p1-prometheus-cve-2026-56854-immutable-bridge)
+  - DoD:
+    - An official semver release embeds `golang.org/x/crypto >= v0.55.0` or otherwise passes the current vulnerability policy
+    - Its exact index/platform digests, binary revision, config, runtime posture, and suppression-free Trivy scan pass the same v2 admission contract
+    - The manifest, three Compose consumers, CD validator, two deploy validators, deterministic tests, and rollback evidence move atomically to that release
+
 <a id="ledger-p2-greenlight-setup-go-v7-identity"></a>
 - [x] P2: Greenlight setup-go v7 immutable identity transition
   - Owner: @katsiaryna_kavaleuskaya
