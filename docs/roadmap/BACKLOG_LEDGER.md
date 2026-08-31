@@ -9847,9 +9847,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef website brand rollout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/fitchef-public-visual-story` (current bounded visual-story carrier; PR
-    number is added after open)
-  - Status: 🚧 In implementation. The current carrier promotes the owner-approved
+  - Target PR: [PR #2369](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2369)
+    (`codex/fitchef-public-visual-story`)
+  - Status: 🚧 In review in PR #2369. The current carrier promotes the owner-approved
     Daily/Weekly/Food Context/VIP photographic story and removes the old onboarding mascot from
     the shared marketing graph. The umbrella stays open for remaining onboarding-consumer,
     mascot-variant, Storybook guidance, and responsive image-delivery/transfer-budget work.
