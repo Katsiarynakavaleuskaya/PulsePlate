@@ -138,10 +138,13 @@ authority is added here.
 ### Stable compatibility identifiers are not action authority
 
 The complete matrix contains 30 unique current identities. The Figma, Sora, and
-Code Connect design-execution subset contains the 27 identities left after
+Code Connect design-execution subset contains the 24 identities left after
 excluding the separately governed FitChef SupportChoice controls
 `web.home.fitchef_show_next_step`, `web.home.fitchef_confirm_pointer`, and
-`web.home.fitchef_dismiss_pointer`.
+`web.home.fitchef_dismiss_pointer`, plus the repo-runtime-only Consumer-first
+Home identities `ios.home.open_progress`, `ios.home.fitchef_coach`, and
+`ios.home.retry_entitlement`. These six exclusions do not authorize external
+design execution or remove any existing design-registry identity.
 
 `web.home.open_pro` and `web.plate.premium_gate_cta` remain stable compatibility
 metadata so existing design references do not fork. Their substrings grant no
