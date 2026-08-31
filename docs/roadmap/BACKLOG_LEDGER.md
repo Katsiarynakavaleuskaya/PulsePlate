@@ -24,6 +24,39 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-client-arch-1-cab-01"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (iOS build integrity / false-green prevention / release evidence)
+  - Target PR: current carrier `codex/ios-complete-unit-signal` (PR number assigned when opened)
+  - Status: Active implementation; exact-head local and CI evidence remains pending
+  - Area: iOS unit-test selection / CI routing / local Swift syntax diagnostics / localization tests
+  - Reason (EN): The canonical iOS lane currently selects a maintained class allowlist, so an
+    enabled test can be omitted without making the blocking job fail. The local pre-commit hook also
+    turns an incompatible `swift build` failure into success. CAB-01 is the first bounded carrier in
+    CLIENT-ARCH-1 and replaces those two false-green surfaces without changing production Swift,
+    Xcode build settings, public API contracts, product copy, assets, or the separate UI-test lane.
+  - Links:
+    - `scripts/ios_test_targets.sh`
+    - `scripts/ci/check_ios_swift_syntax.sh`
+    - `.github/workflows/ci.yml`
+    - `ios/PulsePlateTests/PlateLoadIssueTests.swift`
+    - `ios/PulsePlateTests/PlateViewTests.swift`
+  - DoD:
+    - the canonical selector emits only `PulsePlateTests`, while `IOS_ONLY_TESTING` remains an
+      explicit local diagnostic override and `PulsePlateUITests` remains separately owned
+    - Xcode discovers and runs every currently enabled unit test in the exact target, head,
+      configuration, and destination without a permanent class list or numeric-count assertion
+    - API, transport, and vegetables assertions resolve the current localization keys, reject an
+      unresolved-key echo, and keep exact raw API/transport sentinels out of user-facing messages
+    - the macOS pre-commit gate parses each changed Swift file with Swift 5 grammar, preserves a
+      parser failure exit code and diagnostics, and makes no build, typecheck, or readiness claim
+    - changes to either iOS test-control script route the exact-head iOS unit and UI-smoke jobs
+    - focused governance and iOS tests, the narrow local bundle, current-head CI, review
+      dispositions, mapping/seal, and the mandatory wait window pass before merge authorization
+  - Rollback (EN): Revert the CAB-01 carrier. No persisted data, backend repair, OpenAPI
+    regeneration, asset rollback, or release migration is required.
+
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [ ] P1: Add the public deterministic FitChef marketing demo
   - Owner: frontend-engineer / agent-coordinator
@@ -4878,17 +4911,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate from PR-559)
+  - Target PR: current CLIENT-ARCH-1 / CAB-01 carrier `codex/ios-complete-unit-signal`
   - Priority: P1
-  - Reason: PlateViewTests were unstable historically; UI tests bundle-load is now fixed, but PlateViewTests stability + CI inclusion remains open.
+  - Status: Active in CAB-01; closure remains pending exact-head evidence and merge
+  - Reason: PlateViewTests were unstable historically. CAB-01 now owns their locale-safe
+    stabilization and inclusion through the complete `PulsePlateTests` target while preserving the
+    separate UI-smoke lane.
   - Links:
+    - [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01)
     - ios/PulsePlateTests/PlateViewTests.swift
     - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
   - DoD:
-    - PlateViewTests stabilized (no flaky failures)
-    - PlateViewTests included in CI signal (job or explicit `-only-testing` list)
-    - CI green with PlateViewTests included
+    - PlateViewTests assertions are locale-independent and preserve the production localization
+      contract without changing product copy
+    - PlateViewTests are included through the full-target `PulsePlateTests` CI selector rather than
+      a class allowlist
+    - exact-head CAB-01 iOS unit evidence includes PlateViewTests before this item is closed
 
 - [ ] P1: Locale-safe Nutrition Setup numeric parsing on web
   - Owner: @katsiaryna_kavaleuskaya
