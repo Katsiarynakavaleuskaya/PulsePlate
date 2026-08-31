@@ -306,50 +306,220 @@
 }
 
 .ppm-page .ppm-fitchef-demo-card {
-  margin-top: var(--spacing-10);
-  padding: clamp(var(--spacing-5), 4vw, var(--spacing-10));
+  overflow: hidden;
   border-color: rgba(51, 159, 255, 0.24);
-  background: rgba(15, 23, 42, 0.84);
+  background:
+    radial-gradient(circle at 84% 4%, rgba(51, 159, 255, 0.12), transparent 34rem),
+    rgba(15, 23, 42, 0.88);
+  color: var(--color-primary-foreground);
 }
 
-.ppm-fitchef-demo-layout {
-  display: grid;
-  grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.28fr);
-  gap: clamp(var(--spacing-6), 5vw, var(--spacing-12));
-  align-items: start;
-}
-
-.ppm-fitchef-demo-intro {
-  display: grid;
-  gap: var(--spacing-5);
+.ppm-fitchef-story {
+  position: relative;
   min-width: 0;
+  overflow: hidden;
+  padding: clamp(var(--spacing-8), 5vw, var(--spacing-16));
 }
 
-.ppm-fitchef-demo-image {
-  width: min(100%, 15rem);
-  height: auto;
-  justify-self: center;
-  object-fit: contain;
+.ppm-fitchef-story + .ppm-fitchef-story {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.ppm-fitchef-demo-consequence,
-.ppm-fitchef-demo-wellness,
-.ppm-fitchef-demo-disclosure {
+.ppm-fitchef-story,
+.ppm-fitchef-story * {
   overflow-wrap: anywhere;
 }
 
-.ppm-fitchef-demo-consequence {
-  margin: 0;
-  color: var(--ppm-slate-200);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-relaxed);
+.ppm-fitchef-story-header {
+  max-width: 58rem;
+  margin-bottom: clamp(var(--spacing-8), 4vw, var(--spacing-12));
 }
 
-.ppm-fitchef-demo-wellness {
-  margin: var(--spacing-3) 0 0;
-  color: var(--ppm-slate-400);
+.ppm-fitchef-context-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: var(--spacing-8);
+  align-items: end;
+}
+
+.ppm-fitchef-context-block {
+  min-width: 0;
+}
+
+.ppm-fitchef-context-title {
+  margin: 0 0 var(--spacing-3);
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.ppm-fitchef-activity-rail,
+.ppm-fitchef-food-context-rail {
+  display: grid;
+  min-width: 0;
+  padding: var(--spacing-4);
+  gap: var(--spacing-3);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.3);
+}
+
+.ppm-fitchef-activity-rail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ppm-fitchef-photo-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 0.8;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-2xl);
+  background: var(--pp-navy);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.34);
+  isolation: isolate;
+}
+
+.ppm-fitchef-photo-card img {
+  display: block;
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ppm-fitchef-photo-card > span {
+  z-index: 1;
+  grid-area: 1 / 1;
+  align-self: end;
+  padding: var(--spacing-12) var(--spacing-3) var(--spacing-3);
+  background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.94));
+  color: var(--color-primary-foreground);
+  font-size: clamp(var(--font-size-xs), 1.15vw, var(--font-size-sm));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.ppm-fitchef-activity--endurance img {
+  object-position: 50% 55%;
+}
+
+.ppm-fitchef-activity--strength img {
+  object-position: 45% 50%;
+}
+
+.ppm-fitchef-activity--team img {
+  object-position: 52% 50%;
+}
+
+.ppm-fitchef-activity--movement img {
+  object-position: 60% 50%;
+}
+
+.ppm-fitchef-goal-card {
+  display: grid;
+  min-width: 0;
+  min-height: 100%;
+  padding: var(--spacing-5);
+  align-content: center;
+  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--pp-blue) 18%, transparent),
+      color-mix(in srgb, var(--pp-green) 15%, transparent) 50%,
+      color-mix(in srgb, var(--pp-gold) 18%, transparent)
+    ),
+    rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.3);
+}
+
+.ppm-fitchef-goal-spectrum {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-2);
+}
+
+.ppm-fitchef-goal-spectrum::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  right: var(--spacing-2);
+  left: var(--spacing-2);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--pp-blue), var(--pp-green), var(--pp-gold));
+  opacity: 0.56;
+  transform: translateY(-50%);
+}
+
+.ppm-page .ppm-fitchef-goal-state {
+  display: grid;
+  min-width: 0;
+  min-height: 5.5rem;
+  padding: var(--spacing-3) var(--spacing-2);
+  place-items: center;
+  border-radius: var(--radius-xl);
+  color: var(--color-primary-foreground);
   font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
+  line-height: var(--line-height-snug);
+  text-align: center;
+}
+
+.ppm-fitchef-goal-state--reduce {
+  border-color: color-mix(in srgb, var(--pp-blue) 58%, transparent);
+  background: color-mix(in srgb, var(--pp-blue) 18%, rgba(255, 255, 255, 0.08));
+}
+
+.ppm-fitchef-goal-state--maintain {
+  border-color: color-mix(in srgb, var(--pp-green) 58%, transparent);
+  background: color-mix(in srgb, var(--pp-green) 22%, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--pp-green) 28%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--pp-green) 32%, transparent);
+  transform: scale(1.04);
+}
+
+.ppm-fitchef-goal-state--gain {
+  border-color: color-mix(in srgb, var(--pp-gold) 58%, transparent);
+  background: color-mix(in srgb, var(--pp-gold) 18%, rgba(255, 255, 255, 0.08));
+}
+
+.ppm-fitchef-context-bridge {
+  display: block;
+  width: 2px;
+  height: var(--spacing-10);
+  margin-left: 20%;
+  background: linear-gradient(180deg, var(--pp-blue), rgba(51, 159, 255, 0.2));
+}
+
+.ppm-fitchef-daily-flow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(25rem, 0.98fr) minmax(0, 1.02fr);
+  gap: clamp(var(--spacing-8), 6vw, var(--spacing-20));
+  align-items: center;
+}
+
+.ppm-page .ppm-fitchef-choice-card,
+.ppm-page .ppm-fitchef-reveal-card,
+.ppm-page .ppm-fitchef-weekly-card,
+.ppm-page .ppm-fitchef-food-output {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-primary-foreground);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.3);
+}
+
+.ppm-page .ppm-fitchef-choice-card {
+  position: relative;
+  min-width: 0;
+  padding: var(--spacing-8);
 }
 
 .ppm-fitchef-choice-group {
@@ -357,18 +527,46 @@
 }
 
 .ppm-fitchef-choice-group legend {
-  margin-bottom: var(--spacing-2);
+  width: 100%;
+  max-width: none;
+  min-height: 5.5rem;
+  margin-bottom: var(--spacing-5);
+  padding-right: var(--spacing-20);
   color: var(--color-primary-foreground);
-  font-size: var(--font-size-lg);
+  font-size: clamp(var(--font-size-2xl), 2.6vw, var(--font-size-3xl));
   font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-snug);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.015em;
+}
+
+.ppm-fitchef-neutral-slot {
+  position: absolute;
+  top: var(--spacing-6);
+  right: var(--spacing-6);
+  display: grid;
+  width: 5.5rem;
+  height: 5.5rem;
+  padding: var(--spacing-2);
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-2xl);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.ppm-fitchef-neutral-slot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .ppm-page .ppm-fitchef-option {
-  min-height: var(--spacing-touch-large);
+  min-height: 6rem;
+  padding: var(--spacing-4);
   border-width: 1px;
   border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-2xl);
+  background: rgba(255, 255, 255, 0.055);
   color: var(--color-primary-foreground);
   transition:
     border-color var(--motion-fast) ease,
@@ -386,7 +584,9 @@
   border-width: 2px;
   border-color: var(--pp-blue);
   background: rgba(51, 159, 255, 0.14);
-  box-shadow: inset var(--spacing-1) 0 0 var(--pp-blue);
+  box-shadow:
+    inset var(--spacing-1) 0 0 var(--pp-blue),
+    0 10px 24px rgba(2, 6, 23, 0.22);
 }
 
 .ppm-page .ppm-fitchef-option:has(input:focus-visible) {
@@ -406,7 +606,8 @@
 
 .ppm-fitchef-option-label {
   color: var(--color-primary-foreground);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-snug);
 }
 
@@ -417,14 +618,14 @@
 }
 
 .ppm-fitchef-demo-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.62fr);
   gap: var(--spacing-3);
   margin-top: var(--spacing-6);
 }
 
 .ppm-fitchef-demo-actions > button {
-  min-height: var(--spacing-touch);
+  min-height: var(--spacing-touch-large);
 }
 
 .ppm-page .ppm-fitchef-confirm {
@@ -449,50 +650,354 @@
   outline-offset: 3px;
 }
 
-.ppm-fitchef-demo-result {
-  min-height: 5.5rem;
-  margin-top: var(--spacing-6);
+.ppm-fitchef-reveal-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 34rem;
+  padding: var(--spacing-6);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--spacing-5);
 }
 
-.ppm-fitchef-demo-result:empty {
-  min-height: 0;
-  margin-top: 0;
+.ppm-fitchef-reveal-card::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * clamp(var(--spacing-8), 6vw, var(--spacing-20)) + var(--spacing-3));
+  width: calc(clamp(var(--spacing-8), 6vw, var(--spacing-20)) - var(--spacing-6));
+  height: 3px;
+  background: linear-gradient(90deg, rgba(51, 159, 255, 0.3), var(--pp-blue));
 }
 
-.ppm-fitchef-demo-result > div {
-  padding: var(--spacing-4);
-  border: 1px solid rgba(32, 201, 151, 0.24);
-  border-radius: var(--radius-xl);
-  background: rgba(32, 201, 151, 0.1);
+.ppm-fitchef-reveal-card::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - var(--spacing-2));
+  left: calc(-1 * var(--spacing-5));
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  border-top: 3px solid var(--pp-blue);
+  border-right: 3px solid var(--pp-blue);
+  transform: rotate(45deg);
 }
 
-.ppm-fitchef-demo-result h3 {
+.ppm-fitchef-reveal-card h3,
+.ppm-fitchef-weekly-card h3,
+.ppm-fitchef-weekly-changes h3,
+.ppm-fitchef-food-output h3 {
   margin: 0;
   color: var(--color-primary-foreground);
-  font-size: var(--font-size-lg);
+  font-size: clamp(var(--font-size-xl), 2.4vw, var(--font-size-3xl));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.ppm-fitchef-reveal-photo,
+.ppm-fitchef-weekly-photo,
+.ppm-fitchef-food-output figure {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-2xl);
+  background: var(--pp-navy);
+}
+
+.ppm-fitchef-reveal-photo img,
+.ppm-fitchef-weekly-photo img,
+.ppm-fitchef-food-output figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.ppm-fitchef-weekly-flow {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) var(--spacing-8) minmax(15rem, 0.65fr) var(--spacing-8) minmax(0, 1fr);
+  gap: var(--spacing-3);
+  align-items: center;
+}
+
+.ppm-fitchef-weekly-flow::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 18%;
+  left: 18%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(51, 159, 255, 0.28), var(--pp-blue), rgba(51, 159, 255, 0.28));
+}
+
+.ppm-fitchef-weekly-card,
+.ppm-fitchef-weekly-changes {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 0;
+  min-height: 34rem;
+  padding: var(--spacing-5);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--spacing-5);
+}
+
+.ppm-fitchef-weekly-changes {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.3);
+}
+
+.ppm-fitchef-weekly-photo {
+  aspect-ratio: 1;
+  align-self: center;
+}
+
+.ppm-fitchef-weekly-photo img {
+  object-fit: contain;
+}
+
+.ppm-fitchef-weekly-arrow {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+}
+
+.ppm-fitchef-weekly-arrow::after {
+  content: "";
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  border-top: 3px solid var(--pp-blue);
+  border-right: 3px solid var(--pp-blue);
+  transform: rotate(45deg);
+}
+
+.ppm-fitchef-change-list {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-3);
+}
+
+.ppm-fitchef-change {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--spacing-3);
+  align-items: center;
+  padding: var(--spacing-3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-2xl);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-primary-foreground);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-snug);
 }
 
-.ppm-fitchef-demo-result p {
-  margin: var(--spacing-2) 0 0;
-  color: var(--ppm-slate-200);
-  font-size: var(--font-size-base);
+.ppm-fitchef-change--goal {
+  grid-template-columns: 1fr;
+  align-content: center;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--pp-blue) 18%, transparent),
+      color-mix(in srgb, var(--pp-green) 16%, transparent) 50%,
+      color-mix(in srgb, var(--pp-gold) 18%, transparent)
+    ),
+    rgba(255, 255, 255, 0.1);
+}
+
+.ppm-fitchef-change-spectrum {
+  display: block;
+  height: var(--spacing-2);
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--pp-blue), var(--pp-green), var(--pp-gold));
+  opacity: 0.72;
+}
+
+.ppm-fitchef-change-thumb {
+  display: block;
+  width: 4.5rem;
+  height: 5.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-xl);
+}
+
+.ppm-fitchef-change-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ppm-fitchef-food-context-rail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--spacing-8);
+}
+
+.ppm-fitchef-context-card--ingredients img {
+  object-position: 50% 52%;
+}
+
+.ppm-fitchef-context-card--restaurant img {
+  object-position: 55% 45%;
+}
+
+.ppm-fitchef-context-card--shopping img,
+.ppm-fitchef-context-card--photo img {
+  object-position: 50% 50%;
+}
+
+.ppm-fitchef-food-arrow {
+  position: relative;
+  display: block;
+  width: 3px;
+  height: var(--spacing-12);
+  margin: 0 auto;
+  background: linear-gradient(180deg, rgba(51, 159, 255, 0.28), var(--pp-blue));
+}
+
+.ppm-fitchef-food-arrow::after {
+  content: "";
+  position: absolute;
+  right: calc(-1 * var(--spacing-2));
+  bottom: var(--spacing-1);
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  border-right: 3px solid var(--pp-blue);
+  border-bottom: 3px solid var(--pp-blue);
+  transform: rotate(45deg);
+}
+
+.ppm-fitchef-food-output {
+  display: grid;
+  max-width: 56rem;
+  min-height: 34rem;
+  margin: 0 auto;
+  padding: var(--spacing-6);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--spacing-5);
+}
+
+.ppm-fitchef-food-output-panes {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-4);
+}
+
+.ppm-fitchef-vip-story {
+  padding: 0;
+}
+
+.ppm-fitchef-vip-editorial {
+  display: grid;
+  min-width: 0;
+  min-height: 50rem;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 48fr) minmax(0, 52fr);
+  border: 0;
+  border-radius: 0;
+  background: var(--pp-navy);
+}
+
+.ppm-fitchef-vip-copy {
+  z-index: 2;
+  display: grid;
+  min-width: 0;
+  padding: clamp(var(--spacing-10), 7vw, var(--spacing-20)) clamp(var(--spacing-6), 4vw, var(--spacing-12));
+  align-content: center;
+  gap: var(--spacing-6);
+}
+
+.ppm-fitchef-vip-eyebrow {
+  margin: 0;
+  color: var(--pp-gold);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ppm-fitchef-vip-copy h2 {
+  margin: 0;
+  color: var(--color-primary-foreground);
+  font-size: clamp(var(--font-size-4xl), 5vw, 4.25rem);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: wrap;
+}
+
+.ppm-fitchef-vip-copy p:not(.ppm-fitchef-vip-eyebrow) {
+  margin: 0;
+  color: var(--ppm-slate-300);
+  font-size: var(--font-size-lg);
   line-height: var(--line-height-relaxed);
 }
 
-.ppm-fitchef-demo-disclosure {
-  margin: var(--spacing-5) 0 0;
-  padding-top: var(--spacing-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--ppm-slate-400);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-relaxed);
+.ppm-fitchef-vip-copy .ppm-fitchef-vip-support {
+  padding-left: var(--spacing-4);
+  border-left: 3px solid var(--pp-green);
+}
+
+.ppm-fitchef-vip-copy .ppm-fitchef-vip-closing {
+  color: var(--color-primary-foreground);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ppm-fitchef-vip-photo {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 50rem;
+  margin: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 9%, black 30%, black 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.18) 9%, black 30%, black 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.ppm-fitchef-vip-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+
+@media (min-width: 1101px) {
+  .ppm-fitchef-vip-copy {
+    padding-right: var(--spacing-2);
+    padding-left: clamp(var(--spacing-8), 5vw, var(--spacing-16));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ppm-page .ppm-fitchef-option {
     transition: none;
+  }
+
+  .ppm-page .ppm-fitchef-button,
+  .ppm-page .ppm-fitchef-goal-state--maintain {
+    transform: none;
   }
 }
 
@@ -908,12 +1413,52 @@
     min-width: 0;
   }
 
-  .ppm-fitchef-demo-layout {
+  .ppm-fitchef-context-grid {
     grid-template-columns: 1fr;
   }
 
-  .ppm-fitchef-demo-image {
-    width: min(50vw, 13rem);
+  .ppm-fitchef-goal-card {
+    min-height: 15rem;
+  }
+
+  .ppm-fitchef-weekly-flow {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-6);
+  }
+
+  .ppm-fitchef-weekly-flow::before {
+    top: 18%;
+    bottom: 18%;
+    left: 50%;
+    width: 3px;
+    height: auto;
+  }
+
+  .ppm-fitchef-weekly-arrow {
+    width: var(--spacing-8);
+    height: var(--spacing-8);
+    margin: 0 auto;
+    transform: rotate(90deg);
+  }
+
+  .ppm-fitchef-weekly-card,
+  .ppm-fitchef-weekly-changes {
+    width: min(100%, 36rem);
+    justify-self: center;
+  }
+
+  .ppm-fitchef-food-context-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ppm-fitchef-vip-editorial {
+    grid-template-columns: 1fr;
+  }
+
+  .ppm-fitchef-vip-photo {
+    min-height: 38rem;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.22) 8%, black 23%, black 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.22) 8%, black 23%, black 100%);
   }
 }
 
@@ -969,6 +1514,90 @@
     width: 100%;
   }
 
+  .ppm-fitchef-story {
+    padding: var(--spacing-8) var(--spacing-5);
+  }
+
+  .ppm-fitchef-activity-rail,
+  .ppm-fitchef-food-context-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--spacing-3);
+  }
+
+  .ppm-fitchef-context-bridge {
+    margin-left: 50%;
+  }
+
+  .ppm-fitchef-daily-flow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-12);
+  }
+
+  .ppm-page .ppm-fitchef-choice-card {
+    padding: var(--spacing-5);
+  }
+
+  .ppm-fitchef-choice-group legend {
+    min-height: 4.75rem;
+    padding-right: var(--spacing-16);
+    font-size: var(--font-size-2xl);
+  }
+
+  .ppm-fitchef-neutral-slot {
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  .ppm-fitchef-demo-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .ppm-fitchef-reveal-card {
+    min-height: 28rem;
+  }
+
+  .ppm-fitchef-reveal-card::before {
+    top: calc(-1 * var(--spacing-10));
+    left: calc(50% - 1px);
+    width: 3px;
+    height: var(--spacing-8);
+    background: linear-gradient(180deg, rgba(51, 159, 255, 0.3), var(--pp-blue));
+  }
+
+  .ppm-fitchef-reveal-card::after {
+    top: calc(-1 * var(--spacing-5));
+    left: calc(50% - var(--spacing-2));
+    border-top: 0;
+    border-right: 3px solid var(--pp-blue);
+    border-bottom: 3px solid var(--pp-blue);
+  }
+
+  .ppm-fitchef-food-output-panes {
+    grid-template-columns: 1fr;
+  }
+
+  .ppm-fitchef-food-output {
+    min-height: 46rem;
+  }
+
+  .ppm-fitchef-vip-story {
+    padding: 0;
+  }
+
+  .ppm-fitchef-vip-copy {
+    padding: var(--spacing-12) var(--spacing-6);
+  }
+
+  .ppm-fitchef-vip-copy h2 {
+    font-size: clamp(var(--font-size-3xl), 12vw, var(--font-size-5xl));
+  }
+
+  .ppm-fitchef-vip-photo {
+    min-height: 30rem;
+  }
+
   .ppm-pill {
     justify-content: center;
     min-height: 2.75rem;
@@ -977,5 +1606,27 @@
   .ppm-hero-title {
     font-size: 2.6rem;
     line-height: 1;
+  }
+}
+
+@media (max-width: 360px) {
+  .ppm-fitchef-goal-card {
+    padding-inline: var(--spacing-3);
+  }
+
+  .ppm-fitchef-goal-spectrum {
+    gap: var(--spacing-1);
+  }
+
+  .ppm-page .ppm-fitchef-goal-state {
+    padding-inline: var(--spacing-1);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .ppm-page .ppm-fitchef-goal-state--maintain {
+    transform: none;
   }
 }
