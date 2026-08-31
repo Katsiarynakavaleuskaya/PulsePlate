@@ -28,10 +28,14 @@ GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
 NIGHTLY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly.yml"
+PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
 PR_AUTOMATION_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-automation.yml"
 SECURITY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "security.yml"
 TRIVY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "trivy.yml"
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
+IOS_TEST_TARGETS_PATH = REPO_ROOT / "scripts" / "ios_test_targets.sh"
+IOS_SWIFT_SYNTAX_PATH = REPO_ROOT / "scripts" / "ci" / "check_ios_swift_syntax.sh"
+MAKEFILE_PATH = REPO_ROOT / "Makefile"
 RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
@@ -507,6 +511,32 @@ def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...
         assert (
             token in expression
         ), f"Missing token {token!r} in expression excerpt: {expression[:500]!r}"
+
+
+def _assert_yaml_mapping_keys_are_unique(source: str) -> None:
+    """Reject duplicate YAML keys before safe-load last-key semantics can hide them."""
+
+    document = yaml.compose(source)
+    assert isinstance(document, Node)
+
+    def visit(node: Node, path: tuple[str, ...]) -> None:
+        if isinstance(node, MappingNode):
+            seen: dict[tuple[str, str], int] = {}
+            for key_node, value_node in node.value:
+                assert isinstance(key_node, ScalarNode)
+                identity = (key_node.tag, key_node.value)
+                assert identity not in seen, (
+                    f"Duplicate YAML key {key_node.value!r} at "
+                    f"{'.'.join(path) or '<root>'}:{key_node.start_mark.line + 1}; "
+                    f"first declared at line {seen[identity]}"
+                )
+                seen[identity] = key_node.start_mark.line + 1
+                visit(value_node, (*path, key_node.value))
+        elif isinstance(node, SequenceNode):
+            for index, value_node in enumerate(node.value):
+                visit(value_node, (*path, str(index)))
+
+    visit(document, ())
 
 
 def _job_step_by_name(
@@ -1879,15 +1909,26 @@ def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> No
 def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:
     """Guard the Node 24 paths-filter migration and iOS path-gating contract."""
 
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    _assert_yaml_mapping_keys_are_unique(workflow_text)
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
     changes = jobs["changes"]
     assert isinstance(changes, dict)
+    assert changes["permissions"] == {
+        "contents": "read",
+        "pull-requests": "read",
+    }
+    outputs = changes["outputs"]
+    assert isinstance(outputs, dict)
+    assert outputs["ios"] == "${{ steps.filter.outputs.ios }}"
     steps = changes["steps"]
     assert isinstance(steps, list)
 
-    filter_step = next(step for step in steps if step.get("id") == "filter")
+    filter_steps = [step for step in steps if step.get("id") == "filter"]
+    assert len(filter_steps) == 1
+    filter_step = filter_steps[0]
     assert filter_step["uses"] == f"dorny/paths-filter@{PATHS_FILTER_NODE24_SHA}"
 
     with_section = filter_step["with"]
@@ -1895,10 +1936,48 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
     assert with_section["token"] == "${{ secrets.GITHUB_TOKEN }}"
     filters = with_section["filters"]
     assert isinstance(filters, str)
-    assert "ios:" in filters
-    assert "- 'ios/**'" in filters
-    assert "- '.github/workflows/**'" in filters
-    assert "- '.github/actions/**'" in filters
+    _assert_yaml_mapping_keys_are_unique(filters)
+    parsed_filters = yaml.safe_load(filters)
+    assert isinstance(parsed_filters, dict)
+    ios_filters = parsed_filters["ios"]
+    assert ios_filters == [
+        "ios/**",
+        ".github/workflows/**",
+        ".github/actions/**",
+        "scripts/ios_test_targets.sh",
+        "scripts/ci/check_ios_swift_syntax.sh",
+    ]
+
+    agents_text = AGENTS_PATH.read_text(encoding="utf-8")
+    for path in ios_filters:
+        assert f"`{path}`" in agents_text
+
+    assert "Xcode 26.x (matches the current iOS SDK lane)" in agents_text
+    assert "Xcode 26.2 → 26.1 → 26.0" in agents_text
+    assert "verified Xcode 26.x fallback at `/Applications/Xcode.app`" in agents_text
+    assert "Xcode 16.x (matches project format)" not in agents_text
+    assert "Xcode 16.4 → 16.3 → 16.2" not in agents_text
+
+    for job_id in ("ios-tests", "ios-ui-smoke"):
+        job = jobs[job_id]
+        assert isinstance(job, dict)
+        job_steps = job["steps"]
+        assert isinstance(job_steps, list)
+        select_xcode_steps = [step for step in job_steps if step.get("id") == "select-xcode"]
+        assert len(select_xcode_steps) == 1
+        select_xcode_run = select_xcode_steps[0]["run"]
+        assert isinstance(select_xcode_run, str)
+        executable_xcode_lines = "\n".join(
+            line.strip()
+            for line in select_xcode_run.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+        priority_positions = [
+            executable_xcode_lines.index(f'"/Applications/Xcode_{version}.app/Contents/Developer"')
+            for version in ("26.2", "26.1", "26.0")
+        ]
+        assert priority_positions == sorted(priority_positions)
+        assert 'if [ "$XCODE_MAJOR" != "26" ]; then' in executable_xcode_lines
 
 
 def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> None:
@@ -3485,16 +3564,149 @@ def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
     _assert_contains_all_tokens(ios_ui_smoke_if, ios_routing_tokens)
 
 
-def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
-    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    ios_tests_section = _extract_job_section(workflow_text, "  ios-tests:")
-    ios_ui_smoke_section = _extract_job_section(workflow_text, "  ios-ui-smoke:")
+def test_ios_unit_selector_is_the_complete_target_with_local_override_preserved() -> None:
+    selector_text = IOS_TEST_TARGETS_PATH.read_text(encoding="utf-8")
+    executable_lines = [
+        line.strip()
+        for line in selector_text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
 
-    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' in ios_tests_section
-    assert "::error::ONLY_TESTING is empty" in ios_tests_section
-    assert "no test targets were found" in ios_tests_section
-    assert '"xcodebuild", "test-without-building"' in ios_tests_section
-    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_section
+    assert executable_lines == [
+        "set -euo pipefail",
+        "printf '%s' 'PulsePlateTests'",
+    ]
+    assert "PulsePlateTests/" not in selector_text
+    assert "TESTS=(" not in selector_text
+
+    makefile_text = MAKEFILE_PATH.read_text(encoding="utf-8")
+    assert (
+        'ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(shell ./scripts/ios_test_targets.sh)}"' in makefile_text
+    )
+
+
+def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    def active_run_for(job_id: str, step_name: str) -> tuple[list[str], str]:
+        job = jobs[job_id]
+        assert isinstance(job, dict)
+        assert job["needs"] == ["changes"]
+        assert "needs.changes.outputs.ios == 'true'" in str(job["if"])
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        matching_steps = [step for step in steps if step.get("name") == step_name]
+        assert len(matching_steps) == 1
+        run = matching_steps[0]["run"]
+        assert isinstance(run, str)
+        active_lines = [
+            line.strip()
+            for line in run.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        return active_lines, "\n".join(active_lines)
+
+    ios_test_lines, ios_tests_run = active_run_for(
+        "ios-tests", "iOS tests (project-based, app scheme)"
+    )
+    ios_ui_lines, ios_ui_smoke_run = active_run_for(
+        "ios-ui-smoke", "iOS UI smoke (build-for-testing + test-without-building)"
+    )
+
+    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' in ios_tests_run
+    assert "::error::ONLY_TESTING is empty" in ios_tests_run
+    assert "no test targets were found" in ios_tests_run
+    assert '"xcodebuild", "test-without-building"' in ios_tests_run
+    assert '"-skip-testing:PulsePlateUITests"' in ios_tests_run
+    assert "exit 0" not in ios_test_lines
+    assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_run
+    assert '"-only-testing:PulsePlateUITests/UISmokeTests/testLaunch"' in ios_ui_smoke_run
+    assert "exit 0" not in ios_ui_lines
+
+
+def test_ios_swift_syntax_hook_is_direct_and_fail_closed_on_macos() -> None:
+    pre_commit_text = PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8")
+    _assert_yaml_mapping_keys_are_unique(pre_commit_text)
+    config = yaml.safe_load(pre_commit_text)
+    assert isinstance(config, dict)
+    repos = config["repos"]
+    assert isinstance(repos, list)
+    matching_hooks = [
+        item
+        for repo in repos
+        if repo.get("repo") == "local"
+        for item in repo.get("hooks", [])
+        if item.get("id") == "ios-syntax-check"
+    ]
+    assert len(matching_hooks) == 1
+    hook = matching_hooks[0]
+    assert hook == {
+        "id": "ios-syntax-check",
+        "name": "ios syntax check (swift)",
+        "entry": "scripts/ci/check_ios_swift_syntax.sh",
+        "language": "system",
+        "pass_filenames": True,
+        "stages": ["pre-commit"],
+        "files": r"(?s)^ios/.*\.swift$",
+    }
+    for accepted_path in (
+        "ios/regular.swift",
+        "ios/name with spaces.swift",
+        "ios/line\nbreak.swift",
+        "ios/-dash.swift",
+    ):
+        assert re.search(hook["files"], accepted_path)
+    for rejected_path in (
+        "ios/not-swift.txt",
+        "frontend/not-ios.swift",
+        "ios/directory.swift/nested.txt",
+    ):
+        assert re.search(hook["files"], rejected_path) is None
+
+    script_text = IOS_SWIFT_SYNTAX_PATH.read_text(encoding="utf-8")
+    assert IOS_SWIFT_SYNTAX_PATH.stat().st_mode & 0o111
+    assert script_text.splitlines()[0] == "#!/usr/bin/env bash"
+    executable_lines = [
+        line.strip()
+        for line in script_text.splitlines()[1:]
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert executable_lines == [
+        "set -euo pipefail",
+        'if [[ "$(/usr/bin/uname -s)" != "Darwin" ]]; then',
+        'echo "SKIP: iOS Swift syntax check requires macOS; no syntax or build claim."',
+        "exit 0",
+        "fi",
+        "if (( $# == 0 )); then",
+        'echo "ERROR: iOS Swift syntax check requires at least one .swift file."',
+        "exit 2",
+        "fi",
+        'for file in "$@"; do',
+        'if [[ -z "$file" || "$file" != *.swift || ! -f "$file" ]]; then',
+        'echo "ERROR: expected an existing .swift file: $file"',
+        "exit 2",
+        "fi",
+        'if /usr/bin/xcrun swiftc -swift-version 5 -parse -- "$file"; then',
+        "continue",
+        "else",
+        "status=$?",
+        'exit "$status"',
+        "fi",
+        "done",
+    ]
+
+    for forbidden in (
+        "swift build",
+        "/dev/null",
+        "2>&1",
+        ">&",
+        "eval ",
+        "|| true",
+        "|| echo",
+    ):
+        assert forbidden not in script_text
 
 
 def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:

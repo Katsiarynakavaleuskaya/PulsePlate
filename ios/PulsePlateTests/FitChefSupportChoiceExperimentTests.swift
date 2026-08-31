@@ -647,52 +647,17 @@ final class FitChefSupportChoiceExperimentTests: XCTestCase {
         XCTAssertFalse(project.contains("FitChefSupportChoiceExperimentTests.swift"))
         XCTAssertFalse(project.contains("FitChefSupportChoiceExperience.swift"))
 
-        let testTargets = try String(
+        let testSelectorSource = try String(
             contentsOf: root.appendingPathComponent("scripts/ios_test_targets.sh"),
             encoding: .utf8
         )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefSupportChoiceExperimentTests",
-                in: testTargets
-            ),
-            1
-        )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/APIClientJSONValueAdmissionTests",
-                in: testTargets
-            ),
-            1
-        )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefSupportDTORecognitionTests",
-                in: testTargets
-            ),
-            1
-        )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefSupportServiceTests",
-                in: testTargets
-            ),
-            1
-        )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefSupportFlowViewModelTests",
-                in: testTargets
-            ),
-            1
-        )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefSupportPresentationContractTests",
-                in: testTargets
-            ),
-            1
-        )
+        let outputCommands = testSelectorSource.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("printf ") }
+        XCTAssertEqual(outputCommands, ["printf '%s' 'PulsePlateTests'"])
+        XCTAssertFalse(testSelectorSource.contains("PulsePlateTests/"))
+        XCTAssertFalse(testSelectorSource.contains("TESTS=("))
+        XCTAssertFalse(testSelectorSource.contains("IFS=','"))
     }
 
     func testCandidateViewStaticContract() throws {

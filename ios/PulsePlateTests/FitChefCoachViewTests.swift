@@ -506,17 +506,17 @@ final class FitChefCoachViewTests: XCTestCase {
         XCTAssertFalse(project.contains("FitChefCoachView.swift"))
         XCTAssertFalse(project.contains("FitChefCoachViewTests.swift"))
 
-        let testTargets = try String(
+        let testSelectorSource = try String(
             contentsOf: root.appendingPathComponent("scripts/ios_test_targets.sh"),
             encoding: .utf8
         )
-        XCTAssertEqual(
-            occurrenceCount(
-                of: "PulsePlateTests/FitChefCoachViewTests",
-                in: testTargets
-            ),
-            1
-        )
+        let outputCommands = testSelectorSource.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("printf ") }
+        XCTAssertEqual(outputCommands, ["printf '%s' 'PulsePlateTests'"])
+        XCTAssertFalse(testSelectorSource.contains("PulsePlateTests/"))
+        XCTAssertFalse(testSelectorSource.contains("TESTS=("))
+        XCTAssertFalse(testSelectorSource.contains("IFS=','"))
     }
 
     private var frozenLocalizationValues: [String: [String: String]] {
