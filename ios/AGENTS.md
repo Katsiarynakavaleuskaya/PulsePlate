@@ -180,22 +180,24 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
-  # Canonical test list: scripts/ios_test_targets.sh (run from ios/)
+  # Canonical unit target selector: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
+    -only-testing:"$(../scripts/ios_test_targets.sh)" \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
-- **Canonical test list:** `scripts/ios_test_targets.sh` (single source for Makefile, ci.yml, AGENTS.md)
+- **Canonical unit target selector:** `scripts/ios_test_targets.sh` outputs the complete
+  `PulsePlateTests` target (single source for Makefile, ci.yml, and this file).
 - **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
 - Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
 - Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
-- (Do not rely on `-only-testing:PulsePlateTests` blanket targeting in CI; keep it explicit and stable.)
+- CI relies on `-only-testing:PulsePlateTests` so Xcode discovers every currently enabled unit test
+  in that target; do not replace this with a per-class allowlist or a frozen test count.
 
 **Enforcement:**
 
@@ -204,16 +206,17 @@
 - Tests must pass before PR merge
 - CI failure blocks merge
 
-**Test scope policy (PR-559):**
+**Test scope policy:**
 
-- **Unit tests (Guards + BMI + Keychain)** — mandatory, block merge if failing
-  - `ThinClientGuardsTests` (anti-duplication guard)
-  - `ProKeyProviderTests`, `KeychainStoreTests` (Keychain conformance)
-  - `BMIServiceTests`, `BMIResponseDecodingTests`, `BMIRequestEncodingTests`, `LocaleParsingTests`
-- **UI tests** — excluded from CI (do not block PR-559)
-  - `PulsePlateUITests` skipped via `-skip-testing:PulsePlateUITests`
-  - `PlateViewTests` excluded (unstable, needs stabilization/rewrite)
-  - **Backlog item:** Stabilize/rewrite `PlateViewTests` and restore to CI (see `docs/roadmap/BACKLOG_LEDGER.md`)
+- **Unit tests** — the complete Xcode-discovered `PulsePlateTests` target is mandatory and
+  blocking; the enabled test set belongs to the current head, configuration, and destination and
+  must not be represented by a permanent numeric count.
+- **UI tests** — remain a separate CI lane:
+  - `PulsePlateUITests` stays excluded from the unit command via
+    `-skip-testing:PulsePlateUITests`.
+  - `ios-ui-smoke` owns its explicit UI launch test and does not consume the unit selector.
+- `PlateViewTests` is part of `PulsePlateTests` and therefore participates in the full-target unit
+  signal; its locale-sensitive assertions must use the current localization contract.
 
 **Destination policy (CI):**
 
@@ -232,7 +235,8 @@
 
 **Fast (pre-commit):**
 
-- Swift syntax/build checks (automatic via pre-commit hooks)
+- Swift 5 grammar parsing for changed `.swift` files (automatic via pre-commit hooks); this is not
+  a build, typecheck, or release-readiness claim.
 - No full unit tests (too slow for every commit)
 
 **Recommended before pushing an iOS PR:**
@@ -247,12 +251,14 @@
 - `UserDefaults` / `@AppStorage` are allowed for non-sensitive UX state and profile inputs, but forbidden for secret-like keys.
 - Guard coverage for this rule lives in `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift`.
 
-**Local iOS test targeting (Makefile):**
+**Focused local iOS diagnostics (Makefile overrides):**
 
 - `make ios-test IOS_ONLY_TESTING="PulsePlateTests/PlateViewTests"`
 - `make ios-test IOS_ONLY_TESTING="PulsePlateUITests"`
 - `make ios-test IOS_ONLY_TESTING="PulsePlateUITests" IOS_SKIP_TESTING=""` (override default skip behavior)
 - Optional deterministic destination: `IOS_DESTINATION="platform=iOS Simulator,id=<UDID>"`
+- `IOS_ONLY_TESTING` is diagnostic-only; the default and canonical CI signal remain the complete
+  `PulsePlateTests` target.
 
 **Local vs CI differences:**
 
@@ -262,7 +268,8 @@
   - Prefers iOS 26.x runtime (fallback to the highest available iOS runtime)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
-- Both use explicit `-only-testing:PulsePlateTests/ClassName` entries + `-parallel-testing-enabled NO` (canonical pattern)
+- By default both use `-only-testing:PulsePlateTests` with
+  `-parallel-testing-enabled NO`; class/method selectors are local diagnostic overrides only.
 - CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`
 
 **CI destination policy (hard rule):**
@@ -345,19 +352,20 @@
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
   ```bash
-  # Canonical list: scripts/ios_test_targets.sh (run from ios/)
+  # Canonical unit target selector: scripts/ios_test_targets.sh (run from ios/)
   xcodebuild test-without-building \
     -project PulsePlate.xcodeproj \
     -scheme PulsePlate \
     -skip-testing:PulsePlateUITests \
-    $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done) \
+    -only-testing:"$(../scripts/ios_test_targets.sh)" \
     -destination "$DESTINATION" \
     -derivedDataPath ../.derivedData \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
 - Project-based approach avoids workspace TestAction requirement
-- Explicit test targeting ensures stable CI behavior
+- Full-target selection lets Xcode discover the current enabled unit tests without a stale
+  per-class allowlist
 - Split build/test enables faster diagnosis and targeted retries
 
 ⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
@@ -399,14 +407,14 @@ xcrun simctl list devices
 
 # Run CI test suite (locally can use name, but UDID preferred)
 # Run `xcrun simctl list devices` to find a valid simulator name (e.g., "iPhone 14").
-# Canonical test list: scripts/ios_test_targets.sh
+# Canonical unit target selector: scripts/ios_test_targets.sh
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
   -destination "platform=iOS Simulator,name=<SIMULATOR_NAME>" \
   -configuration Debug \
   -skip-testing:PulsePlateUITests \
-  $(../scripts/ios_test_targets.sh | tr ',' '\n' | while read t; do [ -n "$t" ] && echo "-only-testing:$t"; done)
+  -only-testing:"$(../scripts/ios_test_targets.sh)"
 ```
 
 ### Simulator troubleshooting (runtime state issues)
