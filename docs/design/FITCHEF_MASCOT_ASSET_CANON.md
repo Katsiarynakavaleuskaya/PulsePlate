@@ -1,6 +1,6 @@
 # FitChef Mascot Asset Canon
 
-Status: `Seed Pack v1`
+Status: `Seed Pack v1 + Public Demo Pack v1`
 Owner: `@katsiaryna_kavaleuskaya`
 Scope: `Repo brand asset canon for FitChef mascot/logo references`
 
@@ -18,6 +18,7 @@ Current source-of-truth pack:
 - `frontend/src/assets/brand/fitchef-portrait-sleepy-v1.png`
 - `frontend/src/assets/brand/fitchef-portrait-surprised-v1.png`
 - `frontend/src/assets/brand/fitchef-onboarding-welcome-v1.png`
+- `frontend/src/assets/brand/fitchef-public-demo/v1/`
 
 ## Canonical Rules
 
@@ -80,6 +81,141 @@ Forbidden:
 Figma consumers must reference this seed pack when composing screens or
 marketing layouts. Any future Figma sync remains `reference_only` until a
 follow-up PR promotes a governed export/import contract.
+
+## Public Demo Photographic Pack v1
+
+The public demo pack promotes the complete owner-approved photographic family
+for the shared Web `FitChefValueDemo`. The Human Product Owner approved these
+assets for PulsePlate Web use and later governed iOS reuse. That approval is
+project-use authority only; it is not deployment, release, App Store, payment,
+entitlement, or paid-Web execution authority.
+
+Design provenance:
+
+- Authoring source: Open Design project
+  `er-ios-1-fitchef-support-choice-clean`.
+- Terminal Open Design source SHA-256:
+  `38e8154dfa0b581c9bc214f67bd4b507117c80b1f0e727b5b43b99c2c06dc182`.
+- Terminal Product Design QA report SHA-256:
+  `8d940c2b83ef22ca6e6120496c3da288ab026c73fa06798eb825e68dff630d20`.
+- Terminal evidence manifest SHA-256:
+  `5f1903fb4fc0d492c60654f0d0264b77deda5c81cb54dfeb52072d795497f06b`.
+- sRGB promotion proof SHA-256:
+  `9c9d9a5627026fa643b3e463774623bc6becf23cf2872dde914103aab1de00e4`.
+- WebP derivative QA manifest SHA-256:
+  `83337176871bbb8adc906753a43aeec7cadc11b7b6139f9eb71be39dfaf62d37`.
+- Human Product Owner decision on 2026-08-31: Web uses the reviewed WebP
+  derivatives; the terminal PNG family remains Open Design and future iOS
+  authority.
+- QA result: `PASSED / PASS_TO_COORDINATOR`, with no remaining
+  `P0`, `P1`, `P2`, or `P3` finding in that terminal design epoch.
+
+The Open Design HTML, flattened locale canvases, contact sheet, and QA evidence
+remain local review artifacts. They are not runtime assets. Runtime ownership
+starts only at the repo paths below.
+
+### Exact asset inventory
+
+| Runtime path under `frontend/src/assets/brand/fitchef-public-demo/v1/` | Open Design PNG SHA-256 | Runtime WebP SHA-256 | Pixels | Web delivery |
+| --- | --- | --- | --- | --- |
+| `activity-palette/endurance.webp` | `687a5a49c8fe321990f036cb6efdd1889bd08c5ff38983cf6eda94a3546bcda2` | `09d238901bf22f79525c1b597e1e6cf9b5ce2ceb602f8fa82e9439df7bf998f0` | `410x512 RGB` | q96, 88776 B, resized-reference PSNR 40.3768 dB, sRGB ICC |
+| `activity-palette/movement-everyday-fitness.webp` | `d0b9be1359c0f56c6fd6dfffe849c4f6de2c699c8acfe8fb204f2a890e2ec1d5` | `7472fb52b167bed135a76e95f40d681e9962c515d9038a8158611683f436a620` | `410x512 RGB` | q96, 94298 B, resized-reference PSNR 38.0093 dB, sRGB ICC |
+| `activity-palette/strength-power.webp` | `0e04ea90a7d657c9c7ae03f793c2fb2da46ae418b682ed67e882401f0c08381c` | `4a154769734dedbbe2ad7fb250e45a371071316971bc27761aee62611c3758d0` | `410x512 RGB` | q96, 33474 B, resized-reference PSNR 44.0667 dB, sRGB ICC |
+| `activity-palette/team-combat.webp` | `389fba16715bd7b1e16650feb87ab7b274a6b5baebb57a18359e8dc0337440a7` | `80627dd04d4d1ac099e826741e1a10d099ab254bc4e49b45c47b8ae6eb75be8d` | `410x512 RGB` | q96, 65154 B, resized-reference PSNR 41.6872 dB, sRGB ICC |
+| `daily-plate-a-salmon-1024.webp` | `5bb635cdf4a86359d2763235dd31e7ef8f7d5b8c5776826823c5ff0a63806331` | `ae1410aeaabf59389ef244cab577ad9d7a82ef5ffc4338ac41f256a034be2149` | `1024x1024 RGB` | q96, 245002 B, PSNR 40.9164 dB, sRGB ICC |
+| `food-context/food-context-ingredients-at-home.webp` | `69bdd1f50666964308e4a89494095dde5b86fd906b04c6824f02a9b7ebbe67b0` | `7759e414df893aea1261e69a84228ebc144f458eeebbee344fb2dd8041b45dfd` | `410x512 RGB` | q96, 64556 B, resized-reference PSNR 41.2113 dB, sRGB ICC |
+| `food-context/food-context-meal-photo.webp` | `12501b21584f9369574630268489b40430b643a97aa22d69fe61b4a16a7846ba` | `579e19094f5b5b3e33df260d7c71199b7c665cf77f7252a61a3b2383fb3fa2a1` | `410x512 RGB` | q96, 76426 B, resized-reference PSNR 40.3378 dB, sRGB ICC |
+| `food-context/food-context-restaurant-chef.webp` | `ae932ce5aeb858cb86a9ed98694cd55292495f450ced6c60118c233da86adab4` | `09dc0969eb4a9fc6e9cf469b5f3a83a075cbad298101ab26602d0ec2ed5725c0` | `410x512 RGB` | q96, 64116 B, resized-reference PSNR 40.6184 dB, sRGB ICC |
+| `food-context/food-context-shopping-stores.webp` | `2bd534f149fd0804986800ae939f3b7bdbf56ea52d2946f4a87c4a2d6ba113a5` | `214a0dcbcfb11caa97a645e1b9b3b66e16da3fc659b0c71c08191c8873441239` | `410x512 RGB` | q96, 96778 B, resized-reference PSNR 36.4094 dB, sRGB ICC |
+| `vip/fitchef-vip-editorial-owner-approved-logo-v2.webp` | `14223bd347c5b81f58a90da28fdf4a8243b90b9b0b156d8a6caa555144309d64` | `324d63729b745d17a0a7706a55bd74979a40a7db8820958a024e4ad73000d8f7` | `1122x1402 RGB` | q96, 368238 B, PSNR 44.5484 dB, sRGB ICC |
+| `weekly-planning-a-meal-grid-1024.webp` | `d6cff5674fb8b74cbae348c88f6bf41682e0ea7a73c961d69cfadb76ec75a46a` | `678a55fd171bd40112377e160794019112dee3c1f8e6cb0d29c99f6058380d8a` | `1024x1024 RGB` | q96, 332828 B, PSNR 39.6382 dB, sRGB ICC |
+| `weekly-planning-b-notebook-1024.webp` | `1943c4fd28fef04b697c243be450a3c0e74c2a8dd039b1828402394c14db0e40` | `8d8f4d53b3f55e323a346520313d5e98021aca94734117e855d1d9b4953fc73d` | `1024x1024 RGB` | q96, 376662 B, PSNR 39.1452 dB, sRGB ICC |
+
+The eight activity and food-context images are deterministic 410x512 card-sized
+derivatives; their PSNR is measured against a Lanczos 410x512 resize of the
+unchanged Open Design PNG. The four planning/VIP derivatives preserve their
+1024+ source dimensions. All twelve carry the frozen explicit sRGB ICC profile,
+stay below the repository's 500 KiB added-file limit, and reduce the complete
+Web pack from 24875178 to 1906308 bytes. The card-only subset is 583578 bytes,
+down from 2763534 bytes in the first full-resolution Web promotion. The original
+PNG bytes and their source hashes remain the Open Design and future iOS
+authority. The existing
+`fitchef-portrait-neutral-v1.png` remains the neutral H1 mascot and is not a
+thirteenth public-demo derivative.
+
+### Frozen locale design authority
+
+The first runtime promotion remains English-only because the complete marketing
+landing is currently English-only. The following copy and its approved
+`1440x1160` layouts are frozen authority for the existing full-landing
+localization follow-up. RU/ES may not be independently redesigned when that
+lane opens.
+
+English:
+
+- Daily: `See how FitChef helps you choose where to start`; `Ways to move`;
+  `Endurance`; `Strength & Power`; `Team & Combat`;
+  `Movement & Everyday Fitness`; `Goal`; `Reduce`; `Maintain`; `Gain`;
+  `Where would you like to start?`;
+  `FitChef shows both options. The choice is yours.`; `Today`;
+  `Start with the plan for today.`; `This week`;
+  `Look at the next seven days.`; `Confirm choice`; `Not now`; `Daily Plate`;
+  `Weekly Planning`.
+- Weekly: `A week that changes with you`; `Starting week`; `What changed`;
+  `Your goal changes`; `A meal out`; `Use what’s at home`; `Updated week`.
+- Food Context: `A food plan built around real life`; `Ingredients at home`;
+  `Restaurant or chef`; `Shopping and stores`; `A food photo`;
+  `One flexible plan`.
+- VIP: `PulsePlate VIP`; `Your personal AI nutrition guide`;
+  `Imagine PulsePlate VIP with FitChef connecting your measurements, goals and routines with everyday action: adapting menus as plans change and suggesting a practical next step when progress slows.`;
+  `For everyday wellbeing, training, strength and muscle-building goals.`;
+  `Support to keep you moving forward.`
+
+Russian:
+
+- Daily: `Как FitChef помогает выбрать, с чего начать`; `Варианты активности`;
+  `Выносливость`; `Сила и мощность`; `Командные виды и единоборства`;
+  `Движение и повседневная активность`; `Цель`; `Снижение веса`;
+  `Поддержание веса`; `Набор веса`; `С чего хотите начать?`;
+  `FitChef покажет оба варианта, а выбор останется за вами.`; `Сегодня`;
+  `Сначала разобраться с планом на день.`; `Неделя`;
+  `Сначала посмотреть на ближайшие семь дней.`; `Подтвердить выбор`;
+  `Не сейчас`; `План питания на день`; `План на неделю`.
+- Weekly: `Неделя, которая меняется вместе с вами`; `Начало недели`;
+  `Что изменилось`; `Изменилась цель`; `Еда вне дома`;
+  `Использовать продукты дома`; `Обновлённая неделя`.
+- Food Context: `План питания для реальной жизни`; `Продукты дома`;
+  `Ресторан или повар`; `Покупки и магазины`; `Фото блюда`;
+  `Гибкий план питания`.
+- VIP: `PulsePlate VIP`; `Ваш личный ИИ-помощник по питанию`;
+  `Представьте PulsePlate VIP, где FitChef связывает ваши показатели, цели и привычки с повседневными действиями: адаптирует меню при изменении планов и предлагает разумный следующий шаг, если прогресс замедляется.`;
+  `Для повседневного благополучия, тренировок, силы и набора мышечной массы.`;
+  `Поддержка, чтобы продолжать двигаться вперёд.`
+
+Spanish:
+
+- Daily: `Cómo FitChef te ayuda a elegir por dónde empezar`; `Formas de moverte`;
+  `Resistencia`; `Fuerza y potencia`; `Deportes de equipo y combate`;
+  `Movimiento y actividad cotidiana`; `Objetivo`; `Reducir`; `Mantener`;
+  `Aumentar`; `¿Por dónde quieres empezar?`;
+  `FitChef te muestra ambas opciones. Tú eliges.`; `Hoy`;
+  `Empezar por el plan de hoy.`; `Esta semana`;
+  `Ver los próximos siete días.`; `Confirmar elección`; `Ahora no`;
+  `Plan del día`; `Plan semanal`.
+- Weekly: `Una semana que cambia contigo`; `Semana inicial`; `Qué cambió`;
+  `Cambia tu objetivo`; `Una comida fuera`; `Usa lo que tienes en casa`;
+  `Semana actualizada`.
+- Food Context: `Un plan de alimentación para la vida real`;
+  `Ingredientes en casa`; `Restaurante o chef`; `Compras y tiendas`;
+  `Una foto de la comida`; `Un plan flexible`.
+- VIP: `PulsePlate VIP`; `Tu guía personal de nutrición con IA`;
+  `Imagina PulsePlate VIP con FitChef conectando tus indicadores, objetivos y rutinas con acciones cotidianas: adaptando los menús cuando cambien los planes y sugiriendo un próximo paso práctico cuando el progreso se ralentice.`;
+  `Para el bienestar diario, el entrenamiento, la fuerza y los objetivos de ganancia muscular.`;
+  `Apoyo para seguir avanzando.`
+
+The public Web story remains a prepared, free acquisition/demo surface. It adds
+no API call, live AI, auth, storage, analytics, navigation, payment, entitlement,
+persistence, camera/upload, restaurant/store execution, or plan mutation.
 
 ## Candidate Intake 2026-04-28
 

@@ -25,12 +25,15 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
-- [ ] P1: Add the public deterministic FitChef marketing demo
+- [x] P1: Add the public deterministic FitChef marketing demo
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (public value communication / free-Web activation / product trust)
   - Target PR: [PR #2362](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2362)
     (`codex/fitchef-public-marketing-demo`)
-  - Status: In review in PR #2362; close only after the current carrier merges with exact-head proof
+  - Status: ✅ Closed by merged PR #2362 on 2026-08-30 at squash merge
+    `96263df2840f4a9ab2a915b6456afba68027ee6d`; exact-main CI run
+    [33342194331](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33342194331)
+    completed successfully on that merge SHA.
   - Area: frontend / public marketing / deterministic FitChef preview / accessibility
   - Reason (EN): The free website needs one honest, interactive way to show the value of FitChef
     without running AI, using personal data, opening a product area, saving state, implying payment,
@@ -73,8 +76,9 @@ If it is not recorded here — it does not exist.
   - Priority: P2 (cross-locale acquisition consistency / public copy quality)
   - Target PR: PR-TBD after the deterministic marketing demo merges and receives a separate
     localization/copy approval
-  - Status: Planned; the current demo carrier intentionally keeps the English marketing page
-    internally consistent instead of mixing localized demo copy into an English-only landing
+  - Status: Planned; the current visual-story carrier keeps runtime English-only while the exact
+    owner-approved RU/ES FitChef copy and `1440x1160` layouts are frozen in
+    `docs/design/FITCHEF_MASCOT_ASSET_CANON.md` for this existing full-landing lane
   - Area: frontend / marketing localization / accessibility / responsive copy QA
   - Reason for deferral (EN): Full localization must cover the entire landing page as one reviewed
     copy system. Translating only the new demo now would produce a mixed-language public page and
@@ -84,6 +88,7 @@ If it is not recorded here — it does not exist.
     - `frontend/src/locales/en.json`
     - `frontend/src/locales/ru.json`
     - `frontend/src/locales/es.json`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
   - DoD:
     - every visible marketing section, CTA, prepared-demo state, disclosure, wellness note, footer,
       accessible name, and result announcement is available in EN, RU, and ES with no mixed locale
@@ -9872,8 +9877,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef website brand rollout
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD
-  - Status: Planned
+  - Target PR: [PR #2369](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2369)
+    (`codex/fitchef-public-visual-story`)
+  - Status: 🚧 In review in PR #2369. The current carrier promotes the owner-approved
+    Daily/Weekly/Food Context/VIP photographic story and removes the old onboarding mascot from
+    the shared marketing graph. It also closes the first public-demo transfer-budget slice: eight
+    card-only assets now use measured 410x512 derivatives and the complete 12-file pack is
+    1906308 bytes. The umbrella stays open for remaining onboarding-consumer, mascot-variant,
+    Storybook guidance, and evidence-driven delivery work for other eligible consumers.
   - Area: design / frontend / marketing
   - Finding Type: brand rollout
   - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
@@ -9884,10 +9895,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
     - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
     - `frontend/src/assets/brand/`
+    - `frontend/src/components/marketing/FitChefValueDemo.tsx`
   - DoD:
     - Website hero and onboarding sections use named FitChef mascot variants
     - Current `FitChefMascot` consumers migrate from legacy alias-only usage
-      where appropriate
+    - Canonical source PNGs remain preserved while Web delivery gains measured responsive
+      derivatives or an equivalent transfer-budget strategy without visual drift
+      where appropriate; PR #2369 satisfies this for the public demo's eight card-only images,
+      while other consumers remain part of the open umbrella
     - Marketing/storybook guidance reflects the same variant contract
     - `make verify` passes with updated web tests if consumers change
   - Blockers: Depends on repo mascot canon landing first
