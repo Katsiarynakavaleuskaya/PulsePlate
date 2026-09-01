@@ -539,6 +539,13 @@ def _assert_yaml_mapping_keys_are_unique(source: str) -> None:
     visit(document, ())
 
 
+def test_all_active_workflows_declare_unique_yaml_keys() -> None:
+    """Duplicate keys must not silently override any active workflow configuration."""
+
+    for workflow_path in _active_workflow_paths():
+        _assert_yaml_mapping_keys_are_unique(workflow_path.read_text(encoding="utf-8"))
+
+
 def _job_step_by_name(
     workflow: dict[str, object],
     *,
@@ -3590,7 +3597,7 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
 
-    def active_run_for(job_id: str, step_name: str) -> tuple[list[str], str]:
+    def active_run_for(job_id: str, step_name: str) -> str:
         job = jobs[job_id]
         assert isinstance(job, dict)
         assert job["needs"] == ["changes"]
@@ -3606,12 +3613,10 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
             for line in run.splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         ]
-        return active_lines, "\n".join(active_lines)
+        return "\n".join(active_lines)
 
-    ios_test_lines, ios_tests_run = active_run_for(
-        "ios-tests", "iOS tests (project-based, app scheme)"
-    )
-    ios_ui_lines, ios_ui_smoke_run = active_run_for(
+    ios_tests_run = active_run_for("ios-tests", "iOS tests (project-based, app scheme)")
+    ios_ui_smoke_run = active_run_for(
         "ios-ui-smoke", "iOS UI smoke (build-for-testing + test-without-building)"
     )
 
@@ -3620,10 +3625,10 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     assert "no test targets were found" in ios_tests_run
     assert '"xcodebuild", "test-without-building"' in ios_tests_run
     assert '"-skip-testing:PulsePlateUITests"' in ios_tests_run
-    assert "exit 0" not in ios_test_lines
+    assert "exit 0" not in ios_tests_run
     assert 'ONLY_TESTING="$(../scripts/ios_test_targets.sh)"' not in ios_ui_smoke_run
     assert '"-only-testing:PulsePlateUITests/UISmokeTests/testLaunch"' in ios_ui_smoke_run
-    assert "exit 0" not in ios_ui_lines
+    assert "exit 0" not in ios_ui_smoke_run
 
 
 def test_ios_swift_syntax_hook_is_direct_and_fail_closed_on_macos() -> None:
