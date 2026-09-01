@@ -63,12 +63,17 @@ def include_autogenerate_object(
 
     PostgreSQL reports default-schema tables with ``schema=None``.  That value
     is interpreted as ``public`` only inside a same-execution proof scope
-    established by :func:`proven_autogenerate_default_schema`.
+    established by :func:`proven_autogenerate_default_schema`.  Every
+    exclusion, including an explicitly schema-qualified ``public`` table,
+    requires that same scope so another dialect cannot inherit this policy.
     """
 
+    proven_default_schema = _PROVEN_DEFAULT_SCHEMA.get()
+    if proven_default_schema != "public":
+        return True
     schema = getattr(obj, "schema", None)
     if schema is None:
-        schema = _PROVEN_DEFAULT_SCHEMA.get()
+        schema = proven_default_schema
     return not (
         type_ == "table"
         and reflected is True

@@ -218,7 +218,7 @@ def test_comparison_module_is_the_only_exact_policy_owner() -> None:
 
 @pytest.mark.parametrize("schema", ["public"])
 @pytest.mark.parametrize("schema_name,table_name", sorted(AUTOGENERATE_EXEMPT_TABLE_ROOTS))
-def test_callback_excludes_only_exact_explicit_public_roots(
+def test_callback_excludes_exact_explicit_public_roots_only_inside_proven_scope(
     schema: str,
     schema_name: str,
     table_name: str,
@@ -226,10 +226,12 @@ def test_callback_excludes_only_exact_explicit_public_roots(
     assert schema_name == schema
     table = Table(table_name, MetaData(), Column("id", Integer), schema=schema)
 
-    assert include_autogenerate_object(table, table_name, "table", True, None) is False
-    assert include_autogenerate_object(table, table_name, "table", False, None) is True
-    assert include_autogenerate_object(table, table_name, "column", True, None) is True
-    assert include_autogenerate_object(table, table_name, "table", True, table) is True
+    assert include_autogenerate_object(table, table_name, "table", True, None) is True
+    with proven_autogenerate_default_schema("public"):
+        assert include_autogenerate_object(table, table_name, "table", True, None) is False
+        assert include_autogenerate_object(table, table_name, "table", False, None) is True
+        assert include_autogenerate_object(table, table_name, "column", True, None) is True
+        assert include_autogenerate_object(table, table_name, "table", True, table) is True
 
 
 def test_callback_normalizes_none_only_inside_proven_public_scope() -> None:
