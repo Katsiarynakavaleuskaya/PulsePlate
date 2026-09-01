@@ -4227,6 +4227,9 @@ def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Pa
     project_dir.mkdir()
     bin_dir.mkdir()
     backup_dir.mkdir()
+    env_file = project_dir / "config" / "selected.env"
+    env_file.parent.mkdir()
+    env_file.write_text("POSTGRES_DB=pulseplate\n", encoding="utf-8")
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -4242,6 +4245,7 @@ EOF
     env["PROJECT_DIR"] = str(project_dir)
     env["BACKUP_DIR"] = str(backup_dir)
     env["COMPOSE_FILE"] = "docker-compose.staging.yaml"
+    env["ENV_FILE"] = str(env_file)
     env["POSTGRES_USER"] = "pulseplate"
     env["POSTGRES_DB"] = "pulseplate"
 
@@ -4256,7 +4260,7 @@ EOF
 
     assert "Backup created:" in completed.stdout
     docker_call = log_file.read_text(encoding="utf-8")
-    assert f"compose --project-directory {project_dir}" in docker_call
+    assert f"compose --env-file {env_file} --project-directory {project_dir}" in docker_call
     assert f"-f {project_dir / 'docker-compose.staging.yaml'}" in docker_call
     assert "exec -T postgres pg_dump -U pulseplate -d pulseplate -Fc" in docker_call
     backup_files = list(backup_dir.glob("pulseplate_*.dump"))
@@ -6584,7 +6588,8 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
         project_dir / "scripts" / "ops" / "postgres_backup.sh",
         f"""#!/usr/bin/env bash
 set -euo pipefail
-printf 'backup docker=%s args=%s\\n' "${{DOCKER_BIN:-}}" "$*" >> "{log_file}"
+printf 'backup docker=%s env_file=%s args=%s\\n' \
+  "${{DOCKER_BIN:-}}" "${{ENV_FILE:-}}" "$*" >> "{log_file}"
 if [ "${{STUB_BACKUP_FAILURE:-0}}" -ne 0 ]; then
   exit "${{STUB_BACKUP_FAILURE}}"
 fi
@@ -6805,6 +6810,12 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     tmp_path: Path,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
+    project_dir = Path(env["PROJECT_DIR"])
+    selected_env_file = project_dir / "config" / "selected.env"
+    selected_env_file.parent.mkdir()
+    selected_env_file.write_bytes((project_dir / ".env").read_bytes())
+    selected_env_file.chmod(0o600)
+    env["ENV_FILE"] = str(selected_env_file)
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
@@ -6874,6 +6885,7 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     assert all(" up -d postgres" not in line for line in log_lines)
     assert f"backup docker={env['DOCKER_BIN']}" in log_lines[backup_index]
+    assert f"env_file={selected_env_file}" in log_lines[backup_index]
 
     env_lines = [line for line in log_lines if line.startswith("env backend=")]
     assert env_lines
@@ -7028,6 +7040,17 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
             assert completed.returncode == 42
             assert "captured product writers remain quiesced" in completed.stderr
             assert not restart_log.exists()
+
+
+def test_deploy_backup_helpers_receive_selected_compose_env_file() -> None:
+    staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    production_script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    helper_script = (REPO_ROOT / "scripts/ops/postgres_backup.sh").read_text(encoding="utf-8")
+
+    assert "export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE ENV_FILE" in staging_script
+    assert "export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB ENV_FILE" in production_script
+    assert 'ENV_FILE="${ENV_FILE:-}"' in helper_script
+    assert 'compose_cmd+=(--env-file "${ENV_FILE}")' in helper_script
 
 
 def test_postgres_backup_and_receipt_failures_keep_product_writers_quiesced() -> None:

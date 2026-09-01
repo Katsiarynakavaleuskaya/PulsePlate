@@ -161,7 +161,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   mode-0600 custom dump accepted by `pg_restore --list` from the still-running
   old database before stopping it. Only then may the candidate use
   `--pull never`; orphan or ambiguous identities/volumes fail closed. Hosts
-  never receive DHI credentials.
+  never receive DHI credentials. The backup helper must receive the same
+  explicitly selected Compose `ENV_FILE` as its parent deploy command and pass
+  it through `docker compose --env-file`; it must not fall back to a sibling
+  project `.env` during an override-based deployment.
 - The checked main workflow must prove the exact four-directory mountpoint
   layer inventory and then attach a uniquely named fresh empty volume with a
   non-initializing command. The mounted root must be empty `70:70:0700` before

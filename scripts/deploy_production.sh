@@ -2718,7 +2718,7 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     echo "Creating a verified backup from the still-running old self-hosted PostgreSQL container..."
     backup_output=""
     if backup_output="$(
-        export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB
+        export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB ENV_FILE
         PROJECT_DIR="$COMPOSE_CONTRACT_DIR"
         COMPOSE_FILE="$COMPOSE_CONTRACT_PATH"
         export PROJECT_DIR COMPOSE_FILE

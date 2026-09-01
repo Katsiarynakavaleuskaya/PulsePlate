@@ -1051,7 +1051,7 @@ if [ "$postgres_transition" = "existing" ]; then
   echo "Creating a verified backup from the still-running old PostgreSQL container"
   backup_output=""
   if backup_output="$(
-      export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE
+      export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE ENV_FILE
       "$BACKUP_HELPER"
     )"; then
     :
