@@ -413,7 +413,14 @@ final class FitChefCoachViewTests: XCTestCase {
             ),
             encoding: .utf8
         )
-        XCTAssertTrue(homeExperience.contains("HomeLazyDestination"))
+        let homeActionLink = try sourceSlice(
+            homeExperience,
+            from: "private func actionLink(",
+            to: "@ViewBuilder\n    private func actionCard("
+        )
+        let lazyDestinationInvocation = "NavigationLink {\n            HomeLazyDestination {\n"
+            + "                makeDestination(action)\n            }\n        } label: {"
+        XCTAssertTrue(homeActionLink.contains(lazyDestinationInvocation))
 
         for relativePath in [
             "ios/PulsePlate/Views/RootTabs.swift",
