@@ -6620,6 +6620,7 @@ case "$*" in
     ;;
   *"login ghcr.io"*"--password-stdin"*) cat >/dev/null ;;
   *"info --format"*"Architecture"*) printf 'amd64\n' ;;
+  *"inspect --format"*"State.Running"*) printf 'true\n' ;;
   *"ps -q postgres"*)
     if [[ "${{STUB_POSTGRES_CONTAINER_ABSENT:-0}}" != "1" ]] || \
        [[ -f "${{STUB_POSTGRES_STARTED_FILE:-/nonexistent}}" ]]; then
@@ -7040,6 +7041,67 @@ def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
             assert completed.returncode == 42
             assert "captured product writers remain quiesced" in completed.stderr
             assert not restart_log.exists()
+
+
+@pytest.mark.parametrize("relative_path", ("scripts/deploy.sh", "scripts/deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("inspect_status", "inspect_output", "expected_message"),
+    (
+        (66, "", "Unable to inspect app container running state"),
+        (0, "unknown\n", "Invalid app container running state"),
+        (0, "true\nfalse\n", "Invalid app container running state"),
+    ),
+)
+def test_product_service_census_fails_closed_on_untrusted_inspect_state(
+    tmp_path: Path,
+    relative_path: str,
+    inspect_status: int,
+    inspect_output: str,
+    expected_message: str,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    start = script.index("capture_running_service_container() {\n")
+    end = script.index("\n}\n\nrestart_captured_product_containers()", start) + len("\n}\n")
+    function = script[start:end]
+    docker_stub = tmp_path / f"docker-{Path(relative_path).stem}-{inspect_status}"
+    _write_executable(
+        docker_stub,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        "  *\"ps -q app\"*) printf 'bbbbbbbbbbbb\\n' ;;\n"
+        '  *"inspect --format"*)\n'
+        '    if [ "$STUB_INSPECT_STATUS" -ne 0 ]; then exit "$STUB_INSPECT_STATUS"; fi\n'
+        "    printf '%b' \"$STUB_INSPECT_OUTPUT\"\n"
+        "    ;;\n"
+        "  *) exit 70 ;;\n"
+        "esac\n",
+    )
+    program = (
+        "set -euo pipefail\n"
+        f'DOCKER_BIN="{docker_stub}"\n'
+        f'COMPOSE=("{docker_stub}" compose)\n'
+        'dc() { "$DOCKER_BIN" compose "$@"; }\n'
+        f"{function}\n"
+        "capture_running_service_container app\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "STUB_INSPECT_STATUS": str(inspect_status),
+            "STUB_INSPECT_OUTPUT": inspect_output,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert expected_message in completed.stderr
 
 
 def test_deploy_backup_helpers_receive_selected_compose_env_file() -> None:

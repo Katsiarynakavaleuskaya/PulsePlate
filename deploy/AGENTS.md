@@ -164,7 +164,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   never receive DHI credentials. The backup helper must receive the same
   explicitly selected Compose `ENV_FILE` as its parent deploy command and pass
   it through `docker compose --env-file`; it must not fall back to a sibling
-  project `.env` during an override-based deployment.
+  project `.env` during an override-based deployment. The app, Caddy, and
+  worker running-state census must also fail closed on Docker inspect failure
+  or any value other than the exact booleans `true` and `false`; an unknown
+  running state must never be treated as an absent restart target.
 - The checked main workflow must prove the exact four-directory mountpoint
   layer inventory and then attach a uniquely named fresh empty volume with a
   non-initializing command. The mounted root must be empty `70:70:0700` before

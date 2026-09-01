@@ -725,6 +725,7 @@ assert_existing_postgres_unchanged() {
 capture_running_service_container() {
   local service="$1"
   local container_id=""
+  local running_state=""
   container_id="$("${COMPOSE[@]}" ps -q "$service" | tr -d '\r')"
   if [[ "$container_id" == *$'\n'* ]]; then
     echo "❌ Expected at most one ${service} container" >&2
@@ -733,9 +734,18 @@ capture_running_service_container() {
   if [ -z "$container_id" ]; then
     return 0
   fi
-  if [ "$($DOCKER_BIN inspect --format '{{.State.Running}}' "$container_id")" = "true" ]; then
-    printf '%s\n' "$container_id"
+  if ! running_state="$("$DOCKER_BIN" inspect --format '{{.State.Running}}' "$container_id" | tr -d '\r')"; then
+    echo "❌ Unable to inspect ${service} container running state" >&2
+    return 1
   fi
+  case "$running_state" in
+    true) printf '%s\n' "$container_id" ;;
+    false) ;;
+    *)
+      echo "❌ Invalid ${service} container running state" >&2
+      return 1
+      ;;
+  esac
 }
 
 restart_captured_product_containers() {
