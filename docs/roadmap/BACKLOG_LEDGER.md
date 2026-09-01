@@ -5233,17 +5233,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
-- [ ] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
+- [x] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
   - Priority: P1 (compatibility alias / canonical Home ownership)
-  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367) through
+  - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367),
+    squash merge `1d94a8eea923206d176ac21654009e62091a612a`, through
     `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-home`
     on branch `codex/ios-consumer-home-planning`
-  - Status: Compatibility alias bound to active [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367);
-    no separate ER-IOS-4 carrier may open. The canonical Consumer-first Home
-    carrier owns the complete state projection and the one FitChef Coach entry;
-    this alias neither narrows that scope nor creates a second implementation
-    lane.
+  - Status: ✅ MERGED / closed in PR #2367 at
+    `1d94a8eea923206d176ac21654009e62091a612a`; no separate ER-IOS-4 carrier may
+    open. The canonical Consumer-first Home carrier owns the complete state
+    projection and the one FitChef Coach entry; this alias neither narrows that
+    scope nor creates a second implementation lane.
   - Area: iOS / Home / FitChef Coach / single navigation entry
   - Reason (EN): Historical ER-IOS-4 naming identifies the one discoverable
     FitChef Coach entry now delivered inside the canonical Consumer-first Home
@@ -5303,15 +5304,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-ios-release-design-train-home"></a>
-- [ ] P1: iOS Consumer-first Home planning experience
+- [x] P1: iOS Consumer-first Home planning experience
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2367](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2367)
-    (`codex/ios-consumer-home-planning`)
-  - Status: Active implementation / in review. The operator explicitly admitted
-    start from pending `main`; pending exact-main or overlapping ledger/workflow
-    work does not block this lane, but it grants no readiness or mergeability
-    claim.
+    (`codex/ios-consumer-home-planning`), squash merge
+    `1d94a8eea923206d176ac21654009e62091a612a`
+  - Status: ✅ MERGED / closed in PR #2367 at
+    `1d94a8eea923206d176ac21654009e62091a612a`. The implementation preserves the
+    controlled Week/Shopping projection and AI capability boundaries recorded
+    below; this closure creates no follow-up docs-only PR.
   - Area: iOS / Home / subscription projection / profile readiness / navigation / localization / accessibility
   - Reason (EN): The current iOS Home is an engineering dashboard with raw-key
     and service terminology. This bounded carrier projects the existing
@@ -6663,6 +6665,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-45363-jwt-fastlane.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #594 remains closed on `main`
 
+<a id="ledger-p1-jwt-fastlane-bundler-subprocess-nosec-review"></a>
+- [ ] P1: Re-review the JWT/Fastlane Bundler subprocess nosec boundary
+  - Owner: `security-auditor`
+  - Priority: P1 (security guard maintenance)
+  - Target PR: `PR-TBD` no later than 2026-11-30
+  - Status: Open; both bounded B404/B603 exceptions require removal or a new evidence-backed review before 2026-11-30
+  - Area: security / iOS release tooling / CI guard
+  - Finding Type: Periodic review of a justified Bandit subprocess boundary
+  - Reason (EN): The JWT/Fastlane regression guard still requires a fresh local Bundler resolver process under the repository's trusted CI/operator `PATH` and working-directory precondition. It selects `bundle` through `shutil.which()` and invokes one fixed `bundle lock --update fastlane jwt googleauth signet --print` argv sequence with Python's default `shell=False`; no request or repository data is interpolated into that argv. PR #2356 renews only the review metadata through 2026-11-30; executable Python, JWT/Fastlane dependency truth, the patched `jwt 3.2.0` lock, and the removed Trivy suppression remain unchanged.
+  - Links:
+    - [`scripts/ci/check_jwt_fastlane_unblock.py`](../../scripts/ci/check_jwt_fastlane_unblock.py)
+    - [`tests/test_jwt_fastlane_unblock_guard.py`](../../tests/test_jwt_fastlane_unblock_guard.py)
+    - [`tests/guards/test_nosec_policy_guard.py`](../../tests/guards/test_nosec_policy_guard.py)
+    - [`docs/security/CVE-2026-45363-jwt-fastlane.md`](../security/CVE-2026-45363-jwt-fastlane.md)
+    - [`ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363`](#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - Re-evaluate whether the fresh Bundler resolver subprocess remains required before 2026-11-30
+    - Remove both B404/B603 annotations if an equally fail-closed implementation can avoid the direct subprocess boundary
+    - If the process remains required, revalidate `shutil.which("bundle")` selection under the trusted CI/operator `PATH`, fixed argv, default `shell=False` behavior, and absence of request/repository interpolation into argv before any new finite renewal
+    - Preserve `jwt >= 3.2.0`, keep the CVE-2026-45363 Trivy suppression absent, and add no nosec allowlist entry
+    - Focused JWT/Fastlane guard, nosec-policy guard, Bandit, narrow local bundle, and current-head CI pass
+
 <a id="ledger-p1-ruby-json-cve-2026-54696-release-tooling"></a>
 - [x] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
   - Owner: `app-store-release-agent`
@@ -7206,12 +7231,114 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Every exposed chart/card has owner, metric definition, and decision rule
     - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
 
+<a id="ledger-p1-prometheus-cve-2026-56854-immutable-bridge"></a>
+- [x] P1: Remediate Prometheus CVE-2026-56854 with an immutable upstream-main bridge
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (required security gate / deployment image identity)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Completed in implementation PR #2356 with a digest-only, revision-bound temporary bridge; no suppression or separate docs-only closure PR is used
+  - Area: security / prometheus / OCI identity / CD
+  - Finding Type: CRITICAL transitive Go dependency in an immutable deployment image
+  - Reason (EN): The suppression-free Prometheus CD scan began reporting `CVE-2026-56854` because the released v3.14.0 distroless image embeds `golang.org/x/crypto v0.54.0`; the reviewed fix is v0.55.0. The official latest semver release remains v3.14.0, so PR #2356 temporarily selects one official upstream-main distroless build by immutable index and linux/amd64 manifest digests, binds its exact reported source revision, and preserves the enumerated linux/amd64, UID 65532, entrypoint, command, working-directory, config-syntax, non-root, private-network, named-volume, and digest-only Compose/deploy contracts without relying on the mutable discovery tag.
+  - Links:
+    - [Go vulnerability GO-2026-6303](https://pkg.go.dev/vuln/GO-2026-6303)
+    - [Prometheus source revision `09fdfcd2659d`](https://github.com/prometheus/prometheus/commit/09fdfcd2659dd9c816e9e23c992fc161c0091757)
+    - [`deploy/prometheus/image-manifest.json`](../../deploy/prometheus/image-manifest.json)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - One exact v2 manifest binds repository, source revision, immutable index digest, unique linux/amd64 platform digest, and digest-only runtime reference
+    - All three Compose contours and both deployment validators consume the same exact identity with no mutable tag fallback
+    - CD hashes and cross-binds raw OCI index/platform manifests, verifies exact binary revision and unchanged image config, validates the existing Prometheus config with `promtool`, and preserves the non-root/network/volume runtime contract
+    - The exact image passes the existing empty-ignore, suppression-free Trivy `CRITICAL,HIGH` scan; no ignore, waiver, severity reduction, `continue-on-error`, or `--ignore-unfixed` is added
+    - Focused deploy tests, current-head CD/security CI, mapping/review dispositions, and strict readiness pass before squash merge
+  - Rollback / exit: Before merge, restore the prior exact record atomically only if it still passes current security policy. After merge, use a forward PR. Replace this upstream-main bridge with the next suitable official semver release after it passes the same identity, runtime, `promtool`, suppression-free scan, and repository gates.
+
+<a id="ledger-p1-caddy-cve-2026-56854-remediation"></a>
+- [x] P1: Remediate Caddy CVE-2026-56854 in the existing PR #2356 carrier
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (required current-head security gate)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Implemented in PR #2356; the exact Go 1.26.6 Apple Container resolver, linux/amd64 final image, binary inspection, module parity, capability, Caddyfile, and empty-ignore Trivy checks pass locally. Closure becomes current-main truth only when #2356 merges; current-head GitHub CI, review, and strict closeout remain required before merge.
+  - Area: security / frontend Caddy image / Go dependency identity
+  - Finding Type: CRITICAL transitive Go dependency in a required deployment image
+  - Reason (EN): Exact-head CD run `33441869876`, job `99651961031`, reported `golang.org/x/crypto v0.53.0` in `usr/bin/caddy` as affected by `GO-2026-6303 / CVE-2026-56854`, with `v0.55.0` fixed. The operator explicitly authorized the already-open PR #2356 to close this directly exposed scan blocker in the same carrier. The remediation adds one exact authored `go get golang.org/x/crypto@v0.55.0` action, accepts only its replay-proven eight-module solver closure, and keeps Caddy v2.11.4, Go 1.26.6, the pinned bases, standard-module parity, capabilities, runtime package floors, and suppression-free scan posture unchanged.
+  - Links:
+    - [Canonical PR #2356 CVE owner](../security/PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md)
+    - [Go vulnerability GO-2026-6303](https://pkg.go.dev/vuln/GO-2026-6303)
+    - [Failed Caddy scan job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33441869876/job/99651961031)
+    - [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa)
+    - [`tests/test_caddy_deploy_provenance.py`](../../tests/test_caddy_deploy_provenance.py)
+    - [`ledger-p1-prometheus-cve-2026-56854-immutable-bridge`](#ledger-p1-prometheus-cve-2026-56854-immutable-bridge)
+  - DoD:
+    - The Caddy build expresses exactly one authored dependency action for `golang.org/x/crypto v0.55.0`; the complete nine-transition replay delta is partitioned into that action and eight deterministic solver-closure transitions
+    - The completed binary reports Caddy v2.11.4, Go 1.26.6, grpc-go v1.82.1, `x/crypto v0.55.0`, and the exact replay-proven embedded `x/net`, `x/sync`, `x/sys`, `x/term`, and `x/text` identities
+    - Deterministic tests reject the vulnerable Caddy identity, missing or reordered selection, graph drift, missing embedded rows, a second authored `x/text` action, suppressions, and weakened scan/runtime contracts
+    - The exact current-head Caddy image passes build-info, standard-module parity, capabilities, Caddyfile, provenance, SBOM, and empty-ignore Trivy `CRITICAL,HIGH` gates without a waiver or suppression
+    - The combined head proves `golang.org/x/crypto v0.55.0` in Caddy, Prometheus, and promtool, then passes focused tests, the narrow local bundle, current-head CI, review disposition, mapping, and strict readiness before squash merge
+  - Rollback: Fail closed before merge if any resolver, build, parity, capability, provenance, SBOM, or scan check fails. After merge, use a forward PR selecting another verified fixed identity. Do not restore the known-affected Caddy binary, partially revert only tests/docs, add a suppression, use a mutable tag, or rewrite branch history.
+  - Exit criteria: Remove the explicit Caddy `x/crypto` selection only when an official Caddy release's canonical resolver graph selects `v0.55.0` or later without the override, the resulting complete dependency delta is reconciled, and the exact rebuilt image passes all existing binary/runtime/security/current-head gates.
+
+<a id="ledger-p1-caddy-x-crypto-upstream-exit"></a>
+- [ ] P1: Retire the temporary explicit Caddy `golang.org/x/crypto` selection
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (temporary dependency override retirement)
+  - Target PR: The first suitable official Caddy release after v2.11.4
+  - Status: Blocked on an official Caddy release whose canonical module graph resolves the fixed `x/crypto` floor without the explicit selection
+  - Area: security / frontend Caddy image / dependency lifecycle
+  - Reason (EN): PR #2356 uses the canonical Go resolver to repair a current required scan while preserving the Caddy v2.11.4 binary contract, but the direct `x/crypto` selection should not silently become permanent after upstream Caddy naturally carries the fixed dependency.
+  - Links:
+    - [Canonical PR #2356 CVE owner](../security/PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md)
+    - [`ledger-p1-caddy-cve-2026-56854-remediation`](#ledger-p1-caddy-cve-2026-56854-remediation)
+    - [Caddy releases](https://github.com/caddyserver/caddy/releases)
+  - DoD:
+    - An official Caddy release resolves `golang.org/x/crypto v0.55.0` or later without an explicit PulsePlate `go get` override
+    - Its complete base/head module delta is replayed and classified with no manual, omitted, or unclassified transition
+    - Caddy version/build-info, standard-module parity, capabilities, runtime package floors, Caddyfile, provenance, SBOM, and exact-image suppression-free scan gates pass unchanged
+    - The override, its exact assertions, tests, owner record, and rollback evidence are retired atomically in one reviewed PR
+
+<a id="ledger-p1-prometheus-next-semver-release-exit"></a>
+- [ ] P1: Replace the temporary Prometheus upstream-main bridge with the next fixed semver release
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (temporary security bridge retirement)
+  - Target PR: TBD — the first suitable official Prometheus semver release after v3.14.0
+  - Status: ⏳ Blocked on upstream release availability; current official latest remains v3.14.0
+  - Area: security / prometheus / release identity
+  - Reason (EN): The digest-pinned bridge fixes the current scan without mutable runtime identity, but it is an unreleased upstream-main build and must not silently become the permanent production baseline.
+  - Links:
+    - [Prometheus releases](https://github.com/prometheus/prometheus/releases)
+    - [`ledger-p1-prometheus-cve-2026-56854-immutable-bridge`](#ledger-p1-prometheus-cve-2026-56854-immutable-bridge)
+  - DoD:
+    - An official semver release embeds `golang.org/x/crypto >= v0.55.0` or otherwise passes the current vulnerability policy
+    - Its exact index/platform digests, binary revision, config, runtime posture, and suppression-free Trivy scan pass the same v2 admission contract
+    - The manifest, three Compose consumers, CD validator, two deploy validators, deterministic tests, and rollback evidence move atomically to that release
+
+<a id="ledger-p2-greenlight-setup-go-v7-identity"></a>
+- [x] P2: Greenlight setup-go v7 immutable identity transition
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI dependency identity / workflow reliability)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Completed in implementation PR #2356; no separate docs-only backlog-close PR is required
+  - Area: ci / github-actions / dependency identity
+  - Finding Type: bounded dependency-version carrier
+  - Reason (EN): The stale Dependabot setup-go carrier was based on obsolete `main` ancestry and retained the v6.4.0 annotation. PR #2356 recreates the transition on current ancestry, pins the immutable setup-go v7.0.0 commit, synchronizes the existing positive-enumeration contract, and fixes the shared-checkout Git-history mutation exposed by the required Python matrix. This item closes only that exact bounded carrier; the broader Node 24/cache-warning audit remains open below.
+  - Links:
+    - [`.github/workflows/greenlight-ios.yml`](../../.github/workflows/greenlight-ios.yml)
+    - [`tests/test_ci_workflow_pr_size_governance_contract.py`](../../tests/test_ci_workflow_pr_size_governance_contract.py)
+    - [`tests/test_design_automation_next_lane_docs.py`](../../tests/test_design_automation_next_lane_docs.py)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - The active Greenlight `Setup Go` step uses exact commit `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` with annotation `v7.0.0 / Node 24`
+    - `go-version: "1.24"`, workflow permissions, triggers, timeout, cache inputs, Greenlight version, and report-only posture remain unchanged
+    - The existing structured workflow contract and immutable action-pin guard enforce the selected identity without introducing a second parser or dependency framework
+    - Pull-request changed-path detection is read-only and fail-closed, with no depth fetch capable of mutating shared shallow-history evidence before dependency-security tests
+    - The accepted Experiment Runner oracle, narrow local bundle, current-head GitHub CI, mapping/review dispositions, and strict readiness pass before squash merge
+
 <a id="ledger-p2-gha-node24-cache-warning-cleanup"></a>
 - [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (CI hygiene / advisory reliability)
-  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus PR #1875 (`codex/node24-runtime-baseline`, operational runtime baseline)
-  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; cache-warning audit remains open pending fresh representative PR evidence
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`); replacement sequence: PR #1871 (`codex/gha-node24-action-runtime-cleanup`, direct action-runtime cleanup) plus PR #1875 (`codex/node24-runtime-baseline`, operational runtime baseline); bounded setup-go v7 carrier: [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: 🚧 In progress / direct Node 24 action-runtime cleanup plus operational Node 24 baseline migration; the bounded setup-go v7 identity migration is in review in PR #2356, while the broader cache-warning audit remains open pending fresh representative PR evidence
   - Area: ci / github-actions / cache
   - Finding Type: advisory workflow debt
   - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
@@ -7233,6 +7360,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #1871 updates the pinned Trivy wrapper action to `ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path` and guards the old wrapper/cache warning source
     - Current `codex/node24-runtime-baseline` lane moves `.nvmrc`, frontend engines, devcontainer, and frontend Caddy builder to Node 24.16.0, normalizes remaining active `upload-artifact` / actionlint checkout pins, and adds positive active-workflow enumeration guards
     - Broader cache-warning DoD remains open until fresh current-head PR logs prove warning cleanup and remaining cache-warning disposition
+  - Current evidence (2026-08-30, PR #2356 pre-closeout):
+    - The Greenlight iOS `Setup Go` step is pinned to exact identity `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` with `go-version: "1.24"`; the focused positive-enumeration contract, immutable action-pin guard, workflow validation, and `make validate-changed` pass on the synchronized pre-ledger head `65b03f63cc5e18c19d5a0cbd21b74ee88010557a`
+    - Exact-head Greenlight run `33299230032` succeeded on prior synchronized head `540c2c44be8110194d0e3cde169864d9031c01ca`; the post-ledger commit must obtain fresh current-head CI before closeout, and this bounded evidence proves neither cache-warning cleanup, upstream provenance, vulnerability closure, security PASS, nor merge readiness
 
 <a id="ledger-p2-ios-agents-only-testing-centralize"></a>
 - [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)

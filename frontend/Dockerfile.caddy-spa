@@ -13,32 +13,62 @@ ENV CGO_ENABLED=0 \
     GOSUMDB=sum.golang.org
 
 RUN set -eux; \
+    set -o pipefail; \
     build_dir="$(mktemp -d)"; \
     cd "$build_dir"; \
     go mod init pulseplate.local/caddy-build; \
     go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
     go get google.golang.org/grpc@v1.82.1; \
-    go get golang.org/x/text@v0.39.0; \
+    go get golang.org/x/crypto@v0.55.0; \
     go mod download all; \
     go mod verify; \
-    test "$(go list -m -f '{{.Path}} {{.Version}}' github.com/caddyserver/caddy/v2)" = \
-      "github.com/caddyserver/caddy/v2 v2.11.4"; \
-    test "$(go list -m -f '{{.Path}} {{.Version}}' google.golang.org/grpc)" = \
-      "google.golang.org/grpc v1.82.1"; \
-    test "$(go list -m -f '{{.Path}} {{.Version}}' golang.org/x/text)" = \
-      "golang.org/x/text v0.39.0"; \
+    test -z "$(go list -m -f '{{if .Replace}}{{.Path}} => {{.Replace.Path}}{{end}}' all)"; \
+    go list -m -f '{{if or (eq .Path "github.com/caddyserver/caddy/v2") (eq .Path "google.golang.org/grpc") (eq .Path "golang.org/x/crypto") (eq .Path "golang.org/x/mod") (eq .Path "golang.org/x/net") (eq .Path "golang.org/x/sync") (eq .Path "golang.org/x/sys") (eq .Path "golang.org/x/telemetry") (eq .Path "golang.org/x/term") (eq .Path "golang.org/x/text") (eq .Path "golang.org/x/tools")}}{{.Path}} {{.Version}}{{end}}' all \
+      | awk 'NF' \
+      | LC_ALL=C sort > /tmp/caddy-governed-graph; \
+    printf '%s\n' \
+      'github.com/caddyserver/caddy/v2 v2.11.4' \
+      'golang.org/x/crypto v0.55.0' \
+      'golang.org/x/mod v0.38.0' \
+      'golang.org/x/net v0.57.0' \
+      'golang.org/x/sync v0.22.0' \
+      'golang.org/x/sys v0.47.0' \
+      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \
+      'golang.org/x/term v0.45.0' \
+      'golang.org/x/text v0.41.0' \
+      'golang.org/x/tools v0.48.0' \
+      'google.golang.org/grpc v1.82.1' \
+      | LC_ALL=C sort > /tmp/caddy-expected-graph; \
+    test "$(wc -l < /tmp/caddy-governed-graph | tr -d '[:space:]')" = '11'; \
+    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \
     go build -mod=readonly -trimpath \
       -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
       -o /go/bin/caddy \
       github.com/caddyserver/caddy/v2/cmd/caddy; \
     /go/bin/caddy version; \
-    go version -m /go/bin/caddy; \
-    go version -m /go/bin/caddy \
-      | awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4" { found = 1 } END { exit !found }'; \
-    go version -m /go/bin/caddy \
-      | awk '$1 == "dep" && $2 == "google.golang.org/grpc" && $3 == "v1.82.1" { found = 1 } END { exit !found }'; \
-    go version -m /go/bin/caddy \
-      | awk '$1 == "dep" && $2 == "golang.org/x/text" && $3 == "v0.39.0" { found = 1 } END { exit !found }'; \
+    go version -m /go/bin/caddy > /tmp/caddy-binary-metadata; \
+    cat /tmp/caddy-binary-metadata; \
+    test "$(awk '$1 == "=>" { count++ } END { print count + 0 }' /tmp/caddy-binary-metadata)" = '0'; \
+    awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" { print $1, $2, $3 } $1 == "dep" && ($2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || $2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || $2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || $2 == "golang.org/x/text") { print $1, $2, $3 }' /tmp/caddy-binary-metadata \
+      | LC_ALL=C sort > /tmp/caddy-governed-binary; \
+    printf '%s\n' \
+      'mod github.com/caddyserver/caddy/v2 v2.11.4' \
+      'dep golang.org/x/crypto v0.55.0' \
+      'dep golang.org/x/net v0.57.0' \
+      'dep golang.org/x/sync v0.22.0' \
+      'dep golang.org/x/sys v0.47.0' \
+      'dep golang.org/x/term v0.45.0' \
+      'dep golang.org/x/text v0.41.0' \
+      'dep google.golang.org/grpc v1.82.1' \
+      | LC_ALL=C sort > /tmp/caddy-expected-binary; \
+    test "$(wc -l < /tmp/caddy-governed-binary | tr -d '[:space:]')" = '8'; \
+    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \
+    rm -f \
+      /tmp/caddy-binary-metadata \
+      /tmp/caddy-expected-binary \
+      /tmp/caddy-expected-graph \
+      /tmp/caddy-governed-binary \
+      /tmp/caddy-governed-graph; \
     rm -rf "$build_dir"
 
 FROM node:24.18.1-bookworm-slim@sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7 AS frontend-build
