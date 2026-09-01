@@ -89,31 +89,53 @@ jobs:
           import re
 
           manifest_path = Path("deploy/prometheus/image-manifest.json")
-          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate Prometheus manifest key")
+                  result[key] = value
+              return result
+
+
+          manifest = json.loads(
+              manifest_path.read_text(encoding="utf-8"),
+              object_pairs_hook=reject_duplicate_keys,
+              parse_constant=lambda value: (_ for _ in ()).throw(
+                  ValueError(f"invalid JSON constant: {value}")
+              ),
+          )
           expected = {
-              "schema": "pulseplate.prometheus_image_manifest.v1",
+              "schema": "pulseplate.prometheus_image_manifest.v2",
               "repository": "prom/prometheus",
-              "tag": "v3.14.0-distroless",
-              "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+              "source_revision": "09fdfcd2659dd9c816e9e23c992fc161c0091757",
+              "index_digest": "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
-              "runtime_ref": "prom/prometheus:v3.14.0-distroless@sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+              "platform_manifest_digest": "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",
+              "runtime_ref": "prom/prometheus@sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",
           }
           if manifest != expected:
               raise SystemExit("Prometheus image manifest must equal the closed canonical record")
+          if re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]) is None:
+              raise SystemExit("Invalid canonical Prometheus source revision")
           digest_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
           for field in ("index_digest", "platform_manifest_digest"):
               if digest_pattern.fullmatch(manifest[field]) is None:
                   raise SystemExit(f"Invalid canonical digest field: {field}")
           expected_runtime = (
-              f"{manifest['repository']}:{manifest['tag']}@"
-              f"{manifest['platform_manifest_digest']}"
+              f"{manifest['repository']}@{manifest['platform_manifest_digest']}"
           )
           if manifest["runtime_ref"] != expected_runtime:
               raise SystemExit("Prometheus runtime reference is not manifest-digest bound")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              print(f"tag_ref={manifest['repository']}:{manifest['tag']}", file=output)
+              print(
+                  f"index_ref={manifest['repository']}@{manifest['index_digest']}",
+                  file=output,
+              )
               print(f"index_digest={manifest['index_digest']}", file=output)
+              print(f"source_revision={manifest['source_revision']}", file=output)
               print(
                   f"platform_manifest_digest={manifest['platform_manifest_digest']}",
                   file=output,
@@ -121,12 +143,13 @@ jobs:
               print(f"runtime_ref={manifest['runtime_ref']}", file=output)
           PY
 
-      - name: Cross-bind tag index, linux amd64 manifest, and local image config
+      - name: Cross-bind immutable index, linux amd64 manifest, and local image config
         env:
+          PROMETHEUS_INDEX_REF: ${{ steps.prometheus-image.outputs.index_ref }}
           PROMETHEUS_INDEX_DIGEST: ${{ steps.prometheus-image.outputs.index_digest }}
           PROMETHEUS_PLATFORM_MANIFEST_DIGEST: ${{ steps.prometheus-image.outputs.platform_manifest_digest }}
           PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
-          PROMETHEUS_TAG_REF: ${{ steps.prometheus-image.outputs.tag_ref }}
+          PROMETHEUS_SOURCE_REVISION: ${{ steps.prometheus-image.outputs.source_revision }}
         run: |
           set -euo pipefail
           evidence_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-obs1b-oci.XXXXXX")"
@@ -155,7 +178,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          docker buildx imagetools inspect --raw "$PROMETHEUS_TAG_REF" \
+          docker buildx imagetools inspect --raw "$PROMETHEUS_INDEX_REF" \
             > "$evidence_dir/index.json"
           docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF" \
             > "$evidence_dir/platform-manifest.json"
@@ -170,32 +193,60 @@ jobs:
           platform_bytes = Path(sys.argv[2]).read_bytes()
           expected_index = os.environ["PROMETHEUS_INDEX_DIGEST"]
           expected_platform = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
+
+
+          def reject_duplicate_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate OCI manifest key")
+                  result[key] = value
+              return result
+
+
           if f"sha256:{hashlib.sha256(index_bytes).hexdigest()}" != expected_index:
-              raise SystemExit("Prometheus tag index digest mismatch")
-          index = json.loads(index_bytes)
+              raise SystemExit("Prometheus index digest mismatch")
+          index = json.loads(index_bytes, object_pairs_hook=reject_duplicate_keys)
+          if (
+              not isinstance(index, dict)
+              or index.get("mediaType")
+              != "application/vnd.docker.distribution.manifest.list.v2+json"
+              or not isinstance(index.get("manifests"), list)
+          ):
+              raise SystemExit("Prometheus index manifest is malformed")
           matches = [
               item
-              for item in index.get("manifests", [])
-              if item.get("platform") == {"architecture": "amd64", "os": "linux"}
+              for item in index["manifests"]
+              if isinstance(item, dict)
+              and item.get("platform") == {"architecture": "amd64", "os": "linux"}
           ]
           if len(matches) != 1 or matches[0].get("digest") != expected_platform:
               raise SystemExit("Prometheus linux/amd64 manifest binding mismatch")
           if f"sha256:{hashlib.sha256(platform_bytes).hexdigest()}" != expected_platform:
               raise SystemExit("Prometheus runtime manifest digest mismatch")
-          platform_manifest = json.loads(platform_bytes)
-          if not isinstance(platform_manifest.get("config"), dict):
+          platform_manifest = json.loads(
+              platform_bytes,
+              object_pairs_hook=reject_duplicate_keys,
+          )
+          if (
+              not isinstance(platform_manifest, dict)
+              or platform_manifest.get("mediaType")
+              != "application/vnd.docker.distribution.manifest.v2+json"
+              or not isinstance(platform_manifest.get("config"), dict)
+          ):
               raise SystemExit("Prometheus runtime manifest config descriptor missing")
           PY
 
           docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"
           docker image inspect "$PROMETHEUS_RUNTIME_REF" > "$evidence_dir/image.json"
-          python3 - "$evidence_dir/image.json" <<'PY'
+          python3 - "$evidence_dir/image.json" "$evidence_dir/platform-manifest.json" <<'PY'
           import json
           import os
           from pathlib import Path
           import sys
 
           payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          platform_manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
           if len(payload) != 1:
               raise SystemExit("Expected exactly one inspected Prometheus image")
           image = payload[0]
@@ -223,6 +274,14 @@ jobs:
           }
           if observed != expected:
               raise SystemExit("Prometheus exact-image config mismatch")
+          config_descriptor = platform_manifest.get("config")
+          config_digest = (
+              config_descriptor.get("digest")
+              if isinstance(config_descriptor, dict)
+              else None
+          )
+          if not isinstance(config_digest, str) or image.get("Id") != config_digest:
+              raise SystemExit("Prometheus local image config digest mismatch")
           digest = os.environ["PROMETHEUS_PLATFORM_MANIFEST_DIGEST"]
           repositories = {"prom/prometheus", "docker.io/prom/prometheus"}
           repo_digests = image.get("RepoDigests") or []
@@ -233,6 +292,30 @@ jobs:
               for repository in repositories
           ):
               raise SystemExit("Prometheus local image is not bound to the canonical repository digest")
+          PY
+
+          docker run --rm \
+            --platform linux/amd64 \
+            --user 65532:65532 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --pids-limit 64 \
+            --entrypoint /bin/prometheus \
+            "$PROMETHEUS_RUNTIME_REF" \
+            --version > "$evidence_dir/version.txt" 2>&1
+          python3 - "$evidence_dir/version.txt" <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import sys
+
+          version_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+          revisions = re.findall(r"\brevision: ([0-9a-f]{40})\b", version_text)
+          expected_revision = os.environ["PROMETHEUS_SOURCE_REVISION"]
+          if revisions != [expected_revision]:
+              raise SystemExit("Prometheus binary revision does not match the manifest")
           PY
 
       - name: Check canonical Prometheus config with exact-image promtool

@@ -94,7 +94,7 @@ services:
       disable: true
 
   prometheus:
-    image: prom/prometheus:v3.14.0-distroless@sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049
+    image: prom/prometheus@sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22
     platform: linux/amd64
     user: "65532:65532"
     restart: unless-stopped

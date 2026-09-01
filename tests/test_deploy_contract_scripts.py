@@ -16,6 +16,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 PRODUCTION_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.yaml"
 PRODUCTION_COMPOSE_TEXT = PRODUCTION_COMPOSE_PATH.read_text(encoding="utf-8")
 SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.selfhosted.yaml"
@@ -23,13 +24,12 @@ STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
-PROMETHEUS_RUNTIME_REF = (
-    "prom/prometheus:v3.14.0-distroless@"
-    "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
-)
+PROMETHEUS_SOURCE_REVISION = "09fdfcd2659dd9c816e9e23c992fc161c0091757"
+PROMETHEUS_INDEX_DIGEST = "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab"
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+    "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"
 )
+PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
     "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
@@ -360,14 +360,12 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
 def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
     manifest = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest == {
-        "schema": "pulseplate.prometheus_image_manifest.v1",
+        "schema": "pulseplate.prometheus_image_manifest.v2",
         "repository": "prom/prometheus",
-        "tag": "v3.14.0-distroless",
-        "index_digest": ("sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a"),
+        "source_revision": PROMETHEUS_SOURCE_REVISION,
+        "index_digest": PROMETHEUS_INDEX_DIGEST,
         "platform": "linux/amd64",
-        "platform_manifest_digest": (
-            "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
-        ),
+        "platform_manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
         "runtime_ref": PROMETHEUS_RUNTIME_REF,
     }
 
@@ -2024,7 +2022,7 @@ def test_other_bounded_cleanup_traps_preserve_primary_and_account_for_rm(
         expected_dir_prefix = "pulseplate-obs1b-ci-123-1."
     elif surface == "prometheus-oci":
         program = _workflow_trap_prefix(
-            "Cross-bind tag index, linux amd64 manifest, and local image config",
+            "Cross-bind immutable index, linux amd64 manifest, and local image config",
             suffix='exit "$TEST_PRIMARY_STATUS"\n',
         )
         expected_dir_prefix = "pulseplate-obs1b-oci."
@@ -2473,6 +2471,58 @@ def test_cd_postgres_oci_verifier_rejects_exact_invalid_fixtures(
     assert message in completed.stderr
 
 
+def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["prometheus-image-security"]
+    steps = {step["name"]: step for step in job["steps"]}
+
+    validate_run = steps["Validate closed Prometheus image record"]["run"]
+    assert '"schema": "pulseplate.prometheus_image_manifest.v2"' in validate_run
+    assert f'"source_revision": "{PROMETHEUS_SOURCE_REVISION}"' in validate_run
+    assert f'"index_digest": "{PROMETHEUS_INDEX_DIGEST}"' in validate_run
+    assert f'"platform_manifest_digest": "{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"' in validate_run
+    assert f'"runtime_ref": "{PROMETHEUS_RUNTIME_REF}"' in validate_run
+    assert "f\"index_ref={manifest['repository']}@{manifest['index_digest']}\"" in validate_run
+    assert "f\"{manifest['repository']}@{manifest['platform_manifest_digest']}\"" in validate_run
+
+    cross_bind = steps["Cross-bind immutable index, linux amd64 manifest, and local image config"]
+    assert cross_bind["env"] == {
+        "PROMETHEUS_INDEX_REF": "${{ steps.prometheus-image.outputs.index_ref }}",
+        "PROMETHEUS_INDEX_DIGEST": "${{ steps.prometheus-image.outputs.index_digest }}",
+        "PROMETHEUS_PLATFORM_MANIFEST_DIGEST": (
+            "${{ steps.prometheus-image.outputs.platform_manifest_digest }}"
+        ),
+        "PROMETHEUS_RUNTIME_REF": "${{ steps.prometheus-image.outputs.runtime_ref }}",
+        "PROMETHEUS_SOURCE_REVISION": "${{ steps.prometheus-image.outputs.source_revision }}",
+    }
+    cross_bind_run = cross_bind["run"]
+    for required in (
+        'docker buildx imagetools inspect --raw "$PROMETHEUS_INDEX_REF"',
+        'docker buildx imagetools inspect --raw "$PROMETHEUS_RUNTIME_REF"',
+        'docker pull --platform linux/amd64 "$PROMETHEUS_RUNTIME_REF"',
+        "--entrypoint /bin/prometheus",
+        '--version > "$evidence_dir/version.txt" 2>&1',
+        r're.findall(r"\brevision: ([0-9a-f]{40})\b", version_text)',
+        "if revisions != [expected_revision]:",
+        'image.get("Id") != config_digest',
+    ):
+        assert required in cross_bind_run
+    assert "PROMETHEUS_TAG_REF" not in cross_bind_run
+    assert "main-distroless" not in cross_bind_run
+
+    scan_run = steps["Scan exact Prometheus image without suppressions"]["run"]
+    for required in (
+        "--scanners vuln,secret",
+        "--severity CRITICAL,HIGH",
+        "--exit-code 1",
+        '--ignorefile "$TRIVY_IGNORE_FILE"',
+        '"$PROMETHEUS_RUNTIME_REF"',
+    ):
+        assert required in scan_run
+    assert "--ignore-unfixed" not in scan_run
+    assert "continue-on-error" not in scan_run
+
+
 def test_prometheus_config_has_one_private_exact_target() -> None:
     config = yaml.safe_load(PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"))
     assert config == {
@@ -2885,7 +2935,7 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
     if variant == "duplicate":
         canonical_text = json.dumps(canonical, separators=(",", ":"))
         path.write_text(
-            '{"schema":"pulseplate.prometheus_image_manifest.v1",' + canonical_text[1:],
+            '{"schema":"pulseplate.prometheus_image_manifest.v2",' + canonical_text[1:],
             encoding="utf-8",
         )
         return
@@ -2895,10 +2945,16 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
         canonical["unexpected"] = "forbidden"
     elif variant == "wrong-platform-digest":
         canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+    elif variant == "wrong-source-revision":
+        canonical["source_revision"] = "A" * 40
     elif variant == "wrong-runtime-ref":
-        canonical["runtime_ref"] = "prom/prometheus:v3.14.0-distroless@sha256:" + "b" * 64
+        canonical["runtime_ref"] = (
+            "prom/prometheus:main-distroless@" + PROMETHEUS_PLATFORM_MANIFEST_DIGEST
+        )
+    elif variant == "index-digest-runtime-ref":
+        canonical["runtime_ref"] = f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"
     elif variant == "wrong-type":
-        canonical["tag"] = 314
+        canonical["source_revision"] = 314
     else:
         raise AssertionError(f"unsupported manifest variant: {variant}")
     path.write_text(json.dumps(canonical), encoding="utf-8")
@@ -2989,7 +3045,9 @@ esac
         "missing",
         "extra",
         "wrong-platform-digest",
+        "wrong-source-revision",
         "wrong-runtime-ref",
+        "index-digest-runtime-ref",
         "wrong-type",
     ),
 )
@@ -3330,9 +3388,7 @@ IMAGE_INSPECT_REJECTIONS = (
             {
                 "Os": "linux",
                 "Architecture": "amd64",
-                "RepoDigests": [
-                    "prom/prometheus@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a"
-                ],
+                "RepoDigests": [f"prom/prometheus@{PROMETHEUS_INDEX_DIGEST}"],
             }
         ]
     ),
