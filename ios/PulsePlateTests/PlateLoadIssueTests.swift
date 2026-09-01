@@ -16,15 +16,24 @@ final class PlateLoadIssueTests: XCTestCase {
     }
 
     func test_message_api_isSanitized() {
-        let issue = PlateLoadIssue.api(statusCode: 500, message: "internal stack trace blah")
-        XCTAssertEqual(issue.message, "We ran into a server problem. Please try again.")
+        let key = "plate_issue_message_api_generic"
+        let expected = NSLocalizedString(key, comment: "")
+        let rawSentinel = "internal stack trace blah"
+        let issue = PlateLoadIssue.api(statusCode: 500, message: rawSentinel)
+
+        XCTAssertNotEqual(expected, key)
+        XCTAssertEqual(issue.message, expected)
+        XCTAssertFalse(issue.message.contains(rawSentinel))
     }
 
     func test_message_transport_isSanitized() {
-        let issue = PlateLoadIssue.transport(message: "App Transport Security blah")
-        XCTAssertEqual(
-            issue.message,
-            "We couldn't reach the server. Check your internet connection and try again."
-        )
+        let key = "plate_issue_message_transport_generic"
+        let expected = NSLocalizedString(key, comment: "")
+        let rawSentinel = "App Transport Security blah"
+        let issue = PlateLoadIssue.transport(message: rawSentinel)
+
+        XCTAssertNotEqual(expected, key)
+        XCTAssertEqual(issue.message, expected)
+        XCTAssertFalse(issue.message.contains(rawSentinel))
     }
 }
