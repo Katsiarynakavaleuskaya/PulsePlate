@@ -6619,6 +6619,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-45363-jwt-fastlane.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #594 remains closed on `main`
 
+<a id="ledger-p1-jwt-fastlane-bundler-subprocess-nosec-review"></a>
+- [ ] P1: Re-review the JWT/Fastlane Bundler subprocess nosec boundary
+  - Owner: `security-auditor`
+  - Priority: P1 (security guard maintenance)
+  - Target PR: `PR-TBD` no later than 2026-11-30
+  - Status: Open; both bounded B404/B603 exceptions require removal or a new evidence-backed review before 2026-11-30
+  - Area: security / iOS release tooling / CI guard
+  - Finding Type: Periodic review of a justified Bandit subprocess boundary
+  - Reason (EN): The JWT/Fastlane regression guard still requires a fresh local Bundler resolver process under the repository's trusted CI/operator `PATH` and working-directory precondition. It selects `bundle` through `shutil.which()` and invokes one fixed `bundle lock --update fastlane jwt googleauth signet --print` argv sequence with Python's default `shell=False`; no request or repository data is interpolated into that argv. PR #2356 renews only the review metadata through 2026-11-30; executable Python, JWT/Fastlane dependency truth, the patched `jwt 3.2.0` lock, and the removed Trivy suppression remain unchanged.
+  - Links:
+    - [`scripts/ci/check_jwt_fastlane_unblock.py`](../../scripts/ci/check_jwt_fastlane_unblock.py)
+    - [`tests/test_jwt_fastlane_unblock_guard.py`](../../tests/test_jwt_fastlane_unblock_guard.py)
+    - [`tests/guards/test_nosec_policy_guard.py`](../../tests/guards/test_nosec_policy_guard.py)
+    - [`docs/security/CVE-2026-45363-jwt-fastlane.md`](../security/CVE-2026-45363-jwt-fastlane.md)
+    - [`ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363`](#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363)
+    - [PR #2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356)
+  - DoD:
+    - Re-evaluate whether the fresh Bundler resolver subprocess remains required before 2026-11-30
+    - Remove both B404/B603 annotations if an equally fail-closed implementation can avoid the direct subprocess boundary
+    - If the process remains required, revalidate `shutil.which("bundle")` selection under the trusted CI/operator `PATH`, fixed argv, default `shell=False` behavior, and absence of request/repository interpolation into argv before any new finite renewal
+    - Preserve `jwt >= 3.2.0`, keep the CVE-2026-45363 Trivy suppression absent, and add no nosec allowlist entry
+    - Focused JWT/Fastlane guard, nosec-policy guard, Bandit, narrow local bundle, and current-head CI pass
+
 <a id="ledger-p1-ruby-json-cve-2026-54696-release-tooling"></a>
 - [x] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
   - Owner: `app-store-release-agent`
