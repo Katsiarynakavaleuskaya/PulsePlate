@@ -1257,6 +1257,8 @@ def test_evaluate_candidate_does_not_retry_lost_unshare_capability(
         attempts["count"] += 1
         raise RuntimeError("Network-disabled sandbox requires unshare on PATH.")
 
+    monkeypatch.setattr(experiment_runner, "_shared_tree_status", lambda _root: "stable")
+    monkeypatch.setattr(experiment_runner, "_has_effective_diff", lambda _root: True)
     monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _missing_unshare)
 
     with pytest.raises(experiment_runner.RunnerCapabilitySignal) as caught:
