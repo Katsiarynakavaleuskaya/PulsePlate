@@ -7170,7 +7170,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: ✅ Completed in implementation PR #2356 with a digest-only, revision-bound temporary bridge; no suppression or separate docs-only closure PR is used
   - Area: security / prometheus / OCI identity / CD
   - Finding Type: CRITICAL transitive Go dependency in an immutable deployment image
-  - Reason (EN): The suppression-free Prometheus CD scan began reporting `CVE-2026-56854` because the released v3.14.0 distroless image embeds `golang.org/x/crypto v0.54.0`; the reviewed fix is v0.55.0. The official latest semver release remains v3.14.0, so PR #2356 temporarily selects one official upstream-main distroless build by immutable index and linux/amd64 manifest digests, binds its exact reported source revision, and preserves all runtime and deployment contracts without relying on the mutable discovery tag.
+  - Reason (EN): The suppression-free Prometheus CD scan began reporting `CVE-2026-56854` because the released v3.14.0 distroless image embeds `golang.org/x/crypto v0.54.0`; the reviewed fix is v0.55.0. The official latest semver release remains v3.14.0, so PR #2356 temporarily selects one official upstream-main distroless build by immutable index and linux/amd64 manifest digests, binds its exact reported source revision, and preserves the enumerated linux/amd64, UID 65532, entrypoint, command, working-directory, config-syntax, non-root, private-network, named-volume, and digest-only Compose/deploy contracts without relying on the mutable discovery tag.
   - Links:
     - [Go vulnerability GO-2026-6303](https://pkg.go.dev/vuln/GO-2026-6303)
     - [Prometheus source revision `09fdfcd2659d`](https://github.com/prometheus/prometheus/commit/09fdfcd2659dd9c816e9e23c992fc161c0091757)
@@ -7183,6 +7183,49 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - The exact image passes the existing empty-ignore, suppression-free Trivy `CRITICAL,HIGH` scan; no ignore, waiver, severity reduction, `continue-on-error`, or `--ignore-unfixed` is added
     - Focused deploy tests, current-head CD/security CI, mapping/review dispositions, and strict readiness pass before squash merge
   - Rollback / exit: Before merge, restore the prior exact record atomically only if it still passes current security policy. After merge, use a forward PR. Replace this upstream-main bridge with the next suitable official semver release after it passes the same identity, runtime, `promtool`, suppression-free scan, and repository gates.
+
+<a id="ledger-p1-caddy-cve-2026-56854-remediation"></a>
+- [x] P1: Remediate Caddy CVE-2026-56854 in the existing PR #2356 carrier
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (required current-head security gate)
+  - Target PR: [#2356](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2356) (`codex/dep-auto-setup-go-v7`)
+  - Status: ✅ Implemented in PR #2356; the exact Go 1.26.6 Apple Container resolver, linux/amd64 final image, binary inspection, module parity, capability, Caddyfile, and empty-ignore Trivy checks pass locally. Closure becomes current-main truth only when #2356 merges; current-head GitHub CI, review, and strict closeout remain required before merge.
+  - Area: security / frontend Caddy image / Go dependency identity
+  - Finding Type: CRITICAL transitive Go dependency in a required deployment image
+  - Reason (EN): Exact-head CD run `33441869876`, job `99651961031`, reported `golang.org/x/crypto v0.53.0` in `usr/bin/caddy` as affected by `GO-2026-6303 / CVE-2026-56854`, with `v0.55.0` fixed. The operator explicitly authorized the already-open PR #2356 to close this directly exposed scan blocker in the same carrier. The remediation adds one exact authored `go get golang.org/x/crypto@v0.55.0` action, accepts only its replay-proven eight-module solver closure, and keeps Caddy v2.11.4, Go 1.26.6, the pinned bases, standard-module parity, capabilities, runtime package floors, and suppression-free scan posture unchanged.
+  - Links:
+    - [Canonical PR #2356 CVE owner](../security/PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md)
+    - [Go vulnerability GO-2026-6303](https://pkg.go.dev/vuln/GO-2026-6303)
+    - [Failed Caddy scan job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33441869876/job/99651961031)
+    - [`frontend/Dockerfile.caddy-spa`](../../frontend/Dockerfile.caddy-spa)
+    - [`tests/test_caddy_deploy_provenance.py`](../../tests/test_caddy_deploy_provenance.py)
+    - [`ledger-p1-prometheus-cve-2026-56854-immutable-bridge`](#ledger-p1-prometheus-cve-2026-56854-immutable-bridge)
+  - DoD:
+    - The Caddy build expresses exactly one authored dependency action for `golang.org/x/crypto v0.55.0`; the complete nine-transition replay delta is partitioned into that action and eight deterministic solver-closure transitions
+    - The completed binary reports Caddy v2.11.4, Go 1.26.6, grpc-go v1.82.1, `x/crypto v0.55.0`, and the exact replay-proven embedded `x/net`, `x/sync`, `x/sys`, `x/term`, and `x/text` identities
+    - Deterministic tests reject the vulnerable Caddy identity, missing or reordered selection, graph drift, missing embedded rows, a second authored `x/text` action, suppressions, and weakened scan/runtime contracts
+    - The exact current-head Caddy image passes build-info, standard-module parity, capabilities, Caddyfile, provenance, SBOM, and empty-ignore Trivy `CRITICAL,HIGH` gates without a waiver or suppression
+    - The combined head proves `golang.org/x/crypto v0.55.0` in Caddy, Prometheus, and promtool, then passes focused tests, the narrow local bundle, current-head CI, review disposition, mapping, and strict readiness before squash merge
+  - Rollback: Fail closed before merge if any resolver, build, parity, capability, provenance, SBOM, or scan check fails. After merge, use a forward PR selecting another verified fixed identity. Do not restore the known-affected Caddy binary, partially revert only tests/docs, add a suppression, use a mutable tag, or rewrite branch history.
+  - Exit criteria: Remove the explicit Caddy `x/crypto` selection only when an official Caddy release's canonical resolver graph selects `v0.55.0` or later without the override, the resulting complete dependency delta is reconciled, and the exact rebuilt image passes all existing binary/runtime/security/current-head gates.
+
+<a id="ledger-p1-caddy-x-crypto-upstream-exit"></a>
+- [ ] P1: Retire the temporary explicit Caddy `golang.org/x/crypto` selection
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1 (temporary dependency override retirement)
+  - Target PR: The first suitable official Caddy release after v2.11.4
+  - Status: Blocked on an official Caddy release whose canonical module graph resolves the fixed `x/crypto` floor without the explicit selection
+  - Area: security / frontend Caddy image / dependency lifecycle
+  - Reason (EN): PR #2356 uses the canonical Go resolver to repair a current required scan while preserving the Caddy v2.11.4 binary contract, but the direct `x/crypto` selection should not silently become permanent after upstream Caddy naturally carries the fixed dependency.
+  - Links:
+    - [Canonical PR #2356 CVE owner](../security/PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md)
+    - [`ledger-p1-caddy-cve-2026-56854-remediation`](#ledger-p1-caddy-cve-2026-56854-remediation)
+    - [Caddy releases](https://github.com/caddyserver/caddy/releases)
+  - DoD:
+    - An official Caddy release resolves `golang.org/x/crypto v0.55.0` or later without an explicit PulsePlate `go get` override
+    - Its complete base/head module delta is replayed and classified with no manual, omitted, or unclassified transition
+    - Caddy version/build-info, standard-module parity, capabilities, runtime package floors, Caddyfile, provenance, SBOM, and exact-image suppression-free scan gates pass unchanged
+    - The override, its exact assertions, tests, owner record, and rollback evidence are retired atomically in one reviewed PR
 
 <a id="ledger-p1-prometheus-next-semver-release-exit"></a>
 - [ ] P1: Replace the temporary Prometheus upstream-main bridge with the next fixed semver release
