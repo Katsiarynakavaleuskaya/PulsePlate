@@ -13,6 +13,10 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
+BACKLOG_LEDGER = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+CVE_SECURITY_OWNER = (
+    REPO_ROOT / "docs" / "security" / "PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md"
+)
 STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_IMAGE_MANIFEST = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
@@ -25,8 +29,113 @@ GO_BUILDER = (
     "golang:1.26.6-alpine3.23@"
     "sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3"
 )
+NODE_BUILDER = (
+    "node:24.18.1-bookworm-slim@"
+    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+)
 CADDY_BASE = (
     "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+)
+EXPECTED_CADDY_BUILDER_STAGE = (
+    "\n".join(
+        (
+            f"FROM {GO_BUILDER} AS caddy-build",
+            "",
+            "ENV CGO_ENABLED=0 \\",
+            "    GOTOOLCHAIN=local \\",
+            "    GOPROXY=https://proxy.golang.org,direct \\",
+            "    GOSUMDB=sum.golang.org",
+            "",
+            "RUN set -eux; \\",
+            "    set -o pipefail; \\",
+            '    build_dir="$(mktemp -d)"; \\',
+            '    cd "$build_dir"; \\',
+            "    go mod init pulseplate.local/caddy-build; \\",
+            "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \\",
+            "    go get google.golang.org/grpc@v1.82.1; \\",
+            "    go get golang.org/x/crypto@v0.55.0; \\",
+            "    go mod download all; \\",
+            "    go mod verify; \\",
+            (
+                "    test -z \"$(go list -m -f '{{if .Replace}}{{.Path}} => "
+                "{{.Replace.Path}}{{end}}' all)\"; \\"
+            ),
+            (
+                "    go list -m -f '{{if or "
+                '(eq .Path "github.com/caddyserver/caddy/v2") '
+                '(eq .Path "google.golang.org/grpc") '
+                '(eq .Path "golang.org/x/crypto") '
+                '(eq .Path "golang.org/x/mod") '
+                '(eq .Path "golang.org/x/net") '
+                '(eq .Path "golang.org/x/sync") '
+                '(eq .Path "golang.org/x/sys") '
+                '(eq .Path "golang.org/x/telemetry") '
+                '(eq .Path "golang.org/x/term") '
+                '(eq .Path "golang.org/x/text") '
+                '(eq .Path "golang.org/x/tools")'
+                "}}{{.Path}} {{.Version}}{{end}}' all \\"
+            ),
+            "      | awk 'NF' \\",
+            "      | LC_ALL=C sort > /tmp/caddy-governed-graph; \\",
+            "    printf '%s\\n' \\",
+            "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'golang.org/x/crypto v0.55.0' \\",
+            "      'golang.org/x/mod v0.38.0' \\",
+            "      'golang.org/x/net v0.57.0' \\",
+            "      'golang.org/x/sync v0.22.0' \\",
+            "      'golang.org/x/sys v0.47.0' \\",
+            "      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \\",
+            "      'golang.org/x/term v0.45.0' \\",
+            "      'golang.org/x/text v0.41.0' \\",
+            "      'golang.org/x/tools v0.48.0' \\",
+            "      'google.golang.org/grpc v1.82.1' \\",
+            "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
+            ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
+            "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
+            "    go build -mod=readonly -trimpath \\",
+            ("      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' " "\\"),
+            "      -o /go/bin/caddy \\",
+            "      github.com/caddyserver/caddy/v2/cmd/caddy; \\",
+            "    /go/bin/caddy version; \\",
+            "    go version -m /go/bin/caddy > /tmp/caddy-binary-metadata; \\",
+            "    cat /tmp/caddy-binary-metadata; \\",
+            (
+                '    test "$(awk \'$1 == "=>" { count++ } END { print count + 0 }\' '
+                "/tmp/caddy-binary-metadata)\" = '0'; \\"
+            ),
+            (
+                '    awk \'$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" '
+                '{ print $1, $2, $3 } $1 == "dep" && '
+                '($2 == "google.golang.org/grpc" || $2 == "golang.org/x/crypto" || '
+                '$2 == "golang.org/x/net" || $2 == "golang.org/x/sync" || '
+                '$2 == "golang.org/x/sys" || $2 == "golang.org/x/term" || '
+                '$2 == "golang.org/x/text") { print $1, $2, $3 }\' '
+                "/tmp/caddy-binary-metadata \\"
+            ),
+            "      | LC_ALL=C sort > /tmp/caddy-governed-binary; \\",
+            "    printf '%s\\n' \\",
+            "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
+            "      'dep golang.org/x/crypto v0.55.0' \\",
+            "      'dep golang.org/x/net v0.57.0' \\",
+            "      'dep golang.org/x/sync v0.22.0' \\",
+            "      'dep golang.org/x/sys v0.47.0' \\",
+            "      'dep golang.org/x/term v0.45.0' \\",
+            "      'dep golang.org/x/text v0.41.0' \\",
+            "      'dep google.golang.org/grpc v1.82.1' \\",
+            "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
+            ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
+            "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
+            "    rm -f \\",
+            "      /tmp/caddy-binary-metadata \\",
+            "      /tmp/caddy-expected-binary \\",
+            "      /tmp/caddy-expected-graph \\",
+            "      /tmp/caddy-governed-binary \\",
+            "      /tmp/caddy-governed-graph; \\",
+            '    rm -rf "$build_dir"',
+            "",
+        )
+    )
+    + "\n"
 )
 EXPECTED_CADDY_FINAL_STAGE = (
     "\n".join(
@@ -116,6 +225,16 @@ def _step_index(steps: list[dict[str, object]], name: str) -> int:
     return steps.index(_named_step(steps, name))
 
 
+def _assert_caddy_builder_stage_contract(text: str) -> None:
+    builder_stage_marker = f"FROM {GO_BUILDER} AS caddy-build\n"
+    node_stage_marker = f"FROM {NODE_BUILDER} AS frontend-build\n"
+    assert text.count(builder_stage_marker) == 1
+    assert text.count(node_stage_marker) == 1
+    builder_start = text.index(builder_stage_marker)
+    node_start = text.index(node_stage_marker, builder_start)
+    assert text[builder_start:node_start] == EXPECTED_CADDY_BUILDER_STAGE
+
+
 def _assert_caddy_openssl_runtime_floor_contract(text: str) -> None:
     final_stage_marker = f"FROM {CADDY_BASE}\n"
     assert text.count(final_stage_marker) == 1
@@ -158,7 +277,9 @@ def test_frontend_workflow_routes_quick_fix_through_caddy_contract() -> None:
 def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     text = DOCKERFILE.read_text(encoding="utf-8")
 
+    _assert_caddy_builder_stage_contract(text)
     assert f"FROM {GO_BUILDER} AS caddy-build" in text
+    assert f"FROM {NODE_BUILDER} AS frontend-build" in text
     assert f"FROM {CADDY_BASE}" in text
     assert "GOTOOLCHAIN=local" in text
     assert "CGO_ENABLED=0" in text
@@ -168,35 +289,45 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "go mod init pulseplate.local/caddy-build" in text
     caddy_get = "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4"
     grpc_get = "go get google.golang.org/grpc@v1.82.1"
-    text_get = "go get golang.org/x/text@v0.39.0"
+    crypto_get = "go get golang.org/x/crypto@v0.55.0"
     assert caddy_get in text
     assert grpc_get in text
-    assert text_get in text
-    assert text.index(caddy_get) < text.index(grpc_get) < text.index(text_get)
-    assert text.index(text_get) < text.index("go mod download all")
+    assert text.count(crypto_get) == 1
+    assert text.index(caddy_get) < text.index(grpc_get) < text.index(crypto_get)
+    assert text.index(crypto_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
-    assert (
-        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
-        'github.com/caddyserver/caddy/v2)" = \\\n'
-        '      "github.com/caddyserver/caddy/v2 v2.11.4"'
-    ) in text
-    assert (
-        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
-        'google.golang.org/grpc)" = \\\n'
-        '      "google.golang.org/grpc v1.82.1"'
-    ) in text
-    assert (
-        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
-        'golang.org/x/text)" = \\\n'
-        '      "golang.org/x/text v0.39.0"'
-    ) in text
+    for exact_graph_identity in (
+        "github.com/caddyserver/caddy/v2 v2.11.4",
+        "google.golang.org/grpc v1.82.1",
+        "golang.org/x/crypto v0.55.0",
+        "golang.org/x/mod v0.38.0",
+        "golang.org/x/net v0.57.0",
+        "golang.org/x/sync v0.22.0",
+        "golang.org/x/sys v0.47.0",
+        "golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959",
+        "golang.org/x/term v0.45.0",
+        "golang.org/x/text v0.41.0",
+        "golang.org/x/tools v0.48.0",
+    ):
+        assert f"'{exact_graph_identity}'" in text
+    assert "test -z \"$(go list -m -f '{{if .Replace}}" in text
+    assert "cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph" in text
     assert "go build -mod=readonly -trimpath" in text
     assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
-    assert "go version -m /go/bin/caddy" in text
-    assert '$2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4"' in text
-    assert '$2 == "google.golang.org/grpc" && $3 == "v1.82.1"' in text
-    assert '$2 == "golang.org/x/text" && $3 == "v0.39.0"' in text
+    assert "go version -m /go/bin/caddy > /tmp/caddy-binary-metadata" in text
+    assert "cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary" in text
+    for exact_binary_identity in (
+        "mod github.com/caddyserver/caddy/v2 v2.11.4",
+        "dep google.golang.org/grpc v1.82.1",
+        "dep golang.org/x/crypto v0.55.0",
+        "dep golang.org/x/net v0.57.0",
+        "dep golang.org/x/sync v0.22.0",
+        "dep golang.org/x/sys v0.47.0",
+        "dep golang.org/x/term v0.45.0",
+        "dep golang.org/x/text v0.41.0",
+    ):
+        assert f"'{exact_binary_identity}'" in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
@@ -215,14 +346,151 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "GOSUMDB=off",
         "google.golang.org/grpc@v1.81.0",
         "google.golang.org/grpc v1.81.0",
+        "golang.org/x/crypto@v0.53.0",
+        "golang.org/x/crypto@v0.54.0",
+        "golang.org/x/crypto v0.53.0",
+        "golang.org/x/crypto v0.54.0",
+        "go get golang.org/x/mod@",
+        "go get golang.org/x/net@",
+        "go get golang.org/x/sync@",
+        "go get golang.org/x/sys@",
+        "go get golang.org/x/telemetry@",
+        "go get golang.org/x/term@",
+        "go get golang.org/x/text@",
+        "go get golang.org/x/tools@",
         "golang.org/x/text@v0.37.0",
         "golang.org/x/text v0.37.0",
+        "golang.org/x/text@v0.39.0",
+        "golang.org/x/text v0.39.0",
+        "GONOPROXY",
+        "GOPRIVATE",
+        "go env -w",
+        "-mod=vendor",
         "xcaddy",
     ):
         assert forbidden not in text
     assert re.search(r"(?m)^\s*replace(?:\s|=)", text) is None
     assert "CVE-2026-56852" not in (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
     assert 'rm -rf "$build_dir"' in text
+
+
+def test_caddy_dockerfile_keeps_closed_fixed_builder_stage_recipe() -> None:
+    _assert_caddy_builder_stage_contract(DOCKERFILE.read_text(encoding="utf-8"))
+
+
+def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:
+    ledger = BACKLOG_LEDGER.read_text(encoding="utf-8")
+    anchor = '<a id="ledger-p1-caddy-cve-2026-56854-remediation"></a>'
+    exit_anchor = '<a id="ledger-p1-caddy-x-crypto-upstream-exit"></a>'
+    assert ledger.count(anchor) == 1
+    assert ledger.count(exit_anchor) == 1
+    start = ledger.index(anchor)
+    end = ledger.index(exit_anchor, start)
+    item = ledger[start:end]
+    for required in (
+        "Owner: @katsiaryna_kavaleuskaya (Security/SRE)",
+        "Priority: P1 (required current-head security gate)",
+        "Target PR: [#2356]",
+        "Status:",
+        "Reason (EN):",
+        "Links:",
+        "DoD:",
+        "Rollback:",
+        "Exit criteria:",
+        "../security/PR_2356_CVE_2026_56854_CONTAINER_RUNTIME_REMEDIATION.md",
+    ):
+        assert required in item
+
+    owner = CVE_SECURITY_OWNER.read_text(encoding="utf-8")
+    for required in (
+        "## Decision and authority boundary",
+        "## Exact base failure evidence",
+        "## D / S / A / R / P reconciliation",
+        "### I_R — one authored replacement action",
+        "### C_R — deterministic resolver closure",
+        "### P — required universal head postcondition",
+        "## Local exact candidate image evidence",
+        "## Rollback and exit criteria",
+        "trivy_high_critical_findings=0",
+    ):
+        assert owner.count(required) == 1
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "omitted",
+        "duplicate",
+        "reordered",
+        "downgraded-0.53",
+        "downgraded-0.54",
+        "floating",
+        "replaced",
+        "local",
+        "checksum-bypass",
+        "independent-closure-action",
+        "graph-fixed-binary-stale",
+        "binary-fixed-graph-stale",
+    ),
+)
+def test_caddy_builder_stage_snapshot_rejects_dependency_contract_drift(case: str) -> None:
+    source = DOCKERFILE.read_text(encoding="utf-8")
+    crypto_action = "    go get golang.org/x/crypto@v0.55.0; \\\n"
+
+    if case == "omitted":
+        candidate = source.replace(crypto_action, "", 1)
+    elif case == "duplicate":
+        candidate = source.replace(crypto_action, crypto_action * 2, 1)
+    elif case == "reordered":
+        candidate = source.replace(crypto_action, "", 1).replace(
+            "    go mod verify; \\\n",
+            "    go mod verify; \\\n" + crypto_action,
+            1,
+        )
+    elif case == "downgraded-0.53":
+        candidate = source.replace("x/crypto@v0.55.0", "x/crypto@v0.53.0", 1)
+    elif case == "downgraded-0.54":
+        candidate = source.replace("x/crypto@v0.55.0", "x/crypto@v0.54.0", 1)
+    elif case == "floating":
+        candidate = source.replace("x/crypto@v0.55.0", "x/crypto@latest", 1)
+    elif case == "replaced":
+        candidate = source.replace(
+            "    go mod init pulseplate.local/caddy-build; \\\n",
+            "    go mod init pulseplate.local/caddy-build; \\\n"
+            "    go mod edit -replace=golang.org/x/crypto=../crypto; \\\n",
+            1,
+        )
+    elif case == "local":
+        candidate = source.replace(
+            crypto_action,
+            crypto_action + "    go get ../crypto; \\\n",
+            1,
+        )
+    elif case == "checksum-bypass":
+        candidate = source.replace("    GOSUMDB=sum.golang.org", "    GOSUMDB=off", 1)
+    elif case == "independent-closure-action":
+        candidate = source.replace(
+            crypto_action,
+            crypto_action + "    go get golang.org/x/text@v0.41.0; \\\n",
+            1,
+        )
+    elif case == "graph-fixed-binary-stale":
+        candidate = source.replace(
+            "      'dep golang.org/x/crypto v0.55.0' \\\n",
+            "      'dep golang.org/x/crypto v0.54.0' \\\n",
+            1,
+        )
+    else:
+        assert case == "binary-fixed-graph-stale"
+        candidate = source.replace(
+            "      'golang.org/x/crypto v0.55.0' \\\n",
+            "      'golang.org/x/crypto v0.54.0' \\\n",
+            1,
+        )
+
+    assert candidate != source
+    with pytest.raises(AssertionError):
+        _assert_caddy_builder_stage_contract(candidate)
 
 
 def test_caddy_dockerfile_keeps_closed_fixed_openssl_final_stage_recipe() -> None:

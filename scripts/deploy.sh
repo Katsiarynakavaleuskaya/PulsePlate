@@ -155,15 +155,15 @@ import sys
 
 manifest_path = sys.argv[1]
 expected = {
-    "schema": "pulseplate.prometheus_image_manifest.v1",
+    "schema": "pulseplate.prometheus_image_manifest.v2",
     "repository": "prom/prometheus",
-    "tag": "v3.14.0-distroless",
-    "index_digest": "sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+    "source_revision": "09fdfcd2659dd9c816e9e23c992fc161c0091757",
+    "index_digest": "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049",
+    "platform_manifest_digest": "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",
     "runtime_ref": (
-        "prom/prometheus:v3.14.0-distroless@"
-        "sha256:934c331c7aa29ffdb23b4befec6f34321c518453e63713d741d8ac1737c8e049"
+        "prom/prometheus@"
+        "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"
     ),
 }
 
@@ -213,13 +213,13 @@ if type(manifest) is not dict or set(manifest) != set(expected):
     raise SystemExit("Prometheus manifest fields do not match the closed contract")
 if any(type(manifest[key]) is not str for key in expected):
     raise SystemExit("Prometheus manifest values must be strings")
+if not re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]):
+    raise SystemExit("Prometheus manifest source revision is malformed")
 if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["index_digest"]):
     raise SystemExit("Prometheus index digest is malformed")
 if not re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]):
     raise SystemExit("Prometheus platform digest is malformed")
-derived_ref = (
-    f'{manifest["repository"]}:{manifest["tag"]}@{manifest["platform_manifest_digest"]}'
-)
+derived_ref = f'{manifest["repository"]}@{manifest["platform_manifest_digest"]}'
 if manifest["runtime_ref"] != derived_ref or manifest != expected:
     raise SystemExit("Prometheus manifest identity does not match the canonical record")
 print(manifest["runtime_ref"])

@@ -50,7 +50,11 @@ WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
 ORCHESTRATION_AGENTS = REPO_ROOT / "docs/orchestration/AGENTS.md"
 LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
-GIT_FETCH_TIMEOUT_SECONDS = 15
+
+
+def _fake_git_which(name: str) -> str | None:
+    """Resolve only the Git executable for deterministic subprocess tests."""
+    return "/usr/bin/git" if name == "git" else None
 
 
 def _read(path: Path) -> str:
@@ -94,76 +98,63 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if staged:
         return staged
 
-    diff_bases = []
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path:
+    if event_name == "pull_request":
+        if not event_path:
+            pytest.fail("Unable to inspect exact PR diff: GITHUB_EVENT_PATH is missing")
         try:
             event = json.loads(Path(event_path).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            errors = [f"GITHUB_EVENT_PATH: {exc}"]
-        else:
-            errors = []
-            pull_request = event.get("pull_request", {})
-            base_sha = pull_request.get("base", {}).get("sha")
-            head_sha = pull_request.get("head", {}).get("sha")
-            if (
-                isinstance(base_sha, str)
-                and isinstance(head_sha, str)
-                and re.fullmatch(r"[0-9a-f]{40}", base_sha)
-                and re.fullmatch(r"[0-9a-f]{40}", head_sha)
-            ):
-                for depth in (100, 500, 2000):
-                    try:
-                        fetch_pr_bounds = subprocess.run(
-                            [
-                                git_bin,
-                                "fetch",
-                                "--no-tags",
-                                f"--depth={depth}",
-                                "origin",
-                                base_sha,
-                                head_sha,
-                            ],
-                            cwd=REPO_ROOT,
-                            check=False,
-                            text=True,
-                            capture_output=True,
-                            timeout=GIT_FETCH_TIMEOUT_SECONDS,
-                        )
-                    except subprocess.TimeoutExpired:
-                        errors.append(
-                            f"fetch depth={depth} {base_sha}..{head_sha}: "
-                            f"timed out after {GIT_FETCH_TIMEOUT_SECONDS}s"
-                        )
-                        continue
-                    if fetch_pr_bounds.returncode != 0:
-                        detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
-                        errors.append(
-                            f"fetch depth={depth} {base_sha}..{head_sha}: "
-                            f"{detail or 'git fetch failed'}"
-                        )
-                        continue
-                    merge_base = subprocess.run(
-                        [git_bin, "merge-base", base_sha, head_sha],
-                        cwd=REPO_ROOT,
-                        check=False,
-                        text=True,
-                        capture_output=True,
-                    )
-                    merge_base_sha = merge_base.stdout.strip()
-                    if merge_base.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", merge_base_sha):
-                        diff_bases.append(f"{merge_base_sha}...{head_sha}")
-                        break
-                    else:
-                        detail = (merge_base.stderr or merge_base.stdout).strip()
-                        errors.append(
-                            f"merge-base depth={depth} {base_sha} {head_sha}: "
-                            f"{detail or 'git merge-base failed'}"
-                        )
-    else:
-        errors = []
+            pytest.fail(f"Unable to inspect exact PR diff: GITHUB_EVENT_PATH: {exc}")
 
-    diff_bases.extend(["origin/main...HEAD", "main...HEAD"])
+        if not isinstance(event, dict):
+            pytest.fail("Unable to inspect exact PR diff: event root must be an object")
+        pull_request = event.get("pull_request")
+        if not isinstance(pull_request, dict):
+            pytest.fail("Unable to inspect exact PR diff: pull_request object is missing")
+        base = pull_request.get("base")
+        head = pull_request.get("head")
+        base_sha = base.get("sha") if isinstance(base, dict) else None
+        head_sha = head.get("sha") if isinstance(head, dict) else None
+        if not (
+            isinstance(base_sha, str)
+            and isinstance(head_sha, str)
+            and re.fullmatch(r"[0-9a-f]{40}", base_sha)
+            and re.fullmatch(r"[0-9a-f]{40}", head_sha)
+        ):
+            pytest.fail("Unable to inspect exact PR diff: base/head SHAs must be lowercase 40-hex")
+
+        merge_base = subprocess.run(
+            [git_bin, "merge-base", base_sha, head_sha],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        merge_base_sha = merge_base.stdout.strip()
+        if merge_base.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", merge_base_sha):
+            detail = (merge_base.stderr or merge_base.stdout).strip()
+            pytest.fail(
+                "Unable to inspect exact PR diff: "
+                f"merge-base {base_sha} {head_sha}: {detail or 'invalid merge-base output'}"
+            )
+
+        exact_diff = f"{merge_base_sha}...{head_sha}"
+        branch = subprocess.run(
+            [git_bin, "diff", "--name-only", exact_diff],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if branch.returncode == 0:
+            return branch.stdout.splitlines()
+        detail = (branch.stderr or branch.stdout).strip()
+        pytest.fail(f"Unable to inspect exact PR diff: {exact_diff}: {detail or 'git diff failed'}")
+
+    errors = []
+    diff_bases = ["origin/main...HEAD", "main...HEAD"]
 
     for diff_base in diff_bases:
         branch = subprocess.run(
@@ -181,20 +172,21 @@ def _changed_paths_for_current_worktree() -> list[str]:
     pytest.fail("Unable to inspect branch diff for Kimi docs-only guard: " + "; ".join(errors))
 
 
-def test_kimi_diff_fetch_has_timeout_before_local_fallback(
+def test_kimi_diff_uses_exact_local_event_range_without_fetch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Network fetch diagnostics must not be able to hang the docs-only guard."""
+    """A PR event must use its exact local graph without mutating Git state."""
 
     base_sha = "a" * 40
     head_sha = "b" * 40
+    merge_base_sha = "c" * 40
     event_path = tmp_path / "event.json"
     event_path.write_text(
         json.dumps({"pull_request": {"base": {"sha": base_sha}, "head": {"sha": head_sha}}}),
         encoding="utf-8",
     )
-    fetch_depths: list[str] = []
+    commands: list[list[str]] = []
 
     class Completed:
         def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
@@ -203,24 +195,155 @@ def test_kimi_diff_fetch_has_timeout_before_local_fallback(
             self.stderr = stderr
 
     def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
         if command[1:] == ["diff", "--cached", "--name-only"]:
             return Completed(stdout="")
-        if command[1] == "fetch":
-            assert kwargs["timeout"] == GIT_FETCH_TIMEOUT_SECONDS
-            fetch_depths.append(command[3])
-            raise subprocess.TimeoutExpired(cmd=command, timeout=GIT_FETCH_TIMEOUT_SECONDS)
-        if command[1:] == ["diff", "--name-only", "origin/main...HEAD"]:
+        if command[1:] == ["merge-base", base_sha, head_sha]:
+            return Completed(stdout=f"{merge_base_sha}\n")
+        if command[1:] == ["diff", "--name-only", f"{merge_base_sha}...{head_sha}"]:
             return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
-        if command[1] == "diff":
-            return Completed(returncode=1, stderr="missing local base")
-        return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
+        raise AssertionError(f"unexpected or mutating command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
 
     assert _changed_paths_for_current_worktree() == ["docs/orchestration/KIMI_PROTOCOL.md"]
-    assert fetch_depths == ["--depth=100", "--depth=500", "--depth=2000"]
+    assert commands == [
+        ["/usr/bin/git", "diff", "--cached", "--name-only"],
+        ["/usr/bin/git", "merge-base", base_sha, head_sha],
+        ["/usr/bin/git", "diff", "--name-only", f"{merge_base_sha}...{head_sha}"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "failure_mode", ("merge_base_failed", "merge_base_malformed", "diff_failed")
+)
+def test_kimi_diff_event_fails_closed_without_fetch_or_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    failure_mode: str,
+) -> None:
+    """Unavailable exact PR evidence must fail without fetch or branch fallback."""
+
+    base_sha = "a" * 40
+    head_sha = "b" * 40
+    merge_base_sha = "c" * 40
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"pull_request": {"base": {"sha": base_sha}, "head": {"sha": head_sha}}}),
+        encoding="utf-8",
+    )
+    commands: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        if command[1:] == ["merge-base", base_sha, head_sha]:
+            if failure_mode == "merge_base_failed":
+                return Completed(returncode=1, stderr="missing exact commit")
+            if failure_mode == "merge_base_malformed":
+                return Completed(stdout="not-a-sha\n")
+            return Completed(stdout=f"{merge_base_sha}\n")
+        if command[1:] == ["diff", "--name-only", f"{merge_base_sha}...{head_sha}"]:
+            if failure_mode == "diff_failed":
+                return Completed(returncode=1, stderr="exact diff unavailable")
+        raise AssertionError(f"unexpected fetch or fallback command: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+    with pytest.raises(pytest.fail.Exception, match="Unable to inspect exact PR diff"):
+        _changed_paths_for_current_worktree()
+
+    assert all(command[1] not in {"fetch", "checkout", "merge", "reset"} for command in commands)
+    assert all("origin/main...HEAD" not in command for command in commands)
+    assert all("main...HEAD" not in command for command in commands)
+
+
+def test_kimi_diff_push_event_uses_non_mutating_local_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A push payload must not be parsed as a pull-request event."""
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"ref": "refs/heads/main"}), encoding="utf-8")
+    commands: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        if command[1:] == ["diff", "--name-only", "origin/main...HEAD"]:
+            return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
+        raise AssertionError(f"unexpected or mutating command: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "push")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+    assert _changed_paths_for_current_worktree() == ["docs/orchestration/KIMI_PROTOCOL.md"]
+    assert commands == [
+        ["/usr/bin/git", "diff", "--cached", "--name-only"],
+        ["/usr/bin/git", "diff", "--name-only", "origin/main...HEAD"],
+    ]
+
+
+@pytest.mark.parametrize("event", (None, [], "pull_request", 1))
+def test_kimi_diff_pull_request_rejects_non_object_event_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    event: object,
+) -> None:
+    """Malformed PR event roots must use the stable fail-closed diagnostic."""
+
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    commands: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, stdout: str = "") -> None:
+            self.returncode = 0
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        raise AssertionError(f"unexpected Git command for malformed event: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+    with pytest.raises(pytest.fail.Exception, match="event root must be an object"):
+        _changed_paths_for_current_worktree()
+
+    assert commands == [["/usr/bin/git", "diff", "--cached", "--name-only"]]
 
 
 def test_kimi_diff_fails_closed_without_first_parent_fallback(
@@ -247,8 +370,9 @@ def test_kimi_diff_fails_closed_without_first_parent_fallback(
             return Completed(returncode=1, stderr="missing stable base")
         return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
 
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(shutil, "which", _fake_git_which)
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
     monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
 
     with pytest.raises(pytest.fail.Exception, match="Unable to inspect branch diff"):
