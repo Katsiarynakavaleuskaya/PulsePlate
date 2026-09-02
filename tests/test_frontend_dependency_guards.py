@@ -29,6 +29,9 @@ FRONTEND_LOCK_JSON = REPO_ROOT / "frontend" / "package-lock.json"
 BRACE_EXPANSION_EVIDENCE_PATH = (
     REPO_ROOT / "docs" / "security" / "FRONTEND_BRACE_EXPANSION_REMEDIATION_CLASS.md"
 )
+BROWSERSLIST_EVIDENCE_PATH = (
+    REPO_ROOT / "docs" / "security" / "FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md"
+)
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 NPM_SEMVER_MAX_LENGTH = 256
 NPM_SEMVER_MAX_SAFE_INTEGER = 9_007_199_254_740_991
@@ -204,6 +207,9 @@ BROWSERSLIST_ADVISORY_RANGES = {
     for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
 }
 BROWSERSLIST_APPLICABLE_ADVISORIES = frozenset({"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"})
+BROWSERSLIST_GAD_RECEIPT_SHA256 = (
+    "4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f"  # pragma: allowlist secret
+)
 FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
     {"frontend/package.json", "frontend/package-lock.json"}
 )
@@ -2700,6 +2706,31 @@ def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
     assert frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT) == BROWSERSLIST_EXPECTED_ADVISORIES
     assert BROWSERSLIST_APPLICABLE_ADVISORIES == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
     assert BROWSERSLIST_APPLICABLE_ADVISORIES < BROWSERSLIST_EXPECTED_ADVISORIES
+
+
+def test_browserslist_owner_receipt_digest_is_content_bound() -> None:
+    """The retained GAD snapshot and displayed digest must authenticate each other."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    marker = "The retained normalized receipt is:\n\n```json\n"
+    assert document.count(marker) == 1, "Browserslist owner must retain exactly one GAD receipt"
+    start = document.index(marker) + len(marker)
+    end = document.index("\n```", start)
+    receipt = json.loads(document[start:end])
+    canonical = json.dumps(
+        receipt,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()
+
+    assert digest == BROWSERSLIST_GAD_RECEIPT_SHA256
+    assert f"```text\n{digest}\n```" in document
+    assert receipt["record_count"] == 3
+    assert {record["ghsa_id"] for record in receipt["records"]} == set(
+        BROWSERSLIST_EXPECTED_ADVISORIES
+    )
 
 
 @pytest.mark.parametrize(

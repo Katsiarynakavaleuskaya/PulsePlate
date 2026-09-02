@@ -78,7 +78,7 @@ The normalized receipt schema is
 `pulseplate.browserslist-gad-receipt/v1`. Its canonical sorted JSON SHA-256 is:
 
 ```text
-b8f1a459b8d0e7cd6e5cd4311ed41b40b57c52ab21cf9b861c12f5bb7770fcdc
+4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f
 ```
 
 The retained normalized receipt is:
@@ -213,6 +213,16 @@ replay_lock_cmp=0
 54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244  replay-2/package-lock.json
 package_json_cmp=0
 ```
+
+The registry observation cutoff for this one-time replay pair is
+`2026-09-02T10:19:40Z`. The retained lock bytes and their SHA-256 are the
+immutable transition receipt; the public npm registry is mutable and does not
+provide time-travel resolution. Therefore this command is a contemporaneous
+two-run solver witness, not a promise that rerunning it after the cutoff will
+select the same compatible child patches. Any later resolver output, including
+a newer safe Browserslist or child patch, requires a fresh bounded admission
+and must not overwrite this historical receipt. The permanent guard owns
+future head safety independently of the one-time resolver receipt.
 
 An earlier planning probe using `--prefix <absolute-temp-directory>` was
 rejected: npm serialized temp-relative package keys, the two lock hashes
