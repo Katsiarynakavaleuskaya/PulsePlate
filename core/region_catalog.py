@@ -70,7 +70,7 @@ class RegionCatalog:
             return
 
         for csv_file in self.data_dir.glob("*.csv"):
-            region_code = csv_file.stem.replace("_products", "")
+            region_code = _normalize_region_lookup(csv_file.stem.replace("_products", ""))
             self.regions[region_code] = self._load_region_data(csv_file)
 
     def _load_region_data(self, csv_file: Path) -> List[RegionalProduct]:

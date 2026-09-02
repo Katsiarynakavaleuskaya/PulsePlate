@@ -1110,6 +1110,21 @@ def available_export_formats() -> Dict[str, Any]:
     }
 
 
+def _dedupe_comparison_region_labels(regions: str) -> list[str]:
+    """Deduplicate one finite comma list by canonical catalog identity."""
+
+    unique_labels: list[str] = []
+    seen_identities: set[str] = set()
+    for raw_label in regions.split(","):
+        label = raw_label.strip()
+        identity = label.lower()
+        if identity in seen_identities:
+            continue
+        seen_identities.add(identity)
+        unique_labels.append(label)
+    return unique_labels
+
+
 @router.get(
     "/regions",
     response_model=VipRegionsResponse,
@@ -1190,7 +1205,7 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> VipPric
     Returns:
         Сравнение цен по регионам
     """
-    region_list = [region.strip() for region in regions.split(",")]
+    region_list = _dedupe_comparison_region_labels(regions)
 
     if get_price_comparison is None:
         result_1159: VipPriceComparisonErrorResponse

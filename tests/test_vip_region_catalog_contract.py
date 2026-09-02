@@ -132,6 +132,13 @@ _COMPARISON_SUCCESS: dict[str, object] = {
     "message": "Price comparison for 'milk' across 2 regions",
 }
 
+_COMPARISON_DEDUPE_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
+    ("ES,es", ["ES"], ["ES"]),
+    (" ES , ES ", ["ES"], ["ES"]),
+    ("XX,xx", ["XX"], []),
+    ("ES,US", ["ES", "US"], ["ES", "US"]),
+)
+
 
 def _json_payload(response: Any) -> dict[str, Any]:
     """Parse a response only after proving the JSON media contract."""
@@ -262,6 +269,59 @@ def test_price_comparison_normalizes_lookup_and_preserves_stripped_labels() -> N
     }
 
 
+def test_uppercase_catalog_filename_is_normalized_at_load_and_reachable_over_http(
+    tmp_path: Path,
+    test_client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "ES_products.csv").write_text(
+        "product_id,name_es,name_en,category,unit,typical_package_size,"
+        "price_eur,price_usd,store_chain,region\n"
+        "5,Leche,Milk,dairy,ml,1000,0.95,,Día,Valencia\n",
+        encoding="utf-8",
+    )
+    catalog = RegionCatalog(str(tmp_path))
+
+    assert list(catalog.regions) == ["es"]
+    assert catalog.get_available_regions() == ["es"]
+    assert catalog.search_products("milk", "es").products[0].product_id == "5"
+    assert catalog.search_products("milk", "ES").products[0].product_id == "5"
+
+    patch_route_dependency(
+        app=canonical_app,
+        monkeypatch=monkeypatch,
+        path="/api/v1/vip/regions",
+        method="GET",
+        symbol="get_available_regions",
+        value=catalog.get_available_regions,
+    )
+    patch_route_dependency(
+        app=canonical_app,
+        monkeypatch=monkeypatch,
+        path="/api/v1/vip/regions/{region}/search",
+        method="GET",
+        symbol="search_products",
+        value=catalog.search_products,
+    )
+
+    regions_response = test_client.get("/api/v1/vip/regions", headers=vip_headers)
+    lowercase_response = test_client.get(
+        "/api/v1/vip/regions/es/search?query=milk",
+        headers=vip_headers,
+    )
+    uppercase_response = test_client.get(
+        "/api/v1/vip/regions/ES/search?query=milk",
+        headers=vip_headers,
+    )
+
+    assert regions_response.status_code == 200
+    assert _json_payload(regions_response)["regions"] == ["ES"]
+    assert lowercase_response.status_code == uppercase_response.status_code == 200
+    assert _json_payload(lowercase_response)["products"][0]["product_id"] == "5"
+    assert _json_payload(uppercase_response)["products"][0]["product_id"] == "5"
+
+
 @pytest.mark.parametrize(
     ("url", "expected"),
     [
@@ -285,6 +345,114 @@ def test_five_region_routes_return_exact_success_contracts(
 
     assert response.status_code == 200
     assert _json_payload(response) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw_regions", "expected_labels", "expected_comparison_keys"),
+    _COMPARISON_DEDUPE_CASES,
+)
+def test_comparison_http_deduplicates_by_catalog_identity_with_first_label(
+    test_client: TestClient,
+    vip_headers: dict[str, str],
+    raw_regions: str,
+    expected_labels: list[str],
+    expected_comparison_keys: list[str],
+) -> None:
+    response = test_client.get(
+        "/api/v1/vip/regions/compare/milk",
+        params={"regions": raw_regions},
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200
+    payload = _json_payload(response)
+    assert payload["status"] == "success"
+    assert payload["regions"] == expected_labels
+    assert list(payload["comparison"]) == expected_comparison_keys
+    assert payload["message"] == (
+        f"Price comparison for 'milk' across {len(expected_labels)} regions"
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_regions", "expected_labels", "_expected_comparison_keys"),
+    _COMPARISON_DEDUPE_CASES,
+)
+@pytest.mark.parametrize("branch", ["success", "provider_unavailable", "internal_error"])
+def test_comparison_deduped_labels_are_shared_by_provider_and_every_response_branch(
+    test_client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    raw_regions: str,
+    expected_labels: list[str],
+    _expected_comparison_keys: list[str],
+    branch: str,
+) -> None:
+    provider_calls: list[tuple[str, list[str]]] = []
+
+    def comparison_provider(product_name: str, regions: list[str]) -> dict[str, object]:
+        provider_calls.append((product_name, list(regions)))
+        if branch == "internal_error":
+            raise RuntimeError(_RAW_PROVIDER_SENTINEL)
+        return {}
+
+    patch_route_dependency(
+        app=canonical_app,
+        monkeypatch=monkeypatch,
+        path="/api/v1/vip/regions/compare/{product_name}",
+        method="GET",
+        symbol="get_price_comparison",
+        value=None if branch == "provider_unavailable" else comparison_provider,
+    )
+
+    response = test_client.get(
+        "/api/v1/vip/regions/compare/milk",
+        params={"regions": raw_regions},
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200
+    payload = _json_payload(response)
+    assert payload["regions"] == expected_labels
+    assert payload["comparison"] == {}
+    if branch == "success":
+        assert payload == {
+            "status": "success",
+            "product_name": "milk",
+            "regions": expected_labels,
+            "comparison": {},
+            "message": f"Price comparison for 'milk' across {len(expected_labels)} regions",
+        }
+    elif branch == "provider_unavailable":
+        message = "Price comparison provider is not available"
+        assert payload == {
+            "status": "error",
+            "code": "price_comparison_provider_unavailable",
+            "message": message,
+            "detail": message,
+            "error": "price_comparison_provider_unavailable",
+            "product_name": "milk",
+            "regions": expected_labels,
+            "comparison": {},
+        }
+    else:
+        message = "Error comparing prices"
+        assert payload == {
+            "status": "error",
+            "code": "internal_error",
+            "message": message,
+            "detail": message,
+            "error": "internal_error",
+            "product_name": "milk",
+            "regions": expected_labels,
+            "comparison": {},
+        }
+        assert _RAW_PROVIDER_SENTINEL not in response.text
+
+    if branch == "provider_unavailable":
+        assert provider_calls == []
+    else:
+        assert provider_calls == [("milk", expected_labels)]
 
 
 @pytest.mark.parametrize("suffix", ["search?query=milk", "categories", "stores"])
