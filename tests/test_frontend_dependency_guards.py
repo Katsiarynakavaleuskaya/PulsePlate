@@ -415,6 +415,38 @@ def _is_npm_alias_for_target(value: object, *, target: str) -> bool:
     )
 
 
+def _is_git_source_for_target(value: object, *, target: str) -> bool:
+    """Recognize bounded Git/GitHub dependency spellings by repository basename."""
+
+    if not isinstance(value, str) or not value:
+        return False
+    candidate = value.strip().split("#", maxsplit=1)[0].rstrip("/")
+    if candidate.startswith("github:"):
+        repository_path = candidate.removeprefix("github:")
+    elif candidate.startswith("git@github.com:"):
+        repository_path = candidate.removeprefix("git@github.com:")
+    elif candidate.startswith(("git+", "git://", "ssh://")):
+        parsed = urlparse(candidate.removeprefix("git+"))
+        if parsed.hostname is None:
+            return False
+        repository_path = parsed.path.lstrip("/")
+    elif candidate.startswith(("https://", "http://")):
+        parsed = urlparse(candidate)
+        if parsed.hostname is None or (
+            parsed.hostname.casefold() != "github.com" and not parsed.path.endswith(".git")
+        ):
+            return False
+        repository_path = parsed.path.lstrip("/")
+    elif candidate.count("/") == 1 and ":" not in candidate:
+        repository_path = candidate
+    else:
+        return False
+
+    repository = repository_path.rsplit("/", maxsplit=1)[-1].removesuffix(".git")
+    target_basename = target.rsplit("/", maxsplit=1)[-1]
+    return repository.casefold() == target_basename.casefold()
+
+
 def _find_override_key_paths(
     node: object,
     *,
@@ -422,8 +454,10 @@ def _find_override_key_paths(
     path: tuple[str, ...] = (),
 ) -> dict[tuple[str, ...], object]:
     found: dict[tuple[str, ...], object] = {}
-    if _is_npm_alias_for_target(node, target=target) or _has_registry_tarball_path_signal(
-        node, target=target
+    if (
+        _is_npm_alias_for_target(node, target=target)
+        or _has_registry_tarball_path_signal(node, target=target)
+        or _is_git_source_for_target(node, target=target)
     ):
         found[path] = node
         return found
@@ -506,6 +540,7 @@ def _discover_lock_target_demand_edges(
                     name == target
                     or _is_npm_alias_for_target(value, target=target)
                     or _has_registry_tarball_path_signal(value, target=target)
+                    or _is_git_source_for_target(value, target=target)
                 ):
                     edges[(raw_path, field, str(name))] = value
     return edges
@@ -1318,6 +1353,8 @@ def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str
         if field not in document:
             continue
         bundled = document[field]
+        if type(bundled) is bool:
+            continue
         assert isinstance(bundled, list), f"{surface}:{field} must be an array"
         assert all(
             isinstance(value, str) for value in bundled
@@ -1614,6 +1651,10 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
                 "",
                 ".",
             }, f"{source}: root lock demand is forbidden in the transitive-only class"
+            assert not _is_git_source_for_target(
+                value,
+                target="browserslist",
+            ), f"{source}: Git lock demand is forbidden"
             assert (
                 dependency_name == "browserslist"
                 and not _is_npm_alias_for_target(value, target="browserslist")
@@ -2866,6 +2907,12 @@ def test_browserslist_class_checks_every_nested_occurrence(tmp_path: Path) -> No
         },
         {"overrides": {"carrier": {"browserslist": "4.28.8"}}},
         {"bundleDependencies": ["browserslist"]},
+        {"dependencies": {"renamed": "github:browserslist/browserslist"}},
+        {
+            "optionalDependencies": {
+                "renamed": "git+https://github.com/browserslist/browserslist.git#v4.28.8"
+            }
+        },
     ),
 )
 def test_browserslist_class_rejects_manifest_carriers(
@@ -2877,6 +2924,21 @@ def test_browserslist_class_rejects_manifest_carriers(
     _write_browserslist_repo(tmp_path, package_json={"name": "fixture", **manifest})
     with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize("bundled", (True, False))
+def test_browserslist_class_accepts_boolean_bundle_declaration(
+    tmp_path: Path,
+    bundled: bool,
+) -> None:
+    """Legal boolean bundling syntax does not invent a target carrier."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "bundleDependencies": bundled},
+        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
+    )
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
 
 
 @pytest.mark.parametrize(
@@ -3104,6 +3166,25 @@ def test_browserslist_aliased_or_tarball_lock_demand_is_rejected(
         },
     )
     with pytest.raises(AssertionError, match="aliased or tarball lock demand is forbidden"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_git_lock_demand_is_rejected(tmp_path: Path) -> None:
+    """A renamed Git repository demand cannot resolve through the canonical path."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {
+                    "dependencies": {"renamed": "github:browserslist/browserslist"}
+                },
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="Git lock demand is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
 
 
