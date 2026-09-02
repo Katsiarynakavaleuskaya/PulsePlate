@@ -3194,7 +3194,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Focused runtime/schema/OpenAPI tests pass, generated frontend artifacts are synchronized through `make openapi`, and current-head CI is terminal
 
 <a id="ledger-p1-vip-provider-import-isolation"></a>
-- [ ] P1: Isolate optional VIP provider imports by feature family
+- [ ] P1: Isolate VIP regional-catalog imports from unrelated provider families
   - Owner: Backend / `backend-engineer`
   - Priority: P1
   - Target PR: live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372)
@@ -3207,7 +3207,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-region-catalog-runtime-contract`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372#discussion_r3911849129`
   - DoD:
-    - Optional provider families resolve independently without `sys.modules`, facade, or fallback registries
+    - Regional-catalog callables resolve as one all-or-none family independently of the existing auto-repair/menu/recipe import block, without `sys.modules`, facade, or fallback registries
     - Failure of one unrelated provider cannot suppress regional-catalog bindings
     - Provider-unavailable behavior remains deterministic, sanitized, and covered by focused startup/runtime tests
 
