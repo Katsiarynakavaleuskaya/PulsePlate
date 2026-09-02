@@ -25,7 +25,7 @@ This is not a claim about future advisories, arbitrary package-manager syntax,
 package contents, production exploitability, whole-repository security,
 provider closure, review, CI, approval, or merge readiness. Canonical policy is
 the `dependency-remediation-admission:v2` block in `AGENTS.md:2324`; the
-permanent executable guard is `tests/test_frontend_dependency_guards.py:1413`.
+permanent executable guard is `tests/test_frontend_dependency_guards.py:1437`.
 
 ## Exact base, material head, and surface universe
 
@@ -38,12 +38,12 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-937db0926f257684cc57ef39b1dcf78589643aeb
+47fea5211b835a8ed5c0cfad4dc207d130b3900b
 ```
 
 The current permanent guard enumerates tracked `package.json`,
 `package-lock.json`, and `npm-shrinkwrap.json` paths through
-`tests/test_frontend_dependency_guards.py:1104`. At this transition, the
+`tests/test_frontend_dependency_guards.py:1128`. At this transition, the
 complete base/head universe contains exactly five surfaces:
 
 | Surface | Base SHA-256 | Material-head SHA-256 | Reconciliation |
@@ -281,7 +281,7 @@ provider closure, review, approval, CI, or merge-readiness evidence.
 
 ## Permanent postcondition `P`
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1413`:
+The executable guard at `tests/test_frontend_dependency_guards.py:1437`:
 
 1. mechanically enumerates the current tracked npm surface universe;
 2. rejects every direct, optional, peer, override, bundled, npm-alias, tarball,
@@ -289,15 +289,18 @@ The executable guard at `tests/test_frontend_dependency_guards.py:1413`:
 3. discovers each installed lock candidate by canonical path, explicit name,
    or tarball identity before validation and closes dependency demand per lock
    surface, so one safe graph cannot mask a demand-only sibling graph;
-4. validates every non-optional demand selector against an installed version
-   in that lock and excludes a peer only when `peerDependenciesMeta` contains
-   the exact boolean marker `optional: true`;
-5. rejects unsupported lock schemas, malformed or prerelease versions,
+4. resolves every non-optional demand through the ordered Node ancestor lookup
+   candidates defined at `tests/test_frontend_dependency_guards.py:569`, then
+   validates the selector against the first installed reachable occurrence;
+   compatible copies nested below unrelated siblings cannot satisfy the edge;
+5. excludes a peer only when `peerDependenciesMeta` contains the exact boolean
+   marker `optional: true`;
+6. rejects unsupported lock schemas, malformed or prerelease versions,
    noncanonical paths, conflicting names, provenance mismatches, and any
    integrity value that is not a valid 64-byte `sha512` SRI digest;
-6. binds the exact three advisory identities and exact two-member `A`, then
+7. binds the exact three advisory identities and exact two-member `A`, then
    compares every discovered stable version with every recorded affected range;
-7. permits executable absence only after the complete discovery pass finds no
+8. permits executable absence only after the complete discovery pass finds no
    manifest carrier, required lock dependency demand, or installed record.
 
 The guard deliberately does not freeze `4.28.8`, the historical occurrence
@@ -310,8 +313,8 @@ Focused verification completed with exit `0`:
 $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
 ........................................................................ [ 41%]
-........................................................................ [ 83%]
-.............................                                            [100%]
+........................................................................ [ 82%]
+...............................                                          [100%]
 ```
 
 The repository-wide pre-commit hook also exited `0` after Black's first-pass
