@@ -1472,9 +1472,10 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
             package = packages[package_path]
             assert isinstance(package, dict)
             source = f"{relative}:{package_path}:{field}.{dependency_name}"
-            assert (
-                package_path
-            ), f"{source}: root lock demand is forbidden in the transitive-only class"
+            assert package_path not in {
+                "",
+                ".",
+            }, f"{source}: root lock demand is forbidden in the transitive-only class"
             assert (
                 dependency_name == "browserslist"
                 and not _is_npm_alias_for_target(value, target="browserslist")
@@ -2810,7 +2811,11 @@ def test_browserslist_malformed_demand_container_is_rejected(tmp_path: Path) -> 
         _assert_browserslist_security_class(root=tmp_path)
 
 
-def test_browserslist_root_lock_demand_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("root_path", ("", "."))
+def test_browserslist_root_lock_demand_is_rejected(
+    tmp_path: Path,
+    root_path: str,
+) -> None:
     """A root lock edge cannot become direct authority without a manifest owner."""
 
     _write_browserslist_repo(
@@ -2818,7 +2823,7 @@ def test_browserslist_root_lock_demand_is_rejected(tmp_path: Path) -> None:
         package_lock={
             "lockfileVersion": 3,
             "packages": {
-                "": {"dependencies": {"browserslist": "^4.28.7"}},
+                root_path: {"dependencies": {"browserslist": "^4.28.7"}},
                 "node_modules/browserslist": _browserslist_entry("4.28.8"),
             },
         },
