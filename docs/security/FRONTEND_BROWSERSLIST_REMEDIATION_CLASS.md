@@ -25,7 +25,7 @@ This is not a claim about future advisories, arbitrary package-manager syntax,
 package contents, production exploitability, whole-repository security,
 provider closure, review, CI, approval, or merge readiness. Canonical policy is
 the `dependency-remediation-admission:v2` block in `AGENTS.md:2324`; the
-permanent executable guard is `tests/test_frontend_dependency_guards.py:1320`.
+permanent executable guard is `tests/test_frontend_dependency_guards.py:1413`.
 
 ## Exact base, material head, and surface universe
 
@@ -38,12 +38,12 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-ed453b62eb54862a29e771db1290c8c0d1fc3f46
+937db0926f257684cc57ef39b1dcf78589643aeb
 ```
 
 The current permanent guard enumerates tracked `package.json`,
 `package-lock.json`, and `npm-shrinkwrap.json` paths through
-`tests/test_frontend_dependency_guards.py:1011`. At this transition, the
+`tests/test_frontend_dependency_guards.py:1104`. At this transition, the
 complete base/head universe contains exactly five surfaces:
 
 | Surface | Base SHA-256 | Material-head SHA-256 | Reconciliation |
@@ -164,7 +164,7 @@ A = {
 
 The historical candidate remains inside the universal `P` check even though it
 creates no remediation claim. The executable boundary controls at
-`tests/test_frontend_dependency_guards.py:2437` require `4.16.4`, `4.16.5`,
+`tests/test_frontend_dependency_guards.py:2576` require `4.16.4`, `4.16.5`,
 `4.28.2`, and `4.28.6` to fail, while `4.28.7` and `4.28.8` pass all three
 recorded ranges.
 
@@ -195,8 +195,9 @@ through the repository wrapper:
 ```bash
 task_repo_root="$(git rev-parse --show-toplevel)"
 task_replay_dir="$(mktemp -d)"
-cp frontend/package.json "$task_replay_dir/package.json"
-cp frontend/package-lock.json "$task_replay_dir/package-lock.json"
+task_base_sha="6327960917e2a04e5fec0d89b358b51781b12f67" # pragma: allowlist secret
+git show "${task_base_sha}:frontend/package.json" > "$task_replay_dir/package.json"
+git show "${task_base_sha}:frontend/package-lock.json" > "$task_replay_dir/package-lock.json"
 (
   cd "$task_replay_dir"
   "$task_repo_root/scripts/frontend_npm.sh" update browserslist \
@@ -280,7 +281,7 @@ provider closure, review, approval, CI, or merge-readiness evidence.
 
 ## Permanent postcondition `P`
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1320`:
+The executable guard at `tests/test_frontend_dependency_guards.py:1413`:
 
 1. mechanically enumerates the current tracked npm surface universe;
 2. rejects every direct, optional, peer, override, bundled, npm-alias, tarball,
@@ -288,13 +289,16 @@ The executable guard at `tests/test_frontend_dependency_guards.py:1320`:
 3. discovers each installed lock candidate by canonical path, explicit name,
    or tarball identity before validation and closes dependency demand per lock
    surface, so one safe graph cannot mask a demand-only sibling graph;
-4. rejects unsupported lock schemas, malformed or prerelease versions,
-   noncanonical paths, conflicting names, provenance mismatches, and missing
-   integrity;
-5. compares every discovered stable version with every range in the complete
-   three-record `F_cutoff`;
-6. permits executable absence only after the complete discovery pass finds no
-   manifest carrier, lock dependency demand, or installed record.
+4. validates every non-optional demand selector against an installed version
+   in that lock and excludes a peer only when `peerDependenciesMeta` contains
+   the exact boolean marker `optional: true`;
+5. rejects unsupported lock schemas, malformed or prerelease versions,
+   noncanonical paths, conflicting names, provenance mismatches, and any
+   integrity value that is not a valid 64-byte `sha512` SRI digest;
+6. binds the exact three advisory identities and exact two-member `A`, then
+   compares every discovered stable version with every recorded affected range;
+7. permits executable absence only after the complete discovery pass finds no
+   manifest carrier, required lock dependency demand, or installed record.
 
 The guard deliberately does not freeze `4.28.8`, the historical occurrence
 count, this base, or this transition delta. A later authorized safe patch or
@@ -305,9 +309,9 @@ Focused verification completed with exit `0`:
 ```text
 $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
-........................................................................ [ 44%]
-........................................................................ [ 89%]
-.................                                                        [100%]
+........................................................................ [ 41%]
+........................................................................ [ 83%]
+.............................                                            [100%]
 ```
 
 The repository-wide pre-commit hook also exited `0` after Black's first-pass

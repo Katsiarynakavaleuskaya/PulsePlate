@@ -36,7 +36,7 @@ The candidate dependency transaction is owned by
 `docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:1`. Its npm-generated
 lock resolves `browserslist 4.28.8` at `frontend/package-lock.json:4743`, while
 `frontend/package.json` remains byte-identical. The permanent all-occurrence
-guard is `tests/test_frontend_dependency_guards.py:1320`.
+guard is `tests/test_frontend_dependency_guards.py:1413`.
 
 That candidate repository evidence does not close Dependabot alert `#273`.
 GitHub can update the provider state only after merged material is ingested by
