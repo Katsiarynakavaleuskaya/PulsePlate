@@ -632,6 +632,10 @@ NODE24_FRONTEND_BUILD_LINE = (
     "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
     " AS frontend-build"
 )
+NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
+NODE24_FRONTEND_BUILD_COMMAND_ERROR = (
+    "frontend-build must end with exactly one canonical npm run build"
+)
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
 )
@@ -776,6 +780,31 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         for start_index, _end_index, instruction in logical_instructions
         if start_index > final_stage_start_index
     ]
+    frontend_build_stage_index = (
+        from_stage_indices[from_stage_aliases.index("frontend-build")]
+        if "frontend-build" in from_stage_aliases
+        else None
+    )
+    frontend_build_stage_end_index = (
+        next(
+            (
+                stage_index
+                for stage_index in from_stage_indices
+                if frontend_build_stage_index is not None
+                and stage_index > frontend_build_stage_index
+            ),
+            len(dockerfile_lines),
+        )
+        if frontend_build_stage_index is not None
+        else None
+    )
+    frontend_build_logical_instructions = [
+        instruction
+        for start_index, _end_index, instruction in logical_instructions
+        if frontend_build_stage_index is not None
+        and frontend_build_stage_end_index is not None
+        and frontend_build_stage_index < start_index < frontend_build_stage_end_index
+    ]
     final_stage_copy_add_entries = [
         (line_index, line)
         for line_index, line in enumerate(dockerfile_lines)
@@ -811,6 +840,12 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("the immutable frontend-build line must be the only Node FROM stage")
     if from_stage_aliases != ["caddy-build", "frontend-build", None]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
+    if (
+        frontend_build_logical_instructions.count(NODE24_FRONTEND_BUILD_RUN_LINE) != 1
+        or not frontend_build_logical_instructions
+        or frontend_build_logical_instructions[-1] != NODE24_FRONTEND_BUILD_RUN_LINE
+    ):
+        errors.append(NODE24_FRONTEND_BUILD_COMMAND_ERROR)
     if (
         final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES)
         or has_absorbed_final_stage_copy_add
@@ -876,6 +911,31 @@ def test_node24_frontend_builder_guard_rejects_missing_asset_handoff() -> None:
     errors = _node24_frontend_builder_contract_errors(disconnected)
 
     assert "production frontend assets must come only from frontend-build" in errors
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        "RUN vite build",
+        "RUN npx vite build",
+        "RUN npm exec vite -- build",
+        "RUN npm run build || true",
+        "RUN npm run build; exit 0",
+        "RUN npm run build\nRUN vite build",
+        "RUN npm run build\nRUN npm run build",
+    ),
+)
+def test_node24_frontend_builder_guard_rejects_build_command_bypass(
+    replacement: str,
+) -> None:
+    """The shipped SPA builder must finish through the canonical package build."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    mutated = dockerfile.replace(NODE24_FRONTEND_BUILD_RUN_LINE, replacement, 1)
+
+    errors = _node24_frontend_builder_contract_errors(mutated)
+
+    assert NODE24_FRONTEND_BUILD_COMMAND_ERROR in errors
 
 
 def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
@@ -1501,6 +1561,19 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(job_env, dict)
     assert "PYTEST_ADDOPTS" not in job_env
 
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    build_steps = [
+        candidate
+        for candidate in steps
+        if isinstance(candidate, dict) and candidate.get("name") == "Build frontend"
+    ]
+    assert len(build_steps) == 1
+    build_step = build_steps[0]
+    assert build_step["run"] == "npm run build"
+    for forbidden_key in ("if", "continue-on-error", "shell", "working-directory"):
+        assert forbidden_key not in build_step
+
     step = _job_step_by_name(
         workflow,
         job_id="build-and-test",
@@ -1543,6 +1616,12 @@ def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
         "workflow_pytest_collect_only",
         "step_pytest_collect_only",
         "job_pytest_collect_only",
+        "build_step_direct_vite",
+        "build_step_duplicate",
+        "build_step_if",
+        "build_step_continue_on_error",
+        "build_step_shell",
+        "build_step_working_directory",
     ),
 )
 def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
@@ -1564,6 +1643,11 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         workflow,
         job_id="build-and-test",
         step_name="Run frontend builder governance guard",
+    )
+    build_step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Build frontend",
     )
 
     if mutation in {"pull_request_paths", "push_paths"}:
@@ -1616,6 +1700,20 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         job_env = job["env"]
         assert isinstance(job_env, dict)
         job_env["PYTEST_ADDOPTS"] = "--collect-only"
+    if mutation == "build_step_direct_vite":
+        build_step["run"] = "npx vite build"
+    if mutation == "build_step_duplicate":
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        steps.append(dict(build_step))
+    if mutation == "build_step_if":
+        build_step["if"] = "${{ false }}"
+    if mutation == "build_step_continue_on_error":
+        build_step["continue-on-error"] = True
+    if mutation == "build_step_shell":
+        build_step["shell"] = "bash -c '{0} || true'"
+    if mutation == "build_step_working_directory":
+        build_step["working-directory"] = "."
 
     with pytest.raises(AssertionError):
         _assert_node24_frontend_builder_workflow_contract(workflow)
@@ -3593,19 +3691,31 @@ def test_ios_unit_selector_is_the_complete_target_with_local_override_preserved(
     )
 
 
-def test_frontend_production_build_and_precommit_tests_are_fail_closed() -> None:
-    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+def _assert_frontend_node24_build_and_precommit_contract(
+    package: dict[str, object],
+    config: dict[str, object],
+) -> None:
+    """Assert the finite package-script and pre-commit enforcement chain."""
+
     scripts = package["scripts"]
+    assert isinstance(scripts, dict)
 
     assert scripts["typecheck"] == "tsc -p tsconfig.json --noEmit"
     assert scripts["build"] == "npm run typecheck && vite build"
+    assert (
+        scripts["test:precommit"]
+        == "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose"
+    )
 
-    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    repos = config["repos"]
+    assert isinstance(repos, list)
     matching_hooks = [
         hook
-        for repo in config["repos"]
+        for repo in repos
+        if isinstance(repo, dict)
         if repo.get("repo") == "local"
         for hook in repo.get("hooks", [])
+        if isinstance(hook, dict)
         if hook.get("id") == "frontend-tests"
     ]
     assert len(matching_hooks) == 1
@@ -3616,9 +3726,51 @@ def test_frontend_production_build_and_precommit_tests_are_fail_closed() -> None
     assert hook["stages"] == ["pre-commit"]
     assert hook["files"] == r"^frontend/.*\.(ts|tsx|js|jsx)$"
 
-    entry = hook["entry"]
+    guarded_commands = (hook["entry"], scripts["test:precommit"])
     for forbidden in ("||", "; true", "exit 0", "continue-on-error", "warning::"):
-        assert forbidden not in entry
+        assert all(
+            isinstance(command, str) and forbidden not in command for command in guarded_commands
+        )
+
+
+def test_frontend_node24_production_build_and_precommit_tests_are_fail_closed() -> None:
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert isinstance(package, dict)
+    assert isinstance(config, dict)
+
+    _assert_frontend_node24_build_and_precommit_contract(package, config)
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        "vitest",
+        "true",
+        ":",
+        "vitest run || true",
+        "vitest run; exit 0",
+        None,
+    ),
+)
+def test_frontend_node24_precommit_guard_rejects_inner_script_drift(
+    replacement: str | None,
+) -> None:
+    """The outer hook cannot hide a weakened or missing package test script."""
+
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert isinstance(package, dict)
+    assert isinstance(config, dict)
+    scripts = package["scripts"]
+    assert isinstance(scripts, dict)
+    if replacement is None:
+        scripts.pop("test:precommit")
+    else:
+        scripts["test:precommit"] = replacement
+
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_build_and_precommit_contract(package, config)
 
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
