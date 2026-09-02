@@ -6,6 +6,8 @@ EN: Ensure frontend security overrides are pinned to safe npm releases.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -187,6 +189,16 @@ BROWSERSLIST_ADVISORY_RANGE_TEXT = {
     "GHSA-c83g-rgw3-j3cx": ("<=4.28.6",),
     "GHSA-w8qv-6jwh-64r5": (">=4.0.0,<4.16.5",),
 }
+BROWSERSLIST_EXPECTED_ADVISORIES = frozenset(
+    {
+        "GHSA-73wf-gq98-2v4g",
+        "GHSA-c83g-rgw3-j3cx",
+        "GHSA-w8qv-6jwh-64r5",
+    }
+)
+BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES = frozenset(
+    {"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"}
+)
 BROWSERSLIST_ADVISORY_RANGES = {
     advisory: tuple(SpecifierSet(value) for value in ranges)
     for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
@@ -483,6 +495,87 @@ def _discover_lock_target_demand_edges(
                 ):
                     edges[(raw_path, field, str(name))] = value
     return edges
+
+
+def _is_optional_peer_demand(
+    *,
+    package: dict,
+    dependency_name: str,
+    source: str,
+) -> bool:
+    metadata = package.get("peerDependenciesMeta")
+    if metadata is None:
+        return False
+    assert isinstance(metadata, dict), f"{source}: peerDependenciesMeta must be an object"
+    dependency_metadata = metadata.get(dependency_name)
+    if dependency_metadata is None:
+        return False
+    assert isinstance(
+        dependency_metadata, dict
+    ), f"{source}: peerDependenciesMeta entry must be an object"
+    assert set(dependency_metadata) == {
+        "optional"
+    }, f"{source}: peerDependenciesMeta entry must contain only optional"
+    optional = dependency_metadata["optional"]
+    assert type(optional) is bool, f"{source}: peer optional marker must be a boolean"
+    return optional
+
+
+def _demand_selector_allows_version(
+    *,
+    raw_selector: object,
+    version: Version,
+    source: str,
+) -> bool:
+    """Evaluate the finite npm selector forms present in governed lock demand edges."""
+
+    assert isinstance(raw_selector, str) and raw_selector, f"{source}: demand selector missing"
+    assert (
+        len(raw_selector) <= NPM_SEMVER_MAX_LENGTH
+        and raw_selector.isascii()
+        and raw_selector == raw_selector.strip()
+    ), f"{source}: malformed demand selector {raw_selector!r}"
+
+    selector = raw_selector
+    alias_prefix = "npm:browserslist@"
+    if selector.startswith(alias_prefix):
+        selector = selector.removeprefix(alias_prefix)
+        assert selector, f"{source}: aliased demand selector missing"
+
+    operator = "="
+    for candidate in (">=", "^", "~", "="):
+        if selector.startswith(candidate):
+            operator = candidate
+            selector = selector.removeprefix(candidate).strip()
+            break
+    lower = _parse_version(value=selector, source=f"{source} demand selector")
+
+    if operator == "=":
+        return version == lower
+    if operator == ">=":
+        return version >= lower
+    if operator == "~":
+        upper = Version(f"{lower.major}.{lower.minor + 1}.0")
+        return lower <= version < upper
+    if lower.major > 0:
+        upper = Version(f"{lower.major + 1}.0.0")
+    elif lower.minor > 0:
+        upper = Version(f"0.{lower.minor + 1}.0")
+    else:
+        upper = Version(f"0.0.{lower.micro + 1}")
+    return lower <= version < upper
+
+
+def _assert_sha512_integrity(*, value: object, source: str) -> None:
+    assert isinstance(value, str) and value.startswith(
+        "sha512-"
+    ), f"{source}: integrity must use sha512 SRI"
+    encoded = value.removeprefix("sha512-")
+    try:
+        digest = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
+    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
 
 
 def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
@@ -1326,6 +1419,7 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
     }
     manifest_occurrences: dict[tuple[str, ...], object] = {}
     lock_occurrences: dict[tuple[str, str], dict] = {}
+    lock_demand_edges: dict[tuple[str, str, str, str], object] = {}
 
     for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
@@ -1342,10 +1436,25 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
         assert basename in NPM_LOCK_SURFACE_BASENAMES
         assert document.get("lockfileVersion") == 3, f"{relative}: unsupported npm lock schema"
         packages = document.get("packages")
-        surface_demand_edges = _discover_lock_target_demand_edges(
+        discovered_demand_edges = _discover_lock_target_demand_edges(
             packages,
             target="browserslist",
         )
+        surface_demand_edges: dict[tuple[str, str, str], object] = {}
+        assert isinstance(packages, dict)
+        for edge, value in discovered_demand_edges.items():
+            package_path, field, dependency_name = edge
+            package = packages[package_path]
+            assert isinstance(package, dict)
+            source = f"{relative}:{package_path}:{field}.{dependency_name}"
+            if field == "peerDependencies" and _is_optional_peer_demand(
+                package=package,
+                dependency_name=dependency_name,
+                source=source,
+            ):
+                continue
+            surface_demand_edges[edge] = value
+            lock_demand_edges[(relative, *edge)] = value
         surface_lock_occurrences = _discover_frontend_target_lock_entries(
             packages, target="browserslist"
         )
@@ -1372,7 +1481,27 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
             package.get("resolved") == expected_resolved
         ), f"{source}: browserslist canonical provenance mismatch"
         integrity = package.get("integrity")
-        assert isinstance(integrity, str) and integrity.strip(), f"{source}: integrity missing"
+        _assert_sha512_integrity(value=integrity, source=source)
+
+    versions_by_surface: dict[str, tuple[Version, ...]] = {}
+    for relative in {relative for relative, _ in lock_occurrences}:
+        versions_by_surface[relative] = tuple(
+            _parse_version(value=package.get("version"), source=f"{relative}:{path}")
+            for (entry_relative, path), package in lock_occurrences.items()
+            if entry_relative == relative
+        )
+
+    for (relative, package_path, field, dependency_name), selector in lock_demand_edges.items():
+        source = f"{relative}:{package_path}:{field}.{dependency_name}"
+        versions = versions_by_surface.get(relative, ())
+        assert any(
+            _demand_selector_allows_version(
+                raw_selector=selector,
+                version=version,
+                source=source,
+            )
+            for version in versions
+        ), f"{source}: no installed browserslist version satisfies demand {selector!r}"
 
     return frozenset(relative for relative, _ in lock_occurrences)
 
@@ -2379,7 +2508,9 @@ def _browserslist_entry(version: str) -> dict[str, str]:
     return {
         "version": version,
         "resolved": ("https://registry.npmjs.org/browserslist/-/" f"browserslist-{version}.tgz"),
-        "integrity": "sha512-fixture",
+        "integrity": (
+            "sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA=="  # pragma: allowlist secret
+        ),
     }
 
 
@@ -2420,7 +2551,15 @@ def _write_browserslist_repo(
 def test_browserslist_class_covers_every_current_tracked_surface() -> None:
     """The repository graph satisfies the transitive-only universal postcondition."""
 
-    assert _assert_browserslist_security_class() == frozenset({"frontend/package-lock.json"})
+    _assert_browserslist_security_class()
+
+
+def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
+    """Equal ranges cannot let one advisory identity disappear silently."""
+
+    assert frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT) == BROWSERSLIST_EXPECTED_ADVISORIES
+    assert BROWSERSLIST_APPLICABLE_ADVISORIES == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
+    assert BROWSERSLIST_APPLICABLE_ADVISORIES < BROWSERSLIST_EXPECTED_ADVISORIES
 
 
 @pytest.mark.parametrize(
@@ -2518,7 +2657,10 @@ def test_browserslist_class_rejects_manifest_carriers(
     ("case", "message"),
     (
         ("prerelease", "prerelease output is not approved"),
-        ("missing-integrity", "integrity missing"),
+        ("missing-integrity", "integrity must use sha512 SRI"),
+        ("malformed-integrity", "integrity must contain valid base64"),
+        ("wrong-integrity-algorithm", "integrity must use sha512 SRI"),
+        ("short-integrity", "integrity sha512 digest must be 64 bytes"),
         ("foreign-registry", "canonical provenance mismatch"),
         ("wrong-tarball-version", "canonical provenance mismatch"),
         ("conflicting-name", "package name conflicts"),
@@ -2538,6 +2680,12 @@ def test_browserslist_class_fails_closed_on_invalid_lock_records(
         package = _browserslist_entry("4.28.8-rc.1")
     elif case == "missing-integrity":
         package["integrity"] = ""
+    elif case == "malformed-integrity":
+        package["integrity"] = "sha512-***"
+    elif case == "wrong-integrity-algorithm":
+        package["integrity"] = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    elif case == "short-integrity":
+        package["integrity"] = "sha512-Zml4dHVyZQ=="
     elif case == "foreign-registry":
         package["resolved"] = "https://example.invalid/browserslist-4.28.8.tgz"
     elif case == "wrong-tarball-version":
@@ -2590,6 +2738,85 @@ def test_browserslist_demand_is_closed_per_lock_surface(tmp_path: Path) -> None:
         AssertionError,
         match=r"package-lock\.json: browserslist lock dependency demand",
     ):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("selector", "message"),
+    (
+        ("^5.0.0", "no installed browserslist version satisfies demand"),
+        ("*", "malformed version"),
+        ("npm:browserslist", "malformed version"),
+    ),
+)
+def test_browserslist_demand_selector_fails_closed(
+    tmp_path: Path,
+    selector: str,
+    message: str,
+) -> None:
+    """Safe advisory status cannot satisfy an incompatible or ambiguous demand."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {"dependencies": {"browserslist": selector}},
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_optional_peer_demand_allows_absence(tmp_path: Path) -> None:
+    """Only an exact optional peer declaration is excluded from required demand."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {
+                    "peerDependencies": {"browserslist": ">= 4.21.0"},
+                    "peerDependenciesMeta": {"browserslist": {"optional": True}},
+                }
+            },
+        },
+    )
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("metadata", "message"),
+    (
+        ({"optional": False}, "demand has no installed occurrence"),
+        ({"optional": "true"}, "peer optional marker must be a boolean"),
+        ({}, "must contain only optional"),
+        ({"optional": True, "extra": True}, "must contain only optional"),
+    ),
+)
+def test_browserslist_peer_demand_metadata_is_fail_closed(
+    tmp_path: Path,
+    metadata: dict[str, object],
+    message: str,
+) -> None:
+    """Malformed or mandatory peer metadata cannot create executable absence."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {
+                    "peerDependencies": {"browserslist": ">= 4.21.0"},
+                    "peerDependenciesMeta": {"browserslist": metadata},
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match=message):
         _assert_browserslist_security_class(root=tmp_path)
 
 
