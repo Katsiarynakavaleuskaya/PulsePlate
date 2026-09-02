@@ -25,7 +25,7 @@ This is not a claim about future advisories, arbitrary package-manager syntax,
 package contents, production exploitability, whole-repository security,
 provider closure, review, CI, approval, or merge readiness. Canonical policy is
 the `dependency-remediation-admission:v2` block in `AGENTS.md:2324`; the
-permanent executable guard is `tests/test_frontend_dependency_guards.py:1612`.
+permanent executable guard is `tests/test_frontend_dependency_guards.py:1486`.
 
 ## Exact base, material head, and surface universe
 
@@ -38,12 +38,12 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-a94e50339406f8f52b0233d573180d139265b9c0
+a51a14f9f5ef2b866341f67e6c4fb87748c299a1
 ```
 
 The current permanent guard enumerates tracked `package.json`,
 `package-lock.json`, and `npm-shrinkwrap.json` paths through
-`tests/test_frontend_dependency_guards.py:1180`. At this transition, the
+`tests/test_frontend_dependency_guards.py:1014`. At this transition, the
 complete base/head universe contains exactly five surfaces:
 
 | Surface | Base SHA-256 | Material-head SHA-256 | Reconciliation |
@@ -145,9 +145,9 @@ The retained normalized receipt is:
 }
 ```
 
-The deterministic binding at `tests/test_frontend_dependency_guards.py:2790`
+The deterministic binding at `tests/test_frontend_dependency_guards.py:2847`
 parses this retained JSON with duplicate-key rejection at
-`tests/test_frontend_dependency_guards.py:2831`, canonicalizes it with sorted
+`tests/test_frontend_dependency_guards.py:1527`, canonicalizes it with sorted
 compact keys, verifies the displayed SHA-256, and requires the exact three
 advisory identities.
 
@@ -170,7 +170,7 @@ A = {
 
 The historical candidate remains inside the universal `P` check even though it
 creates no remediation claim. The executable boundary controls at
-`tests/test_frontend_dependency_guards.py:2871` require `4.16.4`, `4.16.5`,
+`tests/test_frontend_dependency_guards.py:2834` require `4.16.4`, `4.16.5`,
 `4.28.2`, and `4.28.6` to fail, while `4.28.7` and `4.28.8` pass all three
 recorded ranges.
 
@@ -297,51 +297,50 @@ provider closure, review, approval, CI, or merge-readiness evidence.
 
 ## Permanent postcondition `P`
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1612`:
+The executable guard at `tests/test_frontend_dependency_guards.py:1486` uses a
+delegated recognizer boundary instead of a Browserslist-specific npm parser:
 
-1. mechanically enumerates the current tracked npm surface universe;
-2. rejects every direct, optional, peer, override, bundled, npm-alias, tarball,
-   bounded Git/GitHub source (including `git+file`), or tracked-local manifest
-   carrier (including bare npm directory syntax); Git source recognition is
-   defined at `tests/test_frontend_dependency_guards.py:418`, while tracked
-   local resolution is defined at `tests/test_frontend_dependency_guards.py:1222`;
-3. rejects malformed manifest dependency, override, bundled-dependency, and
-   workspace containers at `tests/test_frontend_dependency_guards.py:1343`,
-   while accepting legal boolean `bundleDependencies` declarations and still
-   scanning their dependency maps;
-4. resolves finite tracked workspace patterns and rejects target-named member
-   manifests at `tests/test_frontend_dependency_guards.py:1368`; workspace
-   membership is limited to the closed literal or terminal-`/*` recognizer at
-   `tests/test_frontend_dependency_guards.py:1327`, while recursive or other
-   open-world glob semantics fail closed;
-5. rejects malformed lock package records and any present dependency container
-   that is not an object before target-demand discovery at
-   `tests/test_frontend_dependency_guards.py:517`;
-6. rejects root-lock target demands under either `packages[""]` or
-   `packages["."]` at `tests/test_frontend_dependency_guards.py:1653`, plus
-   aliased, tarball, or Git lock demands, so the transitive-only class cannot
-   acquire direct or renamed lock authority;
-7. discovers each installed lock candidate by canonical path, explicit name,
-   or tarball identity before validation and closes dependency demand per lock
-   surface, so one safe graph cannot mask a demand-only sibling graph;
-8. resolves every non-optional demand through the ordered Node ancestor lookup
-   candidates defined at `tests/test_frontend_dependency_guards.py:621`, then
-   validates the selector against the first installed reachable occurrence;
-   compatible copies nested below unrelated siblings cannot satisfy the edge;
-9. applies npm same-name `optionalDependencies` precedence before selector
-   validation, with the control at
-   `tests/test_frontend_dependency_guards.py:3289`;
-10. excludes a peer only when `peerDependenciesMeta` contains the exact boolean
-   marker `optional: true`;
-11. rejects symbolic-link target records at
-   `tests/test_frontend_dependency_guards.py:1690`, unsupported lock schemas,
-   malformed or prerelease versions,
-   noncanonical paths, conflicting names, provenance mismatches, and any
-   integrity value that is not a valid 64-byte `sha512` SRI digest;
-12. binds the exact three advisory identities and exact two-member `A`, then
-   compares every discovered stable version with every recorded affected range;
-13. permits executable absence only after the complete discovery pass finds no
-   manifest carrier, required lock dependency demand, or installed record.
+1. it mechanically enumerates the current tracked npm surface universe at
+   `tests/test_frontend_dependency_guards.py:1014`;
+2. it validates only local JSON container shape at
+   `tests/test_frontend_dependency_guards.py:1337`, rejects direct target keys,
+   aliases, overrides, and bundle ownership, and delegates every other manifest
+   source to the existing root npm adapter imported at
+   `tests/test_frontend_dependency_guards.py:28`;
+3. that adapter resolves `npm-package-arg` and `semver` from the active installed
+   npm tree and admits only registry `version` or `range` selectors; Git, local,
+   tarball, workspace, tag, malformed, and unknown sources are opaque and fail
+   closed rather than being interpreted by package-specific string branches;
+4. dependency-bearing manifest roots must have exactly one same-root lock
+   authority, and every lock root must have a tracked manifest, as enforced at
+   `tests/test_frontend_dependency_guards.py:1373`;
+5. each lock-bearing project is loaded through the repository wrapper with
+   `npm ls --all --package-lock-only --json`. The invocation removes ambient
+   Node/npm graph controls, uses empty temporary user/global configs, explicitly
+   disables global/workspace/link filtering, includes dev/optional/peer edges,
+   and requires exit `0`, object JSON, no `error`, and no `problems`; the exact
+   policy is bound at `tests/test_frontend_dependency_guards.py:135` and its
+   adversarial control is `tests/test_frontend_dependency_guards.py:2631`;
+6. canonical registry provenance for every non-root lock record and raw target
+   discovery by path, explicit name, or canonical tarball identity reuse the
+   existing root dependency-guard adapter; nested raw target records are not
+   replaced by npm's rendered or deduplicated display tree;
+7. only the target-specific layer at
+   `tests/test_frontend_dependency_guards.py:1466` requires a canonical
+   Browserslist installed path, rejects links and prereleases, compares the
+   stable exact version with all three `F_cutoff` ranges, requires the exact npm
+   registry tarball URL, and validates a syntactic 64-byte `sha512` SRI value;
+8. executable absence is permitted only after manifest-source admission,
+   manifest/lock topology admission, successful complete virtual-graph loading,
+   and raw target occurrence discovery all complete without ambiguity.
+
+The active PATH-resolved Node/npm toolchain is the semantic witness for selector
+and virtual-tree behavior. The current admitted runtime is Node `24.18.1` with
+npm `11.16.0`; npm itself is not repository-version-pinned, so the adversarial
+tests are the fail-closed drift detector. The guard does not fetch packages or
+cryptographically recompute tarball contents: it validates recorded canonical
+provenance and SRI syntax only. It makes no universal claim across future npm
+versions, arbitrary package contents, untracked installs, or new lock schemas.
 
 The guard deliberately does not freeze `4.28.8`, the historical occurrence
 count, this base, or this transition delta. A later authorized safe patch or
@@ -352,14 +351,15 @@ Focused verification completed with exit `0`:
 ```text
 $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
-........................................................................ [ 37%]
-........................................................................ [ 74%]
-..................................................                       [100%]
+........................................................................ [ 40%]
+........................................................................ [ 81%]
+.................................                                        [100%]
 ```
 
-The repository-wide pre-commit hook also exited `0` after Black's first-pass
-format update was applied and the focused suite was rerun. Current-head GitHub
-CI, review dispositions, mapping, and the mandatory wait window remain pending.
+The focused file collected 177 tests, including 39 Browserslist controls. The
+repository-wide pre-commit hook must be rerun on the final material state.
+Current-head GitHub CI, review dispositions, mapping, and the mandatory wait
+window remain pending.
 
 ## Provider state and alert inventory
 
