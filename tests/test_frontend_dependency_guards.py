@@ -566,6 +566,30 @@ def _demand_selector_allows_version(
     return lower <= version < upper
 
 
+def _lock_target_resolution_paths(*, package_path: str, target: str) -> tuple[str, ...]:
+    """Return Node ancestor lookup candidates for one canonical lock package path."""
+
+    assert "\\" not in package_path, f"{package_path}: lock path must use POSIX separators"
+    path = PurePosixPath(package_path)
+    assert not path.is_absolute(), f"{package_path}: lock path must be relative"
+    assert ".." not in path.parts, f"{package_path}: lock path must not contain traversal segments"
+    if package_path:
+        assert path.as_posix() == package_path, f"{package_path}: lock path must be canonical"
+
+    candidates: list[str] = []
+    current = path
+    while True:
+        if not current.parts or current.parts[-1] != "node_modules":
+            prefix = "" if not current.parts else f"{current.as_posix()}/"
+            candidates.append(f"{prefix}node_modules/{target}")
+        if not current.parts:
+            break
+        current = current.parent
+        if current == PurePosixPath("."):
+            current = PurePosixPath()
+    return tuple(candidates)
+
+
 def _assert_sha512_integrity(*, value: object, source: str) -> None:
     assert isinstance(value, str) and value.startswith(
         "sha512-"
@@ -1483,25 +1507,33 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
         integrity = package.get("integrity")
         _assert_sha512_integrity(value=integrity, source=source)
 
-    versions_by_surface: dict[str, tuple[Version, ...]] = {}
-    for relative in {relative for relative, _ in lock_occurrences}:
-        versions_by_surface[relative] = tuple(
-            _parse_version(value=package.get("version"), source=f"{relative}:{path}")
-            for (entry_relative, path), package in lock_occurrences.items()
-            if entry_relative == relative
-        )
-
     for (relative, package_path, field, dependency_name), selector in lock_demand_edges.items():
         source = f"{relative}:{package_path}:{field}.{dependency_name}"
-        versions = versions_by_surface.get(relative, ())
-        assert any(
-            _demand_selector_allows_version(
-                raw_selector=selector,
-                version=version,
-                source=source,
-            )
-            for version in versions
-        ), f"{source}: no installed browserslist version satisfies demand {selector!r}"
+        resolution_paths = _lock_target_resolution_paths(
+            package_path=package_path,
+            target="browserslist",
+        )
+        resolved = next(
+            (
+                lock_occurrences[(relative, candidate)]
+                for candidate in resolution_paths
+                if (relative, candidate) in lock_occurrences
+            ),
+            None,
+        )
+        assert resolved is not None, (
+            f"{source}: no reachable installed browserslist occurrence; "
+            f"searched {resolution_paths!r}"
+        )
+        version = _parse_version(
+            value=resolved.get("version"),
+            source=f"{source} resolved occurrence",
+        )
+        assert _demand_selector_allows_version(
+            raw_selector=selector,
+            version=version,
+            source=source,
+        ), f"{source}: resolved browserslist {version} does not satisfy demand {selector!r}"
 
     return frozenset(relative for relative, _ in lock_occurrences)
 
@@ -2741,10 +2773,45 @@ def test_browserslist_demand_is_closed_per_lock_surface(tmp_path: Path) -> None:
         _assert_browserslist_security_class(root=tmp_path)
 
 
+def test_browserslist_demand_rejects_unrelated_sibling_occurrence(tmp_path: Path) -> None:
+    """A compatible copy below a sibling package is not reachable by Node lookup."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/requester": {"dependencies": {"browserslist": "^4.28.7"}},
+                "node_modules/unrelated/node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="no reachable installed browserslist occurrence"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_demand_uses_first_reachable_ancestor(tmp_path: Path) -> None:
+    """A nearer installed copy controls selector satisfaction over a compatible root copy."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/requester": {"dependencies": {"browserslist": "^4.28.7"}},
+                "node_modules/requester/node_modules/browserslist": _browserslist_entry("5.0.0"),
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="resolved browserslist 5.0.0 does not satisfy"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
 @pytest.mark.parametrize(
     ("selector", "message"),
     (
-        ("^5.0.0", "no installed browserslist version satisfies demand"),
+        ("^5.0.0", "resolved browserslist 4.28.8 does not satisfy demand"),
         ("*", "malformed version"),
         ("npm:browserslist", "malformed version"),
     ),
