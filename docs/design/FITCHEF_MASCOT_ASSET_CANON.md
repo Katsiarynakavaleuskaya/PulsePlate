@@ -1,6 +1,6 @@
 # FitChef Mascot Asset Canon
 
-Status: `Seed Pack v1 + Public Demo Pack v1`
+Status: `Seed Pack v1 + Public Demo Pack v1 + Web Hero Scenario v1`
 Owner: `@katsiaryna_kavaleuskaya`
 Scope: `Repo brand asset canon for FitChef mascot/logo references`
 
@@ -18,6 +18,7 @@ Current source-of-truth pack:
 - `frontend/src/assets/brand/fitchef-portrait-sleepy-v1.png`
 - `frontend/src/assets/brand/fitchef-portrait-surprised-v1.png`
 - `frontend/src/assets/brand/fitchef-onboarding-welcome-v1.png`
+- `frontend/src/assets/brand/fitchef-hero-stretch-v1.webp`
 - `frontend/src/assets/brand/fitchef-public-demo/v1/`
 
 ## Canonical Rules
@@ -142,6 +143,47 @@ PNG bytes and their source hashes remain the Open Design and future iOS
 authority. The existing
 `fitchef-portrait-neutral-v1.png` remains the neutral H1 mascot and is not a
 thirteenth public-demo derivative.
+
+## Public Web Hero Scenario v1
+
+The public Web Hero uses a separate photographic situation from the static VIP
+editorial. The Human Product Owner selected the gentle stretch composition on
+2026-09-02 after reviewing actual `1440`, `768`, and `320` browser previews.
+This choice keeps the Hero relevant to BMI and movement while avoiding a weight
+number, body judgment, medical framing, or anthropomorphic exercise.
+
+Identity and generation provenance:
+
+- Approved real-cat identity reference SHA-256:
+  `3c6a588b776c12fce79f7a6ba2552a6b5efec16e1ab6e0ccb64e052141c98990`.
+- Selected identity-preserving source PNG SHA-256:
+  `e1b1a062d9df2f40d74afd73faa404c2d8661bd288ed3034940e22523c1135c9`.
+- The selected source was produced with the built-in image-generation tool from
+  the approved identity reference and retained as gitignored design evidence.
+- Open Design, iCloud, Figma, and the approved VIP source were not modified by
+  this promotion.
+
+Runtime contract:
+
+| Runtime path | Selected source PNG SHA-256 | Runtime WebP SHA-256 | Pixels | Web delivery |
+| --- | --- | --- | --- | --- |
+| `frontend/src/assets/brand/fitchef-hero-stretch-v1.webp` | `e1b1a062d9df2f40d74afd73faa404c2d8661bd288ed3034940e22523c1135c9` | `7ff3adc9f4121112cf6edfc9b0b664acdb0fa83cc425645aa913a249c994660c` | `1122x1402 RGB` | Pillow 12.3.0, q96, method 6, 307676 B, PSNR 45.2109 dB, frozen 588-byte sRGB ICC |
+
+Usage and authority:
+
+- `editorial-real`: the public Web Hero may use the selected full-frame
+  photographic scenario as static acquisition context.
+- `ui-flat`: the Daily/Weekly interaction keeps the existing compact
+  illustrated neutral guide; the photographic Hero does not enter the
+  `FitChefMascot` variant enum.
+- The existing VIP asset
+  `vip/fitchef-vip-editorial-owner-approved-logo-v2.webp` remains unchanged and
+  continues to own the Personal Nutrition Guide story.
+- The Hero image is code-native content inside a semantic `figure`; it creates
+  no route, calculation, API call, analytics event, payment action, live-AI
+  behavior, or availability claim.
+- Only the tracked WebP has Web runtime authority. The generated source and
+  rejected scale alternative remain local design evidence.
 
 ### Frozen locale design authority
 
