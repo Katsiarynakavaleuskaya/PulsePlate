@@ -647,8 +647,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
+        with: {fetch-depth: 0, persist-credentials: false}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -662,9 +661,10 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+        with: {node-version-file: "${{ env.FRONTEND_NODE_VERSION_FILE }}",
+               cache: npm, cache-dependency-path: frontend/package-lock.json}
 
+      - {uses: ./.github/actions/npm-ci-with-retry, with: {working-directory: frontend}}
       - name: Pre-commit (lint/format/security quick checks)
         run: pre-commit run --all-files --show-diff-on-failure
         env:
