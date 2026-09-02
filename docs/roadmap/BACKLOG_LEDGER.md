@@ -10053,7 +10053,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2369](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2369)
-    (`codex/fitchef-public-visual-story`, merged); current child PR-TBD
+    (`codex/fitchef-public-visual-story`, merged); current child
+    [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
     (`codex/fitchef-web-photographic-hero`)
   - Status: 🚧 Umbrella open. PR #2369 merged as
     `159c55e63e0e657262b95b8bf917d2f501bb5749`, promoting the owner-approved
@@ -10089,7 +10090,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef photographic identity for a bounded iPad surface
   - Owner: @katsiaryna_kavaleuskaya / iOS product-design owner
   - Priority: P1
-  - Target PR: PR-TBD after `FITCHEF-WEB-IDENTITY-1`
+  - Target PR: PR-TBD after [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
   - Status: Planned; CAB-01 merged in PR #2368, but the exact iPad surface and preview still require
     a separate Human Product Owner decision
   - Area: iOS / iPad / SwiftUI / FitChef visual identity
@@ -10114,7 +10115,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Backend-driven FitChef calorie-calculation Web demo
   - Owner: backend-engineer / frontend-engineer / product owner
   - Priority: P1
-  - Target PR: PR-TBD after `FITCHEF-WEB-IDENTITY-1`
+  - Target PR: PR-TBD after [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
   - Status: Planned as a separate product-flow carrier
   - Area: backend / OpenAPI / frontend / free Web education
   - Finding Type: product demonstration follow-up

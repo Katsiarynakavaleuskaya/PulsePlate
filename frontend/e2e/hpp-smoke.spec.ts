@@ -543,9 +543,12 @@ for (const viewport of marketingViewportCases) {
 
     const storyRoot = page.getByTestId('fitchef-value-demo');
     const dailyFlow = storyRoot.locator('.ppm-fitchef-daily-flow');
+    const heroImage = page.locator('.ppm-hero-scenario-image');
     await expect(storyRoot).toBeVisible();
     await expect(storyRoot.locator('[data-fitchef-story]')).toHaveCount(4);
     await expect(dailyFlow).toBeVisible();
+    await expect(heroImage).toBeVisible();
+    await heroImage.evaluate((image) => (image as HTMLImageElement).decode());
 
     const layout = await page.evaluate(() => {
       const root = document.querySelector<HTMLElement>('[data-testid="fitchef-value-demo"]');
