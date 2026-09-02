@@ -24,6 +24,7 @@ CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
 CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
 FRONTEND_CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
+FRONTEND_PACKAGE_JSON_PATH = REPO_ROOT / "frontend" / "package.json"
 GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
@@ -631,6 +632,10 @@ NODE24_FRONTEND_BUILD_LINE = (
     "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
     " AS frontend-build"
 )
+NODE24_FRONTEND_BUILD_RUN_LINE = "RUN npm run build"
+NODE24_FRONTEND_BUILD_COMMAND_ERROR = (
+    "frontend-build must end with exactly one canonical npm run build"
+)
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
 )
@@ -775,6 +780,31 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         for start_index, _end_index, instruction in logical_instructions
         if start_index > final_stage_start_index
     ]
+    frontend_build_stage_index = (
+        from_stage_indices[from_stage_aliases.index("frontend-build")]
+        if "frontend-build" in from_stage_aliases
+        else None
+    )
+    frontend_build_stage_end_index = (
+        next(
+            (
+                stage_index
+                for stage_index in from_stage_indices
+                if frontend_build_stage_index is not None
+                and stage_index > frontend_build_stage_index
+            ),
+            len(dockerfile_lines),
+        )
+        if frontend_build_stage_index is not None
+        else None
+    )
+    frontend_build_logical_instructions = [
+        instruction
+        for start_index, _end_index, instruction in logical_instructions
+        if frontend_build_stage_index is not None
+        and frontend_build_stage_end_index is not None
+        and frontend_build_stage_index < start_index < frontend_build_stage_end_index
+    ]
     final_stage_copy_add_entries = [
         (line_index, line)
         for line_index, line in enumerate(dockerfile_lines)
@@ -810,6 +840,12 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("the immutable frontend-build line must be the only Node FROM stage")
     if from_stage_aliases != ["caddy-build", "frontend-build", None]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
+    if (
+        frontend_build_logical_instructions.count(NODE24_FRONTEND_BUILD_RUN_LINE) != 1
+        or not frontend_build_logical_instructions
+        or frontend_build_logical_instructions[-1] != NODE24_FRONTEND_BUILD_RUN_LINE
+    ):
+        errors.append(NODE24_FRONTEND_BUILD_COMMAND_ERROR)
     if (
         final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES)
         or has_absorbed_final_stage_copy_add
@@ -875,6 +911,31 @@ def test_node24_frontend_builder_guard_rejects_missing_asset_handoff() -> None:
     errors = _node24_frontend_builder_contract_errors(disconnected)
 
     assert "production frontend assets must come only from frontend-build" in errors
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        "RUN vite build",
+        "RUN npx vite build",
+        "RUN npm exec vite -- build",
+        "RUN npm run build || true",
+        "RUN npm run build; exit 0",
+        "RUN npm run build\nRUN vite build",
+        "RUN npm run build\nRUN npm run build",
+    ),
+)
+def test_node24_frontend_builder_guard_rejects_build_command_bypass(
+    replacement: str,
+) -> None:
+    """The shipped SPA builder must finish through the canonical package build."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    mutated = dockerfile.replace(NODE24_FRONTEND_BUILD_RUN_LINE, replacement, 1)
+
+    errors = _node24_frontend_builder_contract_errors(mutated)
+
+    assert NODE24_FRONTEND_BUILD_COMMAND_ERROR in errors
 
 
 def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
@@ -1500,6 +1561,19 @@ def _assert_node24_frontend_builder_workflow_contract(
     assert isinstance(job_env, dict)
     assert "PYTEST_ADDOPTS" not in job_env
 
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    build_steps = [
+        candidate
+        for candidate in steps
+        if isinstance(candidate, dict) and candidate.get("name") == "Build frontend"
+    ]
+    assert len(build_steps) == 1
+    build_step = build_steps[0]
+    assert build_step["run"] == "npm run build"
+    for forbidden_key in ("if", "continue-on-error", "shell", "working-directory"):
+        assert forbidden_key not in build_step
+
     step = _job_step_by_name(
         workflow,
         job_id="build-and-test",
@@ -1542,6 +1616,12 @@ def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
         "workflow_pytest_collect_only",
         "step_pytest_collect_only",
         "job_pytest_collect_only",
+        "build_step_direct_vite",
+        "build_step_duplicate",
+        "build_step_if",
+        "build_step_continue_on_error",
+        "build_step_shell",
+        "build_step_working_directory",
     ),
 )
 def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
@@ -1563,6 +1643,11 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         workflow,
         job_id="build-and-test",
         step_name="Run frontend builder governance guard",
+    )
+    build_step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Build frontend",
     )
 
     if mutation in {"pull_request_paths", "push_paths"}:
@@ -1615,6 +1700,20 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         job_env = job["env"]
         assert isinstance(job_env, dict)
         job_env["PYTEST_ADDOPTS"] = "--collect-only"
+    if mutation == "build_step_direct_vite":
+        build_step["run"] = "npx vite build"
+    if mutation == "build_step_duplicate":
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        steps.append(dict(build_step))
+    if mutation == "build_step_if":
+        build_step["if"] = "${{ false }}"
+    if mutation == "build_step_continue_on_error":
+        build_step["continue-on-error"] = True
+    if mutation == "build_step_shell":
+        build_step["shell"] = "bash -c '{0} || true'"
+    if mutation == "build_step_working_directory":
+        build_step["working-directory"] = "."
 
     with pytest.raises(AssertionError):
         _assert_node24_frontend_builder_workflow_contract(workflow)
@@ -3592,6 +3691,88 @@ def test_ios_unit_selector_is_the_complete_target_with_local_override_preserved(
     )
 
 
+def _assert_frontend_node24_build_and_precommit_contract(
+    package: dict[str, object],
+    config: dict[str, object],
+) -> None:
+    """Assert the finite package-script and pre-commit enforcement chain."""
+
+    scripts = package["scripts"]
+    assert isinstance(scripts, dict)
+
+    assert scripts["typecheck"] == "tsc -p tsconfig.json --noEmit"
+    assert scripts["build"] == "npm run typecheck && vite build"
+    assert (
+        scripts["test:precommit"]
+        == "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose"
+    )
+
+    repos = config["repos"]
+    assert isinstance(repos, list)
+    matching_hooks = [
+        hook
+        for repo in repos
+        if isinstance(repo, dict)
+        if repo.get("repo") == "local"
+        for hook in repo.get("hooks", [])
+        if isinstance(hook, dict)
+        if hook.get("id") == "frontend-tests"
+    ]
+    assert len(matching_hooks) == 1
+    hook = matching_hooks[0]
+    assert hook["entry"] == 'bash -c "cd frontend && npm run test:precommit"'
+    assert hook["language"] == "system"
+    assert hook["pass_filenames"] is False
+    assert hook["stages"] == ["pre-commit"]
+    assert hook["files"] == r"^frontend/.*\.(ts|tsx|js|jsx)$"
+
+    guarded_commands = (hook["entry"], scripts["test:precommit"])
+    for forbidden in ("||", "; true", "exit 0", "continue-on-error", "warning::"):
+        assert all(
+            isinstance(command, str) and forbidden not in command for command in guarded_commands
+        )
+
+
+def test_frontend_node24_production_build_and_precommit_tests_are_fail_closed() -> None:
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert isinstance(package, dict)
+    assert isinstance(config, dict)
+
+    _assert_frontend_node24_build_and_precommit_contract(package, config)
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        "vitest",
+        "true",
+        ":",
+        "vitest run || true",
+        "vitest run; exit 0",
+        None,
+    ),
+)
+def test_frontend_node24_precommit_guard_rejects_inner_script_drift(
+    replacement: str | None,
+) -> None:
+    """The outer hook cannot hide a weakened or missing package test script."""
+
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert isinstance(package, dict)
+    assert isinstance(config, dict)
+    scripts = package["scripts"]
+    assert isinstance(scripts, dict)
+    if replacement is None:
+        scripts.pop("test:precommit")
+    else:
+        scripts["test:precommit"] = replacement
+
+    with pytest.raises((AssertionError, KeyError)):
+        _assert_frontend_node24_build_and_precommit_contract(package, config)
+
+
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     workflow = _load_ci_workflow()
     jobs = workflow["jobs"]
@@ -3761,35 +3942,202 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
     _assert_contains_all_tokens(contract_text, contract_tokens)
 
 
-def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
-    workflow = _load_ci_workflow()
+def _assert_ci_lint_node24_frontend_hook_dependency_contract(
+    workflow: dict[str, object],
+) -> None:
+    """Assert the finite locked frontend dependency chain in the lint job."""
 
-    checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
-    assert checkout_step["with"]["fetch-depth"] == 0
-
-    pre_commit_step = _job_step_by_name(
-        workflow,
-        job_id="lint",
-        step_name="Pre-commit (lint/format/security quick checks)",
-    )
-    assert "pre-commit run --all-files" in pre_commit_step["run"]
-
-
-def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
-    workflow = _load_ci_workflow()
-
-    setup_node_step = _job_step_by_name(workflow, job_id="lint", step_name="Setup Node.js")
-    assert setup_node_step["uses"] == f"actions/setup-node@{SETUP_NODE_NODE24_SHA}"
-    assert setup_node_step["with"]["node-version-file"] == "${{ env.FRONTEND_NODE_VERSION_FILE }}"
+    assert workflow["defaults"] == {"run": {"shell": "bash"}}
+    assert workflow["permissions"] == {"contents": "read"}
 
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
-    lint_steps = jobs["lint"]["steps"]
-    step_names = [step.get("name") for step in lint_steps]
-    assert step_names.index("Setup Node.js") < step_names.index(
-        "Pre-commit (lint/format/security quick checks)"
+    lint_job = jobs["lint"]
+    assert isinstance(lint_job, dict)
+    for forbidden_key in (
+        "if",
+        "continue-on-error",
+        "defaults",
+        "permissions",
+        "environment",
+    ):
+        assert forbidden_key not in lint_job
+    lint_steps = lint_job["steps"]
+    assert isinstance(lint_steps, list)
+    assert all(isinstance(step, dict) for step in lint_steps)
+
+    def unique_step(step_name: str) -> dict[str, object]:
+        matches = [step for step in lint_steps if step.get("name") == step_name]
+        assert len(matches) == 1
+        return matches[0]
+
+    checkout_step = unique_step("Checkout")
+    assert checkout_step == {
+        "name": "Checkout",
+        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "with": {"fetch-depth": 0, "persist-credentials": False},
+    }
+
+    setup_node_step = unique_step("Setup Node.js")
+    assert setup_node_step == {
+        "name": "Setup Node.js",
+        "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
+        "with": {
+            "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
+            "cache": "npm",
+            "cache-dependency-path": "frontend/package-lock.json",
+        },
+    }
+
+    install_steps = [
+        step for step in lint_steps if step.get("uses") == "./.github/actions/npm-ci-with-retry"
+    ]
+    assert len(install_steps) == 1
+    install_step = install_steps[0]
+    assert install_step == {
+        "uses": "./.github/actions/npm-ci-with-retry",
+        "with": {"working-directory": "frontend"},
+    }
+
+    pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
+    assert pre_commit_step == {
+        "name": "Pre-commit (lint/format/security quick checks)",
+        "run": "pre-commit run --all-files --show-diff-on-failure",
+        "env": {"SKIP": "no-commit-to-branch"},
+    }
+
+    checkout_index = lint_steps.index(checkout_step)
+    setup_node_index = lint_steps.index(setup_node_step)
+    assert checkout_index < setup_node_index
+    assert lint_steps[setup_node_index + 1 : setup_node_index + 3] == [
+        install_step,
+        pre_commit_step,
+    ]
+
+
+def test_ci_lint_node24_frontend_hook_dependency_precedes_precommit() -> None:
+    workflow = _load_ci_workflow()
+
+    _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_install",
+        "duplicate_install",
+        "reordered_install",
+        "conditional_install",
+        "nonblocking_install",
+        "wrong_directory",
+        "cache_path_drift",
+        "cache_mode_drift",
+        "extra_install_input",
+        "wrong_install_action",
+        "alternate_install_run",
+        "persisted_checkout_credentials",
+        "decoy_npm_prefix_install",
+        "decoy_absolute_npm_ci",
+        "decoy_pnpm_install",
+        "job_if",
+        "job_continue_on_error",
+        "job_defaults",
+        "workflow_defaults",
+        "workflow_permissions",
+        "job_permissions",
+        "job_environment",
+    ),
+)
+def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
+    mutation: str,
+) -> None:
+    """Every bounded install, order, cache, or privilege drift must fail closed."""
+
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    lint_job = jobs["lint"]
+    assert isinstance(lint_job, dict)
+    lint_steps = lint_job["steps"]
+    assert isinstance(lint_steps, list)
+    checkout_step = next(step for step in lint_steps if step.get("name") == "Checkout")
+    setup_node_step = next(step for step in lint_steps if step.get("name") == "Setup Node.js")
+    install_step = next(
+        step for step in lint_steps if step.get("uses") == "./.github/actions/npm-ci-with-retry"
     )
+    pre_commit_step = next(
+        step
+        for step in lint_steps
+        if step.get("name") == "Pre-commit (lint/format/security quick checks)"
+    )
+
+    if mutation == "missing_install":
+        lint_steps.remove(install_step)
+    if mutation == "duplicate_install":
+        lint_steps.append(dict(install_step))
+    if mutation == "reordered_install":
+        lint_steps.remove(install_step)
+        lint_steps.insert(lint_steps.index(pre_commit_step) + 1, install_step)
+    if mutation == "conditional_install":
+        install_step["if"] = "${{ false }}"
+    if mutation == "nonblocking_install":
+        install_step["continue-on-error"] = True
+    if mutation == "wrong_directory":
+        install_with = install_step["with"]
+        assert isinstance(install_with, dict)
+        install_with["working-directory"] = "."
+    if mutation == "cache_path_drift":
+        setup_with = setup_node_step["with"]
+        assert isinstance(setup_with, dict)
+        setup_with["cache-dependency-path"] = "package-lock.json"
+    if mutation == "cache_mode_drift":
+        setup_with = setup_node_step["with"]
+        assert isinstance(setup_with, dict)
+        setup_with["cache"] = "yarn"
+    if mutation == "extra_install_input":
+        install_with = install_step["with"]
+        assert isinstance(install_with, dict)
+        install_with["npm-command"] = "install"
+    if mutation == "wrong_install_action":
+        install_step["uses"] = "actions/setup-node@untrusted"
+    if mutation == "alternate_install_run":
+        lint_steps.insert(lint_steps.index(pre_commit_step), {"name": "Alternate", "run": "npm ci"})
+    if mutation == "persisted_checkout_credentials":
+        checkout_with = checkout_step["with"]
+        assert isinstance(checkout_with, dict)
+        checkout_with["persist-credentials"] = True
+    if mutation == "decoy_npm_prefix_install":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "npm --prefix frontend install"},
+        )
+    if mutation == "decoy_absolute_npm_ci":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "/usr/bin/npm ci --prefix frontend"},
+        )
+    if mutation == "decoy_pnpm_install":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "corepack pnpm install --dir frontend"},
+        )
+    if mutation == "job_if":
+        lint_job["if"] = "${{ false }}"
+    if mutation == "job_continue_on_error":
+        lint_job["continue-on-error"] = True
+    if mutation == "job_defaults":
+        lint_job["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    if mutation == "workflow_defaults":
+        workflow["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    if mutation == "workflow_permissions":
+        workflow["permissions"] = {"contents": "write"}
+    if mutation == "job_permissions":
+        lint_job["permissions"] = {"contents": "write"}
+    if mutation == "job_environment":
+        lint_job["environment"] = "production"
+
+    with pytest.raises(AssertionError):
+        _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:

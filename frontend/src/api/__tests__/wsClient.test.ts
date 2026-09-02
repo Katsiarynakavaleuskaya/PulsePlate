@@ -91,8 +91,12 @@ describe("wsClient", (): void => {
     vi.stubGlobal("WebSocket", wsCtor as unknown as typeof WebSocket);
 
     connectRealtimeWs({
-      onStateChange: (state: WsConnectionState): void => states.push(state),
-      onMessage: (event: RealtimeWsEnvelope): void => messages.push(event),
+      onStateChange: (state: WsConnectionState): void => {
+        states.push(state);
+      },
+      onMessage: (event: RealtimeWsEnvelope): void => {
+        messages.push(event);
+      },
     });
 
     expect(states).toEqual(["connecting"]);
@@ -130,7 +134,9 @@ describe("wsClient", (): void => {
     );
 
     connectRealtimeWs({
-      onStateChange: (state: WsConnectionState): void => states.push(state),
+      onStateChange: (state: WsConnectionState): void => {
+        states.push(state);
+      },
     });
     fakeSocket.onmessage?.({ data: "not-json" });
 
@@ -161,7 +167,9 @@ describe("wsClient", (): void => {
     );
 
     connectRealtimeWs({
-      onStateChange: (state: WsConnectionState): void => states.push(state),
+      onStateChange: (state: WsConnectionState): void => {
+        states.push(state);
+      },
     });
     fakeSocket.onmessage?.({ data: '{"type":"pong"}' });
 
