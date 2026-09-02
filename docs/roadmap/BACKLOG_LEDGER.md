@@ -2531,9 +2531,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: IOS-REL-2 consumer-first adaptive navigation shell
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (iOS release design train)
-  - Target PR: PR-TBD (`codex/ios-adaptive-navigation-shell`)
-  - Status: Active after Product Owner `APPROVE_A`; Human V1 `GO`, current-head
-    CI, canonical closeout, and merge remain pending
+  - Target PR: [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+    (`codex/ios-adaptive-navigation-shell`)
+  - Status: Open non-draft in PR #2376; Human V1 `GO`, current-head CI,
+    canonical closeout, merge authorization, and merge remain pending
   - Dependency: PR `#2368` merged at
     `6327960917e2a04e5fec0d89b358b51781b12f67`
   - Area: ios / navigation / localization / accessibility / tests / docs

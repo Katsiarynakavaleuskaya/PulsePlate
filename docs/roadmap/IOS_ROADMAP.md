@@ -67,7 +67,8 @@ Evidence:
   Evidence: `ios/PulsePlate/Services/ProDailyNutritionService.swift:36-57`, `ios/PulsePlate/Services/ProDailyNutritionService.swift:94-105`,
   `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:6-21`, `ios/PulsePlateTests/Services/ProDailyNutritionServiceTests.swift:23-65`,
   `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`.
-- IOS-REL-2 (active, not merged): consumer-first adaptive navigation shell on
+- IOS-REL-2 (active, not merged): [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+  carries the consumer-first adaptive navigation shell on
   `codex/ios-adaptive-navigation-shell`; tracking:
   [`ledger-p1-ios-release-design-train-navigation-shell`](BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-navigation-shell).
   Product Owner approved Candidate A. Real SwiftUI V1 review and human `GO`,
