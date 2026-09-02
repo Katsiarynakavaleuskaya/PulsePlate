@@ -38,7 +38,7 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-a51a14f9f5ef2b866341f67e6c4fb87748c299a1
+a51a14f9f5c986f8e9a676f5d1add97746252a39
 ```
 
 The current permanent guard enumerates tracked `package.json`,
