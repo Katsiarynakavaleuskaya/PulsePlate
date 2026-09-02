@@ -12910,6 +12910,8 @@
             "required": false,
             "schema": {
               "default": 20,
+              "maximum": 50,
+              "minimum": 1,
               "title": "Max Results",
               "type": "integer"
             }

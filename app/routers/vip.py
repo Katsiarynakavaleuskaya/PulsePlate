@@ -18,6 +18,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     Body,
     Depends,
     HTTPException,
+    Query,
     Request,
     status,
 )
@@ -1117,6 +1118,8 @@ def _dedupe_comparison_region_labels(regions: str) -> list[str]:
     seen_identities: set[str] = set()
     for raw_label in regions.split(","):
         label = raw_label.strip()
+        if not label:
+            continue
         identity = label.lower()
         if identity in seen_identities:
             continue
@@ -1284,7 +1287,10 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> VipPric
     dependencies=[Depends(require_vip_tier)],
 )
 def search_region_products(
-    region: str, query: str, category: str = "", max_results: int = 20
+    region: str,
+    query: str,
+    category: str = "",
+    max_results: int = Query(20, ge=1, le=50),
 ) -> VipRegionSearchResponse:
     """
     RU: Поиск продуктов в региональном каталоге

@@ -34,11 +34,16 @@ from app.schemas.vip import (
     VipRegionStoresResponse,
     VipRegionStoresSuccessResponse,
 )
-from core.region_catalog import RegionalProduct, RegionCatalog
+from core.region_catalog import RegionalProduct, RegionCatalog, SearchResult
 from tests._route_patch import patch_route_dependency
 
 _RAW_PROVIDER_SENTINEL = "raw-provider-secret:/tmp/vip-region-catalog"
 _MALFORMED_SUCCESS_TOKEN = "not-an-integer-total-count"
+_REGION_CSV_CONTENT = (
+    "product_id,name_es,name_en,category,unit,typical_package_size,"
+    "price_eur,price_usd,store_chain,region\n"
+    "5,Leche,Milk,dairy,ml,1000,0.95,,Día,Valencia\n"
+)
 
 _MILK_PRODUCT: dict[str, object] = {
     "product_id": "5",
@@ -133,6 +138,9 @@ _COMPARISON_SUCCESS: dict[str, object] = {
 }
 
 _COMPARISON_DEDUPE_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
+    ("", [], []),
+    ("ES,,US", ["ES", "US"], ["ES", "US"]),
+    (",ES,es,", ["ES"], ["ES"]),
     ("ES,es", ["ES"], ["ES"]),
     (" ES , ES ", ["ES"], ["ES"]),
     ("XX,xx", ["XX"], []),
@@ -275,12 +283,7 @@ def test_uppercase_catalog_filename_is_normalized_at_load_and_reachable_over_htt
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    (tmp_path / "ES_products.csv").write_text(
-        "product_id,name_es,name_en,category,unit,typical_package_size,"
-        "price_eur,price_usd,store_chain,region\n"
-        "5,Leche,Milk,dairy,ml,1000,0.95,,Día,Valencia\n",
-        encoding="utf-8",
-    )
+    (tmp_path / "ES_products.csv").write_text(_REGION_CSV_CONTENT, encoding="utf-8")
     catalog = RegionCatalog(str(tmp_path))
 
     assert list(catalog.regions) == ["es"]
@@ -320,6 +323,32 @@ def test_uppercase_catalog_filename_is_normalized_at_load_and_reachable_over_htt
     assert lowercase_response.status_code == uppercase_response.status_code == 200
     assert _json_payload(lowercase_response)["products"][0]["product_id"] == "5"
     assert _json_payload(uppercase_response)["products"][0]["product_id"] == "5"
+
+
+def test_duplicate_normalized_catalog_filenames_fail_closed_without_a_winner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lowercase_path = tmp_path / "es_products.csv"
+    uppercase_path = tmp_path / "ES_products.csv"
+    lowercase_path.write_text(_REGION_CSV_CONTENT, encoding="utf-8")
+    uppercase_path.write_text(_REGION_CSV_CONTENT, encoding="utf-8")
+    original_glob = Path.glob
+
+    def duplicate_case_glob(path: Path, pattern: str) -> object:
+        if path == tmp_path and pattern == "*.csv":
+            return iter((lowercase_path, uppercase_path))
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(Path, "glob", duplicate_case_glob)
+    catalog: RegionCatalog | None = None
+
+    with pytest.raises(ValueError) as exc_info:
+        catalog = RegionCatalog(str(tmp_path))
+
+    assert catalog is None
+    assert str(exc_info.value) == "Duplicate normalized region catalog key: es"
+    assert str(tmp_path) not in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -472,6 +501,124 @@ def test_uppercase_and_lowercase_region_requests_share_catalog_data_but_keep_ech
     lowercase_payload.pop("message")
     uppercase_payload.pop("message")
     assert lowercase_payload == uppercase_payload
+
+
+@pytest.mark.parametrize(
+    ("max_results", "expected_detail"),
+    [
+        (
+            -1,
+            {
+                "type": "greater_than_equal",
+                "loc": ["query", "max_results"],
+                "msg": "Input should be greater than or equal to 1",
+                "input": "-1",
+                "ctx": {"ge": 1},
+            },
+        ),
+        (
+            0,
+            {
+                "type": "greater_than_equal",
+                "loc": ["query", "max_results"],
+                "msg": "Input should be greater than or equal to 1",
+                "input": "0",
+                "ctx": {"ge": 1},
+            },
+        ),
+        (
+            51,
+            {
+                "type": "less_than_equal",
+                "loc": ["query", "max_results"],
+                "msg": "Input should be less than or equal to 50",
+                "input": "51",
+                "ctx": {"le": 50},
+            },
+        ),
+    ],
+)
+def test_search_max_results_rejects_out_of_range_before_provider_call(
+    test_client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    max_results: int,
+    expected_detail: dict[str, object],
+) -> None:
+    provider_calls: list[tuple[str, str, str | None, int]] = []
+
+    def search_provider(
+        query: str,
+        region: str,
+        category: str | None,
+        result_limit: int,
+    ) -> SearchResult:
+        provider_calls.append((query, region, category, result_limit))
+        return SearchResult(products=[], total_count=0, region=region, search_query=query)
+
+    patch_route_dependency(
+        app=canonical_app,
+        monkeypatch=monkeypatch,
+        path="/api/v1/vip/regions/{region}/search",
+        method="GET",
+        symbol="search_products",
+        value=search_provider,
+    )
+
+    response = test_client.get(
+        "/api/v1/vip/regions/ES/search",
+        params={"query": "milk", "max_results": max_results},
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422
+    assert _json_payload(response) == {"detail": [expected_detail]}
+    assert provider_calls == []
+
+
+def test_search_max_results_accepts_boundary_fifty_and_passes_it_to_provider(
+    test_client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider_calls: list[tuple[str, str, str | None, int]] = []
+
+    def search_provider(
+        query: str,
+        region: str,
+        category: str | None,
+        max_results: int,
+    ) -> SearchResult:
+        provider_calls.append((query, region, category, max_results))
+        return SearchResult(products=[], total_count=0, region=region, search_query=query)
+
+    patch_route_dependency(
+        app=canonical_app,
+        monkeypatch=monkeypatch,
+        path="/api/v1/vip/regions/{region}/search",
+        method="GET",
+        symbol="search_products",
+        value=search_provider,
+    )
+
+    response = test_client.get(
+        "/api/v1/vip/regions/ES/search",
+        params={"query": "milk", "max_results": 50},
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200
+    assert _json_payload(response) == {
+        "status": "success",
+        "region": "ES",
+        "query": "milk",
+        "category": "",
+        "products": [],
+        "total_count": 0,
+        "returned_count": 0,
+        "message": "Found 0 products in ES",
+    }
+    assert provider_calls == [("milk", "ES", "", 50)]
 
 
 @pytest.mark.parametrize("product_name", ["search", "categories", "stores"])
@@ -935,6 +1082,8 @@ def test_openapi_exposes_exact_discriminated_contracts_and_existing_parameters()
     assert search_parameters["query"]["type"] == "string"
     assert search_parameters["category"]["default"] == ""
     assert search_parameters["max_results"]["default"] == 20
+    assert search_parameters["max_results"]["minimum"] == 1
+    assert search_parameters["max_results"]["maximum"] == 50
 
     comparison_parameters = {
         parameter["name"]: parameter["schema"]

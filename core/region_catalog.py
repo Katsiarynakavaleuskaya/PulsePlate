@@ -69,8 +69,14 @@ class RegionCatalog:
         if not self.data_dir.exists():
             return
 
-        for csv_file in self.data_dir.glob("*.csv"):
+        csv_files = sorted(
+            self.data_dir.glob("*.csv"),
+            key=lambda path: (path.name.casefold(), path.name),
+        )
+        for csv_file in csv_files:
             region_code = _normalize_region_lookup(csv_file.stem.replace("_products", ""))
+            if region_code in self.regions:
+                raise ValueError(f"Duplicate normalized region catalog key: {region_code}")
             self.regions[region_code] = self._load_region_data(csv_file)
 
     def _load_region_data(self, csv_file: Path) -> List[RegionalProduct]:
