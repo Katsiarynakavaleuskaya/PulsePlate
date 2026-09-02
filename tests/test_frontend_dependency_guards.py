@@ -207,6 +207,11 @@ BROWSERSLIST_ADVISORY_RANGES = {
     for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
 }
 BROWSERSLIST_APPLICABLE_ADVISORIES = frozenset({"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"})
+BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
+    "GHSA-73wf-gq98-2v4g": "4.28.7",
+    "GHSA-c83g-rgw3-j3cx": "4.28.7",
+    "GHSA-w8qv-6jwh-64r5": "4.16.5",
+}
 BROWSERSLIST_GAD_RECEIPT_SHA256 = (
     "4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f"  # pragma: allowlist secret
 )
@@ -1267,8 +1272,34 @@ def _manifest_workspace_patterns(*, document: dict, surface: str) -> tuple[str, 
         assert (
             not path.is_absolute() and ".." not in path.parts
         ), f"{source}: workspace pattern must stay repository-relative"
+        unsupported_glob = any(character in pattern for character in "?[]{}!")
+        star_parts = tuple(index for index, part in enumerate(path.parts) if "*" in part)
+        assert not unsupported_glob and (
+            not star_parts
+            or (
+                len(star_parts) == 1
+                and star_parts[0] == len(path.parts) - 1
+                and path.parts[-1] == "*"
+            )
+        ), f"{source}: unsupported workspace glob; use a literal or terminal /* pattern"
         validated.append(pattern)
     return tuple(validated)
+
+
+def _workspace_pattern_matches_member(
+    *,
+    resolved_pattern: PurePosixPath,
+    member_parent: PurePosixPath,
+) -> bool:
+    """Match the closed literal-or-one-child workspace pattern subset."""
+
+    if resolved_pattern.parts and resolved_pattern.parts[-1] == "*":
+        prefix = resolved_pattern.parts[:-1]
+        return (
+            len(member_parent.parts) == len(prefix) + 1
+            and member_parent.parts[: len(prefix)] == prefix
+        )
+    return member_parent == resolved_pattern
 
 
 def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
@@ -1317,7 +1348,10 @@ def _find_workspace_manifest_target_paths(
                 continue
             member_parent = PurePosixPath(member_surface).parent
             if (
-                member_parent.match(resolved_pattern.as_posix())
+                _workspace_pattern_matches_member(
+                    resolved_pattern=resolved_pattern,
+                    member_parent=member_parent,
+                )
                 and member_document.get("name") == target
             ):
                 found[("workspaces", f"[{index}]", member_surface)] = pattern
@@ -1609,6 +1643,7 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
     )
     for (relative, path), package in lock_occurrences.items():
         source = f"{relative}:{path}"
+        assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
         raw_version = package.get("version")
         _assert_browserslist_head_postcondition(raw_version=raw_version, source=source)
         assert isinstance(raw_version, str)
@@ -2728,9 +2763,29 @@ def test_browserslist_owner_receipt_digest_is_content_bound() -> None:
     assert digest == BROWSERSLIST_GAD_RECEIPT_SHA256
     assert f"```text\n{digest}\n```" in document
     assert receipt["record_count"] == 3
-    assert {record["ghsa_id"] for record in receipt["records"]} == set(
-        BROWSERSLIST_EXPECTED_ADVISORIES
-    )
+    records = {record["ghsa_id"]: record for record in receipt["records"]}
+    assert set(records) == set(BROWSERSLIST_EXPECTED_ADVISORIES)
+    for advisory, guarded_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items():
+        vulnerabilities = records[advisory]["vulnerabilities"]
+        retained_projection = {
+            (
+                vulnerability["ecosystem"],
+                vulnerability["package"],
+                re.sub(r"\s+", "", vulnerability["vulnerable_version_range"]),
+                vulnerability["first_patched_version"],
+            )
+            for vulnerability in vulnerabilities
+        }
+        expected_projection = {
+            (
+                "npm",
+                "browserslist",
+                re.sub(r"\s+", "", guarded_range),
+                BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory],
+            )
+            for guarded_range in guarded_ranges
+        }
+        assert retained_projection == expected_projection
 
 
 @pytest.mark.parametrize(
@@ -2865,6 +2920,22 @@ def test_browserslist_class_rejects_target_named_workspace_member(tmp_path: Path
         _assert_browserslist_security_class(root=tmp_path)
 
 
+def test_browserslist_class_fails_closed_on_recursive_workspace_glob(tmp_path: Path) -> None:
+    """Unsupported npm recursive-glob semantics cannot create executable absence."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "workspaces": ["packages/**"]},
+    )
+    member_manifest = tmp_path / "frontend" / "packages" / "deep" / "member" / "package.json"
+    member_manifest.parent.mkdir(parents=True)
+    member_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
+    _git_stdout("add", "--", "frontend/packages/deep/member/package.json", repo_root=tmp_path)
+
+    with pytest.raises(AssertionError, match="unsupported workspace glob"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
 @pytest.mark.parametrize(
     ("case", "message"),
     (
@@ -2877,6 +2948,7 @@ def test_browserslist_class_rejects_target_named_workspace_member(tmp_path: Path
         ("wrong-tarball-version", "canonical provenance mismatch"),
         ("conflicting-name", "package name conflicts"),
         ("alias-path", "alias/noncanonical installed path"),
+        ("symbolic-link", "symbolic link lock occurrence is forbidden"),
     ),
 )
 def test_browserslist_class_fails_closed_on_invalid_lock_records(
@@ -2906,6 +2978,8 @@ def test_browserslist_class_fails_closed_on_invalid_lock_records(
         package["name"] = "not-browserslist"
     elif case == "alias-path":
         path = "node_modules/renamed-browserslist"
+    elif case == "symbolic-link":
+        package["link"] = True
     else:
         raise AssertionError(f"unhandled Browserslist lock case: {case}")
 
