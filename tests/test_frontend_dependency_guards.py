@@ -489,6 +489,8 @@ def _discover_lock_target_demand_edges(
             dependencies = package[field]
             assert isinstance(dependencies, dict), f"{raw_path}:{field} must be an object"
             for name, value in dependencies.items():
+                if field == "dependencies" and name in package.get("optionalDependencies", {}):
+                    continue
                 if (
                     name == target
                     or _is_npm_alias_for_target(value, target=target)
@@ -1232,6 +1234,90 @@ def _find_tracked_local_manifest_target_paths(
     return found
 
 
+def _manifest_workspace_patterns(*, document: dict, surface: str) -> tuple[str, ...]:
+    """Validate and return the finite workspace patterns owned by one manifest."""
+
+    raw_workspaces = document.get("workspaces")
+    if raw_workspaces is None:
+        return ()
+    if isinstance(raw_workspaces, list):
+        patterns = raw_workspaces
+    else:
+        assert isinstance(raw_workspaces, dict), f"{surface}: workspaces must be an array or object"
+        assert set(raw_workspaces) == {
+            "packages"
+        }, f"{surface}: workspace object must contain only packages"
+        patterns = raw_workspaces["packages"]
+        assert isinstance(patterns, list), f"{surface}: workspaces.packages must be an array"
+
+    validated: list[str] = []
+    for index, pattern in enumerate(patterns):
+        source = f"{surface}:workspaces[{index}]"
+        assert isinstance(pattern, str) and pattern, f"{source}: workspace pattern must be text"
+        assert (
+            pattern.isascii() and pattern == pattern.strip() and "\\" not in pattern
+        ), f"{source}: malformed workspace pattern"
+        path = PurePosixPath(pattern)
+        assert (
+            not path.is_absolute() and ".." not in path.parts
+        ), f"{source}: workspace pattern must stay repository-relative"
+        validated.append(pattern)
+    return tuple(validated)
+
+
+def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
+    """Reject manifest containers that target discovery cannot compare safely."""
+
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "overrides",
+    ):
+        if field in document:
+            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
+    for field in ("bundleDependencies", "bundledDependencies"):
+        if field not in document:
+            continue
+        bundled = document[field]
+        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
+        assert all(
+            isinstance(value, str) for value in bundled
+        ), f"{surface}:{field} entries must be package names"
+    _manifest_workspace_patterns(document=document, surface=surface)
+
+
+def _find_workspace_manifest_target_paths(
+    *,
+    surface: str,
+    document: dict,
+    surfaces: dict[str, dict],
+    target: str,
+) -> dict[tuple[str, ...], object]:
+    """Find tracked target-named manifests selected by one workspace declaration."""
+
+    found: dict[tuple[str, ...], object] = {}
+    manifest_parent = PurePosixPath(surface).parent
+    for index, pattern in enumerate(
+        _manifest_workspace_patterns(document=document, surface=surface)
+    ):
+        resolved_pattern = PurePosixPath(posixpath.normpath((manifest_parent / pattern).as_posix()))
+        assert (
+            ".." not in resolved_pattern.parts
+        ), f"{surface}:workspaces[{index}]: resolved workspace pattern escapes repository"
+        for member_surface, member_document in surfaces.items():
+            if member_surface == surface or PurePosixPath(member_surface).name != "package.json":
+                continue
+            member_parent = PurePosixPath(member_surface).parent
+            if (
+                member_parent.match(resolved_pattern.as_posix())
+                and member_document.get("name") == target
+            ):
+                found[("workspaces", f"[{index}]", member_surface)] = pattern
+    return found
+
+
 def _find_manifest_target_paths(
     document: dict,
     *,
@@ -1275,6 +1361,14 @@ def _find_manifest_target_paths(
     if surface is not None and surfaces is not None:
         found.update(
             _find_tracked_local_manifest_target_paths(
+                surface=surface,
+                document=document,
+                surfaces=surfaces,
+                target=target,
+            )
+        )
+        found.update(
+            _find_workspace_manifest_target_paths(
                 surface=surface,
                 document=document,
                 surfaces=surfaces,
@@ -1449,6 +1543,10 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
     for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
+            _assert_manifest_dependency_container_shapes(
+                document=document,
+                surface=relative,
+            )
             for path, value in _find_manifest_target_paths(
                 document,
                 target="browserslist",
@@ -2696,6 +2794,47 @@ def test_browserslist_class_rejects_manifest_carriers(
 
 
 @pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("dependencies", ["browserslist"], "dependencies must be an object"),
+        ("bundleDependencies", "browserslist", "bundleDependencies must be an array"),
+        ("overrides", ["browserslist"], "overrides must be an object"),
+        ("workspaces", "packages/*", "workspaces must be an array or object"),
+    ),
+)
+def test_browserslist_class_rejects_malformed_manifest_containers(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    """Unparseable manifest containers cannot create executable absence."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", field: value},
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_target_named_workspace_member(tmp_path: Path) -> None:
+    """A tracked workspace member is a manifest carrier even without a lock entry."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "workspaces": ["packages/*"]},
+    )
+    member_manifest = tmp_path / "frontend" / "packages" / "member" / "package.json"
+    member_manifest.parent.mkdir(parents=True)
+    member_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
+    _git_stdout("add", "--", "frontend/packages/member/package.json", repo_root=tmp_path)
+
+    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
     ("case", "message"),
     (
         ("prerelease", "prerelease output is not approved"),
@@ -2908,6 +3047,27 @@ def test_browserslist_demand_selector_fails_closed(
     )
     with pytest.raises(AssertionError, match=message):
         _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_optional_dependency_overrides_dependency_selector(tmp_path: Path) -> None:
+    """npm optionalDependencies precedence selects the effective same-name demand."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {
+                    "dependencies": {"browserslist": "^4.28.7"},
+                    "optionalDependencies": {"browserslist": "^5.0.0"},
+                },
+                "node_modules/browserslist": _browserslist_entry("5.0.0"),
+            },
+        },
+    )
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset(
+        {"frontend/package-lock.json"}
+    )
 
 
 def test_browserslist_optional_peer_demand_allows_absence(tmp_path: Path) -> None:
