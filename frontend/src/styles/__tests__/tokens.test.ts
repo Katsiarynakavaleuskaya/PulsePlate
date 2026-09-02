@@ -224,13 +224,13 @@ describe('Design Tokens', () => {
   describe('Type Safety', () => {
     it('should have proper TypeScript types', () => {
       // These should compile without errors
-      const colorScale: ColorScale = 500;
-      const spacingKey: SpacingKey = 4;
+      const colorScale: ColorScale = '500';
+      const spacingKey: SpacingKey = '4';
       const fontSize: TypographySize = 'lg';
       const fontWeight: TypographyWeight = 'semibold';
 
-      expect(colorScale).toBe(500);
-      expect(spacingKey).toBe(4);
+      expect(colorScale).toBe('500');
+      expect(spacingKey).toBe('4');
       expect(fontSize).toBe('lg');
       expect(fontWeight).toBe('semibold');
     });

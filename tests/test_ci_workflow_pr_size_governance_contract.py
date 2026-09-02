@@ -24,6 +24,7 @@ CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
 CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
 FRONTEND_CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
+FRONTEND_PACKAGE_JSON_PATH = REPO_ROOT / "frontend" / "package.json"
 GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
@@ -3590,6 +3591,34 @@ def test_ios_unit_selector_is_the_complete_target_with_local_override_preserved(
     assert (
         'ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(shell ./scripts/ios_test_targets.sh)}"' in makefile_text
     )
+
+
+def test_frontend_production_build_and_precommit_tests_are_fail_closed() -> None:
+    package = json.loads(FRONTEND_PACKAGE_JSON_PATH.read_text(encoding="utf-8"))
+    scripts = package["scripts"]
+
+    assert scripts["typecheck"] == "tsc -p tsconfig.json --noEmit"
+    assert scripts["build"] == "npm run typecheck && vite build"
+
+    config = yaml.safe_load(PRE_COMMIT_CONFIG_PATH.read_text(encoding="utf-8"))
+    matching_hooks = [
+        hook
+        for repo in config["repos"]
+        if repo.get("repo") == "local"
+        for hook in repo.get("hooks", [])
+        if hook.get("id") == "frontend-tests"
+    ]
+    assert len(matching_hooks) == 1
+    hook = matching_hooks[0]
+    assert hook["entry"] == 'bash -c "cd frontend && npm run test:precommit"'
+    assert hook["language"] == "system"
+    assert hook["pass_filenames"] is False
+    assert hook["stages"] == ["pre-commit"]
+    assert hook["files"] == r"^frontend/.*\.(ts|tsx|js|jsx)$"
+
+    entry = hook["entry"]
+    for forbidden in ("||", "; true", "exit 0", "continue-on-error", "warning::"):
+        assert forbidden not in entry
 
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:

@@ -9,6 +9,10 @@ import Plate from '../Plate';
 import { PREMIUM_GATE_SOURCES } from '../../config/constants';
 import '../../test/setup';
 
+const { premiumGatePropsSpy } = vi.hoisted(() => ({
+  premiumGatePropsSpy: vi.fn(),
+}));
+
 // Mock usePremium hook
 vi.mock('../../lib/usePremium', () => ({
   usePremium: vi.fn()
@@ -16,10 +20,7 @@ vi.mock('../../lib/usePremium', () => ({
 
 // Mock PremiumGate component
 vi.mock('../../components/PremiumGate', () => {
-  const premiumGatePropsSpy = vi.fn();
-
   return {
-    premiumGatePropsSpy,
     default: ({
       children,
       isPremium,
@@ -68,7 +69,6 @@ vi.mock('../../components/PremiumGate', () => {
 });
 
 import { usePremium } from '../../lib/usePremium';
-import { premiumGatePropsSpy } from '../../components/PremiumGate';
 
 function renderPlateRoutes(routeState?: { triggerReason?: string }): ReturnType<typeof render> {
   return render(
