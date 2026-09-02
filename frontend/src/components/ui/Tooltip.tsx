@@ -1,8 +1,12 @@
-import { cloneElement, isValidElement, useId, useState } from 'react';
+import { cloneElement, useId, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+interface TooltipChildProps {
+  'aria-describedby'?: string;
+}
+
 interface TooltipProps {
-  children: ReactElement;
+  children: ReactElement<TooltipChildProps>;
   content: ReactNode;
   side?: 'top' | 'bottom';
 }
@@ -15,11 +19,9 @@ export function Tooltip({ children, content, side = 'top' }: TooltipProps): Reac
       ? 'top-full mt-2 left-1/2 -translate-x-1/2'
       : 'bottom-full mb-2 left-1/2 -translate-x-1/2';
 
-  const child = isValidElement(children)
-    ? cloneElement(children, {
-        'aria-describedby': [children.props['aria-describedby'], tooltipId].filter(Boolean).join(' '),
-      })
-    : children;
+  const child = cloneElement(children, {
+    'aria-describedby': [children.props['aria-describedby'], tooltipId].filter(Boolean).join(' '),
+  });
 
   return (
     <span

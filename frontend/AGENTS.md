@@ -8,14 +8,16 @@
 - Runtime requirement: Node `24.x` (repo-canonical range: `>=24.0.0 <25.0.0`; CI pin lives in repo-root `.nvmrc`)
 - Install: `npm install`
 - Dev: `npm run dev`
+- Typecheck: `npm run typecheck`
 - Build: `npm run build`
 - Preview: `npm run preview`
-- Test: `npm run test`, `npm run test:ci`, `npm run test:coverage`
+- Test: `npm run test`, `npm run test:ci`, `npm run test:precommit`, `npm run test:coverage`
 - Generate API types: `npm run generate-types`
 - OpenAPI sync parity: when `make openapi` or frontend type generation touches
   `frontend/`, run those steps under Node `24.x` to match CI and lockfile engines.
 
 ## Conventions
+- Production build performs TypeScript checking before Vite bundling.
 - API base is `/api/v1`; keep client paths aligned with backend routers.
 - OpenAPI types are generated from `src/api/openapi.json` into `src/api/schema.ts`.
 - Keep UI changes in sync with backend schema updates.
