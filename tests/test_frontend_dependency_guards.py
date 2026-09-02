@@ -427,9 +427,12 @@ def _is_git_source_for_target(value: object, *, target: str) -> bool:
         repository_path = candidate.removeprefix("git@github.com:")
     elif candidate.startswith(("git+", "git://", "ssh://")):
         parsed = urlparse(candidate.removeprefix("git+"))
-        if parsed.hostname is None:
+        if parsed.scheme == "file":
+            repository_path = _fully_decode_url_path(parsed.path).lstrip("/")
+        elif parsed.hostname is None:
             return False
-        repository_path = parsed.path.lstrip("/")
+        else:
+            repository_path = parsed.path.lstrip("/")
     elif candidate.startswith(("https://", "http://")):
         parsed = urlparse(candidate)
         if parsed.hostname is None or (
@@ -766,7 +769,7 @@ def _normalize_advisory_range_text(value: object) -> str:
     return normalized
 
 
-def _reject_duplicate_brace_expansion_receipt_keys(
+def _reject_duplicate_receipt_keys(
     pairs: list[tuple[str, object]],
 ) -> dict[str, object]:
     """Reject ambiguous JSON objects before canonical receipt hashing."""
@@ -797,7 +800,7 @@ def _extract_brace_expansion_evidence_receipt(document: str) -> dict[str, object
     assert match is not None, "owner evidence receipt fence missing or malformed"
     receipt = json.loads(
         match.group("payload"),
-        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+        object_pairs_hook=_reject_duplicate_receipt_keys,
     )
     assert isinstance(receipt, dict), "owner evidence receipt must be a JSON object"
 
@@ -1226,7 +1229,7 @@ def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
         if parsed.scheme != "file" or parsed.netloc:
             return None
         local_path = parsed.path
-    elif normalized.startswith(("./", "../")):
+    elif normalized.startswith(("./", "../")) or "/" in normalized:
         local_path = parsed.path
     else:
         return None
@@ -2788,11 +2791,7 @@ def test_browserslist_owner_receipt_digest_is_content_bound() -> None:
     """The retained GAD snapshot and displayed digest must authenticate each other."""
 
     document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
-    marker = "The retained normalized receipt is:\n\n```json\n"
-    assert document.count(marker) == 1, "Browserslist owner must retain exactly one GAD receipt"
-    start = document.index(marker) + len(marker)
-    end = document.index("\n```", start)
-    receipt = json.loads(document[start:end])
+    receipt = _extract_browserslist_gad_receipt(document)
     canonical = json.dumps(
         receipt,
         ensure_ascii=False,
@@ -2827,6 +2826,35 @@ def test_browserslist_owner_receipt_digest_is_content_bound() -> None:
             for guarded_range in guarded_ranges
         }
         assert retained_projection == expected_projection
+
+
+def _extract_browserslist_gad_receipt(document: str) -> dict[str, object]:
+    """Parse the retained GAD receipt without accepting ambiguous JSON objects."""
+
+    marker = "The retained normalized receipt is:\n\n```json\n"
+    assert document.count(marker) == 1, "Browserslist owner must retain exactly one GAD receipt"
+    start = document.index(marker) + len(marker)
+    end = document.index("\n```", start)
+    receipt = json.loads(
+        document[start:end],
+        object_pairs_hook=_reject_duplicate_receipt_keys,
+    )
+    assert isinstance(receipt, dict), "Browserslist GAD receipt must be a JSON object"
+    return receipt
+
+
+def test_browserslist_owner_receipt_rejects_duplicate_json_keys() -> None:
+    """Canonicalization cannot erase an ambiguous duplicate receipt key."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    original = '  "record_count": 3,'
+    assert document.count(original) == 1
+    ambiguous = document.replace(
+        original,
+        '  "record_count": 999,\n  "record_count": 3,',
+    )
+    with pytest.raises(AssertionError, match="duplicate JSON key: record_count"):
+        _extract_browserslist_gad_receipt(ambiguous)
 
 
 @pytest.mark.parametrize(
@@ -2913,6 +2941,7 @@ def test_browserslist_class_checks_every_nested_occurrence(tmp_path: Path) -> No
                 "renamed": "git+https://github.com/browserslist/browserslist.git#v4.28.8"
             }
         },
+        {"dependencies": {"renamed": "git+file:///vendor/browserslist.git"}},
     ),
 )
 def test_browserslist_class_rejects_manifest_carriers(
@@ -2922,6 +2951,28 @@ def test_browserslist_class_rejects_manifest_carriers(
     """The lock-only class cannot silently acquire direct dependency authority."""
 
     _write_browserslist_repo(tmp_path, package_json={"name": "fixture", **manifest})
+    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_bare_tracked_local_manifest_carrier(
+    tmp_path: Path,
+) -> None:
+    """A bare npm directory spec cannot turn a tracked target into absence."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "dependencies": {"renamed": "vendor/pkg/browserslist"},
+        },
+        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
+    )
+    target_manifest = tmp_path / "frontend/vendor/pkg/browserslist/package.json"
+    target_manifest.parent.mkdir(parents=True)
+    target_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
+    _git_stdout("add", "--", target_manifest.relative_to(tmp_path).as_posix(), repo_root=tmp_path)
+
     with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
 
