@@ -129,6 +129,7 @@ BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
     "GHSA-c83g-rgw3-j3cx": "4.28.7",
     "GHSA-w8qv-6jwh-64r5": "4.16.5",
 }
+BROWSERSLIST_BASE_VERSION = Version("4.28.2")
 BROWSERSLIST_GAD_RECEIPT_SHA256 = (
     "4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f"  # pragma: allowlist secret
 )
@@ -1358,6 +1359,17 @@ def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str
         ), f"{surface}:{field} entries must be non-empty package names"
 
 
+def _load_browserslist_npm_surface(path: Path) -> dict:
+    """Load raw npm JSON without allowing duplicate members to erase evidence."""
+
+    document = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+    )
+    assert isinstance(document, dict), f"{path}: npm surface must be a JSON object"
+    return document
+
+
 def _npm_virtual_graph_environment() -> dict[str, str]:
     """Remove ambient Node/npm graph controls before the delegated invocation."""
 
@@ -1411,6 +1423,31 @@ def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) ->
         "dependency-bearing manifest must have one same-root lock authority; "
         f"missing {sorted(path.as_posix() for path in missing_lock_roots)!r}"
     )
+
+    for project_relative, lock_surface in lock_roots.items():
+        manifest_surface = (project_relative / "package.json").as_posix()
+        manifest = surfaces[manifest_surface]
+        lock = surfaces[lock_surface]
+        packages = lock.get("packages")
+        assert isinstance(packages, dict), f"{lock_surface}: packages must be an object"
+        root_package = packages.get("")
+        assert isinstance(
+            root_package, dict
+        ), f"{lock_surface}: packages must contain an object root entry"
+        for field in (
+            "dependencies",
+            "devDependencies",
+            "optionalDependencies",
+            "peerDependencies",
+        ):
+            manifest_dependencies = manifest.get(field, {})
+            lock_dependencies = root_package.get(field, {})
+            assert isinstance(
+                lock_dependencies, dict
+            ), f"{lock_surface}: root {field} must be an object"
+            assert manifest_dependencies == lock_dependencies, (
+                f"{lock_surface}: root {field} must exactly match " f"{manifest_surface}"
+            )
 
     npm_env = _npm_virtual_graph_environment()
     with tempfile.TemporaryDirectory(prefix="pulseplate-npm-config-") as config_directory:
@@ -1487,7 +1524,7 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
     """Enforce Browserslist policy after generic npm source and graph admission."""
 
     surfaces = {
-        relative: _load_json(root / relative)
+        relative: _load_browserslist_npm_surface(root / relative)
         for relative in _enumerate_repo_npm_surfaces(root=root)
     }
     lock_occurrences: dict[tuple[str, str], dict] = {}
@@ -1508,6 +1545,9 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
             continue
 
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        assert (
+            document.get("lockfileVersion") == 3
+        ), f"{relative}: Browserslist guard supports only npm lockfileVersion 3"
         _assert_lock_surface_canonical_provenance(surface=relative, document=document)
         for path, package in _find_lock_occurrences(
             document,
@@ -2591,6 +2631,52 @@ def test_browserslist_class_rejects_dependency_manifest_without_lock(tmp_path: P
         _assert_browserslist_security_class(root=tmp_path)
 
 
+def test_browserslist_class_rejects_root_lock_manifest_drift(tmp_path: Path) -> None:
+    """A root lock demand cannot invent dependency authority absent from its manifest."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": {"browserslist": "^4.28.7"},
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="must exactly match"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_lockfile_v2_compatibility_tree(tmp_path: Path) -> None:
+    """The class stops at v3 instead of partially parsing the v2 compatibility tree."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 2,
+            "requires": True,
+            "packages": {"": {"name": "fixture", "version": "1.0.0"}},
+            "dependencies": {
+                "browserslist": {
+                    "version": "4.28.6",
+                    "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.28.6.tgz",
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="supports only npm lockfileVersion 3"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
 def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2745,6 +2831,25 @@ def test_browserslist_class_rejects_malformed_manifest_containers(
         _assert_browserslist_security_class(root=tmp_path)
 
 
+def test_browserslist_class_rejects_duplicate_npm_surface_keys(tmp_path: Path) -> None:
+    """A later duplicate JSON member cannot erase an earlier vulnerable record."""
+
+    _write_browserslist_repo(tmp_path)
+    (tmp_path / "frontend/package-lock.json").write_text(
+        """{
+  "name": "fixture",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {"node_modules/browserslist": {"version": "4.28.6"}},
+  "packages": {"": {"name": "fixture", "version": "1.0.0"}}
+}
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="duplicate JSON key: packages"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
 def test_browserslist_lock_discovery_includes_every_nested_occurrence() -> None:
     """A safe root record cannot hide a vulnerable nested raw lock record."""
 
@@ -2817,7 +2922,13 @@ def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
     """Equal ranges cannot let one advisory identity disappear silently."""
 
     assert BROWSERSLIST_EXPECTED_ADVISORIES == frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT)
-    assert BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES < BROWSERSLIST_EXPECTED_ADVISORIES
+    derived_applicable = frozenset(
+        advisory
+        for advisory, affected_ranges in BROWSERSLIST_ADVISORY_RANGES.items()
+        if any(BROWSERSLIST_BASE_VERSION in affected for affected in affected_ranges)
+    )
+    assert derived_applicable == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
+    assert derived_applicable < BROWSERSLIST_EXPECTED_ADVISORIES
 
 
 @pytest.mark.parametrize(
