@@ -182,6 +182,16 @@ BRACE_EXPANSION_HEAD_EVIDENCE_SHA256 = (
 )
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
+BROWSERSLIST_ADVISORY_RANGE_TEXT = {
+    "GHSA-73wf-gq98-2v4g": ("<=4.28.6",),
+    "GHSA-c83g-rgw3-j3cx": ("<=4.28.6",),
+    "GHSA-w8qv-6jwh-64r5": (">=4.0.0,<4.16.5",),
+}
+BROWSERSLIST_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(value) for value in ranges)
+    for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+}
+BROWSERSLIST_APPLICABLE_ADVISORIES = frozenset({"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"})
 FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
     {"frontend/package.json", "frontend/package-lock.json"}
 )
@@ -1265,6 +1275,68 @@ def _assert_frontend_security_target_version(*, target: str, raw_version: object
     return version
 
 
+def _assert_browserslist_head_postcondition(*, raw_version: object, source: str) -> Version:
+    """Require one stable Browserslist occurrence outside the frozen advisory inventory."""
+
+    version = _parse_version(value=raw_version, source=source)
+    for advisory, affected_ranges in BROWSERSLIST_ADVISORY_RANGES.items():
+        assert all(
+            version not in affected_range for affected_range in affected_ranges
+        ), f"browserslist/{advisory}: governed occurrence remains affected"
+    return version
+
+
+def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[str]:
+    """Enforce the transitive-only Browserslist class over every tracked npm surface."""
+
+    surfaces = {
+        relative: _load_json(root / relative)
+        for relative in _enumerate_repo_npm_surfaces(root=root)
+    }
+    manifest_occurrences: dict[tuple[str, ...], object] = {}
+    lock_occurrences: dict[tuple[str, str], dict] = {}
+
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            for path, value in _find_manifest_target_paths(
+                document,
+                target="browserslist",
+                surface=relative,
+                surfaces=surfaces,
+            ).items():
+                manifest_occurrences[(relative, *path)] = value
+            continue
+
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
+        assert document.get("lockfileVersion") == 3, f"{relative}: unsupported npm lock schema"
+        for path, package in _discover_frontend_target_lock_entries(
+            document.get("packages"), target="browserslist"
+        ).items():
+            lock_occurrences[(relative, path)] = package
+
+    assert not manifest_occurrences, (
+        "browserslist: direct or aliased manifest carrier is forbidden; "
+        f"found {manifest_occurrences!r}"
+    )
+
+    for (relative, path), package in lock_occurrences.items():
+        source = f"{relative}:{path}"
+        raw_version = package.get("version")
+        _assert_browserslist_head_postcondition(raw_version=raw_version, source=source)
+        assert isinstance(raw_version, str)
+        expected_resolved = (
+            "https://registry.npmjs.org/browserslist/-/" f"browserslist-{raw_version}.tgz"
+        )
+        assert (
+            package.get("resolved") == expected_resolved
+        ), f"{source}: browserslist canonical provenance mismatch"
+        integrity = package.get("integrity")
+        assert isinstance(integrity, str) and integrity.strip(), f"{source}: integrity missing"
+
+    return frozenset(relative for relative, _ in lock_occurrences)
+
+
 def _assert_frontend_security_targets() -> None:
     """Validate the five non-brace targets across every tracked npm surface."""
 
@@ -2261,6 +2333,201 @@ def test_frontend_security_targets_reject_prerelease_false_green(target: str) ->
 
     with pytest.raises(AssertionError, match="prerelease output is not approved"):
         _assert_frontend_security_target_version(target=target, raw_version="99.0.0-rc.1")
+
+
+def _browserslist_entry(version: str) -> dict[str, str]:
+    return {
+        "version": version,
+        "resolved": ("https://registry.npmjs.org/browserslist/-/" f"browserslist-{version}.tgz"),
+        "integrity": "sha512-fixture",
+    }
+
+
+def _write_browserslist_repo(
+    root: Path,
+    *,
+    package_json: dict[str, object] | None = None,
+    package_lock: dict[str, object] | None = None,
+) -> None:
+    """Create one tracked npm fixture for bounded Browserslist class tests."""
+
+    _git_stdout("init", repo_root=root)
+    frontend = root / "frontend"
+    frontend.mkdir(parents=True)
+    (frontend / "package.json").write_text(
+        json.dumps(package_json or {"name": "fixture"}),
+        encoding="utf-8",
+    )
+    (frontend / "package-lock.json").write_text(
+        json.dumps(
+            package_lock
+            or {
+                "lockfileVersion": 3,
+                "packages": {"node_modules/browserslist": _browserslist_entry("4.28.8")},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _git_stdout(
+        "add",
+        "--",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        repo_root=root,
+    )
+
+
+def test_browserslist_class_covers_every_current_tracked_surface() -> None:
+    """The repository graph satisfies the transitive-only universal postcondition."""
+
+    assert _assert_browserslist_security_class() == frozenset({"frontend/package-lock.json"})
+
+
+@pytest.mark.parametrize(
+    ("version", "allowed"),
+    (
+        ("4.16.4", False),
+        ("4.16.5", False),
+        ("4.28.2", False),
+        ("4.28.6", False),
+        ("4.28.7", True),
+        ("4.28.8", True),
+    ),
+)
+def test_browserslist_advisory_boundaries(version: str, allowed: bool) -> None:
+    """All three frozen advisory ranges retain explicit boundary controls."""
+
+    if allowed:
+        assert _assert_browserslist_head_postcondition(
+            raw_version=version,
+            source="fixture",
+        ) == Version(version)
+        return
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        _assert_browserslist_head_postcondition(raw_version=version, source="fixture")
+
+
+def test_browserslist_historical_advisory_remains_in_universal_postcondition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The non-applicable-at-base advisory cannot disappear from head safety."""
+
+    assert "GHSA-w8qv-6jwh-64r5" not in BROWSERSLIST_APPLICABLE_ADVISORIES
+    monkeypatch.setitem(
+        BROWSERSLIST_ADVISORY_RANGES,
+        "GHSA-w8qv-6jwh-64r5",
+        (SpecifierSet("==4.28.8"),),
+    )
+    with pytest.raises(AssertionError, match="GHSA-w8qv-6jwh-64r5"):
+        _assert_browserslist_head_postcondition(raw_version="4.28.8", source="fixture")
+
+
+def test_browserslist_class_allows_executable_absence(tmp_path: Path) -> None:
+    """A future authorized removal remains valid after complete target discovery."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
+    )
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+def test_browserslist_class_checks_every_nested_occurrence(tmp_path: Path) -> None:
+    """One safe root copy cannot hide an affected nested copy."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+                "node_modules/carrier/node_modules/browserslist": _browserslist_entry("4.28.6"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    (
+        {"dependencies": {"browserslist": "4.28.8"}},
+        {"devDependencies": {"renamed": "npm:browserslist@4.28.8"}},
+        {
+            "optionalDependencies": {
+                "renamed": ("https://registry.npmjs.org/browserslist/-/browserslist-4.28.8.tgz")
+            }
+        },
+        {"overrides": {"carrier": {"browserslist": "4.28.8"}}},
+        {"bundleDependencies": ["browserslist"]},
+    ),
+)
+def test_browserslist_class_rejects_manifest_carriers(
+    tmp_path: Path,
+    manifest: dict[str, object],
+) -> None:
+    """The lock-only class cannot silently acquire direct dependency authority."""
+
+    _write_browserslist_repo(tmp_path, package_json={"name": "fixture", **manifest})
+    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("prerelease", "prerelease output is not approved"),
+        ("missing-integrity", "integrity missing"),
+        ("foreign-registry", "canonical provenance mismatch"),
+        ("wrong-tarball-version", "canonical provenance mismatch"),
+        ("conflicting-name", "package name conflicts"),
+        ("alias-path", "alias/noncanonical installed path"),
+    ),
+)
+def test_browserslist_class_fails_closed_on_invalid_lock_records(
+    tmp_path: Path,
+    case: str,
+    message: str,
+) -> None:
+    """Version labels cannot bypass identity, provenance, integrity, or path checks."""
+
+    package = _browserslist_entry("4.28.8")
+    path = "node_modules/browserslist"
+    if case == "prerelease":
+        package = _browserslist_entry("4.28.8-rc.1")
+    elif case == "missing-integrity":
+        package["integrity"] = ""
+    elif case == "foreign-registry":
+        package["resolved"] = "https://example.invalid/browserslist-4.28.8.tgz"
+    elif case == "wrong-tarball-version":
+        package["resolved"] = "https://registry.npmjs.org/browserslist/-/browserslist-4.28.7.tgz"
+    elif case == "conflicting-name":
+        package["name"] = "not-browserslist"
+    elif case == "alias-path":
+        path = "node_modules/renamed-browserslist"
+    else:
+        raise AssertionError(f"unhandled Browserslist lock case: {case}")
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={"lockfileVersion": 3, "packages": {path: package}},
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_dependency_edge_is_not_an_installed_occurrence(tmp_path: Path) -> None:
+    """A lock dependency relationship carries no installed-version safety claim."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
+        },
+    )
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
 
 
 def test_frontend_package_has_ws_override_floor() -> None:
