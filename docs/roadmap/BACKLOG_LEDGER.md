@@ -68,10 +68,11 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (frontend build integrity / false-green prevention / development velocity)
-  - Target PR: pending (`codex/frontend-typecheck-build-truth`)
-  - Status: Implementation active in an isolated worktree; local material establishes the exact
-    TypeScript-before-Vite build and fail-closed Vitest pre-commit contracts. PR publication,
-    current-head CI, review closeout, and human merge remain pending.
+  - Target PR: [PR #2374](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2374)
+    (`codex/frontend-typecheck-build-truth`)
+  - Status: Open non-draft; local material establishes the exact TypeScript-before-Vite build and
+    fail-closed Vitest pre-commit contracts. Current-head CI, post-open review, review closeout,
+    the mandatory wait window, and human merge remain pending.
   - Area: frontend / TypeScript / Vite production build / pre-commit test enforcement
   - Dependency: [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01) is closed.
   - Reason (EN): Vite transpiled the production graph without running the repository's existing
