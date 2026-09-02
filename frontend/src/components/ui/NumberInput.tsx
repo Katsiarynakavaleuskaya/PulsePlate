@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FocusEvent, InputHTMLAttributes } from 'react';
+import type { ChangeEvent, FocusEvent } from 'react';
 import { Input } from './Input';
+import type { InputProps } from './Input';
 
 type NumberInputValue = number | '';
 type NumberInputLocale = 'ru' | 'en';
 
 interface NumberInputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> {
+  extends Omit<InputProps, 'value' | 'onChange' | 'type'> {
   value: NumberInputValue;
   onValueChange: (value: NumberInputValue) => void;
   locale?: NumberInputLocale;
