@@ -11,10 +11,10 @@ async function expectProtectedRouteOrAuthPrompt(routeHeading: Locator, authField
 }
 
 const marketingViewportCases = [
-  { width: 320, height: 900, dailyColumns: 1 },
-  { width: 768, height: 1000, dailyColumns: 1 },
-  { width: 900, height: 1100, dailyColumns: 1 },
-  { width: 1440, height: 1000, dailyColumns: 2 },
+  { width: 320, height: 900, dailyColumns: 1, heroColumns: 1 },
+  { width: 768, height: 1000, dailyColumns: 1, heroColumns: 1 },
+  { width: 900, height: 1100, dailyColumns: 1, heroColumns: 1 },
+  { width: 1440, height: 1000, dailyColumns: 2, heroColumns: 2 },
 ] as const;
 
 const promotedFitChefAssetPaths = [
@@ -240,6 +240,38 @@ for (const route of ['/', '/marketing'] as const) {
         name: 'Check your BMI and see how FitChef works',
       }),
     ).toBeVisible();
+    const hero = page.locator('#top');
+    await expect(hero.getByRole('link', { name: 'See how FitChef works' })).toHaveAttribute(
+      'href',
+      '#fitchef-demo',
+    );
+    await expect(hero.getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+      'href',
+      '/bmi',
+    );
+    const heroScenario = hero.locator('#product-preview');
+    await expect(heroScenario).toHaveCount(1);
+    await expect(heroScenario).toHaveJSProperty('tagName', 'FIGURE');
+    const heroImage = hero.getByRole('img', {
+      name: 'FitChef, a tabby cat stretching on an exercise mat',
+    });
+    await expect(heroImage).toHaveAttribute(
+      'data-fitchef-hero-asset',
+      'fitchef-hero-stretch-v1.webp',
+    );
+    await expect(heroImage).toHaveAttribute('loading', 'eager');
+    await expect(heroImage).toHaveAttribute('fetchpriority', 'high');
+    await expect(heroImage).toHaveAttribute('decoding', 'async');
+    await expect(hero).not.toContainText('Wellness-safe guidance');
+    await expect(hero).not.toContainText('Free on the web');
+    await expect(hero).not.toContainText('Free website');
+    await expect(hero).not.toContainText('No purchases here');
+    await expect(hero).not.toContainText('Prepared FitChef preview');
+    await expect(hero).not.toContainText('Prepared example');
+    await expect(hero).not.toContainText('Nothing is saved');
+    await expect(hero.locator('a[href^="https://apps.apple.com"], a[href^="itms-apps:"]')).toHaveCount(
+      0,
+    );
     await expect(
       page.getByRole('heading', {
         level: 2,
@@ -262,6 +294,9 @@ for (const route of ['/', '/marketing'] as const) {
     await expect(
       demo.getByRole('heading', { name: 'Your personal AI nutrition guide' }),
     ).toBeVisible();
+    await expect(
+      demo.locator('[data-fitchef-story="vip"] img[data-fitchef-asset]'),
+    ).toHaveAttribute('data-fitchef-asset', 'vip/fitchef-vip-editorial-owner-approved-logo-v2.webp');
     await expect(demo.getByText('Maintain', { exact: true })).toHaveAttribute(
       'aria-current',
       'true',
@@ -515,9 +550,14 @@ for (const viewport of marketingViewportCases) {
     const layout = await page.evaluate(() => {
       const root = document.querySelector<HTMLElement>('[data-testid="fitchef-value-demo"]');
       const daily = document.querySelector<HTMLElement>('.ppm-fitchef-daily-flow');
+      const heroGrid = document.querySelector<HTMLElement>('.ppm-hero-grid');
+      const heroCopy = document.querySelector<HTMLElement>('.ppm-hero-copy');
+      const heroScenario = document.querySelector<HTMLElement>('.ppm-hero-scenario');
+      const heroMedia = document.querySelector<HTMLElement>('.ppm-hero-scenario-media');
+      const heroImage = document.querySelector<HTMLImageElement>('.ppm-hero-scenario-image');
 
-      if (!root || !daily) {
-        throw new Error('FitChef story layout not found');
+      if (!root || !daily || !heroGrid || !heroCopy || !heroScenario || !heroMedia || !heroImage) {
+        throw new Error('FitChef Hero or story layout not found');
       }
 
       const trackCount = (element: HTMLElement): number => {
@@ -525,9 +565,20 @@ for (const viewport of marketingViewportCases) {
         return columns === '' || columns === 'none' ? 0 : columns.split(/\s+/).length;
       };
 
+      const heroCopyBounds = heroCopy.getBoundingClientRect();
+      const heroScenarioBounds = heroScenario.getBoundingClientRect();
+      const heroMediaBounds = heroMedia.getBoundingClientRect();
+
       return {
         viewportWidth: window.innerWidth,
         dailyColumns: trackCount(daily),
+        heroColumns: trackCount(heroGrid),
+        heroCopyPrecedesScenario: heroCopyBounds.top < heroScenarioBounds.top,
+        heroMediaAspect: heroMediaBounds.width / heroMediaBounds.height,
+        heroImageObjectFit: window.getComputedStyle(heroImage).objectFit,
+        heroImageNaturalWidth: heroImage.naturalWidth,
+        heroImageNaturalHeight: heroImage.naturalHeight,
+        heroScenarioOverflows: heroScenario.scrollWidth > heroScenario.clientWidth,
         pageOverflows: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         rootOverflows: root.scrollWidth > root.clientWidth,
         storyOverflows: Array.from(
@@ -539,6 +590,14 @@ for (const viewport of marketingViewportCases) {
 
     expect(layout.viewportWidth).toBe(viewport.width);
     expect(layout.dailyColumns).toBe(viewport.dailyColumns);
+    expect(layout.heroColumns).toBe(viewport.heroColumns);
+    expect(layout.heroCopyPrecedesScenario).toBe(viewport.heroColumns === 1);
+    expect(layout.heroMediaAspect).toBeGreaterThanOrEqual(0.799);
+    expect(layout.heroMediaAspect).toBeLessThanOrEqual(0.801);
+    expect(layout.heroImageObjectFit).toBe('contain');
+    expect(layout.heroImageNaturalWidth).toBe(1122);
+    expect(layout.heroImageNaturalHeight).toBe(1402);
+    expect(layout.heroScenarioOverflows).toBe(false);
     expect(layout.pageOverflows).toBe(false);
     expect(layout.rootOverflows).toBe(false);
     expect(layout.storyOverflows).toEqual([false, false, false, false]);

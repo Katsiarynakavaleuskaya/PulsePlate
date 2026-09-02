@@ -10053,13 +10053,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2369](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2369)
-    (`codex/fitchef-public-visual-story`)
-  - Status: 🚧 In review in PR #2369. The current carrier promotes the owner-approved
-    Daily/Weekly/Food Context/VIP photographic story and removes the old onboarding mascot from
-    the shared marketing graph. It also closes the first public-demo transfer-budget slice: eight
-    card-only assets now use measured 410x512 derivatives and the complete 12-file pack is
-    1906308 bytes. The umbrella stays open for remaining onboarding-consumer, mascot-variant,
-    Storybook guidance, and evidence-driven delivery work for other eligible consumers.
+    (`codex/fitchef-public-visual-story`, merged); current child PR-TBD
+    (`codex/fitchef-web-photographic-hero`)
+  - Status: 🚧 Umbrella open. PR #2369 merged as
+    `159c55e63e0e657262b95b8bf917d2f501bb5749`, promoting the owner-approved
+    Daily/Weekly/Food Context/VIP photographic story and its measured 12-file WebP pack. The
+    current bounded child promotes one user-approved stretch photograph for the public Web Hero,
+    removes internal implementation labels from that Hero, keeps the illustrated Daily/Weekly
+    guide, and leaves the approved VIP story unchanged. Remaining onboarding-consumer,
+    localization, and later platform work keep the umbrella open.
   - Area: design / frontend / marketing
   - Finding Type: brand rollout
   - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
@@ -10079,8 +10081,58 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       where appropriate; PR #2369 satisfies this for the public demo's eight card-only images,
       while other consumers remain part of the open umbrella
     - Marketing/storybook guidance reflects the same variant contract
-    - `make verify` passes with updated web tests if consumers change
+    - Focused Web tests, design/token guards, the local narrow bundle, and exact-head CI pass when
+      consumers change; full local `make verify` remains outside the default machine budget
   - Blockers: Depends on repo mascot canon landing first
+
+<a id="ledger-p1-fitchef-ipad-photographic-identity"></a>
+- [ ] P1: FitChef photographic identity for a bounded iPad surface
+  - Owner: @katsiaryna_kavaleuskaya / iOS product-design owner
+  - Priority: P1
+  - Target PR: PR-TBD after `FITCHEF-WEB-IDENTITY-1`
+  - Status: Planned; CAB-01 merged in PR #2368, but the exact iPad surface and preview still require
+    a separate Human Product Owner decision
+  - Area: iOS / iPad / SwiftUI / FitChef visual identity
+  - Finding Type: platform-specific identity follow-up
+  - Reason (EN): The approved identity system uses illustrated or animated FitChef more often on
+    iPhone and reserves photographic FitChef for a larger, separately reviewed iPad composition.
+    Mixing that work into the Web Hero carrier would combine platform ownership and bypass the
+    required iPad preview, Dynamic Type, and idiom-specific evidence.
+  - Links:
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/sora/prompts/brand_core/FITCHEF_IDENTITY_PROFILE_v1.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-client-arch-1-cab-01`
+  - DoD:
+    - one exact existing iPad product surface is selected before implementation
+    - compact iPhone layouts retain the illustrated or animated identity by default
+    - the iPad composition uses one versioned photographic asset with source and runtime hashes
+    - representative iPad, Dynamic Type, VoiceOver, contrast, crop, and memory evidence passes
+    - no Home/Hub duplication, entitlement inference, App Store claim, or Web+iPad mixed PR is added
+  - Blockers: Requires a dedicated iPad visual preview and explicit Human Product Owner approval
+
+<a id="ledger-p1-fitchef-web-calorie-calculation-demo"></a>
+- [ ] P1: Backend-driven FitChef calorie-calculation Web demo
+  - Owner: backend-engineer / frontend-engineer / product owner
+  - Priority: P1
+  - Target PR: PR-TBD after `FITCHEF-WEB-IDENTITY-1`
+  - Status: Planned as a separate product-flow carrier
+  - Area: backend / OpenAPI / frontend / free Web education
+  - Finding Type: product demonstration follow-up
+  - Reason (EN): After the visual FitChef story, a visitor should be able to understand how a real
+    calculation becomes a structured planning result. The calculation must remain backend-owned;
+    the Web client may submit canonical inputs and render the response but must not duplicate BMI,
+    calorie, target, tier, or nutrition rules.
+  - Links:
+    - `frontend/src/components/marketing/FitChefValueDemo.tsx`
+    - `frontend/AGENTS.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - the product owner freezes the exact educational scenario and whether it is anonymous or gated
+    - backend schema and OpenAPI own every calculation input and result field
+    - the Web implementation uses the canonical API adapter and generated types with no local math
+    - deterministic success, validation, error-envelope, accessibility, and no-persistence tests pass
+    - the demo makes no live-AI, payment, entitlement, medical, or automatic plan-mutation claim
+  - Blockers: Requires a separate backend/OpenAPI contract and privacy/product decision
 
 <a id="ledger-p1-fitchef-figma-production-sync"></a>
 - [ ] P1: FitChef Figma production sync
