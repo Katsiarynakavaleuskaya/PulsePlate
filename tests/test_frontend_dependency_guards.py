@@ -454,6 +454,37 @@ def _discover_frontend_target_lock_entries(
     return entries
 
 
+def _discover_lock_target_demand_edges(
+    packages: object,
+    *,
+    target: str,
+) -> dict[tuple[str, str, str], object]:
+    """Find bounded npm lock dependency edges that still demand one target."""
+
+    assert isinstance(packages, dict), "npm lock packages must be an object"
+    edges: dict[tuple[str, str, str], object] = {}
+    for raw_path, package in packages.items():
+        if not isinstance(raw_path, str) or not isinstance(package, dict):
+            continue
+        for field in (
+            "dependencies",
+            "devDependencies",
+            "optionalDependencies",
+            "peerDependencies",
+        ):
+            dependencies = package.get(field)
+            if not isinstance(dependencies, dict):
+                continue
+            for name, value in dependencies.items():
+                if (
+                    name == target
+                    or _is_npm_alias_for_target(value, target=target)
+                    or _has_registry_tarball_path_signal(value, target=target)
+                ):
+                    edges[(raw_path, field, str(name))] = value
+    return edges
+
+
 def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
     """Enumerate the finite lockfile candidate universe independently of validity."""
 
@@ -1310,16 +1341,25 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
 
         assert basename in NPM_LOCK_SURFACE_BASENAMES
         assert document.get("lockfileVersion") == 3, f"{relative}: unsupported npm lock schema"
-        for path, package in _discover_frontend_target_lock_entries(
-            document.get("packages"), target="browserslist"
-        ).items():
+        packages = document.get("packages")
+        surface_demand_edges = _discover_lock_target_demand_edges(
+            packages,
+            target="browserslist",
+        )
+        surface_lock_occurrences = _discover_frontend_target_lock_entries(
+            packages, target="browserslist"
+        )
+        assert surface_lock_occurrences or not surface_demand_edges, (
+            f"{relative}: browserslist lock dependency demand has no installed occurrence; "
+            f"found {surface_demand_edges!r}"
+        )
+        for path, package in surface_lock_occurrences.items():
             lock_occurrences[(relative, path)] = package
 
     assert not manifest_occurrences, (
         "browserslist: direct or aliased manifest carrier is forbidden; "
         f"found {manifest_occurrences!r}"
     )
-
     for (relative, path), package in lock_occurrences.items():
         source = f"{relative}:{path}"
         raw_version = package.get("version")
@@ -2517,8 +2557,8 @@ def test_browserslist_class_fails_closed_on_invalid_lock_records(
         _assert_browserslist_security_class(root=tmp_path)
 
 
-def test_browserslist_dependency_edge_is_not_an_installed_occurrence(tmp_path: Path) -> None:
-    """A lock dependency relationship carries no installed-version safety claim."""
+def test_browserslist_dependency_edge_cannot_fake_executable_absence(tmp_path: Path) -> None:
+    """A lock demand edge is not installed evidence and prevents an absence claim."""
 
     _write_browserslist_repo(
         tmp_path,
@@ -2527,7 +2567,30 @@ def test_browserslist_dependency_edge_is_not_an_installed_occurrence(tmp_path: P
             "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
         },
     )
-    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+    with pytest.raises(AssertionError, match="demand has no installed occurrence"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_demand_is_closed_per_lock_surface(tmp_path: Path) -> None:
+    """A safe frontend graph cannot mask a demand-only root lock graph."""
+
+    _write_browserslist_repo(tmp_path)
+    (tmp_path / "package-lock.json").write_text(
+        json.dumps(
+            {
+                "lockfileVersion": 3,
+                "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _git_stdout("add", "--", "package-lock.json", repo_root=tmp_path)
+
+    with pytest.raises(
+        AssertionError,
+        match=r"package-lock\.json: browserslist lock dependency demand",
+    ):
+        _assert_browserslist_security_class(root=tmp_path)
 
 
 def test_frontend_package_has_ws_override_floor() -> None:
