@@ -25,14 +25,17 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-client-arch-1-cab-01"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
+- [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (iOS build integrity / false-green prevention / release evidence)
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
-  - Status: Open non-draft; post-sync local evidence passes the complete 276-test target in EN/US
-    and RU/RU, while the Runner refresh, exact-material self-review, mapping reseal, GitHub
-    current-head CI, the wait window, and merge remain pending
+  - Status: ✅ Closed by merged PR #2368 on 2026-09-01 at squash merge
+    `6327960917e2a04e5fec0d89b358b51781b12f67`; canonical exact-main CI run
+    [33560886407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33560886407)
+    and Nightly Full Tests run
+    [33600127482](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33600127482)
+    completed successfully on that merge SHA.
   - Area: iOS unit-test selection / CI routing / local Swift syntax diagnostics / localization tests
   - Reason (EN): At the CAB-01 base, the canonical iOS lane selected a maintained class allowlist,
     so an enabled test could be omitted without making the blocking job fail. The base pre-commit
@@ -60,6 +63,63 @@ If it is not recorded here — it does not exist.
       dispositions, mapping/seal, and the mandatory wait window pass before merge authorization
   - Rollback (EN): Revert the CAB-01 carrier. No persisted data, backend repair, OpenAPI
     regeneration, asset rollback, or release migration is required.
+
+<a id="ledger-client-arch-1-cab-02"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (frontend build integrity / false-green prevention / development velocity)
+  - Target PR: pending (`codex/frontend-typecheck-build-truth`)
+  - Status: Implementation active in an isolated worktree; local material establishes the exact
+    TypeScript-before-Vite build and fail-closed Vitest pre-commit contracts. PR publication,
+    current-head CI, review closeout, and human merge remain pending.
+  - Area: frontend / TypeScript / Vite production build / pre-commit test enforcement
+  - Dependency: [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01) is closed.
+  - Reason (EN): Vite transpiled the production graph without running the repository's existing
+    strict TypeScript contract, while the frontend pre-commit hook converted Vitest failures into
+    success. CAB-02 makes both existing recognizers fail closed without changing product behavior,
+    dependencies, generated contracts, marketing design, backend, or iOS.
+  - Links:
+    - `frontend/package.json`
+    - `.pre-commit-config.yaml`
+    - `frontend/AGENTS.md`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - DoD:
+    - `npm run typecheck` validates the complete `frontend/tsconfig.json` graph
+    - `npm run build` runs typecheck before Vite and stops before bundling on a TypeScript failure
+    - the frontend Vitest pre-commit hook preserves both zero and non-zero test exits
+    - current strict diagnostics are repaired without suppressions, weakened compiler settings,
+      dependency/lock changes, or product-behavior changes
+    - focused/full frontend tests, accessibility, build, CSS smoke, narrow repository gates,
+      current-head CI, review dispositions, mapping/seal, and the mandatory wait window pass
+  - Rollback (EN): Revert the CAB-02 carrier. No database, backend, API, payment, asset, iOS, or
+    persisted-data repair is required.
+
+<a id="ledger-client-arch-1-cab-03"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
+  - Owner: app-store-release-agent / agent-coordinator
+  - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
+  - Target PR: pending (`codex/ios-release-build-appicon-integrity`)
+  - Status: Planned; implementation starts only after CAB-02 is merged, synchronized to `main`,
+    and closed with exact-main evidence.
+  - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
+  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) must be merged and closed.
+  - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
+    canonical iOS job runs Debug unit coverage without a separate Release app build. CAB-03 will
+    close those two bounded seams without pixel, production Swift, signing, upload, or App Store
+    execution changes.
+  - Links:
+    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
+    - `scripts/release/check_ios_appstore_verify.py`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - the unique `ios-marketing` entry has exact filename, idiom, platform, size, and `scale=1x`
+    - the approved AppIcon PNG remains byte-identical and 1024x1024
+    - focused and unified validators reject missing or incorrect slot metadata
+    - the existing blocking iOS job runs a separate Release simulator build after the full unit run
+    - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
+      Web, production Swift, or visual redesign scope is introduced
+  - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
+    asset-source restoration is required.
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo
@@ -4920,14 +4980,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remediation plan defined (PR-596 scope)
 
 
-- [ ] Stabilize/restore PlateViewTests in CI (iOS)
+- [x] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
   - Priority: P1
-  - Status: Active in CAB-01; post-sync local EN/US and RU/RU target evidence passes 276 tests,
-    while the Runner refresh, exact-material self-review, mapping reseal, GitHub current-head CI,
-    the wait window, and merge remain pending
+  - Status: ✅ Closed by merged PR #2368 on 2026-09-01 at squash merge
+    `6327960917e2a04e5fec0d89b358b51781b12f67`; the complete `PulsePlateTests` selector and
+    exact-main iOS unit job include the stabilized locale-safe `PlateViewTests` coverage.
   - Reason: PlateViewTests were unstable historically. CAB-01 now owns their locale-safe
     stabilization and inclusion through the complete `PulsePlateTests` target while preserving the
     separate UI-smoke lane.
