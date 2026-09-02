@@ -25,7 +25,7 @@ This is not a claim about future advisories, arbitrary package-manager syntax,
 package contents, production exploitability, whole-repository security,
 provider closure, review, CI, approval, or merge readiness. Canonical policy is
 the `dependency-remediation-admission:v2` block in `AGENTS.md:2324`; the
-permanent executable guard is `tests/test_frontend_dependency_guards.py:1437`.
+permanent executable guard is `tests/test_frontend_dependency_guards.py:1438`.
 
 ## Exact base, material head, and surface universe
 
@@ -38,12 +38,12 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-47fea5211b835a8ed5c0cfad4dc207d130b3900b
+684409902cf3a05ff1badbac3b27fac6fd758c1e
 ```
 
 The current permanent guard enumerates tracked `package.json`,
 `package-lock.json`, and `npm-shrinkwrap.json` paths through
-`tests/test_frontend_dependency_guards.py:1128`. At this transition, the
+`tests/test_frontend_dependency_guards.py:1129`. At this transition, the
 complete base/head universe contains exactly five surfaces:
 
 | Surface | Base SHA-256 | Material-head SHA-256 | Reconciliation |
@@ -281,26 +281,31 @@ provider closure, review, approval, CI, or merge-readiness evidence.
 
 ## Permanent postcondition `P`
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1437`:
+The executable guard at `tests/test_frontend_dependency_guards.py:1438`:
 
 1. mechanically enumerates the current tracked npm surface universe;
 2. rejects every direct, optional, peer, override, bundled, npm-alias, tarball,
    or tracked-local manifest carrier;
-3. discovers each installed lock candidate by canonical path, explicit name,
+3. rejects malformed lock package records and any present dependency container
+   that is not an object before target-demand discovery at
+   `tests/test_frontend_dependency_guards.py:469`;
+4. rejects root-lock target demands and aliased or tarball lock demands, so the
+   transitive-only class cannot acquire direct or renamed lock authority;
+5. discovers each installed lock candidate by canonical path, explicit name,
    or tarball identity before validation and closes dependency demand per lock
    surface, so one safe graph cannot mask a demand-only sibling graph;
-4. resolves every non-optional demand through the ordered Node ancestor lookup
-   candidates defined at `tests/test_frontend_dependency_guards.py:569`, then
+6. resolves every non-optional demand through the ordered Node ancestor lookup
+   candidates defined at `tests/test_frontend_dependency_guards.py:570`, then
    validates the selector against the first installed reachable occurrence;
    compatible copies nested below unrelated siblings cannot satisfy the edge;
-5. excludes a peer only when `peerDependenciesMeta` contains the exact boolean
+7. excludes a peer only when `peerDependenciesMeta` contains the exact boolean
    marker `optional: true`;
-6. rejects unsupported lock schemas, malformed or prerelease versions,
+8. rejects unsupported lock schemas, malformed or prerelease versions,
    noncanonical paths, conflicting names, provenance mismatches, and any
    integrity value that is not a valid 64-byte `sha512` SRI digest;
-7. binds the exact three advisory identities and exact two-member `A`, then
+9. binds the exact three advisory identities and exact two-member `A`, then
    compares every discovered stable version with every recorded affected range;
-8. permits executable absence only after the complete discovery pass finds no
+10. permits executable absence only after the complete discovery pass finds no
    manifest carrier, required lock dependency demand, or installed record.
 
 The guard deliberately does not freeze `4.28.8`, the historical occurrence
@@ -312,9 +317,9 @@ Focused verification completed with exit `0`:
 ```text
 $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
-........................................................................ [ 41%]
-........................................................................ [ 82%]
-...............................                                          [100%]
+........................................................................ [ 40%]
+........................................................................ [ 80%]
+...................................                                      [100%]
 ```
 
 The repository-wide pre-commit hook also exited `0` after Black's first-pass
