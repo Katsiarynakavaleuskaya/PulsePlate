@@ -476,17 +476,18 @@ def _discover_lock_target_demand_edges(
     assert isinstance(packages, dict), "npm lock packages must be an object"
     edges: dict[tuple[str, str, str], object] = {}
     for raw_path, package in packages.items():
-        if not isinstance(raw_path, str) or not isinstance(package, dict):
-            continue
+        assert isinstance(raw_path, str), "npm lock package path must be a string"
+        assert isinstance(package, dict), f"{raw_path}: npm lock package entry must be an object"
         for field in (
             "dependencies",
             "devDependencies",
             "optionalDependencies",
             "peerDependencies",
         ):
-            dependencies = package.get(field)
-            if not isinstance(dependencies, dict):
+            if field not in package:
                 continue
+            dependencies = package[field]
+            assert isinstance(dependencies, dict), f"{raw_path}:{field} must be an object"
             for name, value in dependencies.items():
                 if (
                     name == target
@@ -1471,6 +1472,14 @@ def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[
             package = packages[package_path]
             assert isinstance(package, dict)
             source = f"{relative}:{package_path}:{field}.{dependency_name}"
+            assert (
+                package_path
+            ), f"{source}: root lock demand is forbidden in the transitive-only class"
+            assert (
+                dependency_name == "browserslist"
+                and not _is_npm_alias_for_target(value, target="browserslist")
+                and not _has_registry_tarball_path_signal(value, target="browserslist")
+            ), f"{source}: aliased or tarball lock demand is forbidden"
             if field == "peerDependencies" and _is_optional_peer_demand(
                 package=package,
                 dependency_name=dependency_name,
@@ -2747,7 +2756,7 @@ def test_browserslist_dependency_edge_cannot_fake_executable_absence(tmp_path: P
             "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
         },
     )
-    with pytest.raises(AssertionError, match="demand has no installed occurrence"):
+    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
 
 
@@ -2766,10 +2775,7 @@ def test_browserslist_demand_is_closed_per_lock_surface(tmp_path: Path) -> None:
     )
     _git_stdout("add", "--", "package-lock.json", repo_root=tmp_path)
 
-    with pytest.raises(
-        AssertionError,
-        match=r"package-lock\.json: browserslist lock dependency demand",
-    ):
+    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
 
 
@@ -2787,6 +2793,68 @@ def test_browserslist_demand_rejects_unrelated_sibling_occurrence(tmp_path: Path
         },
     )
     with pytest.raises(AssertionError, match="no reachable installed browserslist occurrence"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_malformed_demand_container_is_rejected(tmp_path: Path) -> None:
+    """A present non-object dependency field cannot create executable absence."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {"node_modules/carrier": {"dependencies": ["browserslist"]}},
+        },
+    )
+    with pytest.raises(AssertionError, match="dependencies must be an object"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_root_lock_demand_is_rejected(tmp_path: Path) -> None:
+    """A root lock edge cannot become direct authority without a manifest owner."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"dependencies": {"browserslist": "^4.28.7"}},
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("dependency_name", "selector"),
+    (
+        ("renamed", "npm:browserslist@^4.28.7"),
+        (
+            "browserslist",
+            "https://registry.npmjs.org/browserslist/-/browserslist-4.28.8.tgz",
+        ),
+    ),
+)
+def test_browserslist_aliased_or_tarball_lock_demand_is_rejected(
+    tmp_path: Path,
+    dependency_name: str,
+    selector: str,
+) -> None:
+    """Noncanonical demand identities cannot resolve through the canonical path."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/carrier": {"dependencies": {dependency_name: selector}},
+                "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="aliased or tarball lock demand is forbidden"):
         _assert_browserslist_security_class(root=tmp_path)
 
 
@@ -2813,7 +2881,7 @@ def test_browserslist_demand_uses_first_reachable_ancestor(tmp_path: Path) -> No
     (
         ("^5.0.0", "resolved browserslist 4.28.8 does not satisfy demand"),
         ("*", "malformed version"),
-        ("npm:browserslist", "malformed version"),
+        ("npm:browserslist", "aliased or tarball lock demand is forbidden"),
     ),
 )
 def test_browserslist_demand_selector_fails_closed(
