@@ -526,10 +526,13 @@ final class HomeExperienceTests: XCTestCase {
         XCTAssertFalse(project.contains("HomeExperienceTests.swift"))
 
         let targets = try source(at: "scripts/ios_test_targets.sh")
-        XCTAssertEqual(
-            occurrenceCount(of: "PulsePlateTests/HomeExperienceTests", in: targets),
-            1
-        )
+        let outputCommands = targets.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("printf ") }
+        XCTAssertEqual(outputCommands, ["printf '%s' 'PulsePlateTests'"])
+        XCTAssertFalse(targets.contains("PulsePlateTests/"))
+        XCTAssertFalse(targets.contains("TESTS=("))
+        XCTAssertFalse(targets.contains("IFS=','"))
     }
 
     private var frozenLocalizationValues: [String: [String: String]] {

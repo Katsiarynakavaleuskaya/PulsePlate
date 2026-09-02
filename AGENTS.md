@@ -2562,7 +2562,7 @@ Do not remove this exclusion without a product decision and a separate PR
 
 - Swift syntax-only checks (pre-commit hooks) are insufficient for enforcement.
 - All iOS unit tests (including guard tests like `ThinClientGuardsTests`) must run in CI.
-- CI job runs on `macos-15` runner with Xcode 16.x (matches project format).
+- CI job runs on `macos-15` runner with Xcode 26.x (matches the current iOS SDK lane).
 - Tests must pass before PR merge.
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
@@ -2570,7 +2570,8 @@ Do not remove this exclusion without a product decision and a separate PR
 **iOS CI job gating (paths-filter):**
 
 - `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
-- iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, or `.github/actions/**`.
+- iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, `.github/actions/**`,
+  `scripts/ios_test_targets.sh`, or `scripts/ci/check_ios_swift_syntax.sh`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
 
@@ -2580,7 +2581,7 @@ Do not remove this exclusion without a product decision and a separate PR
 - **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
 - **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.
-- **Xcode version pinning (hard rule):** CI must pin Xcode major/minor version compatible with selected simulator runtimes using deterministic priority list (e.g., prefer Xcode 16.4 → 16.3 → 16.2). Avoid mixing Xcode 16.2 (expects iOS 18.2 SDK) with iOS 18.5/18.6 runtimes → use Xcode 16.4/16.3 instead. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
+- **Xcode version pinning (hard rule):** CI must pin Xcode major/minor version compatible with selected simulator runtimes using the deterministic priority Xcode 26.2 → 26.1 → 26.0, followed only by a verified Xcode 26.x fallback at `/Applications/Xcode.app`. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
 - **"Latest" policy clarification:**
   - ❌ **Forbidden:** `OS=latest` in CI destination strings
   - ✅ **Allowed:** "Latest Xcode installed" selection via deterministic priority list (pin/priority), not "whatever is newest"
