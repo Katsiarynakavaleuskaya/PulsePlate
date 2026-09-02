@@ -15,6 +15,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+import tempfile
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlparse
@@ -22,6 +23,13 @@ from urllib.parse import unquote, urlparse
 import pytest
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
+from tests.test_root_npm_dependency_guards import (
+    _assert_lock_surface_canonical_provenance,
+    _find_lock_occurrences,
+    _find_manifest_occurrences,
+    _find_opaque_npm_dependency_source_occurrences,
+    _lock_path_package_identity,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
@@ -103,6 +111,37 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
 )
 BRACE_EXPANSION_CURRENT_ADVISORIES = frozenset(BRACE_EXPANSION_CURRENT_ADVISORY_RANGES)
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
+BROWSERSLIST_ADVISORY_RANGE_TEXT = {
+    "GHSA-73wf-gq98-2v4g": ("<=4.28.6",),
+    "GHSA-c83g-rgw3-j3cx": ("<=4.28.6",),
+    "GHSA-w8qv-6jwh-64r5": (">=4.0.0,<4.16.5",),
+}
+BROWSERSLIST_EXPECTED_ADVISORIES = frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT)
+BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES = frozenset(
+    {"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"}
+)
+BROWSERSLIST_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(value) for value in ranges)
+    for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+}
+BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
+    "GHSA-73wf-gq98-2v4g": "4.28.7",
+    "GHSA-c83g-rgw3-j3cx": "4.28.7",
+    "GHSA-w8qv-6jwh-64r5": "4.16.5",
+}
+BROWSERSLIST_GAD_RECEIPT_SHA256 = (
+    "4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f"  # pragma: allowlist secret
+)
+NPM_VIRTUAL_GRAPH_POLICY_ARGS = (
+    "--global=false",
+    "--workspaces=false",
+    "--link=false",
+    "--include=dev",
+    "--include=optional",
+    "--include=peer",
+    "--legacy-peer-deps=false",
+    "--strict-peer-deps=true",
+)
 BRACE_EXPANSION_RENDERED_PROJECTIONS = {
     "GHSA-3jxr-9vmj-r5cp": (
         "**Applicable**: both `2.0.3` and `5.0.6` are affected",
@@ -187,34 +226,6 @@ BRACE_EXPANSION_HEAD_EVIDENCE_SHA256 = (
 )
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-BROWSERSLIST_ADVISORY_RANGE_TEXT = {
-    "GHSA-73wf-gq98-2v4g": ("<=4.28.6",),
-    "GHSA-c83g-rgw3-j3cx": ("<=4.28.6",),
-    "GHSA-w8qv-6jwh-64r5": (">=4.0.0,<4.16.5",),
-}
-BROWSERSLIST_EXPECTED_ADVISORIES = frozenset(
-    {
-        "GHSA-73wf-gq98-2v4g",
-        "GHSA-c83g-rgw3-j3cx",
-        "GHSA-w8qv-6jwh-64r5",
-    }
-)
-BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES = frozenset(
-    {"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"}
-)
-BROWSERSLIST_ADVISORY_RANGES = {
-    advisory: tuple(SpecifierSet(value) for value in ranges)
-    for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
-}
-BROWSERSLIST_APPLICABLE_ADVISORIES = frozenset({"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"})
-BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
-    "GHSA-73wf-gq98-2v4g": "4.28.7",
-    "GHSA-c83g-rgw3-j3cx": "4.28.7",
-    "GHSA-w8qv-6jwh-64r5": "4.16.5",
-}
-BROWSERSLIST_GAD_RECEIPT_SHA256 = (
-    "4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f"  # pragma: allowlist secret
-)
 FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
     {"frontend/package.json", "frontend/package-lock.json"}
 )
@@ -415,41 +426,6 @@ def _is_npm_alias_for_target(value: object, *, target: str) -> bool:
     )
 
 
-def _is_git_source_for_target(value: object, *, target: str) -> bool:
-    """Recognize bounded Git/GitHub dependency spellings by repository basename."""
-
-    if not isinstance(value, str) or not value:
-        return False
-    candidate = value.strip().split("#", maxsplit=1)[0].rstrip("/")
-    if candidate.startswith("github:"):
-        repository_path = candidate.removeprefix("github:")
-    elif candidate.startswith("git@github.com:"):
-        repository_path = candidate.removeprefix("git@github.com:")
-    elif candidate.startswith(("git+", "git://", "ssh://")):
-        parsed = urlparse(candidate.removeprefix("git+"))
-        if parsed.scheme == "file":
-            repository_path = _fully_decode_url_path(parsed.path).lstrip("/")
-        elif parsed.hostname is None:
-            return False
-        else:
-            repository_path = parsed.path.lstrip("/")
-    elif candidate.startswith(("https://", "http://")):
-        parsed = urlparse(candidate)
-        if parsed.hostname is None or (
-            parsed.hostname.casefold() != "github.com" and not parsed.path.endswith(".git")
-        ):
-            return False
-        repository_path = parsed.path.lstrip("/")
-    elif candidate.count("/") == 1 and ":" not in candidate:
-        repository_path = candidate
-    else:
-        return False
-
-    repository = repository_path.rsplit("/", maxsplit=1)[-1].removesuffix(".git")
-    target_basename = target.rsplit("/", maxsplit=1)[-1]
-    return repository.casefold() == target_basename.casefold()
-
-
 def _find_override_key_paths(
     node: object,
     *,
@@ -457,10 +433,8 @@ def _find_override_key_paths(
     path: tuple[str, ...] = (),
 ) -> dict[tuple[str, ...], object]:
     found: dict[tuple[str, ...], object] = {}
-    if (
-        _is_npm_alias_for_target(node, target=target)
-        or _has_registry_tarball_path_signal(node, target=target)
-        or _is_git_source_for_target(node, target=target)
+    if _is_npm_alias_for_target(node, target=target) or _has_registry_tarball_path_signal(
+        node, target=target
     ):
         found[path] = node
         return found
@@ -512,146 +486,6 @@ def _discover_frontend_target_lock_entries(
             ), f"{raw_path}: package name conflicts with {target} path"
         entries[raw_path] = package
     return entries
-
-
-def _discover_lock_target_demand_edges(
-    packages: object,
-    *,
-    target: str,
-) -> dict[tuple[str, str, str], object]:
-    """Find bounded npm lock dependency edges that still demand one target."""
-
-    assert isinstance(packages, dict), "npm lock packages must be an object"
-    edges: dict[tuple[str, str, str], object] = {}
-    for raw_path, package in packages.items():
-        assert isinstance(raw_path, str), "npm lock package path must be a string"
-        assert isinstance(package, dict), f"{raw_path}: npm lock package entry must be an object"
-        for field in (
-            "dependencies",
-            "devDependencies",
-            "optionalDependencies",
-            "peerDependencies",
-        ):
-            if field not in package:
-                continue
-            dependencies = package[field]
-            assert isinstance(dependencies, dict), f"{raw_path}:{field} must be an object"
-            for name, value in dependencies.items():
-                if field == "dependencies" and name in package.get("optionalDependencies", {}):
-                    continue
-                if (
-                    name == target
-                    or _is_npm_alias_for_target(value, target=target)
-                    or _has_registry_tarball_path_signal(value, target=target)
-                    or _is_git_source_for_target(value, target=target)
-                ):
-                    edges[(raw_path, field, str(name))] = value
-    return edges
-
-
-def _is_optional_peer_demand(
-    *,
-    package: dict,
-    dependency_name: str,
-    source: str,
-) -> bool:
-    metadata = package.get("peerDependenciesMeta")
-    if metadata is None:
-        return False
-    assert isinstance(metadata, dict), f"{source}: peerDependenciesMeta must be an object"
-    dependency_metadata = metadata.get(dependency_name)
-    if dependency_metadata is None:
-        return False
-    assert isinstance(
-        dependency_metadata, dict
-    ), f"{source}: peerDependenciesMeta entry must be an object"
-    assert set(dependency_metadata) == {
-        "optional"
-    }, f"{source}: peerDependenciesMeta entry must contain only optional"
-    optional = dependency_metadata["optional"]
-    assert type(optional) is bool, f"{source}: peer optional marker must be a boolean"
-    return optional
-
-
-def _demand_selector_allows_version(
-    *,
-    raw_selector: object,
-    version: Version,
-    source: str,
-) -> bool:
-    """Evaluate the finite npm selector forms present in governed lock demand edges."""
-
-    assert isinstance(raw_selector, str) and raw_selector, f"{source}: demand selector missing"
-    assert (
-        len(raw_selector) <= NPM_SEMVER_MAX_LENGTH
-        and raw_selector.isascii()
-        and raw_selector == raw_selector.strip()
-    ), f"{source}: malformed demand selector {raw_selector!r}"
-
-    selector = raw_selector
-    alias_prefix = "npm:browserslist@"
-    if selector.startswith(alias_prefix):
-        selector = selector.removeprefix(alias_prefix)
-        assert selector, f"{source}: aliased demand selector missing"
-
-    operator = "="
-    for candidate in (">=", "^", "~", "="):
-        if selector.startswith(candidate):
-            operator = candidate
-            selector = selector.removeprefix(candidate).strip()
-            break
-    lower = _parse_version(value=selector, source=f"{source} demand selector")
-
-    if operator == "=":
-        return version == lower
-    if operator == ">=":
-        return version >= lower
-    if operator == "~":
-        upper = Version(f"{lower.major}.{lower.minor + 1}.0")
-        return lower <= version < upper
-    if lower.major > 0:
-        upper = Version(f"{lower.major + 1}.0.0")
-    elif lower.minor > 0:
-        upper = Version(f"0.{lower.minor + 1}.0")
-    else:
-        upper = Version(f"0.0.{lower.micro + 1}")
-    return lower <= version < upper
-
-
-def _lock_target_resolution_paths(*, package_path: str, target: str) -> tuple[str, ...]:
-    """Return Node ancestor lookup candidates for one canonical lock package path."""
-
-    assert "\\" not in package_path, f"{package_path}: lock path must use POSIX separators"
-    path = PurePosixPath(package_path)
-    assert not path.is_absolute(), f"{package_path}: lock path must be relative"
-    assert ".." not in path.parts, f"{package_path}: lock path must not contain traversal segments"
-    if package_path:
-        assert path.as_posix() == package_path, f"{package_path}: lock path must be canonical"
-
-    candidates: list[str] = []
-    current = path
-    while True:
-        if not current.parts or current.parts[-1] != "node_modules":
-            prefix = "" if not current.parts else f"{current.as_posix()}/"
-            candidates.append(f"{prefix}node_modules/{target}")
-        if not current.parts:
-            break
-        current = current.parent
-        if current == PurePosixPath("."):
-            current = PurePosixPath()
-    return tuple(candidates)
-
-
-def _assert_sha512_integrity(*, value: object, source: str) -> None:
-    assert isinstance(value, str) and value.startswith(
-        "sha512-"
-    ), f"{source}: integrity must use sha512 SRI"
-    encoded = value.removeprefix("sha512-")
-    try:
-        digest = base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
-    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
 
 
 def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
@@ -769,7 +603,7 @@ def _normalize_advisory_range_text(value: object) -> str:
     return normalized
 
 
-def _reject_duplicate_receipt_keys(
+def _reject_duplicate_brace_expansion_receipt_keys(
     pairs: list[tuple[str, object]],
 ) -> dict[str, object]:
     """Reject ambiguous JSON objects before canonical receipt hashing."""
@@ -800,7 +634,7 @@ def _extract_brace_expansion_evidence_receipt(document: str) -> dict[str, object
     assert match is not None, "owner evidence receipt fence missing or malformed"
     receipt = json.loads(
         match.group("payload"),
-        object_pairs_hook=_reject_duplicate_receipt_keys,
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
     )
     assert isinstance(receipt, dict), "owner evidence receipt must be a JSON object"
 
@@ -1229,7 +1063,7 @@ def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
         if parsed.scheme != "file" or parsed.netloc:
             return None
         local_path = parsed.path
-    elif normalized.startswith(("./", "../")) or "/" in normalized:
+    elif normalized.startswith(("./", "../")):
         local_path = parsed.path
     else:
         return None
@@ -1283,121 +1117,6 @@ def _find_tracked_local_manifest_target_paths(
     return found
 
 
-def _manifest_workspace_patterns(*, document: dict, surface: str) -> tuple[str, ...]:
-    """Validate and return the finite workspace patterns owned by one manifest."""
-
-    raw_workspaces = document.get("workspaces")
-    if raw_workspaces is None:
-        return ()
-    if isinstance(raw_workspaces, list):
-        patterns = raw_workspaces
-    else:
-        assert isinstance(raw_workspaces, dict), f"{surface}: workspaces must be an array or object"
-        assert set(raw_workspaces) == {
-            "packages"
-        }, f"{surface}: workspace object must contain only packages"
-        patterns = raw_workspaces["packages"]
-        assert isinstance(patterns, list), f"{surface}: workspaces.packages must be an array"
-
-    validated: list[str] = []
-    for index, pattern in enumerate(patterns):
-        source = f"{surface}:workspaces[{index}]"
-        assert isinstance(pattern, str) and pattern, f"{source}: workspace pattern must be text"
-        assert (
-            pattern.isascii() and pattern == pattern.strip() and "\\" not in pattern
-        ), f"{source}: malformed workspace pattern"
-        path = PurePosixPath(pattern)
-        assert (
-            not path.is_absolute() and ".." not in path.parts
-        ), f"{source}: workspace pattern must stay repository-relative"
-        unsupported_glob = any(character in pattern for character in "?[]{}!")
-        star_parts = tuple(index for index, part in enumerate(path.parts) if "*" in part)
-        assert not unsupported_glob and (
-            not star_parts
-            or (
-                len(star_parts) == 1
-                and star_parts[0] == len(path.parts) - 1
-                and path.parts[-1] == "*"
-            )
-        ), f"{source}: unsupported workspace glob; use a literal or terminal /* pattern"
-        validated.append(pattern)
-    return tuple(validated)
-
-
-def _workspace_pattern_matches_member(
-    *,
-    resolved_pattern: PurePosixPath,
-    member_parent: PurePosixPath,
-) -> bool:
-    """Match the closed literal-or-one-child workspace pattern subset."""
-
-    if resolved_pattern.parts and resolved_pattern.parts[-1] == "*":
-        prefix = resolved_pattern.parts[:-1]
-        return (
-            len(member_parent.parts) == len(prefix) + 1
-            and member_parent.parts[: len(prefix)] == prefix
-        )
-    return member_parent == resolved_pattern
-
-
-def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
-    """Reject manifest containers that target discovery cannot compare safely."""
-
-    for field in (
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-        "overrides",
-    ):
-        if field in document:
-            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
-    for field in ("bundleDependencies", "bundledDependencies"):
-        if field not in document:
-            continue
-        bundled = document[field]
-        if type(bundled) is bool:
-            continue
-        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
-        assert all(
-            isinstance(value, str) for value in bundled
-        ), f"{surface}:{field} entries must be package names"
-    _manifest_workspace_patterns(document=document, surface=surface)
-
-
-def _find_workspace_manifest_target_paths(
-    *,
-    surface: str,
-    document: dict,
-    surfaces: dict[str, dict],
-    target: str,
-) -> dict[tuple[str, ...], object]:
-    """Find tracked target-named manifests selected by one workspace declaration."""
-
-    found: dict[tuple[str, ...], object] = {}
-    manifest_parent = PurePosixPath(surface).parent
-    for index, pattern in enumerate(
-        _manifest_workspace_patterns(document=document, surface=surface)
-    ):
-        resolved_pattern = PurePosixPath(posixpath.normpath((manifest_parent / pattern).as_posix()))
-        assert (
-            ".." not in resolved_pattern.parts
-        ), f"{surface}:workspaces[{index}]: resolved workspace pattern escapes repository"
-        for member_surface, member_document in surfaces.items():
-            if member_surface == surface or PurePosixPath(member_surface).name != "package.json":
-                continue
-            member_parent = PurePosixPath(member_surface).parent
-            if (
-                _workspace_pattern_matches_member(
-                    resolved_pattern=resolved_pattern,
-                    member_parent=member_parent,
-                )
-                and member_document.get("name") == target
-            ):
-                found[("workspaces", f"[{index}]", member_surface)] = pattern
-    return found
-
-
 def _find_manifest_target_paths(
     document: dict,
     *,
@@ -1441,14 +1160,6 @@ def _find_manifest_target_paths(
     if surface is not None and surfaces is not None:
         found.update(
             _find_tracked_local_manifest_target_paths(
-                surface=surface,
-                document=document,
-                surfaces=surfaces,
-                target=target,
-            )
-        )
-        found.update(
-            _find_workspace_manifest_target_paths(
                 surface=surface,
                 document=document,
                 surfaces=surfaces,
@@ -1599,7 +1310,7 @@ def _assert_frontend_security_target_version(*, target: str, raw_version: object
 
 
 def _assert_browserslist_head_postcondition(*, raw_version: object, source: str) -> Version:
-    """Require one stable Browserslist occurrence outside the frozen advisory inventory."""
+    """Require one stable occurrence outside the complete frozen advisory inventory."""
 
     version = _parse_version(value=raw_version, source=source)
     for advisory, affected_ranges in BROWSERSLIST_ADVISORY_RANGES.items():
@@ -1609,126 +1320,223 @@ def _assert_browserslist_head_postcondition(*, raw_version: object, source: str)
     return version
 
 
+def _assert_sha512_integrity(*, value: object, source: str) -> None:
+    """Require one syntactically valid 64-byte sha512 SRI digest."""
+
+    assert isinstance(value, str) and value.startswith(
+        "sha512-"
+    ), f"{source}: integrity must use sha512 SRI"
+    encoded = value.removeprefix("sha512-")
+    try:
+        digest = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
+    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
+
+
+def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
+    """Keep JSON structure local while npm owns dependency-source semantics."""
+
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "overrides",
+    ):
+        if field in document:
+            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
+    for field in ("bundleDependencies", "bundledDependencies"):
+        if field not in document:
+            continue
+        bundled = document[field]
+        if type(bundled) is bool:
+            continue
+        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
+        assert all(
+            isinstance(value, str) and value for value in bundled
+        ), f"{surface}:{field} entries must be non-empty package names"
+
+
+def _npm_virtual_graph_environment() -> dict[str, str]:
+    """Remove ambient Node/npm graph controls before the delegated invocation."""
+
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_")
+        and key not in {"NODE_ENV", "NODE_OPTIONS", "NODE_PATH"}
+        and not key.casefold().startswith("npm_config_")
+    }
+
+
+def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) -> None:
+    """Delegate every lock-bearing project graph to the active repository npm."""
+
+    wrapper = REPO_ROOT / "scripts" / "frontend_npm.sh"
+    assert wrapper.is_file() and os.access(
+        wrapper, os.X_OK
+    ), "repository npm wrapper must be an executable file"
+    lock_roots: dict[PurePosixPath, str] = {}
+    dependency_roots: set[PurePosixPath] = set()
+    for relative, document in surfaces.items():
+        path = PurePosixPath(relative)
+        if path.name == "package.json":
+            if any(
+                isinstance(document.get(field), dict) and bool(document[field])
+                for field in (
+                    "dependencies",
+                    "devDependencies",
+                    "optionalDependencies",
+                    "peerDependencies",
+                    "overrides",
+                )
+            ):
+                dependency_roots.add(path.parent)
+            continue
+        if path.name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        project_relative = path.parent
+        assert (
+            project_relative not in lock_roots
+        ), f"{relative}: multiple npm lock authorities share one project root"
+        manifest_relative = (project_relative / "package.json").as_posix()
+        assert (
+            manifest_relative in surfaces
+        ), f"{relative}: lock-bearing project must have a tracked package.json"
+        lock_roots[project_relative] = relative
+
+    missing_lock_roots = dependency_roots - set(lock_roots)
+    assert not missing_lock_roots, (
+        "dependency-bearing manifest must have one same-root lock authority; "
+        f"missing {sorted(path.as_posix() for path in missing_lock_roots)!r}"
+    )
+
+    npm_env = _npm_virtual_graph_environment()
+    with tempfile.TemporaryDirectory(prefix="pulseplate-npm-config-") as config_directory:
+        config_root = Path(config_directory)
+        user_config = config_root / "user.npmrc"
+        global_config = config_root / "global.npmrc"
+        user_config.write_text("", encoding="utf-8")
+        global_config.write_text("", encoding="utf-8")
+        for project_relative, lock_surface in sorted(
+            lock_roots.items(),
+            key=lambda item: item[0].as_posix(),
+        ):
+            project_root = root.joinpath(*project_relative.parts)
+            try:
+                result = subprocess.run(
+                    [
+                        str(wrapper),
+                        "--prefix",
+                        str(project_root),
+                        "ls",
+                        "--all",
+                        "--package-lock-only",
+                        "--json",
+                        "--userconfig",
+                        str(user_config),
+                        "--globalconfig",
+                        str(global_config),
+                        *NPM_VIRTUAL_GRAPH_POLICY_ARGS,
+                    ],
+                    check=False,
+                    capture_output=True,
+                    env=npm_env,
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise AssertionError(f"{lock_surface}: npm virtual graph execution failed") from exc
+            assert result.returncode == 0, f"{lock_surface}: npm virtual graph rejected"
+            try:
+                graph = json.loads(result.stdout.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise AssertionError(
+                    f"{lock_surface}: npm virtual graph returned invalid JSON"
+                ) from exc
+            assert isinstance(graph, dict), f"{lock_surface}: npm virtual graph must be an object"
+            assert (
+                graph.get("error") is None
+            ), f"{lock_surface}: npm virtual graph returned an error"
+            assert (
+                graph.get("problems", []) == []
+            ), f"{lock_surface}: npm virtual graph has problems"
+
+
+def _assert_browserslist_occurrence(*, surface: str, path: str, package: dict) -> None:
+    """Apply only Browserslist-specific identity, advisory, and SRI policy."""
+
+    source = f"{surface}:{path}"
+    assert (
+        _lock_path_package_identity(path) == "browserslist"
+    ), f"{source}: browserslist alias/noncanonical installed path"
+    assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
+    raw_version = package.get("version")
+    _assert_browserslist_head_postcondition(raw_version=raw_version, source=source)
+    assert isinstance(raw_version, str)
+    expected_resolved = (
+        "https://registry.npmjs.org/browserslist/-/" f"browserslist-{raw_version}.tgz"
+    )
+    assert (
+        package.get("resolved") == expected_resolved
+    ), f"{source}: browserslist canonical provenance mismatch"
+    _assert_sha512_integrity(value=package.get("integrity"), source=source)
+
+
 def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[str]:
-    """Enforce the transitive-only Browserslist class over every tracked npm surface."""
+    """Enforce Browserslist policy after generic npm source and graph admission."""
 
     surfaces = {
         relative: _load_json(root / relative)
         for relative in _enumerate_repo_npm_surfaces(root=root)
     }
-    manifest_occurrences: dict[tuple[str, ...], object] = {}
     lock_occurrences: dict[tuple[str, str], dict] = {}
-    lock_demand_edges: dict[tuple[str, str, str, str], object] = {}
-
     for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
-            _assert_manifest_dependency_container_shapes(
-                document=document,
-                surface=relative,
+            _assert_manifest_dependency_container_shapes(document=document, surface=relative)
+            target_occurrences = _find_manifest_occurrences(document, target="browserslist")
+            assert not target_occurrences, (
+                f"{relative}: direct Browserslist manifest authority is forbidden; "
+                f"found {target_occurrences!r}"
             )
-            for path, value in _find_manifest_target_paths(
-                document,
-                target="browserslist",
-                surface=relative,
-                surfaces=surfaces,
-            ).items():
-                manifest_occurrences[(relative, *path)] = value
+            opaque_occurrences = _find_opaque_npm_dependency_source_occurrences(document)
+            assert not opaque_occurrences, (
+                f"{relative}: opaque dependency source blocks Browserslist absence; "
+                f"found {opaque_occurrences!r}"
+            )
             continue
 
         assert basename in NPM_LOCK_SURFACE_BASENAMES
-        assert document.get("lockfileVersion") == 3, f"{relative}: unsupported npm lock schema"
-        packages = document.get("packages")
-        discovered_demand_edges = _discover_lock_target_demand_edges(
-            packages,
+        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        for path, package in _find_lock_occurrences(
+            document,
             target="browserslist",
-        )
-        surface_demand_edges: dict[tuple[str, str, str], object] = {}
-        assert isinstance(packages, dict)
-        for edge, value in discovered_demand_edges.items():
-            package_path, field, dependency_name = edge
-            package = packages[package_path]
-            assert isinstance(package, dict)
-            source = f"{relative}:{package_path}:{field}.{dependency_name}"
-            assert package_path not in {
-                "",
-                ".",
-            }, f"{source}: root lock demand is forbidden in the transitive-only class"
-            assert not _is_git_source_for_target(
-                value,
-                target="browserslist",
-            ), f"{source}: Git lock demand is forbidden"
-            assert (
-                dependency_name == "browserslist"
-                and not _is_npm_alias_for_target(value, target="browserslist")
-                and not _has_registry_tarball_path_signal(value, target="browserslist")
-            ), f"{source}: aliased or tarball lock demand is forbidden"
-            if field == "peerDependencies" and _is_optional_peer_demand(
+        ).items():
+            _assert_browserslist_occurrence(
+                surface=relative,
+                path=path,
                 package=package,
-                dependency_name=dependency_name,
-                source=source,
-            ):
-                continue
-            surface_demand_edges[edge] = value
-            lock_demand_edges[(relative, *edge)] = value
-        surface_lock_occurrences = _discover_frontend_target_lock_entries(
-            packages, target="browserslist"
-        )
-        assert surface_lock_occurrences or not surface_demand_edges, (
-            f"{relative}: browserslist lock dependency demand has no installed occurrence; "
-            f"found {surface_demand_edges!r}"
-        )
-        for path, package in surface_lock_occurrences.items():
+            )
             lock_occurrences[(relative, path)] = package
 
-    assert not manifest_occurrences, (
-        "browserslist: direct or aliased manifest carrier is forbidden; "
-        f"found {manifest_occurrences!r}"
-    )
-    for (relative, path), package in lock_occurrences.items():
-        source = f"{relative}:{path}"
-        assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
-        raw_version = package.get("version")
-        _assert_browserslist_head_postcondition(raw_version=raw_version, source=source)
-        assert isinstance(raw_version, str)
-        expected_resolved = (
-            "https://registry.npmjs.org/browserslist/-/" f"browserslist-{raw_version}.tgz"
-        )
-        assert (
-            package.get("resolved") == expected_resolved
-        ), f"{source}: browserslist canonical provenance mismatch"
-        integrity = package.get("integrity")
-        _assert_sha512_integrity(value=integrity, source=source)
-
-    for (relative, package_path, field, dependency_name), selector in lock_demand_edges.items():
-        source = f"{relative}:{package_path}:{field}.{dependency_name}"
-        resolution_paths = _lock_target_resolution_paths(
-            package_path=package_path,
-            target="browserslist",
-        )
-        resolved = next(
-            (
-                lock_occurrences[(relative, candidate)]
-                for candidate in resolution_paths
-                if (relative, candidate) in lock_occurrences
-            ),
-            None,
-        )
-        assert resolved is not None, (
-            f"{source}: no reachable installed browserslist occurrence; "
-            f"searched {resolution_paths!r}"
-        )
-        version = _parse_version(
-            value=resolved.get("version"),
-            source=f"{source} resolved occurrence",
-        )
-        assert _demand_selector_allows_version(
-            raw_selector=selector,
-            version=version,
-            source=source,
-        ), f"{source}: resolved browserslist {version} does not satisfy demand {selector!r}"
-
+    _assert_npm_virtual_lock_graphs(root=root, surfaces=surfaces)
     return frozenset(relative for relative, _ in lock_occurrences)
+
+
+def _extract_browserslist_gad_receipt(document: str) -> dict[str, object]:
+    """Parse the retained GAD receipt without accepting ambiguous JSON objects."""
+
+    marker = "The retained normalized receipt is:\n\n```json\n"
+    assert document.count(marker) == 1, "Browserslist owner must retain exactly one GAD receipt"
+    start = document.index(marker) + len(marker)
+    end = document.index("\n```", start)
+    receipt = json.loads(
+        document[start:end],
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+    )
+    assert isinstance(receipt, dict), "Browserslist GAD receipt must be a JSON object"
+    return receipt
 
 
 def _assert_frontend_security_targets() -> None:
@@ -2691,6 +2499,404 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         )
 
 
+def _browserslist_entry(version: str) -> dict[str, str]:
+    return {
+        "version": version,
+        "resolved": ("https://registry.npmjs.org/browserslist/-/" f"browserslist-{version}.tgz"),
+        "integrity": (
+            "sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA=="  # pragma: allowlist secret
+        ),
+    }
+
+
+def _write_browserslist_repo(
+    root: Path,
+    *,
+    package_json: dict[str, object] | None = None,
+    package_lock: dict[str, object] | None = None,
+    write_lock: bool = True,
+) -> None:
+    """Create one tracked, lock-bearing npm project for delegated guard tests."""
+
+    _git_stdout("init", repo_root=root)
+    frontend = root / "frontend"
+    frontend.mkdir(parents=True)
+    manifest = package_json or {"name": "fixture", "version": "1.0.0"}
+    lock = package_lock or {
+        "name": "fixture",
+        "version": "1.0.0",
+        "lockfileVersion": 3,
+        "requires": True,
+        "packages": {"": {"name": "fixture", "version": "1.0.0"}},
+    }
+    (frontend / "package.json").write_text(json.dumps(manifest), encoding="utf-8")
+    tracked = ["frontend/package.json"]
+    if write_lock:
+        (frontend / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
+        tracked.append("frontend/package-lock.json")
+    _git_stdout("add", "--", *tracked, repo_root=root)
+
+
+def test_browserslist_class_covers_every_current_tracked_surface() -> None:
+    """The current repository graph satisfies the delegated universal postcondition."""
+
+    assert _assert_browserslist_security_class() == frozenset({"frontend/package-lock.json"})
+
+
+def test_browserslist_class_allows_delegated_executable_absence(tmp_path: Path) -> None:
+    """Absence is valid only after opaque-source and npm virtual-graph admission."""
+
+    _write_browserslist_repo(tmp_path)
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+def test_browserslist_class_rejects_missing_virtual_dependency(tmp_path: Path) -> None:
+    """npm, not handwritten ancestor logic, owns missing-edge rejection."""
+
+    dependency = {"carrier": "^1.0.0"}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", "dependencies": dependency},
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": dependency,
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_dependency_manifest_without_lock(tmp_path: Path) -> None:
+    """A registry-only manifest does not prove an absent executable graph by itself."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"carrier": "^1.0.0"},
+        },
+        write_lock=False,
+    )
+    with pytest.raises(AssertionError, match="same-root lock authority"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ambient npm omit settings cannot weaken delegated full-graph admission."""
+
+    dependency = {"carrier": "^1.0.0"}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "devDependencies": dependency,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "devDependencies": dependency,
+                }
+            },
+        },
+    )
+    monkeypatch.setenv("npm_config_omit", "dev")
+    (tmp_path / "frontend/.npmrc").write_text(
+        "omit=dev\nglobal=true\nlink=true\nlegacy-peer-deps=true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_virtual_graph_configuration_is_hermetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One boundary strips ambient graph controls and fixes the complete-graph policy."""
+
+    blocked = {
+        "NODE_ENV": "production",
+        "NODE_OPTIONS": "--invalid-option",
+        "NODE_PATH": "/tmp/untrusted-node-path",
+        "npm_config_omit": "dev",
+        "NpM_CoNfIg_Link": "true",
+    }
+    for key, value in blocked.items():
+        monkeypatch.setenv(key, value)
+    delegated_env = _npm_virtual_graph_environment()
+    assert not set(blocked).intersection(delegated_env)
+    assert NPM_VIRTUAL_GRAPH_POLICY_ARGS == (
+        "--global=false",
+        "--workspaces=false",
+        "--link=false",
+        "--include=dev",
+        "--include=optional",
+        "--include=peer",
+        "--legacy-peer-deps=false",
+        "--strict-peer-deps=true",
+    )
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    (
+        {"dependencies": {"browserslist": "4.28.8"}},
+        {"devDependencies": {"renamed": "npm:browserslist@4.28.8"}},
+        {"overrides": {"carrier": {"browserslist": "4.28.8"}}},
+        {"bundleDependencies": ["browserslist"]},
+    ),
+)
+def test_browserslist_class_rejects_direct_manifest_authority(
+    tmp_path: Path,
+    manifest: dict[str, object],
+) -> None:
+    """The lock-only class never acquires a direct target owner."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", **manifest},
+    )
+    with pytest.raises(AssertionError, match="direct Browserslist manifest authority"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "opaque_source",
+    (
+        "github:browserslist/browserslist",
+        "git+https://github.com/browserslist/browserslist.git#v4.28.8",
+        "git+file:///vendor/browserslist.git",
+        "file:../vendor/browserslist",
+        "../vendor/browserslist",
+        "vendor/pkg/browserslist",
+        "https://example.invalid/browserslist.tgz",
+        "latest",
+    ),
+)
+def test_browserslist_class_rejects_opaque_manifest_sources(
+    tmp_path: Path,
+    opaque_source: str,
+) -> None:
+    """One delegated classifier closes every opaque source family."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"renamed": opaque_source},
+        },
+    )
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_workspace_source(tmp_path: Path) -> None:
+    """Workspace topology is opaque rather than another package-specific grammar."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", "workspaces": ["packages/*"]},
+    )
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("dependencies", ["browserslist"], "dependencies must be an object"),
+        ("overrides", ["browserslist"], "overrides must be an object"),
+        ("bundleDependencies", "browserslist", "bundleDependencies must be an array"),
+    ),
+)
+def test_browserslist_class_rejects_malformed_manifest_containers(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    """Malformed JSON containers cannot create an absence claim."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", field: value},
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_lock_discovery_includes_every_nested_occurrence() -> None:
+    """A safe root record cannot hide a vulnerable nested raw lock record."""
+
+    document = {
+        "lockfileVersion": 3,
+        "packages": {
+            "": {"name": "fixture", "version": "1.0.0"},
+            "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            "node_modules/carrier/node_modules/browserslist": _browserslist_entry("4.28.6"),
+        },
+    }
+    occurrences = _find_lock_occurrences(document, target="browserslist")
+    assert set(occurrences) == {
+        "node_modules/browserslist",
+        "node_modules/carrier/node_modules/browserslist",
+    }
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        for path, package in occurrences.items():
+            _assert_browserslist_occurrence(
+                surface="fixture/package-lock.json",
+                path=path,
+                package=package,
+            )
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("prerelease", "prerelease output is not approved"),
+        ("foreign-registry", "canonical provenance mismatch"),
+        ("alias-path", "alias/noncanonical installed path"),
+        ("missing-integrity", "integrity must use sha512 SRI"),
+        ("malformed-integrity", "integrity must contain valid base64"),
+        ("short-integrity", "integrity sha512 digest must be 64 bytes"),
+        ("symbolic-link", "symbolic link lock occurrence is forbidden"),
+    ),
+)
+def test_browserslist_occurrence_policy_fails_closed(case: str, message: str) -> None:
+    """Target policy owns only version, path, provenance, link, and SRI checks."""
+
+    path = "node_modules/browserslist"
+    package: dict[str, object] = _browserslist_entry("4.28.8")
+    if case == "prerelease":
+        package = _browserslist_entry("4.28.8-rc.1")
+    elif case == "foreign-registry":
+        package["resolved"] = "https://example.invalid/browserslist-4.28.8.tgz"
+    elif case == "alias-path":
+        path = "node_modules/renamed"
+        package["name"] = "browserslist"
+    elif case == "missing-integrity":
+        package.pop("integrity")
+    elif case == "malformed-integrity":
+        package["integrity"] = "sha512-***"
+    elif case == "short-integrity":
+        package["integrity"] = "sha512-Zml4dHVyZQ=="
+    elif case == "symbolic-link":
+        package["link"] = True
+    else:
+        raise AssertionError(f"unhandled Browserslist occurrence case: {case}")
+
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_occurrence(
+            surface="fixture/package-lock.json",
+            path=path,
+            package=package,
+        )
+
+
+def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
+    """Equal ranges cannot let one advisory identity disappear silently."""
+
+    assert BROWSERSLIST_EXPECTED_ADVISORIES == frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT)
+    assert BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES < BROWSERSLIST_EXPECTED_ADVISORIES
+
+
+@pytest.mark.parametrize(
+    ("version", "allowed"),
+    (
+        ("4.16.4", False),
+        ("4.16.5", False),
+        ("4.28.2", False),
+        ("4.28.6", False),
+        ("4.28.7", True),
+        ("4.28.8", True),
+    ),
+)
+def test_browserslist_advisory_boundaries(version: str, allowed: bool) -> None:
+    """All three frozen advisory ranges retain explicit boundary controls."""
+
+    if allowed:
+        assert _assert_browserslist_head_postcondition(
+            raw_version=version,
+            source="fixture",
+        ) == Version(version)
+        return
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        _assert_browserslist_head_postcondition(raw_version=version, source="fixture")
+
+
+def test_browserslist_owner_receipt_digest_and_projection_are_bound() -> None:
+    """The retained GAD receipt owns the exact advisory projection used by the guard."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    receipt = _extract_browserslist_gad_receipt(document)
+    canonical = json.dumps(
+        receipt,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()
+    assert digest == BROWSERSLIST_GAD_RECEIPT_SHA256
+    assert f"```text\n{digest}\n```" in document
+    records = {record["ghsa_id"]: record for record in receipt["records"]}
+    assert set(records) == set(BROWSERSLIST_EXPECTED_ADVISORIES)
+    for advisory, guarded_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items():
+        vulnerabilities = records[advisory]["vulnerabilities"]
+        retained_projection = {
+            (
+                vulnerability["ecosystem"],
+                vulnerability["package"],
+                re.sub(r"\s+", "", vulnerability["vulnerable_version_range"]),
+                vulnerability["first_patched_version"],
+            )
+            for vulnerability in vulnerabilities
+        }
+        expected_projection = {
+            (
+                "npm",
+                "browserslist",
+                re.sub(r"\s+", "", guarded_range),
+                BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory],
+            )
+            for guarded_range in guarded_ranges
+        }
+        assert retained_projection == expected_projection
+
+
+def test_browserslist_owner_receipt_rejects_duplicate_json_keys() -> None:
+    """Canonicalization cannot erase an ambiguous duplicate receipt key."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    original = '  "record_count": 3,'
+    assert document.count(original) == 1
+    ambiguous = document.replace(
+        original,
+        '  "record_count": 999,\n  "record_count": 3,',
+    )
+    with pytest.raises(AssertionError, match="duplicate JSON key: record_count"):
+        _extract_browserslist_gad_receipt(ambiguous)
+
+
 def test_frontend_security_targets_cover_all_current_tracked_surfaces() -> None:
     """Every non-brace batch target has one bounded carrier and universal postcondition."""
 
@@ -2727,634 +2933,6 @@ def test_frontend_security_targets_reject_prerelease_false_green(target: str) ->
 
     with pytest.raises(AssertionError, match="prerelease output is not approved"):
         _assert_frontend_security_target_version(target=target, raw_version="99.0.0-rc.1")
-
-
-def _browserslist_entry(version: str) -> dict[str, str]:
-    return {
-        "version": version,
-        "resolved": ("https://registry.npmjs.org/browserslist/-/" f"browserslist-{version}.tgz"),
-        "integrity": (
-            "sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA=="  # pragma: allowlist secret
-        ),
-    }
-
-
-def _write_browserslist_repo(
-    root: Path,
-    *,
-    package_json: dict[str, object] | None = None,
-    package_lock: dict[str, object] | None = None,
-) -> None:
-    """Create one tracked npm fixture for bounded Browserslist class tests."""
-
-    _git_stdout("init", repo_root=root)
-    frontend = root / "frontend"
-    frontend.mkdir(parents=True)
-    (frontend / "package.json").write_text(
-        json.dumps(package_json or {"name": "fixture"}),
-        encoding="utf-8",
-    )
-    (frontend / "package-lock.json").write_text(
-        json.dumps(
-            package_lock
-            or {
-                "lockfileVersion": 3,
-                "packages": {"node_modules/browserslist": _browserslist_entry("4.28.8")},
-            }
-        ),
-        encoding="utf-8",
-    )
-    _git_stdout(
-        "add",
-        "--",
-        "frontend/package.json",
-        "frontend/package-lock.json",
-        repo_root=root,
-    )
-
-
-def test_browserslist_class_covers_every_current_tracked_surface() -> None:
-    """The repository graph satisfies the transitive-only universal postcondition."""
-
-    _assert_browserslist_security_class()
-
-
-def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
-    """Equal ranges cannot let one advisory identity disappear silently."""
-
-    assert frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT) == BROWSERSLIST_EXPECTED_ADVISORIES
-    assert BROWSERSLIST_APPLICABLE_ADVISORIES == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
-    assert BROWSERSLIST_APPLICABLE_ADVISORIES < BROWSERSLIST_EXPECTED_ADVISORIES
-
-
-def test_browserslist_owner_receipt_digest_is_content_bound() -> None:
-    """The retained GAD snapshot and displayed digest must authenticate each other."""
-
-    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
-    receipt = _extract_browserslist_gad_receipt(document)
-    canonical = json.dumps(
-        receipt,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    digest = hashlib.sha256(canonical).hexdigest()
-
-    assert digest == BROWSERSLIST_GAD_RECEIPT_SHA256
-    assert f"```text\n{digest}\n```" in document
-    assert receipt["record_count"] == 3
-    records = {record["ghsa_id"]: record for record in receipt["records"]}
-    assert set(records) == set(BROWSERSLIST_EXPECTED_ADVISORIES)
-    for advisory, guarded_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items():
-        vulnerabilities = records[advisory]["vulnerabilities"]
-        retained_projection = {
-            (
-                vulnerability["ecosystem"],
-                vulnerability["package"],
-                re.sub(r"\s+", "", vulnerability["vulnerable_version_range"]),
-                vulnerability["first_patched_version"],
-            )
-            for vulnerability in vulnerabilities
-        }
-        expected_projection = {
-            (
-                "npm",
-                "browserslist",
-                re.sub(r"\s+", "", guarded_range),
-                BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory],
-            )
-            for guarded_range in guarded_ranges
-        }
-        assert retained_projection == expected_projection
-
-
-def _extract_browserslist_gad_receipt(document: str) -> dict[str, object]:
-    """Parse the retained GAD receipt without accepting ambiguous JSON objects."""
-
-    marker = "The retained normalized receipt is:\n\n```json\n"
-    assert document.count(marker) == 1, "Browserslist owner must retain exactly one GAD receipt"
-    start = document.index(marker) + len(marker)
-    end = document.index("\n```", start)
-    receipt = json.loads(
-        document[start:end],
-        object_pairs_hook=_reject_duplicate_receipt_keys,
-    )
-    assert isinstance(receipt, dict), "Browserslist GAD receipt must be a JSON object"
-    return receipt
-
-
-def test_browserslist_owner_receipt_rejects_duplicate_json_keys() -> None:
-    """Canonicalization cannot erase an ambiguous duplicate receipt key."""
-
-    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
-    original = '  "record_count": 3,'
-    assert document.count(original) == 1
-    ambiguous = document.replace(
-        original,
-        '  "record_count": 999,\n  "record_count": 3,',
-    )
-    with pytest.raises(AssertionError, match="duplicate JSON key: record_count"):
-        _extract_browserslist_gad_receipt(ambiguous)
-
-
-@pytest.mark.parametrize(
-    ("version", "allowed"),
-    (
-        ("4.16.4", False),
-        ("4.16.5", False),
-        ("4.28.2", False),
-        ("4.28.6", False),
-        ("4.28.7", True),
-        ("4.28.8", True),
-    ),
-)
-def test_browserslist_advisory_boundaries(version: str, allowed: bool) -> None:
-    """All three frozen advisory ranges retain explicit boundary controls."""
-
-    if allowed:
-        assert _assert_browserslist_head_postcondition(
-            raw_version=version,
-            source="fixture",
-        ) == Version(version)
-        return
-    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
-        _assert_browserslist_head_postcondition(raw_version=version, source="fixture")
-
-
-def test_browserslist_historical_advisory_remains_in_universal_postcondition(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The non-applicable-at-base advisory cannot disappear from head safety."""
-
-    assert "GHSA-w8qv-6jwh-64r5" not in BROWSERSLIST_APPLICABLE_ADVISORIES
-    monkeypatch.setitem(
-        BROWSERSLIST_ADVISORY_RANGES,
-        "GHSA-w8qv-6jwh-64r5",
-        (SpecifierSet("==4.28.8"),),
-    )
-    with pytest.raises(AssertionError, match="GHSA-w8qv-6jwh-64r5"):
-        _assert_browserslist_head_postcondition(raw_version="4.28.8", source="fixture")
-
-
-def test_browserslist_class_allows_executable_absence(tmp_path: Path) -> None:
-    """A future authorized removal remains valid after complete target discovery."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
-    )
-    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
-
-
-def test_browserslist_class_checks_every_nested_occurrence(tmp_path: Path) -> None:
-    """One safe root copy cannot hide an affected nested copy."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-                "node_modules/carrier/node_modules/browserslist": _browserslist_entry("4.28.6"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize(
-    "manifest",
-    (
-        {"dependencies": {"browserslist": "4.28.8"}},
-        {"devDependencies": {"renamed": "npm:browserslist@4.28.8"}},
-        {
-            "optionalDependencies": {
-                "renamed": ("https://registry.npmjs.org/browserslist/-/browserslist-4.28.8.tgz")
-            }
-        },
-        {"overrides": {"carrier": {"browserslist": "4.28.8"}}},
-        {"bundleDependencies": ["browserslist"]},
-        {"dependencies": {"renamed": "github:browserslist/browserslist"}},
-        {
-            "optionalDependencies": {
-                "renamed": "git+https://github.com/browserslist/browserslist.git#v4.28.8"
-            }
-        },
-        {"dependencies": {"renamed": "git+file:///vendor/browserslist.git"}},
-    ),
-)
-def test_browserslist_class_rejects_manifest_carriers(
-    tmp_path: Path,
-    manifest: dict[str, object],
-) -> None:
-    """The lock-only class cannot silently acquire direct dependency authority."""
-
-    _write_browserslist_repo(tmp_path, package_json={"name": "fixture", **manifest})
-    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_class_rejects_bare_tracked_local_manifest_carrier(
-    tmp_path: Path,
-) -> None:
-    """A bare npm directory spec cannot turn a tracked target into absence."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_json={
-            "name": "fixture",
-            "dependencies": {"renamed": "vendor/pkg/browserslist"},
-        },
-        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
-    )
-    target_manifest = tmp_path / "frontend/vendor/pkg/browserslist/package.json"
-    target_manifest.parent.mkdir(parents=True)
-    target_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
-    _git_stdout("add", "--", target_manifest.relative_to(tmp_path).as_posix(), repo_root=tmp_path)
-
-    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize("bundled", (True, False))
-def test_browserslist_class_accepts_boolean_bundle_declaration(
-    tmp_path: Path,
-    bundled: bool,
-) -> None:
-    """Legal boolean bundling syntax does not invent a target carrier."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_json={"name": "fixture", "bundleDependencies": bundled},
-        package_lock={"lockfileVersion": 3, "packages": {"": {"name": "fixture"}}},
-    )
-    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "message"),
-    (
-        ("dependencies", ["browserslist"], "dependencies must be an object"),
-        ("bundleDependencies", "browserslist", "bundleDependencies must be an array"),
-        ("overrides", ["browserslist"], "overrides must be an object"),
-        ("workspaces", "packages/*", "workspaces must be an array or object"),
-    ),
-)
-def test_browserslist_class_rejects_malformed_manifest_containers(
-    tmp_path: Path,
-    field: str,
-    value: object,
-    message: str,
-) -> None:
-    """Unparseable manifest containers cannot create executable absence."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_json={"name": "fixture", field: value},
-    )
-    with pytest.raises(AssertionError, match=message):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_class_rejects_target_named_workspace_member(tmp_path: Path) -> None:
-    """A tracked workspace member is a manifest carrier even without a lock entry."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_json={"name": "fixture", "workspaces": ["packages/*"]},
-    )
-    member_manifest = tmp_path / "frontend" / "packages" / "member" / "package.json"
-    member_manifest.parent.mkdir(parents=True)
-    member_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
-    _git_stdout("add", "--", "frontend/packages/member/package.json", repo_root=tmp_path)
-
-    with pytest.raises(AssertionError, match="manifest carrier is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_class_fails_closed_on_recursive_workspace_glob(tmp_path: Path) -> None:
-    """Unsupported npm recursive-glob semantics cannot create executable absence."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_json={"name": "fixture", "workspaces": ["packages/**"]},
-    )
-    member_manifest = tmp_path / "frontend" / "packages" / "deep" / "member" / "package.json"
-    member_manifest.parent.mkdir(parents=True)
-    member_manifest.write_text(json.dumps({"name": "browserslist"}), encoding="utf-8")
-    _git_stdout("add", "--", "frontend/packages/deep/member/package.json", repo_root=tmp_path)
-
-    with pytest.raises(AssertionError, match="unsupported workspace glob"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize(
-    ("case", "message"),
-    (
-        ("prerelease", "prerelease output is not approved"),
-        ("missing-integrity", "integrity must use sha512 SRI"),
-        ("malformed-integrity", "integrity must contain valid base64"),
-        ("wrong-integrity-algorithm", "integrity must use sha512 SRI"),
-        ("short-integrity", "integrity sha512 digest must be 64 bytes"),
-        ("foreign-registry", "canonical provenance mismatch"),
-        ("wrong-tarball-version", "canonical provenance mismatch"),
-        ("conflicting-name", "package name conflicts"),
-        ("alias-path", "alias/noncanonical installed path"),
-        ("symbolic-link", "symbolic link lock occurrence is forbidden"),
-    ),
-)
-def test_browserslist_class_fails_closed_on_invalid_lock_records(
-    tmp_path: Path,
-    case: str,
-    message: str,
-) -> None:
-    """Version labels cannot bypass identity, provenance, integrity, or path checks."""
-
-    package = _browserslist_entry("4.28.8")
-    path = "node_modules/browserslist"
-    if case == "prerelease":
-        package = _browserslist_entry("4.28.8-rc.1")
-    elif case == "missing-integrity":
-        package["integrity"] = ""
-    elif case == "malformed-integrity":
-        package["integrity"] = "sha512-***"
-    elif case == "wrong-integrity-algorithm":
-        package["integrity"] = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-    elif case == "short-integrity":
-        package["integrity"] = "sha512-Zml4dHVyZQ=="
-    elif case == "foreign-registry":
-        package["resolved"] = "https://example.invalid/browserslist-4.28.8.tgz"
-    elif case == "wrong-tarball-version":
-        package["resolved"] = "https://registry.npmjs.org/browserslist/-/browserslist-4.28.7.tgz"
-    elif case == "conflicting-name":
-        package["name"] = "not-browserslist"
-    elif case == "alias-path":
-        path = "node_modules/renamed-browserslist"
-    elif case == "symbolic-link":
-        package["link"] = True
-    else:
-        raise AssertionError(f"unhandled Browserslist lock case: {case}")
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={"lockfileVersion": 3, "packages": {path: package}},
-    )
-    with pytest.raises(AssertionError, match=message):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_dependency_edge_cannot_fake_executable_absence(tmp_path: Path) -> None:
-    """A lock demand edge is not installed evidence and prevents an absence claim."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
-        },
-    )
-    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_demand_is_closed_per_lock_surface(tmp_path: Path) -> None:
-    """A safe frontend graph cannot mask a demand-only root lock graph."""
-
-    _write_browserslist_repo(tmp_path)
-    (tmp_path / "package-lock.json").write_text(
-        json.dumps(
-            {
-                "lockfileVersion": 3,
-                "packages": {"": {"dependencies": {"browserslist": "^4.28.7"}}},
-            }
-        ),
-        encoding="utf-8",
-    )
-    _git_stdout("add", "--", "package-lock.json", repo_root=tmp_path)
-
-    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_demand_rejects_unrelated_sibling_occurrence(tmp_path: Path) -> None:
-    """A compatible copy below a sibling package is not reachable by Node lookup."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/requester": {"dependencies": {"browserslist": "^4.28.7"}},
-                "node_modules/unrelated/node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="no reachable installed browserslist occurrence"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_malformed_demand_container_is_rejected(tmp_path: Path) -> None:
-    """A present non-object dependency field cannot create executable absence."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {"node_modules/carrier": {"dependencies": ["browserslist"]}},
-        },
-    )
-    with pytest.raises(AssertionError, match="dependencies must be an object"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize("root_path", ("", "."))
-def test_browserslist_root_lock_demand_is_rejected(
-    tmp_path: Path,
-    root_path: str,
-) -> None:
-    """A root lock edge cannot become direct authority without a manifest owner."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                root_path: {"dependencies": {"browserslist": "^4.28.7"}},
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="root lock demand is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize(
-    ("dependency_name", "selector"),
-    (
-        ("renamed", "npm:browserslist@^4.28.7"),
-        (
-            "browserslist",
-            "https://registry.npmjs.org/browserslist/-/browserslist-4.28.8.tgz",
-        ),
-    ),
-)
-def test_browserslist_aliased_or_tarball_lock_demand_is_rejected(
-    tmp_path: Path,
-    dependency_name: str,
-    selector: str,
-) -> None:
-    """Noncanonical demand identities cannot resolve through the canonical path."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {"dependencies": {dependency_name: selector}},
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="aliased or tarball lock demand is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_git_lock_demand_is_rejected(tmp_path: Path) -> None:
-    """A renamed Git repository demand cannot resolve through the canonical path."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {
-                    "dependencies": {"renamed": "github:browserslist/browserslist"}
-                },
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="Git lock demand is forbidden"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_demand_uses_first_reachable_ancestor(tmp_path: Path) -> None:
-    """A nearer installed copy controls selector satisfaction over a compatible root copy."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/requester": {"dependencies": {"browserslist": "^4.28.7"}},
-                "node_modules/requester/node_modules/browserslist": _browserslist_entry("5.0.0"),
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match="resolved browserslist 5.0.0 does not satisfy"):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-@pytest.mark.parametrize(
-    ("selector", "message"),
-    (
-        ("^5.0.0", "resolved browserslist 4.28.8 does not satisfy demand"),
-        ("*", "malformed version"),
-        ("npm:browserslist", "aliased or tarball lock demand is forbidden"),
-    ),
-)
-def test_browserslist_demand_selector_fails_closed(
-    tmp_path: Path,
-    selector: str,
-    message: str,
-) -> None:
-    """Safe advisory status cannot satisfy an incompatible or ambiguous demand."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {"dependencies": {"browserslist": selector}},
-                "node_modules/browserslist": _browserslist_entry("4.28.8"),
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match=message):
-        _assert_browserslist_security_class(root=tmp_path)
-
-
-def test_browserslist_optional_dependency_overrides_dependency_selector(tmp_path: Path) -> None:
-    """npm optionalDependencies precedence selects the effective same-name demand."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {
-                    "dependencies": {"browserslist": "^4.28.7"},
-                    "optionalDependencies": {"browserslist": "^5.0.0"},
-                },
-                "node_modules/browserslist": _browserslist_entry("5.0.0"),
-            },
-        },
-    )
-    assert _assert_browserslist_security_class(root=tmp_path) == frozenset(
-        {"frontend/package-lock.json"}
-    )
-
-
-def test_browserslist_optional_peer_demand_allows_absence(tmp_path: Path) -> None:
-    """Only an exact optional peer declaration is excluded from required demand."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {
-                    "peerDependencies": {"browserslist": ">= 4.21.0"},
-                    "peerDependenciesMeta": {"browserslist": {"optional": True}},
-                }
-            },
-        },
-    )
-    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
-
-
-@pytest.mark.parametrize(
-    ("metadata", "message"),
-    (
-        ({"optional": False}, "demand has no installed occurrence"),
-        ({"optional": "true"}, "peer optional marker must be a boolean"),
-        ({}, "must contain only optional"),
-        ({"optional": True, "extra": True}, "must contain only optional"),
-    ),
-)
-def test_browserslist_peer_demand_metadata_is_fail_closed(
-    tmp_path: Path,
-    metadata: dict[str, object],
-    message: str,
-) -> None:
-    """Malformed or mandatory peer metadata cannot create executable absence."""
-
-    _write_browserslist_repo(
-        tmp_path,
-        package_lock={
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/carrier": {
-                    "peerDependencies": {"browserslist": ">= 4.21.0"},
-                    "peerDependenciesMeta": {"browserslist": metadata},
-                }
-            },
-        },
-    )
-    with pytest.raises(AssertionError, match=message):
-        _assert_browserslist_security_class(root=tmp_path)
 
 
 def test_frontend_package_has_ws_override_floor() -> None:
