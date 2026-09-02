@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -10,12 +11,14 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+import core.region_catalog as region_catalog_module
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_methods,
     route_path,
 )
 from app.main import app as canonical_app
+from app.routers import vip as vip_module
 from app.routers.vip import router as vip_router
 from app.schemas.vip import (
     VipPriceComparisonErrorResponse,
@@ -44,6 +47,12 @@ _REGION_CSV_CONTENT = (
     "price_eur,price_usd,store_chain,region\n"
     "5,Leche,Milk,dairy,ml,1000,0.95,,Día,Valencia\n"
 )
+_REGION_PROVIDER_BINDINGS = {
+    "get_available_regions": "_get_available_regions",
+    "get_price_comparison": "_get_price_comparison",
+    "get_region_catalog": "_get_region_catalog",
+    "search_products": "_search_products",
+}
 
 _MILK_PRODUCT: dict[str, object] = {
     "product_id": "5",
@@ -213,6 +222,132 @@ class _AlwaysInvalidSuccessModel:
         return VipRegionsSuccessResponse.model_validate({"status": "success"})
 
 
+def test_region_catalog_import_authority_is_one_closed_top_level_try() -> None:
+    source_path = Path("app/routers/vip.py")
+    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    parents = {
+        id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)
+    }
+
+    regional_imports = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "core.region_catalog"
+    ]
+    assert len(regional_imports) == 1
+    regional_import = regional_imports[0]
+    regional_try = parents[id(regional_import)]
+    assert isinstance(regional_try, ast.Try)
+    assert regional_try in tree.body
+    assert len(regional_try.body) == 1
+    assert regional_try.body[0] is regional_import
+    assert regional_try.finalbody == []
+    assert {(alias.name, alias.asname) for alias in regional_import.names} == set(
+        _REGION_PROVIDER_BINDINGS.items()
+    )
+
+    assert len(regional_try.handlers) == 1
+    handler = regional_try.handlers[0]
+    assert isinstance(handler.type, ast.Name)
+    assert handler.type.id == "ImportError"
+    assert handler.name is None
+    assert len(handler.body) == 1
+    assert isinstance(handler.body[0], ast.Pass)
+
+    assert len(regional_try.orelse) == 4
+    else_assignments: list[ast.Assign] = []
+    published_bindings: dict[str, str] = {}
+    for statement in regional_try.orelse:
+        assert isinstance(statement, ast.Assign)
+        assert len(statement.targets) == 1
+        target = statement.targets[0]
+        assert isinstance(target, ast.Name)
+        assert isinstance(statement.value, ast.Name)
+        published_bindings[target.id] = statement.value.id
+        else_assignments.append(statement)
+    assert published_bindings == _REGION_PROVIDER_BINDINGS
+
+    regional_try_index = tree.body.index(regional_try)
+    initial_bindings: dict[str, ast.AnnAssign] = {}
+    for index, statement in enumerate(tree.body):
+        if not isinstance(statement, ast.AnnAssign):
+            continue
+        if not isinstance(statement.target, ast.Name):
+            continue
+        if statement.target.id not in _REGION_PROVIDER_BINDINGS:
+            continue
+        assert index < regional_try_index
+        assert isinstance(statement.value, ast.Constant)
+        assert statement.value.value is None
+        assert statement.target.id not in initial_bindings
+        initial_bindings[statement.target.id] = statement
+    assert set(initial_bindings) == set(_REGION_PROVIDER_BINDINGS)
+
+    for public_name in _REGION_PROVIDER_BINDINGS:
+        writes = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and node.id == public_name
+            and isinstance(node.ctx, ast.Store)
+        ]
+        deletes = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and node.id == public_name
+            and isinstance(node.ctx, ast.Del)
+        ]
+        assert len(writes) == 2
+        assert deletes == []
+
+    for public_name, private_name in _REGION_PROVIDER_BINDINGS.items():
+        private_loads = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and node.id == private_name
+            and isinstance(node.ctx, ast.Load)
+        ]
+        assert len(private_loads) == 1
+        assert not any(
+            isinstance(node, ast.Name)
+            and node.id == private_name
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            for node in ast.walk(tree)
+        )
+        assignment = parents[id(private_loads[0])]
+        assert isinstance(assignment, ast.Assign)
+        assert assignment in else_assignments
+        assert assignment.value is private_loads[0]
+        target = assignment.targets[0]
+        assert isinstance(target, ast.Name)
+        assert target.id == public_name
+
+    other_top_level_tries = [
+        node for node in tree.body if isinstance(node, ast.Try) and node is not regional_try
+    ]
+    for other_try in other_top_level_tries:
+        assert not any(
+            isinstance(node, ast.ImportFrom) and node.module == "core.region_catalog"
+            for node in ast.walk(other_try)
+        )
+        assert not any(
+            isinstance(node, ast.Name)
+            and node.id in {*_REGION_PROVIDER_BINDINGS, *_REGION_PROVIDER_BINDINGS.values()}
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            for node in ast.walk(other_try)
+        )
+
+
+def test_region_catalog_public_bindings_are_exact_canonical_callables() -> None:
+    for public_name in _REGION_PROVIDER_BINDINGS:
+        router_binding = getattr(vip_module, public_name)
+        canonical_binding = getattr(region_catalog_module, public_name)
+        assert callable(router_binding)
+        assert router_binding is canonical_binding
+
+
 def test_region_lookup_normalizes_every_catalog_consumer() -> None:
     catalog = _catalog_with_milk()
 
@@ -277,13 +412,46 @@ def test_price_comparison_normalizes_lookup_and_preserves_stripped_labels() -> N
     }
 
 
+@pytest.mark.parametrize(
+    ("filename", "expected_region_key"),
+    [
+        pytest.param("ES_PRODUCTS.csv", "es", id="uppercase-terminal-suffix"),
+        pytest.param("eS_PrOdUcTs.csv", "es", id="mixed-case-terminal-suffix"),
+        pytest.param(
+            "es_products_archive.csv",
+            "es_products_archive",
+            id="embedded-marker",
+        ),
+        pytest.param(
+            "es_products_products.csv",
+            "es_products",
+            id="repeated-terminal-marker",
+        ),
+    ],
+)
+def test_catalog_filename_parser_removes_only_one_terminal_products_suffix(
+    tmp_path: Path,
+    filename: str,
+    expected_region_key: str,
+) -> None:
+    """Cover the bounded contract: normalize case and remove one terminal suffix."""
+
+    (tmp_path / filename).write_text(_REGION_CSV_CONTENT, encoding="utf-8")
+
+    catalog = RegionCatalog(str(tmp_path))
+
+    assert list(catalog.regions) == [expected_region_key]
+    assert catalog.get_available_regions() == [expected_region_key]
+    assert catalog.search_products("milk", expected_region_key).products[0].product_id == "5"
+
+
 def test_uppercase_catalog_filename_is_normalized_at_load_and_reachable_over_http(
     tmp_path: Path,
     test_client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    (tmp_path / "ES_products.csv").write_text(_REGION_CSV_CONTENT, encoding="utf-8")
+    (tmp_path / "ES_PRODUCTS.csv").write_text(_REGION_CSV_CONTENT, encoding="utf-8")
     catalog = RegionCatalog(str(tmp_path))
 
     assert list(catalog.regions) == ["es"]
@@ -330,7 +498,7 @@ def test_duplicate_normalized_catalog_filenames_fail_closed_without_a_winner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lowercase_path = tmp_path / "es_products.csv"
-    uppercase_path = tmp_path / "ES_products.csv"
+    uppercase_path = tmp_path / "ES_PRODUCTS.csv"
     lowercase_path.write_text(_REGION_CSV_CONTENT, encoding="utf-8")
     uppercase_path.write_text(_REGION_CSV_CONTENT, encoding="utf-8")
     original_glob = Path.glob

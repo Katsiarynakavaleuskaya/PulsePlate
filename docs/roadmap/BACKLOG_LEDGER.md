@@ -3197,14 +3197,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Isolate optional VIP provider imports by feature family
   - Owner: Backend / `backend-engineer`
   - Priority: P1
-  - Target PR: separate backend runtime PR after the regional-catalog prerequisite
-  - Status: ⏸ Deferred — does not block TC2-09I while current imports resolve
+  - Target PR: live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372)
+  - Status: 🟡 In progress — folded into PR #2372 under explicit operator authorization; checkbox remains open until merge
   - Area: backend / VIP / optional provider loading
   - Finding Type: broad import-failure coupling
-  - Reason (EN): `app/routers/vip.py` currently loads unrelated optional provider families inside one broad import block, so one absent optional dependency can suppress otherwise available regional-catalog bindings. Changing that import authority is a separate runtime concern and is intentionally excluded from the bounded regional-catalog prerequisite.
+  - Reason (EN): review on live PR #2372 proved an active regional startup-path defect: `app/routers/vip.py` loaded unrelated optional provider families inside one broad import block, so one absent optional dependency could suppress otherwise available regional-catalog bindings. The operator explicitly authorized folding the bounded import-isolation correction into PR #2372 while TC2-09I remains blocked.
   - Links:
     - `app/routers/vip.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-region-catalog-runtime-contract`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372#discussion_r3911849129`
   - DoD:
     - Optional provider families resolve independently without `sys.modules`, facade, or fallback registries
     - Failure of one unrelated provider cannot suppress regional-catalog bindings

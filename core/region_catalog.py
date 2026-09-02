@@ -74,7 +74,7 @@ class RegionCatalog:
             key=lambda path: (path.name.casefold(), path.name),
         )
         for csv_file in csv_files:
-            region_code = _normalize_region_lookup(csv_file.stem.replace("_products", ""))
+            region_code = _normalize_region_lookup(csv_file.stem).removesuffix("_products")
             if region_code in self.regions:
                 raise ValueError(f"Duplicate normalized region catalog key: {region_code}")
             self.regions[region_code] = self._load_region_data(csv_file)

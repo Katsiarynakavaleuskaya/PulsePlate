@@ -114,10 +114,6 @@ try:
         synthesize_recipe_from_ingredients as _synthesize_recipe_from_ingredients,
     )
     from core.recipe_synth import synthesize_recipes_for_week as _synthesize_recipes_for_week
-    from core.region_catalog import get_available_regions as _get_available_regions
-    from core.region_catalog import get_price_comparison as _get_price_comparison
-    from core.region_catalog import get_region_catalog as _get_region_catalog
-    from core.region_catalog import search_products as _search_products
 except ImportError:
     # Core modules are optional in some environments; keep graceful fallback to echo-mode.
     pass
@@ -135,6 +131,17 @@ else:
     synthesize_recipe_from_ingredients = _synthesize_recipe_from_ingredients
     synthesize_recipes_for_week = _synthesize_recipes_for_week
 
+
+try:
+    from core.region_catalog import (
+        get_available_regions as _get_available_regions,
+        get_price_comparison as _get_price_comparison,
+        get_region_catalog as _get_region_catalog,
+        search_products as _search_products,
+    )
+except ImportError:
+    pass
+else:
     get_region_catalog = _get_region_catalog
     search_products = _search_products
     get_available_regions = _get_available_regions
