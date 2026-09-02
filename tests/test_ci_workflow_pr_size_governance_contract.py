@@ -3942,35 +3942,153 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
     _assert_contains_all_tokens(contract_text, contract_tokens)
 
 
-def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
-    workflow = _load_ci_workflow()
-
-    checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
-    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
-    assert checkout_step["with"]["fetch-depth"] == 0
-
-    pre_commit_step = _job_step_by_name(
-        workflow,
-        job_id="lint",
-        step_name="Pre-commit (lint/format/security quick checks)",
-    )
-    assert "pre-commit run --all-files" in pre_commit_step["run"]
-
-
-def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
-    workflow = _load_ci_workflow()
-
-    setup_node_step = _job_step_by_name(workflow, job_id="lint", step_name="Setup Node.js")
-    assert setup_node_step["uses"] == f"actions/setup-node@{SETUP_NODE_NODE24_SHA}"
-    assert setup_node_step["with"]["node-version-file"] == "${{ env.FRONTEND_NODE_VERSION_FILE }}"
+def _assert_ci_lint_node24_frontend_hook_dependency_contract(
+    workflow: dict[str, object],
+) -> None:
+    """Assert the finite locked frontend dependency chain in the lint job."""
 
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
-    lint_steps = jobs["lint"]["steps"]
+    lint_job = jobs["lint"]
+    assert isinstance(lint_job, dict)
+    lint_steps = lint_job["steps"]
+    assert isinstance(lint_steps, list)
+    assert all(isinstance(step, dict) for step in lint_steps)
+
+    def unique_step(step_name: str) -> dict[str, object]:
+        matches = [step for step in lint_steps if step.get("name") == step_name]
+        assert len(matches) == 1
+        return matches[0]
+
+    checkout_step = unique_step("Checkout")
+    assert checkout_step == {
+        "name": "Checkout",
+        "uses": f"actions/checkout@{CHECKOUT_NODE24_SHA}",
+        "with": {"fetch-depth": 0, "persist-credentials": False},
+    }
+
+    setup_node_step = unique_step("Setup Node.js")
+    assert setup_node_step == {
+        "name": "Setup Node.js",
+        "uses": f"actions/setup-node@{SETUP_NODE_NODE24_SHA}",
+        "with": {
+            "node-version-file": "${{ env.FRONTEND_NODE_VERSION_FILE }}",
+            "cache": "npm",
+            "cache-dependency-path": "frontend/package-lock.json",
+        },
+    }
+
+    install_steps = [
+        step for step in lint_steps if step.get("uses") == "./.github/actions/npm-ci-with-retry"
+    ]
+    assert len(install_steps) == 1
+    install_step = install_steps[0]
+    assert install_step == {
+        "uses": "./.github/actions/npm-ci-with-retry",
+        "with": {"working-directory": "frontend"},
+    }
+
+    pre_commit_step = unique_step("Pre-commit (lint/format/security quick checks)")
+    assert pre_commit_step == {
+        "name": "Pre-commit (lint/format/security quick checks)",
+        "run": "pre-commit run --all-files --show-diff-on-failure",
+        "env": {"SKIP": "no-commit-to-branch"},
+    }
+
     step_names = [step.get("name") for step in lint_steps]
-    assert step_names.index("Setup Node.js") < step_names.index(
-        "Pre-commit (lint/format/security quick checks)"
+    assert step_names.index("Checkout") < step_names.index("Setup Node.js")
+    assert lint_steps.index(setup_node_step) < lint_steps.index(install_step)
+    assert lint_steps.index(install_step) < lint_steps.index(pre_commit_step)
+    assert all(
+        re.search(r"(?:^|\s)npm\s+(?:ci|install)(?:\s|$)", str(step.get("run", ""))) is None
+        for step in lint_steps
     )
+
+
+def test_ci_lint_node24_frontend_hook_dependencies_precede_precommit() -> None:
+    workflow = _load_ci_workflow()
+
+    _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing_install",
+        "duplicate_install",
+        "reordered_install",
+        "conditional_install",
+        "nonblocking_install",
+        "wrong_directory",
+        "cache_path_drift",
+        "cache_mode_drift",
+        "extra_install_input",
+        "wrong_install_action",
+        "alternate_install_run",
+        "persisted_checkout_credentials",
+    ),
+)
+def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
+    mutation: str,
+) -> None:
+    """Every bounded install, order, cache, or privilege drift must fail closed."""
+
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    lint_job = jobs["lint"]
+    assert isinstance(lint_job, dict)
+    lint_steps = lint_job["steps"]
+    assert isinstance(lint_steps, list)
+    checkout_step = next(step for step in lint_steps if step.get("name") == "Checkout")
+    setup_node_step = next(step for step in lint_steps if step.get("name") == "Setup Node.js")
+    install_step = next(
+        step for step in lint_steps if step.get("uses") == "./.github/actions/npm-ci-with-retry"
+    )
+    pre_commit_step = next(
+        step
+        for step in lint_steps
+        if step.get("name") == "Pre-commit (lint/format/security quick checks)"
+    )
+
+    if mutation == "missing_install":
+        lint_steps.remove(install_step)
+    if mutation == "duplicate_install":
+        lint_steps.append(dict(install_step))
+    if mutation == "reordered_install":
+        lint_steps.remove(install_step)
+        lint_steps.insert(lint_steps.index(pre_commit_step) + 1, install_step)
+    if mutation == "conditional_install":
+        install_step["if"] = "${{ false }}"
+    if mutation == "nonblocking_install":
+        install_step["continue-on-error"] = True
+    if mutation == "wrong_directory":
+        install_with = install_step["with"]
+        assert isinstance(install_with, dict)
+        install_with["working-directory"] = "."
+    if mutation == "cache_path_drift":
+        setup_with = setup_node_step["with"]
+        assert isinstance(setup_with, dict)
+        setup_with["cache-dependency-path"] = "package-lock.json"
+    if mutation == "cache_mode_drift":
+        setup_with = setup_node_step["with"]
+        assert isinstance(setup_with, dict)
+        setup_with["cache"] = "yarn"
+    if mutation == "extra_install_input":
+        install_with = install_step["with"]
+        assert isinstance(install_with, dict)
+        install_with["npm-command"] = "install"
+    if mutation == "wrong_install_action":
+        install_step["uses"] = "actions/setup-node@untrusted"
+    if mutation == "alternate_install_run":
+        lint_steps.insert(lint_steps.index(pre_commit_step), {"name": "Alternate", "run": "npm ci"})
+    if mutation == "persisted_checkout_credentials":
+        checkout_with = checkout_step["with"]
+        assert isinstance(checkout_with, dict)
+        checkout_with["persist-credentials"] = True
+
+    with pytest.raises(AssertionError):
+        _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:
