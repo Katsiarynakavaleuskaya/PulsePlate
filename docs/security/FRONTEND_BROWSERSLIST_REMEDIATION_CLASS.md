@@ -35,14 +35,16 @@ The exact synchronized base and merge-base are:
 2bfb7ff96dfcc98a806de9c113eff5242bfbe479
 ```
 
-The synchronized dependency/guard material head preceding this evidence refresh is:
+The dependency/guard material head preceding this evidence refresh is:
 
 ```text
-be39aa939486e55d1eeab52712c0bf6f37befbb5
+c39ab21fb98495fc5a24bda87fbf2992795615cb
 ```
 
-The delegated-recognizer mechanism itself was introduced by reachable commit
-`a51a14f9f5c986f8e9a676f5d1add97746252a39`. The synchronized head has parents
+The delegated-recognizer mechanism was introduced by reachable commit
+`a51a14f9f5c986f8e9a676f5d1add97746252a39` and its final structural admission
+controls were added by the material head above. Base synchronization entered
+through `be39aa939486e55d1eeab52712c0bf6f37befbb5`, whose parents are
 `7bcc55f9d14d771b4b17cc3881e303afc9b0e9d3` and
 `2bfb7ff96dfcc98a806de9c113eff5242bfbe479`; its merge-base with current
 `origin/main` is the latter.
@@ -310,40 +312,47 @@ mutation at
 
 ## Permanent postcondition `P`
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1486` uses a
+The executable guard at `tests/test_frontend_dependency_guards.py:1523` uses a
 delegated recognizer boundary instead of a Browserslist-specific npm parser:
 
 1. it mechanically enumerates the current tracked npm surface universe at
-   `tests/test_frontend_dependency_guards.py:1014`;
+   `tests/test_frontend_dependency_guards.py:1015` and loads each raw surface
+   with duplicate-member rejection at
+   `tests/test_frontend_dependency_guards.py:1362`;
 2. it validates only local JSON container shape at
-   `tests/test_frontend_dependency_guards.py:1337`, rejects direct target keys,
+   `tests/test_frontend_dependency_guards.py:1338`, rejects direct target keys,
    aliases, overrides, and bundle ownership, and delegates every other manifest
    source to the existing root npm adapter imported at
-   `tests/test_frontend_dependency_guards.py:28`;
+   `tests/test_frontend_dependency_guards.py:29`;
 3. that adapter resolves `npm-package-arg` and `semver` from the active installed
    npm tree and admits only registry `version` or `range` selectors; Git, local,
    tarball, workspace, tag, malformed, and unknown sources are opaque and fail
    closed rather than being interpreted by package-specific string branches;
 4. dependency-bearing manifest roots must have exactly one same-root lock
-   authority, and every lock root must have a tracked manifest, as enforced at
-   `tests/test_frontend_dependency_guards.py:1373`;
+   authority, every lock root must have a tracked manifest, and each root
+   dependency container must exactly equal its manifest counterpart; the class
+   accepts only `lockfileVersion: 3` and therefore does not partially interpret
+   the separate v2 compatibility tree. These boundaries are enforced at
+   `tests/test_frontend_dependency_guards.py:1385`;
 5. each lock-bearing project is loaded through the repository wrapper with
    `npm ls --all --package-lock-only --json`. The invocation removes ambient
    Node/npm graph controls, uses empty temporary user/global configs, explicitly
    disables global/workspace/link filtering, includes dev/optional/peer edges,
    and requires exit `0`, object JSON, no `error`, and no `problems`; the exact
-   policy is bound at `tests/test_frontend_dependency_guards.py:135` and its
-   adversarial control is `tests/test_frontend_dependency_guards.py:2631`;
+   policy is bound at `tests/test_frontend_dependency_guards.py:136` and its
+   adversarial control is `tests/test_frontend_dependency_guards.py:2717`;
 6. canonical registry provenance for every non-root lock record and raw target
    discovery by path, explicit name, or canonical tarball identity reuse the
    existing root dependency-guard adapter; nested raw target records are not
    replaced by npm's rendered or deduplicated display tree;
 7. only the target-specific layer at
-   `tests/test_frontend_dependency_guards.py:1466` requires a canonical
+   `tests/test_frontend_dependency_guards.py:1503` requires a canonical
    Browserslist installed path, rejects links and prereleases, compares the
    stable exact version with all three `F_cutoff` ranges, requires the exact npm
    registry tarball URL, and validates a syntactic 64-byte `sha512` SRI value;
-8. executable absence is permitted only after manifest-source admission,
+8. the exact applicable set `A` is recomputed from base `4.28.2` against every
+   reconciled advisory range at `tests/test_frontend_dependency_guards.py:2921`;
+9. executable absence is permitted only after raw JSON, manifest-source,
    manifest/lock topology admission, successful complete virtual-graph loading,
    and raw target occurrence discovery all complete without ambiguity.
 
@@ -365,11 +374,11 @@ Focused verification completed with exit `0`:
 $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
 ........................................................................ [ 40%]
-........................................................................ [ 81%]
-.................................                                        [100%]
+........................................................................ [ 80%]
+....................................                                     [100%]
 ```
 
-The focused file collected 177 tests, including 39 Browserslist controls. The
+The focused file collected 180 tests, including 42 Browserslist controls. The
 repository-wide pre-commit hook must be rerun on the final material state.
 Current-head GitHub CI, review dispositions, mapping, and the mandatory wait
 window remain pending.
