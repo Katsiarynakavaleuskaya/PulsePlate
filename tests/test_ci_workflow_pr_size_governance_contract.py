@@ -3947,10 +3947,21 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
 ) -> None:
     """Assert the finite locked frontend dependency chain in the lint job."""
 
+    assert workflow["defaults"] == {"run": {"shell": "bash"}}
+    assert workflow["permissions"] == {"contents": "read"}
+
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
     lint_job = jobs["lint"]
     assert isinstance(lint_job, dict)
+    for forbidden_key in (
+        "if",
+        "continue-on-error",
+        "defaults",
+        "permissions",
+        "environment",
+    ):
+        assert forbidden_key not in lint_job
     lint_steps = lint_job["steps"]
     assert isinstance(lint_steps, list)
     assert all(isinstance(step, dict) for step in lint_steps)
@@ -3995,17 +4006,16 @@ def _assert_ci_lint_node24_frontend_hook_dependency_contract(
         "env": {"SKIP": "no-commit-to-branch"},
     }
 
-    step_names = [step.get("name") for step in lint_steps]
-    assert step_names.index("Checkout") < step_names.index("Setup Node.js")
-    assert lint_steps.index(setup_node_step) < lint_steps.index(install_step)
-    assert lint_steps.index(install_step) < lint_steps.index(pre_commit_step)
-    assert all(
-        re.search(r"(?:^|\s)npm\s+(?:ci|install)(?:\s|$)", str(step.get("run", ""))) is None
-        for step in lint_steps
-    )
+    checkout_index = lint_steps.index(checkout_step)
+    setup_node_index = lint_steps.index(setup_node_step)
+    assert checkout_index < setup_node_index
+    assert lint_steps[setup_node_index + 1 : setup_node_index + 3] == [
+        install_step,
+        pre_commit_step,
+    ]
 
 
-def test_ci_lint_node24_frontend_hook_dependencies_precede_precommit() -> None:
+def test_ci_lint_node24_frontend_hook_dependency_precedes_precommit() -> None:
     workflow = _load_ci_workflow()
 
     _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
@@ -4026,6 +4036,16 @@ def test_ci_lint_node24_frontend_hook_dependencies_precede_precommit() -> None:
         "wrong_install_action",
         "alternate_install_run",
         "persisted_checkout_credentials",
+        "decoy_npm_prefix_install",
+        "decoy_absolute_npm_ci",
+        "decoy_pnpm_install",
+        "job_if",
+        "job_continue_on_error",
+        "job_defaults",
+        "workflow_defaults",
+        "workflow_permissions",
+        "job_permissions",
+        "job_environment",
     ),
 )
 def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
@@ -4086,6 +4106,35 @@ def test_ci_lint_node24_frontend_hook_dependency_guard_rejects_drift(
         checkout_with = checkout_step["with"]
         assert isinstance(checkout_with, dict)
         checkout_with["persist-credentials"] = True
+    if mutation == "decoy_npm_prefix_install":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "npm --prefix frontend install"},
+        )
+    if mutation == "decoy_absolute_npm_ci":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "/usr/bin/npm ci --prefix frontend"},
+        )
+    if mutation == "decoy_pnpm_install":
+        lint_steps.insert(
+            lint_steps.index(pre_commit_step),
+            {"name": "Decoy", "run": "corepack pnpm install --dir frontend"},
+        )
+    if mutation == "job_if":
+        lint_job["if"] = "${{ false }}"
+    if mutation == "job_continue_on_error":
+        lint_job["continue-on-error"] = True
+    if mutation == "job_defaults":
+        lint_job["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    if mutation == "workflow_defaults":
+        workflow["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    if mutation == "workflow_permissions":
+        workflow["permissions"] = {"contents": "write"}
+    if mutation == "job_permissions":
+        lint_job["permissions"] = {"contents": "write"}
+    if mutation == "job_environment":
+        lint_job["environment"] = "production"
 
     with pytest.raises(AssertionError):
         _assert_ci_lint_node24_frontend_hook_dependency_contract(workflow)
