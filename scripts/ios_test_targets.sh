@@ -1,37 +1,8 @@
 #!/usr/bin/env bash
-# Canonical -only-testing list for iOS unit tests (AGENTS.md, Makefile, ci.yml)
-# Output: comma-separated PulsePlateTests/ClassName entries
+# Canonical -only-testing selector for iOS unit tests (AGENTS.md, Makefile, ci.yml)
+# Output: the complete PulsePlateTests target
 # Usage: ./scripts/ios_test_targets.sh
 # Consumers: Makefile (ios-test), .github/workflows/ci.yml (ios-tests job)
 set -euo pipefail
 
-TESTS=(
-  "PulsePlateTests/ThinClientGuardsTests"
-  "PulsePlateTests/ProKeyProviderTests"
-  "PulsePlateTests/KeychainStoreTests"
-  "PulsePlateTests/BMIServiceTests"
-  "PulsePlateTests/BMIResponseDecodingTests"
-  "PulsePlateTests/BMIRequestEncodingTests"
-  "PulsePlateTests/LocaleParsingTests"
-  "PulsePlateTests/HTTPClientTests"
-  "PulsePlateTests/APIClientTests"
-  "PulsePlateTests/APIClientJSONValueAdmissionTests"
-  "PulsePlateTests/BMIServiceThinAdapterTests"
-  "PulsePlateTests/SubscriptionBillingServiceTests"
-  "PulsePlateTests/SubscriptionManagerTests"
-  "PulsePlateTests/StoreKitProductCatalogTests"
-  "PulsePlateTests/StoreKitManagerCatalogTests"
-  "PulsePlateTests/DesignSystemAccessibilityContractTests"
-  "PulsePlateTests/AIWellnessConsentTests"
-  "PulsePlateTests/LottieAssetContractTests"
-  "PulsePlateTests/FitChefSupportChoiceExperimentTests"
-  "PulsePlateTests/FitChefSupportDTORecognitionTests"
-  "PulsePlateTests/FitChefSupportServiceTests"
-  "PulsePlateTests/FitChefSupportFlowViewModelTests"
-  "PulsePlateTests/FitChefSupportPresentationContractTests"
-  "PulsePlateTests/FitChefCoachViewTests"
-  "PulsePlateTests/HomeExperienceTests"
-)
-
-# Output comma-separated for Makefile IOS_ONLY_TESTING parsing (no trailing newline)
-IFS=','; printf '%s' "${TESTS[*]}"; unset IFS
+printf '%s' 'PulsePlateTests'

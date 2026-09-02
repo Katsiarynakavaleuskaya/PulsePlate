@@ -34,10 +34,13 @@ class PlateViewTests: XCTestCase {
 
     // When
     let segmentData = service.nutritionData?.segments.first
+    let key = "plate.segment.vegetables"
+    let expectedName = NSLocalizedString(key, comment: "")
 
     // Then
+    XCTAssertNotEqual(expectedName, key)
     XCTAssertNotNil(segmentData)
-    XCTAssertEqual(segmentData?.name, "Vegetables")
+    XCTAssertEqual(segmentData?.name, expectedName)
     XCTAssertEqual(segmentData?.currentValue, 3.2)
     XCTAssertEqual(segmentData?.targetValue, 4.0)
   }
