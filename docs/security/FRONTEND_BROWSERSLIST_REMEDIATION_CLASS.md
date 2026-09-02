@@ -32,13 +32,13 @@ permanent executable guard is `tests/test_frontend_dependency_guards.py:1438`.
 The exact synchronized base and merge-base are:
 
 ```text
-6327960917e2a04e5fec0d89b358b51781b12f67
+11fff8e9e6c22797cb42d0ac8612c51f4074c051
 ```
 
 The immutable dependency/guard material head is:
 
 ```text
-0bd2df4dbb8f004114b28e9fe14fbf0fa6232542
+242c20c1317cb38d1a3b327b9f718be2b4641853
 ```
 
 The current permanent guard enumerates tracked `package.json`,
@@ -51,7 +51,7 @@ complete base/head universe contains exactly five surfaces:
 | `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | executable absence; unchanged |
 | `package-lock.json` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | executable absence; unchanged |
 | `frontend/package.json` | `7b2b8f3fb4459ff5d42f372daf3a618360d25c07fbbec0f0439b58e2d98c4d6d` | `7b2b8f3fb4459ff5d42f372daf3a618360d25c07fbbec0f0439b58e2d98c4d6d` | no direct or aliased carrier; unchanged |
-| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `cca7af82287c809306110702f0b52f34d1a44df05e2b76067d7f529e2d783ab4` | one `I_R` plus five `C_R` records |
+| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244` | one `I_R` plus five `C_R` records |
 | `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | executable absence; unchanged |
 
 The installed material-head occurrence is
@@ -68,7 +68,7 @@ query:
 ```text
 GET /advisories?ecosystem=npm&affects=browserslist&per_page=100
 Accept: application/vnd.github+json
-observed_at: 2026-09-01T21:02:32Z
+observed_at: 2026-09-02T10:19:40Z
 pages: 1
 next_page: null
 records: 3
@@ -87,7 +87,7 @@ The retained normalized receipt is:
 {
   "accept": "application/vnd.github+json",
   "next_page": null,
-  "observed_at": "2026-09-01T21:02:32Z",
+  "observed_at": "2026-09-02T10:19:40Z",
   "page_count": 1,
   "query": "GET /advisories?ecosystem=npm&affects=browserslist&per_page=100",
   "record_count": 3,
@@ -195,7 +195,7 @@ through the repository wrapper:
 ```bash
 task_repo_root="$(git rev-parse --show-toplevel)"
 task_replay_dir="$(mktemp -d)"
-task_base_sha="6327960917e2a04e5fec0d89b358b51781b12f67" # pragma: allowlist secret
+task_base_sha="11fff8e9e6c22797cb42d0ac8612c51f4074c051" # pragma: allowlist secret
 git show "${task_base_sha}:frontend/package.json" > "$task_replay_dir/package.json"
 git show "${task_base_sha}:frontend/package-lock.json" > "$task_replay_dir/package-lock.json"
 (
@@ -209,8 +209,8 @@ Two independent exact-base replays exited `0` and produced identical bytes:
 
 ```text
 replay_lock_cmp=0
-cca7af82287c809306110702f0b52f34d1a44df05e2b76067d7f529e2d783ab4  replay-1/package-lock.json
-cca7af82287c809306110702f0b52f34d1a44df05e2b76067d7f529e2d783ab4  replay-2/package-lock.json
+54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244  replay-1/package-lock.json
+54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244  replay-2/package-lock.json
 package_json_cmp=0
 ```
 
@@ -234,7 +234,7 @@ The complete mechanically coupled closure is:
 | --- | --- | ---: | ---: | --- |
 | `C_R` | `baseline-browser-mapping` | `2.10.37` | `2.11.20` | satisfies the selected Browserslist `^2.11.12` edge |
 | `C_R` | `caniuse-lite` | `1.0.30001799` | `1.0.30001810` | satisfies `^1.0.30001809` |
-| `C_R` | `electron-to-chromium` | `1.5.372` | `1.5.419` | satisfies `^1.5.402` |
+| `C_R` | `electron-to-chromium` | `1.5.372` | `1.5.420` | satisfies `^1.5.402` |
 | `C_R` | `node-releases` | `2.0.47` | `2.0.54` | satisfies `^2.0.53` |
 | `C_R` | `update-browserslist-db` | `1.2.3` | `1.3.2` | satisfies `^1.3.0` |
 
@@ -330,7 +330,7 @@ CI, review dispositions, mapping, and the mandatory wait window remain pending.
 
 ## Provider state and alert inventory
 
-At `2026-09-01T21:02:32Z`, the complete authenticated open Dependabot census
+At `2026-09-02T10:19:40Z`, the complete authenticated open Dependabot census
 contained exactly repository alert `#273` for
 `GHSA-73wf-gq98-2v4g`, manifest `frontend/package-lock.json`, development
 scope, state `open`, with no `fixed_at` or `dismissed_at`. The provider currently
