@@ -32,14 +32,20 @@ permanent executable guard is `tests/test_frontend_dependency_guards.py:1486`.
 The exact synchronized base and merge-base are:
 
 ```text
-11fff8e9e6c22797cb42d0ac8612c51f4074c051
+2bfb7ff96dfcc98a806de9c113eff5242bfbe479
 ```
 
-The immutable dependency/guard material head is:
+The synchronized dependency/guard material head preceding this evidence refresh is:
 
 ```text
-a51a14f9f5c986f8e9a676f5d1add97746252a39
+be39aa939486e55d1eeab52712c0bf6f37befbb5
 ```
+
+The delegated-recognizer mechanism itself was introduced by reachable commit
+`a51a14f9f5c986f8e9a676f5d1add97746252a39`. The synchronized head has parents
+`7bcc55f9d14d771b4b17cc3881e303afc9b0e9d3` and
+`2bfb7ff96dfcc98a806de9c113eff5242bfbe479`; its merge-base with current
+`origin/main` is the latter.
 
 The current permanent guard enumerates tracked `package.json`,
 `package-lock.json`, and `npm-shrinkwrap.json` paths through
@@ -50,7 +56,7 @@ complete base/head universe contains exactly five surfaces:
 | --- | --- | --- | --- |
 | `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | executable absence; unchanged |
 | `package-lock.json` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | executable absence; unchanged |
-| `frontend/package.json` | `7b2b8f3fb4459ff5d42f372daf3a618360d25c07fbbec0f0439b58e2d98c4d6d` | `7b2b8f3fb4459ff5d42f372daf3a618360d25c07fbbec0f0439b58e2d98c4d6d` | no direct or aliased carrier; unchanged |
+| `frontend/package.json` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | no direct or aliased carrier; unchanged from synchronized base |
 | `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244` | one `I_R` plus five `C_R` records |
 | `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | executable absence; unchanged |
 
@@ -201,7 +207,7 @@ through the repository wrapper:
 ```bash
 task_repo_root="$(git rev-parse --show-toplevel)"
 task_replay_dir="$(mktemp -d)"
-task_base_sha="11fff8e9e6c22797cb42d0ac8612c51f4074c051" # pragma: allowlist secret
+task_base_sha="2bfb7ff96dfcc98a806de9c113eff5242bfbe479" # pragma: allowlist secret
 git show "${task_base_sha}:frontend/package.json" > "$task_replay_dir/package.json"
 git show "${task_base_sha}:frontend/package-lock.json" > "$task_replay_dir/package-lock.json"
 (
@@ -280,20 +286,27 @@ via: GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g
 node: node_modules/browserslist
 ```
 
-At material head, the same command exited `0`:
+At the synchronized material head, the same command exited `0` under the
+repository HIGH threshold and reported no remaining Browserslist finding:
 
 ```text
 info: 0
 low: 0
-moderate: 0
+moderate: 1
 high: 0
 critical: 0
-total: 0
-vulnerabilities: {}
+total: 1
+package: qs@6.15.2
+via: GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g
+browserslist: absent from vulnerabilities
 ```
 
 This audit observation corroborates the package-class postcondition. It is not
-provider closure, review, approval, CI, or merge-readiness evidence.
+provider closure, review, approval, CI, or merge-readiness evidence. The two
+`qs` advisories were published after this class's frozen Browserslist cutoff,
+belong to a second dependency identity, and are therefore tracked without lock
+mutation at
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-frontend-qs-2026-moderate-advisories`.
 
 ## Permanent postcondition `P`
 
