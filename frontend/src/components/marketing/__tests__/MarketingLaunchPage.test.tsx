@@ -1638,7 +1638,7 @@ describe('FitChefValueDemo', (): void => {
       .join('\n');
     const normalizedCompleteMarketingCopy = completeMarketingCopy
       .toLowerCase()
-      .replaceAll('’', "'");
+      .replace(/’/g, "'");
     const finiteRetiredGenericPhrases = [
       'at your own pace',
       'what feels useful',

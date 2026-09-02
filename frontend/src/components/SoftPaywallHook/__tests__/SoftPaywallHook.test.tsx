@@ -30,7 +30,7 @@ const backendNextAction: components['schemas']['NextBestAction'] = {
   recommended_surface: 'pro_targets',
   recommended_tier: 'PRO',
   trigger_reason: 'targets_ready',
-  why_now: 'legacy_purchase_hint',
+  why_now: 'targets_ready_apply_meal_by_meal',
 };
 
 function renderHook(
