@@ -38,7 +38,7 @@ The exact synchronized base and merge-base are:
 The immutable dependency/guard material head is:
 
 ```text
-684409902cf3a05ff1badbac3b27fac6fd758c1e
+0bd2df4dbb8f004114b28e9fe14fbf0fa6232542
 ```
 
 The current permanent guard enumerates tracked `package.json`,
@@ -289,8 +289,10 @@ The executable guard at `tests/test_frontend_dependency_guards.py:1438`:
 3. rejects malformed lock package records and any present dependency container
    that is not an object before target-demand discovery at
    `tests/test_frontend_dependency_guards.py:469`;
-4. rejects root-lock target demands and aliased or tarball lock demands, so the
-   transitive-only class cannot acquire direct or renamed lock authority;
+4. rejects root-lock target demands under either `packages[""]` or
+   `packages["."]` at `tests/test_frontend_dependency_guards.py:1475`, plus
+   aliased or tarball lock demands, so the transitive-only class cannot acquire
+   direct or renamed lock authority;
 5. discovers each installed lock candidate by canonical path, explicit name,
    or tarball identity before validation and closes dependency demand per lock
    surface, so one safe graph cannot mask a demand-only sibling graph;
@@ -319,7 +321,7 @@ $ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 $ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
 ........................................................................ [ 40%]
 ........................................................................ [ 80%]
-...................................                                      [100%]
+....................................                                     [100%]
 ```
 
 The repository-wide pre-commit hook also exited `0` after Black's first-pass
