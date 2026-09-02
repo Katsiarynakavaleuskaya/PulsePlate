@@ -27,6 +27,7 @@ function InteractivePanel(args: Story['args']): JSX.Element {
     <AiInsightPanel
       {...args}
       query={query}
+      suggestions={args?.suggestions ?? []}
       onQueryChange={setQuery}
       onSuggestionClick={setQuery}
       onSubmit={(event) => event.preventDefault()}

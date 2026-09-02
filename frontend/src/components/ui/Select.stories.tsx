@@ -24,7 +24,11 @@ function SelectDemo({
   return (
     <div className="w-[320px]">
       <FormField
-        error={invalid ? { message: 'Choose the planning slot for this meal.' } : undefined}
+        error={
+          invalid
+            ? { type: 'validate', message: 'Choose the planning slot for this meal.' }
+            : undefined
+        }
         label="Primary meal slot"
         name="meal-slot"
       >

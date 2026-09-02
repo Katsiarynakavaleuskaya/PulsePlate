@@ -241,7 +241,12 @@ export function IOSFoundationTokensBoard(): JSX.Element {
               <p className="text-sm font-semibold text-white">Brand palette</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {brandPalette.map((token) => (
-                  <PaletteSwatch key={token.label} label={token.label} note={token.note} value={token.value} />
+                  <PaletteSwatch
+                    key={token.label}
+                    label={token.label}
+                    note={'note' in token ? token.note : undefined}
+                    value={token.value}
+                  />
                 ))}
               </div>
             </div>
