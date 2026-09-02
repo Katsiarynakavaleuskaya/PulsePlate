@@ -3,6 +3,14 @@
 "mascot.home.welcome" = "Добро пожаловать в PulsePlate!";
 "mascot.progress.great" = "Отличный прогресс сегодня!";
 
+/* Adaptive Navigation Shell */
+"navigation.tab.home" = "Главная";
+"navigation.tab.bmi" = "ИМТ";
+"navigation.tab.today" = "Сегодня";
+"navigation.tab.progress" = "Прогресс";
+"navigation.tab.profile" = "Профиль";
+"navigation.progress.weekly" = "Недельный прогресс";
+
 /* Settings */
 "settings_title" = "Настройки";
 "language_settings" = "Язык";

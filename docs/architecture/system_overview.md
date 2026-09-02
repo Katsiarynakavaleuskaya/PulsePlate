@@ -6,6 +6,7 @@
 
 - [Canonical entrypoint](#canonical-entrypoint)
 - [Routing map](#routing-map-source-of-truth)
+- [iOS adaptive navigation shell](#ios-adaptive-navigation-shell)
 - [FitChef support handoff](#fitchef-support-handoff-pr-2320-landed)
 - [FitChef support outcome ledger](#fitchef-support-outcome-ledger)
 - [OpenAPI generation mode](#openapi-generation-mode-current)
@@ -34,6 +35,36 @@
 ## Routing map (source of truth)
 
 See: `docs/architecture/backend_routing_map.md` (evidence-driven router registration map).
+
+## iOS adaptive navigation shell
+
+The iOS presentation shell has one closed five-section inventory in the stable
+order `Home / BMI / Today / Progress / Profile`. `AppSection` owns identity,
+localization keys, and SF Symbols; `RootTabs` owns one `TabView(selection:)`
+with stable tags. It applies `sidebarAdaptable` on iOS 18 and keeps the default
+system tab presentation on iOS 17. Labels resolve through the app-selected
+`LocalizationManager.currentLanguage` in EN/RU/ES.
+
+Home and BMI retain their external stacks in `RootTabs`. Today, Progress, and
+Profile remain direct children with their existing self-owned stacks, so the
+shell does not add redundant navigation containers. Weekly Progress is
+navigation-neutral and reachable exactly once beneath Progress. Technical
+Profile destinations are compile-gated under `#if DEBUG` and never become a
+top-level tab.
+
+This remains a thin presentation shell. It owns no backend, OpenAPI, DTO,
+entitlement, billing, calculation, or persistence authority.
+
+Evidence:
+
+- `ios/PulsePlate/Models/AppSection.swift:3-52`
+- `ios/PulsePlate/Views/RootTabs.swift:4-58`
+- `ios/PulsePlate/Views/PlateView.swift:203-204`
+- `ios/PulsePlate/Views/ProgressView.swift:10-33`
+- `ios/PulsePlate/Views/ProgressView.swift:209-245`
+- `ios/PulsePlate/Views/WeeklyProgressView.swift:24-94`
+- `ios/PulsePlate/Views/ProfileView.swift:25-26`
+- `ios/PulsePlate/Views/ProfileView.swift:68-104`
 
 ## FitChef support handoff (PR #2320 landed)
 

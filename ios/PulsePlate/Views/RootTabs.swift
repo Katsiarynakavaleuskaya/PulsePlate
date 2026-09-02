@@ -2,32 +2,58 @@ import SwiftUI
 import UIKit
 
 struct RootTabs: View {
-  private let bmiTabSymbol: String = {
-    UIImage(systemName: "scalemass") == nil ? "gauge" : "scalemass"
-  }()
+  @ObservedObject private var localization = LocalizationManager.shared
+  @State private var selection: AppSection = .home
 
+  @ViewBuilder
   var body: some View {
-    TabView {
+    if #available(iOS 18.0, *) {
+      systemTabs
+        .tabViewStyle(.sidebarAdaptable)
+    } else {
+      systemTabs
+    }
+  }
+
+  private var systemTabs: some View {
+    TabView(selection: $selection) {
+      ForEach(AppSection.productionSections) { section in
+        destination(for: section)
+          .tabItem {
+            Label(
+              section.localizedTitle(using: localization),
+              systemImage: runtimeSystemImage(for: section)
+            )
+          }
+          .tag(section)
+      }
+    }
+    .environment(\.locale, Locale(identifier: localization.currentLanguage))
+    .tint(PPDesignTokens.ColorToken.primary)
+  }
+
+  @ViewBuilder
+  private func destination(for section: AppSection) -> some View {
+    switch section {
+    case .home:
       NavigationStack {
         HomeView()
       }
-      .tabItem { Label("Home", systemImage: "house") }
+    case .bmi:
       NavigationStack {
         BMICalculatorScreen()
       }
-      .tabItem { Label("BMI", systemImage: bmiTabSymbol) }
-      PlateViewPP().tabItem { Label("Plate", systemImage: "fork.knife") }
-      ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
-      WeeklyProgressView().tabItem { Label("Неделя", systemImage: "calendar") }
-      ProfileView().tabItem { Label("Profile", systemImage: "person") }
-
-      #if DEBUG
-      NavigationStack {
-        DebugToolsScreen()
-      }
-      .tabItem { Label("Debug", systemImage: "hammer.fill") }
-      #endif
+    case .today:
+      PlateViewPP()
+    case .progress:
+      ProgressViewPP()
+    case .profile:
+      ProfileView()
     }
-    .tint(PPDesignTokens.ColorToken.primary)
+  }
+
+  private func runtimeSystemImage(for section: AppSection) -> String {
+    guard section == .bmi else { return section.systemImage }
+    return UIImage(systemName: section.systemImage) == nil ? "gauge" : section.systemImage
   }
 }

@@ -22,7 +22,7 @@ struct WeeklyProgressView: View {
     }()
 
     var body: some View {
-        NavigationView {
+        Group {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if hk.isAuthorized {
