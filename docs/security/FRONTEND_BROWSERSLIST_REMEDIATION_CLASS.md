@@ -72,7 +72,7 @@ c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4
 Canonical batch receipt SHA-256:
 
 ```text
-1b23fd6cbd3e491a719dae2016d52851738c5e991f9ca88c1093ae15a9e095f2
+ad87c0e16f1cf4cc3ab847175fc3d5d6865b941b9b7540816b4dec0711367d8f
 ```
 
 The receipt below is the complete normalized retained payload.
@@ -84,6 +84,7 @@ The retained normalized batch receipt is:
     "npm:browserslist",
     "npm:qs"
   ],
+  "gad_cutoff": "2026-09-03T03:39:19Z",
   "operator_authorization": "exact_finite_batch_confirmed_2026-09-03",
   "scanner_snapshot": {
     "base_sha": "2bfb7ff96dfcc98a806de9c113eff5242bfbe479",
@@ -133,6 +134,7 @@ The retained normalized batch receipt is:
   "schema": "pulseplate.frontend-npm-security-batch-gad-receipt/v1",
   "targets": {
     "browserslist": {
+      "cutoff": "2026-09-03T03:39:19Z",
       "next_page": null,
       "observed_at": "2026-09-03T03:39:19Z",
       "page_count": 1,
@@ -191,6 +193,7 @@ The retained normalized batch receipt is:
       ]
     },
     "qs": {
+      "cutoff": "2026-09-03T03:39:19Z",
       "next_page": null,
       "observed_at": "2026-09-03T03:39:19Z",
       "page_count": 1,
@@ -491,30 +494,169 @@ lockfileVersion: 3
 flags: --package-lock-only --ignore-scripts --no-audit --no-fund
 ```
 
-Each fresh external temp directory reconstructed both frontend npm files with
-`git show <base>:<path>`. Six commands exited `0`:
+Each fresh external temp directory reconstructed both frontend npm files from
+the exact base. This is the complete reproducible replay setup and the exact
+repository-wrapper invocation sequence; every simple or opposite-order
+composite replay exited `0`:
 
-```text
-B1: npm update browserslist
-B2: npm update browserslist
-Q1: npm update qs
-Q2: npm update qs
-BQ1: npm update browserslist; npm update qs
-BQ2: npm update qs; npm update browserslist
+```bash
+set -e
+task_repo_root="$PWD"
+task_base="2bfb7ff96dfcc98a806de9c113eff5242bfbe479"
+task_replay_root="$(mktemp -d)"
+task_b1="$task_replay_root/B1"
+task_b2="$task_replay_root/B2"
+task_q1="$task_replay_root/Q1"
+task_q2="$task_replay_root/Q2"
+task_bq1="$task_replay_root/BQ1"
+task_bq2="$task_replay_root/BQ2"
+mkdir -p "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2"
+for task_dir in "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2"; do
+  git show "$task_base:frontend/package.json" > "$task_dir/package.json"
+  git show "$task_base:frontend/package-lock.json" > "$task_dir/package-lock.json"
+done
+
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_b1" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'B1_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_b2" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'B2_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_q1" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'Q1_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_q2" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'Q2_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq1" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'BQ1_browserslist_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq1" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'BQ1_qs_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq2" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'BQ2_qs_exit=0\n'
+"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq2" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+printf 'BQ2_browserslist_exit=0\n'
 ```
 
-Results:
+The record-level oracle was run with the repository interpreter resolved by
+`scripts/hooks/repo_python.sh`. It loads the exact-base lock using the absolute
+PATH-resolved Git binary, computes each delta from the union of all
+`packages` keys, and compares the complete before/after JSON record pairs:
+
+```bash
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" - "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2" <<'PY'
+import hashlib
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+base_sha = "2bfb7ff96dfcc98a806de9c113eff5242bfbe479"
+git = shutil.which("git")
+assert git is not None
+base = json.loads(subprocess.check_output([git, "show", f"{base_sha}:frontend/package-lock.json"]))
+base_package = json.loads(subprocess.check_output([git, "show", f"{base_sha}:frontend/package.json"]))
+directories = dict(zip(("B1", "B2", "Q1", "Q2", "BQ1", "BQ2"), sys.argv[1:]))
+paths = {
+    name: Path(directory) / "package-lock.json"
+    for name, directory in directories.items()
+}
+documents = {name: json.loads(path.read_bytes()) for name, path in paths.items()}
+manifests = {
+    name: json.loads((Path(directory) / "package.json").read_bytes())
+    for name, directory in directories.items()
+}
+missing = object()
+
+def delta(candidate):
+    before = base["packages"]
+    after = candidate["packages"]
+    keys = set(before) | set(after)
+    return {
+        key: (
+            before[key] if key in before else missing,
+            after[key] if key in after else missing,
+        )
+        for key in keys
+        if (before[key] if key in before else missing)
+        != (after[key] if key in after else missing)
+    }
+
+deltas = {name: delta(document) for name, document in documents.items()}
+expected_b_keys = {
+    "node_modules/baseline-browser-mapping",
+    "node_modules/browserslist",
+    "node_modules/caniuse-lite",
+    "node_modules/electron-to-chromium",
+    "node_modules/node-releases",
+    "node_modules/update-browserslist-db",
+}
+expected_q_keys = {"node_modules/qs"}
+expected_transitions = {
+    "node_modules/browserslist": ("4.28.2", "4.28.8"),
+    "node_modules/qs": ("6.15.2", "6.16.0"),
+}
+assert paths["B1"].read_bytes() == paths["B2"].read_bytes()
+assert paths["Q1"].read_bytes() == paths["Q2"].read_bytes()
+assert paths["BQ1"].read_bytes() == paths["BQ2"].read_bytes()
+assert set(deltas["B1"]) == expected_b_keys
+assert set(deltas["Q1"]) == expected_q_keys
+assert set(deltas["B1"]).isdisjoint(deltas["Q1"])
+assert deltas["BQ1"] == (deltas["B1"] | deltas["Q1"])
+assert all(document["packages"][""] == base["packages"][""] for document in documents.values())
+assert all(
+    {key: value for key, value in document.items() if key != "packages"}
+    == {key: value for key, value in base.items() if key != "packages"}
+    for document in documents.values()
+)
+assert all(manifest == base_package for manifest in manifests.values())
+for path, (before_version, after_version) in expected_transitions.items():
+    assert base["packages"][path]["version"] == before_version
+    assert documents["BQ1"]["packages"][path]["version"] == after_version
+for name in ("B1", "B2", "Q1", "Q2", "BQ1", "BQ2"):
+    print(f"{name}_sha256={hashlib.sha256(paths[name].read_bytes()).hexdigest()} delta_records={len(deltas[name])}")
+print(f"b_delta_keys={sorted(deltas['B1'])}")
+print(f"q_delta_keys={sorted(deltas['Q1'])}")
+print("delta_key_intersection=[]")
+print("combined_full_record_union=true")
+print("root_record_equal=true")
+print("top_level_metadata_equal=true")
+print("all_frontend_package_json_equal=true")
+print("target_transitions=browserslist:4.28.2->4.28.8,qs:6.15.2->6.16.0")
+PY
+
+cmp -s frontend/package-lock.json "$task_bq1/package-lock.json"
+printf 'tracked_lock_cmp=%s\n' "$?"
+git show "$task_base:frontend/package.json" | cmp -s - "$task_bq1/package.json"
+printf 'frontend_package_json_cmp=%s\n' "$?"
+```
+
+Raw oracle output (`exit=0`):
 
 ```text
-B1 == B2:  54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244
-Q1 == Q2:  5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2
-BQ1 == BQ2: 155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0
-keys(Delta_B) intersect keys(Delta_Q): empty
-Delta_BQ == exact full-record disjoint union: true
-tracked_lock_cmp_to_BQ1: 0
-frontend_package_json_cmp: 0
-packages_root_record_equal: true
-top_level_lock_metadata_equal: true
+B1_exit=0
+B2_exit=0
+Q1_exit=0
+Q2_exit=0
+BQ1_browserslist_exit=0
+BQ1_qs_exit=0
+BQ2_qs_exit=0
+BQ2_browserslist_exit=0
+B1_sha256=54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244 delta_records=6
+B2_sha256=54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244 delta_records=6
+Q1_sha256=5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2 delta_records=1
+Q2_sha256=5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2 delta_records=1
+BQ1_sha256=155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0 delta_records=7
+BQ2_sha256=155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0 delta_records=7
+b_delta_keys=['node_modules/baseline-browser-mapping', 'node_modules/browserslist', 'node_modules/caniuse-lite', 'node_modules/electron-to-chromium', 'node_modules/node-releases', 'node_modules/update-browserslist-db']
+q_delta_keys=['node_modules/qs']
+delta_key_intersection=[]
+combined_full_record_union=true
+root_record_equal=true
+top_level_metadata_equal=true
+all_frontend_package_json_equal=true
+target_transitions=browserslist:4.28.2->4.28.8,qs:6.15.2->6.16.0
+exit=0
+tracked_lock_cmp=0
+frontend_package_json_cmp=0
 ```
 
 Complete delta:

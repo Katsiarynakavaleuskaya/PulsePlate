@@ -129,9 +129,20 @@ BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
     "GHSA-c83g-rgw3-j3cx": "4.28.7",
     "GHSA-w8qv-6jwh-64r5": "4.16.5",
 }
+BROWSERSLIST_ADVISORY_BOUNDARY_CASES = (
+    ("GHSA-73wf-gq98-2v4g", "<=4.28.6", "4.28.6", "4.28.7"),
+    ("GHSA-c83g-rgw3-j3cx", "<=4.28.6", "4.28.6", "4.28.7"),
+    ("GHSA-w8qv-6jwh-64r5", ">=4.0.0,<4.16.5", "4.16.4", "4.16.5"),
+)
 BROWSERSLIST_BASE_VERSION = Version("4.28.2")
+TRANSITIVE_NPM_GAD_CUTOFF = "2026-09-03T03:39:19Z"
+TRANSITIVE_NPM_GAD_QUERIES = {
+    "browserslist": "GET /advisories?ecosystem=npm&affects=browserslist&per_page=100",
+    "qs": "GET /advisories?ecosystem=npm&affects=qs&per_page=100",
+}
+TRANSITIVE_NPM_BATCH_RECEIPT_SCHEMA = "pulseplate.frontend-npm-security-batch-gad-receipt/v1"
 TRANSITIVE_NPM_BATCH_RECEIPT_SHA256 = (
-    "1b23fd6cbd3e491a719dae2016d52851738c5e991f9ca88c1093ae15a9e095f2"  # pragma: allowlist secret
+    "ad87c0e16f1cf4cc3ab847175fc3d5d6865b941b9b7540816b4dec0711367d8f"  # pragma: allowlist secret
 )
 TRANSITIVE_NPM_SCANNER_SNAPSHOT_SHA256 = (
     "c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4"  # pragma: allowlist secret
@@ -2679,10 +2690,6 @@ def _browserslist_entry(version: str) -> dict[str, str]:
     return _transitive_npm_entry(target="browserslist", version=version)
 
 
-def _qs_entry(version: str) -> dict[str, str]:
-    return _transitive_npm_entry(target="qs", version=version)
-
-
 def _write_browserslist_repo(
     root: Path,
     *,
@@ -2728,10 +2735,63 @@ def test_transitive_npm_batch_covers_exact_authorized_targets() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("present_target", "safe_version", "absent_target"),
+    (("browserslist", "4.28.8", "qs"), ("qs", "6.16.0", "browserslist")),
+)
+def test_transitive_npm_batch_allows_per_identity_executable_absence(
+    tmp_path: Path,
+    present_target: str,
+    safe_version: str,
+    absent_target: str,
+) -> None:
+    """Each conjunct may prove absence while the other target remains installed."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    carrier_dependencies = {present_target: safe_version}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": root_dependencies,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": root_dependencies,
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                },
+                f"node_modules/{present_target}": _transitive_npm_entry(
+                    target=present_target,
+                    version=safe_version,
+                ),
+            },
+        },
+    )
+    assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+        present_target: frozenset({"frontend/package-lock.json"}),
+        absent_target: frozenset(),
+    }
+
+
 def test_browserslist_class_allows_delegated_executable_absence(tmp_path: Path) -> None:
     """Absence is valid only after opaque-source and npm virtual-graph admission."""
 
     _write_browserslist_repo(tmp_path)
+    assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+        "browserslist": frozenset(),
+        "qs": frozenset(),
+    }
     assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
 
 
@@ -3029,6 +3089,117 @@ def test_browserslist_lock_discovery_includes_every_nested_occurrence() -> None:
 
 
 @pytest.mark.parametrize(
+    ("target", "safe_version", "affected_version"),
+    (("browserslist", "4.28.8", "4.28.6"), ("qs", "6.16.0", "6.15.3")),
+)
+def test_transitive_npm_batch_rejects_every_nested_affected_occurrence(
+    tmp_path: Path,
+    target: str,
+    safe_version: str,
+    affected_version: str,
+) -> None:
+    """A safe root occurrence cannot hide an affected nested target from the executor."""
+
+    carrier_dependencies = {target: affected_version}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"carrier": "1.0.0"},
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": {"carrier": "1.0.0"},
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                },
+                f"node_modules/{target}": _transitive_npm_entry(
+                    target=target,
+                    version=safe_version,
+                ),
+                f"node_modules/carrier/node_modules/{target}": _transitive_npm_entry(
+                    target=target,
+                    version=affected_version,
+                ),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match=rf"{target}/.+governed occurrence remains affected"):
+        _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("affected_target", "affected_version", "safe_target", "safe_version"),
+    (
+        ("browserslist", "4.28.6", "qs", "6.16.0"),
+        ("qs", "6.15.3", "browserslist", "4.28.8"),
+    ),
+)
+def test_transitive_npm_batch_is_conjunctive_for_mixed_safe_and_affected_targets(
+    tmp_path: Path,
+    affected_target: str,
+    affected_version: str,
+    safe_target: str,
+    safe_version: str,
+) -> None:
+    """One safe target never masks the other target's affected occurrence."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    carrier_dependencies = {
+        affected_target: affected_version,
+        safe_target: safe_version,
+    }
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": root_dependencies,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": root_dependencies,
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                },
+                f"node_modules/{affected_target}": _transitive_npm_entry(
+                    target=affected_target,
+                    version=affected_version,
+                ),
+                f"node_modules/{safe_target}": _transitive_npm_entry(
+                    target=safe_target,
+                    version=safe_version,
+                ),
+            },
+        },
+    )
+    with pytest.raises(
+        AssertionError,
+        match=rf"{affected_target}/.+governed occurrence remains affected",
+    ):
+        _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+@pytest.mark.parametrize(
     ("case", "message"),
     (
         ("prerelease", "prerelease output is not approved"),
@@ -3095,6 +3266,35 @@ def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
     )
     assert derived_applicable == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
     assert derived_applicable < BROWSERSLIST_EXPECTED_ADVISORIES
+    boundary_rows = {
+        (advisory, raw_range, patched)
+        for advisory, raw_range, _affected, patched in BROWSERSLIST_ADVISORY_BOUNDARY_CASES
+    }
+    assert len(boundary_rows) == len(BROWSERSLIST_ADVISORY_BOUNDARY_CASES) == 3
+    assert boundary_rows == {
+        (advisory, raw_range, BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory])
+        for advisory, raw_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+        for raw_range in raw_ranges
+    }
+
+
+@pytest.mark.parametrize(
+    ("advisory", "raw_range", "affected", "patched"),
+    BROWSERSLIST_ADVISORY_BOUNDARY_CASES,
+)
+def test_browserslist_every_advisory_retains_affected_and_patched_boundary(
+    advisory: str,
+    raw_range: str,
+    affected: str,
+    patched: str,
+) -> None:
+    """Each historical or current Browserslist range retains its own boundary proof."""
+
+    assert raw_range in BROWSERSLIST_ADVISORY_RANGE_TEXT[advisory]
+    assert BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory] == patched
+    affected_range = SpecifierSet(raw_range)
+    assert Version(affected) in affected_range
+    assert Version(patched) not in affected_range
 
 
 @pytest.mark.parametrize(
@@ -3137,6 +3337,17 @@ def test_qs_advisory_inventory_is_exact_complete_and_base_derived() -> None:
     assert derived_applicable == QS_EXPECTED_APPLICABLE_ADVISORIES
     assert derived_applicable < QS_EXPECTED_ADVISORIES
     assert QS_EXPECTED_WITHDRAWN == {"GHSA-crvj-3gj9-gm2p": "2020-06-16T21:32:53Z"}
+    assert len(QS_ADVISORY_BOUNDARY_CASES) == 21
+    boundary_rows = {
+        (advisory, raw_range, patched)
+        for advisory, raw_range, _affected, patched in QS_ADVISORY_BOUNDARY_CASES
+    }
+    assert len(boundary_rows) == len(QS_ADVISORY_BOUNDARY_CASES)
+    assert boundary_rows == {
+        (advisory, raw_range, patched)
+        for advisory, entries in QS_ADVISORY_ENTRIES.items()
+        for raw_range, patched in entries
+    }
 
 
 @pytest.mark.parametrize(
@@ -3200,7 +3411,18 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     digest = hashlib.sha256(canonical).hexdigest()
     assert digest == TRANSITIVE_NPM_BATCH_RECEIPT_SHA256
     assert f"Canonical batch receipt SHA-256:\n\n```text\n{digest}\n```" in document
+    assert set(receipt) == {
+        "authorized_dependency_identities",
+        "gad_cutoff",
+        "operator_authorization",
+        "scanner_snapshot",
+        "scanner_snapshot_sha256",
+        "schema",
+        "targets",
+    }
+    assert receipt["schema"] == TRANSITIVE_NPM_BATCH_RECEIPT_SCHEMA
     assert receipt["authorized_dependency_identities"] == ["npm:browserslist", "npm:qs"]
+    assert receipt["gad_cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
     scanner = receipt["scanner_snapshot"]
     assert isinstance(scanner, dict)
     scanner_canonical = json.dumps(
@@ -3217,6 +3439,39 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     assert scanner["vulnerable_dependency_identities"] == [
         "npm:browserslist",
         "npm:qs",
+    ]
+    assert scanner["observed_at"] == TRANSITIVE_NPM_GAD_CUTOFF
+    assert scanner["roots"] == [
+        {
+            "command": "npm audit --package-lock-only --json",
+            "exit_code": 0,
+            "lock": "package-lock.json",
+            "project": ".",
+            "severity_counts": {
+                "critical": 0,
+                "high": 0,
+                "info": 0,
+                "low": 0,
+                "moderate": 0,
+                "total": 0,
+            },
+            "vulnerability_keys": [],
+        },
+        {
+            "command": "npm audit --package-lock-only --json",
+            "exit_code": 1,
+            "lock": "frontend/package-lock.json",
+            "project": "frontend",
+            "severity_counts": {
+                "critical": 0,
+                "high": 1,
+                "info": 0,
+                "low": 0,
+                "moderate": 1,
+                "total": 2,
+            },
+            "vulnerability_keys": ["browserslist", "qs"],
+        },
     ]
 
     targets = receipt["targets"]
@@ -3237,13 +3492,16 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     total_ranges = 0
     for target, target_receipt in targets.items():
         assert isinstance(target_receipt, dict)
+        assert target_receipt["cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
+        assert target_receipt["observed_at"] == TRANSITIVE_NPM_GAD_CUTOFF
+        assert target_receipt["query"] == TRANSITIVE_NPM_GAD_QUERIES[target]
         records = target_receipt["records"]
         assert isinstance(records, list)
         record_count, range_count = expected_counts[target]
         assert type(target_receipt["record_count"]) is int
         assert type(target_receipt["range_count"]) is int
         assert target_receipt["record_count"] == len(records) == record_count
-        assert target_receipt["range_count"] == range_count
+        assert type(target_receipt["page_count"]) is int
         assert target_receipt["page_count"] == 1
         assert target_receipt["next_page"] is None
         records_by_advisory = {record["ghsa_id"]: record for record in records}
@@ -3254,22 +3512,26 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
             assert isinstance(record["severity"], str) and record["severity"]
             assert isinstance(record["published_at"], str) and record["published_at"]
             assert isinstance(record["updated_at"], str) and record["updated_at"]
+            assert record["published_at"] <= record["updated_at"] <= TRANSITIVE_NPM_GAD_CUTOFF
             vulnerabilities = record["vulnerabilities"]
             assert isinstance(vulnerabilities, list) and vulnerabilities
-            retained_entries[advisory] = tuple(
-                sorted(
-                    (
-                        re.sub(r"\s+", "", vulnerability["vulnerable_version_range"]),
-                        vulnerability["first_patched_version"],
-                    )
-                    for vulnerability in vulnerabilities
-                    if vulnerability["ecosystem"] == "npm" and vulnerability["package"] == target
-                )
-            )
+            retained_rows: list[tuple[str, str]] = []
+            for vulnerability in vulnerabilities:
+                assert isinstance(vulnerability, dict)
+                assert vulnerability["ecosystem"] == "npm"
+                assert vulnerability["package"] == target
+                raw_range = vulnerability["vulnerable_version_range"]
+                patched = vulnerability["first_patched_version"]
+                assert isinstance(raw_range, str) and raw_range
+                assert isinstance(patched, str) and patched
+                retained_rows.append((re.sub(r"\s+", "", raw_range), patched))
+            retained_entries[advisory] = tuple(sorted(retained_rows))
         assert retained_entries == {
             advisory: tuple(sorted(entries))
             for advisory, entries in expected_entries[target].items()
         }
+        actual_range_count = sum(len(entries) for entries in retained_entries.values())
+        assert target_receipt["range_count"] == actual_range_count == range_count
         total_records += record_count
         total_ranges += range_count
 
