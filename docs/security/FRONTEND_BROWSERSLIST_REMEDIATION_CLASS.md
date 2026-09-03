@@ -1,420 +1,644 @@
 <!-- markdownlint-disable MD013 MD031 MD032 -->
 
-# Frontend `browserslist` remediation class
+# Frontend npm Browserslist and qs finite security batch
 
 ## Authority and bounded claim
 
-This document is the sole transition-evidence owner for one application-dependency
-remediation class:
+The historical Browserslist filename is retained to preserve the existing PR
+and review carrier. This file is the sole transition-evidence owner for the
+operator-authorized exact finite batch:
 
-- `D`: `npm:browserslist`;
-- ecosystem: `npm`;
-- `S`: the complete Git-indexed npm manifest/lock surface universe enumerated
-  at the exact base and material head;
-- `F_cutoff`: the three-record, fully paginated GitHub Advisory Database
-  response frozen below;
-- `A`: the two candidates whose affected ranges contain the governed base
-  occurrence `4.28.2`;
-- `I_R`: one targeted lock-only replacement, `4.28.2 -> 4.28.8`;
-- `C_R`: exactly five resolver-coupled child transitions;
-- `P`: every discovered head occurrence is comparable, provenance-valid,
-  integrity-bearing, and outside every `F_cutoff` affected range, or the
-  dependency is executably absent.
+```text
+B = {npm:browserslist, npm:qs}
+P_batch = P_browserslist AND P_qs
+```
 
-This is not a claim about future advisories, arbitrary package-manager syntax,
-package contents, production exploitability, whole-repository security,
-provider closure, review, CI, approval, or merge readiness. Canonical policy is
-the `dependency-remediation-admission:v2` block in `AGENTS.md:2324`; the
-permanent executable guard is `tests/test_frontend_dependency_guards.py:1486`.
+The operator directly confirmed this exact two-identity expansion on 3 September
+2026 after a terminal full-repository npm scanner snapshot derived the same
+all-and-only set. That confirmation grants no third identity, future batch,
+suppression, override, direct pin, alert dismissal, force push, provider claim,
+or merge authority. Canonical admission policy is the
+`dependency-remediation-admission:v2` block at `AGENTS.md:2324`.
 
-## Exact base, material head, and surface universe
+For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
+`F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
+`P`. The permanent data-driven guard is
+`tests/test_frontend_dependency_guards.py:1609`.
 
-The exact synchronized base and merge-base are:
+## Exact base, material head, and governed surfaces
+
+The exact authorized base and merge-base are:
 
 ```text
 2bfb7ff96dfcc98a806de9c113eff5242bfbe479
 ```
 
-The dependency/guard material head preceding this evidence refresh is:
+The dependency/guard material head preceding this complete batch-evidence
+refresh is:
 
 ```text
-c39ab21fb98495fc5a24bda87fbf2992795615cb
+c6ae3eddb41b6663719b84126a8f8fae05701263
 ```
 
-The delegated-recognizer mechanism was introduced by reachable commit
-`a51a14f9f5c986f8e9a676f5d1add97746252a39` and its final structural admission
-controls were added by the material head above. Base synchronization entered
-through `be39aa939486e55d1eeab52712c0bf6f37befbb5`, whose parents are
-`7bcc55f9d14d771b4b17cc3881e303afc9b0e9d3` and
-`2bfb7ff96dfcc98a806de9c113eff5242bfbe479`; its merge-base with current
-`origin/main` is the latter.
+This anchor is updated to the coherent batch implementation commit before the
+branch is pushed. The tracked surface enumerator at
+`tests/test_frontend_dependency_guards.py:1097` discovers exactly five base/head
+npm surfaces:
 
-The current permanent guard enumerates tracked `package.json`,
-`package-lock.json`, and `npm-shrinkwrap.json` paths through
-`tests/test_frontend_dependency_guards.py:1014`. At this transition, the
-complete base/head universe contains exactly five surfaces:
-
-| Surface | Base SHA-256 | Material-head SHA-256 | Reconciliation |
+| Surface | Base SHA-256 | Candidate SHA-256 | Reconciliation |
 | --- | --- | --- | --- |
-| `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | executable absence; unchanged |
-| `package-lock.json` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | executable absence; unchanged |
-| `frontend/package.json` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | no direct or aliased carrier; unchanged from synchronized base |
-| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244` | one `I_R` plus five `C_R` records |
-| `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | executable absence; unchanged |
+| `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | same | executable absence; unchanged |
+| `package-lock.json` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | same | executable absence; unchanged |
+| `frontend/package.json` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | same | no direct batch owner; unchanged |
+| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0` | two `I_R` plus Browserslist `C_R` |
+| `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | same | executable absence; unchanged |
 
-The installed material-head occurrence is
-`frontend/package-lock.json:4743`. The guard rejects direct and aliased
-manifest authority across all enumerated surfaces and checks every canonical
-or nested installed occurrence; dependency-edge selectors are not treated as
-installed comparable versions.
+Base occurrences are `browserslist@4.28.2` and `qs@6.15.2`, both in
+`frontend/package-lock.json`. Candidate occurrences are `browserslist@4.28.8`
+at `frontend/package-lock.json:4743` and `qs@6.16.0` at
+`frontend/package-lock.json:8938`. All manifest and root npm bytes are
+unchanged from the exact base.
 
-## Candidate inventory `F_cutoff` and applicable subset `A`
+## Terminal scanner snapshot and complete GAD receipt
 
-The authoritative input was the fully paginated GitHub Advisory Database REST
-query:
-
-```text
-GET /advisories?ecosystem=npm&affects=browserslist&per_page=100
-Accept: application/vnd.github+json
-observed_at: 2026-09-02T10:19:40Z
-pages: 1
-next_page: null
-records: 3
-```
-
-The normalized receipt schema is
-`pulseplate.browserslist-gad-receipt/v1`. Its canonical sorted JSON SHA-256 is:
+At `2026-09-03T03:39:19Z`, authenticated GAD pagination returned 3 Browserslist
+records / 3 range rows and 10 qs records / 21 range rows. The terminal
+full-repository npm audit snapshot returned a clean root lock and exactly two
+vulnerable frontend identities. Its canonical SHA-256 is:
 
 ```text
-4a0b408d1e570f005e871a9f96236c8250542e86eb01bc89137ffc8cd9d6756f
+c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4
 ```
 
-The retained normalized receipt is:
+Canonical batch receipt SHA-256:
+
+```text
+1b23fd6cbd3e491a719dae2016d52851738c5e991f9ca88c1093ae15a9e095f2
+```
+
+The retained normalized batch receipt is:
 
 ```json
 {
-  "accept": "application/vnd.github+json",
-  "next_page": null,
-  "observed_at": "2026-09-02T10:19:40Z",
-  "page_count": 1,
-  "query": "GET /advisories?ecosystem=npm&affects=browserslist&per_page=100",
-  "record_count": 3,
-  "records": [
-    {
-      "cve_id": "CVE-2026-73088",
-      "ghsa_id": "GHSA-73wf-gq98-2v4g",
-      "published_at": "2026-09-01T16:41:54Z",
-      "severity": "high",
-      "summary": "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
-      "updated_at": "2026-09-01T16:41:55Z",
-      "vulnerabilities": [
+  "authorized_dependency_identities": [
+    "npm:browserslist",
+    "npm:qs"
+  ],
+  "operator_authorization": "exact_finite_batch_confirmed_2026-09-03",
+  "scanner_snapshot": {
+    "base_sha": "2bfb7ff96dfcc98a806de9c113eff5242bfbe479",
+    "observed_at": "2026-09-03T03:39:19Z",
+    "roots": [
+      {
+        "command": "npm audit --package-lock-only --json",
+        "exit_code": 0,
+        "lock": "package-lock.json",
+        "project": ".",
+        "severity_counts": {
+          "critical": 0,
+          "high": 0,
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "total": 0
+        },
+        "vulnerability_keys": []
+      },
+      {
+        "command": "npm audit --package-lock-only --json",
+        "exit_code": 1,
+        "lock": "frontend/package-lock.json",
+        "project": "frontend",
+        "severity_counts": {
+          "critical": 0,
+          "high": 1,
+          "info": 0,
+          "low": 0,
+          "moderate": 1,
+          "total": 2
+        },
+        "vulnerability_keys": [
+          "browserslist",
+          "qs"
+        ]
+      }
+    ],
+    "terminal": true,
+    "vulnerable_dependency_identities": [
+      "npm:browserslist",
+      "npm:qs"
+    ]
+  },
+  "scanner_snapshot_sha256": "c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4",
+  "schema": "pulseplate.frontend-npm-security-batch-gad-receipt/v1",
+  "targets": {
+    "browserslist": {
+      "next_page": null,
+      "observed_at": "2026-09-03T03:39:19Z",
+      "page_count": 1,
+      "query": "GET /advisories?ecosystem=npm&affects=browserslist&per_page=100",
+      "range_count": 3,
+      "record_count": 3,
+      "records": [
         {
-          "ecosystem": "npm",
-          "first_patched_version": "4.28.7",
-          "package": "browserslist",
-          "vulnerable_version_range": "<= 4.28.6"
+          "cve_id": "CVE-2026-73088",
+          "ghsa_id": "GHSA-73wf-gq98-2v4g",
+          "published_at": "2026-09-01T16:41:54Z",
+          "severity": "high",
+          "updated_at": "2026-09-01T16:41:55Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "4.28.7",
+              "package": "browserslist",
+              "vulnerable_version_range": "<=4.28.6"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2026-73089",
+          "ghsa_id": "GHSA-c83g-rgw3-j3cx",
+          "published_at": "2026-09-01T16:42:13Z",
+          "severity": "high",
+          "updated_at": "2026-09-01T16:42:15Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "4.28.7",
+              "package": "browserslist",
+              "vulnerable_version_range": "<=4.28.6"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2021-23364",
+          "ghsa_id": "GHSA-w8qv-6jwh-64r5",
+          "published_at": "2021-05-24T19:52:40Z",
+          "severity": "medium",
+          "updated_at": "2023-08-17T05:02:30Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "4.16.5",
+              "package": "browserslist",
+              "vulnerable_version_range": ">=4.0.0,<4.16.5"
+            }
+          ],
+          "withdrawn_at": null
         }
       ]
     },
-    {
-      "cve_id": "CVE-2026-73089",
-      "ghsa_id": "GHSA-c83g-rgw3-j3cx",
-      "published_at": "2026-09-01T16:42:13Z",
-      "severity": "high",
-      "summary": "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
-      "updated_at": "2026-09-01T16:42:15Z",
-      "vulnerabilities": [
+    "qs": {
+      "next_page": null,
+      "observed_at": "2026-09-03T03:39:19Z",
+      "page_count": 1,
+      "query": "GET /advisories?ecosystem=npm&affects=qs&per_page=100",
+      "range_count": 21,
+      "record_count": 10,
+      "records": [
         {
-          "ecosystem": "npm",
-          "first_patched_version": "4.28.7",
-          "package": "browserslist",
-          "vulnerable_version_range": "<= 4.28.6"
-        }
-      ]
-    },
-    {
-      "cve_id": "CVE-2021-23364",
-      "ghsa_id": "GHSA-w8qv-6jwh-64r5",
-      "published_at": "2021-05-24T19:52:40Z",
-      "severity": "medium",
-      "summary": "Regular Expression Denial of Service in browserslist",
-      "updated_at": "2023-08-17T05:02:30Z",
-      "vulnerabilities": [
+          "cve_id": "CVE-2026-82417",
+          "ghsa_id": "GHSA-4mjr-xmp4-gh2g",
+          "published_at": "2026-09-02T14:45:13Z",
+          "severity": "medium",
+          "updated_at": "2026-09-02T14:45:15Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.16.0",
+              "package": "qs",
+              "vulnerable_version_range": ">=2.2.5,<6.16.0"
+            }
+          ],
+          "withdrawn_at": null
+        },
         {
-          "ecosystem": "npm",
-          "first_patched_version": "4.16.5",
-          "package": "browserslist",
-          "vulnerable_version_range": ">= 4.0.0, < 4.16.5"
+          "cve_id": "CVE-2025-15284",
+          "ghsa_id": "GHSA-6rw7-vpxm-498p",
+          "published_at": "2025-12-30T21:02:54Z",
+          "severity": "medium",
+          "updated_at": "2026-03-02T22:05:33Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.14.1",
+              "package": "qs",
+              "vulnerable_version_range": "<6.14.1"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": null,
+          "ghsa_id": "GHSA-crvj-3gj9-gm2p",
+          "published_at": "2018-10-09T00:44:29Z",
+          "severity": "high",
+          "updated_at": "2023-01-09T05:02:51Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "1.0.0",
+              "package": "qs",
+              "vulnerable_version_range": "<1.0.0"
+            }
+          ],
+          "withdrawn_at": "2020-06-16T21:32:53Z"
+        },
+        {
+          "cve_id": "CVE-2014-10064",
+          "ghsa_id": "GHSA-f9cm-p3w6-xvr3",
+          "published_at": "2018-10-09T00:38:48Z",
+          "severity": "high",
+          "updated_at": "2023-01-09T05:02:52Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "1.0.0",
+              "package": "qs",
+              "vulnerable_version_range": "<1.0.0"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2017-1000048",
+          "ghsa_id": "GHSA-gqgv-6jq5-jjj9",
+          "published_at": "2020-04-30T17:16:47Z",
+          "severity": "high",
+          "updated_at": "2023-01-09T05:02:30Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.0.4",
+              "package": "qs",
+              "vulnerable_version_range": "<6.0.4"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.1.2",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.1.0,<6.1.2"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.2.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.2.0,<6.2.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.3.2",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.3.0,<6.3.2"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2022-24999",
+          "ghsa_id": "GHSA-hrpp-h998-j3pp",
+          "published_at": "2022-11-27T00:30:50Z",
+          "severity": "high",
+          "updated_at": "2025-04-29T15:41:45Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.2.4",
+              "package": "qs",
+              "vulnerable_version_range": "<6.2.4"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.10.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.10.0,<6.10.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.3.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.3.0,<6.3.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.4.1",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.4.0,<6.4.1"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.5.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.5.0,<6.5.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.6.1",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.6.0,<6.6.1"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.7.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.7.0,<6.7.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.8.3",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.8.0,<6.8.3"
+            },
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.9.7",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.9.0,<6.9.7"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2014-7191",
+          "ghsa_id": "GHSA-jjv7-qpx3-h62q",
+          "published_at": "2017-10-24T18:33:36Z",
+          "severity": "high",
+          "updated_at": "2023-04-11T00:27:35Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "1.0.0",
+              "package": "qs",
+              "vulnerable_version_range": "<1.0.0"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2026-8723",
+          "ghsa_id": "GHSA-q8mj-m7cp-5q26",
+          "published_at": "2026-05-22T17:27:19Z",
+          "severity": "medium",
+          "updated_at": "2026-05-22T17:27:20Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.15.2",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.11.1,<=6.15.1"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2026-2391",
+          "ghsa_id": "GHSA-w7fw-mjwx-w883",
+          "published_at": "2026-02-12T17:04:39Z",
+          "severity": "low",
+          "updated_at": "2026-02-12T20:08:00Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.14.2",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.7.0,<=6.14.1"
+            }
+          ],
+          "withdrawn_at": null
+        },
+        {
+          "cve_id": "CVE-2026-82562",
+          "ghsa_id": "GHSA-x5fp-wj9c-mxmx",
+          "published_at": "2026-09-02T14:46:57Z",
+          "severity": "medium",
+          "updated_at": "2026-09-02T14:46:58Z",
+          "vulnerabilities": [
+            {
+              "ecosystem": "npm",
+              "first_patched_version": "6.16.0",
+              "package": "qs",
+              "vulnerable_version_range": ">=6.14.2,<=6.15.3"
+            }
+          ],
+          "withdrawn_at": null
         }
       ]
     }
-  ],
-  "schema": "pulseplate.browserslist-gad-receipt/v1"
+  }
 }
 ```
 
-The deterministic binding at `tests/test_frontend_dependency_guards.py:2847`
-parses this retained JSON with duplicate-key rejection at
-`tests/test_frontend_dependency_guards.py:1527`, canonicalizes it with sorted
-compact keys, verifies the displayed SHA-256, and requires the exact three
-advisory identities.
-
-The complete receipt projection is:
-
-| Advisory / CVE | GitHub severity | Affected range | First patched | Base `4.28.2` | Head `4.28.8` |
-| --- | --- | --- | --- | --- | --- |
-| `GHSA-73wf-gq98-2v4g` / `CVE-2026-73088` | high | `<=4.28.6` | `4.28.7` | applicable | outside range |
-| `GHSA-c83g-rgw3-j3cx` / `CVE-2026-73089` | high | `<=4.28.6` | `4.28.7` | applicable | outside range |
-| `GHSA-w8qv-6jwh-64r5` / `CVE-2021-23364` | medium | `>=4.0.0,<4.16.5` | `4.16.5` | non-applicable: `4.28.2` is above the range | outside range |
-
-Therefore:
+The authenticated query inputs were:
 
 ```text
-A = {
-  GHSA-73wf-gq98-2v4g,
-  GHSA-c83g-rgw3-j3cx
-}
+GET /advisories?ecosystem=npm&affects=browserslist&per_page=100
+GET /advisories?ecosystem=npm&affects=qs&per_page=100
+pages: 1 per target
+next_page: null per target
+exit: 0 per query
 ```
 
-The historical candidate remains inside the universal `P` check even though it
-creates no remediation claim. The executable boundary controls at
-`tests/test_frontend_dependency_guards.py:2834` require `4.16.4`, `4.16.5`,
-`4.28.2`, and `4.28.6` to fail, while `4.28.7` and `4.28.8` pass all three
-recorded ranges.
+The content-binding guard at
+`tests/test_frontend_dependency_guards.py:3186` rejects duplicate JSON keys,
+wrong batch/scanner identities, record/range omissions, changed package or
+ecosystem projections, first-patched drift, and withdrawal drift.
 
-## Registry admission and resolver environment
+## Per-identity applicability
 
-The resolver environment was:
+### npm:browserslist
+
+`D = npm:browserslist`; `S_base` contains one comparable `4.28.2` occurrence.
+`F_cutoff` contains three records. Derived `A` is exactly:
 
 ```text
+GHSA-73wf-gq98-2v4g / CVE-2026-73088
+GHSA-c83g-rgw3-j3cx / CVE-2026-73089
+```
+
+`GHSA-w8qv-6jwh-64r5` is non-applicable at base because `4.28.2` is above
+`>=4.0.0,<4.16.5`, but remains in universal `P_browserslist`.
+
+### npm:qs
+
+`D = npm:qs`; `S_base` contains one comparable `6.15.2` occurrence.
+`F_cutoff` contains ten records / twenty-one ranges. Derived `A` is exactly:
+
+```text
+GHSA-x5fp-wj9c-mxmx / CVE-2026-82562
+GHSA-4mjr-xmp4-gh2g / CVE-2026-82417
+```
+
+The other eight records are non-applicable at base because all their affected
+ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
+`GHSA-crvj-3gj9-gm2p` is retained with `cve_id=null`, affected `<1.0.0`, and
+`withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
+universal `P_qs` is not a claim that the withdrawn record is an active current
+vulnerability. All twenty-one row boundaries are executable at
+`tests/test_frontend_dependency_guards.py:3143`.
+
+## Resolver actions and exact disjoint partition
+
+Runtime and configuration:
+
+```text
+base: 2bfb7ff96dfcc98a806de9c113eff5242bfbe479
 node: v24.18.1
 npm: 11.16.0
 registry: https://registry.npmjs.org/
 lockfileVersion: 3
+flags: --package-lock-only --ignore-scripts --no-audit --no-fund
 ```
 
-Registry metadata for `browserslist@4.28.8` returned:
+Each fresh external temp directory reconstructed both frontend npm files with
+`git show <base>:<path>`. Six commands exited `0`:
 
 ```text
-version: 4.28.8
-deprecated: absent
-engines.node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7
-tarball: https://registry.npmjs.org/browserslist/-/browserslist-4.28.8.tgz
-integrity: sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA==
+B1: npm update browserslist
+B2: npm update browserslist
+Q1: npm update qs
+Q2: npm update qs
+BQ1: npm update browserslist; npm update qs
+BQ2: npm update qs; npm update browserslist
 ```
 
-The exact accepted transaction was run from each temporary project directory
-through the repository wrapper:
-
-```bash
-task_repo_root="$(git rev-parse --show-toplevel)"
-task_replay_dir="$(mktemp -d)"
-task_base_sha="2bfb7ff96dfcc98a806de9c113eff5242bfbe479" # pragma: allowlist secret
-git show "${task_base_sha}:frontend/package.json" > "$task_replay_dir/package.json"
-git show "${task_base_sha}:frontend/package-lock.json" > "$task_replay_dir/package-lock.json"
-(
-  cd "$task_replay_dir"
-  "$task_repo_root/scripts/frontend_npm.sh" update browserslist \
-    --package-lock-only --ignore-scripts --no-audit --no-fund
-)
-```
-
-Two independent exact-base replays exited `0` and produced identical bytes:
+Results:
 
 ```text
-replay_lock_cmp=0
-54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244  replay-1/package-lock.json
-54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244  replay-2/package-lock.json
-package_json_cmp=0
+B1 == B2:  54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244
+Q1 == Q2:  5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2
+BQ1 == BQ2: 155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0
+keys(Delta_B) intersect keys(Delta_Q): empty
+Delta_BQ == exact full-record disjoint union: true
+tracked_lock_cmp_to_BQ1: 0
+frontend_package_json_cmp: 0
+packages_root_record_equal: true
+top_level_lock_metadata_equal: true
 ```
 
-The registry observation cutoff for this one-time replay pair is
-`2026-09-02T10:19:40Z`. The retained lock bytes and their SHA-256 are the
-immutable transition receipt; the public npm registry is mutable and does not
-provide time-travel resolution. Therefore this command is a contemporaneous
-two-run solver witness, not a promise that rerunning it after the cutoff will
-select the same compatible child patches. Any later resolver output, including
-a newer safe Browserslist or child patch, requires a fresh bounded admission
-and must not overwrite this historical receipt. The permanent guard owns
-future head safety independently of the one-time resolver receipt.
+Complete delta:
 
-An earlier planning probe using `--prefix <absolute-temp-directory>` was
-rejected: npm serialized temp-relative package keys, the two lock hashes
-diverged, and the delta exceeded this class. None of those bytes entered the
-repository. The successful cwd-bound replay above is the frozen resolver
-boundary.
-
-## Operator intent `I_R` and deterministic closure `C_R`
-
-`I_R` contains exactly one authored replacement operation:
-
-| Class | Package | Base | Head |
-| --- | --- | ---: | ---: |
-| `I_R` | `browserslist` | `4.28.2` | `4.28.8` |
-
-The complete mechanically coupled closure is:
-
-| Class | Package | Base | Head | Relationship |
+| Class | Identity / record | Base | Candidate | Notes |
 | --- | --- | ---: | ---: | --- |
-| `C_R` | `baseline-browser-mapping` | `2.10.37` | `2.11.20` | satisfies the selected Browserslist `^2.11.12` edge |
-| `C_R` | `caniuse-lite` | `1.0.30001799` | `1.0.30001810` | satisfies `^1.0.30001809` |
-| `C_R` | `electron-to-chromium` | `1.5.372` | `1.5.420` | satisfies `^1.5.402` |
-| `C_R` | `node-releases` | `2.0.47` | `2.0.54` | satisfies `^2.0.53` |
-| `C_R` | `update-browserslist-db` | `1.2.3` | `1.3.2` | satisfies `^1.3.0` |
+| `I_R[browserslist]` | `browserslist` | `4.28.2` | `4.28.8` | authored target replacement |
+| `C_R[browserslist]` | `baseline-browser-mapping` | `2.10.37` | `2.11.20` | resolver closure |
+| `C_R[browserslist]` | `caniuse-lite` | `1.0.30001799` | `1.0.30001810` | resolver closure |
+| `C_R[browserslist]` | `electron-to-chromium` | `1.5.372` | `1.5.420` | resolver closure |
+| `C_R[browserslist]` | `node-releases` | `2.0.47` | `2.0.54` | resolver closure |
+| `C_R[browserslist]` | `update-browserslist-db` | `1.2.3` | `1.3.2` | resolver closure |
+| `I_R[qs]` | `qs` | `6.15.2` | `6.16.0` | full record also changes `side-channel ^1.1.0 -> ^1.1.1` and adds `es-define-property ^1.0.1` |
 
-The selected package dependency edges are visible at
-`frontend/package-lock.json:4763`. No package was added or removed; no direct
-manifest, root lock, registry, lock-schema, suppression, waiver, or unrelated
-dependency changed. Every material dependency record belongs exactly once to
-`I_R` or `C_R`.
+`C_R[qs]` is empty: the two dependency-map changes belong to the same authored
+`node_modules/qs` record; no child package record moved. Complete before/after
+record equality—not versions alone—establishes the partition.
 
-## Base and head audit observations
+## Audit results
 
-The exact-base command was:
-
-```bash
-scripts/frontend_npm.sh audit --package-lock-only --json
-```
-
-It exited `1` with the following bounded result:
+Exact-base terminal frontend audit:
 
 ```text
+$ npm audit --package-lock-only --json
+exit: 1
+vulnerability_keys: browserslist, qs
+moderate: 1
 high: 1
 critical: 0
-total: 1
-package: browserslist
-range: <=4.28.6
-via: GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g
-node: node_modules/browserslist
+total: 2
 ```
 
-At the synchronized material head, the same command exited `0` under the
-repository HIGH threshold and reported no remaining Browserslist finding:
+Candidate audit after the combined transaction:
 
 ```text
+$ npm audit --package-lock-only --json
+exit: 0
+vulnerabilities: {}
 info: 0
 low: 0
-moderate: 1
+moderate: 0
 high: 0
 critical: 0
-total: 1
-package: qs@6.15.2
-via: GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g
-browserslist: absent from vulnerabilities
+total: 0
+
+$ npm audit --package-lock-only --audit-level=moderate
+exit: 0
+found 0 vulnerabilities
+
+$ npm audit --package-lock-only --audit-level=high
+exit: 0
+found 0 vulnerabilities
 ```
 
-This audit observation corroborates the package-class postcondition. It is not
-provider closure, review, approval, CI, or merge-readiness evidence. The two
-`qs` advisories were published after this class's frozen Browserslist cutoff,
-belong to a second dependency identity, and are therefore tracked without lock
-mutation at
-`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-frontend-qs-2026-moderate-advisories`.
+`audit-level` changes the exit threshold and does not filter lower-severity
+report rows. Batch acceptance therefore depends on the default total-zero JSON
+result, not a HIGH-only exit.
 
-## Permanent postcondition `P`
+## Permanent conjunctive postcondition
 
-The executable guard at `tests/test_frontend_dependency_guards.py:1523` uses a
-delegated recognizer boundary instead of a Browserslist-specific npm parser:
+The exact authorization literal and data maps are at
+`tests/test_frontend_dependency_guards.py:200`. The shared executor at
+`tests/test_frontend_dependency_guards.py:1609`:
 
-1. it mechanically enumerates the current tracked npm surface universe at
-   `tests/test_frontend_dependency_guards.py:1015` and loads each raw surface
-   with duplicate-member rejection at
-   `tests/test_frontend_dependency_guards.py:1362`;
-2. it validates only local JSON container shape at
-   `tests/test_frontend_dependency_guards.py:1338`, rejects direct target keys,
-   aliases, overrides, and bundle ownership, and delegates every other manifest
-   source to the existing root npm adapter imported at
-   `tests/test_frontend_dependency_guards.py:29`;
-3. that adapter resolves `npm-package-arg` and `semver` from the active installed
-   npm tree and admits only registry `version` or `range` selectors; Git, local,
-   tarball, workspace, tag, malformed, and unknown sources are opaque and fail
-   closed rather than being interpreted by package-specific string branches;
-4. dependency-bearing manifest roots must have exactly one same-root lock
-   authority, every lock root must have a tracked manifest, and each root
-   dependency container must exactly equal its manifest counterpart; the class
-   accepts only `lockfileVersion: 3` and therefore does not partially interpret
-   the separate v2 compatibility tree. These boundaries are enforced at
-   `tests/test_frontend_dependency_guards.py:1385`;
-5. each lock-bearing project is loaded through the repository wrapper with
-   `npm ls --all --package-lock-only --json`. The invocation removes ambient
-   Node/npm graph controls, uses empty temporary user/global configs, explicitly
-   disables global/workspace/link filtering, includes dev/optional/peer edges,
-   and requires exit `0`, object JSON, no `error`, and no `problems`; the exact
-   policy is bound at `tests/test_frontend_dependency_guards.py:136` and its
-   adversarial control is `tests/test_frontend_dependency_guards.py:2717`;
-6. canonical registry provenance for every non-root lock record and raw target
-   discovery by path, explicit name, or canonical tarball identity reuse the
-   existing root dependency-guard adapter; nested raw target records are not
-   replaced by npm's rendered or deduplicated display tree;
-7. only the target-specific layer at
-   `tests/test_frontend_dependency_guards.py:1503` requires a canonical
-   Browserslist installed path, rejects links and prereleases, compares the
-   stable exact version with all three `F_cutoff` ranges, requires the exact npm
-   registry tarball URL, and validates a syntactic 64-byte `sha512` SRI value;
-8. the exact applicable set `A` is recomputed from base `4.28.2` against every
-   reconciled advisory range at `tests/test_frontend_dependency_guards.py:2921`;
-9. executable absence is permitted only after raw JSON, manifest-source,
-   manifest/lock topology admission, successful complete virtual-graph loading,
-   and raw target occurrence discovery all complete without ambiguity.
+1. requires exactly the literal targets `browserslist` and `qs`;
+2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
+3. rejects direct, aliased, override, or bundled ownership for either target;
+4. delegates all other source semantics to installed npm's
+   `npm-package-arg`/`semver` adapter and rejects opaque sources;
+5. requires dependency manifests and root lock records to match exactly and
+   admits only lockfile v3;
+6. validates every non-root lock record through the existing canonical
+   registry-provenance adapter;
+7. loads each complete virtual graph through the hermetic repository npm
+   wrapper, with ambient graph-shaping configuration removed;
+8. independently discovers every raw canonical/nested target occurrence;
+9. rejects links, prereleases, malformed versions, identity/path conflicts,
+   foreign provenance, and invalid 64-byte SHA-512 SRI metadata;
+10. compares each occurrence with every affected range for its target;
+11. permits per-target executable absence only after the complete shared
+    admission pass.
 
-The active PATH-resolved Node/npm toolchain is the semantic witness for selector
-and virtual-tree behavior. The current admitted runtime is Node `24.18.1` with
-npm `11.16.0`; npm itself is not repository-version-pinned, so the adversarial
-tests are the fail-closed drift detector. The guard does not fetch packages or
-cryptographically recompute tarball contents: it validates recorded canonical
-provenance and SRI syntax only. It makes no universal claim across future npm
-versions, arbitrary package contents, untracked installs, or new lock schemas.
+The permanent guard does not freeze base/candidate hashes, occurrence counts,
+or `4.28.8` / `6.16.0` as the only future-safe versions. Passing SRI syntax is
+not a cryptographic recomputation of fetched package bytes. Opaque or future npm
+semantics stop for rescope instead of creating another carrier parser.
 
-The guard deliberately does not freeze `4.28.8`, the historical occurrence
-count, this base, or this transition delta. A later authorized safe patch or
-complete removal remains possible.
+## Provider projection
 
-Focused verification completed with exit `0`:
+At `2026-09-03T03:39:19Z`, the complete authenticated open Dependabot census
+contained only alert `#273` for Browserslist / `GHSA-73wf-gq98-2v4g`, state
+`open`, development scope, `frontend/package-lock.json`, with no fixed or
+dismissed timestamp. No authenticated alert currently projects `qs`; this is a
+provider-projection gap, not evidence of `qs` closure or non-applicability.
+
+Repository remediation is `P_browserslist AND P_qs`. Provider closure is a
+separate post-merge observation. No alert is dismissed.
+
+## Verification, rollback, and stop conditions
+
+Focused verification commands include:
 
 ```text
-$ VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
-$ "$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
-........................................................................ [ 40%]
-........................................................................ [ 80%]
-....................................                                     [100%]
+python -m pytest -q tests/test_frontend_dependency_guards.py
+python scripts/ci/check_docs_phase1_gates.py --files docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md docs/security/DEPENDABOT_ALERT_INVENTORY.md
+npm query '#browserslist' --package-lock-only --json
+npm query '#qs' --package-lock-only --json
+npm ls browserslist qs --all --package-lock-only --json
+npm explain browserslist
+npm explain qs
 ```
 
-The focused file collected 180 tests, including 42 Browserslist controls. The
-repository-wide pre-commit hook must be rerun on the final material state.
-Current-head GitHub CI, review dispositions, mapping, and the mandatory wait
-window remain pending.
+Before merge, rollback means abandoning the branch/PR. After merge, never return
+either identity to an affected version; use a separate secure roll-forward.
 
-## Provider state and alert inventory
+Stop on a third vulnerable identity or authored action, empty `A`, incomplete or
+incomparable GAD inventory, replay mismatch, overlapping independent deltas,
+combined non-union, manifest/root/unrelated package movement, missing provenance
+or integrity, affected head occurrence, nonzero default/MODERATE audit, new npm
+grammar branch, second evidence owner, suppression/waiver/dismissal, stale
+base/head, or unresolved review/CI evidence.
 
-At `2026-09-02T10:19:40Z`, the complete authenticated open Dependabot census
-contained exactly repository alert `#273` for
-`GHSA-73wf-gq98-2v4g`, manifest `frontend/package-lock.json`, development
-scope, state `open`, with no `fixed_at` or `dismissed_at`. The provider currently
-projects only that advisory; the fully reconciled package-class evidence also
-contains `GHSA-c83g-rgw3-j3cx` and the historical non-applicable candidate.
-
-Repository remediation and provider ingestion are separate rails. Until an
-authenticated post-merge lookup reports terminal provider state, the correct
-status is `REPOSITORY_REMEDIATED_PROVIDER_OPEN`, not `CLOSED`.
-
-## Residual risk, rollback, and stop conditions
-
-Residual risk remains for future or corrected advisories, future npm carrier or
-lock schemas, malicious package contents, build-tool behavior changes, provider
-lag, unrelated dependency findings, CI failures, and review findings.
-
-Before merge, rollback means abandoning the complete branch/PR transaction.
-After merge, reverting to vulnerable `4.28.2` is forbidden; regressions require
-a secure roll-forward to another compatible version outside every frozen range.
-
-Stop and rescope if:
-
-- the fully paginated cutoff no longer reconciles to these three records;
-- another applicable advisory or governed occurrence appears;
-- any surface, occurrence, provenance, integrity, or dependency delta is
-  ambiguous or unclassified;
-- a manifest pin, override, suppression, waiver, registry change, unsupported
-  lock schema, second authored action, second dependency identity, or second
-  evidence owner becomes necessary;
-- replay no longer yields the exact one-`I_R` plus five-`C_R` partition.
+This document does not claim production exploitability, whole-repository
+security, provider review, provider scan, PASS, no findings, approval, merge
+readiness, deployment, or release authority.
 
 <!-- markdownlint-enable MD013 MD031 MD032 -->

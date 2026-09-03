@@ -13859,35 +13859,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - no unrelated frontend runtime or OpenAPI type-generation churn is included
 
 
-<a id="ledger-p1-frontend-qs-2026-moderate-advisories"></a>
-- [ ] P1: Remediate frontend `qs` 2026 moderate advisories in a single-identity lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (dependency security / frontend tooling follow-up)
-  - Target PR: `PR-TBD-DEP-SEC-QS-1`
-  - Status: Deferred from PR #2371 after exact-base synchronization on 2 September 2026
-  - Area: dependency security / frontend tooling / npm
-  - Finding Type: newly published transitive dependency advisories
-  - Reason (EN): The post-sync validation for PR #2371 found `qs@6.15.2`
-    through `style-dictionary -> @bundled-es-modules/glob -> url -> qs` after
-    `GHSA-x5fp-wj9c-mxmx` / `CVE-2026-82562` and
-    `GHSA-4mjr-xmp4-gh2g` / `CVE-2026-82417` were published. Both are
-    MODERATE and first patched in `6.16.0`. The Browserslist PR remains one
-    dependency identity and must not mix a second resolver action; the
-    authenticated open Dependabot census still exposed only Browserslist alert
-    `#273` at this observation.
-  - Links:
-    - `frontend/package-lock.json:8938`
-    - `docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md`
-    - Advisory: `GHSA-x5fp-wj9c-mxmx`
-    - Advisory: `GHSA-4mjr-xmp4-gh2g`
-  - DoD:
-    - Reacquire a complete finite `npm:qs` advisory inventory and prove the exact affected base occurrence
-    - Run one separately authorized `qs` resolver action and classify every deterministic closure record
-    - Resolve every governed `qs` occurrence to a stable version outside every frozen affected range, currently at least `6.16.0`
-    - Preserve the Browserslist lock transaction and avoid unrelated frontend dependency refresh
-    - Run npm audit, the applicable dependency guards, frontend tests/build, current-head CI, and authenticated provider reconciliation
-
-
 <a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
 - [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
   - Owner: @katsiaryna_kavaleuskaya
