@@ -554,15 +554,15 @@ base_sha = "2bfb7ff96dfcc98a806de9c113eff5242bfbe479"
 git = shutil.which("git")
 assert git is not None
 base = json.loads(subprocess.check_output([git, "show", f"{base_sha}:frontend/package-lock.json"]))
-base_package = json.loads(subprocess.check_output([git, "show", f"{base_sha}:frontend/package.json"]))
+base_package_bytes = subprocess.check_output([git, "show", f"{base_sha}:frontend/package.json"])
 directories = dict(zip(("B1", "B2", "Q1", "Q2", "BQ1", "BQ2"), sys.argv[1:]))
 paths = {
     name: Path(directory) / "package-lock.json"
     for name, directory in directories.items()
 }
 documents = {name: json.loads(path.read_bytes()) for name, path in paths.items()}
-manifests = {
-    name: json.loads((Path(directory) / "package.json").read_bytes())
+manifest_paths = {
+    name: Path(directory) / "package.json"
     for name, directory in directories.items()
 }
 missing = object()
@@ -608,7 +608,7 @@ assert all(
     == {key: value for key, value in base.items() if key != "packages"}
     for document in documents.values()
 )
-assert all(manifest == base_package for manifest in manifests.values())
+assert all(path.read_bytes() == base_package_bytes for path in manifest_paths.values())
 for path, (before_version, after_version) in expected_transitions.items():
     assert base["packages"][path]["version"] == before_version
     assert documents["BQ1"]["packages"][path]["version"] == after_version
@@ -620,7 +620,7 @@ print("delta_key_intersection=[]")
 print("combined_full_record_union=true")
 print("root_record_equal=true")
 print("top_level_metadata_equal=true")
-print("all_frontend_package_json_equal=true")
+print("all_frontend_package_json_bytes_equal=true")
 print("target_transitions=browserslist:4.28.2->4.28.8,qs:6.15.2->6.16.0")
 PY
 
@@ -653,7 +653,7 @@ delta_key_intersection=[]
 combined_full_record_union=true
 root_record_equal=true
 top_level_metadata_equal=true
-all_frontend_package_json_equal=true
+all_frontend_package_json_bytes_equal=true
 target_transitions=browserslist:4.28.2->4.28.8,qs:6.15.2->6.16.0
 exit=0
 tracked_lock_cmp=0
