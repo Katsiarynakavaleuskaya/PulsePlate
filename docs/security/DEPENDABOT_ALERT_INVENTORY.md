@@ -1,11 +1,11 @@
 <!-- markdownlint-disable MD013 MD031 MD032 -->
 
-# Dependabot open alert inventory - 2026-09-02
+# Dependabot open alert inventory - 2026-09-03
 
 ## Snapshot boundary
 
 This is the complete authenticated open-alert census observed at
-`2026-09-02T10:19:40Z` using all REST pagination:
+`2026-09-03T03:39:19Z` using all REST pagination:
 
 ```text
 GET /repos/Katsiarynakavaleuskaya/PulsePlate/dependabot/alerts
@@ -14,8 +14,9 @@ pagination: --paginate --slurp
 ```
 
 The census contains exactly one open alert. It is the npm `browserslist` alert
-from `frontend/package-lock.json`; no RubyGems or pip alert was open at this
-snapshot.
+from `frontend/package-lock.json`. No authenticated alert currently projects
+`npm:qs`; this provider-projection gap does not override the terminal scanner
+and GAD evidence that admitted `qs` into the exact repository batch.
 
 ## Authenticated open alerts
 
@@ -25,20 +26,23 @@ snapshot.
 
 The alert payload reports development scope, severity HIGH, affected range
 `<=4.28.6`, first patched version `4.28.7`, state `open`, and no fixed or
-dismissed timestamp. The complete package-wide Advisory Database census is
-owned by `docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:63`; it also
-contains current `GHSA-c83g-rgw3-j3cx` / `CVE-2026-73089` and historical
-`GHSA-w8qv-6jwh-64r5` / `CVE-2021-23364`.
+dismissed timestamp. The complete two-identity scanner and Advisory Database
+receipt is owned by
+`docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:61`. It contains all
+three Browserslist records and all ten qs records / twenty-one qs range rows,
+including the retained withdrawn `GHSA-crvj-3gj9-gm2p` record.
 
 ## Repository remediation versus provider closure
 
 The candidate dependency transaction is owned by
 `docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:1`. Its npm-generated
-lock resolves `browserslist 4.28.8` at `frontend/package-lock.json:4743`, while
-`frontend/package.json` remains byte-identical. The permanent all-occurrence
-guard is `tests/test_frontend_dependency_guards.py:1523`.
+lock resolves `browserslist 4.28.8` at `frontend/package-lock.json:4743` and
+`qs 6.16.0` at `frontend/package-lock.json:8938`, while
+`frontend/package.json` remains byte-identical. The exact two-target permanent
+all-occurrence guard is `tests/test_frontend_dependency_guards.py:1612`.
 
-That candidate repository evidence does not close Dependabot alert `#273`.
+That candidate repository evidence does not close Dependabot alert `#273` and
+does not invent a provider closure event for the not-projected `qs` identity.
 GitHub can update the provider state only after merged material is ingested by
 the dependency graph. Until a post-merge authenticated lookup returns terminal
 provider state, report repository remediation and provider closure separately.
@@ -62,7 +66,7 @@ manifest=ios/Gemfile.lock
 ```
 
 This is provider-state reconciliation only: no Ruby dependency material is
-changed by the Browserslist lane.
+changed by the exact frontend npm batch.
 
 ## Refresh rule
 

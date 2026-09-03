@@ -23,7 +23,7 @@ or merge authority. Canonical admission policy is the
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1609`.
+`tests/test_frontend_dependency_guards.py:1612`.
 
 ## Exact base, material head, and governed surfaces
 
@@ -37,11 +37,10 @@ The dependency/guard material head preceding this complete batch-evidence
 refresh is:
 
 ```text
-c6ae3eddb41b6663719b84126a8f8fae05701263
+61897ef2a05dd4f621e961b69ff054588177987b
 ```
 
-This anchor is updated to the coherent batch implementation commit before the
-branch is pushed. The tracked surface enumerator at
+This is the coherent batch implementation commit. The tracked surface enumerator at
 `tests/test_frontend_dependency_guards.py:1097` discovers exactly five base/head
 npm surfaces:
 
@@ -76,6 +75,7 @@ Canonical batch receipt SHA-256:
 1b23fd6cbd3e491a719dae2016d52851738c5e991f9ca88c1093ae15a9e095f2
 ```
 
+The receipt below is the complete normalized retained payload.
 The retained normalized batch receipt is:
 
 ```json
@@ -441,7 +441,7 @@ exit: 0 per query
 ```
 
 The content-binding guard at
-`tests/test_frontend_dependency_guards.py:3186` rejects duplicate JSON keys,
+`tests/test_frontend_dependency_guards.py:3189` rejects duplicate JSON keys,
 wrong batch/scanner identities, record/range omissions, changed package or
 ecosystem projections, first-patched drift, and withdrawal drift.
 
@@ -476,7 +476,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3143`.
+`tests/test_frontend_dependency_guards.py:3146`.
 
 ## Resolver actions and exact disjoint partition
 
@@ -576,8 +576,8 @@ result, not a HIGH-only exit.
 ## Permanent conjunctive postcondition
 
 The exact authorization literal and data maps are at
-`tests/test_frontend_dependency_guards.py:200`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1609`:
+`tests/test_frontend_dependency_guards.py:203`. The shared executor at
+`tests/test_frontend_dependency_guards.py:1612`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -626,6 +626,8 @@ npm ls browserslist qs --all --package-lock-only --json
 npm explain browserslist
 npm explain qs
 ```
+
+The complete focused file collects 220 tests after the batch expansion.
 
 Before merge, rollback means abandoning the branch/PR. After merge, never return
 either identity to an affected version; use a separate secure roll-forward.
