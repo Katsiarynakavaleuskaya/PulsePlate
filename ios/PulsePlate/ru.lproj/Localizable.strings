@@ -120,8 +120,8 @@
 "home.accessibility.screen_label" = "Экран главной";
 "home.state.loading.title" = "Готовим следующий шаг";
 "home.state.loading.detail" = "Проверяем доступ, прежде чем показать варианты планирования.";
-"home.state.free_ready.title" = "Начните с понятной отправной точки";
-"home.state.free_ready.detail" = "Проверьте ИМТ, а затем добавьте данные профиля, когда будете готовы.";
+"home.state.free_ready.title" = "Рассчитайте ИМТ, чтобы начать";
+"home.state.free_ready.detail" = "Быстрый расчёт покажет вашу отправную точку.";
 "home.state.paid_needs_profile.title" = "Завершите настройку профиля";
 "home.state.paid_needs_profile.detail" = "Добавьте обязательные данные, прежде чем открывать варианты планирования.";
 "home.state.paid_ready.title" = "Начните с сегодняшнего дня";

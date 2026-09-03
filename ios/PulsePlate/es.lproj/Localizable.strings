@@ -120,8 +120,8 @@
 "home.accessibility.screen_label" = "Pantalla de inicio";
 "home.state.loading.title" = "Preparando tu próximo paso";
 "home.state.loading.detail" = "Comprobamos tu acceso antes de mostrar las opciones de planificación.";
-"home.state.free_ready.title" = "Empieza con una base clara";
-"home.state.free_ready.detail" = "Calcula tu BMI y añade los datos de tu perfil cuando estés listo.";
+"home.state.free_ready.title" = "Calcula tu IMC para empezar";
+"home.state.free_ready.detail" = "Un cálculo rápido muestra tu punto de partida.";
 "home.state.paid_needs_profile.title" = "Completa tu perfil";
 "home.state.paid_needs_profile.detail" = "Añade los datos necesarios antes de abrir las opciones de planificación.";
 "home.state.paid_ready.title" = "Empieza por hoy";

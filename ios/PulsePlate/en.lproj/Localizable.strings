@@ -104,8 +104,8 @@
 "home.accessibility.screen_label" = "Home screen";
 "home.state.loading.title" = "Preparing your next step";
 "home.state.loading.detail" = "Checking your access before showing planning options.";
-"home.state.free_ready.title" = "Start with a clear baseline";
-"home.state.free_ready.detail" = "Check your BMI, then add profile details when you are ready.";
+"home.state.free_ready.title" = "Check your BMI to get started";
+"home.state.free_ready.detail" = "A quick calculation shows your starting point.";
 "home.state.paid_needs_profile.title" = "Complete your profile";
 "home.state.paid_needs_profile.detail" = "Add the required details before opening your planning options.";
 "home.state.paid_ready.title" = "Start with today";
