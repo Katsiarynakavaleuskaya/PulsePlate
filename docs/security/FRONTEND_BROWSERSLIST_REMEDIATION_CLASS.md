@@ -23,7 +23,7 @@ or merge authority. Canonical admission policy is the
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1612`.
+`tests/test_frontend_dependency_guards.py:1623`.
 
 ## Exact base, material head, and governed surfaces
 
@@ -33,16 +33,17 @@ The exact authorized base and merge-base are:
 2bfb7ff96dfcc98a806de9c113eff5242bfbe479
 ```
 
-The dependency/guard material head preceding this complete batch-evidence
-refresh is:
+The dependency/guard and false-green test material head preceding this final
+batch-evidence refresh is:
 
 ```text
-61897ef2a05dd4f621e961b69ff054588177987b
+939a5be9f8ccdbe4c8dbca8c8d9b8787bee786f1
 ```
 
-This is the coherent batch implementation commit. The tracked surface enumerator at
-`tests/test_frontend_dependency_guards.py:1097` discovers exactly five base/head
-npm surfaces:
+Generated detect-secrets line-number refresh is isolated in
+`423a96c21a10c090543a2a9d460bce91a53668ff`. The tracked surface enumerator at
+`tests/test_frontend_dependency_guards.py:1108` discovers exactly five
+base/head npm surfaces:
 
 | Surface | Base SHA-256 | Candidate SHA-256 | Reconciliation |
 | --- | --- | --- | --- |
@@ -443,10 +444,10 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding guard at
-`tests/test_frontend_dependency_guards.py:3189` rejects duplicate JSON keys,
-wrong batch/scanner identities, record/range omissions, changed package or
-ecosystem projections, first-patched drift, and withdrawal drift.
+The content-binding tests at `tests/test_frontend_dependency_guards.py:3400`
+and `tests/test_frontend_dependency_guards.py:3548` reject duplicate JSON
+keys, wrong batch/scanner identities, record/range omissions, changed package
+or ecosystem projections, first-patched drift, and withdrawal drift.
 
 ## Per-identity applicability
 
@@ -479,7 +480,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3146`.
+`tests/test_frontend_dependency_guards.py:3357`.
 
 ## Resolver actions and exact disjoint partition
 
@@ -718,8 +719,8 @@ result, not a HIGH-only exit.
 ## Permanent conjunctive postcondition
 
 The exact authorization literal and data maps are at
-`tests/test_frontend_dependency_guards.py:203`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1612`:
+`tests/test_frontend_dependency_guards.py:214`. The shared executor at
+`tests/test_frontend_dependency_guards.py:1623`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -769,7 +770,7 @@ npm explain browserslist
 npm explain qs
 ```
 
-The complete focused file collects 220 tests after the batch expansion.
+The complete focused file collects 229 tests after the batch expansion.
 
 Before merge, rollback means abandoning the branch/PR. After merge, never return
 either identity to an affected version; use a separate secure roll-forward.
