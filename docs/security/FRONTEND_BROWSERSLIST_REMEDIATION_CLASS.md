@@ -23,11 +23,11 @@ or merge authority. Canonical admission policy is the
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1626`.
+`tests/test_frontend_dependency_guards.py:1636`.
 
 ## Exact base, material head, and governed surfaces
 
-The exact authorized base and merge-base are:
+The exact resolver-replay base and its then-current merge-base were:
 
 ```text
 863d16ea2328dd32fa6fec6cef4d8f117b6edf85
@@ -458,8 +458,8 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding tests at `tests/test_frontend_dependency_guards.py:3436` and
-`tests/test_frontend_dependency_guards.py:3750` reject duplicate or unknown target/record/row keys,
+The content-binding tests at `tests/test_frontend_dependency_guards.py:3511` and
+`tests/test_frontend_dependency_guards.py:3830` reject unknown scanner/target/record/row keys,
 wrong batch/scanner identities or metric types, record/range omissions, and package/ecosystem drift,
 plus noncanonical first-patched npm versions or per-GHSA CVE/severity/timestamp metadata.
 
@@ -494,7 +494,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3393`.
+`tests/test_frontend_dependency_guards.py:3468`.
 
 ## Resolver actions and exact disjoint partition
 
@@ -789,31 +789,31 @@ replay-proven dependency partition or substitute for the successful retry.
 
 The exact authorization literal and data maps are at
 `tests/test_frontend_dependency_guards.py:214`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1626`:
+`tests/test_frontend_dependency_guards.py:1636`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
 3. rejects direct, aliased, override, or bundled ownership for either target;
 4. delegates all other source semantics to installed npm's
    `npm-package-arg`/`semver` adapter and rejects opaque sources;
-5. requires dependency manifests and root lock records to match exactly and
-   admits only lockfile v3;
+5. admits only lockfile v3; requires root dependencies and peer metadata to match
+   the manifest and exact optional-peer booleans in manifests and all lock records;
 6. validates every non-root lock record through the existing canonical
    registry-provenance adapter;
 7. loads each complete virtual graph through the hermetic repository npm
    wrapper, with ambient graph-shaping configuration removed;
 8. independently discovers every raw canonical/nested target occurrence;
-9. rejects true or malformed `hasShrinkwrap` on every lock record, plus target
-   links, bundled records, malformed bundle flags/versions, and prereleases,
-   identity/path conflicts, foreign provenance, and invalid SHA-512 SRI metadata;
+9. rejects true/malformed `hasShrinkwrap` or `inBundle`, and nonempty/true bundle
+   declarations on every lock record; rejects target links, malformed versions,
+   prereleases, identity/path conflicts, foreign provenance, and invalid SRI;
 10. compares each occurrence with every affected range for its target;
 11. permits per-target executable absence only after the complete shared
     admission pass.
 
 The permanent guard does not freeze base/candidate hashes, occurrence counts,
-or `4.28.8` / `6.16.0` as the only future-safe versions. SRI or missing/exact-false
-`hasShrinkwrap` does not prove fetched package contents. True/malformed or future
-npm inflation semantics stop for rescope instead of adding a carrier parser.
+or `4.28.8` / `6.16.0` as the only future-safe versions. SRI and absent/false/empty
+inflation flags do not prove fetched contents. Bundles/shrinkwraps or future npm
+inflation semantics stop for rescope instead of adding a carrier parser.
 
 ## Provider projection
 
@@ -842,7 +842,7 @@ scripts/frontend_npm.sh --prefix frontend explain browserslist
 scripts/frontend_npm.sh --prefix frontend explain qs
 ```
 
-The complete focused file collects 233 tests after the batch expansion.
+The complete focused file collects 236 tests after the batch expansion.
 
 Before merge, rollback means abandoning the branch/PR. After merge, never return
 either identity to an affected version; use a separate secure roll-forward.
@@ -857,5 +857,136 @@ base/head, or unresolved review/CI evidence.
 This document does not claim production exploitability, whole-repository
 security, provider review, provider scan, PASS, no findings, approval, merge
 readiness, deployment, or release authority.
+
+## Hermetic audit corroboration (2026-09-04)
+
+The original `2026-09-03T03:39:19Z` scanner receipt above is immutable.
+Its process-level registry and omit settings were not retained, so the bare
+historical command is not a hermetic replay recipe. The following independently
+observed rerun supplies that missing configuration evidence without rewriting
+the original receipt, its digest, `F_cutoff`, or the external operator decision.
+
+The rerun reconstructed all four package files from original base
+`2bfb7ff96dfcc98a806de9c113eff5242bfbe479` and candidate
+`63acf11e2765c5aed9c055d91aa735d9166be494`. All five tracked npm surfaces at
+the original base are byte-identical to synchronized base `863d16ea...`;
+the candidate frontend lock remains
+`4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615`.
+The manifest-only `scripts/business_collateral/package.json` contains only
+`type: commonjs` and no dependency declarations. Each lock-bearing project
+was audited independently from its own isolated directory.
+
+Node `v24.18.1` and npm `11.16.0` were asserted before execution.
+The subprocess environment contains only PATH, the real HOME, TMPDIR and
+`LC_ALL=C`; it contains no npm configuration variables or Node preload/mode
+variables. No project npmrc was copied; user/global npmrc files and audit caches
+were fresh. Every command explicitly selects npmjs, all dependency classes and
+non-workspace local mode. Effective config was checked before every audit.
+This matches npm's documented
+[registry and include/omit behavior](https://docs.npmjs.com/cli/v11/commands/npm-audit/#audit-endpoints).
+
+The exact executed recipe, from repository root, was:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+audit_repo="$PWD"
+audit_base=2bfb7ff96dfcc98a806de9c113eff5242bfbe479
+audit_head=63acf11e2765c5aed9c055d91aa735d9166be494
+audit_tmp="$(mktemp -d -t pr2371-audit)"
+audit_wrapper="$audit_repo/scripts/frontend_npm.sh"
+audit_env=(env -i "PATH=$PATH" "HOME=$HOME" "TMPDIR=${TMPDIR:-/tmp}" LC_ALL=C)
+test "$("${audit_env[@]}" node --version)" = v24.18.1
+test "$("${audit_env[@]}" "$audit_wrapper" --version)" = 11.16.0
+printf 'node=v24.18.1 npm=11.16.0\n'
+for audit_state in base head; do
+  audit_ref="$audit_base"
+  if [[ "$audit_state" == head ]]; then audit_ref="$audit_head"; fi
+  mkdir "$audit_tmp/$audit_state"
+  git archive "$audit_ref" package.json package-lock.json frontend/package.json frontend/package-lock.json |
+    tar -x -C "$audit_tmp/$audit_state"
+  for audit_project in . frontend; do
+    (
+      cd "$audit_tmp/$audit_state/$audit_project"
+      touch user.npmrc global.npmrc
+      audit_flags=(--registry=https://registry.npmjs.org/ --include=prod --include=dev
+        --include=optional --include=peer --workspaces=false --global=false
+        --userconfig "$PWD/user.npmrc" --globalconfig "$PWD/global.npmrc"
+        --cache "$PWD/audit-cache" --fetch-retries=0 --fetch-timeout=60000)
+      audit_before="$(shasum -a 256 package.json package-lock.json)"
+      "${audit_env[@]}" "$audit_wrapper" config list --json "${audit_flags[@]}" |
+        jq -ce '{registry,include,omit,workspaces,global} |
+          select(.registry == "https://registry.npmjs.org/" and .omit == [] and
+            .include == ["prod","dev","optional","peer"] and .workspaces == false and .global == false)'
+      date -u +%Y-%m-%dT%H:%M:%SZ
+      if "${audit_env[@]}" "$audit_wrapper" audit --package-lock-only --json --ignore-scripts "${audit_flags[@]}" >audit.json 2>audit.stderr; then
+        audit_exit=0
+      else
+        audit_exit=$?
+      fi
+      printf 'state=%s project=%s exit=%s\n' "$audit_state" "$audit_project" "$audit_exit"
+      jq -ce '{keys:(.vulnerabilities|keys),counts:.metadata.vulnerabilities}' audit.json
+      audit_expected=0
+      if [[ "$audit_state" == base && "$audit_project" == frontend ]]; then audit_expected=1; fi
+      test "$audit_exit" -eq "$audit_expected"
+      if [[ "$audit_expected" == 1 ]]; then
+        jq -e '(.vulnerabilities|keys) == ["browserslist","qs"]' audit.json >/dev/null
+      else
+        jq -e '.vulnerabilities == {} and .metadata.vulnerabilities.total == 0' audit.json >/dev/null
+      fi
+      test "$audit_before" = "$(shasum -a 256 package.json package-lock.json)"
+    )
+  done
+done
+printf 'HERMETIC_AUDIT_REPLAY_PASS receipts=%s\n' "$audit_tmp"
+```
+
+The four audits started at `2026-09-04T23:07:34Z`, `23:07:35Z`,
+`23:07:40Z`, and `23:07:42Z`; the recipe exited `0` with these raw proof lines:
+
+```text
+node=v24.18.1 npm=11.16.0
+{"registry":"https://registry.npmjs.org/","include":["prod","dev","optional","peer"],"omit":[],"workspaces":false,"global":false}
+state=base project=. exit=0
+{"keys":[],"counts":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}
+state=base project=frontend exit=1
+{"keys":["browserslist","qs"],"counts":{"info":0,"low":0,"moderate":1,"high":1,"critical":0,"total":2}}
+state=head project=. exit=0
+{"keys":[],"counts":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}
+state=head project=frontend exit=0
+{"keys":[],"counts":{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}}
+```
+
+All four manifest/lock pairs remained byte-identical before and after audit.
+The base frontend `via` records are exactly
+`GHSA-73wf-gq98-2v4g`, `GHSA-c83g-rgw3-j3cx`,
+`GHSA-x5fp-wj9c-mxmx`, and `GHSA-4mjr-xmp4-gh2g`.
+Their ranges are respectively `<=4.28.6`, `<=4.28.6`,
+`>=6.14.2 <=6.15.3`, and `>=2.2.5 <6.16.0`, matching the
+applicable frozen GAD projections after whitespace normalization.
+Both candidate roots have no findings. Thus this controlled rerun corroborates
+the exact authorized identity set and candidate safety under the later registry
+state. It does not authenticate the historical process environment or create a
+new authorization. Future advisory-service responses may change; a third
+identity or unreconciled advisory/range requires rescope instead of rewriting
+the original snapshot.
+
+## Subsequent base equivalence
+
+At `2026-09-04T23:17:19Z`, `origin/main` was
+`7d6146f35953ce6b5772df17bf714183bc80b5b3`. Its change from the recorded
+resolver base is PR #2379's unrelated Annotated registration-identity guard.
+The following exact comparison produced no output and exited `0`:
+
+```bash
+git diff --exit-code 863d16ea2328dd32fa6fec6cef4d8f117b6edf85 7d6146f35953ce6b5772df17bf714183bc80b5b3 -- package.json package-lock.json frontend/package.json frontend/package-lock.json scripts/business_collateral/package.json
+```
+
+Thus all five governed base surfaces, both affected base occurrences, and the
+recorded resolver input bytes remain unchanged. The current frontend candidate
+still hashes to `4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615`.
+The final review seal independently binds the synchronized live base,
+merge-base, material head, and digest; this historical resolver receipt is not
+a claim that its old base remains the live PR base.
 
 <!-- markdownlint-enable MD013 MD031 MD032 -->

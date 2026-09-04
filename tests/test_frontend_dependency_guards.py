@@ -1453,6 +1453,15 @@ def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str
         assert all(
             isinstance(value, str) and value for value in bundled
         ), f"{surface}:{field} entries must be non-empty package names"
+    peer_metadata = document.get("peerDependenciesMeta", {})
+    assert isinstance(peer_metadata, dict), f"{surface}: peerDependenciesMeta must be an object"
+    for peer, metadata in peer_metadata.items():
+        assert isinstance(peer, str) and peer, f"{surface}: peer metadata name must be text"
+        assert isinstance(metadata, dict), f"{surface}:{peer}: peer metadata must be an object"
+        assert set(metadata) <= {"optional"}, f"{surface}:{peer}: unknown peer metadata field"
+        assert (
+            type(metadata.get("optional", False)) is bool
+        ), f"{surface}:{peer}: peer optional must be an exact boolean"
 
 
 def _load_transitive_npm_surface(path: Path) -> dict:
@@ -1535,6 +1544,7 @@ def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) ->
             "devDependencies",
             "optionalDependencies",
             "peerDependencies",
+            "peerDependenciesMeta",
         ):
             manifest_dependencies = manifest.get(field, {})
             lock_dependencies = root_package.get(field, {})
@@ -1664,6 +1674,9 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             assert isinstance(
                 package, dict
             ), f"{relative}:{package_path}: package must be an object"
+            _assert_manifest_dependency_container_shapes(
+                document=package, surface=f"{relative}:{package_path}"
+            )
             has_shrinkwrap = package.get("hasShrinkwrap", False)
             assert (
                 type(has_shrinkwrap) is bool
@@ -1671,6 +1684,16 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             assert (
                 not has_shrinkwrap
             ), f"{relative}:{package_path}: published nested shrinkwrap blocks batch admission"
+            for field in ("bundleDependencies", "bundledDependencies"):
+                assert not package.get(field, []), (
+                    f"{relative}:{package_path}: published bundled dependencies "
+                    "block batch admission"
+                )
+            in_bundle = package.get("inBundle", False)
+            assert (
+                type(in_bundle) is bool
+            ), f"{relative}:{package_path}: inBundle must be boolean when present"
+            assert not in_bundle, f"{relative}:{package_path}: bundled lock occurrence is forbidden"
         for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
             for path, package in _find_lock_occurrences(
                 document,
@@ -2812,6 +2835,51 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
         with pytest.raises(AssertionError, match=message):
             _assert_transitive_npm_security_batch(root=tmp_path)
+    carrier["hasShrinkwrap"] = False
+    for field in ("bundleDependencies", "bundledDependencies"):
+        for value in ([], False):
+            carrier[field] = value
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            assert (
+                _assert_transitive_npm_security_batch(root=tmp_path)[absent_target] == frozenset()
+            )
+        for value, message in (
+            ([absent_target], "published bundled dependencies block batch admission"),
+            (True, "published bundled dependencies block batch admission"),
+            ("false", f"{field} must be an array"),
+            ({}, f"{field} must be an array"),
+            (None, f"{field} must be an array"),
+            ([1], f"{field} entries must be non-empty package names"),
+        ):
+            carrier[field] = value
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            with pytest.raises(AssertionError, match=message):
+                _assert_transitive_npm_security_batch(root=tmp_path)
+        del carrier[field]
+    for value, message in (
+        (True, "bundled lock occurrence is forbidden"),
+        ("false", "inBundle must be boolean when present"),
+        (1, "inBundle must be boolean when present"),
+    ):
+        carrier["inBundle"] = value
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match=message):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    carrier["inBundle"] = False
+    carrier["peerDependencies"] = {absent_target: "*"}
+    carrier["peerDependenciesMeta"] = {absent_target: {"optional": True}}
+    lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    assert _assert_transitive_npm_security_batch(root=tmp_path)[absent_target] == frozenset()
+    for metadata in ({}, {"optional": False}):
+        carrier["peerDependenciesMeta"] = {absent_target: metadata}
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    for optional in ("true", 1, {}, None, [], 0):
+        carrier["peerDependenciesMeta"] = {absent_target: {"optional": optional}}
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match="peer optional must be an exact boolean"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
 
 
 def test_browserslist_class_allows_delegated_executable_absence(tmp_path: Path) -> None:
@@ -3056,6 +3124,13 @@ def test_browserslist_class_rejects_workspace_source(tmp_path: Path) -> None:
         ("dependencies", ["browserslist"], "dependencies must be an object"),
         ("overrides", ["browserslist"], "overrides must be an object"),
         ("bundleDependencies", "browserslist", "bundleDependencies must be an array"),
+        ("peerDependenciesMeta", [], "peerDependenciesMeta must be an object"),
+        ("peerDependenciesMeta", {"carrier": True}, "peer metadata must be an object"),
+        (
+            "peerDependenciesMeta",
+            {"carrier": {"optionl": True}},
+            "unknown peer metadata field",
+        ),
     ),
 )
 def test_browserslist_class_rejects_malformed_manifest_containers(
@@ -3460,8 +3535,13 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     assert receipt["authorized_dependency_identities"] == ["npm:browserslist", "npm:qs"]
     assert receipt["operator_authorization"] == "exact_finite_batch_confirmed_2026-09-03"
     assert receipt["gad_cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
-    scanner = receipt["scanner_snapshot"]
-    assert isinstance(scanner, dict)
+    scanner = _require_exact_object(
+        receipt["scanner_snapshot"],
+        keys=frozenset(
+            {"base_sha", "observed_at", "roots", "terminal", "vulnerable_dependency_identities"}
+        ),
+        label="batch scanner snapshot",
+    )
     scanner_canonical = json.dumps(
         scanner,
         ensure_ascii=False,
