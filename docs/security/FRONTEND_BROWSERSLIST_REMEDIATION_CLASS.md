@@ -23,7 +23,7 @@ or merge authority. Canonical admission policy is the
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1623`.
+`tests/test_frontend_dependency_guards.py:1626`.
 
 ## Exact base, material head, and governed surfaces
 
@@ -458,8 +458,8 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding tests at `tests/test_frontend_dependency_guards.py:3400`
-and `tests/test_frontend_dependency_guards.py:3548` reject duplicate JSON
+The content-binding tests at `tests/test_frontend_dependency_guards.py:3409`
+and `tests/test_frontend_dependency_guards.py:3557` reject duplicate JSON
 keys, wrong batch/scanner identities, record/range omissions, changed package
 or ecosystem projections, first-patched drift, and withdrawal drift.
 
@@ -494,7 +494,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3357`.
+`tests/test_frontend_dependency_guards.py:3366`.
 
 ## Resolver actions and exact disjoint partition
 
@@ -789,7 +789,7 @@ replay-proven dependency partition or substitute for the successful retry.
 
 The exact authorization literal and data maps are at
 `tests/test_frontend_dependency_guards.py:214`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1623`:
+`tests/test_frontend_dependency_guards.py:1626`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -803,8 +803,9 @@ The exact authorization literal and data maps are at
 7. loads each complete virtual graph through the hermetic repository npm
    wrapper, with ambient graph-shaping configuration removed;
 8. independently discovers every raw canonical/nested target occurrence;
-9. rejects links, prereleases, malformed versions, identity/path conflicts,
-   foreign provenance, and invalid 64-byte SHA-512 SRI metadata;
+9. rejects links, bundled records, malformed bundle flags, prereleases,
+   malformed versions, identity/path conflicts, foreign provenance, and
+   invalid 64-byte SHA-512 SRI metadata;
 10. compares each occurrence with every affected range for its target;
 11. permits per-target executable absence only after the complete shared
     admission pass.
@@ -830,13 +831,15 @@ separate post-merge observation. No alert is dismissed.
 Focused verification commands include:
 
 ```text
-python -m pytest -q tests/test_frontend_dependency_guards.py
-python scripts/ci/check_docs_phase1_gates.py --files docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md docs/security/DEPENDABOT_ALERT_INVENTORY.md
-npm query '#browserslist' --package-lock-only --json
-npm query '#qs' --package-lock-only --json
-npm ls browserslist qs --all --package-lock-only --json
-npm explain browserslist
-npm explain qs
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
+"$VENV_PYTHON" scripts/ci/check_docs_phase1_gates.py --files docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md docs/security/DEPENDABOT_ALERT_INVENTORY.md
+scripts/frontend_npm.sh --prefix frontend query '#browserslist' --package-lock-only --json
+scripts/frontend_npm.sh --prefix frontend query '#qs' --package-lock-only --json
+scripts/frontend_npm.sh --prefix frontend ls browserslist qs --all --package-lock-only --json
+scripts/frontend_npm.sh --prefix frontend ci --ignore-scripts --no-audit --no-fund
+scripts/frontend_npm.sh --prefix frontend explain browserslist
+scripts/frontend_npm.sh --prefix frontend explain qs
 ```
 
 The complete focused file collects 229 tests after the batch expansion.

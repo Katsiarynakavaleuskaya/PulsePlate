@@ -1606,6 +1606,9 @@ def _assert_transitive_npm_occurrence(
         _lock_path_package_identity(path) == target
     ), f"{source}: {target} alias/noncanonical installed path"
     assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
+    in_bundle = package.get("inBundle", False)
+    assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
+    assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
     raw_version = package.get("version")
     _assert_transitive_npm_head_postcondition(
         target=target,
@@ -3209,6 +3212,8 @@ def test_transitive_npm_batch_is_conjunctive_for_mixed_safe_and_affected_targets
         ("malformed-integrity", "integrity must contain valid base64"),
         ("short-integrity", "integrity sha512 digest must be 64 bytes"),
         ("symbolic-link", "symbolic link lock occurrence is forbidden"),
+        ("bundled-record", "bundled lock occurrence is forbidden"),
+        ("malformed-bundle-flag", "inBundle must be boolean when present"),
     ),
 )
 @pytest.mark.parametrize(
@@ -3243,6 +3248,10 @@ def test_transitive_npm_occurrence_policy_fails_closed(
         package["integrity"] = "sha512-Zml4dHVyZQ=="
     elif case == "symbolic-link":
         package["link"] = True
+    elif case == "bundled-record":
+        package["inBundle"] = True
+    elif case == "malformed-bundle-flag":
+        package["inBundle"] = "false"
     else:
         raise AssertionError(f"unhandled transitive npm occurrence case: {case}")
 
