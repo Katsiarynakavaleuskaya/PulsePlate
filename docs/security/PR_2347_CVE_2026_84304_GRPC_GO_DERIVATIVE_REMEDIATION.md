@@ -54,15 +54,24 @@ contexts containing only the verified Containerfile. Before and after each
 build, the controller requires and binds a live builder with exactly four CPUs
 and 6 GiB memory; an underprovisioned builder is `HOLD` before build execution.
 Each exact absolute argv uses linux/amd64, the same resource values, no cache,
-plain progress, and a private OCI output. Build, scan, and registry plans
-receive a controller-owned private `HOME`/configuration root rather than the
-operator's ambient credential context. Trivy uses a fresh private cache, an
-explicit empty ignore input, and `--config /dev/null`; ambient VEX,
-ignore-policy, ignore-status, and credential environment are not inherited.
+and plain progress. Apple Container 1.1.0 cannot create the requested host
+archive through BuildKit `type=oci,dest=...`, so the private transport uses the
+CLI's supported local-image path: require the exact temporary tag to be absent,
+build it into the local image store, save exactly linux/amd64 as an
+OCI-compatible tar, validate the single direct or single nested OCI index, and
+delete verification tags in `finally`. Publication preflight retains its exact
+candidate tag only until the existing adapter cleanup. Build, scan, and
+registry plans receive a controller-owned private `HOME`/configuration root
+rather than the operator's ambient credential context. Trivy uses a fresh
+private cache, an explicit empty ignore input, and `--config /dev/null`;
+ambient VEX, ignore-policy, ignore-status, and credential environment are not
+inherited.
 
 The controller—not the transport—accepts and compares:
 
 - OCI manifest, config, platform, and layer digests;
+- exact local-tag absence, single-image save, nested-index shape when emitted
+  by Apple, and verification-tag cleanup;
 - Prometheus and promtool hashes;
 - source archive and installed pnpm executable hashes;
 - transformed `go.mod` and `go.sum`;

@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urlencode, urlsplit
 
 _DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+_OCI_INDEX = "application/vnd.oci.image.index.v1+json"
 _OCI_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
 _OCI_CONFIG = "application/vnd.oci.image.config.v1+json"
 _OCI_LAYERS = {
@@ -47,6 +48,16 @@ class ProcessResult:
     returncode: int
     stdout: bytes
     stderr: bytes
+
+
+@dataclass(frozen=True)
+class LocalImageBuildPlan:
+    inventory: ProcessPlan
+    build: ProcessPlan
+    save: ProcessPlan
+    delete: ProcessPlan
+    reference: str
+    keep_local: bool
 
 
 @dataclass(frozen=True)
@@ -470,8 +481,8 @@ def merge_build_observation(
     return result, evidence
 
 
-def execute_build_observation(
-    plan: ProcessPlan,
+def collect_build_observation(
+    result: ProcessResult,
     archive: Path,
     names: Sequence[str],
     *,
@@ -480,7 +491,6 @@ def execute_build_observation(
     max_members: int,
     max_metadata_bytes: int,
 ) -> tuple[ProcessResult, Mapping[str, str], OCIResult]:
-    result = run_process(plan)
     assignments = extract_assignments(
         result.stdout + result.stderr, names, reserved_prefix=reserved_prefix
     )
@@ -491,6 +501,96 @@ def execute_build_observation(
         max_metadata_bytes=max_metadata_bytes,
     )
     return result, assignments, oci
+
+
+def _local_image_ref_count(plan: ProcessPlan, reference: str) -> int:
+    observed = run_process(plan)
+    if observed.returncode != 0:
+        raise TransportError("local_image_inventory_failed")
+    try:
+        lines = observed.stdout.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise TransportError("local_image_inventory_invalid") from exc
+    if any(not line or line.strip() != line or "\x00" in line for line in lines):
+        raise TransportError("local_image_inventory_invalid")
+    return lines.count(reference)
+
+
+def delete_local_image(
+    inventory: ProcessPlan,
+    delete: ProcessPlan,
+    reference: str,
+) -> None:
+    if _local_image_ref_count(inventory, reference) != 1:
+        raise TransportError("local_image_ref_ambiguous")
+    result = run_process(delete)
+    if result.returncode != 0 or _local_image_ref_count(inventory, reference) != 0:
+        raise TransportError("local_image_cleanup_failed")
+
+
+def execute_local_image_build_observation(
+    lifecycle: LocalImageBuildPlan,
+    archive: Path,
+    names: Sequence[str],
+    *,
+    reserved_prefix: str,
+    max_archive_bytes: int,
+    max_members: int,
+    max_metadata_bytes: int,
+) -> tuple[ProcessResult, Mapping[str, str], OCIResult]:
+    if _local_image_ref_count(lifecycle.inventory, lifecycle.reference) != 0:
+        raise TransportError("local_image_ref_present")
+    owned = False
+    completed = False
+    primary_error: BaseException | None = None
+    try:
+        result = run_process(lifecycle.build)
+        count = _local_image_ref_count(lifecycle.inventory, lifecycle.reference)
+        if count == 1:
+            owned = True
+        elif count != 0:
+            raise TransportError("local_image_ref_ambiguous")
+        if result.returncode != 0:
+            raise TransportError("build_process_failed")
+        if not owned:
+            raise TransportError("local_image_ref_missing")
+        try:
+            os.lstat(archive)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise TransportError("oci_archive_unavailable") from exc
+        else:
+            raise TransportError("oci_archive_exists")
+        saved = run_process(lifecycle.save)
+        if saved.returncode != 0:
+            raise TransportError("local_image_save_failed")
+        observation = collect_build_observation(
+            result,
+            archive,
+            names,
+            reserved_prefix=reserved_prefix,
+            max_archive_bytes=max_archive_bytes,
+            max_members=max_members,
+            max_metadata_bytes=max_metadata_bytes,
+        )
+        completed = lifecycle.keep_local
+        return observation
+    except BaseException as exc:
+        primary_error = exc
+        raise
+    finally:
+        if owned and not completed:
+            try:
+                delete_local_image(
+                    lifecycle.inventory,
+                    lifecycle.delete,
+                    lifecycle.reference,
+                )
+            except TransportError as cleanup_error:
+                if primary_error is not None:
+                    raise primary_error from cleanup_error
+                raise
 
 
 def execute_json_observation(
@@ -592,17 +692,45 @@ def parse_oci_archive(
             if layout != {"imageLayoutVersion": "1.0.0"}:
                 raise TransportError("oci_layout_invalid")
             index = _json(read_small("index.json"))
-            if not isinstance(index, dict) or index.get("schemaVersion") != 2:
+            if (
+                not isinstance(index, dict)
+                or index.get("schemaVersion") != 2
+                or index.get("mediaType") not in {None, _OCI_INDEX}
+            ):
                 raise TransportError("oci_index_invalid")
             descriptors = index.get("manifests")
             if not isinstance(descriptors, list) or len(descriptors) != 1:
                 raise TransportError("oci_index_invalid")
-            if (
-                not isinstance(descriptors[0], dict)
-                or descriptors[0].get("mediaType") != _OCI_MANIFEST
-            ):
+            descriptor = descriptors[0]
+            if not isinstance(descriptor, dict):
                 raise TransportError("oci_index_invalid")
-            manifest_digest, manifest_size = _descriptor(descriptors[0])
+            expected_files = {"oci-layout", "index.json"}
+            descriptor_platform: object = None
+            if descriptor.get("mediaType") == _OCI_INDEX:
+                nested_digest, nested_size = _descriptor(descriptor)
+                nested_name = f"blobs/sha256/{nested_digest[7:]}"
+                nested_raw = read_small(nested_name)
+                if len(nested_raw) != nested_size or (
+                    f"sha256:{hashlib.sha256(nested_raw).hexdigest()}" != nested_digest
+                ):
+                    raise TransportError("oci_index_invalid")
+                nested = _json(nested_raw)
+                nested_descriptors = nested.get("manifests") if isinstance(nested, dict) else None
+                if (
+                    not isinstance(nested, dict)
+                    or nested.get("schemaVersion") != 2
+                    or nested.get("mediaType") != _OCI_INDEX
+                    or not isinstance(nested_descriptors, list)
+                    or len(nested_descriptors) != 1
+                    or not isinstance(nested_descriptors[0], dict)
+                ):
+                    raise TransportError("oci_index_invalid")
+                expected_files.add(nested_name)
+                descriptor = nested_descriptors[0]
+                descriptor_platform = descriptor.get("platform")
+            if descriptor.get("mediaType") != _OCI_MANIFEST:
+                raise TransportError("oci_index_invalid")
+            manifest_digest, manifest_size = _descriptor(descriptor)
             manifest_raw = read_small(f"blobs/sha256/{manifest_digest[7:]}")
             if len(manifest_raw) != manifest_size or (
                 f"sha256:{hashlib.sha256(manifest_raw).hexdigest()}" != manifest_digest
@@ -630,16 +758,21 @@ def parse_oci_archive(
             architecture = config.get("architecture")
             if not isinstance(os_name, str) or not isinstance(architecture, str):
                 raise TransportError("oci_config_invalid")
+            if descriptor_platform is not None and descriptor_platform != {
+                "os": os_name,
+                "architecture": architecture,
+            }:
+                raise TransportError("oci_index_invalid")
             raw_layers = manifest.get("layers")
             if not isinstance(raw_layers, list) or not raw_layers:
                 raise TransportError("oci_layers_invalid")
             layers: list[str] = []
-            expected_files = {
-                "oci-layout",
-                "index.json",
-                f"blobs/sha256/{manifest_digest[7:]}",
-                f"blobs/sha256/{config_digest[7:]}",
-            }
+            expected_files.update(
+                {
+                    f"blobs/sha256/{manifest_digest[7:]}",
+                    f"blobs/sha256/{config_digest[7:]}",
+                }
+            )
             for raw_layer in raw_layers:
                 if not isinstance(raw_layer, dict) or raw_layer.get("mediaType") not in _OCI_LAYERS:
                     raise TransportError("oci_layers_invalid")
@@ -651,7 +784,7 @@ def parse_oci_archive(
             regular_names = {name for name, member in by_name.items() if member.isreg()}
             directory_names = {name for name, member in by_name.items() if member.isdir()}
             if regular_names != expected_files or not directory_names.issubset(
-                {"blobs", "blobs/sha256"}
+                {".", "blobs", "blobs/sha256"}
             ):
                 raise TransportError("oci_inventory_invalid")
             return OCIResult(

@@ -702,7 +702,7 @@ class ExactAdapters:
             "builder_status_sha256": sha256_digest(canonical_json(normalized)),
         }
 
-    def _build(self, tag: str) -> tuple[BuildEvidence, Path]:
+    def _build(self, tag: str, *, keep_local: bool = False) -> tuple[BuildEvidence, Path]:
         builder_before = self._builder_observation()
         temporary = tempfile.TemporaryDirectory(prefix="pulseplate-prometheus-build-")
         self.temporary.append(temporary)
@@ -725,13 +725,21 @@ class ExactAdapters:
             tag,
             *APPLE_BUILD_RESOURCES,
             *APPLE_BUILD_MODE,
-            "--output",
-            f"type=oci,dest={archive}",
             str(context),
         )
-        observed = _transport_call(
-            transport.execute_build_observation,
+        save_argv = (container, "image", "save", "--platform", PLATFORM, "--output")
+        save_argv += (str(archive), tag)
+        lifecycle = transport.LocalImageBuildPlan(
+            self._plan((container, "image", "list", "--quiet"), 120),
             self._plan(argv),
+            self._plan(save_argv, 600),
+            self._plan((container, "image", "delete", tag), 120),
+            tag,
+            keep_local,
+        )
+        observed = _transport_call(
+            transport.execute_local_image_build_observation,
+            lifecycle,
             archive,
             tuple(BUILD_OUTPUT_FIELDS),
             reserved_prefix="PULSEPLATE_",
@@ -859,15 +867,9 @@ class ExactAdapters:
         candidate_ref = payload["candidate_ref"]
         if not isinstance(candidate_ref, str):
             raise _hold("candidate_ref_invalid")
-        build, archive = self._build(candidate_ref)
-        scan = self._scan(archive)
-        load = _transport_call(
-            transport.run_process,
-            self._plan((self.identity["container_path"], "image", "load", "--input", str(archive))),
-        )
-        if load.returncode != 0:
-            raise _hold("local_image_load_failed")
+        build, archive = self._build(candidate_ref, keep_local=True)
         self.loaded_ref = candidate_ref
+        scan = self._scan(archive)
         return {
             "tag_state": "absent" if self.observe(candidate_ref) is None else "present",
             "build_evidence": build,

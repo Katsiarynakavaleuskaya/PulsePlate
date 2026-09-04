@@ -244,9 +244,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Local verification binds the controller, private transport, exact Python
   interpreter, Apple system/apiserver and builder-image identities, exact live
   four-CPU/6-GiB builder resources before and after every build, and a fresh
-  Trivy scan of the validated extracted OCI layout. Underprovisioned or drifting
-  builder resources, empty/wrong-target coverage, and ambient Trivy policy
-  inputs fail closed.
+  Trivy scan of the validated extracted OCI layout. Apple Container 1.1.0 local
+  evidence uses one absent exact temporary tag, local build, exact linux/amd64
+  `image save`, and `finally` cleanup; direct or single nested OCI indexes are
+  closed and digest-verified. Underprovisioned or drifting builder resources,
+  preexisting/ambiguous tags, cleanup failures, extra OCI descriptors/members,
+  empty/wrong-target coverage, and ambient Trivy policy inputs fail closed.
 
 
 ## Production tag gate

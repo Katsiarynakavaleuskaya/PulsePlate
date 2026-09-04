@@ -723,6 +723,7 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     spec = prometheus_candidate.build_spec(repo, identity)
     adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
     build_plans: list[object] = []
+    lifecycle_plans: list[prometheus_candidate.transport.LocalImageBuildPlan] = []
     process_plans: list[object] = []
     oci = prometheus_candidate.transport.OCIResult(
         f"sha256:{'a' * 64}",
@@ -732,12 +733,13 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     )
 
     def fake_build(
-        plan: object,
+        lifecycle: prometheus_candidate.transport.LocalImageBuildPlan,
         _archive: Path,
         names: tuple[str, ...],
         **_bounds: object,
     ) -> object:
-        build_plans.append(plan)
+        lifecycle_plans.append(lifecycle)
+        build_plans.append(lifecycle.build)
         assignments = {
             name: (
                 "10"
@@ -811,7 +813,7 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
 
     monkeypatch.setattr(
         prometheus_candidate.transport,
-        "execute_build_observation",
+        "execute_local_image_build_observation",
         fake_build,
     )
     monkeypatch.setattr(prometheus_candidate.transport, "run_process", fake_process)
@@ -851,6 +853,13 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
         )
         for exact in ("--cpus", "4", "--memory", "6G", "--no-cache", "--progress", "plain"):
             assert exact in plan.argv
+        assert "--output" not in plan.argv
+    for lifecycle in lifecycle_plans:
+        assert lifecycle.inventory.argv[-3:] == ("image", "list", "--quiet")
+        assert lifecycle.save.argv[-7:-5] == ("image", "save")
+        assert lifecycle.save.argv[-1] == lifecycle.reference
+        assert lifecycle.delete.argv[-3:] == ("image", "delete", lifecycle.reference)
+        assert lifecycle.keep_local is False
     builder_plans = [
         plan for plan in process_plans if ("builder", "status") == tuple(plan.argv[1:3])
     ]
@@ -875,6 +884,7 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     preflight = adapter.preflight(local)
     assert preflight["tag_state"] == "absent"
     assert len(build_plans) == 3
+    assert lifecycle_plans[-1].keep_local is True
     login, push, logout = adapter.process_plans(local["candidate_ref"])
     assert login.argv[-5:] == (
         "login",
@@ -925,7 +935,7 @@ def test_prometheus_exact_adapter_rejects_underprovisioned_builder_before_build(
     )
     monkeypatch.setattr(
         prometheus_candidate.transport,
-        "execute_build_observation",
+        "execute_local_image_build_observation",
         lambda plan, *_args, **_kwargs: build_plans.append(plan),
     )
 
@@ -1477,6 +1487,159 @@ def test_prometheus_receipt_atomic_noreplace_survives_pre_and_post_commit_faults
     assert list(after.store.load()) == ["00-spec"]
 
 
+def _local_image_lifecycle(
+    tmp_path: Path,
+    *,
+    keep_local: bool = False,
+) -> tuple[prometheus_candidate.transport.LocalImageBuildPlan, Path]:
+    transport = prometheus_candidate.transport
+    executable = str(tmp_path / "container")
+
+    def plan(*argv: str) -> prometheus_candidate.transport.ProcessPlan:
+        return transport.ProcessPlan((executable, *argv), tmp_path, {}, 60, 4096)
+
+    archive = tmp_path / "candidate.oci.tar"
+    reference = "pulseplate-prometheus:test-local-lifecycle"
+    return (
+        transport.LocalImageBuildPlan(
+            plan("image", "list", "--quiet"),
+            plan("build", "--tag", reference, str(tmp_path)),
+            plan("image", "save", "--output", str(archive), reference),
+            plan("image", "delete", reference),
+            reference,
+            keep_local,
+        ),
+        archive,
+    )
+
+
+def test_prometheus_transport_build_save_parse_and_cleanup_local_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    lifecycle, archive = _local_image_lifecycle(tmp_path)
+    present = False
+    calls: list[tuple[str, ...]] = []
+
+    def fake_process(plan: object, **_kwargs: object) -> object:
+        nonlocal present
+        argv = tuple(plan.argv[1:])
+        calls.append(argv)
+        if argv == ("image", "list", "--quiet"):
+            stdout = f"{lifecycle.reference}\n".encode() if present else b""
+            return transport.ProcessResult(0, stdout, b"")
+        if argv[0] == "build":
+            present = True
+            return transport.ProcessResult(0, b"build-observation", b"")
+        if argv[:2] == ("image", "save"):
+            archive.write_bytes(b"saved-archive")
+            return transport.ProcessResult(0, b"saved", b"")
+        if argv[:2] == ("image", "delete"):
+            present = False
+            return transport.ProcessResult(0, b"deleted", b"")
+        raise AssertionError(argv)
+
+    expected = (
+        transport.ProcessResult(0, b"build-observation", b""),
+        {"PULSEPLATE_TEST": "value"},
+        transport.OCIResult("sha256:" + "a" * 64, "sha256:" + "b" * 64, "x/y", ()),
+    )
+    monkeypatch.setattr(transport, "run_process", fake_process)
+    monkeypatch.setattr(transport, "collect_build_observation", lambda *_args, **_kwargs: expected)
+
+    observed = transport.execute_local_image_build_observation(
+        lifecycle,
+        archive,
+        ("PULSEPLATE_TEST",),
+        reserved_prefix="PULSEPLATE_",
+        max_archive_bytes=1024,
+        max_members=8,
+        max_metadata_bytes=1024,
+    )
+    assert observed == expected
+    assert present is False
+    assert calls == [
+        ("image", "list", "--quiet"),
+        lifecycle.build.argv[1:],
+        ("image", "list", "--quiet"),
+        lifecycle.save.argv[1:],
+        ("image", "list", "--quiet"),
+        lifecycle.delete.argv[1:],
+        ("image", "list", "--quiet"),
+    ]
+
+
+def test_prometheus_transport_local_image_lifecycle_rejects_preexisting_tag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    lifecycle, archive = _local_image_lifecycle(tmp_path)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_process(plan: object, **_kwargs: object) -> object:
+        calls.append(tuple(plan.argv[1:]))
+        return transport.ProcessResult(0, f"{lifecycle.reference}\n".encode(), b"")
+
+    monkeypatch.setattr(transport, "run_process", fake_process)
+    with pytest.raises(transport.TransportError, match="local_image_ref_present"):
+        transport.execute_local_image_build_observation(
+            lifecycle,
+            archive,
+            (),
+            reserved_prefix="PULSEPLATE_",
+            max_archive_bytes=1024,
+            max_members=8,
+            max_metadata_bytes=1024,
+        )
+    assert calls == [("image", "list", "--quiet")]
+
+
+def test_prometheus_transport_local_image_lifecycle_cleans_owned_tag_on_parse_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    lifecycle, archive = _local_image_lifecycle(tmp_path)
+    present = False
+
+    def fake_process(plan: object, **_kwargs: object) -> object:
+        nonlocal present
+        argv = tuple(plan.argv[1:])
+        if argv == ("image", "list", "--quiet"):
+            stdout = f"{lifecycle.reference}\n".encode() if present else b""
+            return transport.ProcessResult(0, stdout, b"")
+        if argv[0] == "build":
+            present = True
+            return transport.ProcessResult(0, b"build", b"")
+        if argv[:2] == ("image", "save"):
+            archive.write_bytes(b"invalid")
+            return transport.ProcessResult(0, b"saved", b"")
+        if argv[:2] == ("image", "delete"):
+            present = False
+            return transport.ProcessResult(0, b"deleted", b"")
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(transport, "run_process", fake_process)
+    monkeypatch.setattr(
+        transport,
+        "collect_build_observation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(transport.TransportError("parse")),
+    )
+    with pytest.raises(transport.TransportError, match="parse"):
+        transport.execute_local_image_build_observation(
+            lifecycle,
+            archive,
+            (),
+            reserved_prefix="PULSEPLATE_",
+            max_archive_bytes=1024,
+            max_members=8,
+            max_metadata_bytes=1024,
+        )
+    assert present is False
+
+
 def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
     config = json.dumps(
         {"os": "linux", "architecture": "amd64"},
@@ -1505,16 +1668,41 @@ def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
         manifest["config"]["size"] += 1
     manifest_raw = json.dumps(manifest, separators=(",", ":")).encode()
     manifest_digest = "sha256:" + hashlib.sha256(manifest_raw).hexdigest()
-    index = {
-        "schemaVersion": 2,
-        "manifests": [
-            {
-                "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                "digest": manifest_digest,
-                "size": len(manifest_raw),
-            }
-        ],
+    manifest_descriptor = {
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "digest": manifest_digest,
+        "size": len(manifest_raw),
     }
+    nested_raw: bytes | None = None
+    nested_digest: str | None = None
+    if mutation.startswith("nested"):
+        manifest_descriptor["platform"] = {"os": "linux", "architecture": "amd64"}
+        if mutation == "nested-platform-mismatch":
+            manifest_descriptor["platform"] = {"os": "linux", "architecture": "arm64"}
+        nested_descriptors = [manifest_descriptor]
+        if mutation == "nested-extra-manifest":
+            nested_descriptors.append(dict(manifest_descriptor))
+        nested = {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": nested_descriptors,
+        }
+        nested_raw = json.dumps(nested, separators=(",", ":")).encode()
+        nested_digest = "sha256:" + hashlib.sha256(nested_raw).hexdigest()
+        index_digest = "sha256:" + "0" * 64 if mutation == "nested-bad-digest" else nested_digest
+        index = {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "manifests": [
+                {
+                    "mediaType": "application/vnd.oci.image.index.v1+json",
+                    "digest": index_digest,
+                    "size": len(nested_raw),
+                }
+            ],
+        }
+    else:
+        index = {"schemaVersion": 2, "manifests": [manifest_descriptor]}
     index_raw = json.dumps(index, separators=(",", ":")).encode()
     if mutation == "duplicate-json":
         index_raw = index_raw.replace(
@@ -1527,6 +1715,8 @@ def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
         f"blobs/sha256/{config_digest[7:]}": config,
         f"blobs/sha256/{layer_digest[7:]}": layer,
     }
+    if nested_raw is not None and nested_digest is not None:
+        files[f"blobs/sha256/{nested_digest[7:]}"] = nested_raw
     if mutation == "extra-file":
         files["unexpected"] = b"unexpected"
     archive_path = tmp_path / f"{mutation}.oci.tar"
@@ -1574,6 +1764,19 @@ def test_prometheus_transport_parses_and_extracts_real_synthetic_oci_layout(
     assert json.loads((destination / "oci-layout").read_text()) == {"imageLayoutVersion": "1.0.0"}
 
 
+def test_prometheus_transport_accepts_single_nested_apple_saved_oci_index(
+    tmp_path: Path,
+) -> None:
+    transport = prometheus_candidate.transport
+    parsed = transport.parse_oci_archive(
+        _synthetic_oci_archive(tmp_path, "nested"),
+        max_archive_bytes=1024 * 1024,
+        max_members=32,
+        max_metadata_bytes=1024 * 1024,
+    )
+    assert parsed.platform == "linux/amd64"
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -1583,6 +1786,9 @@ def test_prometheus_transport_parses_and_extracts_real_synthetic_oci_layout(
         "traversal",
         "symlink",
         "duplicate-member",
+        "nested-extra-manifest",
+        "nested-platform-mismatch",
+        "nested-bad-digest",
     ),
 )
 def test_prometheus_transport_rejects_malformed_oci_archives(
