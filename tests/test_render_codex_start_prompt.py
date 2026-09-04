@@ -284,7 +284,7 @@ def test_packet_role_order_rejects_malformed_legacy_creative_context(
     packet = _synthesis_packet()
     packet["schema_version"] = "3.0"
     packet.pop("invariant_review")
-    packet["automation_flags"].pop("invariant_class_review_required")
+    cast(dict[str, Any], packet["automation_flags"]).pop("invariant_class_review_required")
     packet["creative_pilot_context"] = creative_context
 
     with pytest.raises(codex_prompt.PromptError) as exc_info:
@@ -601,6 +601,16 @@ def test_packet_prompt_renders_prepared_evidence_sidecar_without_dispatch_drift(
     assert "true -> referenced + full sha256 fingerprint" in prompt
     assert "true -> unknown + null" in prompt
     assert "no review, CI, merge, release" in prompt
+    assert (
+        "reuse the exact applicable_rails set from the validated start receipt when one exists"
+        in prompt
+    )
+    legacy_prepare = next(line for line in prompt.splitlines() if line.startswith("Prepare:"))
+    assert legacy_prepare.endswith(
+        "--applicable-rail experiment_runner [--applicable-rail teleology] "
+        "[--applicable-rail euler]"
+    )
+    assert "not an exact replay" in prompt
 
 
 @pytest.mark.parametrize("state", ["unavailable", "invalid"])
@@ -616,6 +626,17 @@ def test_packet_prompt_renders_nonprepared_sidecar_without_commands(state: str) 
     assert "Structural local receipt only" in prompt
     assert "Manual recovery prepare:" in prompt
     assert "--packet packet.json --base-sha <lowercase-40-sha>" in prompt
+    assert (
+        "reuse the exact applicable_rails set from the validated start receipt when one exists"
+        in prompt
+    )
+    recovery = next(
+        line for line in prompt.splitlines() if line.startswith("Manual recovery prepare:")
+    )
+    assert recovery.endswith(
+        "--applicable-rail experiment_runner [--applicable-rail teleology] "
+        "[--applicable-rail euler]"
+    )
 
 
 @pytest.mark.parametrize(
@@ -810,6 +831,7 @@ def test_packet_cli_cross_binds_applicability_and_renders_before_role_order(
         "--applicable-rail euler --applicable-rail experiment_runner " "--applicable-rail teleology"
     )
     assert "[--applicable-rail" not in recovery
+    assert "Legacy recovery rule:" not in captured.out
 
 
 def test_packet_cli_rejects_stale_projection_before_partial_prompt(

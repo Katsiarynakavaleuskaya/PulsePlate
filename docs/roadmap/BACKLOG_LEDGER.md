@@ -450,8 +450,52 @@ If it is not recorded here — it does not exist.
     integration as one PR. Preserve the existing additive sidecar flag and do
     not rewrite or delete prior immutable local sidecar receipts.
   - Deferred / follow-ups:
+    - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
     - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
     - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
+- [ ] P1: Add one producer-owned canonical task-packet identity verifier
+  - Owner: agent-coordinator / dev-operator
+  - Priority: P1 (task-packet identity integrity / parser-authority parity)
+  - Target PR: `PR-TBD`
+  - Status: Deferred from ORCH-RAIL-1; no identity recomputation is added in
+    the bounded applicability carrier.
+  - Area: orchestration / task bootstrap / packet validation
+  - Reason (EN): ORCH-RAIL-1 safely fingerprints the exact bytes it reads and
+    cross-binds the captured projection to that snapshot, but this continuity
+    begins at the safe read. It cannot authenticate bytes already changed by
+    the same local UID before the read, and filename/id equality cannot detect
+    a stale producer id after a pre-existing packet mutation. Reimplementing
+    task-packet identity derivation in the applicability consumer would create
+    a second authority and drift from the v1/v2 producer semantics owned by
+    `task_bootstrap.py`.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/context_pack.py`
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - one public producer-owned pure verifier recomputes and validates the
+      canonical task-packet identity for every supported v1 and v2 invariant
+      review shape without importing consumer policy into the producer
+    - `task_bootstrap.py` uses that verifier before packet publication and
+      `evidence_rail_applicability.py` reuses the same verifier after its bounded
+      descriptor-safe read; neither module carries a second derivation
+    - authentic producer packets retain byte-for-byte compatible ids, while a
+      packet whose identity-bearing fields changed under a stale id fails
+      closed before treatment selection, sidecar preparation, or prompt output
+    - validation covers phase-stable invariant identity, design fingerprints,
+      requested roles and candidate-path ordering, rejects unknown v1/v2
+      variants, and preserves the existing task-packet schema
+    - deterministic producer/consumer parity, authentic v1/v2, stale-id,
+      pre-read mutation, replay, and negative-shape tests document that a fully
+      self-consistent same-UID rewrite remains outside cryptographic
+      authenticity claims
+    - the verifier grants no routing, execution, review, CI, sidecar, merge,
+      release, promotion, causality, outcome, or other authority; every
+      applicability authority field remains literal `false`
 
 <a id="ledger-p2-evidence-rail-manual-downshift"></a>
 - [ ] P2: Add a human-authorized evidence-rail manual downshift contract

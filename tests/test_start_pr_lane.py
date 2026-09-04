@@ -40,6 +40,20 @@ def run_start(
     )
 
 
+def run_start_with_system_bash(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the starter with macOS system Bash 3.2, not PATH discovery."""
+
+    return subprocess.run(
+        ["/bin/bash", str(START_SCRIPT), *args],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+        env=os.environ.copy(),
+    )
+
+
 def _required_args() -> tuple[str, ...]:
     return (
         "--goal",
@@ -180,6 +194,36 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
         "security-auditor, qa-engineer-agent, bug-hunter, dev-operator"
     ) in result.stdout
     assert "automatically start" not in result.stdout.lower()
+
+
+def test_system_bash_dry_run_handles_empty_additive_rail_array() -> None:
+    result = run_start_with_system_bash(*_required_args(), "--dry-run")
+
+    assert result.returncode == 0, result.stderr
+    assert "Requested additive evidence rails: <none>" in result.stdout
+    assert "--additive-rail" not in next(
+        line
+        for line in result.stdout.splitlines()
+        if "evidence_rail_applicability.py build" in line
+    )
+
+
+def test_system_bash_dry_run_accepts_first_additive_rail() -> None:
+    result = run_start_with_system_bash(
+        *_required_args(),
+        "--evidence-sidecar-rail",
+        "teleology",
+        "--dry-run",
+    )
+
+    assert result.returncode == 0, result.stderr
+    build_line = next(
+        line
+        for line in result.stdout.splitlines()
+        if "evidence_rail_applicability.py build" in line
+    )
+    assert build_line.count("--additive-rail teleology") == 1
+    assert "Requested additive evidence rails: teleology" in result.stdout
 
 
 def _valid_sidecar_prepare_payload() -> dict[str, object]:

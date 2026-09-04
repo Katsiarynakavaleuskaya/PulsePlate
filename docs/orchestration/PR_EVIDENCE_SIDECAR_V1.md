@@ -53,9 +53,10 @@ descriptor reads with no-follow semantics and reject linked or replaced paths.
 ## Commands
 
 ```bash
-$VENV_PYTHON scripts/orchestration/evidence_rail_applicability.py build \
-  --packet artifacts/orchestration/task_packets/<id>.json \
-  [--additive-rail teleology|euler|experiment_runner]
+APPLICABILITY_JSON="$(
+  $VENV_PYTHON scripts/orchestration/evidence_rail_applicability.py build \
+    --packet artifacts/orchestration/task_packets/<id>.json
+)"
 
 printf '%s\n' "$APPLICABILITY_JSON" | \
   $VENV_PYTHON scripts/orchestration/evidence_rail_applicability.py validate \
@@ -76,6 +77,11 @@ $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py validate \
 
 $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py report
 ```
+
+When an operator explicitly requests an additive upgrade, append one or more
+`--additive-rail teleology|euler|experiment_runner` arguments inside the quoted
+`build` command substitution. The captured projection stays in one local shell
+value and reaches `validate` only through stdin.
 
 `prepare` accepts repeatable applicability rails from the closed set
 `teleology`, `euler`, and `experiment_runner`. Direct callers remain responsible
@@ -132,6 +138,16 @@ noncanonical, oversized, malformed, contradictory, or unbound projection fails
 closed without a partial `Paste into Codex now:` block. This protects the
 cooperative local workflow against packet replacement before rendering; it does
 not widen the sidecar's documented same-UID threat model.
+
+The raw fingerprint continuity begins only when the descriptor-safe packet read
+starts. It detects later replacement or drift relative to that snapshot, but it
+does not authenticate packet bytes already changed by the same local UID before
+the read and does not prove that a pre-existing `task_packet_id` still matches
+the producer's v1/v2 identity semantics. ORCH-RAIL-1 therefore makes no
+historical-integrity or producer-authenticity claim. One shared producer-owned
+identity verifier for bootstrap and applicability is tracked as
+[P1 canonical task-packet identity verifier](../roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier).
+All applicability and sidecar authority fields remain literal `false`.
 
 ## Terminal truth
 

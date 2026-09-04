@@ -284,6 +284,14 @@ worktree. A valid design packet may produce `Creative: recommend`, but a later
 human-approved packet/routing change is required before `creative-designer`
 can become a mandatory role pass.
 
+Raw packet-fingerprint continuity starts at the descriptor-safe applicability
+read. It is not historical authentication of bytes already changed by the same
+local UID, and filename/id equality is not producer-semantic identity
+recomputation. A shared v1/v2 producer-owned verifier is explicitly deferred to
+[the canonical task-packet identity follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier).
+The current projection remains selection-only with every authority field
+literal `false`.
+
 ### Local rollout (outside repo PR chain)
 
 Operator path today (repo companion, **not** a guarantee of raw-session auto-start):

@@ -268,12 +268,14 @@ while [[ $# -gt 0 ]]; do
                 *) die_usage "--evidence-sidecar-rail must be one of: teleology, euler, experiment_runner" ;;
             esac
             sidecar_rail_seen=0
-            for existing_rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-                if [[ "${existing_rail}" == "$2" ]]; then
-                    sidecar_rail_seen=1
-                    break
-                fi
-            done
+            if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+                for existing_rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+                    if [[ "${existing_rail}" == "$2" ]]; then
+                        sidecar_rail_seen=1
+                        break
+                    fi
+                done
+            fi
             if [[ "${sidecar_rail_seen}" -eq 0 ]]; then
                 EVIDENCE_SIDECAR_RAILS+=("$2")
             fi
@@ -420,9 +422,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     done
     printf "\n"
     printf "Would run in worktree after bootstrap: %q scripts/orchestration/evidence_rail_applicability.py build --packet '<bootstrap-packet>'" "${REPO_PYTHON}"
-    for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-        printf " --additive-rail %q" "${rail}"
-    done
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            printf " --additive-rail %q" "${rail}"
+        done
+    fi
     printf "\n"
     printf "Would validate the captured applicability JSON through stdin and derive one closed sidecar mask.\n"
     printf "Would run in worktree after validation: %q scripts/orchestration/pr_evidence_sidecar.py prepare --packet '<bootstrap-packet>' --base-sha '<worktree-HEAD>' --applicable-rail '<validated-mask-rails>'\n" "${REPO_PYTHON}"
@@ -445,9 +449,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     if ((${#REQUESTED_ARGS[@]})); then
         prompt_cmd+=("${REQUESTED_ARGS[@]}")
     fi
-    for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-        prompt_cmd+=(--evidence-sidecar-rail "${rail}")
-    done
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            prompt_cmd+=(--evidence-sidecar-rail "${rail}")
+        done
+    fi
     "${prompt_cmd[@]}"
     exit 0
 fi
@@ -513,9 +519,11 @@ PY
         "${REPO_PYTHON}" scripts/orchestration/evidence_rail_applicability.py build
         --packet "${BOOTSTRAP_PACKET_PATH}"
     )
-    for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-        applicability_cmd+=(--additive-rail "${rail}")
-    done
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            applicability_cmd+=(--additive-rail "${rail}")
+        done
+    fi
     if ! APPLICABILITY_JSON="$("${applicability_cmd[@]}")"; then
         die "evidence rail applicability build failed"
     fi

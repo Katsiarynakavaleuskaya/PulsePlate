@@ -205,14 +205,23 @@ def _sidecar_prompt_lines(
         f"PR evidence sidecar v1: state={state}; id={sidecar_id or '<none>'}.",
         EVIDENCE_SIDECAR_DISCLAIMER,
     ]
-    exact_rail_flags = " ".join(
-        f"--applicable-rail {rail}" for rail in (applicable_rails or ("experiment_runner",))
-    )
+    if applicable_rails is None:
+        rail_flags = (
+            "--applicable-rail experiment_runner "
+            "[--applicable-rail teleology] [--applicable-rail euler]"
+        )
+        lines.append(
+            "Legacy recovery rule: reuse the exact applicable_rails set from the validated "
+            "start receipt when one exists; bracketed flags are compatibility syntax, not "
+            "an exact replay."
+        )
+    else:
+        rail_flags = " ".join(f"--applicable-rail {rail}" for rail in applicable_rails)
     if state != "prepared":
         lines.append(
             "Manual recovery prepare: $VENV_PYTHON scripts/orchestration/"
             f"pr_evidence_sidecar.py prepare --packet {_shell_quote(packet_path)} "
-            f"--base-sha <lowercase-40-sha> {exact_rail_flags}"
+            f"--base-sha <lowercase-40-sha> {rail_flags}"
         )
         return lines
     start_path = (
@@ -224,7 +233,7 @@ def _sidecar_prompt_lines(
             f"Sidecar start receipt: {start_path}",
             "Prepare: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py "
             f"prepare --packet {_shell_quote(packet_path)} "
-            f"--base-sha <lowercase-40-sha> {exact_rail_flags}",
+            f"--base-sha <lowercase-40-sha> {rail_flags}",
             f"Finalize: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py finalize --sidecar-id {sidecar_id} --terminal-input <repo-relative-terminal-input.json>",
             f"Validate: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py validate --sidecar-id {sidecar_id}",
             "Report: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py report",

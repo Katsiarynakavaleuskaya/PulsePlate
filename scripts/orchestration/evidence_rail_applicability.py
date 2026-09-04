@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -231,6 +232,16 @@ def _validate_json_complexity(value: Any) -> None:
             stack.extend((item, depth + 1) for item in current)
 
 
+def _parse_finite_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise EvidenceRailApplicabilityError("INVALID_INPUT") from exc
+    if not math.isfinite(parsed):
+        _error()
+    return parsed
+
+
 def _strict_json_bytes(raw: bytes, *, limit: int) -> Any:
     if not raw or len(raw) > limit or raw.startswith(b"\xef\xbb\xbf"):
         _error()
@@ -239,6 +250,7 @@ def _strict_json_bytes(raw: bytes, *, limit: int) -> Any:
         decoder = json.JSONDecoder(
             object_pairs_hook=_reject_duplicate,
             parse_constant=lambda _value: _error(),
+            parse_float=_parse_finite_float,
         )
         value, end = decoder.raw_decode(text)
     except EvidenceRailApplicabilityError:

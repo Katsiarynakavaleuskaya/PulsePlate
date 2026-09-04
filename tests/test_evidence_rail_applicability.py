@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import FrozenInstanceError
 import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 import uuid
 
 import pytest
@@ -50,14 +51,17 @@ def _base_packet(
     invariant_change_classes: list[str] | None = None,
     **design: Any,
 ) -> dict[str, Any]:
-    return task_bootstrap.build_task_packet(
-        goal=goal,
-        task_class=task_class,
-        candidate_paths=candidate_paths or ["core/example.py"],
-        pr_phase=pr_phase,
-        invariant_change_classes=invariant_change_classes or [],
-        telemetry_path=tmp_path / "missing-telemetry.json",
-        **design,
+    return cast(
+        dict[str, Any],
+        task_bootstrap.build_task_packet(
+            goal=goal,
+            task_class=task_class,
+            candidate_paths=candidate_paths or ["core/example.py"],
+            pr_phase=pr_phase,
+            invariant_change_classes=invariant_change_classes or [],
+            telemetry_path=tmp_path / "missing-telemetry.json",
+            **design,
+        ),
     )
 
 
@@ -85,7 +89,7 @@ def _snapshot(
 
 
 def _treatments(result: applicability.EvidenceRailApplicability) -> dict[str, Any]:
-    return result.to_mapping()["treatments"]
+    return cast(dict[str, Any], result.to_mapping()["treatments"])
 
 
 def _canonical_v2_packet() -> dict[str, Any]:
@@ -113,15 +117,18 @@ def _canonical_v2_packet() -> dict[str, Any]:
         ).encode("ascii")
     )
     try:
-        return task_bootstrap.build_task_packet(
-            goal="Review a canonical repeated invariant family",
-            task_class="Orchestration",
-            candidate_paths=["core/example.py"],
-            pr_phase="post_open_review",
-            review_invariant_family_relations_input=input_path.relative_to(
-                task_bootstrap.REPO_ROOT
-            ).as_posix(),
-            telemetry_path=task_bootstrap.REPO_ROOT / "artifacts/missing-telemetry.json",
+        return cast(
+            dict[str, Any],
+            task_bootstrap.build_task_packet(
+                goal="Review a canonical repeated invariant family",
+                task_class="Orchestration",
+                candidate_paths=["core/example.py"],
+                pr_phase="post_open_review",
+                review_invariant_family_relations_input=input_path.relative_to(
+                    task_bootstrap.REPO_ROOT
+                ).as_posix(),
+                telemetry_path=task_bootstrap.REPO_ROOT / "artifacts/missing-telemetry.json",
+            ),
         )
     finally:
         input_path.unlink(missing_ok=True)
@@ -251,7 +258,8 @@ def test_public_design_packet_projection_is_frozen_and_packet_local(
         enabled=True,
         execution_ready=True,
     )
-    assert projection.__dataclass_params__.frozen is True
+    with pytest.raises(FrozenInstanceError):
+        setattr(projection, "mode", "read_only")
 
 
 def test_execution_ready_design_contract_requires_exact_design_task_label(
@@ -610,6 +618,42 @@ def test_reader_rejects_strict_json_failures(packet_root: Path, raw: bytes) -> N
 
     with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
         read_task_packet_snapshot("artifacts/orchestration/task_packets/aaaaaaaaaaaa.json")
+
+
+@pytest.mark.parametrize("overflow_number", ("1e999", "-1e999"))
+def test_strict_json_rejects_finite_overflow_numbers(
+    packet_root: Path,
+    tmp_path: Path,
+    overflow_number: str,
+) -> None:
+    producer_packet = _base_packet(tmp_path, candidate_paths=["core/example.py"])
+    raw_packet = copy.deepcopy(producer_packet)
+    raw_packet["task_packet_id"] = "aaaaaaaaaaaa"
+    canonical_packet = json.dumps(
+        raw_packet,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    overflow_packet = (canonical_packet[:-1] + f',"unused_overflow":{overflow_number}}}\n').encode(
+        "ascii"
+    )
+    (packet_root / "aaaaaaaaaaaa.json").write_bytes(overflow_packet)
+
+    with pytest.raises(EvidenceRailApplicabilityError) as packet_error:
+        read_task_packet_snapshot("artifacts/orchestration/task_packets/aaaaaaaaaaaa.json")
+    assert packet_error.value.category == "INVALID_INPUT"
+
+    snapshot = _snapshot(
+        packet_root,
+        producer_packet,
+        salt=f"captured-overflow-{overflow_number}",
+    )
+    canonical_projection = canonical_evidence_rail_json(build_evidence_rail_applicability(snapshot))
+    overflow_projection = canonical_projection[:-1] + f',"unused_overflow":{overflow_number}}}'
+    with pytest.raises(EvidenceRailApplicabilityError) as projection_error:
+        validate_evidence_rail_applicability(overflow_projection, snapshot)
+    assert projection_error.value.category == "INVALID_INPUT"
 
 
 def test_reader_rejects_excessive_depth_and_candidate_paths(
