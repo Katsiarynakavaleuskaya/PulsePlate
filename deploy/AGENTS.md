@@ -247,7 +247,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   Trivy scan of the validated extracted OCI layout. Apple Container 1.1.0 local
   evidence uses one absent exact temporary tag, local build, exact linux/amd64
   `image save`, and `finally` cleanup; direct or single nested OCI indexes are
-  closed and digest-verified. Underprovisioned or drifting builder resources,
+  closed and digest-verified. The Containerfile keeps Node at a 2048-MiB heap
+  ceiling and both Go builds at `GOMAXPROCS=2`, `GOMEMLIMIT=3GiB`, and `-p=1`;
+  raising builder memory is not a substitute for these deterministic ceilings.
+  Underprovisioned or drifting builder resources,
   preexisting/ambiguous tags, cleanup failures, extra OCI descriptors/members,
   empty/wrong-target coverage, and ambient Trivy policy inputs fail closed.
 

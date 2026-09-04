@@ -54,7 +54,10 @@ contexts containing only the verified Containerfile. Before and after each
 build, the controller requires and binds a live builder with exactly four CPUs
 and 6 GiB memory; an underprovisioned builder is `HOLD` before build execution.
 Each exact absolute argv uses linux/amd64, the same resource values, no cache,
-and plain progress. Apple Container 1.1.0 cannot create the requested host
+and plain progress. The recipe caps the Node heap at 2048 MiB and serializes Go
+package compilation with `GOMAXPROCS=2`, `GOMEMLIMIT=3GiB`, and `-p=1` on both
+binaries so concurrent host load cannot turn a nominal 6-GiB builder into a
+nondeterministic allocation failure. Apple Container 1.1.0 cannot create the requested host
 archive through BuildKit `type=oci,dest=...`, so the private transport uses the
 CLI's supported local-image path: require the exact temporary tag to be absent,
 build it into the local image store, save exactly linux/amd64 as an
@@ -80,6 +83,7 @@ The controller—not the transport—accepts and compares:
 - gzip content-tree evidence and EmbedFS hash;
 - exact Apple builder image digest and normalized pre/post builder status,
   including four CPUs and 6 GiB memory;
+- exact Node and Go compiler memory/concurrency ceilings;
 - exact Trivy executable/version/fresh database identity and normalized report
   digest after scanning the validated, privately extracted OCI layout;
 - positive OS, `/bin/prometheus`, and `/bin/promtool` package coverage, with

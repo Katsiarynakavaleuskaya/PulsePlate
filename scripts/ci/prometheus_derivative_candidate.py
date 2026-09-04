@@ -39,7 +39,7 @@ OFFICIAL_RUNTIME_REF = (
     "84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"  # pragma: allowlist secret
 )
 EXPECTED_CONTAINERFILE_SHA256 = (
-    "060abcf94adc76a4dba3b663dfb15576096ff168922e1482c4b3fd880a1f1f07"  # pragma: allowlist secret
+    "cc2e6d651d38b798a61dbab60c657cc0e4fd29579dcd6a73501840e1f55a2790"  # pragma: allowlist secret
 )
 EXPECTED_SELECTOR_SHA256 = (
     "06e312ed9efe5ec96a582e7a1ee1291dc02c451f773fb6756fb411ef18ece457"  # pragma: allowlist secret

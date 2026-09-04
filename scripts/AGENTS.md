@@ -45,7 +45,9 @@
   advance. Apple Container 1.1.0 evidence must use an absent exact local tag,
   local build, exact-platform `image save`, closed direct-or-single-nested OCI
   parsing, and `finally` cleanup rather than the broken BuildKit
-  `type=oci,dest=...` host export. `CONTAINER_HOST` is forbidden. Trivy scans
+  `type=oci,dest=...` host export. The subordinate recipe must retain its exact
+  Node 2048-MiB heap cap and serialized Go `GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/
+  `-p=1` ceilings. `CONTAINER_HOST` is forbidden. Trivy scans
   only a validated extracted OCI layout with a fresh private database cache,
   explicit empty policy inputs, positive OS/prometheus/promtool coverage, and
   zero HIGH/CRITICAL findings.

@@ -82,6 +82,7 @@ export npm_config_cache=/tmp/pnpm-npm-cache
 export XDG_CACHE_HOME=/tmp/pnpm-xdg-cache
 export XDG_CONFIG_HOME=/tmp/pnpm-xdg-config
 export XDG_DATA_HOME=/tmp/pnpm-xdg-data
+export NODE_OPTIONS=--max-old-space-size=2048
 pnpm --dir "${ui_root}/web/ui" install \
   --frozen-lockfile \
   --store-dir /tmp/pnpm-store
@@ -155,6 +156,8 @@ printf 'PULSEPLATE_GZIP_TREE_SHA256=%s\n' \
 printf 'PULSEPLATE_EMBED_GO_SHA256=%s\n' \
   "$(sha256sum web/ui/embed.go | cut -d' ' -f1)"
 
+export GOMAXPROCS=2
+export GOMEMLIMIT=3GiB
 go mod verify
 go mod edit -require=google.golang.org/grpc@v1.83.1
 go mod tidy -go=1.26.0 -compat=1.26
@@ -187,6 +190,7 @@ version_ldflags="-s -w \
   -X github.com/prometheus/common/version.BuildUser=pulseplate@pr-2347 \
   -X github.com/prometheus/common/version.BuildDate=20260830-08:50:47"
 go build \
+  -p=1 \
   -mod=readonly \
   -trimpath \
   -buildvcs=false \
@@ -195,6 +199,7 @@ go build \
   -o /out/prometheus \
   ./cmd/prometheus
 go build \
+  -p=1 \
   -mod=readonly \
   -trimpath \
   -buildvcs=false \

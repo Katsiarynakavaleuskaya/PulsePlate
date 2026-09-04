@@ -398,6 +398,10 @@ def test_prometheus_candidate_containerfile_is_one_bounded_subordinate_recipe() 
     assert "gzip --decompress --stdout" in containerfile
     assert "PULSEPLATE_GZIP_TREE_SHA256" in containerfile
     assert "PULSEPLATE_EMBED_GO_SHA256" in containerfile
+    assert "export NODE_OPTIONS=--max-old-space-size=2048" in containerfile
+    assert "export GOMAXPROCS=2" in containerfile
+    assert "export GOMEMLIMIT=3GiB" in containerfile
+    assert containerfile.count("  -p=1 \\\n") == 2
     final = containerfile.split(
         "FROM docker.io/prom/prometheus@sha256:"
         "84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",  # pragma: allowlist secret
