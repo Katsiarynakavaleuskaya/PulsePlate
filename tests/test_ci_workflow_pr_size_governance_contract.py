@@ -3778,6 +3778,14 @@ IOS_APPSTORE_VERIFY_STEP_NAME = "iOS App Store repo-local verification"
 IOS_APPSTORE_VERIFY_COMMAND = "python3 scripts/release/check_ios_appstore_verify.py"
 IOS_UNIT_STEP_NAME = "iOS tests (project-based, app scheme)"
 IOS_RELEASE_BUILD_STEP_NAME = "iOS Release simulator build (unsigned)"
+IOS_TESTS_JOB_IF = (
+    "needs.changes.outputs.ios == 'true' && (\n"
+    "  github.event_name == 'pull_request' ||\n"
+    "  (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || "
+    "startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, "
+    "'refs/heads/feature/') || github.ref == 'refs/heads/main'))\n"
+    ")\n"
+)
 # SHA-256 of the exact yaml.safe_load() Release run scalar; no normalization is permitted.
 IOS_RELEASE_BUILD_RUN_SHA256 = (
     "c3aa3d5582fa3e4261156f9f4aaa8acfbc4d34641bf8842fa3c10b94468910bb"  # pragma: allowlist secret
@@ -3792,7 +3800,8 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     ios_tests = jobs["ios-tests"]
     assert isinstance(ios_tests, dict)
     assert ios_tests["needs"] == ["changes"]
-    assert "needs.changes.outputs.ios == 'true'" in str(ios_tests["if"])
+    assert ios_tests["if"] == IOS_TESTS_JOB_IF
+    assert "continue-on-error" not in ios_tests
     assert ios_tests["timeout-minutes"] == (
         "${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}"
     )
@@ -3825,11 +3834,14 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
 
     unit_step = steps[unit_index]
     assert isinstance(unit_step, dict)
+    assert set(unit_step) == {"name", "working-directory", "env", "run"}
     unit_run = unit_step["run"]
     assert isinstance(unit_run, str)
     assert unit_run.index('"xcodebuild", "build-for-testing"') < unit_run.index(
         '"xcodebuild", "test-without-building"'
     )
+    assert "result = subprocess.run(cmd, timeout=600, check=True)" in unit_run
+    assert "subprocess.run(cmd, timeout=900, check=True)" in unit_run
 
     release_step = steps[release_index]
     assert isinstance(release_step, dict)
@@ -3886,6 +3898,57 @@ def test_ios_appstore_validator_stays_single_blocking_before_unit_run(mutation: 
         steps[validator_index]["continue-on-error"] = True
     else:
         steps[validator_index]["run"] = f"{IOS_APPSTORE_VERIFY_COMMAND} || true"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "unit-continue-on-error",
+        "unit-if-false",
+        "build-check-false",
+        "test-check-false",
+        "job-continue-on-error",
+        "job-if-forced-false",
+    ),
+)
+def test_ios_unit_and_job_reject_false_green_blocking_mutations(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    unit_step = next(step for step in steps if step.get("name") == IOS_UNIT_STEP_NAME)
+    assert isinstance(unit_step, dict)
+
+    if mutation == "unit-continue-on-error":
+        unit_step["continue-on-error"] = True
+    elif mutation == "unit-if-false":
+        unit_step["if"] = "false"
+    elif mutation == "build-check-false":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            "result = subprocess.run(cmd, timeout=600, check=False)",
+            1,
+        )
+    elif mutation == "test-check-false":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "subprocess.run(cmd, timeout=900, check=True)",
+            "subprocess.run(cmd, timeout=900, check=False)",
+            1,
+        )
+    elif mutation == "job-continue-on-error":
+        ios_tests["continue-on-error"] = True
+    else:
+        ios_tests["if"] = f"{IOS_TESTS_JOB_IF.rstrip()} && false\n"
 
     with pytest.raises(AssertionError):
         _assert_ios_release_build_contract(workflow)
