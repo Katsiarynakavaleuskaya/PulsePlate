@@ -288,6 +288,9 @@ case "$1" in
     ;;
   rev-list) printf '0\\t0\\n'; exit 0 ;;
   worktree)
+    if [[ -n "${WORKTREE_MARKER_PATH:-}" ]]; then
+      printf 'created\n' > "${WORKTREE_MARKER_PATH}"
+    fi
     mkdir -p "$5/scripts/orchestration"
     touch "$5/scripts/orchestration/pr_evidence_sidecar.py"
     if [[ "${CREATE_APPLICABILITY_HELPER:-1}" == "1" ]]; then
@@ -381,6 +384,7 @@ esac
     env["VENV_PYTHON"] = str(python_stub)
     env["APPLICABILITY_MODE"] = applicability_mode
     env["CREATE_APPLICABILITY_HELPER"] = "1" if applicability_helper_present else "0"
+    env["WORKTREE_MARKER_PATH"] = str(tmp_path / "worktree-created.txt")
     if assert_projection_not_exported:
         if preexported_projection_sentinel:
             env["APPLICABILITY_JSON"] = "sentinel-preexported-projection"
@@ -646,7 +650,9 @@ def test_invalid_applicability_output_blocks_sidecar_and_prompt(
     assert "Paste into Codex now:" not in result.stdout
 
 
-def test_missing_applicability_helper_blocks_sidecar_and_prompt(tmp_path: Path) -> None:
+def test_missing_applicability_helper_retains_diagnostic_worktree_before_blocking(
+    tmp_path: Path,
+) -> None:
     result, _ = _run_execute_path_with_sidecar_payload(
         tmp_path,
         _valid_sidecar_prepare_payload(),
@@ -655,6 +661,7 @@ def test_missing_applicability_helper_blocks_sidecar_and_prompt(tmp_path: Path) 
 
     assert result.returncode == 1
     assert "evidence rail applicability helper is unavailable after bootstrap" in result.stderr
+    assert (tmp_path / "worktree-created.txt").read_text(encoding="utf-8") == "created\n"
     assert not (tmp_path / "sidecar-args.txt").exists()
     assert "Paste into Codex now:" not in result.stdout
 

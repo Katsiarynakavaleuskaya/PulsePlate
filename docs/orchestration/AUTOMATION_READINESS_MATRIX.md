@@ -292,6 +292,17 @@ recomputation. A shared v1/v2 producer-owned verifier is explicitly deferred to
 The current projection remains selection-only with every authority field
 literal `false`.
 
+ORCH-RAIL-1 also keeps three intentional fail-closed compatibility boundaries.
+A schema-valid producer packet with more than 256 canonical candidate paths is
+outside the bounded v1 consumer and fails before sidecar or prompt output; it
+does not become a conservative result. An enabled design packet that still
+carries `missing_design_trigger` is contradictory and fails even if an older
+producer accepted that caller-supplied blocker. Finally, a selected historical
+base that predates the applicability helper cannot execute this new startup
+path. When either post-bootstrap condition is discovered, the starter preserves
+the created worktree and packet for diagnosis as required; it does not roll
+back or reinterpret the lane.
+
 ### Local rollout (outside repo PR chain)
 
 Operator path today (repo companion, **not** a guarantee of raw-session auto-start):

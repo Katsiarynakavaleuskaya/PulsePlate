@@ -637,11 +637,43 @@ def test_reader_rejects_excessive_depth_and_candidate_paths(
     with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
         read_task_packet_snapshot("artifacts/orchestration/task_packets/aaaaaaaaaaaa.json")
 
-    packet = _base_packet(tmp_path, candidate_paths=["core/example.py"])
-    packet["candidate_paths"] = [f"docs/item-{index}.md" for index in range(257)]
-    raw_path = _write_packet(packet_root, packet, salt="too-many-paths")
+    bounded_packet = _base_packet(
+        tmp_path,
+        candidate_paths=[f"docs/item-{index}.md" for index in range(256)],
+    )
+    bounded_snapshot = _snapshot(packet_root, bounded_packet, salt="bounded-paths")
+    assert len(bounded_snapshot.packet["candidate_paths"]) == 256
+
+    producer_packet = _base_packet(
+        tmp_path,
+        candidate_paths=[f"docs/item-{index}.md" for index in range(257)],
+    )
+    assert len(producer_packet["candidate_paths"]) == 257
+    raw_path = _write_packet(packet_root, producer_packet, salt="too-many-paths")
     with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
         read_task_packet_snapshot(raw_path)
+
+
+def test_enabled_design_packet_rejects_missing_trigger_blocker(
+    packet_root: Path,
+    tmp_path: Path,
+) -> None:
+    producer_packet = _base_packet(
+        tmp_path,
+        goal="Reject a contradictory enabled design packet",
+        task_class="Design",
+        candidate_paths=["docs/design/example.md"],
+        design_source="code_native_brief",
+        target_surface="web-home",
+        task_mode="verify",
+        design_blockers=["missing_design_trigger"],
+        code_native_design_brief_path="docs/design/example.md",
+    )
+    assert producer_packet["automation_flags"]["design_lane_enabled"] is True
+    assert producer_packet["design_lane_contract"]["blockers"] == ["missing_design_trigger"]
+
+    with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
+        _snapshot(packet_root, producer_packet, salt="contradictory-missing-trigger")
 
 
 def test_reader_rejects_file_symlink_hardlink_fifo_and_id_mismatch(
