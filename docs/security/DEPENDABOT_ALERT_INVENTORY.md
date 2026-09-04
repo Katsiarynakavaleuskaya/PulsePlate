@@ -1,11 +1,11 @@
 <!-- markdownlint-disable MD013 MD031 MD032 -->
 
-# Dependabot open alert inventory - 2026-09-03
+# Dependabot open alert inventory - 2026-09-04
 
 ## Snapshot boundary
 
 This is the complete authenticated open-alert census observed at
-`2026-09-03T03:39:19Z` using all REST pagination:
+`2026-09-04T10:44:52Z` using all REST pagination:
 
 ```text
 GET /repos/Katsiarynakavaleuskaya/PulsePlate/dependabot/alerts
@@ -28,7 +28,7 @@ The alert payload reports development scope, severity HIGH, affected range
 `<=4.28.6`, first patched version `4.28.7`, state `open`, and no fixed or
 dismissed timestamp. The complete two-identity scanner and Advisory Database
 receipt is owned by
-`docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:61`. It contains all
+`docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:63`. It contains all
 three Browserslist records and all ten qs records / twenty-one qs range rows,
 including the retained withdrawn `GHSA-crvj-3gj9-gm2p` record.
 

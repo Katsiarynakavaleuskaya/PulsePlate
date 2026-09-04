@@ -30,18 +30,19 @@ For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 The exact authorized base and merge-base are:
 
 ```text
-2bfb7ff96dfcc98a806de9c113eff5242bfbe479
+863d16ea2328dd32fa6fec6cef4d8f117b6edf85
 ```
 
 The dependency/guard and false-green test material head preceding this final
 batch-evidence refresh is:
 
 ```text
-939a5be9f8ccdbe4c8dbca8c8d9b8787bee786f1
+6897a711cb8d92864ec0cfd7a1c9d68e7dff1a21
 ```
 
-Generated detect-secrets line-number refresh is isolated in
-`423a96c21a10c090543a2a9d460bce91a53668ff`. The tracked surface enumerator at
+This material head contains the ancestry-preserving base sync plus the refreshed
+npm-generated resolver closure. Generated detect-secrets line-number refreshes
+remain isolated in their dedicated hook commits. The tracked surface enumerator at
 `tests/test_frontend_dependency_guards.py:1108` discovers exactly five
 base/head npm surfaces:
 
@@ -50,7 +51,7 @@ base/head npm surfaces:
 | `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | same | executable absence; unchanged |
 | `package-lock.json` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | same | executable absence; unchanged |
 | `frontend/package.json` | `234beaabd47ec019090e28a26cc4e56fdda4b745d5d75c89c12ec958a03eed5d` | same | no direct batch owner; unchanged |
-| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0` | two `I_R` plus Browserslist `C_R` |
+| `frontend/package-lock.json` | `3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae` | `4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615` | two `I_R` plus Browserslist `C_R` |
 | `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | same | executable absence; unchanged |
 
 Base occurrences are `browserslist@4.28.2` and `qs@6.15.2`, both in
@@ -69,6 +70,19 @@ vulnerable frontend identities. Its canonical SHA-256 is:
 ```text
 c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4
 ```
+
+That immutable scanner receipt retains its original audited base
+`2bfb7ff96dfcc98a806de9c113eff5242bfbe479`. The synchronized base
+`863d16ea2328dd32fa6fec6cef4d8f117b6edf85` has byte-identical contents for
+all five governed npm surfaces, including the vulnerable base lock SHA-256
+`3584251c809e21a7d2606cbce3d904c8b90e591bb87818d744c5262ce017daae`.
+At `2026-09-04T10:44:52Z`, authenticated GAD and Dependabot pagination again
+returned the exact `3/3` Browserslist, `10/21` qs, and sole open alert `#273`
+projections. A fresh root-lock audit exited `0` with zero findings. Two bounded
+fresh frontend base-audit attempts timed out at 120 and 180 seconds, so no new
+frontend base-audit timestamp or PASS is claimed; base applicability remains
+bound by the byte-identical retained receipt plus the fresh unchanged GAD
+ranges.
 
 Canonical batch receipt SHA-256:
 
@@ -487,12 +501,13 @@ vulnerability. All twenty-one row boundaries are executable at
 Runtime and configuration:
 
 ```text
-base: 2bfb7ff96dfcc98a806de9c113eff5242bfbe479
+base: 863d16ea2328dd32fa6fec6cef4d8f117b6edf85
 node: v24.18.1
 npm: 11.16.0
 registry: https://registry.npmjs.org/
 lockfileVersion: 3
 flags: --package-lock-only --ignore-scripts --no-audit --no-fund
+execution boundary: repository wrapper with cwd set to each isolated package root
 ```
 
 Each fresh external temp directory reconstructed both frontend npm files from
@@ -503,37 +518,54 @@ composite replay exited `0`:
 ```bash
 set -e
 task_repo_root="$PWD"
-task_base="2bfb7ff96dfcc98a806de9c113eff5242bfbe479"
+task_base="863d16ea2328dd32fa6fec6cef4d8f117b6edf85" # pragma: allowlist secret
 task_replay_root="$(mktemp -d)"
+task_template="$task_replay_root/template"
 task_b1="$task_replay_root/B1"
 task_b2="$task_replay_root/B2"
 task_q1="$task_replay_root/Q1"
 task_q2="$task_replay_root/Q2"
 task_bq1="$task_replay_root/BQ1"
 task_bq2="$task_replay_root/BQ2"
-mkdir -p "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2"
+mkdir -p "$task_template" "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2"
+git archive "$task_base" frontend/package.json frontend/package-lock.json |
+  tar -x -C "$task_template"
 for task_dir in "$task_b1" "$task_b2" "$task_q1" "$task_q2" "$task_bq1" "$task_bq2"; do
-  git show "$task_base:frontend/package.json" > "$task_dir/package.json"
-  git show "$task_base:frontend/package-lock.json" > "$task_dir/package-lock.json"
+  cp "$task_template/frontend/package.json" "$task_dir/package.json"
+  cp "$task_template/frontend/package-lock.json" "$task_dir/package-lock.json"
 done
 
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_b1" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+(cd "$task_b1" && "$task_repo_root/scripts/frontend_npm.sh" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund)
 printf 'B1_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_b2" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+(cd "$task_b2" && "$task_repo_root/scripts/frontend_npm.sh" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund)
 printf 'B2_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_q1" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+(cd "$task_q1" && "$task_repo_root/scripts/frontend_npm.sh" update qs --package-lock-only --ignore-scripts --no-audit --no-fund)
 printf 'Q1_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_q2" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+(cd "$task_q2" && "$task_repo_root/scripts/frontend_npm.sh" update qs --package-lock-only --ignore-scripts --no-audit --no-fund)
 printf 'Q2_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq1" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
-printf 'BQ1_browserslist_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq1" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
-printf 'BQ1_qs_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq2" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
-printf 'BQ2_qs_exit=0\n'
-"$task_repo_root/scripts/frontend_npm.sh" --prefix "$task_bq2" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
-printf 'BQ2_browserslist_exit=0\n'
+(
+  cd "$task_bq1"
+  "$task_repo_root/scripts/frontend_npm.sh" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+  printf 'BQ1_browserslist_exit=0\n'
+  "$task_repo_root/scripts/frontend_npm.sh" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+  printf 'BQ1_qs_exit=0\n'
+)
+(
+  cd "$task_bq2"
+  "$task_repo_root/scripts/frontend_npm.sh" update qs --package-lock-only --ignore-scripts --no-audit --no-fund
+  printf 'BQ2_qs_exit=0\n'
+  "$task_repo_root/scripts/frontend_npm.sh" update browserslist --package-lock-only --ignore-scripts --no-audit --no-fund
+  printf 'BQ2_browserslist_exit=0\n'
+)
 ```
+
+The cwd boundary is material. With npm `11.16.0`, invoking `npm update` from
+the repository root with `--prefix` pointing at an external temp directory
+rewrote lock paths as temp-local `file:` records; that failed pair equality and
+was rejected. The accepted replay and tracked application run the repository
+wrapper from inside the package root. The tracked transaction also reconstructs
+the exact base lock before both resolver actions; applying an update on top of
+the previous safe candidate does not refresh already-satisfied child ranges.
 
 The record-level oracle was run with the repository interpreter resolved by
 `scripts/hooks/repo_python.sh`. It loads the exact-base lock using the absolute
@@ -550,7 +582,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-base_sha = "2bfb7ff96dfcc98a806de9c113eff5242bfbe479"
+base_sha = "863d16ea2328dd32fa6fec6cef4d8f117b6edf85"  # pragma: allowlist secret
 git = shutil.which("git")
 assert git is not None
 base = json.loads(subprocess.check_output([git, "show", f"{base_sha}:frontend/package-lock.json"]))
@@ -641,12 +673,12 @@ BQ1_browserslist_exit=0
 BQ1_qs_exit=0
 BQ2_qs_exit=0
 BQ2_browserslist_exit=0
-B1_sha256=54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244 delta_records=6
-B2_sha256=54794b10e610e2decf7d9287f28edb55c5be08827c44caf5de5d0df4de12e244 delta_records=6
+B1_sha256=df48a425d696879209aea5d749af309daa462f5cbfdf83738f3c167fadd75f2e delta_records=6
+B2_sha256=df48a425d696879209aea5d749af309daa462f5cbfdf83738f3c167fadd75f2e delta_records=6
 Q1_sha256=5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2 delta_records=1
 Q2_sha256=5141041123a72476ca429f6de5303a03e7580496727327c5828433a6a82da8c2 delta_records=1
-BQ1_sha256=155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0 delta_records=7
-BQ2_sha256=155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0 delta_records=7
+BQ1_sha256=4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615 delta_records=7
+BQ2_sha256=4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615 delta_records=7
 b_delta_keys=['node_modules/baseline-browser-mapping', 'node_modules/browserslist', 'node_modules/caniuse-lite', 'node_modules/electron-to-chromium', 'node_modules/node-releases', 'node_modules/update-browserslist-db']
 q_delta_keys=['node_modules/qs']
 delta_key_intersection=[]
@@ -665,9 +697,9 @@ Complete delta:
 | Class | Identity / record | Base | Candidate | Notes |
 | --- | --- | ---: | ---: | --- |
 | `I_R[browserslist]` | `browserslist` | `4.28.2` | `4.28.8` | authored target replacement |
-| `C_R[browserslist]` | `baseline-browser-mapping` | `2.10.37` | `2.11.20` | resolver closure |
+| `C_R[browserslist]` | `baseline-browser-mapping` | `2.10.37` | `2.11.21` | resolver closure |
 | `C_R[browserslist]` | `caniuse-lite` | `1.0.30001799` | `1.0.30001810` | resolver closure |
-| `C_R[browserslist]` | `electron-to-chromium` | `1.5.372` | `1.5.420` | resolver closure |
+| `C_R[browserslist]` | `electron-to-chromium` | `1.5.372` | `1.5.422` | resolver closure |
 | `C_R[browserslist]` | `node-releases` | `2.0.47` | `2.0.54` | resolver closure |
 | `C_R[browserslist]` | `update-browserslist-db` | `1.2.3` | `1.3.2` | resolver closure |
 | `I_R[qs]` | `qs` | `6.15.2` | `6.16.0` | full record also changes `side-channel ^1.1.0 -> ^1.1.1` and adds `es-define-property ^1.0.1` |
@@ -690,7 +722,10 @@ critical: 0
 total: 2
 ```
 
-Candidate audit after the combined transaction:
+The prior combined candidate
+`155f75cf12988ded917d7c4a36b36da2b06c3b9d4bd5870811d5067ef718e5c0`
+had the following terminal audit receipt before the later deterministic child
+patch drift:
 
 ```text
 $ npm audit --package-lock-only --json
@@ -712,9 +747,29 @@ exit: 0
 found 0 vulnerabilities
 ```
 
+For the refreshed candidate
+`4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb615`,
+the full dependency guard passes and authenticated GAD queries at
+`2026-09-04T11:01:55Z` return zero advisory records for the two changed closure
+identities `baseline-browser-mapping@2.11.21` and
+`electron-to-chromium@1.5.422`. The npm bulk audit endpoint then timed out in
+the unbounded attempt, in a bounded 180-second attempt, and again with explicit
+official-registry fetch controls:
+
+```text
+npm warn audit network timeout at: https://registry.npmjs.org/-/npm/v1/security/advisories/bulk
+npm error audit endpoint returned an error
+candidate_default_audit_timeout=180
+```
+
+Therefore current-candidate npm-audit acceptance remains
+`AUDIT_REFRESH_PENDING_NETWORK`; no default, MODERATE, or HIGH audit PASS is
+claimed for the refreshed hash until a later terminal retry exits `0`.
+
 `audit-level` changes the exit threshold and does not filter lower-severity
 report rows. Batch acceptance therefore depends on the default total-zero JSON
-result, not a HIGH-only exit.
+result, not a HIGH-only exit. The timeout blocks readiness but does not change
+the replay-proven dependency partition.
 
 ## Permanent conjunctive postcondition
 
@@ -747,7 +802,7 @@ semantics stop for rescope instead of creating another carrier parser.
 
 ## Provider projection
 
-At `2026-09-03T03:39:19Z`, the complete authenticated open Dependabot census
+At `2026-09-04T10:44:52Z`, the complete authenticated open Dependabot census
 contained only alert `#273` for Browserslist / `GHSA-73wf-gq98-2v4g`, state
 `open`, development scope, `frontend/package-lock.json`, with no fixed or
 dismissed timestamp. No authenticated alert currently projects `qs`; this is a
