@@ -3786,6 +3786,10 @@ IOS_TESTS_JOB_IF = (
     "'refs/heads/feature/') || github.ref == 'refs/heads/main'))\n"
     ")\n"
 )
+# SHA-256 of the exact yaml.safe_load() complete-unit run scalar; no normalization is permitted.
+IOS_UNIT_RUN_SHA256 = (
+    "db7b3a74ea8066fd3094627b8458c4c02c34178ffd212a35b9d3f32af771fbdb"  # pragma: allowlist secret
+)
 # SHA-256 of the exact yaml.safe_load() Release run scalar; no normalization is permitted.
 IOS_RELEASE_BUILD_RUN_SHA256 = (
     "c3aa3d5582fa3e4261156f9f4aaa8acfbc4d34641bf8842fa3c10b94468910bb"  # pragma: allowlist secret
@@ -3835,8 +3839,11 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     unit_step = steps[unit_index]
     assert isinstance(unit_step, dict)
     assert set(unit_step) == {"name", "working-directory", "env", "run"}
+    assert unit_step["working-directory"] == "ios"
+    assert unit_step["env"] == {"DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}"}
     unit_run = unit_step["run"]
     assert isinstance(unit_run, str)
+    assert hashlib.sha256(unit_run.encode("utf-8")).hexdigest() == IOS_UNIT_RUN_SHA256
     assert unit_run.index('"xcodebuild", "build-for-testing"') < unit_run.index(
         '"xcodebuild", "test-without-building"'
     )
@@ -3910,6 +3917,9 @@ def test_ios_appstore_validator_stays_single_blocking_before_unit_run(mutation: 
         "unit-if-false",
         "build-check-false",
         "test-check-false",
+        "build-cmd-rebound",
+        "test-cmd-rebound",
+        "unit-developer-dir-drift",
         "job-continue-on-error",
         "job-if-forced-false",
     ),
@@ -3945,6 +3955,26 @@ def test_ios_unit_and_job_reject_false_green_blocking_mutations(mutation: str) -
             "subprocess.run(cmd, timeout=900, check=False)",
             1,
         )
+    elif mutation == "build-cmd-rebound":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            'cmd = ["/usr/bin/true"]\n              '
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            1,
+        )
+    elif mutation == "test-cmd-rebound":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "subprocess.run(cmd, timeout=900, check=True)",
+            'cmd = ["/usr/bin/true"]\n              '
+            "subprocess.run(cmd, timeout=900, check=True)",
+            1,
+        )
+    elif mutation == "unit-developer-dir-drift":
+        unit_step["env"] = {"DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"}
     elif mutation == "job-continue-on-error":
         ios_tests["continue-on-error"] = True
     else:
