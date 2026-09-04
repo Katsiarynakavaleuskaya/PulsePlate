@@ -458,8 +458,8 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding tests at `tests/test_frontend_dependency_guards.py:3409` and
-`tests/test_frontend_dependency_guards.py:3708` reject duplicate or unknown record/row keys,
+The content-binding tests at `tests/test_frontend_dependency_guards.py:3436` and
+`tests/test_frontend_dependency_guards.py:3750` reject duplicate or unknown target/record/row keys,
 wrong batch/scanner identities or metric types, record/range omissions, and package/ecosystem drift,
 plus noncanonical first-patched npm versions or per-GHSA CVE/severity/timestamp metadata.
 
@@ -494,7 +494,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3366`.
+`tests/test_frontend_dependency_guards.py:3393`.
 
 ## Resolver actions and exact disjoint partition
 
@@ -803,17 +803,17 @@ The exact authorization literal and data maps are at
 7. loads each complete virtual graph through the hermetic repository npm
    wrapper, with ambient graph-shaping configuration removed;
 8. independently discovers every raw canonical/nested target occurrence;
-9. rejects links, bundled records, malformed bundle flags, prereleases,
-   malformed versions, identity/path conflicts, foreign provenance, and
-   invalid 64-byte SHA-512 SRI metadata;
+9. rejects true or malformed `hasShrinkwrap` on every lock record, plus target
+   links, bundled records, malformed bundle flags/versions, and prereleases,
+   identity/path conflicts, foreign provenance, and invalid SHA-512 SRI metadata;
 10. compares each occurrence with every affected range for its target;
 11. permits per-target executable absence only after the complete shared
     admission pass.
 
 The permanent guard does not freeze base/candidate hashes, occurrence counts,
-or `4.28.8` / `6.16.0` as the only future-safe versions. Passing SRI syntax is
-not a cryptographic recomputation of fetched package bytes. Opaque or future npm
-semantics stop for rescope instead of creating another carrier parser.
+or `4.28.8` / `6.16.0` as the only future-safe versions. SRI or missing/exact-false
+`hasShrinkwrap` does not prove fetched package contents. True/malformed or future
+npm inflation semantics stop for rescope instead of adding a carrier parser.
 
 ## Provider projection
 

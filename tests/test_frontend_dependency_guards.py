@@ -1657,6 +1657,20 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             document.get("lockfileVersion") == 3
         ), f"{relative}: transitive batch supports only npm lockfileVersion 3"
         _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        packages = document.get("packages")
+        assert isinstance(packages, dict), f"{relative}: packages must be an object"
+        for package_path, package in packages.items():
+            assert isinstance(package_path, str), f"{relative}: package path must be text"
+            assert isinstance(
+                package, dict
+            ), f"{relative}:{package_path}: package must be an object"
+            has_shrinkwrap = package.get("hasShrinkwrap", False)
+            assert (
+                type(has_shrinkwrap) is bool
+            ), f"{relative}:{package_path}: hasShrinkwrap must be an exact boolean"
+            assert (
+                not has_shrinkwrap
+            ), f"{relative}:{package_path}: published nested shrinkwrap blocks batch admission"
         for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
             for path, package in _find_lock_occurrences(
                 document,
@@ -2773,6 +2787,7 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
                 "node_modules/carrier": {
                     **_transitive_npm_entry(target="carrier", version="1.0.0"),
                     "dependencies": carrier_dependencies,
+                    "hasShrinkwrap": False,
                 },
                 f"node_modules/{present_target}": _transitive_npm_entry(
                     target=present_target,
@@ -2785,6 +2800,18 @@ def test_transitive_npm_batch_allows_per_identity_executable_absence(
         present_target: frozenset({"frontend/package-lock.json"}),
         absent_target: frozenset(),
     }
+    lock_path = tmp_path / "frontend/package-lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    carrier = lock["packages"]["node_modules/carrier"]
+    assert isinstance(carrier, dict)
+    for value, message in (
+        (True, "published nested shrinkwrap blocks batch admission"),
+        ("false", "hasShrinkwrap must be an exact boolean"),
+    ):
+        carrier["hasShrinkwrap"] = value
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match=message):
+            _assert_transitive_npm_security_batch(root=tmp_path)
 
 
 def test_browserslist_class_allows_delegated_executable_absence(tmp_path: Path) -> None:
@@ -3603,7 +3630,22 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     total_records = 0
     total_ranges = 0
     for target, target_receipt in targets.items():
-        assert isinstance(target_receipt, dict)
+        target_receipt = _require_exact_object(
+            target_receipt,
+            keys=frozenset(
+                {
+                    "cutoff",
+                    "next_page",
+                    "observed_at",
+                    "page_count",
+                    "query",
+                    "range_count",
+                    "record_count",
+                    "records",
+                }
+            ),
+            label=f"{target} batch target receipt",
+        )
         assert target_receipt["cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
         assert target_receipt["observed_at"] == TRANSITIVE_NPM_GAD_CUTOFF
         assert target_receipt["query"] == TRANSITIVE_NPM_GAD_QUERIES[target]
