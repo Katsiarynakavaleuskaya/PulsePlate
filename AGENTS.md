@@ -2571,7 +2571,7 @@ Do not remove this exclusion without a product decision and a separate PR
 
 - `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
 - iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, `.github/actions/**`,
-  `scripts/ios_test_targets.sh`, or `scripts/ci/check_ios_swift_syntax.sh`.
+  `scripts/ios_test_targets.sh`, `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
 

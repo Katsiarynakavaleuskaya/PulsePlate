@@ -393,6 +393,9 @@
   code coverage, archive, export, provisioning, signing credentials, TestFlight, or upload work.
 - This is Release compilation evidence only. It does not prove archive validity, distribution
   signing, App Store acceptance, or warning-free behavior outside the tested head and simulator.
+- Keep the existing YAML contract bound to the job identity, complete step sequence, execution
+  metadata, validator trigger, and exact unit/Release run scalars. Command-presence checks alone
+  cannot prove blocking execution; verify intentional changes with mutation tests.
 
 ⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
 

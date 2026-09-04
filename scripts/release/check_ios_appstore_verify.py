@@ -1333,6 +1333,9 @@ def check_appicon_marketing() -> Results:
     results: Results = []
     tag = "appicon_marketing"
 
+    if APPICON_CONTENTS.parent.is_symlink():
+        results.append((False, tag, f"Symlink is not allowed: {APPICON_CONTENTS.parent}"))
+        return results
     if APPICON_CONTENTS.is_symlink():
         results.append((False, tag, f"Symlink is not allowed: {APPICON_CONTENTS}"))
         return results

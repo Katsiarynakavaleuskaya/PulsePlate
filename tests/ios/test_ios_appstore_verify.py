@@ -304,7 +304,7 @@ def test_appicon_validator_rejects_duplicate_marketing_entries(
     _assert_appicon_failure(results, "Expected exactly 1 ios-marketing entry, found 2")
 
 
-@pytest.mark.parametrize("target", ["contents", "png"])
+@pytest.mark.parametrize("target", ["contents", "png", "appiconset"])
 def test_appicon_validator_rejects_symlinked_canonical_files(
     target: str,
     tmp_path: pathlib.Path,
@@ -316,6 +316,10 @@ def test_appicon_validator_rejects_symlinked_canonical_files(
         real_contents = tmp_path / "real-Contents.json"
         contents_path.replace(real_contents)
         contents_path.symlink_to(real_contents)
+    elif target == "appiconset":
+        real_appicon_dir = tmp_path / "real-AppIcon.appiconset"
+        appicon_dir.rename(real_appicon_dir)
+        appicon_dir.symlink_to(real_appicon_dir, target_is_directory=True)
     else:
         png_path = appicon_dir / "AppIcon-1024.png"
         real_png = tmp_path / "real-AppIcon-1024.png"

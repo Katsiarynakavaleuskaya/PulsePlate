@@ -46,11 +46,12 @@ implemented feature
 
 ## Canonical Gate Source
 
-Root `AGENTS.md` section `App Store release readiness gates` is the hard-gate
-source of truth for release readiness checks. This epic, the feature matrix, and
-the orchestration packet are planning mirrors that explain how the train will
-close each gate. When a readiness gate changes, update root `AGENTS.md` first,
-then update this epic, the matrix, and the lane packet in the same PR.
+Root `AGENTS.md` owns global App Store prerequisites and shared hard gates;
+`ios/AGENTS.md` owns the scoped iOS CI operating contract. The executable workflow
+truth is `.github/workflows/ci.yml`. This epic and the feature matrix are
+planning/history mirrors. When a gate changes, update its owning instruction
+surface and the affected mirrors in the same PR; do not duplicate scoped CI
+mechanics in root instructions.
 
 ## Current Repo Truth
 
