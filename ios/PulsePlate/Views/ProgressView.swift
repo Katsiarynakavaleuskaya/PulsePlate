@@ -119,7 +119,7 @@ struct ProgressViewPP: View {
                 )
                 .accessibilityHidden(true)
         } else {
-            Image("FitChefActionProgressTracking")
+            Image(ppRequiredBundleAsset: "FitChefActionProgressTracking")
                 .renderingMode(.original)
                 .resizable()
                 .scaledToFill()

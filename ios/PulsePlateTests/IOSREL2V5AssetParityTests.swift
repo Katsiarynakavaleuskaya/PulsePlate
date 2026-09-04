@@ -237,11 +237,17 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
                 for sourceFile in swiftSourceFiles {
                     let contents = try String(contentsOf: sourceFile, encoding: .utf8)
                     XCTAssertFalse(contents.contains(asset.filename), asset.filename)
+                    XCTAssertFalse(
+                        contents.contains("Image(\"\(asset.runtimeName)\")"),
+                        "Catalog owner bypasses required-image loading: \(asset.runtimeName)"
+                    )
                 }
             }
         }
 
         let plate = try source(root: root, relativePath: "ios/PulsePlate/Views/PlateView.swift")
+        let home = try source(root: root, relativePath: "ios/PulsePlate/Views/Home/HomeExperience.swift")
+        XCTAssertTrue(home.contains("Image(ppRequiredBundleAsset: assetName)"))
         XCTAssertFalse(plate.contains("MascotBubble(textKey: \"mascot.plate.hint\")"))
         XCTAssertFalse(rootTabs.contains("FITCHEF_ACTION_COOKING"))
     }

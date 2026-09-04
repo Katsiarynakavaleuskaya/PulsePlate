@@ -383,7 +383,7 @@ struct HomeExperienceScreen<Destination: View>: View {
         width: CGFloat,
         height: CGFloat
     ) -> some View {
-        Image(assetName)
+        Image(ppRequiredBundleAsset: assetName)
             .renderingMode(.original)
             .resizable()
             .scaledToFill()

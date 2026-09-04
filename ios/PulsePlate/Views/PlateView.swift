@@ -335,7 +335,7 @@ struct PlateViewPP: View {
         )
         .accessibilityHidden(true)
 
-      Image("FitChefActionNutritionPlate")
+      Image(ppRequiredBundleAsset: "FitChefActionNutritionPlate")
         .renderingMode(.original)
         .resizable()
         .scaledToFill()

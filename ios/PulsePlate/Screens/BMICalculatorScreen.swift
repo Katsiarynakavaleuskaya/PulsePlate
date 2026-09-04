@@ -132,7 +132,7 @@ struct BMICalculatorScreen: View {
 
     private var calculateAction: some View {
         HStack(spacing: PPDesignTokens.Spacing.medium) {
-            Image("FitChefThinking")
+            Image(ppRequiredBundleAsset: "FitChefThinking")
                 .renderingMode(.original)
                 .resizable()
                 .scaledToFill()
