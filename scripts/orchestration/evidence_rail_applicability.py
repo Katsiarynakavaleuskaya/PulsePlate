@@ -374,7 +374,7 @@ def _exact_dict(value: Any, fields: frozenset[str]) -> dict[str, Any]:
 def _require_bool(value: Any) -> bool:
     if type(value) is not bool:
         _error()
-    return cast(bool, value)
+    return value
 
 
 def _string_list(value: Any, *, limit: int = 256) -> list[str]:

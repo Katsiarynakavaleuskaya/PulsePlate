@@ -211,7 +211,7 @@ def figma_packet_is_execution_ready(
 def _require_canonical_packet_text(value: Any) -> str:
     if type(value) is not str:
         raise ValueError("design packet text must be a canonical string")
-    normalized = normalize_optional_text(cast(str, value))
+    normalized = normalize_optional_text(value)
     if value != normalized:
         raise ValueError("design packet text must be a canonical string")
     return normalized
@@ -283,7 +283,7 @@ def normalize_design_lane_packet_projection(
         task_mode=task_mode,
         figma_lane_tool=figma_lane_tool,
         code_native_design_brief_path=text["code_native_design_brief_path"],
-        explicit_creation_mode=cast(bool, explicit_creation_mode),
+        explicit_creation_mode=explicit_creation_mode,
     )
     if design_lane_enabled is not trigger_present:
         raise ValueError("design_lane_enabled contradicts the packet trigger")
@@ -355,7 +355,7 @@ def normalize_design_lane_packet_projection(
             task_mode=task_mode,
             figma_lane_tool=figma_lane_tool,
             code_native_design_brief_path=text["code_native_design_brief_path"],
-            explicit_creation_mode=cast(bool, explicit_creation_mode),
+            explicit_creation_mode=explicit_creation_mode,
         )
     return DesignLanePacketProjection(
         mode=design_lane_mode,
