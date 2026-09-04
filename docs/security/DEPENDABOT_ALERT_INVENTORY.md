@@ -5,7 +5,7 @@
 ## Snapshot boundary
 
 This is the complete authenticated open-alert census observed at
-`2026-09-04T10:44:52Z` using all REST pagination:
+`2026-09-04T20:11:31Z` using all REST pagination:
 
 ```text
 GET /repos/Katsiarynakavaleuskaya/PulsePlate/dependabot/alerts
@@ -67,6 +67,18 @@ manifest=ios/Gemfile.lock
 
 This is provider-state reconciliation only: no Ruby dependency material is
 changed by the exact frontend npm batch.
+
+## Final pre-closeout open-alert refresh
+
+```text
+exit: 0
+open_count: 1
+alert: 273
+package: npm:browserslist
+state: open
+fixed_at: null
+dismissed_at: null
+```
 
 ## Refresh rule
 

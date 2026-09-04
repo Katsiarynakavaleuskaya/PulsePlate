@@ -817,7 +817,7 @@ semantics stop for rescope instead of creating another carrier parser.
 
 ## Provider projection
 
-At `2026-09-04T10:44:52Z`, the complete authenticated open Dependabot census
+At `2026-09-04T20:11:31Z`, the complete authenticated open Dependabot census
 contained only alert `#273` for Browserslist / `GHSA-73wf-gq98-2v4g`, state
 `open`, development scope, `frontend/package-lock.json`, with no fixed or
 dismissed timestamp. No authenticated alert currently projects `qs`; this is a
