@@ -226,7 +226,7 @@ def identity(value):
     return f"{module}.{qualname}"
 
 
-def response_model_identity(value):
+def response_model_identity(value: object) -> str | None:
     if typing.get_origin(value) is typing.Annotated:
         return identity(typing.Annotated)
     return identity(value)
@@ -244,7 +244,7 @@ def dependency_ids(route):
     return sorted(result)
 
 
-def route_row(route):
+def route_row(route: object) -> dict[str, object]:
     return {
         "path": route_path(route),
         "methods": sorted(route_methods(route) - {"HEAD", "OPTIONS"}) or ["WEBSOCKET"],
