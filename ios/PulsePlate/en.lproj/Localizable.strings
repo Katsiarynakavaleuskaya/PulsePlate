@@ -28,14 +28,14 @@
 "profile_privacy_policy" = "Privacy Policy";
 "profile_terms_of_use" = "Terms of Use";
 "profile_screen_accessibility_label" = "Profile screen";
-"pro.profile.header" = "PRO Nutrition Profile";
+"pro.profile.header" = "Nutrition Profile";
 "pro.profile.sex" = "Sex";
 "pro.profile.age_years" = "Age (years)";
 "pro.profile.height_cm" = "Height (cm)";
 "pro.profile.weight_kg" = "Weight (kg)";
 "pro.profile.activity" = "Activity";
 "pro.profile.goal" = "Goal";
-"pro.profile.footer" = "Used by Plate (PRO) to request /api/v1/pro/nutrition/daily.";
+"pro.profile.footer" = "These details personalize your daily nutrition view.";
 
 "common.not_set" = "Not set";
 "sex.female" = "Female";
@@ -123,8 +123,12 @@
 "home.action.retry.title" = "Try again";
 "bmi.calculate.cta" = "Calculate";
 "bmi.calculate.loading" = "Loading...";
-"plate.preview.title" = "My Plate";
-"plate.preview.subtitle" = "Tap segments to customize your nutrition";
+"plate.preview.title" = "Today's plate";
+"plate.preview.subtitle" = "Visualize your plate. Log a meal. Explore the breakdown.";
+"progress.summary.subtitle" = "Track daily nutrition completion and nutrient balance.";
+"progress.nutrient_progress.title" = "Nutrient progress";
+"progress.chart.nutrient_category" = "Nutrient category";
+"progress.chart.completion" = "Completion";
 "plate.preview.add_meal" = "Add Meal";
 "plate.preview.view_details" = "View Details";
 "plate.segment.vegetables" = "Vegetables";

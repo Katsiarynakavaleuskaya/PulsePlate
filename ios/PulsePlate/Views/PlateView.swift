@@ -109,6 +109,8 @@ struct PlateViewPP: View {
   @State private var showProfile = false
   @State private var showProSetup = false
   @ObservedObject private var localization = LocalizationManager.shared
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   private var isAppStoreScreenshotMode: Bool {
     AppStoreScreenshotContext.isEnabled
@@ -216,6 +218,8 @@ struct PlateViewPP: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal)
 
+          plateHeroImage
+
           // Loading state
           if nutritionService.isLoading {
             ProgressView("Loading nutrition data...")
@@ -273,10 +277,6 @@ struct PlateViewPP: View {
       }
       .safeAreaInset(edge: .bottom) {
         VStack(spacing: PPDesignTokens.Spacing.medium) {
-          // Mascot hint always visible above action buttons
-          MascotBubble(textKey: "mascot.plate.hint")
-            .padding(.horizontal)
-
           HStack(spacing: PPDesignTokens.Spacing.large) {
             PPButton(localized("plate.preview.add_meal"), variant: .secondary, fullWidth: true) {
               handlePrimaryCTA(.addMeal)
@@ -311,6 +311,68 @@ struct PlateViewPP: View {
       }
     }
   }
+
+  private var plateHeroImage: some View {
+    ZStack(alignment: .bottomTrailing) {
+      Image(ppRequiredBundleAsset: "photo-daily-plate-salmon-v1.jpg")
+        .resizable()
+        .scaledToFill()
+        .scaleEffect(
+          PlateVisualLayout.heroZoom,
+          anchor: UnitPoint(x: PlateVisualLayout.heroFocalX, y: PlateVisualLayout.heroFocalY)
+        )
+        .frame(width: plateHeroSide, height: plateHeroSide)
+        .clipped()
+        .clipShape(
+          RoundedRectangle(
+            cornerRadius: PPDesignTokens.Radius.xLarge,
+            style: .continuous
+          )
+        )
+        .accessibilityHidden(true)
+
+      Image(ppRequiredBundleAsset: "fitchef-action-nutrition-plate-v1.png")
+        .resizable()
+        .scaledToFill()
+        .scaleEffect(
+          PlateVisualLayout.medallionZoom,
+          anchor: UnitPoint(
+            x: PlateVisualLayout.medallionFocalX,
+            y: PlateVisualLayout.medallionFocalY
+          )
+        )
+        .frame(
+          width: PlateVisualLayout.medallionSide,
+          height: PlateVisualLayout.medallionSide
+        )
+        .clipped()
+        .clipShape(Circle())
+        .overlay(
+          Circle()
+            .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: 1)
+        )
+        .padding(PPDesignTokens.Spacing.small)
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var plateHeroSide: CGFloat {
+    horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+      ? PlateVisualLayout.regularHeroSide
+      : PlateVisualLayout.compactHeroSide
+  }
+}
+
+private enum PlateVisualLayout {
+  static let compactHeroSide: CGFloat = 178
+  static let regularHeroSide: CGFloat = 270
+  static let heroFocalX: CGFloat = 0.42
+  static let heroFocalY: CGFloat = 0.5
+  static let heroZoom: CGFloat = 1.02
+  static let medallionSide: CGFloat = 52
+  static let medallionFocalX: CGFloat = 0.5
+  static let medallionFocalY: CGFloat = 0.38
+  static let medallionZoom: CGFloat = 1.08
 }
 
 private struct PlateIssueView: View {

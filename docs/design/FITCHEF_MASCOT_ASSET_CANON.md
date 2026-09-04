@@ -144,6 +144,120 @@ authority. The existing
 `fitchef-portrait-neutral-v1.png` remains the neutral H1 mascot and is not a
 thirteenth public-demo derivative.
 
+## IOS-REL-2 V5 iOS Runtime Derivative Pack
+
+Status: `IMPLEMENTATION_REQUIRED / PENDING NATIVE V1`
+
+The Human Product Owner selected Candidate A (`Home / BMI / Today / Progress /
+Profile`) with the exact outcome `APPROVE_A` after reviewing the immutable V5
+navigation epoch. The Open Design epoch digest is
+`05eed1a9b01f4b92c3961690b114c08158939ff8b8bdfafde329b0cc4d8437fc`;
+the separate human-decision receipt digest is
+`604e3553fe9e574f870aedae9fd298048dd0d22c222b43413d1171a70bd04d03`.
+Those receipts select the following bounded ten-image set without modifying the
+Open Design sources or promoting the V5 HTML/WebP review package as runtime
+truth.
+
+The seven FitChef sources belong to the Open Design project
+`ds-nutrition-ai-assistant-design-system`. The three photographic PNG originals
+belong to the already owner-approved Public Demo Photographic Pack v1 and remain
+the iOS source authority; the WebP derivatives listed above are not derivative
+inputs for this pack.
+
+The Open Design authoring model has two complementary project pages/surfaces:
+
+- the Design System page (`ds-nutrition-ai-assistant-design-system`, including
+  `kit.html` and `assets/fitchef/`) owns composition, tokens, structural visual
+  language, and the FitChef family;
+- the approved Web Marketing page
+  (`er-ios-1-fitchef-support-choice-clean/fitchef-public-web-demo-pr2.html` and
+  its `pr2-public-demo` originals) owns the photographic lifestyle language
+  deliberately planned for governed iOS reuse.
+
+Neither page substitutes for the other. iOS combines the Design System's
+FitChef identity with only the explicitly selected Marketing-page photographs;
+it must not fall back to the older schematic chart/icon imagery when an approved
+photographic source is listed below.
+
+| Approved source identity | Source PNG SHA-256 | iOS runtime candidate | Output SHA-256 | Pixels / bytes | Bounded use |
+| --- | --- | --- | --- | --- | --- |
+| `assets/fitchef/onboarding/assets_FITCHEF_ONBOARDING_WELCOME_V1.png` | `7e37a0a90772a5423f546948e94d36a876a30877ed8c80b336b2f291dd07eb98` | `ios/PulsePlate/Resources/Images/fitchef-onboarding-welcome-v1.png` | `279081197210c7dc66c16234ce0eec6cf7f490a134176af894ab56f0cca67de5` | `384x576 RGB`, `182824 B` | compact/narrow free-ready Home hero |
+| `assets/fitchef/actions/assets_FITCHEF_ACTION_PROGRESS_TRACKING_V1.png` | `38b9604a3a27f229535c948e0e5e8e22fe2ae185e0b585c965b040b330d4d65f` | `ios/PulsePlate/Resources/Images/fitchef-action-progress-tracking-v1.png` | `8d26d8d8464fdaa764abe439694ecf9fd06c9f937d82a4a8d57f3ecaa02cf46a` | `384x576 RGB`, `128577 B` | compact Progress summary; future wide Weekly row only after the navigation carrier sync |
+| `assets/fitchef/actions/assets_FITCHEF_ACTION_NUTRITION_PLATE_V1.png` | `e73bcbf5fd3f2f9af60e89e93db79570e1be89fac7213bdb39b131adc881955b` | `ios/PulsePlate/Resources/Images/fitchef-action-nutrition-plate-v1.png` | `da89403f0fec0a3c183cdd7218a1f37996365c6f6c35104ff1a528eb7bceab80` | `384x576 RGB`, `124822 B` | Today plate-photo medallion, replacing the generic duplicate mascot |
+| `assets/fitchef/onboarding/assets_FITCHEF_ONBOARDING_PROFILE_SETUP_V1.png` | `3ae7e0265de31221e6b105b7e0592f1a2b510eebde3e876432cedd33dd853b81` | `ios/PulsePlate/Resources/Images/fitchef-onboarding-profile-setup-v1.png` | `b0e8f856e65c7c78d7f5ae000d30e3c56397d2bcf10ef6b3fda0e692f0d5fbd0` | `432x576 RGB`, `212832 B` | single bounded Profile illustration |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_HAPPY_V1.png` | `3f5cd3a5084f1b8f8e1cdec2e3ca2e492fd14cb03f97e45d0c2e6401c8033697` | `ios/PulsePlate/Resources/Images/fitchef-portrait-happy-v1.png` | `a84aa312d47edf06316f0d47e60fefb99d12a4c5d6fad18595978a3eabf4c445` | `576x576 RGB`, `264170 B` | regular-width free-ready Home hero |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_ENCOURAGING_V1.png` | `e61dfecab8d092374d61ddfd535fec76d2d74652a2f3dac6194df44ae47ac9fb` | `ios/PulsePlate/Resources/Images/fitchef-portrait-encouraging-v1.png` | `1399e0735f523bd401f6bb96ecd3edf07c377abe3318c1aa06938b58b542c35c` | `384x576 RGB`, `106863 B` | sole paid-ready Home hero; module cards remain system glyphs |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_THINKING_V1.png` | `41f557ccf00663035551e9c0f5c535cd772c47e7c5efb1c81297435d076ff98e` | `ios/PulsePlate/Resources/Images/fitchef-portrait-thinking-v1.png` | `66d8d84e6b309beaba6fdac6c4b008a366c0aef9659c337ae3fabc80e0b1e33c` | `384x576 RGB`, `135780 B` | BMI support medallion |
+| `pr2-public-demo/daily-plate-a-salmon-1024.png` | `5bb635cdf4a86359d2763235dd31e7ef8f7d5b8c5776826823c5ff0a63806331` | `ios/PulsePlate/Resources/Images/photo-daily-plate-salmon-v1.jpg` | `666651b6caf3b2c4b3e3e6eda1243caf773ad97bdb2cb8a3de49251bdf4314e2` | `768x768 RGB`, `183118 B` | Today plate context |
+| `pr2-public-demo/activity-palette/endurance.png` | `687a5a49c8fe321990f036cb6efdd1889bd08c5ff38983cf6eda94a3546bcda2` | `ios/PulsePlate/Resources/Images/photo-activity-endurance-v1.jpg` | `5108de91fce089419785fbb62c3318bb943ce3319b1f4bfd130baf3a99344cc9` | `640x800 RGB`, `196028 B` | regular-width Progress context |
+| `pr2-public-demo/activity-palette/movement-everyday-fitness.png` | `d0b9be1359c0f56c6fd6dfffe849c4f6de2c699c8acfe8fb204f2a890e2ec1d5` | `ios/PulsePlate/Resources/Images/photo-activity-movement-everyday-fitness-v1.jpg` | `27b1c0beabdd428cb3651906ea45064c007562ba8d92f0b973d499a585183a25` | `640x800 RGB`, `208127 B` | BMI movement context |
+
+Deterministic derivative contract:
+
+- Encoder: Pillow `12.3.0`, libjpeg `6.2`, zlib
+  `1.3.1.zlib-ng`, `Image.Resampling.LANCZOS`.
+- FitChef PNGs: apply EXIF orientation, require the exact source hash,
+  dimensions, `RGB`, and no alpha, then use `ImageOps.contain` within
+  `576x576`; save full-color PNG with `optimize=True` and
+  `compress_level=9`. Portrait sources preserve their complete aspect ratio;
+  no derivative-stage crop, padding, compositing, or palette quantization is
+  permitted.
+- Photographs: apply EXIF orientation and the same source admission, then use
+  `ImageOps.fit` with `(0.42, 0.50)` for salmon, `(0.50, 0.36)` for endurance,
+  and `(0.50, 0.42)` for movement; save baseline, non-progressive JPEG at
+  `quality=92`, `subsampling=0`, and `optimize=True`.
+- All ten outputs embed only the frozen `588`-byte sRGB ICC payload with
+  SHA-256
+  `86453c6e1ee138f0be42c75ab37a6d73422df68e4767da1b1d3ae6c05aa20e39`.
+  EXIF, XMP, IPTC, GPS, comments, textual PNG chunks, timestamps, and source
+  DPI metadata are absent.
+- Two clean generations on the recorded toolchain produced byte-identical
+  output hashes. Every file is below the strict `512000 B` ceiling; aggregate
+  candidate size is `1743141 B`.
+
+SwiftUI owns the V5 focal crop through bounded `scaledToFill` containers. The
+files must not become tab icons, be tinted, stretched, or replace native SF
+Symbols. F12 remains `REFERENCE_ONLY / NON-RUNTIME` and contributes no iOS
+asset. The pack adds no App Icon, Fastlane, screenshot export, privacy,
+entitlement, navigation-inventory, CTA, backend, OpenAPI, or token authority.
+The same bounded parity fix removes the visible Profile API/paid-tier wording
+from EN/RU/ES and uses the approved system glyphs for Language, Privacy, and
+Legal without changing profile fields or persistence behavior.
+
+Native V1 Product Owner review on 2026-09-04 supersedes only the V5 Today
+supporting sentence after the exact SwiftUI render exposed it as decorative and
+non-actionable. The runtime copy is frozen as:
+
+- EN: `Visualize your plate. Log a meal. Explore the breakdown.`
+- RU: `Визуализируйте свою тарелку. Добавьте приём пищи. Посмотрите состав.`
+- ES: `Visualiza tu plato. Registra una comida. Consulta la composición.`
+
+The immutable V5 epoch remains unchanged. This bounded copy correction describes
+the existing visualization, Add Meal, and View Details actions; it grants no
+nutrition calculation, camera/CV, photo-generation, or client-authority change.
+
+The same native review rejects `Segment balance` and `Segment progress` as
+internal implementation vocabulary. The current chart renders vegetables,
+protein, carbohydrates, and fats; it does not yet prove a micronutrient dataset.
+Until a backend/OpenAPI contract adds that data, runtime wording stays factual:
+
+- EN: `Track daily nutrition completion and nutrient balance.` /
+  `Nutrient progress`
+- RU: `Отслеживайте дневное питание и баланс питательных веществ.` /
+  `Прогресс по питательным веществам`
+- ES: `Sigue tu alimentación diaria y el equilibrio de nutrientes.` /
+  `Progreso de nutrientes`
+
+This wording must not be promoted to `micro- and macronutrient` until the
+underlying canonical response actually carries both classes.
+The Swift Charts semantic labels use localized `Nutrient category` and
+`Completion` equivalents in EN/RU/ES, so VoiceOver does not reintroduce the
+internal English `Segment` vocabulary after the visible copy is corrected.
+
+These deterministic files are still candidates until exact-head Release bundle
+lookup and native simulator review prove the Home, BMI, Today, Progress, and
+Profile compositions. This record is neither Human V1 `GO` nor `SUBMIT_READY`.
+
 ## Public Web Hero Scenario v1
 
 The public Web Hero uses a separate photographic situation from the static VIP

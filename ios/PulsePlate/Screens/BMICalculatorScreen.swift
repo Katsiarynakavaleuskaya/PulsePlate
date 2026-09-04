@@ -11,49 +11,14 @@ struct BMICalculatorScreen: View {
     @State private var lang: String? = "en"
     @State private var validationMessage: String? = nil
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         ScrollView {
             VStack(spacing: PPDesignTokens.Spacing.medium) {
-                GroupBox("Input") {
-                    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-                        TextField("Weight (kg)", text: $weightKg)
-                            .keyboardType(.decimalPad)
-                        TextField("Height (cm)", text: $heightCm)
-                            .keyboardType(.decimalPad)
-                        TextField("Age", text: $age)
-                            .keyboardType(.numberPad)
-
-                        Picker("Gender", selection: Binding(
-                            get: { gender ?? "" },
-                            set: { gender = $0.isEmpty ? nil : $0 }
-                        )) {
-                            Text("—").tag("")
-                            Text("female").tag("female")
-                            Text("male").tag("male")
-                        }
-
-                        Picker("Lang", selection: Binding(
-                            get: { lang ?? "" },
-                            set: { lang = $0.isEmpty ? nil : $0 }
-                        )) {
-                            Text("en").tag("en")
-                            Text("ru").tag("ru")
-                            Text("es").tag("es")
-                        }
-                    }
-                }
-
-                PPButton(
-                    vm.isLoading
-                        ? NSLocalizedString("bmi.calculate.loading", comment: "")
-                        : NSLocalizedString("bmi.calculate.cta", comment: ""),
-                    variant: .primary,
-                    size: .lg,
-                    fullWidth: true,
-                    isLoading: vm.isLoading
-                ) {
-                    Task { await onCalculate() }
-                }
+                inputRegion
+                calculateAction
 
                 if let validationMessage {
                     PPCaption(validationMessage, color: .error, strong: true)
@@ -95,6 +60,7 @@ struct BMICalculatorScreen: View {
                 }
             }
             .padding(PPDesignTokens.Spacing.large)
+            .padding(.bottom, PPDesignTokens.Spacing.touchTargetLarge)
         }
         .navigationTitle("BMI")
         .sheet(
@@ -105,6 +71,116 @@ struct BMICalculatorScreen: View {
                 PaywallScreen()
             }
         }
+    }
+
+    @ViewBuilder
+    private var inputRegion: some View {
+        if horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .top, spacing: PPDesignTokens.Spacing.large) {
+                inputGroup
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                movementPhoto(
+                    width: BMIVisualLayout.regularPhotoWidth,
+                    height: BMIVisualLayout.regularPhotoHeight
+                )
+            }
+        } else {
+            VStack(spacing: PPDesignTokens.Spacing.medium) {
+                inputGroup
+                HStack {
+                    Spacer(minLength: 0)
+                    movementPhoto(
+                        width: BMIVisualLayout.compactPhotoWidth,
+                        height: BMIVisualLayout.compactPhotoHeight
+                    )
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private var inputGroup: some View {
+        GroupBox("Input") {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
+                TextField("Weight (kg)", text: $weightKg)
+                    .keyboardType(.decimalPad)
+                TextField("Height (cm)", text: $heightCm)
+                    .keyboardType(.decimalPad)
+                TextField("Age", text: $age)
+                    .keyboardType(.numberPad)
+
+                Picker("Gender", selection: Binding(
+                    get: { gender ?? "" },
+                    set: { gender = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("—").tag("")
+                    Text("female").tag("female")
+                    Text("male").tag("male")
+                }
+
+                Picker("Lang", selection: Binding(
+                    get: { lang ?? "" },
+                    set: { lang = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("en").tag("en")
+                    Text("ru").tag("ru")
+                    Text("es").tag("es")
+                }
+            }
+        }
+    }
+
+    private var calculateAction: some View {
+        HStack(spacing: PPDesignTokens.Spacing.medium) {
+            Image(ppRequiredBundleAsset: "fitchef-portrait-thinking-v1.png")
+                .resizable()
+                .scaledToFill()
+                .scaleEffect(
+                    BMIVisualLayout.medallionZoom,
+                    anchor: UnitPoint(
+                        x: BMIVisualLayout.medallionFocalX,
+                        y: BMIVisualLayout.medallionFocalY
+                    )
+                )
+                .frame(
+                    width: BMIVisualLayout.medallionSide,
+                    height: BMIVisualLayout.medallionSide
+                )
+                .clipped()
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: 1)
+                )
+                .accessibilityHidden(true)
+
+            PPButton(
+                vm.isLoading
+                    ? NSLocalizedString("bmi.calculate.loading", comment: "")
+                    : NSLocalizedString("bmi.calculate.cta", comment: ""),
+                variant: .primary,
+                size: .lg,
+                fullWidth: true,
+                isLoading: vm.isLoading
+            ) {
+                Task { await onCalculate() }
+            }
+        }
+    }
+
+    private func movementPhoto(width: CGFloat, height: CGFloat) -> some View {
+        Image(ppRequiredBundleAsset: "photo-activity-movement-everyday-fitness-v1.jpg")
+            .resizable()
+            .scaledToFill()
+            .frame(width: width, height: height)
+            .clipped()
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: PPDesignTokens.Radius.large,
+                    style: .continuous
+                )
+            )
+            .accessibilityHidden(true)
     }
 
     private func onCalculate() async {
@@ -148,4 +224,15 @@ struct BMICalculatorScreen: View {
     private func parseDouble(_ text: String) -> Double? {
         Self.numberFormatter.number(from: text)?.doubleValue
     }
+}
+
+private enum BMIVisualLayout {
+    static let compactPhotoWidth: CGFloat = 148
+    static let compactPhotoHeight: CGFloat = 185
+    static let regularPhotoWidth: CGFloat = 224
+    static let regularPhotoHeight: CGFloat = 280
+    static let medallionSide: CGFloat = 52
+    static let medallionFocalX: CGFloat = 0.5
+    static let medallionFocalY: CGFloat = 0.38
+    static let medallionZoom: CGFloat = 1.08
 }
