@@ -752,24 +752,38 @@ For the refreshed candidate
 the full dependency guard passes and authenticated GAD queries at
 `2026-09-04T11:01:55Z` return zero advisory records for the two changed closure
 identities `baseline-browser-mapping@2.11.21` and
-`electron-to-chromium@1.5.422`. The npm bulk audit endpoint then timed out in
-the unbounded attempt, in a bounded 180-second attempt, and again with explicit
-official-registry fetch controls:
+`electron-to-chromium@1.5.422`. Initial npm bulk-audit attempts timed out or
+returned `503 Service Unavailable`; they were retained as infrastructure
+diagnostics and never treated as PASS. A later unchanged-lock retry completed
+at `2026-09-04T12:15:02Z`:
 
 ```text
-npm warn audit network timeout at: https://registry.npmjs.org/-/npm/v1/security/advisories/bulk
-npm error audit endpoint returned an error
-candidate_default_audit_timeout=180
+$ npm audit --package-lock-only --json
+exit: 0
+vulnerabilities: {}
+info: 0
+low: 0
+moderate: 0
+high: 0
+critical: 0
+total: 0
+
+$ npm audit --package-lock-only --audit-level=moderate
+exit: 0
+found 0 vulnerabilities
+
+$ npm audit --package-lock-only --audit-level=high
+exit: 0
+found 0 vulnerabilities
 ```
 
-Therefore current-candidate npm-audit acceptance remains
-`AUDIT_REFRESH_PENDING_NETWORK`; no default, MODERATE, or HIGH audit PASS is
-claimed for the refreshed hash until a later terminal retry exits `0`.
+Current-candidate npm-audit acceptance is therefore terminal for the exact
+`4b664972...` lock.
 
 `audit-level` changes the exit threshold and does not filter lower-severity
 report rows. Batch acceptance therefore depends on the default total-zero JSON
-result, not a HIGH-only exit. The timeout blocks readiness but does not change
-the replay-proven dependency partition.
+result, not a HIGH-only exit. The earlier network failures did not change the
+replay-proven dependency partition or substitute for the successful retry.
 
 ## Permanent conjunctive postcondition
 
