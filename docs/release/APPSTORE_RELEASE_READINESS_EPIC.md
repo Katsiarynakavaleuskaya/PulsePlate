@@ -82,6 +82,8 @@ then update this epic, the matrix, and the lane packet in the same PR.
 - The unified repo-local `make ios-appstore-verify` gate remains the canonical
   local release validator; CAB-03 strengthens its existing AppIcon check rather
   than creating another validator family.
+- The existing blocking `ios-tests` job invokes that canonical validator script
+  exactly once before the complete unit step, then runs the separate Release build.
 - Protected App Store Connect upload and final submission evidence remain
   operator-owned release-ops tasks outside repo branches.
 

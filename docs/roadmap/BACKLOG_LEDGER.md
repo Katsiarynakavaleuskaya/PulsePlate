@@ -127,6 +127,8 @@ If it is not recorded here — it does not exist.
     - a future dedicated asset-focused visual/provenance PR may atomically replace the PNG and
       rotate the single validator-owned approved hash pin; that visual change remains outside CAB-03
     - focused and unified validators reject missing or incorrect slot metadata
+    - the existing blocking iOS job invokes the canonical repo-local validator exactly once before
+      the complete unit run, with any non-zero validator result failing the job
     - the existing blocking iOS job runs a separate Release simulator build after the full unit run
     - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
       Web, production Swift, or visual redesign scope is introduced

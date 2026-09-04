@@ -228,6 +228,19 @@ def test_appicon_validator_accepts_exact_slot_and_approved_png(
     ]
 
 
+def test_appicon_validator_normalizes_invalid_utf8_to_stable_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _appicon_dir, contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    contents_path.write_bytes(b"\xff")
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "Invalid AppIcon Contents.json")
+
+
 @pytest.mark.parametrize(
     ("field", "replacement", "expected_message_fragment"),
     [

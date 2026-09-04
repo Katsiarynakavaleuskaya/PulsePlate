@@ -2172,6 +2172,9 @@ jobs:
                   f.write(f"- **Destination:** `{dest}`\n")
           PY
 
+      - name: iOS App Store repo-local verification
+        run: python3 scripts/release/check_ios_appstore_verify.py
+
       - name: iOS tests (project-based, app scheme)
         working-directory: ios
         env:

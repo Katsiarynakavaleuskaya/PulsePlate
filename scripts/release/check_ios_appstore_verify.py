@@ -1342,7 +1342,7 @@ def check_appicon_marketing() -> Results:
 
     try:
         data = json.loads(APPICON_CONTENTS.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         results.append((False, tag, f"Invalid AppIcon Contents.json: {exc}"))
         return results
 

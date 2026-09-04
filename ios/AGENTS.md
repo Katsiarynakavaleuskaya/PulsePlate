@@ -381,6 +381,9 @@
 
 **Release simulator build truth:**
 
+- The existing `ios-tests` job must run the canonical repo-local App Store validator exactly once
+  immediately before the complete blocking unit step. Its non-zero exit must fail the job; do not
+  mask it, make it optional, or create an AppIcon-only validator path.
 - The existing `ios-tests` job must run exactly one separate unsigned Release simulator build
   immediately after the complete blocking `PulsePlateTests` run.
 - Reuse the selected Xcode, exact UDID-only `DESTINATION`, `.derivedData`, and
