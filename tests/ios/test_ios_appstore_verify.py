@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import json
 import pathlib
+import shutil
+import struct
 import subprocess
 import sys
+import zlib
 from typing import Any, Protocol
 
 import pytest
@@ -21,6 +24,11 @@ from scripts.release import check_ios_appstore_verify as validator_module
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 VALIDATOR_SCRIPT = REPO_ROOT / "scripts" / "release" / "check_ios_appstore_verify.py"
 MAKEFILE = REPO_ROOT / "Makefile"
+CANONICAL_APPICON_PNG = (
+    REPO_ROOT / "ios" / "PulsePlate" / "Assets.xcassets" / "AppIcon.appiconset" / "AppIcon-1024.png"
+)
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+DEFAULT_APPICON_IMAGES = object()
 
 REQUIRED_CHECKS = [
     "check_release_base_url",
@@ -38,11 +46,15 @@ REQUIRED_CHECKS = [
 
 
 class _ValidatorModule(Protocol):
+    APPICON_CONTENTS: pathlib.Path
     APPSTORE_SCREENSHOT_CONTEXT: pathlib.Path
     APPSTORE_SCREENSHOT_TESTS: pathlib.Path
+    EXPECTED_APPICON_MARKETING_ENTRY: dict[str, str]
     FITCHEF_RENDERED_REVIEW_CHECKLIST: pathlib.Path
     FITCHEF_SHOT_SCENARIO_MATRIX: pathlib.Path
     REVIEWER_SUBMISSION_MATRIX: pathlib.Path
+
+    def check_appicon_marketing(self) -> list[tuple[bool, str, str]]: ...
 
     def check_fitchef_release_readiness_bundle(self) -> list[tuple[bool, str, str]]: ...
 
@@ -143,6 +155,278 @@ def _write_matrix_payload(release_dir: pathlib.Path, payload: dict[str, Any]) ->
 
 def _failed_messages(results: list[tuple[bool, str, str]]) -> str:
     return "\n".join(message for ok, _tag, message in results if not ok)
+
+
+def _prepare_appicon_fixture(
+    module: _ValidatorModule,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    images: Any = DEFAULT_APPICON_IMAGES,
+) -> tuple[pathlib.Path, pathlib.Path, dict[str, Any]]:
+    appicon_dir = tmp_path / "AppIcon.appiconset"
+    appicon_dir.mkdir()
+    contents_path = appicon_dir / "Contents.json"
+    payload: dict[str, Any] = {
+        "images": (
+            images
+            if images is not DEFAULT_APPICON_IMAGES
+            else [dict(module.EXPECTED_APPICON_MARKETING_ENTRY)]
+        ),
+        "info": {"author": "xcode", "version": 1},
+    }
+    contents_path.write_text(json.dumps(payload), encoding="utf-8")
+    shutil.copyfile(CANONICAL_APPICON_PNG, appicon_dir / "AppIcon-1024.png")
+    monkeypatch.setattr(module, "APPICON_CONTENTS", contents_path)
+    return appicon_dir, contents_path, payload
+
+
+def _write_appicon_payload(contents_path: pathlib.Path, payload: Any) -> None:
+    contents_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_png_ihdr(path: pathlib.Path, width: int, height: int) -> None:
+    ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    chunk_type = b"IHDR"
+    crc = zlib.crc32(chunk_type)
+    crc = zlib.crc32(ihdr_data, crc) & 0xFFFFFFFF
+    path.write_bytes(
+        PNG_SIGNATURE
+        + struct.pack(">I", len(ihdr_data))
+        + chunk_type
+        + ihdr_data
+        + struct.pack(">I", crc)
+    )
+
+
+def _assert_appicon_failure(
+    results: list[tuple[bool, str, str]],
+    expected_message_fragment: str,
+) -> None:
+    assert len(results) == 1
+    ok, tag, message = results[0]
+    assert ok is False
+    assert tag == "appicon_marketing"
+    assert expected_message_fragment in message
+
+
+def test_appicon_validator_accepts_exact_slot_and_approved_png(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+
+    results = module.check_appicon_marketing()
+
+    assert results == [
+        (
+            True,
+            "appicon_marketing",
+            "AppIcon exact ios-marketing slot and approved PNG OK (AppIcon-1024.png)",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "expected_message_fragment"),
+    [
+        ("scale", None, "key drift"),
+        ("scale", "2x", "ios-marketing scale"),
+        ("filename", "Alternate-1024.png", "ios-marketing filename"),
+        ("size", "512x512", "ios-marketing size"),
+        ("idiom", "universal", "Expected exactly 1 ios-marketing entry"),
+    ],
+)
+def test_appicon_validator_rejects_marketing_tuple_drift(
+    field: str,
+    replacement: str | None,
+    expected_message_fragment: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    appicon_dir, contents_path, payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    entry = payload["images"][0]
+    if replacement is None:
+        entry.pop(field)
+    else:
+        entry[field] = replacement
+    if field == "filename" and replacement is not None:
+        shutil.copyfile(CANONICAL_APPICON_PNG, appicon_dir / replacement)
+    _write_appicon_payload(contents_path, payload)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, expected_message_fragment)
+
+
+def test_appicon_validator_rejects_extra_marketing_key(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _appicon_dir, contents_path, payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    payload["images"][0]["platform"] = "ios"
+    _write_appicon_payload(contents_path, payload)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "key drift; missing=[], extra=['platform']")
+
+
+def test_appicon_validator_rejects_duplicate_marketing_entries(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    entries = [
+        dict(module.EXPECTED_APPICON_MARKETING_ENTRY),
+        dict(module.EXPECTED_APPICON_MARKETING_ENTRY),
+    ]
+    _prepare_appicon_fixture(module, tmp_path, monkeypatch, images=entries)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "Expected exactly 1 ios-marketing entry, found 2")
+
+
+@pytest.mark.parametrize("target", ["contents", "png"])
+def test_appicon_validator_rejects_symlinked_canonical_files(
+    target: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    appicon_dir, contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    if target == "contents":
+        real_contents = tmp_path / "real-Contents.json"
+        contents_path.replace(real_contents)
+        contents_path.symlink_to(real_contents)
+    else:
+        png_path = appicon_dir / "AppIcon-1024.png"
+        real_png = tmp_path / "real-AppIcon-1024.png"
+        png_path.replace(real_png)
+        png_path.symlink_to(real_png)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "Symlink is not allowed")
+
+
+@pytest.mark.parametrize(
+    "images",
+    [
+        {},
+        "not-a-list",
+        42,
+        None,
+        [None],
+        ["not-an-object"],
+    ],
+)
+def test_appicon_validator_rejects_malformed_images_shape(
+    images: Any,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    _prepare_appicon_fixture(module, tmp_path, monkeypatch, images=images)
+
+    results = module.check_appicon_marketing()
+
+    expected = (
+        "Every AppIcon images entry must be an object"
+        if isinstance(images, list)
+        else "AppIcon images must be a list"
+    )
+    _assert_appicon_failure(results, expected)
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_message_fragment"),
+    [
+        ("missing", "ios-marketing PNG missing"),
+        ("empty", "ios-marketing PNG is empty"),
+        ("truncated_signature_1", "Cannot read PNG dimensions"),
+        ("truncated_signature_2", "Cannot read PNG dimensions"),
+        ("truncated_signature_3", "Cannot read PNG dimensions"),
+        ("truncated_signature_4", "Cannot read PNG dimensions"),
+        ("truncated_signature_5", "Cannot read PNG dimensions"),
+        ("truncated_signature_6", "Cannot read PNG dimensions"),
+        ("truncated_signature_7", "Cannot read PNG dimensions"),
+        ("bad_full_signature", "Cannot read PNG dimensions"),
+        ("missing_ihdr", "Cannot read PNG dimensions"),
+        ("incomplete_ihdr", "Cannot read PNG dimensions"),
+        ("invalid_ihdr_length", "Cannot read PNG dimensions"),
+        ("wrong_first_chunk", "Cannot read PNG dimensions"),
+        ("truncated_ihdr_crc", "Cannot read PNG dimensions"),
+        ("ihdr_crc_mismatch", "Cannot read PNG dimensions"),
+    ],
+)
+def test_appicon_validator_rejects_missing_or_malformed_png(
+    case: str,
+    expected_message_fragment: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    appicon_dir, _contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    png_path = appicon_dir / "AppIcon-1024.png"
+    if case == "missing":
+        png_path.unlink()
+    elif case == "empty":
+        png_path.write_bytes(b"")
+    elif case.startswith("truncated_signature_"):
+        signature_length = int(case.rsplit("_", maxsplit=1)[1])
+        png_path.write_bytes(PNG_SIGNATURE[:signature_length])
+    elif case == "bad_full_signature":
+        png_path.write_bytes(b"\x89PNGxxxx" + b"\x00" * 32)
+    elif case == "missing_ihdr":
+        png_path.write_bytes(PNG_SIGNATURE)
+    elif case == "incomplete_ihdr":
+        png_path.write_bytes(PNG_SIGNATURE + struct.pack(">I", 13) + b"IHDR" + b"\x00" * 7)
+    elif case == "invalid_ihdr_length":
+        png_path.write_bytes(PNG_SIGNATURE + struct.pack(">I", 12) + b"IHDR" + b"\x00" * 16)
+    elif case == "wrong_first_chunk":
+        png_path.write_bytes(PNG_SIGNATURE + struct.pack(">I", 13) + b"IDAT" + b"\x00" * 17)
+    elif case == "truncated_ihdr_crc":
+        _write_png_ihdr(png_path, 1024, 1024)
+        png_path.write_bytes(png_path.read_bytes()[:-1])
+    else:
+        _write_png_ihdr(png_path, 1024, 1024)
+        png_bytes = png_path.read_bytes()
+        png_path.write_bytes(png_bytes[:-1] + bytes([png_bytes[-1] ^ 0xFF]))
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, expected_message_fragment)
+
+
+def test_appicon_validator_rejects_non_1024_png(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    appicon_dir, _contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    _write_png_ihdr(appicon_dir / "AppIcon-1024.png", 512, 1024)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "PNG dimensions 512x1024, expected 1024x1024")
+
+
+def test_appicon_validator_rejects_unapproved_1024_png_bytes(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_validator_module()
+    appicon_dir, _contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    _write_png_ihdr(appicon_dir / "AppIcon-1024.png", 1024, 1024)
+
+    results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(results, "SHA-256 differs from the approved AppIcon baseline")
 
 
 def test_fitchef_release_readiness_validator_rejects_missing_matrix(
