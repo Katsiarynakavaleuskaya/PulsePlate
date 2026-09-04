@@ -2527,6 +2527,67 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Late-phase client hint work is explicitly limited to consuming the
       already existing backend `next_best_action` contract
 
+<a id="ledger-p1-ios-release-design-train-navigation-shell"></a>
+- [ ] P1: IOS-REL-2 consumer-first adaptive navigation shell
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (iOS release design train)
+  - Target PR: [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+    (`codex/ios-adaptive-navigation-shell`)
+  - Status: Open non-draft in PR #2376; Human V1 `GO`, current-head CI,
+    canonical closeout, merge authorization, and merge remain pending
+  - Dependency: PR `#2368` merged at
+    `6327960917e2a04e5fec0d89b358b51781b12f67`
+  - Area: ios / navigation / localization / accessibility / tests / docs
+  - Finding Type: consumer-first top-level navigation release slice
+  - Scope / Reason:
+    - Compile one closed presentation inventory in this exact order:
+      `Home / BMI / Today / Progress / Profile`
+    - Use stable `TabView(selection:)` tags, iOS 18 `sidebarAdaptable`, and the
+      default system tab presentation on iOS 17 while preserving section state
+    - Keep Weekly Progress reachable exactly once under Progress, resolve all
+      shell labels through app-selected `LocalizationManager.currentLanguage`
+      in EN/RU/ES, and exclude technical Profile UI from Release builds
+    - This item absorbs only the `RootTabs` / top-level-navigation portion of
+      the older
+      `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
+      not close the remaining Plate/Progress localization or content-coherence
+      work
+    - Image binaries, design tokens, backend/OpenAPI/DTO contracts,
+      entitlement and billing truth, and product behavior outside navigation
+      remain zero-diff
+  - Evidence:
+    - `ios/PulsePlate/Models/AppSection.swift:3-52`
+    - `ios/PulsePlate/Views/RootTabs.swift:4-58`
+    - `ios/PulsePlate/Views/PlateView.swift:203-204`
+    - `ios/PulsePlate/Views/ProgressView.swift:10-33`
+    - `ios/PulsePlate/Views/ProgressView.swift:209-245`
+    - `ios/PulsePlate/Views/WeeklyProgressView.swift:24-94`
+    - `ios/PulsePlate/Views/ProfileView.swift:25-26`
+    - `ios/PulsePlate/Views/ProfileView.swift:68-104`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:25-465`
+    - `ios/PulsePlate.xcodeproj/project.pbxproj:496`
+  - Links:
+    - `docs/roadmap/IOS_ROADMAP.md#app-entry--navigation`
+    - `docs/architecture/system_overview.md#ios-adaptive-navigation-shell`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ui-epic-post-bridge-series`
+  - DoD:
+    - `AppSection` owns the exact five-section identity, order, localization
+      keys, and SF Symbols with no runtime A/B or entitlement-dependent tabs
+    - Home and BMI retain their external stack owners; Today, Progress, and
+      Profile retain their existing self-owned stacks
+    - Weekly Progress is navigation-neutral and has exactly one localized,
+      Dynamic-Type-safe link under Progress
+    - DEBUG diagnostics are absent from the production section count and
+      compile-gated inside Profile
+    - Focused navigation/localization/accessibility tests, full `make ios-test`,
+      required narrow local gates, and terminal current-head CI pass
+    - Product Owner reviews the real SwiftUI V1 matrix and records `GO` before
+      exact-head closeout and separate merge authorization
+    - No image binary, token, backend, OpenAPI, DTO, entitlement, billing, or
+      user-data migration is introduced
+  - Rollback: Revert the whole PR; no database, backend, billing, entitlement,
+    or user-data migration rollback is required
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya

@@ -3,6 +3,14 @@
 "mascot.home.welcome" = "Добро пожаловать в PulsePlate!";
 "mascot.progress.great" = "Отличный прогресс сегодня!";
 
+/* Adaptive Navigation Shell */
+"navigation.tab.home" = "Главная";
+"navigation.tab.bmi" = "ИМТ";
+"navigation.tab.today" = "Сегодня";
+"navigation.tab.progress" = "Прогресс";
+"navigation.tab.profile" = "Профиль";
+"navigation.progress.weekly" = "Недельный прогресс";
+
 /* Settings */
 "settings_title" = "Настройки";
 "language_settings" = "Язык";
@@ -112,8 +120,8 @@
 "home.accessibility.screen_label" = "Экран главной";
 "home.state.loading.title" = "Готовим следующий шаг";
 "home.state.loading.detail" = "Проверяем доступ, прежде чем показать варианты планирования.";
-"home.state.free_ready.title" = "Начните с понятной отправной точки";
-"home.state.free_ready.detail" = "Проверьте ИМТ, а затем добавьте данные профиля, когда будете готовы.";
+"home.state.free_ready.title" = "Рассчитайте ИМТ, чтобы начать";
+"home.state.free_ready.detail" = "Быстрый расчёт покажет вашу отправную точку.";
 "home.state.paid_needs_profile.title" = "Завершите настройку профиля";
 "home.state.paid_needs_profile.detail" = "Добавьте обязательные данные, прежде чем открывать варианты планирования.";
 "home.state.paid_ready.title" = "Начните с сегодняшнего дня";

@@ -3,6 +3,7 @@ import Charts
 
 struct ProgressViewPP: View {
     @StateObject private var nutritionService = NutritionService()
+    @ObservedObject private var localization = LocalizationManager.shared
     @State private var showProfile = false
     @State private var showProSetup = false
 
@@ -21,6 +22,15 @@ struct ProgressViewPP: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+
+                    NavigationLink {
+                        WeeklyProgressView()
+                    } label: {
+                        WeeklyProgressNavigationLabel(
+                            title: localization.localized("navigation.progress.weekly")
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     if nutritionService.isLoading {
                         GlassCard {
@@ -65,11 +75,7 @@ struct ProgressViewPP: View {
                 ProfileView()
             }
             .navigationDestination(isPresented: $showProSetup) {
-                #if DEBUG
-                DebugToolsScreen()
-                #else
                 ProfileView()
-                #endif
             }
             .task {
                 await nutritionService.fetchNutritionData(for: Date())
@@ -197,5 +203,44 @@ struct ProgressViewPP: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+struct WeeklyProgressNavigationLabel: View {
+    let title: String
+
+    @ScaledMetric(relativeTo: .headline) private var titleSize =
+        PPDesignTokens.Typography.sizeLG
+
+    init(title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        GlassCard {
+            HStack(spacing: PPDesignTokens.Spacing.medium) {
+                Image(systemName: "calendar")
+                    .font(.system(size: titleSize, weight: .semibold))
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .font(.system(size: titleSize, weight: .semibold))
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+
+                Spacer(minLength: PPDesignTokens.Spacing.small)
+
+                Image(systemName: "chevron.forward")
+                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
     }
 }

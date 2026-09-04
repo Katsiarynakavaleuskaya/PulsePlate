@@ -493,13 +493,27 @@ final class HomeExperienceTests: XCTestCase {
 
     func testLocalizationHasExactFiniteHomeNamespaceAndFrozenValues() throws {
         XCTAssertEqual(exactHomeLocalizationKeys.count, 29)
+        let rejectedFreeReadyPhrases = [
+            "en": "Start with a clear baseline",
+            "ru": "Начните с понятной отправной точки",
+            "es": "Empieza con una base clara",
+        ]
 
         for locale in ["en", "ru", "es"] {
             let values = try loadHomeLocalization(locale: locale)
             let expected = try XCTUnwrap(frozenLocalizationValues[locale])
+            let rejectedPhrase = try XCTUnwrap(rejectedFreeReadyPhrases[locale])
+            let freeReadyValues = [
+                try XCTUnwrap(values["home.state.free_ready.title"]),
+                try XCTUnwrap(values["home.state.free_ready.detail"]),
+            ]
             XCTAssertEqual(Set(values.keys), exactHomeLocalizationKeys, locale)
             XCTAssertEqual(values.count, 29, locale)
             XCTAssertEqual(values, expected, locale)
+            XCTAssertTrue(
+                freeReadyValues.allSatisfy { !$0.contains(rejectedPhrase) },
+                "Rejected free-ready phrase remains in \(locale): \(rejectedPhrase)"
+            )
             XCTAssertTrue(values.values.allSatisfy { !$0.contains("/api/") }, locale)
             XCTAssertTrue(values.values.allSatisfy { !$0.localizedCaseInsensitiveContains("AI Insight") }, locale)
             XCTAssertTrue(values.values.allSatisfy { !$0.localizedCaseInsensitiveContains("reader") }, locale)
@@ -543,9 +557,9 @@ final class HomeExperienceTests: XCTestCase {
                 "home.state.loading.title": "Preparing your next step",
                 "home.state.loading.detail":
                     "Checking your access before showing planning options.",
-                "home.state.free_ready.title": "Start with a clear baseline",
+                "home.state.free_ready.title": "Check your BMI to get started",
                 "home.state.free_ready.detail":
-                    "Check your BMI, then add profile details when you are ready.",
+                    "A quick calculation shows your starting point.",
                 "home.state.paid_needs_profile.title": "Complete your profile",
                 "home.state.paid_needs_profile.detail":
                     "Add the required details before opening your planning options.",
@@ -581,9 +595,9 @@ final class HomeExperienceTests: XCTestCase {
                 "home.state.loading.title": "Готовим следующий шаг",
                 "home.state.loading.detail":
                     "Проверяем доступ, прежде чем показать варианты планирования.",
-                "home.state.free_ready.title": "Начните с понятной отправной точки",
+                "home.state.free_ready.title": "Рассчитайте ИМТ, чтобы начать",
                 "home.state.free_ready.detail":
-                    "Проверьте ИМТ, а затем добавьте данные профиля, когда будете готовы.",
+                    "Быстрый расчёт покажет вашу отправную точку.",
                 "home.state.paid_needs_profile.title": "Завершите настройку профиля",
                 "home.state.paid_needs_profile.detail":
                     "Добавьте обязательные данные, прежде чем открывать варианты планирования.",
@@ -619,9 +633,9 @@ final class HomeExperienceTests: XCTestCase {
                 "home.state.loading.title": "Preparando tu próximo paso",
                 "home.state.loading.detail":
                     "Comprobamos tu acceso antes de mostrar las opciones de planificación.",
-                "home.state.free_ready.title": "Empieza con una base clara",
+                "home.state.free_ready.title": "Calcula tu IMC para empezar",
                 "home.state.free_ready.detail":
-                    "Calcula tu BMI y añade los datos de tu perfil cuando estés listo.",
+                    "Un cálculo rápido muestra tu punto de partida.",
                 "home.state.paid_needs_profile.title": "Completa tu perfil",
                 "home.state.paid_needs_profile.detail":
                     "Añade los datos necesarios antes de abrir las opciones de planificación.",

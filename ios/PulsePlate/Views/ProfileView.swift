@@ -2,8 +2,10 @@ import SwiftUI
 
 struct ProfileView: View {
     @ObservedObject var localization = LocalizationManager.shared
+    #if DEBUG
     @State private var showAnimationTest = false
     @State private var showBundleTest = false
+    #endif
 
     // RU: Минимальный PRO-профиль для Plate (/api/v1/pro/nutrition/daily).
     // EN: Minimal PRO profile for Plate (/api/v1/pro/nutrition/daily).
@@ -14,9 +16,11 @@ struct ProfileView: View {
     @AppStorage("pro_profile_activity") private var proActivity: String = ProProfileActivity.moderate.rawValue
     @AppStorage("pro_profile_goal") private var proGoal: String = ProProfileGoal.maintain.rawValue
 
+    #if DEBUG
     private var isAppStoreScreenshotMode: Bool {
         AppStoreScreenshotContext.isEnabled
     }
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -61,6 +65,7 @@ struct ProfileView: View {
                 Section(header: Text(localization.localized("profile_language_section"))) {
                     Text(localization.localized("profile_language_value"))
                 }
+                #if DEBUG
                 if !isAppStoreScreenshotMode {
                     Section(header: Text("Animation Test")) {
                         Button("Test MP4 Animation") {
@@ -72,8 +77,12 @@ struct ProfileView: View {
                         NavigationLink("Test Lottie Animation") {
                             LottieTestView()
                         }
+                        NavigationLink("Debug Tools") {
+                            DebugToolsScreen()
+                        }
                     }
                 }
+                #endif
                 Section(header: Text(localization.localized("profile_legal_section"))) {
                     if let privacyURL = URL(string: "https://pulseplate.app/privacy") {
                         Link(localization.localized("profile_privacy_policy"), destination: privacyURL)
@@ -84,12 +93,14 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profile")
+            #if DEBUG
             .sheet(isPresented: $showAnimationTest) {
                 SimpleVideoTest()
             }
             .sheet(isPresented: $showBundleTest) {
                 BundleTestView()
             }
+            #endif
             .accessibilityLabel(localization.localized("profile_screen_accessibility_label"))
         }
     }
