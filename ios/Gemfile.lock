@@ -189,7 +189,7 @@ GEM
     os (1.1.4)
     ostruct (0.6.3)
     plist (3.7.2)
-    public_suffix (6.0.2)
+    public_suffix (7.0.5)
     rake (13.4.2)
     representable (3.2.0)
       declarative (< 0.1.0)
@@ -238,7 +238,7 @@ PLATFORMS
 DEPENDENCIES
   CFPropertyList (= 3.0.8)
   fastlane (= 2.237.0)
-  public_suffix (< 7)
+  public_suffix (< 8)
 
 BUNDLED WITH
    2.4.22
