@@ -486,6 +486,10 @@ pytest -q tests/test_ci_workflow_pr_size_governance_contract.py
   - **Stability contract**:
     - Scanner reads must tolerate transient helper files under xdist (FileNotFound between glob and read).
     - Missing-at-read-time transient files are skipped, not treated as policy violations.
+    - `tests/test_repo_policy_guards.py` is explicitly admitted to
+      `MAIN_CI_DIAGNOSTIC_EXACT` because its registration-authority manifest normalizes
+      interpreter-sensitive typing identities and must remain stable across supported Python
+      versions; this exact admission is not a complete inventory of Python-sensitive tests.
   - **How to run**:
 
 ```bash
