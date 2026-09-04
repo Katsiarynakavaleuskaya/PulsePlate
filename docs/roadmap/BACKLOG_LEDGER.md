@@ -104,9 +104,10 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
   - Owner: app-store-release-agent / agent-coordinator
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
-  - Target PR: pending (`codex/ios-release-build-appicon-integrity`)
-  - Status: Implementation active on `codex/ios-release-build-appicon-integrity`; PR number,
-    current-head CI, post-open review, review closeout, wait window, and human merge remain pending.
+  - Target PR: [PR #2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
+    (`codex/ios-release-build-appicon-integrity`)
+  - Status: Implementation active in PR #2381; current-head CI, post-open review, review closeout,
+    wait window, and human merge remain pending.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
   - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
