@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from enum import Enum
 import math
 from numbers import Real
-from typing import Annotated, Any, List, Literal, Optional, Set, cast
+from typing import Annotated, Any, List, Literal, Optional, Set, TypeAlias, cast
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator, model_validator
 
@@ -815,6 +815,223 @@ class WeeklyRecipesRequest(BaseModel):
             "maxProperties": 50,
         },
     )
+
+
+class VipEmptyEchoResponse(BaseModel):
+    """Closed empty echo object returned by the VIP regions endpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipAccessErrorResponse(BaseModel):
+    """Canonical FastAPI access-denial payload for VIP routes."""
+
+    detail: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipErrorEnvelopeBase(BaseModel):
+    """Frozen VIP error envelope with backward-compatible aliases."""
+
+    status: Literal["error"] = Field(...)
+    code: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+    detail: str = Field(..., min_length=1)
+    error: str = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def validate_frozen_aliases(self) -> "VipErrorEnvelopeBase":
+        if self.detail != self.message:
+            raise ValueError("VIP detail alias must equal message")
+        if self.error != self.code:
+            raise ValueError("VIP error alias must equal code")
+        return self
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionProductResponse(BaseModel):
+    """Exact regional-catalog product wire shape."""
+
+    product_id: str = Field(...)
+    name_es: str = Field(...)
+    name_en: str = Field(...)
+    category: str = Field(...)
+    unit: str = Field(...)
+    typical_package_size: float = Field(...)
+    price_eur: float | None = Field(...)
+    price_usd: float | None = Field(...)
+    store_chain: str | None = Field(...)
+    region: str | None = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipPriceComparisonEntryResponse(BaseModel):
+    """Exact price-comparison entry, including required nullable fields."""
+
+    product_id: str | None = Field(...)
+    name_es: str | None = Field(...)
+    name_en: str | None = Field(...)
+    category: str | None = Field(...)
+    unit: str | None = Field(...)
+    typical_package_size: float | None = Field(...)
+    price_eur: float | None = Field(...)
+    price_usd: float | None = Field(...)
+    store_chain: str | None = Field(...)
+    region: str | None = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionsSuccessResponse(BaseModel):
+    """Successful available-regions response."""
+
+    status: Literal["success"] = Field(...)
+    regions: list[str] = Field(...)
+    total_regions: int = Field(..., ge=0)
+    message: str = Field(..., min_length=1)
+    echo: VipEmptyEchoResponse = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionsErrorResponse(VipErrorEnvelopeBase):
+    """Handled available-regions failure response."""
+
+    code: Literal["region_provider_unavailable", "internal_error"] = Field(...)
+    error: Literal["region_provider_unavailable", "internal_error"] = Field(...)
+    regions: list[str] = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+VipRegionsResponse: TypeAlias = Annotated[
+    VipRegionsSuccessResponse | VipRegionsErrorResponse,
+    Field(discriminator="status"),
+]
+
+
+class VipRegionSearchSuccessResponse(BaseModel):
+    """Successful regional product-search response."""
+
+    status: Literal["success"] = Field(...)
+    region: str = Field(...)
+    query: str = Field(...)
+    category: str = Field(...)
+    products: list[VipRegionProductResponse] = Field(...)
+    total_count: int = Field(..., ge=0)
+    returned_count: int = Field(..., ge=0)
+    message: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionSearchErrorResponse(VipErrorEnvelopeBase):
+    """Handled regional product-search failure response."""
+
+    code: Literal["search_provider_unavailable", "internal_error"] = Field(...)
+    error: Literal["search_provider_unavailable", "internal_error"] = Field(...)
+    region: str = Field(...)
+    query: str = Field(...)
+    products: list[VipRegionProductResponse] = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+VipRegionSearchResponse: TypeAlias = Annotated[
+    VipRegionSearchSuccessResponse | VipRegionSearchErrorResponse,
+    Field(discriminator="status"),
+]
+
+
+class VipRegionCategoriesSuccessResponse(BaseModel):
+    """Successful regional categories response."""
+
+    status: Literal["success"] = Field(...)
+    region: str = Field(...)
+    categories: list[str] = Field(...)
+    total_categories: int = Field(..., ge=0)
+    message: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionCategoriesErrorResponse(VipErrorEnvelopeBase):
+    """Handled regional categories failure response."""
+
+    code: Literal["categories_provider_unavailable", "internal_error"] = Field(...)
+    error: Literal["categories_provider_unavailable", "internal_error"] = Field(...)
+    region: str = Field(...)
+    categories: list[str] = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+VipRegionCategoriesResponse: TypeAlias = Annotated[
+    VipRegionCategoriesSuccessResponse | VipRegionCategoriesErrorResponse,
+    Field(discriminator="status"),
+]
+
+
+class VipRegionStoresSuccessResponse(BaseModel):
+    """Successful regional stores response."""
+
+    status: Literal["success"] = Field(...)
+    region: str = Field(...)
+    stores: list[str] = Field(...)
+    total_stores: int = Field(..., ge=0)
+    message: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipRegionStoresErrorResponse(VipErrorEnvelopeBase):
+    """Handled regional stores failure response."""
+
+    code: Literal["stores_provider_unavailable", "internal_error"] = Field(...)
+    error: Literal["stores_provider_unavailable", "internal_error"] = Field(...)
+    region: str = Field(...)
+    stores: list[str] = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+VipRegionStoresResponse: TypeAlias = Annotated[
+    VipRegionStoresSuccessResponse | VipRegionStoresErrorResponse,
+    Field(discriminator="status"),
+]
+
+
+class VipPriceComparisonSuccessResponse(BaseModel):
+    """Successful regional price-comparison response."""
+
+    status: Literal["success"] = Field(...)
+    product_name: str = Field(...)
+    regions: list[str] = Field(...)
+    comparison: dict[str, VipPriceComparisonEntryResponse] = Field(...)
+    message: str = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VipPriceComparisonErrorResponse(VipErrorEnvelopeBase):
+    """Handled regional price-comparison failure response."""
+
+    code: Literal["price_comparison_provider_unavailable", "internal_error"] = Field(...)
+    error: Literal["price_comparison_provider_unavailable", "internal_error"] = Field(...)
+    product_name: str = Field(...)
+    regions: list[str] = Field(...)
+    comparison: dict[str, VipPriceComparisonEntryResponse] = Field(...)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+VipPriceComparisonResponse: TypeAlias = Annotated[
+    VipPriceComparisonSuccessResponse | VipPriceComparisonErrorResponse,
+    Field(discriminator="status"),
+]
 
 
 class RegionalConfig(BaseModel):
