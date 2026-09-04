@@ -449,6 +449,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     if ((${#REQUESTED_ARGS[@]})); then
         prompt_cmd+=("${REQUESTED_ARGS[@]}")
     fi
+    if ((${#DESIGN_ARGS[@]})); then
+        prompt_cmd+=("${DESIGN_ARGS[@]}")
+    fi
     if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
         for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
             prompt_cmd+=(--evidence-sidecar-rail "${rail}")

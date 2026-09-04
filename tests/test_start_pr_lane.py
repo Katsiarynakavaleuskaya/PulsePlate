@@ -539,6 +539,7 @@ def test_start_pr_lane_dry_run_forwards_all_typed_design_arguments() -> None:
         "--explicit-creation-mode",
     ):
         assert expected in bootstrap_line
+        assert expected in result.stdout.split("Paste into Codex now:", maxsplit=1)[1]
     assert "pending validated bootstrap packet" in result.stdout
     assert "Applicable PR evidence sidecar rails:" not in result.stdout
 

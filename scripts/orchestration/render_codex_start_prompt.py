@@ -77,6 +77,17 @@ EVIDENCE_SIDECAR_DISCLAIMER = (
     "Structural local receipt only; no review, CI, merge, release, enrollment, "
     "causality, outcome, or other authority is granted."
 )
+_RECIPE_DESIGN_VALUE_OPTIONS = (
+    ("--design-source", "design_source", False),
+    ("--source-url", "source_url", False),
+    ("--file-key-or-workspace", "file_key_or_workspace", False),
+    ("--node-id-or-frame-id", "node_id_or_frame_id", False),
+    ("--target-surface", "target_surface", False),
+    ("--task-mode", "task_mode", False),
+    ("--figma-lane-tool", "figma_lane_tool", False),
+    ("--design-blocker", "design_blocker", True),
+    ("--code-native-design-brief-path", "code_native_design_brief_path", False),
+)
 
 
 class PromptError(ValueError):
@@ -130,6 +141,52 @@ def _shell_quote(value: object, fallback: str = "") -> str:
     """Render user/packet data safely for copy-paste shell commands."""
 
     return shlex.quote(str(value if value not in (None, "") else fallback))
+
+
+def _recipe_bootstrap_command(
+    *,
+    goal: str,
+    task_class: str,
+    pr_phase: str,
+    paths: list[str],
+    requested_agents: list[str],
+    invariant_change_classes: list[str],
+    design_arguments: list[str],
+) -> str:
+    """Render the exact pre-bootstrap recipe inputs as one shell-safe command."""
+
+    tokens = [
+        "scripts/orchestration/task_bootstrap.py",
+        "--goal",
+        goal or "<set --goal>",
+        "--task-class",
+        task_class or "<set --task-class>",
+        "--pr-phase",
+        pr_phase,
+    ]
+    for path in paths:
+        tokens.extend(("--path", path))
+    for change_class in _unique(invariant_change_classes):
+        tokens.extend(("--invariant-change-class", change_class))
+    for agent in _unique(requested_agents):
+        tokens.extend(("--requested-agent", agent))
+    tokens.extend(design_arguments)
+    return "$VENV_PYTHON " + " ".join(_shell_quote(token) for token in tokens)
+
+
+def _recipe_design_arguments(args: argparse.Namespace) -> list[str]:
+    """Rebuild parsed design options without duplicating their semantic validation."""
+
+    result: list[str] = []
+    for option, destination, repeatable in _RECIPE_DESIGN_VALUE_OPTIONS:
+        value = getattr(args, destination)
+        values = value if repeatable else [value]
+        for item in values:
+            if item is not None:
+                result.extend((option, item))
+    if args.explicit_creation_mode:
+        result.append("--explicit-creation-mode")
+    return result
 
 
 def _is_packet_placeholder(value: str) -> bool:
@@ -475,6 +532,7 @@ def render_recipe_prompt(
     requested_agents: list[str],
     invariant_change_classes: list[str] | None = None,
     additive_rails: list[str] | None = None,
+    design_arguments: list[str] | None = None,
     preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
@@ -490,6 +548,15 @@ def render_recipe_prompt(
             "Dry run only: this command did not run preflight, did not run authoritative "
             "task_bootstrap.py, and did not create a task packet."
         )
+    bootstrap_command = _recipe_bootstrap_command(
+        goal=goal,
+        task_class=task_class,
+        pr_phase=pr_phase,
+        paths=paths,
+        requested_agents=requested_agents,
+        invariant_change_classes=invariant_change_classes or [],
+        design_arguments=design_arguments or [],
+    )
     lines = _common_prompt_lines(mode_note=mode_note)
     lines.extend(
         [
@@ -513,7 +580,7 @@ def render_recipe_prompt(
                 f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
             ),
             "",
-            "Next required repo command: run task_bootstrap.py with the printed arguments, then follow the generated packet.",
+            f"Next required repo command: {bootstrap_command}",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
@@ -561,6 +628,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
     )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
+    recipe_parser.add_argument("--design-source", default=None)
+    recipe_parser.add_argument("--source-url", default=None)
+    recipe_parser.add_argument("--file-key-or-workspace", default=None)
+    recipe_parser.add_argument("--node-id-or-frame-id", default=None)
+    recipe_parser.add_argument("--target-surface", default=None)
+    recipe_parser.add_argument("--task-mode", default=None)
+    recipe_parser.add_argument("--figma-lane-tool", default=None)
+    recipe_parser.add_argument("--design-blocker", action="append", default=[])
+    recipe_parser.add_argument("--code-native-design-brief-path", default=None)
+    recipe_parser.add_argument("--explicit-creation-mode", action="store_true")
     recipe_parser.add_argument(
         "--evidence-sidecar-rail",
         action="append",
@@ -611,6 +688,7 @@ def main(argv: list[str] | None = None) -> int:
                 requested_agents=args.requested_agent,
                 invariant_change_classes=args.invariant_change_class,
                 additive_rails=args.evidence_sidecar_rail,
+                design_arguments=_recipe_design_arguments(args),
                 preflight_ran=args.preflight_ran,
             )
         )

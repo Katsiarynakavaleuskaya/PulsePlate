@@ -720,7 +720,12 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "did not run authoritative task_bootstrap.py" in prompt
     assert "did not create a task packet" in prompt
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
-    assert "Next required repo command: run task_bootstrap.py" in prompt
+    assert (
+        "Next required repo command: $VENV_PYTHON "
+        "scripts/orchestration/task_bootstrap.py --goal 'Harden Codex bridge' "
+        "--task-class pr_governance --pr-phase pre_open "
+        "--path docs/dev/CODEX_SKILLS.md --requested-agent qa-engineer-agent"
+    ) in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in prompt
     assert "substitute the actual packet path and repo Python" in prompt
@@ -761,6 +766,41 @@ def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
 
     assert "Dry run only: this command did not run preflight" in prompt
     assert "only ran analyze preflight" not in prompt
+
+
+def test_recipe_prompt_preserves_typed_design_inputs_in_bootstrap_command() -> None:
+    prompt = render_recipe_prompt(
+        goal="Implement design packet",
+        task_class="Infrastructure",
+        pr_phase="pre_open",
+        paths=["docs/design/hero brief.md"],
+        requested_agents=["agent-coordinator"],
+        design_arguments=[
+            "--design-source",
+            "figma_design",
+            "--source-url",
+            "https://www.figma.com/design/example?node-id=42-7",
+            "--task-mode",
+            "sync",
+            "--design-blocker",
+            "blocked_by_plan",
+            "--code-native-design-brief-path",
+            "docs/design/hero brief.md",
+            "--explicit-creation-mode",
+        ],
+        preflight_ran=False,
+    )
+
+    bootstrap = next(
+        line for line in prompt.splitlines() if line.startswith("Next required repo command:")
+    )
+    assert "--path 'docs/design/hero brief.md'" in bootstrap
+    assert "--design-source figma_design" in bootstrap
+    assert "--source-url 'https://www.figma.com/design/example?node-id=42-7'" in bootstrap
+    assert "--task-mode sync" in bootstrap
+    assert "--design-blocker blocked_by_plan" in bootstrap
+    assert "--code-native-design-brief-path 'docs/design/hero brief.md'" in bootstrap
+    assert bootstrap.endswith("--explicit-creation-mode")
 
 
 def _write_packet_for_applicability(

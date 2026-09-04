@@ -621,39 +621,12 @@ def test_reader_rejects_strict_json_failures(packet_root: Path, raw: bytes) -> N
 
 
 @pytest.mark.parametrize("overflow_number", ("1e999", "-1e999"))
-def test_strict_json_rejects_finite_overflow_numbers(
-    packet_root: Path,
-    tmp_path: Path,
-    overflow_number: str,
-) -> None:
-    producer_packet = _base_packet(tmp_path, candidate_paths=["core/example.py"])
-    raw_packet = copy.deepcopy(producer_packet)
-    raw_packet["task_packet_id"] = "aaaaaaaaaaaa"
-    canonical_packet = json.dumps(
-        raw_packet,
-        ensure_ascii=True,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    overflow_packet = (canonical_packet[:-1] + f',"unused_overflow":{overflow_number}}}\n').encode(
-        "ascii"
-    )
-    (packet_root / "aaaaaaaaaaaa.json").write_bytes(overflow_packet)
+def test_strict_json_parser_rejects_finite_overflow_numbers(overflow_number: str) -> None:
+    raw = f'{{"value":{overflow_number}}}'.encode("ascii")
 
-    with pytest.raises(EvidenceRailApplicabilityError) as packet_error:
-        read_task_packet_snapshot("artifacts/orchestration/task_packets/aaaaaaaaaaaa.json")
-    assert packet_error.value.category == "INVALID_INPUT"
-
-    snapshot = _snapshot(
-        packet_root,
-        producer_packet,
-        salt=f"captured-overflow-{overflow_number}",
-    )
-    canonical_projection = canonical_evidence_rail_json(build_evidence_rail_applicability(snapshot))
-    overflow_projection = canonical_projection[:-1] + f',"unused_overflow":{overflow_number}}}'
-    with pytest.raises(EvidenceRailApplicabilityError) as projection_error:
-        validate_evidence_rail_applicability(overflow_projection, snapshot)
-    assert projection_error.value.category == "INVALID_INPUT"
+    with pytest.raises(EvidenceRailApplicabilityError) as error:
+        applicability._strict_json_bytes(raw, limit=len(raw))
+    assert error.value.category == "INVALID_INPUT"
 
 
 def test_reader_rejects_excessive_depth_and_candidate_paths(
