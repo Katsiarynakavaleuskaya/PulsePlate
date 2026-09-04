@@ -458,10 +458,10 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding tests at `tests/test_frontend_dependency_guards.py:3409`
-and `tests/test_frontend_dependency_guards.py:3558` reject duplicate JSON
-keys, wrong batch/scanner identities, record/range omissions, changed package
-or ecosystem projections, first-patched drift, and withdrawal drift.
+The content-binding tests at `tests/test_frontend_dependency_guards.py:3409` and
+`tests/test_frontend_dependency_guards.py:3692` reject duplicate JSON keys, wrong batch/scanner
+identities, record/range omissions, changed package/ecosystem or exact record-key projections,
+and first-patched, withdrawal, or per-GHSA CVE/severity/timestamp drift and noncanonical formats.
 
 ## Per-identity applicability
 

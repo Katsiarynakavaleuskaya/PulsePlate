@@ -3497,6 +3497,108 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
         },
         "qs": QS_ADVISORY_ENTRIES,
     }
+    expected_metadata = {
+        "browserslist": {
+            "GHSA-73wf-gq98-2v4g": (
+                "CVE-2026-73088",
+                "high",
+                "2026-09-01T16:41:54Z",
+                "2026-09-01T16:41:55Z",
+                None,
+            ),
+            "GHSA-c83g-rgw3-j3cx": (
+                "CVE-2026-73089",
+                "high",
+                "2026-09-01T16:42:13Z",
+                "2026-09-01T16:42:15Z",
+                None,
+            ),
+            "GHSA-w8qv-6jwh-64r5": (
+                "CVE-2021-23364",
+                "medium",
+                "2021-05-24T19:52:40Z",
+                "2023-08-17T05:02:30Z",
+                None,
+            ),
+        },
+        "qs": {
+            "GHSA-4mjr-xmp4-gh2g": (
+                "CVE-2026-82417",
+                "medium",
+                "2026-09-02T14:45:13Z",
+                "2026-09-02T14:45:15Z",
+                None,
+            ),
+            "GHSA-6rw7-vpxm-498p": (
+                "CVE-2025-15284",
+                "medium",
+                "2025-12-30T21:02:54Z",
+                "2026-03-02T22:05:33Z",
+                None,
+            ),
+            "GHSA-crvj-3gj9-gm2p": (
+                None,
+                "high",
+                "2018-10-09T00:44:29Z",
+                "2023-01-09T05:02:51Z",
+                "2020-06-16T21:32:53Z",
+            ),
+            "GHSA-f9cm-p3w6-xvr3": (
+                "CVE-2014-10064",
+                "high",
+                "2018-10-09T00:38:48Z",
+                "2023-01-09T05:02:52Z",
+                None,
+            ),
+            "GHSA-gqgv-6jq5-jjj9": (
+                "CVE-2017-1000048",
+                "high",
+                "2020-04-30T17:16:47Z",
+                "2023-01-09T05:02:30Z",
+                None,
+            ),
+            "GHSA-hrpp-h998-j3pp": (
+                "CVE-2022-24999",
+                "high",
+                "2022-11-27T00:30:50Z",
+                "2025-04-29T15:41:45Z",
+                None,
+            ),
+            "GHSA-jjv7-qpx3-h62q": (
+                "CVE-2014-7191",
+                "high",
+                "2017-10-24T18:33:36Z",
+                "2023-04-11T00:27:35Z",
+                None,
+            ),
+            "GHSA-q8mj-m7cp-5q26": (
+                "CVE-2026-8723",
+                "medium",
+                "2026-05-22T17:27:19Z",
+                "2026-05-22T17:27:20Z",
+                None,
+            ),
+            "GHSA-w7fw-mjwx-w883": (
+                "CVE-2026-2391",
+                "low",
+                "2026-02-12T17:04:39Z",
+                "2026-02-12T20:08:00Z",
+                None,
+            ),
+            "GHSA-x5fp-wj9c-mxmx": (
+                "CVE-2026-82562",
+                "medium",
+                "2026-09-02T14:46:57Z",
+                "2026-09-02T14:46:58Z",
+                None,
+            ),
+        },
+    }
+    from datetime import datetime
+
+    assert frozenset(expected_metadata) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    timestamp_format = "%Y-%m-%dT%H:%M:%SZ"
+    cutoff_timestamp = datetime.strptime(TRANSITIVE_NPM_GAD_CUTOFF, timestamp_format)
     expected_counts = {"browserslist": (3, 3), "qs": (10, 21)}
     total_records = 0
     total_ranges = 0
@@ -3517,12 +3619,44 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
         records_by_advisory = {record["ghsa_id"]: record for record in records}
         assert len(records_by_advisory) == len(records)
         assert set(records_by_advisory) == set(expected_entries[target])
+        assert set(records_by_advisory) == set(expected_metadata[target])
         retained_entries: dict[str, tuple[tuple[str, str], ...]] = {}
         for advisory, record in records_by_advisory.items():
-            assert isinstance(record["severity"], str) and record["severity"]
-            assert isinstance(record["published_at"], str) and record["published_at"]
-            assert isinstance(record["updated_at"], str) and record["updated_at"]
-            assert record["published_at"] <= record["updated_at"] <= TRANSITIVE_NPM_GAD_CUTOFF
+            assert set(record) == {
+                "cve_id",
+                "ghsa_id",
+                "published_at",
+                "severity",
+                "updated_at",
+                "vulnerabilities",
+                "withdrawn_at",
+            }
+            cve_id = record["cve_id"]
+            severity = record["severity"]
+            published_text = record["published_at"]
+            updated_text = record["updated_at"]
+            withdrawn_text = record["withdrawn_at"]
+            assert cve_id is None or (
+                isinstance(cve_id, str) and re.fullmatch(r"CVE-\d{4}-\d{4,}", cve_id)
+            )
+            assert isinstance(severity, str)
+            assert severity in {"low", "medium", "high", "critical"}
+            assert isinstance(published_text, str)
+            assert isinstance(updated_text, str)
+            published_at = datetime.strptime(published_text, timestamp_format)
+            updated_at = datetime.strptime(updated_text, timestamp_format)
+            assert published_at <= updated_at <= cutoff_timestamp
+            if withdrawn_text is not None:
+                assert isinstance(withdrawn_text, str)
+                withdrawn_at = datetime.strptime(withdrawn_text, timestamp_format)
+                assert published_at <= withdrawn_at <= updated_at
+            assert (
+                cve_id,
+                severity,
+                published_text,
+                updated_text,
+                withdrawn_text,
+            ) == expected_metadata[target][advisory]
             vulnerabilities = record["vulnerabilities"]
             assert isinstance(vulnerabilities, list) and vulnerabilities
             retained_rows: list[tuple[str, str]] = []
