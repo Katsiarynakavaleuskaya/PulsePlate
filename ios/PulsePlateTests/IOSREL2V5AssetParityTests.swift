@@ -253,6 +253,15 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             )
             XCTAssertFalse(rootTabs.contains(asset.runtimeName), asset.runtimeName)
             if asset.catalog != nil {
+                let ownerContents = try source(root: root, relativePath: asset.ownerViewPath)
+                let argument = asset.ownerViewPath == "ios/PulsePlate/Views/Home/HomeExperience.swift"
+                    ? "assetName"
+                    : "\"\(asset.runtimeName)\""
+                XCTAssertEqual(
+                    requiredAssetCallCount(in: ownerContents, argument: argument),
+                    1,
+                    "Expected one required-image call in \(asset.ownerViewPath)"
+                )
                 for sourceFile in swiftSourceFiles {
                     let contents = try String(contentsOf: sourceFile, encoding: .utf8)
                     XCTAssertFalse(contents.contains(asset.filename), asset.filename)
@@ -269,6 +278,28 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         XCTAssertTrue(home.contains("Image(ppRequiredBundleAsset: assetName)"))
         XCTAssertFalse(plate.contains("MascotBubble(textKey: \"mascot.plate.hint\")"))
         XCTAssertFalse(rootTabs.contains("FITCHEF_ACTION_COOKING"))
+    }
+
+    func testRequiredImageOwnerCheckRejectsKnownBypassSpellings() {
+        let argument = "\"FitChefThinking\""
+        let bypasses = [
+            "Image(\"FitChefThinking\")",
+            "Image(decorative: \"FitChefThinking\")",
+            "Image(\"FitChefThinking\", bundle: .main)",
+            "UIImage(named: \"FitChefThinking\")",
+            "Image( \n \"FitChefThinking\" \n )",
+            "Image( decorative: \"FitChefThinking\", bundle: .main )",
+        ]
+        for bypass in bypasses {
+            XCTAssertEqual(requiredAssetCallCount(in: bypass, argument: argument), 0, bypass)
+        }
+        XCTAssertEqual(
+            requiredAssetCallCount(
+                in: "Image( \n ppRequiredBundleAsset: \"FitChefThinking\" \n )",
+                argument: argument
+            ),
+            1
+        )
     }
 
     func testProfileCopyIsConsumerFacingInEverySupportedLocale() throws {
@@ -744,6 +775,16 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         @unknown default:
             return true
         }
+    }
+
+    // Bounded source regression for the admitted initializer, not Swift
+    // control-flow analysis. Asset keys contain no whitespace by taxonomy.
+    private func requiredAssetCallCount(in source: String, argument: String) -> Int {
+        let normalizedSource = source.filter { !$0.isWhitespace }
+        return occurrenceCount(
+            of: "Image(ppRequiredBundleAsset:\(argument))",
+            in: normalizedSource
+        )
     }
 
     private func occurrenceCount(of value: String, in source: String) -> Int {
