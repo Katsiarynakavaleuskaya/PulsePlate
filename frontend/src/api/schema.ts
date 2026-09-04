@@ -4940,6 +4940,322 @@ export interface components {
             type: string;
         };
         /**
+         * VipAccessErrorResponse
+         * @description Canonical FastAPI access-denial payload for VIP routes.
+         */
+        VipAccessErrorResponse: {
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * VipEmptyEchoResponse
+         * @description Closed empty echo object returned by the VIP regions endpoint.
+         */
+        VipEmptyEchoResponse: Record<string, never>;
+        /**
+         * VipPriceComparisonEntryResponse
+         * @description Exact price-comparison entry, including required nullable fields.
+         */
+        VipPriceComparisonEntryResponse: {
+            /** Category */
+            category: string | null;
+            /** Name En */
+            name_en: string | null;
+            /** Name Es */
+            name_es: string | null;
+            /** Price Eur */
+            price_eur: number | null;
+            /** Price Usd */
+            price_usd: number | null;
+            /** Product Id */
+            product_id: string | null;
+            /** Region */
+            region: string | null;
+            /** Store Chain */
+            store_chain: string | null;
+            /** Typical Package Size */
+            typical_package_size: number | null;
+            /** Unit */
+            unit: string | null;
+        };
+        /**
+         * VipPriceComparisonErrorResponse
+         * @description Handled regional price-comparison failure response.
+         */
+        VipPriceComparisonErrorResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "price_comparison_provider_unavailable" | "internal_error";
+            /** Comparison */
+            comparison: {
+                [key: string]: components["schemas"]["VipPriceComparisonEntryResponse"];
+            };
+            /** Detail */
+            detail: string;
+            /**
+             * Error
+             * @enum {string}
+             */
+            error: "price_comparison_provider_unavailable" | "internal_error";
+            /** Message */
+            message: string;
+            /** Product Name */
+            product_name: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "error";
+        };
+        /**
+         * VipPriceComparisonSuccessResponse
+         * @description Successful regional price-comparison response.
+         */
+        VipPriceComparisonSuccessResponse: {
+            /** Comparison */
+            comparison: {
+                [key: string]: components["schemas"]["VipPriceComparisonEntryResponse"];
+            };
+            /** Message */
+            message: string;
+            /** Product Name */
+            product_name: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "success";
+        };
+        /**
+         * VipRegionCategoriesErrorResponse
+         * @description Handled regional categories failure response.
+         */
+        VipRegionCategoriesErrorResponse: {
+            /** Categories */
+            categories: string[];
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "categories_provider_unavailable" | "internal_error";
+            /** Detail */
+            detail: string;
+            /**
+             * Error
+             * @enum {string}
+             */
+            error: "categories_provider_unavailable" | "internal_error";
+            /** Message */
+            message: string;
+            /** Region */
+            region: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "error";
+        };
+        /**
+         * VipRegionCategoriesSuccessResponse
+         * @description Successful regional categories response.
+         */
+        VipRegionCategoriesSuccessResponse: {
+            /** Categories */
+            categories: string[];
+            /** Message */
+            message: string;
+            /** Region */
+            region: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "success";
+            /** Total Categories */
+            total_categories: number;
+        };
+        /**
+         * VipRegionProductResponse
+         * @description Exact regional-catalog product wire shape.
+         */
+        VipRegionProductResponse: {
+            /** Category */
+            category: string;
+            /** Name En */
+            name_en: string;
+            /** Name Es */
+            name_es: string;
+            /** Price Eur */
+            price_eur: number | null;
+            /** Price Usd */
+            price_usd: number | null;
+            /** Product Id */
+            product_id: string;
+            /** Region */
+            region: string | null;
+            /** Store Chain */
+            store_chain: string | null;
+            /** Typical Package Size */
+            typical_package_size: number;
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * VipRegionSearchErrorResponse
+         * @description Handled regional product-search failure response.
+         */
+        VipRegionSearchErrorResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "search_provider_unavailable" | "internal_error";
+            /** Detail */
+            detail: string;
+            /**
+             * Error
+             * @enum {string}
+             */
+            error: "search_provider_unavailable" | "internal_error";
+            /** Message */
+            message: string;
+            /** Products */
+            products: components["schemas"]["VipRegionProductResponse"][];
+            /** Query */
+            query: string;
+            /** Region */
+            region: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "error";
+        };
+        /**
+         * VipRegionSearchSuccessResponse
+         * @description Successful regional product-search response.
+         */
+        VipRegionSearchSuccessResponse: {
+            /** Category */
+            category: string;
+            /** Message */
+            message: string;
+            /** Products */
+            products: components["schemas"]["VipRegionProductResponse"][];
+            /** Query */
+            query: string;
+            /** Region */
+            region: string;
+            /** Returned Count */
+            returned_count: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "success";
+            /** Total Count */
+            total_count: number;
+        };
+        /**
+         * VipRegionsErrorResponse
+         * @description Handled available-regions failure response.
+         */
+        VipRegionsErrorResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "region_provider_unavailable" | "internal_error";
+            /** Detail */
+            detail: string;
+            /**
+             * Error
+             * @enum {string}
+             */
+            error: "region_provider_unavailable" | "internal_error";
+            /** Message */
+            message: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "error";
+        };
+        /**
+         * VipRegionsSuccessResponse
+         * @description Successful available-regions response.
+         */
+        VipRegionsSuccessResponse: {
+            echo: components["schemas"]["VipEmptyEchoResponse"];
+            /** Message */
+            message: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "success";
+            /** Total Regions */
+            total_regions: number;
+        };
+        /**
+         * VipRegionStoresErrorResponse
+         * @description Handled regional stores failure response.
+         */
+        VipRegionStoresErrorResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "stores_provider_unavailable" | "internal_error";
+            /** Detail */
+            detail: string;
+            /**
+             * Error
+             * @enum {string}
+             */
+            error: "stores_provider_unavailable" | "internal_error";
+            /** Message */
+            message: string;
+            /** Region */
+            region: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "error";
+            /** Stores */
+            stores: string[];
+        };
+        /**
+         * VipRegionStoresSuccessResponse
+         * @description Successful regional stores response.
+         */
+        VipRegionStoresSuccessResponse: {
+            /** Message */
+            message: string;
+            /** Region */
+            region: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "success";
+            /** Stores */
+            stores: string[];
+            /** Total Stores */
+            total_stores: number;
+        };
+        /**
          * VisualShape
          * @description RU: Примитив для фронтенда. EN: Primitive for frontend visualization.
          */
@@ -8080,9 +8396,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["VipRegionsSuccessResponse"] | components["schemas"]["VipRegionsErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VipAccessErrorResponse"];
                 };
             };
         };
@@ -8104,9 +8427,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["VipRegionCategoriesSuccessResponse"] | components["schemas"]["VipRegionCategoriesErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VipAccessErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8141,9 +8471,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["VipRegionSearchSuccessResponse"] | components["schemas"]["VipRegionSearchErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VipAccessErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8174,9 +8511,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["VipRegionStoresSuccessResponse"] | components["schemas"]["VipRegionStoresErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VipAccessErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8209,9 +8553,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["VipPriceComparisonSuccessResponse"] | components["schemas"]["VipPriceComparisonErrorResponse"];
+                };
+            };
+            /** @description VIP tier required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VipAccessErrorResponse"];
                 };
             };
             /** @description Validation Error */
