@@ -215,6 +215,14 @@ Deterministic derivative contract:
   output hashes. Every file is below the strict `512000 B` ceiling; aggregate
   candidate size is `1743141 B`.
 
+Repository tests independently hash and inspect the ten checked-in runtime
+derivatives. They verify the exact output bytes, decoded geometry/color, frozen
+ICC payload, PNG/JPEG encoding structure, and forbidden-metadata absence. The
+external Open Design/Public Demo source bytes remain in the immutable planning
+archive: their hashes are provenance recorded here and verified during the
+governed derivative-generation step, not a claim that those external originals
+are checked into or re-hashed by the iOS unit-test bundle.
+
 SwiftUI owns the V5 focal crop through bounded `scaledToFill` containers. The
 files must not become tab icons, be tinted, stretched, or replace native SF
 Symbols. F12 remains `REFERENCE_ONLY / NON-RUNTIME` and contributes no iOS
