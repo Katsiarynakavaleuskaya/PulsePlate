@@ -175,7 +175,8 @@
     -scheme PulsePlate \
     -destination "$DESTINATION" \
     -configuration Debug \
-    -derivedDataPath ../.derivedData \
+    -derivedDataPath .derivedData \
+    -clonedSourcePackagesDirPath .derivedData/SourcePackages \
     -enableCodeCoverage NO
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
@@ -187,7 +188,8 @@
     -skip-testing:PulsePlateUITests \
     -only-testing:"$(../scripts/ios_test_targets.sh)" \
     -destination "$DESTINATION" \
-    -derivedDataPath ../.derivedData \
+    -derivedDataPath .derivedData \
+    -clonedSourcePackagesDirPath .derivedData/SourcePackages \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
@@ -295,9 +297,10 @@
 
 - CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
 - `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
-- Timeout: 180 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS` env var; default 180)
+- Timeout: 300 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS`; live default 300)
 - Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors; longer timeout accounts for runner data migrations (70-120s+)
-- **Timeout tuning:** If two consecutive failures due to data migrations, increase `SIM_BOOT_TIMEOUT_SECONDS` to 240s and consider adding retry logic (shutdown → boot → bootstatus)
+- **Timeout tuning:** Do not lower the live 300-second default to address runner failures; diagnose
+  simulator state before changing the bounded timeout in a dedicated CI fix.
 
 **System services warmup:**
 
@@ -314,7 +317,12 @@
 
 - `xcodebuild build-for-testing` **must** be wrapped in timeout (10 minutes)
 - `xcodebuild test-without-building` **must** be wrapped in timeout (15 minutes)
-- Rationale: Fail fast instead of consuming full job budget (25 minutes)
+- The `ios-tests` job budget must use
+  `${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}`; repository vars may override the
+  60-minute fallback.
+- Explicit caps total 40 minutes: simulator boot `5m` + Debug build `10m` + complete unit run
+  `15m` + Release build `10m`. The 60-minute fallback leaves nominal 20-minute setup/diagnostic
+  headroom; that headroom is neither guaranteed nor an SLA.
 - Implementation: Python `subprocess.run(timeout=...)` (macOS doesn't have `timeout` by default)
 - If timeout triggers, error message is explicit ("xcodebuild ... timed out after X minutes")
 
@@ -330,7 +338,8 @@
 1. Check Step Summary for: runtime, device, UDID, destination
 2. Check logs for `bootstatus -b` exit code (must be 0)
 3. Check logs for build-for-testing vs test-without-building failures
-4. If timeout: check if 15-minute timeout triggered (vs job-level 25-minute timeout)
+4. If timeout: distinguish the `5m` boot, `10m` Debug build, `15m` unit, and `10m` Release bounds
+   from the vars-overridable 60-minute job fallback.
 
 **Required (CI):**
 
@@ -347,7 +356,8 @@
     -scheme PulsePlate \
     -destination "$DESTINATION" \
     -configuration Debug \
-    -derivedDataPath ../.derivedData \
+    -derivedDataPath .derivedData \
+    -clonedSourcePackagesDirPath .derivedData/SourcePackages \
     -enableCodeCoverage NO
   ```
 - **Step 2: Run tests** (timeout: 15 minutes):
@@ -359,7 +369,8 @@
     -skip-testing:PulsePlateUITests \
     -only-testing:"$(../scripts/ios_test_targets.sh)" \
     -destination "$DESTINATION" \
-    -derivedDataPath ../.derivedData \
+    -derivedDataPath .derivedData \
+    -clonedSourcePackagesDirPath .derivedData/SourcePackages \
     -enableCodeCoverage NO \
     -parallel-testing-enabled NO
   ```
@@ -367,6 +378,18 @@
 - Full-target selection lets Xcode discover the current enabled unit tests without a stale
   per-class allowlist
 - Split build/test enables faster diagnosis and targeted retries
+
+**Release simulator build truth:**
+
+- The existing `ios-tests` job must run exactly one separate unsigned Release simulator build
+  immediately after the complete blocking `PulsePlateTests` run.
+- Reuse the selected Xcode, exact UDID-only `DESTINATION`, `.derivedData`, and
+  `.derivedData/SourcePackages`; keep `IOS_RELEASE_BUILD_TIMEOUT_SECONDS=600` as the step's single
+  timeout source.
+- The command is `xcodebuild build -configuration Release CODE_SIGNING_ALLOWED=NO`. Do not add
+  code coverage, archive, export, provisioning, signing credentials, TestFlight, or upload work.
+- This is Release compilation evidence only. It does not prove archive validity, distribution
+  signing, App Store acceptance, or warning-free behavior outside the tested head and simulator.
 
 ⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
 

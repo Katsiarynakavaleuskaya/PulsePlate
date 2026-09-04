@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import fnmatch
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -3771,6 +3772,84 @@ def test_frontend_node24_precommit_guard_rejects_inner_script_drift(
 
     with pytest.raises((AssertionError, KeyError)):
         _assert_frontend_node24_build_and_precommit_contract(package, config)
+
+
+IOS_UNIT_STEP_NAME = "iOS tests (project-based, app scheme)"
+IOS_RELEASE_BUILD_STEP_NAME = "iOS Release simulator build (unsigned)"
+# SHA-256 of the exact yaml.safe_load() Release run scalar; no normalization is permitted.
+IOS_RELEASE_BUILD_RUN_SHA256 = (
+    "c3aa3d5582fa3e4261156f9f4aaa8acfbc4d34641bf8842fa3c10b94468910bb"  # pragma: allowlist secret
+)
+
+
+def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
+    """Assert the bounded Debug-unit -> Release-build sequence in ios-tests."""
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    assert ios_tests["timeout-minutes"] == (
+        "${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}"
+    )
+
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    assert all(isinstance(step, dict) for step in steps)
+    step_names = [step.get("name") for step in steps]
+    assert step_names.count(IOS_UNIT_STEP_NAME) == 1
+    assert step_names.count(IOS_RELEASE_BUILD_STEP_NAME) == 1
+    unit_index = step_names.index(IOS_UNIT_STEP_NAME)
+    release_index = step_names.index(IOS_RELEASE_BUILD_STEP_NAME)
+    assert release_index == unit_index + 1
+
+    unit_step = steps[unit_index]
+    assert isinstance(unit_step, dict)
+    unit_run = unit_step["run"]
+    assert isinstance(unit_run, str)
+    assert unit_run.index('"xcodebuild", "build-for-testing"') < unit_run.index(
+        '"xcodebuild", "test-without-building"'
+    )
+
+    release_step = steps[release_index]
+    assert isinstance(release_step, dict)
+    assert set(release_step) == {"name", "working-directory", "env", "run"}
+    assert release_step["name"] == IOS_RELEASE_BUILD_STEP_NAME
+    assert release_step["working-directory"] == "ios"
+    release_env = release_step["env"]
+    assert isinstance(release_env, dict)
+    assert release_env == {
+        "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}",
+        "DESTINATION": "${{ steps.select-destination.outputs.destination }}",
+        "IOS_RELEASE_BUILD_TIMEOUT_SECONDS": 600,
+    }
+    release_run = release_step["run"]
+    assert isinstance(release_run, str)
+    assert hashlib.sha256(release_run.encode("utf-8")).hexdigest() == (IOS_RELEASE_BUILD_RUN_SHA256)
+
+
+def test_ios_release_simulator_build_stays_blocking_after_complete_unit_run() -> None:
+    workflow = _load_ci_workflow()
+
+    _assert_ios_release_build_contract(workflow)
+
+
+def test_ios_release_build_run_digest_rejects_appended_command() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    release_step = next(step for step in steps if step.get("name") == IOS_RELEASE_BUILD_STEP_NAME)
+    assert isinstance(release_step, dict)
+    release_run = release_step["run"]
+    assert isinstance(release_run, str)
+    release_step["run"] = release_run + "\necho unexpected-release-command\n"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
 
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:

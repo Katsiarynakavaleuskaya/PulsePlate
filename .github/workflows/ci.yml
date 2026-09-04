@@ -1954,7 +1954,10 @@ jobs:
   ios-tests:
     name: iOS unit tests (xcodebuild)
     runs-on: macos-15
-    timeout-minutes: 25
+    # Explicit caps total 40m (boot 5m + Debug 10m + unit 15m + Release 10m).
+    # The 60m fallback leaves nominal 20m setup/diagnostic headroom, not a guarantee or SLA;
+    # IOS_TESTS_JOB_TIMEOUT_MINUTES may override it.
+    timeout-minutes: ${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
@@ -2365,6 +2368,88 @@ jobs:
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
+          PY
+
+      - name: iOS Release simulator build (unsigned)
+        working-directory: ios
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          DESTINATION: ${{ steps.select-destination.outputs.destination }}
+          IOS_RELEASE_BUILD_TIMEOUT_SECONDS: 600
+        run: |
+          set -euo pipefail
+
+          python3 - << 'PY'
+          import os
+          import re
+          import shutil
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not re.fullmatch(
+              r"platform=iOS Simulator,id=[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}",
+              destination,
+          ):
+              print(
+                  "::error::Release build requires an exact UDID-only iOS Simulator destination",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          developer_dir = os.environ.get("DEVELOPER_DIR", "")
+          if not developer_dir:
+              print("::error::DEVELOPER_DIR is empty", file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              timeout_s = int(os.environ["IOS_RELEASE_BUILD_TIMEOUT_SECONDS"])
+          except (KeyError, ValueError):
+              print(
+                  "::error::IOS_RELEASE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+          if timeout_s <= 0:
+              print(
+                  "::error::IOS_RELEASE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+
+          xcodebuild = shutil.which("xcodebuild")
+          if not xcodebuild:
+              print("::error::xcodebuild was not found on PATH", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              xcodebuild,
+              "build",
+              "-project",
+              "PulsePlate.xcodeproj",
+              "-scheme",
+              "PulsePlate",
+              "-destination",
+              destination,
+              "-configuration",
+              "Release",
+              "-derivedDataPath",
+              ".derivedData",
+              "-clonedSourcePackagesDirPath",
+              ".derivedData/SourcePackages",
+              "CODE_SIGNING_ALLOWED=NO",
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=timeout_s, check=True)
+          except subprocess.TimeoutExpired:
+              print(
+                  f"::error::xcodebuild Release build timed out after {timeout_s} seconds",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          except subprocess.CalledProcessError as exc:
+              sys.exit(exc.returncode)
           PY
 
   # iOS UI smoke (minimal, separate signal from unit tests)
