@@ -403,6 +403,110 @@ If it is not recorded here — it does not exist.
     contract before any downstream consumer exists; local receipts remain
     non-canonical and may be discarded by the operator.
 
+<a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
+- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1 (deterministic orchestration treatment selection)
+  - Target PR: `PR-TBD` on `codex/evidence-rail-applicability-v1`
+  - Status: Active bounded implementation; PR number is assigned when the
+    governed non-draft carrier opens.
+  - Area: orchestration / PR lane startup / local evidence selection
+  - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
+    which Teleology, Euler, Experiment Runner, and Creative treatments apply.
+    ORCH-RAIL-1 must derive one conservative, non-authoritative decision from
+    the exact validated task packet and pass only the applicable existing rails
+    to the local PR evidence sidecar, without parsing task prose or creating a
+    second routing or evidence authority.
+  - Links:
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `scripts/orchestration/start_pr_lane.sh`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  - DoD:
+    - one strict snapshot reader binds the canonical packet id and exact raw
+      packet SHA-256, rejects malformed/unsafe storage shapes, and consumes at
+      most 256 canonical candidate paths
+    - the closed precedence is invariant/security before ready design, then
+      docs-only, then conservative; all valid outcomes keep Experiment Runner
+      required and Teleology full or docs-only compact
+    - a ready typed design packet can recommend Creative, but Creative never
+      enters the sidecar set and no role or asset mutation starts automatically
+    - the existing repeatable sidecar-rail flag is additive only; redundant
+      flags are byte-identical no-ops and only docs-only Euler can materially
+      upgrade in v1
+    - the starter captures one canonical JSON line, revalidates it through
+      stdin, maps only the two closed masks into sidecar argv, and sends the
+      same bound projection through stdin to the renderer
+    - applicability failure blocks sidecar/prompt work; later sidecar storage
+      failure keeps its existing advisory semantics
+    - focused applicability, starter, renderer, and sidecar regression tests,
+      Bash 3.2 syntax, scoped guards, narrow local gates, current-head CI,
+      review disposition, mapping/seal, and the wait window pass before merge
+  - Out of scope (EN): Task-packet or sidecar schema changes, raw goal/task
+    classification, automatic role execution, Euler enrollment/L3, Creative
+    asset mutation, manual downshift, semantic cache, Evidence Graph, product
+    runtime, OpenAPI, DB, frontend, iOS, workflows, and merge authority.
+  - Rollback (EN): Revert the applicability helper and starter/renderer/docs
+    integration as one PR. Preserve the existing additive sidecar flag and do
+    not rewrite or delete prior immutable local sidecar receipts.
+  - Deferred / follow-ups:
+    - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
+    - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p2-evidence-rail-manual-downshift"></a>
+- [ ] P2: Add a human-authorized evidence-rail manual downshift contract
+  - Owner: agent-coordinator / architecture-specialist / security-auditor
+  - Priority: P2 (post-v1 operator control without weakening required evidence)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 stabilizes
+  - Status: Deferred from ORCH-RAIL-1; v1 supports additive upgrades only.
+  - Area: orchestration / evidence treatment override governance
+  - Reason (EN): A later operator workflow may need a bounded way to reduce an
+    over-conservative treatment, but a generic profile flag could silently turn
+    missing evidence or tool failure into `not_applicable`. The first slice
+    therefore admits no downshift producer path.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - define a closed downshift vocabulary, rail-specific reason codes, exact
+      human authorization evidence, precedence, expiry/rollback behavior, and
+      a canonical packet-bound wire shape before adding a CLI
+    - fail closed on missing, ambiguous, stale, malformed, or contradictory
+      authorization and never classify tool failure, missing evidence, or a
+      skipped required pass as `not_applicable`
+    - preserve Experiment Runner process requirements, Euler enrollment
+      boundaries, Creative mutation boundaries, sidecar schema compatibility,
+      all-false authority, and exact packet-fingerprint binding
+    - add positive, negative, replay, stale-binding, and downgrade-abuse tests;
+      no automatic downshift is permitted
+
+<a id="ledger-p1-human-approved-required-creative-role"></a>
+- [ ] P1: Promote Creative recommendation to a required role pass only after human approval
+  - Owner: agent-coordinator / creative-designer / security-auditor
+  - Priority: P1 (bounded design-lane execution governance)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 and an explicit human approval
+  - Status: Deferred from ORCH-RAIL-1; current treatment is recommendation-only.
+  - Area: orchestration / design lane / role dispatch
+  - Reason (EN): ORCH-RAIL-1 can prove that a typed, blocker-free design packet
+    is eligible for `Creative: recommend`, but recommendation alone cannot
+    change the mandatory packet role order or authorize design/asset mutation.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
+  - DoD:
+    - require a typed, exact-packet human approval before the canonical
+      bootstrap/dispatch contract adds `creative-designer` as a mandatory
+      design-role pass
+    - preserve coordinator-first ordering, existing post-open
+      `qa-engineer-agent -> bug-hunter -> security-auditor`, and explicit
+      disposition of every Creative finding
+    - role execution remains review/advice unless a separate approved mutable
+      design task grants an exact target; no asset, Figma, Canva, repo, PR,
+      review-thread, merge, release, or product-runtime mutation is implied
+    - add deterministic approval, no-approval, stale packet, blocker, ordering,
+      and no-mutation tests plus rollback to recommendation-only treatment
+
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
   - Owner: backend-engineer
