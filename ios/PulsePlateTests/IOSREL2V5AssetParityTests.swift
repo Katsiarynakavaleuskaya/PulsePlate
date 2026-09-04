@@ -118,8 +118,13 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         )
 
         for asset in Self.assets {
-            XCTAssertTrue(canon.contains(asset.outputSHA256), asset.filename)
-            XCTAssertTrue(canon.contains(asset.filename), asset.filename)
+            let columns = try canonicalAssetRecordColumns(
+                for: asset.filename,
+                in: canon
+            )
+            XCTAssertEqual(columns.count, 6, asset.filename)
+            XCTAssertEqual(columns[2], "`\(asset.runtimeCandidatePath)`", asset.filename)
+            XCTAssertEqual(columns[3], "`\(asset.outputSHA256)`", asset.filename)
         }
         XCTAssertTrue(canon.contains("APPROVE_A"))
         XCTAssertTrue(canon.contains("PENDING NATIVE V1"))
@@ -127,17 +132,35 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
 
     func testEachApprovedAssetHasOneBoundedViewOwnerAndNeverBecomesATabIcon() throws {
         let root = try repositoryRoot()
+        let swiftSourceFiles = try appSwiftSourceFiles(root: root)
         let rootTabs = try source(
             root: root,
             relativePath: "ios/PulsePlate/Views/RootTabs.swift"
         )
 
         for asset in Self.assets {
-            let viewSource = try source(root: root, relativePath: asset.ownerViewPath)
+            var referencesByPath: [String: Int] = [:]
+            for sourceFile in swiftSourceFiles {
+                let relativePath = try repositoryRelativePath(sourceFile, root: root)
+                let contents = try String(contentsOf: sourceFile, encoding: .utf8)
+                let referenceCount = occurrenceCount(
+                    of: "\"\(asset.filename)\"",
+                    in: contents
+                )
+                if referenceCount > 0 {
+                    referencesByPath[relativePath] = referenceCount
+                }
+            }
+
             XCTAssertEqual(
-                occurrenceCount(of: "\"\(asset.filename)\"", in: viewSource),
+                referencesByPath.values.reduce(0, +),
                 1,
-                "Expected one SwiftUI owner reference for \(asset.filename)"
+                "Expected exactly one app-source reference for \(asset.filename)"
+            )
+            XCTAssertEqual(
+                Set(referencesByPath.keys),
+                Set([asset.ownerViewPath]),
+                "Unexpected SwiftUI owner for \(asset.filename)"
             )
             XCTAssertFalse(rootTabs.contains(asset.filename), asset.filename)
         }
@@ -507,6 +530,53 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             | Int(data[offset + 3])
     }
 
+    private func canonicalAssetRecordColumns(
+        for filename: String,
+        in canon: String
+    ) throws -> [String] {
+        let runtimeCandidate = "`ios/PulsePlate/Resources/Images/\(filename)`"
+        let rows = canon
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .filter { row in
+                row.hasPrefix("|") && row.contains(runtimeCandidate)
+            }
+        XCTAssertEqual(rows.count, 1, "Expected one canonical row for \(filename)")
+        let row = try XCTUnwrap(rows.first)
+        return row
+            .split(separator: "|", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private func appSwiftSourceFiles(root: URL) throws -> [URL] {
+        let appDirectory = root.appendingPathComponent("ios/PulsePlate")
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: appDirectory,
+                includingPropertiesForKeys: Array(keys),
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            )
+        )
+        var sourceFiles: [URL] = []
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let values = try fileURL.resourceValues(forKeys: keys)
+            if values.isRegularFile == true, values.isSymbolicLink != true {
+                sourceFiles.append(fileURL)
+            }
+        }
+        return sourceFiles.sorted { $0.path < $1.path }
+    }
+
+    private func repositoryRelativePath(_ fileURL: URL, root: URL) throws -> String {
+        let rootPath = root.standardizedFileURL.path + "/"
+        let filePath = fileURL.standardizedFileURL.path
+        guard filePath.hasPrefix(rootPath) else {
+            throw V5AssetEncodingError.outsideRepository(filePath)
+        }
+        return String(filePath.dropFirst(rootPath.count))
+    }
+
     private func source(root: URL, relativePath: String) throws -> String {
         try String(
             contentsOf: root.appendingPathComponent(relativePath),
@@ -724,6 +794,10 @@ private struct V5AssetExpectation {
     var fileExtension: String {
         URL(fileURLWithPath: filename).pathExtension
     }
+
+    var runtimeCandidatePath: String {
+        "ios/PulsePlate/Resources/Images/\(filename)"
+    }
 }
 
 private struct PNGChunk {
@@ -744,5 +818,6 @@ private enum V5AssetEncodingError: Error {
     case invalidICC(String)
     case invalidJPEG(String)
     case invalidPNG(String)
+    case outsideRepository(String)
     case truncatedInteger
 }
