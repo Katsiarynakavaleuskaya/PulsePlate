@@ -306,8 +306,8 @@ struct HomeExperienceScreen<Destination: View>: View {
                         Spacer(minLength: 0)
                         heroImage(
                             heroAssetName,
-                            width: HomeHeroLayout.accessibilityWidth,
-                            height: HomeHeroLayout.accessibilityHeight
+                            width: heroSize.width,
+                            height: heroSize.height
                         )
                         Spacer(minLength: 0)
                     }
@@ -318,12 +318,8 @@ struct HomeExperienceScreen<Destination: View>: View {
                     Spacer(minLength: PPDesignTokens.Spacing.medium)
                     heroImage(
                         heroAssetName,
-                        width: usesRegularHeroLayout
-                            ? HomeHeroLayout.regularSide
-                            : HomeHeroLayout.compactWidth,
-                        height: usesRegularHeroLayout
-                            ? HomeHeroLayout.regularSide
-                            : HomeHeroLayout.compactHeight
+                        width: heroSize.width,
+                        height: heroSize.height
                     )
                 }
             }
@@ -370,8 +366,11 @@ struct HomeExperienceScreen<Destination: View>: View {
         }
     }
 
-    private var usesRegularHeroLayout: Bool {
-        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    private var heroSize: CGSize {
+        HomeHeroLayout.size(
+            isRegular: horizontalSizeClass == .regular,
+            isAccessibility: dynamicTypeSize.isAccessibilitySize
+        )
     }
 
     private var usesStackedHeroLayout: Bool {
@@ -561,7 +560,8 @@ private enum HomeActionProminence {
     case secondary
 }
 
-private enum HomeHeroLayout {
+/// Presentation-only geometry shared by both hero arrangements.
+enum HomeHeroLayout {
     static let compactWidth: CGFloat = 112
     static let compactHeight: CGFloat = 148
     static let accessibilityWidth: CGFloat = 148
@@ -570,6 +570,16 @@ private enum HomeHeroLayout {
     static let focalX: CGFloat = 0.5
     static let focalY: CGFloat = 0.44
     static let zoom: CGFloat = 1.02
+
+    static func size(isRegular: Bool, isAccessibility: Bool) -> CGSize {
+        if isAccessibility {
+            return CGSize(width: accessibilityWidth, height: accessibilityHeight)
+        }
+        if isRegular {
+            return CGSize(width: regularSide, height: regularSide)
+        }
+        return CGSize(width: compactWidth, height: compactHeight)
+    }
 }
 
 extension Image {

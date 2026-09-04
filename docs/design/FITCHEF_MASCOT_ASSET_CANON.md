@@ -256,8 +256,11 @@ archive: their hashes are provenance recorded here and verified during the
 governed derivative-generation step, not a claim that those external originals
 are checked into or re-hashed by the iOS unit-test bundle.
 
-SwiftUI owns the V5 focal crop through bounded `scaledToFill` containers. The
-files must not become tab icons, be tinted, stretched, or replace native SF
+SwiftUI owns the V5 focal crop through bounded `scaledToFill` containers.
+Home hero uses 112x148 points on compact widths, 220x220 on regular widths,
+and 148x148 at Accessibility text sizes in either width class. Both stacked
+and horizontal arrangements consume the same presentation-only size selector.
+The files must not become tab icons, be tinted, stretched, or replace native SF
 Symbols. F12 remains `REFERENCE_ONLY / NON-RUNTIME` and contributes no iOS
 asset. The pack adds no App Icon, Fastlane, screenshot export, privacy,
 entitlement, navigation-inventory, CTA, backend, OpenAPI, or token authority.

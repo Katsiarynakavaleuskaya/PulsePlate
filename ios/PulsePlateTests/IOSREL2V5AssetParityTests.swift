@@ -8,6 +8,25 @@ import XCTest
 @testable import PulsePlate
 
 final class IOSREL2V5AssetParityTests: XCTestCase {
+    @MainActor
+    func testHomeHeroPreservesCompactPortraitSizeOutsideAccessibility() {
+        let cases: [(regular: Bool, accessibility: Bool, expected: CGSize)] = [
+            (false, false, CGSize(width: 112, height: 148)),
+            (false, true, CGSize(width: 148, height: 148)),
+            (true, false, CGSize(width: 220, height: 220)),
+            (true, true, CGSize(width: 148, height: 148)),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                HomeHeroLayout.size(
+                    isRegular: testCase.regular,
+                    isAccessibility: testCase.accessibility
+                ),
+                testCase.expected
+            )
+        }
+    }
+
     func testDerivedFilesMatchTheApprovedV5Inventory() throws {
         let root = try repositoryRoot()
         for asset in Self.assets.flatMap(\.files) {
