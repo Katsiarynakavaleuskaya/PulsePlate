@@ -11,7 +11,7 @@ import os
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: required for bounded absolute-argv tool execution (remove-by: 2026-10-31, ref: PR-2347)
+import subprocess  # nosec B404: # required for bounded absolute-argv tool execution (remove-by: 2026-10-31, ref: PR-2347)
 import sys
 import tarfile
 from collections.abc import Mapping, Sequence
@@ -215,7 +215,7 @@ def run_process(plan: ProcessPlan, *, stdin: bytes | None = None) -> ProcessResu
     ):
         raise TransportError("process_plan_invalid")
     try:
-        completed = subprocess.run(  # nosec B603: argv is absolute and validated by _checked_program (remove-by: 2026-10-31, ref: PR-2347)
+        completed = subprocess.run(  # nosec B603: # argv is absolute and validated by _checked_program (remove-by: 2026-10-31, ref: PR-2347)
             list(plan.argv),
             cwd=plan.cwd,
             env=dict(plan.env),

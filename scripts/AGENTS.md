@@ -47,7 +47,13 @@
   parsing, and `finally` cleanup rather than the broken BuildKit
   `type=oci,dest=...` host export. The subordinate recipe must retain its exact
   Node 2048-MiB heap cap and serialized Go `GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/
-  `-p=1` ceilings. `CONTAINER_HOST` is forbidden. Trivy scans
+  `-p=1` controls. These are not total-process or host-memory guarantees.
+  Build argv must pass the recipe's fixed `SOURCE_DATE_EPOCH` explicitly to
+  BuildKit so final-stage config/history timestamps are reproducible. Merely
+  declaring that argument in the builder stage does not bind the final image.
+  Retained local-image ownership must be recorded immediately after successful
+  transport return, before fallible observation checks, so cleanup also covers
+  those failures. `CONTAINER_HOST` is forbidden. Trivy scans
   only a validated extracted OCI layout with a fresh private database cache,
   explicit empty policy inputs, positive OS/prometheus/promtool coverage, and
   zero HIGH/CRITICAL findings.

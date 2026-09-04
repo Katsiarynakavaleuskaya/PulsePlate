@@ -14,11 +14,11 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Protocol, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 import yaml
 
-if __package__:
+if TYPE_CHECKING or __package__:
     from scripts.ci import _prometheus_derivative_transport as transport
 else:
     import _prometheus_derivative_transport as transport
@@ -195,7 +195,10 @@ def _transport_call(
 
 def _read_regular(path: Path, *, expected_mode: int | None = None) -> bytes:
     try:
-        return transport.read_regular(path, max_bytes=MAX_FILE_BYTES, expected_mode=expected_mode)
+        payload: bytes = transport.read_regular(
+            path, max_bytes=MAX_FILE_BYTES, expected_mode=expected_mode
+        )
+        return payload
     except transport.TransportError as exc:
         raise _hold("safe_read_failed") from exc
 
@@ -562,7 +565,7 @@ def _normalize_trivy_report(value: object) -> tuple[list[dict[str, object]], lis
         if row_class == "os-pkgs":
             logical_target = "os-packages"
         elif row_class == "lang-pkgs" and row_type == "gobinary":
-            binary = Path(target).name
+            binary = Path(cast(str, target)).name
             if binary not in {"prometheus", "promtool"}:
                 raise _hold("trivy_report_target_invalid")
             logical_target = f"{binary}-go-binary"
@@ -677,6 +680,7 @@ class ExactAdapters:
             or not isinstance(platform_value, dict)
             or platform_value.get("os") != "linux"
             or platform_value.get("architecture") != "arm64"
+            or not isinstance(configuration, dict)
             or configuration.get("rosetta") is not True
         ):
             raise _hold("apple_builder_identity_invalid")
@@ -725,10 +729,12 @@ class ExactAdapters:
             tag,
             *APPLE_BUILD_RESOURCES,
             *APPLE_BUILD_MODE,
+            "--build-arg",
+            "SOURCE_DATE_EPOCH=1788079847",
             str(context),
         )
-        save_argv = (container, "image", "save", "--platform", PLATFORM, "--output")
-        save_argv += (str(archive), tag)
+        save_prefix = (container, "image", "save", "--platform", PLATFORM, "--output")
+        save_argv = (*save_prefix, str(archive), tag)
         lifecycle = transport.LocalImageBuildPlan(
             self._plan((container, "image", "list", "--quiet"), 120),
             self._plan(argv),
@@ -748,6 +754,8 @@ class ExactAdapters:
             max_metadata_bytes=MAX_OCI_METADATA_BYTES,
             code="apple_build_failed",
         )
+        if keep_local:
+            self.loaded_ref = tag
         result, evidence = _transport_call(
             transport.merge_build_observation,
             observed,
@@ -759,7 +767,7 @@ class ExactAdapters:
         builder_after = self._builder_observation()
         if builder_after != builder_before:
             raise _hold("apple_builder_identity_drift")
-        evidence.update(builder_after)
+        evidence = {**evidence, **builder_after}
         accepted, dependency = _build_evidence(evidence), self.spec["dependency"]
         if not isinstance(dependency, dict) or (
             accepted["source_archive_sha256"] != self.spec["source_archive_sha256"]
@@ -819,7 +827,9 @@ class ExactAdapters:
         database = version_value["VulnerabilityDB"]
         updated_at = _fresh_database_timestamp(database)
         severities = [
-            finding["severity"] for row in normalized_report for finding in row["findings"]
+            finding["severity"]
+            for row in normalized_report
+            for finding in cast(list[dict[str, object]], row["findings"])
         ]
         value = {
             "trivy_version": self.identity["trivy_version"],
@@ -868,7 +878,6 @@ class ExactAdapters:
         if not isinstance(candidate_ref, str):
             raise _hold("candidate_ref_invalid")
         build, archive = self._build(candidate_ref, keep_local=True)
-        self.loaded_ref = candidate_ref
         scan = self._scan(archive)
         return {
             "tag_state": "absent" if self.observe(candidate_ref) is None else "present",
@@ -897,17 +906,10 @@ class ExactAdapters:
 
     def close(self) -> None:
         if self.loaded_ref is not None:
+            container = self.identity["container_path"]
             deleted = _transport_call(
                 transport.run_process,
-                self._plan(
-                    (
-                        self.identity["container_path"],
-                        "image",
-                        "delete",
-                        self.loaded_ref,
-                    ),
-                    120,
-                ),
+                self._plan((container, "image", "delete", self.loaded_ref), 120),
                 code="local_image_cleanup_failed",
             )
             if deleted.returncode != 0:
@@ -1005,6 +1007,7 @@ class ReceiptStore:
         if "00-spec" in chain and chain["00-spec"]["payload"] != {"spec": self.spec}:
             raise _hold("spec_receipt_invalid")
         first: BuildEvidence | None = None
+        expected: dict[str, object]
         if "10-build-one" in chain:
             payload = chain["10-build-one"]["payload"]
             if not isinstance(payload, dict) or payload.get("ordinal") != 1:
@@ -1186,7 +1189,7 @@ class CandidateController:
         self.freeze()
         chain = self.store.load()
         if "30-local-verification" in chain:
-            return dict(chain["30-local-verification"]["payload"])
+            return cast(dict[str, object], chain["30-local-verification"]["payload"]).copy()
         try:
             first_raw, second_raw, scan_raw = self.build_adapter.verify_two_builds(self.spec)
         except transport.TransportError as exc:
@@ -1214,7 +1217,7 @@ class CandidateController:
         chain = self.store.load()
         if "30-local-verification" not in chain:
             raise _hold("local_verification_required")
-        return dict(chain["30-local-verification"]["payload"])
+        return cast(dict[str, object], chain["30-local-verification"]["payload"]).copy()
 
     def show_publication_tuple(self) -> dict[str, object]:
         local = self.local_payload()
@@ -1263,7 +1266,7 @@ class CandidateController:
         if "40-publication-authorization" not in chain:
             raise _hold("publication_authorization_required")
         if "80-final-receipt" in chain:
-            return dict(chain["80-final-receipt"]["payload"])
+            return cast(dict[str, object], chain["80-final-receipt"]["payload"]).copy()
         local = self.local_payload()
         expected = _build_evidence(local["build_evidence"])
         expected_scan = _scan_evidence(local["scan_evidence"])

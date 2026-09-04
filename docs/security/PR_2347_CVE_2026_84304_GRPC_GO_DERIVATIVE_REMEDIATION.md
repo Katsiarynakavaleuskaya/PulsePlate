@@ -54,16 +54,22 @@ contexts containing only the verified Containerfile. Before and after each
 build, the controller requires and binds a live builder with exactly four CPUs
 and 6 GiB memory; an underprovisioned builder is `HOLD` before build execution.
 Each exact absolute argv uses linux/amd64, the same resource values, no cache,
-and plain progress. The recipe caps the Node heap at 2048 MiB and serializes Go
+plain progress, and `--build-arg SOURCE_DATE_EPOCH=1788079847`. The explicit
+BuildKit argument binds final config/history timestamps; a builder-stage-only
+argument did not do so in the bounded Apple Container reproduction. The
+recipe caps the Node heap at 2048 MiB and serializes Go
 package compilation with `GOMAXPROCS=2`, `GOMEMLIMIT=3GiB`, and `-p=1` on both
-binaries so concurrent host load cannot turn a nominal 6-GiB builder into a
-nondeterministic allocation failure. Apple Container 1.1.0 cannot create the requested host
+binaries. These controls reduce concurrent allocation pressure; Go's memory
+target is soft, and neither control guarantees total process or host memory.
+Apple Container 1.1.0 cannot create the requested host
 archive through BuildKit `type=oci,dest=...`, so the private transport uses the
 CLI's supported local-image path: require the exact temporary tag to be absent,
 build it into the local image store, save exactly linux/amd64 as an
 OCI-compatible tar, validate the single direct or single nested OCI index, and
 delete verification tags in `finally`. Publication preflight retains its exact
-candidate tag only until the existing adapter cleanup. Build, scan, and
+candidate tag only until the existing adapter cleanup. Ownership is recorded
+immediately after successful transport return, before fallible post-build
+observations, so those failures also reach cleanup. Build, scan, and
 registry plans receive a controller-owned private `HOME`/configuration root
 rather than the operator's ambient credential context. Trivy uses a fresh
 private cache, an explicit empty ignore input, and `--config /dev/null`;
@@ -83,7 +89,7 @@ The controller—not the transport—accepts and compares:
 - gzip content-tree evidence and EmbedFS hash;
 - exact Apple builder image digest and normalized pre/post builder status,
   including four CPUs and 6 GiB memory;
-- exact Node and Go compiler memory/concurrency ceilings;
+- exact Node heap and Go memory/concurrency controls;
 - exact Trivy executable/version/fresh database identity and normalized report
   digest after scanning the validated, privately extracted OCI layout;
 - positive OS, `/bin/prometheus`, and `/bin/promtool` package coverage, with

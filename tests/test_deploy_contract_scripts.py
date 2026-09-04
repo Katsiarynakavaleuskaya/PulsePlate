@@ -497,6 +497,17 @@ def _candidate_scan() -> dict[str, object]:
     }
 
 
+@pytest.fixture
+def prometheus_database_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_timestamp_check = prometheus_candidate._fresh_database_timestamp
+    fixed_now = datetime.fromisoformat("2026-09-04T01:00:00+00:00")
+
+    def check_at_fixed_time(database: Mapping[str, object]) -> str:
+        return real_timestamp_check(database, now=fixed_now)
+
+    monkeypatch.setattr(prometheus_candidate, "_fresh_database_timestamp", check_at_fixed_time)
+
+
 def _candidate_trivy_report() -> dict[str, object]:
     return {
         "Results": [
@@ -692,7 +703,7 @@ def test_prometheus_candidate_rejects_divergence_selector_and_evidence_drift(
 
 @pytest.mark.parametrize(
     "failure",
-    ("binary", "source", "ui", "embedfs", "unknown_field"),
+    ("binary", "source", "ui", "embedfs", "manifest", "config", "layers", "unknown_field"),
 )
 def test_prometheus_candidate_two_build_comparison_fails_closed(
     tmp_path: Path,
@@ -705,18 +716,29 @@ def test_prometheus_candidate_two_build_comparison_fails_closed(
         "source": "source_archive_sha256",
         "ui": "ui_content_tree_sha256",
         "embedfs": "embed_go_sha256",
+        "manifest": "manifest_digest",
+        "config": "config_digest",
+        "layers": "layer_digests",
         "unknown_field": "source_path",
     }[failure]
-    second[field] = "/tmp/build-two" if failure == "unknown_field" else "0" * 64
+    if failure in {"manifest", "config"}:
+        second[field] = "sha256:" + "0" * 64
+    elif failure == "layers":
+        second[field] = ["sha256:" + "0" * 64]
+    else:
+        second[field] = "/tmp/build-two" if failure == "unknown_field" else "0" * 64
     controller = _candidate_controller(tmp_path, first=first, second=second)
     with pytest.raises(prometheus_candidate.CandidateHold):
         controller.verify_local()
     assert list(controller.store.load()) == ["00-spec"]
 
 
+@pytest.mark.parametrize("postbuild_failure", (None, "builder", "evidence"))
+@pytest.mark.usefixtures("prometheus_database_clock")
 def test_prometheus_exact_adapter_builds_isolated_plans_without_external_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    postbuild_failure: str | None,
 ) -> None:
     repo = _candidate_repo(tmp_path)
     identity = _candidate_identity(repo)
@@ -740,6 +762,10 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     ) -> object:
         lifecycle_plans.append(lifecycle)
         build_plans.append(lifecycle.build)
+        assert lifecycle.build.argv.count("--build-arg") == 1
+        assert lifecycle.build.argv[lifecycle.build.argv.index("--build-arg") + 1] == (
+            "SOURCE_DATE_EPOCH=1788079847"
+        )
         assignments = {
             name: (
                 "10"
@@ -759,6 +785,8 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
         assignments["PULSEPLATE_TRANSFORMED_GO_SUM_SHA256"] = dependency[
             "transformed_go_sum_sha256"
         ]
+        if lifecycle.keep_local and postbuild_failure == "evidence":
+            assignments["PULSEPLATE_SOURCE_ARCHIVE_SHA256"] = "0" * 64
         return prometheus_candidate.transport.ProcessResult(0, b"", b""), assignments, oci
 
     def fake_process(plan: object, **_kwargs: object) -> object:
@@ -783,6 +811,11 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
                     }
                 }
             ]
+            observations = [
+                item for item in process_plans if ("builder", "status") == item.argv[1:3]
+            ]
+            if len(observations) == 6 and postbuild_failure == "builder":
+                builder_status[0]["configuration"]["resources"]["cpus"] = 2
             return prometheus_candidate.transport.ProcessResult(
                 0,
                 json.dumps(builder_status).encode(),
@@ -881,6 +914,32 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
         {"file": "20-build-two.json", "sha256": "sha256:" + "e" * 64},
         prometheus_candidate._stage2_observation(repo, spec),
     )
+    if postbuild_failure is not None:
+        controller = prometheus_candidate.CandidateController(
+            repo,
+            identity_provider=lambda _root: identity,
+            build_adapter=_CandidateBuildAdapter(first, second, scan),
+            publication_adapter=adapter,
+        )
+        verified = controller.verify_local()
+        controller.authorize(verified["expected_authorization_line"])
+
+        def unexpected_credential_read() -> bytes:
+            pytest.fail("post-build failure must not reach credentials")
+
+        monkeypatch.setattr(controller, "_credential_after_intent", unexpected_credential_read)
+        failure_code = (
+            "apple_builder_resources_invalid"
+            if postbuild_failure == "builder"
+            else "build_observation_drift"
+        )
+        with pytest.raises(prometheus_candidate.CandidateHold, match=failure_code):
+            controller.publish_or_reconcile()
+        assert adapter.loaded_ref == verified["candidate_ref"]
+        assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:5])
+        assert process_plans[-1].argv[-3:] == ("image", "delete", verified["candidate_ref"])
+        assert all("login" not in plan.argv and "push" not in plan.argv for plan in process_plans)
+        return
     preflight = adapter.preflight(local)
     assert preflight["tag_state"] == "absent"
     assert len(build_plans) == 3
@@ -957,6 +1016,7 @@ def test_prometheus_exact_adapter_rejects_underprovisioned_builder_before_build(
         (0, 0, ["malformed"], "trivy_report_invalid"),
     ),
 )
+@pytest.mark.usefixtures("prometheus_database_clock")
 def test_prometheus_exact_adapter_scan_result_semantics_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
