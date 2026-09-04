@@ -299,8 +299,8 @@ does not become a conservative result. An enabled design packet that still
 carries `missing_design_trigger` is contradictory and fails even if an older
 producer accepted that caller-supplied blocker. Finally, a selected historical
 base that predates the applicability helper cannot execute this new startup
-path. When either post-bootstrap condition is discovered, the starter preserves
-the created worktree and packet for diagnosis as required; it does not roll
+path. When any of these post-bootstrap conditions is discovered, the starter
+preserves the created worktree and packet for diagnosis as required; it does not roll
 back or reinterpret the lane.
 
 ### Local rollout (outside repo PR chain)

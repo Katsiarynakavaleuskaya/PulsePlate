@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -266,11 +267,13 @@ def _run_execute_path_with_sidecar_payload(
     extra_start_args: tuple[str, ...] = (),
     assert_projection_not_exported: bool = False,
     preexported_projection_sentinel: bool = False,
+    worktree_check: Callable[[Path], None] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(parents=True)
     packet_rel, packet_path = _make_packet_artifact(tmp_path, candidate_path=candidate_path)
     worktree_rel = f"worktrees/execute-path-test-{tmp_path.name}"
+    worktree_path = REPO_ROOT / worktree_rel
 
     git_stub = bin_dir / "git"
     git_stub.write_text(
@@ -392,23 +395,28 @@ esac
             env.pop("APPLICABILITY_JSON", None)
         env["SHELLOPTS"] = "allexport"
         env["ASSERT_PROJECTION_NOT_EXPORTED"] = "1"
-    result = run_start(
-        "--goal",
-        "Start governed PR lane",
-        "--task-class",
-        "pr_governance",
-        "--branch",
-        "codex/execute-path-test",
-        "--worktree",
-        worktree_rel,
-        "--path",
-        "docs/dev/CODEX_SKILLS.md",
-        *extra_start_args,
-        "--allow-dirty-launcher",
-        env=env,
-    )
-    shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
-    packet_path.unlink(missing_ok=True)
+    try:
+        result = run_start(
+            "--goal",
+            "Start governed PR lane",
+            "--task-class",
+            "pr_governance",
+            "--branch",
+            "codex/execute-path-test",
+            "--worktree",
+            worktree_rel,
+            "--path",
+            "docs/dev/CODEX_SKILLS.md",
+            *extra_start_args,
+            "--allow-dirty-launcher",
+            env=env,
+        )
+        if worktree_check is not None:
+            worktree_check(worktree_path)
+    finally:
+        if worktree_path.exists():
+            shutil.rmtree(worktree_path)
+        packet_path.unlink(missing_ok=True)
     return result, packet_path
 
 
@@ -653,15 +661,24 @@ def test_invalid_applicability_output_blocks_sidecar_and_prompt(
 def test_missing_applicability_helper_retains_diagnostic_worktree_before_blocking(
     tmp_path: Path,
 ) -> None:
+    retained_worktrees: list[Path] = []
+
+    def check_retained_worktree(worktree_path: Path) -> None:
+        assert worktree_path.is_dir()
+        retained_worktrees.append(worktree_path)
+
     result, _ = _run_execute_path_with_sidecar_payload(
         tmp_path,
         _valid_sidecar_prepare_payload(),
         applicability_helper_present=False,
+        worktree_check=check_retained_worktree,
     )
 
     assert result.returncode == 1
     assert "evidence rail applicability helper is unavailable after bootstrap" in result.stderr
     assert (tmp_path / "worktree-created.txt").read_text(encoding="utf-8") == "created\n"
+    assert len(retained_worktrees) == 1
+    assert not retained_worktrees[0].exists()
     assert not (tmp_path / "sidecar-args.txt").exists()
     assert "Paste into Codex now:" not in result.stdout
 
