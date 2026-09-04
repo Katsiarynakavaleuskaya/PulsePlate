@@ -459,7 +459,7 @@ exit: 0 per query
 ```
 
 The content-binding tests at `tests/test_frontend_dependency_guards.py:3409`
-and `tests/test_frontend_dependency_guards.py:3557` reject duplicate JSON
+and `tests/test_frontend_dependency_guards.py:3558` reject duplicate JSON
 keys, wrong batch/scanner identities, record/range omissions, changed package
 or ecosystem projections, first-patched drift, and withdrawal drift.
 

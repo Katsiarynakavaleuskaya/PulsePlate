@@ -3431,6 +3431,7 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
     }
     assert receipt["schema"] == TRANSITIVE_NPM_BATCH_RECEIPT_SCHEMA
     assert receipt["authorized_dependency_identities"] == ["npm:browserslist", "npm:qs"]
+    assert receipt["operator_authorization"] == "exact_finite_batch_confirmed_2026-09-03"
     assert receipt["gad_cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
     scanner = receipt["scanner_snapshot"]
     assert isinstance(scanner, dict)
