@@ -260,6 +260,42 @@ _TERMINAL_INPUT_FIELDS = frozenset(
 )
 _REPORT_REQUEST_FIELDS = frozenset({"schema_version", "cohort_as_of"})
 
+SUPERVISION_POLICY_VERSION = "invariant_family_review_episode.supervision.policy.v1"
+CHECKPOINT_RECEIPT_SCHEMA = "invariant_family_review_episode.checkpoint_receipt.v1"
+CHECKPOINT_RECEIPT_DOMAIN = "pulseplate.invariant-family-review-episode.checkpoint-receipt.v1"
+STATUS_REQUEST_SCHEMA = "invariant_family_review_episode.status_request.v1"
+COMPLETE_INPUT_SCHEMA = "invariant_family_review_episode.complete_input.v1"
+SUPERVISION_ACK_SCHEMA = "invariant_family_review_episode.supervision_ack.v1"
+MAX_CHECKPOINT_BUNDLES = 128
+MAX_CHECKPOINT_RECEIPT_BYTES = 262_144
+SUPERVISION_VERBS = ("checkpoint", "status", "complete")
+SUPERVISION_STATES = (
+    "absent",
+    "enrolled_awaiting_checkpoint",
+    "enrolled_awaiting_terminal",
+    "terminal_awaiting_report",
+    "complete",
+)
+_STATUS_REQUEST_FIELDS = frozenset({"schema_version", "pull_request_number"})
+_COMPLETE_INPUT_FIELDS = frozenset({"schema_version", "terminal", "report_request"})
+_CHECKPOINT_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "policy_version",
+        "repository_slug",
+        "pull_request_number",
+        "episode_digest",
+        "enrollment_receipt_digest",
+        "baseline",
+        "joint_pass_baseline_digest",
+        "validate_acknowledgement",
+        "claims",
+        "downstream_grants",
+        "transport_capability",
+        "checkpoint_receipt_digest",
+    }
+)
+
 
 def _freeze_policy(value: object) -> object:
     if isinstance(value, dict):
@@ -648,6 +684,45 @@ def _policy_source() -> dict[str, object]:
 
 
 POLICY_PROJECTION = cast(Mapping[str, object], _freeze_policy(_policy_source()))
+
+SUPERVISION_PROJECTION = cast(
+    Mapping[str, object],
+    _freeze_policy(
+        {
+            "policy_version": SUPERVISION_POLICY_VERSION,
+            "verbs": list(SUPERVISION_VERBS),
+            "lifecycle": list(SUPERVISION_STATES),
+            "report_states": ["absent", "stale", "current"],
+            "checkpoint": {
+                "input_schema": BASELINE_INPUT_SCHEMA,
+                "receipt_schema": CHECKPOINT_RECEIPT_SCHEMA,
+                "receipt_fields": sorted(_CHECKPOINT_RECEIPT_FIELDS),
+                "digest_domain": CHECKPOINT_RECEIPT_DOMAIN,
+                "layout": "checkpoints/<episode_digest>/receipt.json",
+                "maximum_bundles": MAX_CHECKPOINT_BUNDLES,
+                "maximum_receipt_bytes": MAX_CHECKPOINT_RECEIPT_BYTES,
+                "optional_lane": True,
+            },
+            "status": {
+                "input_schema": STATUS_REQUEST_SCHEMA,
+                "input_fields": sorted(_STATUS_REQUEST_FIELDS),
+                "store_creation": False,
+                "report_selection": "maximum_cohort_as_of_then_digest_of_exact_manifest_matches",
+            },
+            "complete": {
+                "input_schema": COMPLETE_INPUT_SCHEMA,
+                "input_fields": sorted(_COMPLETE_INPUT_FIELDS),
+                "terminal_input_schema": TERMINAL_INPUT_SCHEMA,
+                "report_request_schema": REPORT_REQUEST_SCHEMA,
+                "publication_order": ["terminal", "report"],
+                "available_baseline_requires_checkpoint": True,
+            },
+            "acknowledgement_schema": SUPERVISION_ACK_SCHEMA,
+            "aggregate_receipt_scan_bytes": MAX_AGGREGATE_RECEIPT_SCAN_BYTES,
+            "downstream_grants": dict(FALSE_GRANTS),
+        }
+    ),
+)
 
 
 class EpisodeError(Exception):
@@ -1234,6 +1309,129 @@ def _joint_pass_baseline_digest(baseline: Mapping[str, object]) -> str:
     return _domain_digest(BASELINE_DOMAIN, baseline)
 
 
+def _baseline_ack(baseline: Mapping[str, object]) -> dict[str, object]:
+    return _ack(
+        "validate",
+        episode_digest=baseline["episode_digest"],
+        joint_pass_baseline_digest=_joint_pass_baseline_digest(baseline),
+    )
+
+
+def _build_checkpoint_receipt(value: object, enrollment: Mapping[str, object]) -> dict[str, object]:
+    baseline = _normalize_joint_pass_baseline(value, enrollment)
+    receipt: dict[str, object] = {
+        "schema_version": CHECKPOINT_RECEIPT_SCHEMA,
+        "policy_version": SUPERVISION_POLICY_VERSION,
+        "repository_slug": REPOSITORY_SLUG,
+        "pull_request_number": enrollment["pull_request_number"],
+        "episode_digest": enrollment["episode_digest"],
+        "enrollment_receipt_digest": enrollment["enrollment_receipt_digest"],
+        "baseline": baseline,
+        "joint_pass_baseline_digest": _joint_pass_baseline_digest(baseline),
+        "validate_acknowledgement": _baseline_ack(baseline),
+        "claims": dict(RECEIPT_CLAIMS),
+        "downstream_grants": dict(FALSE_GRANTS),
+        "transport_capability": TRANSPORT_CAPABILITY,
+    }
+    receipt["checkpoint_receipt_digest"] = _domain_digest(CHECKPOINT_RECEIPT_DOMAIN, receipt)
+    return receipt
+
+
+def _require_checkpoint_agreement(
+    joint_pass: object,
+    checkpoint: Mapping[str, object] | None,
+    enrollment: Mapping[str, object],
+    *,
+    available_requires_checkpoint: bool = False,
+) -> None:
+    joint = _require_object(joint_pass)
+    status = _require_enum(joint.get("status"), JOINT_PASS_STATUSES)
+    if checkpoint is None:
+        if available_requires_checkpoint and status == "completed_baseline_available":
+            _fail("E_DEPENDENCY")
+        return
+    if status != "completed_baseline_available":
+        _fail("E_DEPENDENCY")
+    baseline = _normalize_joint_pass_baseline(joint.get("baseline"), enrollment)
+    if (
+        baseline != checkpoint["baseline"]
+        or _require_digest(joint.get("joint_pass_baseline_digest"))
+        != checkpoint["joint_pass_baseline_digest"]
+    ):
+        _fail("E_DEPENDENCY")
+
+
+def _minimum_terminal_receipt_bytes(
+    checkpoint: Mapping[str, object], enrollment: Mapping[str, object]
+) -> int:
+    """Size only the mandatory v1 representation, never a proposed observation.
+
+    Empty unknown scalars make this projection intentionally invalid. It is
+    neither normalized, hashed, returned nor persisted as terminal evidence.
+    Replacing its placeholders with the closed minimum widths preserves JSON
+    nodes/depth. Future C growth and aggregate capacity are not reserved.
+    """
+    baseline = cast(Mapping[str, object], checkpoint["baseline"])
+    families = cast(list[dict[str, object]], baseline["families"])
+    projection: dict[str, object] = {
+        "schema_version": TERMINAL_RECEIPT_SCHEMA,
+        "policy_version": POLICY_VERSION,
+        "repository_slug": REPOSITORY_SLUG,
+        "pull_request_number": enrollment["pull_request_number"],
+        "episode_digest": enrollment["episode_digest"],
+        "enrollment_receipt_digest": enrollment["enrollment_receipt_digest"],
+        "episode_class": enrollment["episode_class"],
+        "terminal_state": "",
+        "terminal_event_at": "",
+        "terminal_recorded_at": "",
+        "terminal_material_head_sha": "",
+        "observed_l2_identity_digests": [""],
+        "joint_pass": {
+            "status": "completed_baseline_available",
+            "baseline": baseline,
+            "joint_pass_baseline_digest": checkpoint["joint_pass_baseline_digest"],
+            "identity_classes": baseline["identity_classes"],
+            "family_observations": [
+                {"status": "", "reason": "", "family_key": family["family_key"]}
+                for family in families
+            ],
+        },
+        "recurrence": {"status": "", "reason": ""},
+        "claims": dict(RECEIPT_CLAIMS),
+        "downstream_grants": dict(FALSE_GRANTS),
+        "transport_capability": TRANSPORT_CAPABILITY,
+        "terminal_receipt_digest": "",
+    }
+    _count_json_shape(projection)
+    non_comparable_width = len(FAMILY_STATUS_NON_COMPARABLE) + min(
+        map(len, FAMILY_NON_COMPARABLE_REASONS)
+    )
+    unknown_width = len(FAMILY_STATUS_UNKNOWN) + min(map(len, FAMILY_UNKNOWN_REASONS))
+    # Closed alternatives: all non-comparable families, or one unknown and the
+    # remaining non-comparable. More unknowns or confirmed fields only add bytes.
+    family_scalar_width = min(
+        len(families) * non_comparable_width
+        + len(EPISODE_STATUS_NON_COMPARABLE)
+        + len("family_observation_non_comparable"),
+        (len(families) - 1) * non_comparable_width
+        + unknown_width
+        + len(EPISODE_STATUS_UNKNOWN)
+        + len("family_observation_unknown"),
+    )
+    # Validated enrollment scalars already have the frozen timestamp/SHA widths.
+    fixed_scalar_width = (
+        min(map(len, TERMINAL_STATES))
+        + 2 * len(cast(str, enrollment["enrollment_recorded_at"]))
+        + len(cast(str, enrollment["material_head_sha"]))
+        + 2 * len(cast(str, checkpoint["joint_pass_baseline_digest"]))
+    )
+    return (
+        len(_canonical_json_bytes(projection, trailing_lf=True))
+        + fixed_scalar_width
+        + family_scalar_width
+    )
+
+
 def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -> dict[str, object]:
     document = _require_object(value)
     _require_exact_keys(document, _TERMINAL_INPUT_FIELDS)
@@ -1810,10 +2008,18 @@ def _open_verified_directory(
 class _StoreSession:
     """One descriptor-relative locked view of the fixed local store."""
 
-    def __init__(self, repository_anchor_fd: int, *, exclusive: bool, create: bool):
+    def __init__(
+        self,
+        repository_anchor_fd: int,
+        *,
+        exclusive: bool,
+        create: bool,
+        allow_absent: bool = False,
+    ) -> None:
         self._fds: list[int] = []
         self.root_fd = -1
         self.lane_fds: dict[str, int] = {}
+        self.absent = False
         try:
             anchor_fd = os.dup(repository_anchor_fd)
             os.set_inheritable(anchor_fd, False)
@@ -1830,6 +2036,9 @@ class _StoreSession:
                         exact_mode=False,
                     )
                 except FileNotFoundError:
+                    if allow_absent and not create:
+                        self.absent = True
+                        return
                     _fail("E_DEPENDENCY")
                 self._fds.append(child_fd)
                 current_fd = child_fd
@@ -1848,6 +2057,9 @@ class _StoreSession:
                     exact_mode=True,
                 )
             except FileNotFoundError:
+                if allow_absent and not create:
+                    self.absent = True
+                    return
                 _fail("E_DEPENDENCY")
             self._fds.append(self.root_fd)
             try:
@@ -1868,6 +2080,15 @@ class _StoreSession:
                     _fail("E_STORE_UNSAFE")
                 self._fds.append(lane_fd)
                 self.lane_fds[lane_name] = lane_fd
+            try:
+                checkpoint_fd, _ = _open_verified_directory(
+                    self.root_fd, "checkpoints", create=False, exact_mode=True
+                )
+            except FileNotFoundError:
+                pass
+            else:
+                self._fds.append(checkpoint_fd)
+                self.lane_fds["checkpoints"] = checkpoint_fd
             if root_created:
                 try:
                     os.fsync(self.root_fd)
@@ -1876,6 +2097,19 @@ class _StoreSession:
         except Exception:
             self.close()
             raise
+
+    def create_checkpoint_lane(self) -> None:
+        if "checkpoints" in self.lane_fds:
+            return
+        lane_fd, _ = _open_verified_directory(
+            self.root_fd, "checkpoints", create=True, exact_mode=True
+        )
+        self._fds.append(lane_fd)
+        self.lane_fds["checkpoints"] = lane_fd
+        try:
+            os.fsync(self.root_fd)
+        except OSError:
+            _fail("E_PUBLISH_FAILED")
 
     def close(self) -> None:
         while self._fds:
@@ -2056,6 +2290,46 @@ def _validate_terminal_bundle(
         _fail("E_STORE_UNSAFE")
 
 
+def _validate_checkpoint_bundle(
+    files: Mapping[str, bytes], enrollment: Mapping[str, object]
+) -> dict[str, object]:
+    value = _strict_stored_json(files["receipt.json"], maximum_bytes=MAX_CHECKPOINT_RECEIPT_BYTES)
+    try:
+        receipt = _require_object(value)
+        _require_exact_keys(receipt, _CHECKPOINT_RECEIPT_FIELDS)
+        _require_false_grants(receipt["downstream_grants"])
+        rebuilt = _build_checkpoint_receipt(receipt["baseline"], enrollment)
+        if _canonical_json_bytes(receipt) != _canonical_json_bytes(rebuilt):
+            _fail("E_STORE_UNSAFE")
+        return rebuilt
+    except EpisodeError:
+        _fail("E_STORE_UNSAFE")
+
+
+def _checkpoint_files(session: _StoreSession, episode_digest: str) -> dict[str, bytes] | None:
+    lane_fd = session.lane_fds.get("checkpoints")
+    if lane_fd is None:
+        return None
+    return _read_exact_bundle(
+        lane_fd,
+        episode_digest,
+        bundle_kind="receipt",
+        maximum_file_bytes={"receipt.json": MAX_CHECKPOINT_RECEIPT_BYTES},
+    )
+
+
+def _load_checkpoint(
+    session: _StoreSession, episode_digest: str, enrollment: Mapping[str, object]
+) -> dict[str, object] | None:
+    files = _checkpoint_files(session, episode_digest)
+    if files is None:
+        return None
+    receipt = _validate_checkpoint_bundle(files, enrollment)
+    if receipt["episode_digest"] != episode_digest:
+        _fail("E_STORE_UNSAFE")
+    return receipt
+
+
 def _load_enrollment(
     session: _StoreSession, episode_digest: str, *, required: bool
 ) -> dict[str, object] | None:
@@ -2091,6 +2365,9 @@ def _load_terminal(
     receipt = _validate_terminal_bundle(files, enrollment)
     if receipt["episode_digest"] != episode_digest:
         _fail("E_STORE_UNSAFE")
+    _require_checkpoint_agreement(
+        receipt["joint_pass"], _load_checkpoint(session, episode_digest, enrollment), enrollment
+    )
     return receipt
 
 
@@ -2194,7 +2471,25 @@ def _kernel_rename_noreplace(lane_fd: int, stage_name: str, final_name: str) -> 
     raise OSError(error_number, "no-replace publication failed")
 
 
-def _publish_bundle(
+def _publication_limits(lane_name: str, bundle_kind: str) -> tuple[dict[str, int], int]:
+    if lane_name == "reports" and bundle_kind == "report":
+        return (
+            {"report.json": MAX_REPORT_JSON_BYTES, "report.md": MAX_REPORT_MARKDOWN_BYTES},
+            MAX_REPORT_GENERATIONS,
+        )
+    if bundle_kind == "receipt":
+        limits = {
+            "enrollments": (MAX_ENROLLMENT_RECEIPT_BYTES, MAX_ENROLLMENT_BUNDLES),
+            "terminals": (MAX_TERMINAL_RECEIPT_BYTES, MAX_TERMINAL_BUNDLES),
+            "checkpoints": (MAX_CHECKPOINT_RECEIPT_BYTES, MAX_CHECKPOINT_BUNDLES),
+        }
+        if lane_name in limits:
+            maximum_bytes, maximum_bundles = limits[lane_name]
+            return {"receipt.json": maximum_bytes}, maximum_bundles
+    _fail("E_PUBLISH_FAILED")
+
+
+def _preflight_bundle_publication(
     bundle_kind: str,
     digest: str,
     rendered_files: Mapping[str, bytes],
@@ -2202,30 +2497,18 @@ def _publish_bundle(
     *,
     lane_name: str,
     existing_validator: Callable[[Mapping[str, bytes]], object],
-) -> None:
-    if bundle_kind not in BUNDLE_SHAPES or lane_name not in LANE_NAMES:
+) -> bool:
+    if bundle_kind not in BUNDLE_SHAPES:
         _fail("E_PUBLISH_FAILED")
     expected_names = BUNDLE_SHAPES[bundle_kind]
     if tuple(sorted(rendered_files)) != tuple(sorted(expected_names)):
         _fail("E_PUBLISH_FAILED")
     lane_fd = store_session.lane_fds[lane_name]
-    maximum_file_bytes = (
-        {"receipt.json": MAX_ENROLLMENT_RECEIPT_BYTES}
-        if lane_name == "enrollments"
-        else (
-            {"receipt.json": MAX_TERMINAL_RECEIPT_BYTES}
-            if lane_name == "terminals"
-            else {
-                "report.json": MAX_REPORT_JSON_BYTES,
-                "report.md": MAX_REPORT_MARKDOWN_BYTES,
-            }
-        )
-    )
-    maximum_bundles = (
-        MAX_ENROLLMENT_BUNDLES
-        if lane_name == "enrollments"
-        else MAX_TERMINAL_BUNDLES if lane_name == "terminals" else MAX_REPORT_GENERATIONS
-    )
+    maximum_file_bytes, maximum_bundles = _publication_limits(lane_name, bundle_kind)
+    if any(len(rendered_files[name]) > maximum for name, maximum in maximum_file_bytes.items()):
+        _fail("E_LIMIT")
+    if bundle_kind == "report" and sum(map(len, rendered_files.values())) > MAX_REPORT_BUNDLE_BYTES:
+        _fail("E_LIMIT")
     names = _scan_lane_names(lane_fd, maximum_bundles)
     existing = _read_exact_bundle(
         lane_fd,
@@ -2236,11 +2519,35 @@ def _publish_bundle(
     if existing is not None:
         existing_validator(existing)
         if existing == dict(rendered_files):
-            return
+            return True
         _fail("E_REPLAY_DIVERGENT")
 
     if len(names) >= maximum_bundles:
         _fail("E_LIMIT")
+    return False
+
+
+def _publish_bundle(
+    bundle_kind: str,
+    digest: str,
+    rendered_files: Mapping[str, bytes],
+    store_session: _StoreSession,
+    *,
+    lane_name: str,
+    existing_validator: Callable[[Mapping[str, bytes]], object],
+) -> None:
+    if _preflight_bundle_publication(
+        bundle_kind,
+        digest,
+        rendered_files,
+        store_session,
+        lane_name=lane_name,
+        existing_validator=existing_validator,
+    ):
+        return
+    expected_names = BUNDLE_SHAPES[bundle_kind]
+    lane_fd = store_session.lane_fds[lane_name]
+    maximum_file_bytes, _ = _publication_limits(lane_name, bundle_kind)
 
     stage_name = ""
     stage_fd = -1
@@ -2393,6 +2700,8 @@ def _scan_terminals(
     session: _StoreSession,
     enrollments: Mapping[str, dict[str, object]],
     aggregate_bytes: int,
+    *,
+    checkpoints: Mapping[str, dict[str, object]] | None = None,
 ) -> tuple[dict[str, dict[str, object]], int]:
     lane_fd = session.lane_fds["terminals"]
     names = _scan_lane_names(lane_fd, MAX_TERMINAL_BUNDLES)
@@ -2415,8 +2724,67 @@ def _scan_terminals(
         receipt = _validate_terminal_bundle(files, enrollment)
         if receipt["episode_digest"] != digest:
             _fail("E_STORE_UNSAFE")
+        checkpoint = (
+            _load_checkpoint(session, digest, enrollment)
+            if checkpoints is None
+            else checkpoints.get(digest)
+        )
+        _require_checkpoint_agreement(receipt["joint_pass"], checkpoint, enrollment)
         result[digest] = receipt
     return result, aggregate_bytes
+
+
+def _scan_checkpoints(
+    session: _StoreSession,
+    enrollments: Mapping[str, dict[str, object]],
+    aggregate_bytes: int,
+) -> tuple[dict[str, dict[str, object]], int]:
+    lane_fd = session.lane_fds.get("checkpoints")
+    if lane_fd is None:
+        return {}, aggregate_bytes
+    result: dict[str, dict[str, object]] = {}
+    for digest in _scan_lane_names(lane_fd, MAX_CHECKPOINT_BUNDLES):
+        enrollment = enrollments.get(digest)
+        if enrollment is None:
+            _fail("E_STORE_UNSAFE")
+        files = _checkpoint_files(session, digest)
+        if files is None:
+            _fail("E_STORE_UNSAFE")
+        aggregate_bytes += len(files["receipt.json"])
+        if aggregate_bytes > MAX_AGGREGATE_RECEIPT_SCAN_BYTES:
+            _fail("E_LIMIT")
+        result[digest] = _validate_checkpoint_bundle(files, enrollment)
+        if result[digest]["episode_digest"] != digest:
+            _fail("E_STORE_UNSAFE")
+    return result, aggregate_bytes
+
+
+def _scan_store(
+    session: _StoreSession,
+) -> tuple[
+    dict[str, dict[str, object]],
+    dict[str, dict[str, object]],
+    dict[str, dict[str, object]],
+    int,
+]:
+    enrollments, aggregate_bytes = _scan_enrollments(session)
+    checkpoints, aggregate_bytes = _scan_checkpoints(session, enrollments, aggregate_bytes)
+    terminals, aggregate_bytes = _scan_terminals(
+        session, enrollments, aggregate_bytes, checkpoints=checkpoints
+    )
+    return enrollments, checkpoints, terminals, aggregate_bytes
+
+
+def _preflight_supervised_receipt_append(
+    session: _StoreSession, lane_name: str, episode_digest: str, rendered: bytes
+) -> None:
+    if "checkpoints" not in session.lane_fds:
+        return
+    enrollments, _checkpoints, terminals, aggregate_bytes = _scan_store(session)
+    receipts = enrollments if lane_name == "enrollments" else terminals
+    additional_bytes = 0 if episode_digest in receipts else len(rendered)
+    if aggregate_bytes + additional_bytes > MAX_AGGREGATE_RECEIPT_SCAN_BYTES:
+        _fail("E_LIMIT")
 
 
 def _observation_from_terminal(
@@ -2680,9 +3048,10 @@ def _validate_prior_reports(
     session: _StoreSession,
     enrollments: Mapping[str, dict[str, object]],
     terminals: Mapping[str, dict[str, object]],
-) -> None:
+) -> list[dict[str, object]]:
     lane_fd = session.lane_fds["reports"]
     names = _scan_lane_names(lane_fd, MAX_REPORT_GENERATIONS)
+    reports: list[dict[str, object]] = []
     for digest in names:
         files = _read_exact_bundle(
             lane_fd,
@@ -2698,6 +3067,8 @@ def _validate_prior_reports(
         report = _validate_report_bundle(files, enrollments, terminals)
         if report["report_digest"] != digest:
             _fail("E_REPORT_MANIFEST")
+        reports.append(report)
+    return reports
 
 
 def _ack(operation: str, **fields: object) -> dict[str, object]:
@@ -2724,8 +3095,14 @@ def _run_enroll(document: object, repository_anchor_fd: int) -> dict[str, object
                 bundle_kind="receipt",
                 maximum_file_bytes={"receipt.json": MAX_TERMINAL_RECEIPT_BYTES},
             )
-            if orphan_terminal is not None:
+            if (
+                orphan_terminal is not None
+                or _checkpoint_files(session, episode_digest) is not None
+            ):
                 _fail("E_STORE_UNSAFE")
+        else:
+            _load_checkpoint(session, episode_digest, existing_enrollment)
+            _load_terminal(session, episode_digest, existing_enrollment)
 
         def validate_existing(files: Mapping[str, bytes]) -> dict[str, object]:
             existing = _validate_enrollment_bundle(files)
@@ -2733,6 +3110,7 @@ def _run_enroll(document: object, repository_anchor_fd: int) -> dict[str, object
                 _fail("E_STORE_UNSAFE")
             return existing
 
+        _preflight_supervised_receipt_append(session, "enrollments", episode_digest, rendered)
         _publish_bundle(
             "receipt",
             episode_digest,
@@ -2763,11 +3141,54 @@ def _run_validate(document: object, repository_anchor_fd: int) -> dict[str, obje
         if _load_terminal(session, episode_digest, enrollment) is not None:
             _fail("E_ORDER")
         baseline = _normalize_joint_pass_baseline(document, enrollment)
-        digest = _joint_pass_baseline_digest(baseline)
-    return _ack(
-        "validate",
-        episode_digest=episode_digest,
-        joint_pass_baseline_digest=digest,
+        checkpoint = _load_checkpoint(session, episode_digest, enrollment)
+        if checkpoint is not None and baseline != checkpoint["baseline"]:
+            _fail("E_DEPENDENCY")
+    return _baseline_ack(baseline)
+
+
+def _prepare_terminal_publication(
+    session: _StoreSession,
+    document: object,
+    enrollment: Mapping[str, object],
+    *,
+    available_requires_checkpoint: bool = False,
+) -> tuple[dict[str, object], dict[str, bytes]]:
+    episode_digest = _bound_episode_digest(document, fields=_TERMINAL_INPUT_FIELDS)
+    checkpoint = _load_checkpoint(session, episode_digest, enrollment)
+    _load_terminal(session, episode_digest, enrollment)
+    _require_checkpoint_agreement(
+        _require_object(document)["joint_pass"],
+        checkpoint,
+        enrollment,
+        available_requires_checkpoint=available_requires_checkpoint,
+    )
+    receipt = _build_terminal_receipt(document, enrollment)
+    files = {"receipt.json": _canonical_json_bytes(receipt, trailing_lf=True)}
+    _preflight_bundle_publication(
+        "receipt",
+        episode_digest,
+        files,
+        session,
+        lane_name="terminals",
+        existing_validator=lambda stored: _validate_terminal_bundle(stored, enrollment),
+    )
+    return receipt, files
+
+
+def _publish_terminal(
+    session: _StoreSession,
+    receipt: Mapping[str, object],
+    files: Mapping[str, bytes],
+    enrollment: Mapping[str, object],
+) -> None:
+    _publish_bundle(
+        "receipt",
+        cast(str, receipt["episode_digest"]),
+        files,
+        session,
+        lane_name="terminals",
+        existing_validator=lambda stored: _validate_terminal_bundle(stored, enrollment),
     )
 
 
@@ -2777,25 +3198,11 @@ def _run_terminal(document: object, repository_anchor_fd: int) -> dict[str, obje
         enrollment = _load_enrollment(session, episode_digest, required=True)
         if enrollment is None:
             _fail("E_DEPENDENCY")
-        receipt = _build_terminal_receipt(document, enrollment)
-        rendered = _canonical_json_bytes(receipt, trailing_lf=True)
-        if len(rendered) > MAX_TERMINAL_RECEIPT_BYTES:
-            _fail("E_LIMIT")
-
-        def validate_existing(files: Mapping[str, bytes]) -> dict[str, object]:
-            existing = _validate_terminal_bundle(files, enrollment)
-            if existing["episode_digest"] != episode_digest:
-                _fail("E_STORE_UNSAFE")
-            return existing
-
-        _publish_bundle(
-            "receipt",
-            episode_digest,
-            {"receipt.json": rendered},
-            session,
-            lane_name="terminals",
-            existing_validator=validate_existing,
+        receipt, files = _prepare_terminal_publication(session, document, enrollment)
+        _preflight_supervised_receipt_append(
+            session, "terminals", episode_digest, files["receipt.json"]
         )
+        _publish_terminal(session, receipt, files, enrollment)
     return _ack(
         "terminal",
         episode_digest=episode_digest,
@@ -2803,42 +3210,210 @@ def _run_terminal(document: object, repository_anchor_fd: int) -> dict[str, obje
     )
 
 
+def _prepare_report_publication(
+    session: _StoreSession,
+    cohort_as_of: str,
+    enrollments: Mapping[str, dict[str, object]],
+    terminals: Mapping[str, dict[str, object]],
+) -> tuple[dict[str, object], dict[str, bytes]]:
+    report, report_json, markdown = _build_report_artifacts(cohort_as_of, enrollments, terminals)
+    files = {"report.json": report_json, "report.md": markdown}
+    _preflight_bundle_publication(
+        "report",
+        cast(str, report["report_digest"]),
+        files,
+        session,
+        lane_name="reports",
+        existing_validator=lambda stored: _validate_report_bundle(stored, enrollments, terminals),
+    )
+    return report, files
+
+
+def _publish_report(
+    session: _StoreSession,
+    report: Mapping[str, object],
+    files: Mapping[str, bytes],
+    enrollments: Mapping[str, dict[str, object]],
+    terminals: Mapping[str, dict[str, object]],
+) -> None:
+    _publish_bundle(
+        "report",
+        cast(str, report["report_digest"]),
+        files,
+        session,
+        lane_name="reports",
+        existing_validator=lambda stored: _validate_report_bundle(stored, enrollments, terminals),
+    )
+
+
 def _run_report(document: object, repository_anchor_fd: int) -> dict[str, object]:
     request = _normalize_report_request(document)
     cohort_as_of = cast(str, request["cohort_as_of"])
     with _StoreSession(repository_anchor_fd, exclusive=True, create=True) as session:
-        enrollments, aggregate_bytes = _scan_enrollments(session)
-        terminals, _aggregate_bytes = _scan_terminals(session, enrollments, aggregate_bytes)
+        enrollments, _checkpoints, terminals, _aggregate_bytes = _scan_store(session)
         _validate_prior_reports(session, enrollments, terminals)
-        report, report_json, markdown = _build_report_artifacts(
-            cohort_as_of, enrollments, terminals
-        )
-        report_digest = cast(str, report["report_digest"])
-
-        def validate_existing(files: Mapping[str, bytes]) -> dict[str, object]:
-            existing = _validate_report_bundle(files, enrollments, terminals)
-            if existing["report_digest"] != report_digest:
-                _fail("E_REPORT_MANIFEST")
-            return existing
-
-        _publish_bundle(
-            "report",
-            report_digest,
-            {"report.json": report_json, "report.md": markdown},
-            session,
-            lane_name="reports",
-            existing_validator=validate_existing,
-        )
+        report, files = _prepare_report_publication(session, cohort_as_of, enrollments, terminals)
+        _publish_report(session, report, files, enrollments, terminals)
     return _ack(
         "report",
         cohort_id=report["cohort_id"],
-        report_digest=report_digest,
+        report_digest=report["report_digest"],
+        markdown_sha256=report["markdown_sha256"],
+    )
+
+
+def _supervision_ack(operation: str, **fields: object) -> dict[str, object]:
+    return {
+        "schema_version": SUPERVISION_ACK_SCHEMA,
+        "policy_version": SUPERVISION_POLICY_VERSION,
+        "status": "ok",
+        "operation": operation,
+        **fields,
+        "downstream_grants": dict(FALSE_GRANTS),
+    }
+
+
+def _run_checkpoint(document: object, repository_anchor_fd: int) -> dict[str, object]:
+    episode_digest = _bound_episode_digest(document, fields=_BASELINE_FIELDS)
+    with _StoreSession(repository_anchor_fd, exclusive=True, create=False) as session:
+        enrollments, checkpoints, terminals, aggregate_bytes = _scan_store(session)
+        enrollment = enrollments.get(episode_digest)
+        if enrollment is None:
+            _fail("E_DEPENDENCY")
+        receipt = _build_checkpoint_receipt(document, enrollment)
+        rendered = _canonical_json_bytes(receipt, trailing_lf=True)
+        if len(rendered) > MAX_CHECKPOINT_RECEIPT_BYTES:
+            _fail("E_LIMIT")
+        if episode_digest not in checkpoints:
+            if episode_digest in terminals:
+                _fail("E_ORDER")
+            if _minimum_terminal_receipt_bytes(receipt, enrollment) > MAX_TERMINAL_RECEIPT_BYTES:
+                _fail("E_LIMIT")
+            if aggregate_bytes + len(rendered) > MAX_AGGREGATE_RECEIPT_SCAN_BYTES:
+                _fail("E_LIMIT")
+        session.create_checkpoint_lane()
+        _publish_bundle(
+            "receipt",
+            episode_digest,
+            {"receipt.json": rendered},
+            session,
+            lane_name="checkpoints",
+            existing_validator=lambda stored: _validate_checkpoint_bundle(stored, enrollment),
+        )
+    return _supervision_ack(
+        "checkpoint",
+        episode_digest=episode_digest,
+        checkpoint_receipt_digest=receipt["checkpoint_receipt_digest"],
+        joint_pass_baseline_digest=receipt["joint_pass_baseline_digest"],
+    )
+
+
+def _run_status(document: object, repository_anchor_fd: int) -> dict[str, object]:
+    request = _require_object(document)
+    _require_exact_keys(request, _STATUS_REQUEST_FIELDS)
+    _require_literal(request["schema_version"], STATUS_REQUEST_SCHEMA)
+    pr_number = _require_positive_pr(request["pull_request_number"])
+    digest = _episode_digest(pr_number)
+    result: dict[str, object] = {
+        "pull_request_number": pr_number,
+        "episode_digest": digest,
+        "lifecycle": "absent",
+        "report_status": "absent",
+    }
+    with _StoreSession(
+        repository_anchor_fd, exclusive=False, create=False, allow_absent=True
+    ) as session:
+        if session.absent:
+            return _supervision_ack("status", **result)
+        enrollments, checkpoints, terminals, _aggregate_bytes = _scan_store(session)
+        reports = _validate_prior_reports(session, enrollments, terminals)
+        manifest = _manifest_from_store(enrollments, terminals)
+        current = [report for report in reports if report["manifest"] == manifest]
+        if current:
+            selected = max(
+                current,
+                key=lambda report: (
+                    cast(str, report["cohort_as_of"]),
+                    cast(str, report["report_digest"]),
+                ),
+            )
+            result.update(
+                report_status="current",
+                report_digest=selected["report_digest"],
+                cohort_as_of=selected["cohort_as_of"],
+            )
+        elif reports:
+            result["report_status"] = "stale"
+        enrollment = enrollments.get(digest)
+        if enrollment is not None:
+            result["enrollment_receipt_digest"] = enrollment["enrollment_receipt_digest"]
+            result["lifecycle"] = "enrolled_awaiting_checkpoint"
+            checkpoint = checkpoints.get(digest)
+            if checkpoint is not None:
+                result.update(
+                    lifecycle="enrolled_awaiting_terminal",
+                    checkpoint_receipt_digest=checkpoint["checkpoint_receipt_digest"],
+                    joint_pass_baseline_digest=checkpoint["joint_pass_baseline_digest"],
+                )
+            terminal = terminals.get(digest)
+            if terminal is not None:
+                result.update(
+                    lifecycle="complete" if current else "terminal_awaiting_report",
+                    terminal_receipt_digest=terminal["terminal_receipt_digest"],
+                    observation_status=cast(Mapping[str, object], terminal["recurrence"])["status"],
+                    observation_reason=cast(Mapping[str, object], terminal["recurrence"])["reason"],
+                )
+    return _supervision_ack("status", **result)
+
+
+def _run_complete(document: object, repository_anchor_fd: int) -> dict[str, object]:
+    request = _require_object(document)
+    _require_exact_keys(request, _COMPLETE_INPUT_FIELDS)
+    _require_literal(request["schema_version"], COMPLETE_INPUT_SCHEMA)
+    episode_digest = _bound_episode_digest(request["terminal"], fields=_TERMINAL_INPUT_FIELDS)
+    report_request = _normalize_report_request(request["report_request"])
+    cohort_as_of = cast(str, report_request["cohort_as_of"])
+    with _StoreSession(repository_anchor_fd, exclusive=True, create=False) as session:
+        enrollments, _checkpoints, terminals, aggregate_bytes = _scan_store(session)
+        enrollment = enrollments.get(episode_digest)
+        if enrollment is None:
+            _fail("E_DEPENDENCY")
+        _validate_prior_reports(session, enrollments, terminals)
+        terminal, terminal_files = _prepare_terminal_publication(
+            session, request["terminal"], enrollment, available_requires_checkpoint=True
+        )
+        if (
+            episode_digest not in terminals
+            and aggregate_bytes + len(terminal_files["receipt.json"])
+            > MAX_AGGREGATE_RECEIPT_SCAN_BYTES
+        ):
+            _fail("E_LIMIT")
+        prospective_terminals = dict(terminals)
+        prospective_terminals[episode_digest] = terminal
+        report, report_files = _prepare_report_publication(
+            session, cohort_as_of, enrollments, prospective_terminals
+        )
+        _publish_terminal(session, terminal, terminal_files, enrollment)
+        _publish_report(session, report, report_files, enrollments, prospective_terminals)
+    return _supervision_ack(
+        "complete",
+        episode_digest=episode_digest,
+        lifecycle="complete",
+        terminal_receipt_digest=terminal["terminal_receipt_digest"],
+        cohort_id=report["cohort_id"],
+        report_digest=report["report_digest"],
         markdown_sha256=report["markdown_sha256"],
     )
 
 
 def _require_public_verb(value: object) -> str:
-    if not isinstance(value, str) or value not in ("enroll", "terminal", "validate", "report"):
+    if not isinstance(value, str) or value not in (
+        "enroll",
+        "terminal",
+        "validate",
+        "report",
+        *SUPERVISION_VERBS,
+    ):
         _fail("E_USAGE")
     return value
 
@@ -2851,6 +3426,12 @@ def _run_operation(verb: str, document: object, repository_anchor_fd: int) -> di
         return _run_terminal(document, repository_anchor_fd)
     if operation == "validate":
         return _run_validate(document, repository_anchor_fd)
+    if operation == "checkpoint":
+        return _run_checkpoint(document, repository_anchor_fd)
+    if operation == "status":
+        return _run_status(document, repository_anchor_fd)
+    if operation == "complete":
+        return _run_complete(document, repository_anchor_fd)
     return _run_report(document, repository_anchor_fd)
 
 
@@ -2891,9 +3472,9 @@ def _write_error(code: str) -> None:
 
 
 def _fallback_code(operation: str | None) -> str:
-    if operation in ("enroll", "terminal"):
+    if operation in ("enroll", "terminal", "checkpoint", "complete"):
         return "E_PUBLISH_FAILED"
-    if operation == "validate":
+    if operation in ("validate", "status"):
         return "E_DEPENDENCY"
     if operation == "report":
         return "E_REPORT_MANIFEST"

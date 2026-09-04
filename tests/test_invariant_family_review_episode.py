@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import errno
 import fcntl
+import hashlib
 import json
 import operator
 import os
@@ -16,6 +17,8 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
+from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
 
 from scripts.orchestration import invariant_family_review_episode as episode
 
@@ -2225,3 +2228,1110 @@ def test_stdout_sink_failure_has_only_stable_error_class(
                 "enrollment_receipt_digest": "b" * 64,
             }
         )
+
+
+# Supervision uses the existing v1 inputs and the same fixed-store publisher.
+def _status_request(pr_number: int = 17) -> dict[str, object]:
+    return {
+        "schema_version": "invariant_family_review_episode.status_request.v1",
+        "pull_request_number": pr_number,
+    }
+
+
+def _complete_request(
+    terminal: Mapping[str, object], as_of: str = "2026-08-15T10:05:00Z"
+) -> dict[str, object]:
+    return {
+        "schema_version": "invariant_family_review_episode.complete_input.v1",
+        "terminal": copy.deepcopy(dict(terminal)),
+        "report_request": _report_request(as_of),
+    }
+
+
+def _supervised_episode(
+    anchor: _Anchor, pr_number: int = 17
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    enrolled = _run(anchor, "enroll", _enrollment(pr_number))
+    baseline = _baseline(enrolled)
+    checkpoint = _run(anchor, "checkpoint", baseline)
+    terminal = _terminal_available(enrolled, baseline, checkpoint)
+    return enrolled, baseline, terminal
+
+
+def _store_snapshot(anchor: _Anchor) -> dict[str, tuple[int, int, int, bytes]]:
+    root = anchor.path / "artifacts"
+    result: dict[str, tuple[int, int, int, bytes]] = {}
+    for path in sorted(root.rglob("*")) if root.exists() else []:
+        metadata = path.lstat()
+        result[str(path.relative_to(anchor.path))] = (
+            metadata.st_ino,
+            metadata.st_mode,
+            metadata.st_mtime_ns,
+            path.read_bytes() if path.is_file() and not path.is_symlink() else b"",
+        )
+    return result
+
+
+def test_supervision_projection_is_separate_frozen_and_contract_bound() -> None:
+    original = json.dumps(_thaw(episode.POLICY_PROJECTION), sort_keys=True, separators=(",", ":"))
+    assert hashlib.sha256(original.encode()).hexdigest() == (
+        "a1f725bbe336416c9038f7baa2303dd3830380709fdbcae7ec72c08568300d4b"
+    )
+    extension = _thaw(episode.SUPERVISION_PROJECTION)
+    contract = CONTRACT.read_text(encoding="utf-8")
+    marker = "SUPERVISION_PROJECTION_BEGIN\n"
+    start = contract.index(marker) + len(marker)
+    end = contract.index("\nSUPERVISION_PROJECTION_END", start)
+    assert extension == json.loads(contract[start:end])
+    assert extension["verbs"] == ["checkpoint", "status", "complete"]
+    assert extension["downstream_grants"] == dict.fromkeys(episode.AUTHORITY_FIELDS, False)
+    assert len(extension["downstream_grants"]) == 16
+    with pytest.raises(TypeError):
+        operator.setitem(episode.SUPERVISION_PROJECTION, "verbs", ())
+
+
+@pytest.mark.parametrize("ancestors", [0, 1, 2])
+def test_status_absent_store_never_creates_storage(anchor: _Anchor, ancestors: int) -> None:
+    current = anchor.path
+    for name in ("artifacts", "orchestration")[:ancestors]:
+        current = current / name
+        current.mkdir(mode=0o700)
+    before = _store_snapshot(anchor)
+    result = _run(anchor, "status", _status_request())
+    assert result["lifecycle"] == "absent"
+    assert result["report_status"] == "absent"
+    assert "enrollment_receipt_digest" not in result
+    assert _store_snapshot(anchor) == before
+    assert all(value is False for value in result["downstream_grants"].values())
+    assert None not in result.values()
+
+
+@pytest.mark.parametrize("bad_pr", [True, 0, -1, "17", None])
+def test_status_rejects_noncanonical_identity(anchor: _Anchor, bad_pr: object) -> None:
+    request = _status_request()
+    request["pull_request_number"] = bad_pr
+    with pytest.raises(episode.EpisodeError, match="E_SCHEMA|E_IDENTITY"):
+        _run(anchor, "status", request)
+    assert _store_snapshot(anchor) == {}
+
+
+@pytest.mark.parametrize("verb", ["status", "complete", "checkpoint"])
+def test_supervision_rejects_extra_input_fields(anchor: _Anchor, verb: str) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    terminal = _terminal_without_available_baseline(enrolled, completed=False)
+    document = {
+        "status": _status_request(),
+        "checkpoint": baseline,
+        "complete": _complete_request(terminal),
+    }[verb]
+    document["unexpected"] = "invalid"
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_SCHEMA"):
+        _run(anchor, verb, document)
+    assert _store_snapshot(anchor) == before
+
+
+def test_checkpoint_requires_accepted_enrollment_and_validated_binding(anchor: _Anchor) -> None:
+    proposed = episode._build_enrollment_receipt(_enrollment())
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, "checkpoint", _baseline(proposed))
+    assert _store_snapshot(anchor) == {}
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    baseline["enrollment_receipt_digest"] = "e" * 64
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+
+
+def test_checkpoint_persists_normalized_j_and_validate_ack_replays_after_terminal(
+    anchor: _Anchor,
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    validate_ack = _run(anchor, "validate", baseline)
+    report_before = _run(anchor, "report", _report_request())
+    checkpoint_ack = _run(anchor, "checkpoint", baseline)
+    checkpoint_path = _receipt_path(anchor, "checkpoints", enrolled["episode_digest"])
+    checkpoint = _load_json(checkpoint_path)
+    assert checkpoint["validate_acknowledgement"] == validate_ack
+    assert checkpoint["baseline"]["families"][0]["joint_pass_cumulative_identity_class_ids"] == [
+        "class_a",
+        "class_b",
+        "class_c",
+    ]
+    assert checkpoint["joint_pass_baseline_digest"] == validate_ack["joint_pass_baseline_digest"]
+    assert stat.S_IMODE(checkpoint_path.stat().st_mode) == 0o600
+    assert _run(anchor, "report", _report_request()) == report_before
+    assert _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_terminal"
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "checkpoint", baseline) == checkpoint_ack
+    assert _store_snapshot(anchor) == before
+    _run(anchor, "terminal", _terminal_available(enrolled, baseline, validate_ack))
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "checkpoint", baseline) == checkpoint_ack
+    assert _store_snapshot(anchor) == before
+
+
+def test_checkpoint_divergence_and_validate_agreement_fail_without_writes(anchor: _Anchor) -> None:
+    _enrolled, baseline, _terminal = _supervised_episode(anchor)
+    baseline["joint_pass_completed_at"] = "2026-08-15T10:02:01Z"
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_REPLAY_DIVERGENT"):
+        _run(anchor, "checkpoint", baseline)
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, "validate", baseline)
+    assert _store_snapshot(anchor) == before
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_honest_completion_without_checkpoint_preserves_observation(
+    anchor: _Anchor, completed: bool
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    terminal = _terminal_without_available_baseline(enrolled, completed=completed)
+    result = _run(anchor, "complete", _complete_request(terminal))
+    status = _run(anchor, "status", _status_request())
+    assert result["lifecycle"] == status["lifecycle"] == "complete"
+    assert status["observation_status"] == ("unknown" if completed else "not_applicable")
+    assert "checkpoint_receipt_digest" not in status
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "complete", _complete_request(terminal)) == result
+    with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+        _run(anchor, "checkpoint", _baseline(enrolled))
+    assert _store_snapshot(anchor) == before
+
+
+def test_available_complete_requires_checkpoint_but_legacy_terminal_does_not(
+    anchor: _Anchor,
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    acknowledged = _run(anchor, "validate", baseline)
+    terminal = _terminal_available(enrolled, baseline, acknowledged)
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, "complete", _complete_request(terminal))
+    assert _store_snapshot(anchor) == before
+    _run(anchor, "terminal", terminal)
+    _run(anchor, "report", _report_request())
+    assert _run(anchor, "status", _status_request())["lifecycle"] == "complete"
+    with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+        _run(anchor, "checkpoint", baseline)
+
+
+@pytest.mark.parametrize("verb", ["terminal", "complete"])
+@pytest.mark.parametrize("claim", ["unavailable", "not_completed", "divergent"])
+def test_checkpoint_rejects_contradictory_terminal_before_multi_trigger_precedence(
+    anchor: _Anchor, verb: str, claim: str
+) -> None:
+    enrolled, baseline, terminal = _supervised_episode(anchor)
+    if claim != "divergent":
+        terminal = _terminal_without_available_baseline(enrolled, completed=claim == "unavailable")
+    else:
+        baseline["families"][0]["recommended_resolution"] = "mechanism_fix"
+        enrollment_receipt = _load_json(
+            _receipt_path(anchor, "enrollments", enrolled["episode_digest"])
+        )
+        normalized = episode._normalize_joint_pass_baseline(baseline, enrollment_receipt)
+        terminal["joint_pass"]["baseline"] = baseline
+        terminal["joint_pass"]["joint_pass_baseline_digest"] = episode._joint_pass_baseline_digest(
+            normalized
+        )
+    terminal["observed_l2_identity_digests"].append("d" * 64)
+    document = _complete_request(terminal) if verb == "complete" else terminal
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, verb, document)
+    assert _store_snapshot(anchor) == before
+
+
+def test_orphan_checkpoint_cannot_be_repaired_by_enrollment(anchor: _Anchor) -> None:
+    enrolled, _baseline_value, _terminal = _supervised_episode(anchor)
+    path = _receipt_path(anchor, "enrollments", enrolled["episode_digest"])
+    path.unlink()
+    path.parent.rmdir()
+    before = _store_snapshot(anchor)
+    for verb, document in (
+        ("enroll", _enrollment()),
+        ("status", _status_request()),
+        ("report", _report_request()),
+    ):
+        with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+            _run(anchor, verb, document)
+    assert _store_snapshot(anchor) == before
+
+
+@pytest.mark.parametrize("corruption", ["ack", "baseline", "digest", "grant", "extra"])
+def test_checkpoint_receipt_is_fully_revalidated(anchor: _Anchor, corruption: str) -> None:
+    enrolled, baseline, terminal = _supervised_episode(anchor)
+    path = _receipt_path(anchor, "checkpoints", enrolled["episode_digest"])
+    receipt = _load_json(path)
+    if corruption == "ack":
+        receipt["validate_acknowledgement"]["joint_pass_baseline_digest"] = "f" * 64
+    elif corruption == "baseline":
+        receipt["baseline"]["joint_pass_completed_at"] = "2026-08-15T10:02:01Z"
+    elif corruption == "digest":
+        receipt["checkpoint_receipt_digest"] = "f" * 64
+    elif corruption == "grant":
+        receipt["downstream_grants"]["merge_authority"] = True
+    else:
+        receipt["extra"] = "invalid"
+    path.write_bytes(episode._canonical_json_bytes(receipt, trailing_lf=True))
+    before = _store_snapshot(anchor)
+    for verb, document in (
+        ("status", _status_request()),
+        ("checkpoint", baseline),
+        ("terminal", terminal),
+        ("report", _report_request()),
+    ):
+        with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+            _run(anchor, verb, document)
+    assert _store_snapshot(anchor) == before
+
+
+def test_status_uses_entire_current_store_and_latest_matching_report(anchor: _Anchor) -> None:
+    first, _baseline_value, terminal = _supervised_episode(anchor)
+    assert _run(anchor, "status", _status_request())["report_status"] == "absent"
+    _run(anchor, "complete", _complete_request(terminal))
+    later = _run(anchor, "report", _report_request("2026-08-15T10:06:00Z"))
+    status = _run(anchor, "status", _status_request())
+    assert status["lifecycle"] == "complete"
+    assert status["report_digest"] == later["report_digest"]
+    second = _run(anchor, "enroll", _enrollment(18))
+    status = _run(anchor, "status", _status_request())
+    assert status["lifecycle"] == "terminal_awaiting_report"
+    assert status["report_status"] == "stale"
+    report = _run(anchor, "report", _report_request("2026-08-15T10:07:00Z"))
+    assert _run(anchor, "status", _status_request())["report_digest"] == report["report_digest"]
+    assert (
+        _run(anchor, "status", _status_request(18))["lifecycle"] == "enrolled_awaiting_checkpoint"
+    )
+    _run(anchor, "terminal", _terminal_without_available_baseline(second, completed=False))
+    assert _run(anchor, "status", _status_request())["report_status"] == "stale"
+    assert (
+        _run(anchor, "status", _status_request())["enrollment_receipt_digest"]
+        == first["enrollment_receipt_digest"]
+    )
+
+
+def test_complete_prevalidates_cutoff_and_report_capacity_before_terminal(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+        _run(anchor, "complete", _complete_request(terminal, "2026-08-15T10:03:00Z"))
+    assert _store_snapshot(anchor) == before
+    _run(anchor, "report", _report_request())
+    before = _store_snapshot(anchor)
+    monkeypatch.setattr(episode, "MAX_REPORT_GENERATIONS", 1)
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "complete", _complete_request(terminal))
+    assert _store_snapshot(anchor) == before
+
+
+def test_complete_and_checkpoint_exact_replay_at_capacity(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrolled, baseline, terminal = _supervised_episode(anchor)
+    result = _run(anchor, "complete", _complete_request(terminal))
+    for limit in ("MAX_TERMINAL_BUNDLES", "MAX_CHECKPOINT_BUNDLES", "MAX_REPORT_GENERATIONS"):
+        monkeypatch.setattr(episode, limit, 1)
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "complete", _complete_request(terminal)) == result
+    _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+    other = _run(anchor, "enroll", _enrollment(18))
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "checkpoint", _baseline(other))
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(
+            anchor,
+            "complete",
+            _complete_request(_terminal_without_available_baseline(other, completed=False)),
+        )
+    assert _store_snapshot(anchor) == before
+    assert enrolled["episode_digest"] != other["episode_digest"]
+
+
+def test_checkpoint_bytes_share_aggregate_scan_budget(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    _run(anchor, "complete", _complete_request(terminal))
+    total = sum(
+        _receipt_path(anchor, lane, enrolled["episode_digest"]).stat().st_size
+        for lane in ("enrollments", "checkpoints", "terminals")
+    )
+    monkeypatch.setattr(episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", total)
+    assert _run(anchor, "status", _status_request())["lifecycle"] == "complete"
+    monkeypatch.setattr(episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", total - 1)
+    for verb, request in (
+        ("status", _status_request()),
+        ("report", _report_request()),
+        ("complete", _complete_request(terminal)),
+    ):
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, verb, request)
+
+
+@pytest.mark.parametrize("failed_lane", ["terminals", "reports"])
+def test_complete_resumes_after_publication_and_fsync_failure(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch, failed_lane: str
+) -> None:
+    _enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    original_publish = episode._publish_bundle
+    failed = False
+
+    def publish_then_fail(*args: object, **kwargs: object) -> None:
+        nonlocal failed
+        original_publish(*args, **kwargs)
+        if kwargs["lane_name"] == failed_lane and not failed:
+            failed = True
+            raise episode.EpisodeError("E_PUBLISH_FAILED")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "_publish_bundle", publish_then_fail)
+        with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
+            _run(anchor, "complete", _complete_request(terminal))
+    status = _run(anchor, "status", _status_request())
+    assert status["lifecycle"] == (
+        "complete" if failed_lane == "reports" else "terminal_awaiting_report"
+    )
+    stored_terminal = _receipt_path(anchor, "terminals", terminal["episode_digest"])
+    before = (stored_terminal.stat().st_ino, stored_terminal.read_bytes())
+    completed = _run(anchor, "complete", _complete_request(terminal))
+    assert completed["lifecycle"] == "complete"
+    assert (stored_terminal.stat().st_ino, stored_terminal.read_bytes()) == before
+
+
+def test_complete_report_failure_and_advanced_store_rejects_stale_retry(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+
+    def failed_report(*_args: object, **_kwargs: object) -> None:
+        raise episode.EpisodeError("E_PUBLISH_FAILED")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "_publish_report", failed_report)
+        with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
+            _run(anchor, "complete", _complete_request(terminal))
+    later_enrollment = _enrollment(18)
+    later_enrollment["enrollment_recorded_at"] = "2026-08-15T10:06:00Z"
+    _run(anchor, "enroll", later_enrollment)
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+        _run(anchor, "complete", _complete_request(terminal))
+    assert _store_snapshot(anchor) == before
+    assert (
+        _run(anchor, "complete", _complete_request(terminal, "2026-08-15T10:07:00Z"))["lifecycle"]
+        == "complete"
+    )
+
+
+def test_complete_holds_one_exclusive_lock_across_both_publications(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    entered = threading.Barrier(2)
+    release = threading.Barrier(2)
+    original_publish = episode._publish_terminal
+    errors: list[Exception] = []
+    results: list[dict[str, object]] = []
+
+    def paused_terminal(*args: object, **kwargs: object) -> None:
+        original_publish(*args, **kwargs)
+        entered.wait(timeout=10)
+        release.wait(timeout=10)
+
+    def complete() -> None:
+        try:
+            results.append(_run(anchor, "complete", _complete_request(terminal)))
+        except Exception as error:
+            errors.append(error)
+
+    monkeypatch.setattr(episode, "_publish_terminal", paused_terminal)
+    worker = threading.Thread(target=complete)
+    worker.start()
+    try:
+        entered.wait(timeout=10)
+        for verb, request in (
+            ("status", _status_request()),
+            ("complete", _complete_request(terminal)),
+        ):
+            with pytest.raises(episode.EpisodeError, match="E_LOCK_BUSY"):
+                _run(anchor, verb, request)
+    finally:
+        release.wait(timeout=10)
+        worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert errors == []
+    assert results[0]["lifecycle"] == "complete"
+
+
+class _SupervisionMachine(RuleBasedStateMachine):
+    def __init__(self) -> None:
+        super().__init__()
+        self.temporary = tempfile.TemporaryDirectory(prefix="euler-supervision-")
+        self.anchor = _Anchor(Path(self.temporary.name))
+        self.enrolled: dict[str, object] = {}
+        self.baseline: dict[str, object] = {}
+        self.checkpointed = False
+        self.terminal: dict[str, object] = {}
+        self.reported = False
+
+    @rule()
+    def enroll_or_replay(self) -> None:
+        self.enrolled = _run(self.anchor, "enroll", _enrollment())
+        self.baseline = _baseline(self.enrolled)
+
+    @precondition(lambda self: bool(self.enrolled) and not self.terminal)
+    @rule()
+    def checkpoint_or_replay(self) -> None:
+        _run(self.anchor, "checkpoint", self.baseline)
+        self.checkpointed = True
+
+    @precondition(lambda self: bool(self.enrolled))
+    @rule()
+    def complete_or_replay(self) -> None:
+        if not self.terminal:
+            self.terminal = (
+                _terminal_available(
+                    self.enrolled, self.baseline, _run(self.anchor, "checkpoint", self.baseline)
+                )
+                if self.checkpointed
+                else _terminal_without_available_baseline(self.enrolled, completed=True)
+            )
+        _run(self.anchor, "complete", _complete_request(self.terminal))
+        self.reported = True
+
+    @precondition(lambda self: bool(self.terminal))
+    @rule()
+    def checkpoint_after_terminal(self) -> None:
+        before = _store_snapshot(self.anchor)
+        if self.checkpointed:
+            _run(self.anchor, "checkpoint", self.baseline)
+        else:
+            with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+                _run(self.anchor, "checkpoint", self.baseline)
+        assert _store_snapshot(self.anchor) == before
+
+    @invariant()
+    def status_is_read_only_and_matches_receipt_lifecycle(self) -> None:
+        expected = (
+            "complete"
+            if self.reported
+            else (
+                "enrolled_awaiting_terminal"
+                if self.checkpointed
+                else "enrolled_awaiting_checkpoint" if self.enrolled else "absent"
+            )
+        )
+        before = _store_snapshot(self.anchor)
+        result = _run(self.anchor, "status", _status_request())
+        assert result["lifecycle"] == expected
+        assert _store_snapshot(self.anchor) == before
+        assert all(value is False for value in result["downstream_grants"].values())
+
+    def teardown(self) -> None:
+        self.anchor.close()
+        self.temporary.cleanup()
+
+
+TestSupervisionStateMachine = _SupervisionMachine.TestCase
+TestSupervisionStateMachine.settings = settings(
+    database=None, derandomize=True, deadline=None, max_examples=25, stateful_step_count=20
+)
+
+
+# Captured from unmodified base 863d16ea2328dd32fa6fec6cef4d8f117b6edf85.
+# Original six-case corpus SHA256:
+# 0a248bfc4f10d71cd50b3a91fc6fb7ae6c55afce06341bd6b0407ca51a596205
+# Keep expected acknowledgements and file hashes independent of candidate code.
+_V1_GOLDEN = {
+    "baseline_unavailable": {
+        "report_ack": {
+            "cohort_id": "8e58c3b12d4e54f51e6c6be1195610eab1667ec6eaff5dd0ac0f297996707b91",
+            "markdown_sha256": "ae040ef76ddcef1186b2f85debcd847082490b3409624a7919661c53eb675bee",
+            "operation": "report",
+            "report_digest": "0bd6a7678c7a60e3826230f5d374a579eab2a525f1c65c50c236cdfd0f4521ba",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/0bd6a7678c7a60e3826230f5d374a579eab2a525f1c65c50c236cdfd0f4521ba/report.json": "ab6506a4da73d3711a830c6dc18c9d1cab5e8dff5942fdb017730d2a6b945773",
+            "reports/0bd6a7678c7a60e3826230f5d374a579eab2a525f1c65c50c236cdfd0f4521ba/report.md": "ae040ef76ddcef1186b2f85debcd847082490b3409624a7919661c53eb675bee",
+            "terminals/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "338d4788212592805c494760ec3cbadc098ab09cc5305caa36d936bdccb5384a",
+        },
+        "terminal_digest": "5e90ca50139336409074de0ab42548202952038d3874432d602bd87e5f1f6c41",
+    },
+    "missing_terminal": {
+        "report_ack": {
+            "cohort_id": "7f588e0c456ca2ad757e2b3aa8138949d422da84c4d49e754958549ddf411e2d",
+            "markdown_sha256": "c6bf10602fc23a3cfc0376e21e3b47fda8580eff71fdc4a2e4363a7d094ab68d",
+            "operation": "report",
+            "report_digest": "cd866dd00596e1c83feca8b9b1e5f02f0308cfcd817b0503cf9ed713e5f3316a",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/cd866dd00596e1c83feca8b9b1e5f02f0308cfcd817b0503cf9ed713e5f3316a/report.json": "d0a8d8766da490ab2bd4c0f189027aca870ed3da1f1b10fc4231227108c03536",
+            "reports/cd866dd00596e1c83feca8b9b1e5f02f0308cfcd817b0503cf9ed713e5f3316a/report.md": "c6bf10602fc23a3cfc0376e21e3b47fda8580eff71fdc4a2e4363a7d094ab68d",
+        },
+    },
+    "multi_trigger": {
+        "report_ack": {
+            "cohort_id": "3430bb6b97052bc8040b6002882ab9585f36771b2c24affc90d592c11a39a383",
+            "markdown_sha256": "34be3df93de80df77228d6ddb74ff980abae50e308569346ee8eb511a1487367",
+            "operation": "report",
+            "report_digest": "44d58bd87479fcf0ab68245b4d4fa0b44d4300b3f0e6d4de19284a07bd7de516",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/44d58bd87479fcf0ab68245b4d4fa0b44d4300b3f0e6d4de19284a07bd7de516/report.json": "0bb592be7452fd3966165bab39cc3aeee1c35f0a1e0c954780f70dc4015c11a9",
+            "reports/44d58bd87479fcf0ab68245b4d4fa0b44d4300b3f0e6d4de19284a07bd7de516/report.md": "34be3df93de80df77228d6ddb74ff980abae50e308569346ee8eb511a1487367",
+            "terminals/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "247a9dad857e240b29b5361d43d5438dfb4f694413e8eb348bed336bc26cacb3",
+        },
+        "terminal_digest": "a0d7edad1724861a900566b3d256eba527fd8009f5078cbcedf2007c84763ba2",
+    },
+    "not_completed": {
+        "report_ack": {
+            "cohort_id": "834a4c22e83dc1df938192ecaa1c26e540b79f4cc77d551ac17b5865e8d69eac",
+            "markdown_sha256": "9d8915998a5da5e1f8ca8b490d9b1a07c489b69b19e0ec1987ec34b5ee2d6615",
+            "operation": "report",
+            "report_digest": "9306f68bad67d8ae3f77e2e5f321bf7561528bd67fc73d9d3b73136710a9ad79",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/9306f68bad67d8ae3f77e2e5f321bf7561528bd67fc73d9d3b73136710a9ad79/report.json": "ba92da35647d040bf1209787bd32ad494eea25dc85c7ad9ed5e78a875c73cb3c",
+            "reports/9306f68bad67d8ae3f77e2e5f321bf7561528bd67fc73d9d3b73136710a9ad79/report.md": "9d8915998a5da5e1f8ca8b490d9b1a07c489b69b19e0ec1987ec34b5ee2d6615",
+            "terminals/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "61c3373373b4bc7358db23fb6e3a575fedbd41bae10223c10dc2795da1f8807d",
+        },
+        "terminal_digest": "65b59199a40191201355fe3f5a0ced52170f30eeaed0f13fbd6dcc4632a0f00d",
+    },
+    "positive": {
+        "report_ack": {
+            "cohort_id": "748684f5d25a6a4b70d28a1554b0f4591ee1dc09df2bf52c42d2627e2c01e3d7",
+            "markdown_sha256": "0919b8cd8fd36c3d64d8b2c73b444ea46a5e35db468da365ea0cc22e19391928",
+            "operation": "report",
+            "report_digest": "bacf4f9eca365c7db5b9cb6dbde6b03c2146360de79b86658482788a443321f7",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/bacf4f9eca365c7db5b9cb6dbde6b03c2146360de79b86658482788a443321f7/report.json": "9043c242e224af16c401dab6465504bb632f9dbf4f01c0183ea7b56ebf6469aa",
+            "reports/bacf4f9eca365c7db5b9cb6dbde6b03c2146360de79b86658482788a443321f7/report.md": "0919b8cd8fd36c3d64d8b2c73b444ea46a5e35db468da365ea0cc22e19391928",
+            "terminals/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "36af114c88a9b0235378c0d7b2e2048fb4336c47ec306de1da72b289bc2dbfcc",
+        },
+        "terminal_digest": "495d01bf69ebfb5bb896d193dfcd5b41deee22d612bcb5a58e5876843a0f5192",
+    },
+    "zero": {
+        "report_ack": {
+            "cohort_id": "e1e54727033e2a0b2dbfac1fd2690d2cbde8c3135baf5013ed1692d974986b65",
+            "markdown_sha256": "6d94f58838afbe3e2cbd3c6c2ad2685b8e08d6b253b76ed9e42d12cb52883376",
+            "operation": "report",
+            "report_digest": "e6820a6ee4c72dda2eddbae42584cdc1a172209782da24e3e0d1aa6660bf853b",
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+        },
+        "sha256": {
+            "enrollments/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "b4d721b2c9dc0e7ed3284d671ecbed3f9cfda6a3af159ec08bc5641d6861989b",
+            "reports/e6820a6ee4c72dda2eddbae42584cdc1a172209782da24e3e0d1aa6660bf853b/report.json": "eb08c2996b60ab058bd8f0d1b5da3b9135050ba3a28a0db7c8652b9320fb6e45",
+            "reports/e6820a6ee4c72dda2eddbae42584cdc1a172209782da24e3e0d1aa6660bf853b/report.md": "6d94f58838afbe3e2cbd3c6c2ad2685b8e08d6b253b76ed9e42d12cb52883376",
+            "terminals/d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359/receipt.json": "22fa43785cd7666529f415c963894b2cb12b7c20825b5504989d274bab2e5c2f",
+        },
+        "terminal_digest": "e8a0fbcef9535bf335a545d791cccdd60401f22573174712f0f5496a7ffce59d",
+    },
+}
+
+
+@pytest.mark.parametrize("kind", tuple(_V1_GOLDEN))
+def test_original_v1_corpus_bytes_and_acknowledgements_remain_exact(
+    anchor: _Anchor, kind: str
+) -> None:
+    expected = _V1_GOLDEN[kind]
+    enrolled = _run(anchor, "enroll", _enrollment())
+    assert enrolled == {
+        "schema_version": "invariant_family_review_episode.ack.v1",
+        "status": "ok",
+        "operation": "enroll",
+        "episode_digest": "d985ac9e24ec07fc552d62bc327a8f6a553e1d782dc239d6e02a6e877d638359",
+        "enrollment_receipt_digest": "d266404d7527864f34ac7b61369efef703e86968ec021353ef328bf01d040470",
+    }
+    if kind != "missing_terminal":
+        if kind in ("not_completed", "baseline_unavailable"):
+            terminal = _terminal_without_available_baseline(
+                enrolled, completed=kind == "baseline_unavailable"
+            )
+        else:
+            baseline = _baseline(enrolled)
+            validated = _run(anchor, "validate", baseline)
+            assert validated == {
+                "schema_version": "invariant_family_review_episode.ack.v1",
+                "status": "ok",
+                "operation": "validate",
+                "episode_digest": enrolled["episode_digest"],
+                "joint_pass_baseline_digest": "b15d6222be852e49cc315ce4bbabbe44abfff44813954fe8d9c739c7435f318c",
+            }
+            terminal = _terminal_available(
+                enrolled,
+                baseline,
+                validated,
+                positive=kind != "zero",
+                extra_trigger_digest=kind == "multi_trigger",
+            )
+        acknowledgement = _run(anchor, "terminal", terminal)
+        assert acknowledgement == {
+            "schema_version": "invariant_family_review_episode.ack.v1",
+            "status": "ok",
+            "operation": "terminal",
+            "episode_digest": enrolled["episode_digest"],
+            "terminal_receipt_digest": expected["terminal_digest"],
+        }
+    assert _run(anchor, "report", _report_request()) == expected["report_ack"]
+    root = anchor.path / "artifacts/orchestration/review_invariant_family_episodes"
+    actual = {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    assert actual == expected["sha256"]
+    # Original v1 does not constrain unrelated root entries; preserve this on rollback.
+    (root / "retained-note.txt").write_text("retained local note\n", encoding="ascii")
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "report", _report_request()) == expected["report_ack"]
+    assert _store_snapshot(anchor) == before
+
+
+@pytest.mark.parametrize("damage", ["symlink", "hardlink", "mode", "partial", "orphan_stage"])
+def test_status_and_complete_fail_on_unsafe_checkpoint_storage(
+    anchor: _Anchor, damage: str
+) -> None:
+    enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    path = _receipt_path(anchor, "checkpoints", enrolled["episode_digest"])
+    if damage == "symlink":
+        target = anchor.path / "retained.json"
+        path.rename(target)
+        path.symlink_to(target)
+    elif damage == "hardlink":
+        os.link(path, anchor.path / "additional-link")
+    elif damage == "mode":
+        path.chmod(0o644)
+    elif damage == "partial":
+        path.unlink()
+    else:
+        (path.parent.parent / ".stage-orphan").mkdir(mode=0o700)
+    before = _store_snapshot(anchor)
+    for verb, request in (("status", _status_request()), ("complete", _complete_request(terminal))):
+        with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+            _run(anchor, verb, request)
+    assert _store_snapshot(anchor) == before
+
+
+@pytest.mark.parametrize("damage", ["missing_lane", "partial_report", "corrupt_report"])
+def test_status_rejects_broken_legacy_storage_instead_of_absence(
+    anchor: _Anchor, damage: str
+) -> None:
+    _run(anchor, "enroll", _enrollment())
+    root = anchor.path / "artifacts/orchestration/review_invariant_family_episodes"
+    if damage == "missing_lane":
+        (root / "terminals").rmdir()
+    else:
+        report = _run(anchor, "report", _report_request())
+        markdown = root / "reports" / str(report["report_digest"]) / "report.md"
+        if damage == "partial_report":
+            markdown.unlink()
+        else:
+            markdown.write_bytes(b"corrupt\n")
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE|E_REPORT_MANIFEST"):
+        _run(anchor, "status", _status_request())
+    assert _store_snapshot(anchor) == before
+
+
+def test_status_rejects_existing_checkpoint_terminal_disagreement(anchor: _Anchor) -> None:
+    enrolled, _baseline_value, _terminal = _supervised_episode(anchor)
+    # Simulate an older writer that cannot enforce the optional checkpoint contract.
+    enrollment_receipt = _load_json(
+        _receipt_path(anchor, "enrollments", enrolled["episode_digest"])
+    )
+    terminal = episode._build_terminal_receipt(
+        _terminal_without_available_baseline(enrolled, completed=False), enrollment_receipt
+    )
+    path = _receipt_path(anchor, "terminals", enrolled["episode_digest"])
+    path.parent.mkdir(mode=0o700)
+    path.write_bytes(episode._canonical_json_bytes(terminal, trailing_lf=True))
+    path.chmod(0o600)
+    before = _store_snapshot(anchor)
+    for verb, request in (("status", _status_request()), ("report", _report_request())):
+        with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+            _run(anchor, verb, request)
+    assert _store_snapshot(anchor) == before
+
+
+def test_complete_prevalidates_report_size_and_new_terminal_aggregate_size(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    before = _store_snapshot(anchor)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_REPORT_JSON_BYTES", 1)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "complete", _complete_request(terminal))
+    assert _store_snapshot(anchor) == before
+    current_bytes = sum(len(value[3]) for value in before.values())
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", current_bytes)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "complete", _complete_request(terminal))
+    assert _store_snapshot(anchor) == before
+
+
+def test_checkpoint_leaf_limit_and_aggregate_prevalidation_are_exact(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    enrollment_receipt = _load_json(
+        _receipt_path(anchor, "enrollments", enrolled["episode_digest"])
+    )
+    expected = episode._build_checkpoint_receipt(baseline, enrollment_receipt)
+    exact_size = len(episode._canonical_json_bytes(expected, trailing_lf=True))
+    before = _store_snapshot(anchor)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_CHECKPOINT_RECEIPT_BYTES", exact_size - 1)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+    enrollment_size = (
+        _receipt_path(anchor, "enrollments", enrolled["episode_digest"]).stat().st_size
+    )
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", enrollment_size + exact_size - 1
+        )
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+    monkeypatch.setattr(episode, "MAX_CHECKPOINT_RECEIPT_BYTES", exact_size)
+    monkeypatch.setattr(episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", enrollment_size + exact_size)
+    _run(anchor, "checkpoint", baseline)
+    before = _store_snapshot(anchor)
+    _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+
+
+@pytest.mark.parametrize("operation", ["checkpoint", "complete"])
+def test_lost_stdout_acknowledgement_preserves_published_evidence(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    if operation == "complete":
+        checkpoint = _run(anchor, "checkpoint", baseline)
+        request = _complete_request(_terminal_available(enrolled, baseline, checkpoint))
+    else:
+        request = baseline
+
+    def fail_ack(_value: object) -> None:
+        raise episode.EpisodeError("E_STDOUT")
+
+    observed_errors: list[str] = []
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "_open_repository_anchor", lambda: os.dup(anchor.fd))
+        scoped.setattr(episode, "_read_bounded_stdin", lambda: json.dumps(request).encode())
+        scoped.setattr(episode, "_write_ack", fail_ack)
+        scoped.setattr(episode, "_write_error", observed_errors.append)
+        assert episode.main([operation]) == 1
+    assert observed_errors == ["E_STDOUT"]
+    before = _store_snapshot(anchor)
+    assert _run(anchor, operation, request)["status"] == "ok"
+    assert _store_snapshot(anchor) == before
+
+
+def test_supervision_cli_uses_owning_module_store_and_sanitized_errors(tmp_path: Path) -> None:
+    module = tmp_path / "scripts/orchestration/invariant_family_review_episode.py"
+    module.parent.mkdir(parents=True)
+    module.write_bytes(Path(episode.__file__).read_bytes())
+
+    def invoke(verb: str, request: Mapping[str, object]) -> dict[str, object]:
+        result = subprocess.run(
+            [sys.executable, str(module), verb],
+            input=json.dumps(request).encode(),
+            capture_output=True,
+            check=False,
+            timeout=30,
+            cwd=CONTRACT.parent,
+        )
+        assert result.returncode == 0, result.stderr.decode()
+        assert result.stderr == b""
+        return json.loads(result.stdout)
+
+    assert invoke("status", _status_request())["lifecycle"] == "absent"
+    assert not (tmp_path / "artifacts").exists()
+    enrolled = invoke("enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    checkpoint = invoke("checkpoint", baseline)
+    terminal = _terminal_available(enrolled, baseline, checkpoint)
+    result = invoke("complete", _complete_request(terminal))
+    assert invoke("status", _status_request())["report_digest"] == result["report_digest"]
+    failed = subprocess.run(
+        [sys.executable, str(module), "status"],
+        input=b'{"private": "untrusted-value"}',
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert failed.returncode == 1
+    assert failed.stdout == b""
+    assert failed.stderr == b"E_SCHEMA\n"
+
+
+@pytest.mark.parametrize("verb", ["enroll", "terminal"])
+@pytest.mark.parametrize("headroom", [-1, 0, 1])
+def test_supervised_legacy_append_preflights_aggregate_without_stranding_store(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch, verb: str, headroom: int
+) -> None:
+    enrolled, _baseline_value, terminal = _supervised_episode(anchor)
+    receipt = _load_json(_receipt_path(anchor, "enrollments", enrolled["episode_digest"]))
+    document = _enrollment(18) if verb == "enroll" else terminal
+    pending = (
+        episode._build_enrollment_receipt(document)
+        if verb == "enroll"
+        else episode._build_terminal_receipt(document, receipt)
+    )
+    additional = len(episode._canonical_json_bytes(pending, trailing_lf=True))
+    before = _store_snapshot(anchor)
+    aggregate = sum(len(row[3]) for row in before.values())
+    monkeypatch.setattr(
+        episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", aggregate + additional + headroom
+    )
+    if headroom < 0:
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, verb, document)
+        assert _store_snapshot(anchor) == before
+        assert (
+            _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_terminal"
+        )
+        assert _store_snapshot(anchor) == before
+    else:
+        ack = _run(anchor, verb, document)
+        after = _store_snapshot(anchor)
+        assert _run(anchor, verb, document) == ack
+        assert _store_snapshot(anchor) == after
+    report = _run(anchor, "report", _report_request())
+    assert _run(anchor, "status", _status_request())["report_digest"] == report["report_digest"]
+
+
+def test_v1_only_legacy_append_keeps_original_aggregate_admission_behavior(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    monkeypatch.setattr(episode, "MAX_AGGREGATE_RECEIPT_SCAN_BYTES", 1)
+    _run(anchor, "enroll", _enrollment(18))
+    terminal = _terminal_without_available_baseline(enrolled, completed=True)
+    ack = _run(anchor, "terminal", terminal)
+    before = _store_snapshot(anchor)
+    assert _run(anchor, "terminal", terminal) == ack
+    assert _store_snapshot(anchor) == before
+    assert not (
+        anchor.path / "artifacts/orchestration/review_invariant_family_episodes/checkpoints"
+    ).exists()
+
+
+def _representability_inputs(
+    *, pr_number: int = 17, families: int = 1, identities: int = 4, id_width: int = 8
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    enrollment = _enrollment(pr_number)
+    class_ids = [f"i{index:04d}".ljust(id_width, "x") for index in range(identities)]
+    trigger_ids = [f"t{index:04d}".ljust(id_width, "x") for index in range(identities)]
+    joint_ids = [f"j{index:04d}".ljust(id_width, "x") for index in range(identities)]
+    enrollment["identity_classes"] = [
+        {"identity_class_id": identifier, "trigger_finding_id": trigger}
+        for identifier, trigger in zip(class_ids, trigger_ids)
+    ]
+    enrollment["families"] = [
+        {
+            "family_key": f"family{index}",
+            "trigger_family_id": f"trigger{index}",
+            "trigger_identity_class_ids": class_ids,
+        }
+        for index in range(families)
+    ]
+    receipt = episode._build_enrollment_receipt(enrollment)
+    baseline = _baseline(receipt)
+    baseline["identity_classes"] = [
+        {
+            "identity_class_id": identifier,
+            "phase_bindings": [
+                {"phase": "trigger", "finding_id": trigger},
+                {"phase": "joint_pass", "finding_id": joint},
+            ],
+        }
+        for identifier, trigger, joint in zip(class_ids, trigger_ids, joint_ids)
+    ]
+    baseline["families"] = [
+        {
+            "family_key": f"family{index}",
+            "joint_pass_family_id": f"joint{index}",
+            "joint_pass_cumulative_identity_class_ids": class_ids,
+            "recommended_resolution": "family_fix",
+        }
+        for index in range(families)
+    ]
+    return enrollment, receipt, baseline
+
+
+def _representability_terminal(
+    receipt: Mapping[str, object], baseline: Mapping[str, object], *, alternative: str
+) -> dict[str, object]:
+    checkpoint = episode._build_checkpoint_receipt(baseline, receipt)
+    terminal = _terminal_available(receipt, baseline, checkpoint)
+    terminal["joint_pass"]["identity_classes"] = copy.deepcopy(baseline["identity_classes"])
+    observations: list[dict[str, object]] = []
+    for index, family in enumerate(baseline["families"]):
+        if alternative == "confirmed":
+            observations.append(
+                {
+                    "status": "confirmed",
+                    "reason": "same_scope_confirmed",
+                    "family_key": family["family_key"],
+                    "terminal_family_id": f"terminal{index}",
+                    "terminal_cumulative_identity_class_ids": family[
+                        "joint_pass_cumulative_identity_class_ids"
+                    ],
+                }
+            )
+        else:
+            unknown = alternative == "one_unknown" and index == 0
+            observations.append(
+                {
+                    "status": "unknown" if unknown else "non_comparable",
+                    "reason": ("human_correspondence_unresolved" if unknown else "family_missing"),
+                    "family_key": family["family_key"],
+                }
+            )
+    terminal["joint_pass"]["family_observations"] = observations
+    if alternative == "confirmed":
+        for index, row in enumerate(terminal["joint_pass"]["identity_classes"]):
+            row["phase_bindings"].append({"phase": "terminal", "finding_id": f"c{index}"})
+    if alternative == "multi_trigger":
+        terminal["observed_l2_identity_digests"].append("e" * 64)
+    return terminal
+
+
+@pytest.mark.parametrize("family_count", [1, 3])
+@pytest.mark.parametrize("id_width", [8, 64])
+@pytest.mark.parametrize("pr_number", [1, 2147483647])
+def test_structural_terminal_envelope_matches_real_v1_normalizer(
+    family_count: int, id_width: int, pr_number: int
+) -> None:
+    _raw, receipt, baseline = _representability_inputs(
+        pr_number=pr_number, families=family_count, id_width=id_width
+    )
+    checkpoint = episode._build_checkpoint_receipt(baseline, receipt)
+    predicted = episode._minimum_terminal_receipt_bytes(checkpoint, receipt)
+    sizes: dict[str, int] = {}
+    for alternative in ("all_non_comparable", "one_unknown", "confirmed", "multi_trigger"):
+        terminal = episode._build_terminal_receipt(
+            _representability_terminal(receipt, baseline, alternative=alternative), receipt
+        )
+        rendered = episode._canonical_json_bytes(terminal, trailing_lf=True)
+        episode._validate_terminal_bundle({"receipt.json": rendered}, receipt)
+        sizes[alternative] = len(rendered)
+    assert predicted == min(sizes.values()) == sizes["one_unknown"]
+    assert sizes["all_non_comparable"] == predicted + 4
+    assert sizes["confirmed"] > predicted
+    assert sizes["multi_trigger"] > predicted
+
+
+@pytest.mark.parametrize("headroom", [-1, 0, 1])
+@pytest.mark.parametrize("families", [1, 3])
+def test_first_checkpoint_terminal_byte_envelope_admits_exact_and_rejects_over(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch, headroom: int, families: int
+) -> None:
+    raw, receipt, baseline = _representability_inputs(families=families, id_width=64)
+    _run(anchor, "enroll", raw)
+    terminal_input = _representability_terminal(receipt, baseline, alternative="one_unknown")
+    real_terminal = episode._build_terminal_receipt(terminal_input, receipt)
+    exact_size = len(episode._canonical_json_bytes(real_terminal, trailing_lf=True))
+    monkeypatch.setattr(episode, "MAX_TERMINAL_RECEIPT_BYTES", exact_size + headroom)
+    before = _store_snapshot(anchor)
+    if headroom < 0:
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "checkpoint", baseline)
+        assert _store_snapshot(anchor) == before
+    else:
+        ack = _run(anchor, "checkpoint", baseline)
+        _run(anchor, "terminal", terminal_input)
+        after = _store_snapshot(anchor)
+        assert _run(anchor, "checkpoint", baseline) == ack
+        assert _store_snapshot(anchor) == after
+
+
+def _json_depth(value: object) -> int:
+    children = (
+        list(value.values())
+        if isinstance(value, dict)
+        else value if isinstance(value, list) else []
+    )
+    return 1 + max((_json_depth(child) for child in children), default=0)
+
+
+@pytest.mark.parametrize("limit_name", ["MAX_JSON_NODES", "MAX_JSON_DEPTH"])
+@pytest.mark.parametrize("headroom", [-1, 0])
+def test_first_checkpoint_terminal_shape_boundaries(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch, limit_name: str, headroom: int
+) -> None:
+    raw, receipt, baseline = _representability_inputs(families=3)
+    _run(anchor, "enroll", raw)
+    real_terminal = episode._build_terminal_receipt(
+        _representability_terminal(receipt, baseline, alternative="one_unknown"), receipt
+    )
+    exact = (
+        episode._count_json_shape(real_terminal)
+        if limit_name == "MAX_JSON_NODES"
+        else _json_depth(real_terminal)
+    )
+    monkeypatch.setattr(episode, limit_name, exact + headroom)
+    before = _store_snapshot(anchor)
+    if headroom < 0:
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            _run(anchor, "checkpoint", baseline)
+        assert _store_snapshot(anchor) == before
+    else:
+        _run(anchor, "checkpoint", baseline)
+        assert (
+            _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_terminal"
+        )
+
+
+def test_unrepresentable_512_identity_checkpoint_rejected_before_lane_creation(
+    anchor: _Anchor,
+) -> None:
+    raw, receipt, baseline = _representability_inputs(identities=512, id_width=64)
+    _run(anchor, "enroll", raw)
+    checkpoint = episode._build_checkpoint_receipt(baseline, receipt)
+    checkpoint_bytes = episode._canonical_json_bytes(checkpoint, trailing_lf=True)
+    assert len(checkpoint_bytes) < episode.MAX_CHECKPOINT_RECEIPT_BYTES
+    episode._validate_checkpoint_bundle({"receipt.json": checkpoint_bytes}, receipt)
+    baseline_table_bytes = len(episode._canonical_json_bytes(baseline["identity_classes"]))
+    assert 2 * baseline_table_bytes > episode.MAX_TERMINAL_RECEIPT_BYTES
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "checkpoint", baseline)
+    assert _store_snapshot(anchor) == before
+    assert _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_checkpoint"
+    _run(anchor, "report", _report_request())
