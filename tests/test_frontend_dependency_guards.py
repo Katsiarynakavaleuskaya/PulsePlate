@@ -3662,12 +3662,22 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
             retained_rows: list[tuple[str, str]] = []
             for vulnerability in vulnerabilities:
                 assert isinstance(vulnerability, dict)
+                assert set(vulnerability) == {
+                    "ecosystem",
+                    "first_patched_version",
+                    "package",
+                    "vulnerable_version_range",
+                }
                 assert vulnerability["ecosystem"] == "npm"
                 assert vulnerability["package"] == target
                 raw_range = vulnerability["vulnerable_version_range"]
                 patched = vulnerability["first_patched_version"]
                 assert isinstance(raw_range, str) and raw_range
                 assert isinstance(patched, str) and patched
+                _parse_version(
+                    value=patched,
+                    source=f"{target}/{advisory} first patched version",
+                )
                 retained_rows.append((re.sub(r"\s+", "", raw_range), patched))
             retained_entries[advisory] = tuple(sorted(retained_rows))
         assert retained_entries == {
@@ -3687,6 +3697,12 @@ def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
         for record in withdrawn
         if record["withdrawn_at"] is not None
     } == QS_EXPECTED_WITHDRAWN
+    for root in scanner["roots"]:
+        assert isinstance(root, dict)
+        assert type(root["exit_code"]) is int
+        severity_counts = root["severity_counts"]
+        assert isinstance(severity_counts, dict)
+        assert all(type(value) is int and value >= 0 for value in severity_counts.values())
 
 
 def test_transitive_npm_batch_receipt_rejects_duplicate_json_keys() -> None:

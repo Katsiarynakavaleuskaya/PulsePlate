@@ -459,9 +459,9 @@ exit: 0 per query
 ```
 
 The content-binding tests at `tests/test_frontend_dependency_guards.py:3409` and
-`tests/test_frontend_dependency_guards.py:3692` reject duplicate JSON keys, wrong batch/scanner
-identities, record/range omissions, changed package/ecosystem or exact record-key projections,
-and first-patched, withdrawal, or per-GHSA CVE/severity/timestamp drift and noncanonical formats.
+`tests/test_frontend_dependency_guards.py:3708` reject duplicate or unknown record/row keys,
+wrong batch/scanner identities or metric types, record/range omissions, and package/ecosystem drift,
+plus noncanonical first-patched npm versions or per-GHSA CVE/severity/timestamp metadata.
 
 ## Per-identity applicability
 
