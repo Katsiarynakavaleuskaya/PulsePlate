@@ -65,14 +65,19 @@ If it is not recorded here — it does not exist.
     regeneration, asset rollback, or release migration is required.
 
 <a id="ledger-client-arch-1-cab-02"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
+- [x] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (frontend build integrity / false-green prevention / development velocity)
   - Target PR: [PR #2374](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2374)
     (`codex/frontend-typecheck-build-truth`)
-  - Status: Open non-draft; local material establishes the exact TypeScript-before-Vite build and
-    fail-closed Vitest pre-commit contracts. Current-head CI, post-open review, review closeout,
-    the mandatory wait window, and human merge remain pending.
+  - Status: ✅ Closed by merged PR #2374 on 2026-09-03 at squash merge
+    `2bfb7ff96dfcc98a806de9c113eff5242bfbe479`; canonical exact-main CI push run
+    [33684829304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33684829304),
+    Nightly Full Tests run
+    [33846083377](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33846083377),
+    and Nightly Tests run
+    [33846268611](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33846268611)
+    completed successfully. These runs do not classify unrelated shared Docker/CD workflows as green.
   - Area: frontend / TypeScript / Vite production build / pre-commit test enforcement
   - Dependency: [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01) is closed.
   - Reason (EN): Vite transpiled the production graph without running the repository's existing
@@ -100,10 +105,10 @@ If it is not recorded here — it does not exist.
   - Owner: app-store-release-agent / agent-coordinator
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
   - Target PR: pending (`codex/ios-release-build-appicon-integrity`)
-  - Status: Planned; implementation starts only after CAB-02 is merged, synchronized to `main`,
-    and closed with exact-main evidence.
+  - Status: Implementation active on `codex/ios-release-build-appicon-integrity`; PR number,
+    current-head CI, post-open review, review closeout, wait window, and human merge remain pending.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
-  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) must be merged and closed.
+  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
     canonical iOS job runs Debug unit coverage without a separate Release app build. CAB-03 will
     close those two bounded seams without pixel, production Swift, signing, upload, or App Store
@@ -113,8 +118,13 @@ If it is not recorded here — it does not exist.
     - `scripts/release/check_ios_appstore_verify.py`
     - `.github/workflows/ci.yml`
   - DoD:
-    - the unique `ios-marketing` entry has exact filename, idiom, platform, size, and `scale=1x`
-    - the approved AppIcon PNG remains byte-identical and 1024x1024
+    - under the current-Xcode/actool-qualified contract, the unique `ios-marketing` entry has
+      exactly filename, idiom, scale, and size, with `platform` absent from this entry only
+    - the four-key correction changes no other asset entry and implies no iOS/visionOS support,
+      Xcode project-setting, target-membership, target, or PNG-content change
+    - the current CAB-03 admitted AppIcon baseline remains byte-identical and 1024x1024
+    - a future dedicated asset-focused visual/provenance PR may atomically replace the PNG and
+      rotate the single validator-owned approved hash pin; that visual change remains outside CAB-03
     - focused and unified validators reject missing or incorrect slot metadata
     - the existing blocking iOS job runs a separate Release simulator build after the full unit run
     - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
