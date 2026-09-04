@@ -29,11 +29,11 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             )
             XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, asset.width)
             XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, asset.height)
+            assertRGBImageIOProperties(properties, filename: asset.filename)
 
             let image = try XCTUnwrap(UIImage(contentsOfFile: url.path))
             let cgImage = try XCTUnwrap(image.cgImage)
             XCTAssertFalse(hasAlpha(cgImage.alphaInfo), asset.filename)
-            XCTAssertEqual(cgImage.colorSpace?.name, CGColorSpace.sRGB, asset.filename)
         }
     }
 
@@ -99,6 +99,7 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             )
             XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, asset.width)
             XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, asset.height)
+            assertRGBImageIOProperties(properties, filename: asset.filename)
 
             let image = try XCTUnwrap(
                 UIImage(named: asset.filename, in: .main, compatibleWith: nil),
@@ -106,7 +107,6 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             )
             let cgImage = try XCTUnwrap(image.cgImage)
             XCTAssertFalse(hasAlpha(cgImage.alphaInfo), asset.filename)
-            XCTAssertEqual(cgImage.colorSpace?.name, CGColorSpace.sRGB, asset.filename)
         }
     }
 
@@ -313,6 +313,14 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         let compressedProfileStart = profileChunk.payload.index(after: compressionMethodIndex)
         let compressedProfile = Data(profileChunk.payload[compressedProfileStart...])
         return try zlibDecompressedICCProfile(compressedProfile, filename: filename)
+    }
+
+    private func assertRGBImageIOProperties(
+        _ properties: [CFString: Any],
+        filename: String
+    ) {
+        XCTAssertEqual(properties[kCGImagePropertyColorModel] as? String, "RGB", filename)
+        XCTAssertEqual(properties[kCGImagePropertyDepth] as? Int, 8, filename)
     }
 
     private func assertFrozenJPEGContract(
