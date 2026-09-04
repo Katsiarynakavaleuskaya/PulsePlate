@@ -12630,8 +12630,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 target branch `codex/euler-l2-eval-v1`; L3 requires a separate reviewed target PR
-  - Status: L1 and bounded L2 are merged; L2-EVAL v1 is the next prospective descriptive evidence stage; collection begins only after its implementation PR merges; L3 remains closed and is not authorized by L1, L2, or L2-EVAL
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 [PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291) (`codex/euler-l2-eval-v1`); lifecycle supervision is tracked in [EULER-OPS-1](#ledger-p1-euler-ops-1-lifecycle-supervision); L3 requires a separate reviewed target PR
+  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. EULER-OPS-1 remains in progress; no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
@@ -12649,8 +12649,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
     - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
     - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
-    - No synthetic primary episode or empirical 5/10 cohort exists at implementation time; real qualifying PRs accrue only after L2-EVAL merges, and its interim/target-count labels are not effectiveness or L3 decisions
+    - Synthetic fixtures are test evidence only; real prospective counts require validated local current-store reports, and interim/target-count labels are not effectiveness or L3 decisions
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
+
+<a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
+- [ ] P1: EULER-OPS-1 explicit local episode lifecycle supervision
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
+  - Target PR: TBD (`codex/euler-lifecycle-supervision`)
+  - Status: Core implemented in `d6a6659e18d36a34197f0594673a6fe83993b164` and validated locally; renderer integration awaits [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) merge. PR creation, remaining exact-head gates, review and merge are pending.
+  - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
+  - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow); merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291); renderer/sidecar integration only after authenticated #2378 MERGED and ancestry-preserving synchronization in this same carrier.
+  - Links:
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+    - [Owning CLI](../../scripts/orchestration/invariant_family_review_episode.py)
+    - [Focused lifecycle and v1 compatibility tests](../../tests/test_invariant_family_review_episode.py)
+    - [Publisher and consumer guards](../../tests/guards/test_security_devtooling_regression_guards.py)
+  - DoD:
+    - checkpoint retains accepted-enrollment-bound normalized J and recomputed validate acknowledgement through the existing create-only publisher; original v1 policy, bytes, limits, recurrence and denominator semantics remain unchanged
+    - status is read-only and distinguishes absent, stale and current full-store reporting; complete prevalidates and safely resumes terminal/report publication with exact replay, bounded resources and no retrospective repair
+    - renderer guidance remains a command recipe over the existing applicability projection, with no Euler import/execution, automatic enrollment or role dispatch
+    - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before human merge authorization
+  - Rollback: Revert supervision code and guidance while preserving immutable local bundles; retain v1 receipts and optional checkpoint data, without rewriting or reconstructing evidence.
+  - Out of scope: Scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
