@@ -1,19 +1,24 @@
 import base64
+import ast
 import gzip
 import io
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import sys
 import tarfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 import yaml
+
+import scripts.ci.prometheus_derivative_candidate as prometheus_candidate
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -23,6 +28,7 @@ SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.sel
 STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
+PROMETHEUS_CONTAINERFILE_PATH = REPO_ROOT / "deploy" / "prometheus" / "Containerfile"
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
 PROMETHEUS_SOURCE_REVISION = "09fdfcd2659dd9c816e9e23c992fc161c0091757"
 PROMETHEUS_INDEX_DIGEST = "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab"
@@ -358,7 +364,11 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
 
 
 def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
-    manifest = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    manifest_bytes = PROMETHEUS_MANIFEST_PATH.read_bytes()
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        "06e312ed9efe5ec96a582e7a1ee1291dc02c451f773fb6756fb411ef18ece457"  # pragma: allowlist secret
+    )
+    manifest = json.loads(manifest_bytes)
     assert manifest == {
         "schema": "pulseplate.prometheus_image_manifest.v2",
         "repository": "prom/prometheus",
@@ -368,6 +378,1324 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
         "platform_manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
         "runtime_ref": PROMETHEUS_RUNTIME_REF,
     }
+
+
+class _CandidateBuildAdapter:
+    def __init__(self, first: object, second: object, scan: object) -> None:
+        self.first, self.second, self.scan = first, second, scan
+        self.calls = 0
+
+    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, object, object]:
+        assert spec["schema"].endswith(".prebuild-spec")
+        self.calls += 1
+        return self.first, self.second, self.scan
+
+
+class _CandidatePublicationAdapter:
+    def __init__(
+        self,
+        evidence: Mapping[str, object],
+        scan: Mapping[str, object],
+        *,
+        tag_state: str = "absent",
+        fail_with_transport_error: bool = False,
+    ) -> None:
+        self.evidence, self.scan = evidence, scan
+        self.tag_state = tag_state
+        self.fail_with_transport_error = fail_with_transport_error
+        self.preflight_calls = 0
+        self.observe_calls = 0
+        self.closed = 0
+
+    def preflight(self, payload: Mapping[str, object]) -> object:
+        self.preflight_calls += 1
+        if self.fail_with_transport_error:
+            raise prometheus_candidate.transport.TransportError("synthetic")
+        assert payload["tuple_sha256"]
+        return {
+            "tag_state": self.tag_state,
+            "build_evidence": self.evidence,
+            "scan_evidence": self.scan,
+        }
+
+    def observe(self, candidate_ref: str) -> object:
+        self.observe_calls += 1
+        assert candidate_ref.startswith("ghcr.io/katsiarynakavaleuskaya/pulseplate:")
+        return {
+            key: self.evidence[key]
+            for key in ("platform", "manifest_digest", "config_digest", "layer_digests")
+        }
+
+    def process_plans(self, candidate_ref: str) -> tuple[object, object, object]:
+        executable = Path("/usr/bin/true")
+        environment: dict[str, str] = {}
+        return (
+            prometheus_candidate.transport.ProcessPlan(
+                (str(executable), "login", "--password-stdin"),
+                REPO_ROOT,
+                environment,
+                30,
+                1024,
+            ),
+            prometheus_candidate.transport.ProcessPlan(
+                (str(executable), "push", candidate_ref),
+                REPO_ROOT,
+                environment,
+                30,
+                1024,
+            ),
+            prometheus_candidate.transport.ProcessPlan(
+                (str(executable), "logout"),
+                REPO_ROOT,
+                environment,
+                30,
+                1024,
+            ),
+        )
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+def _candidate_evidence(seed: str = "a") -> dict[str, object]:
+    assert re.fullmatch(r"[0-9a-f]", seed)
+    return {
+        "platform": "linux/amd64",
+        "manifest_digest": f"sha256:{seed * 64}",
+        "config_digest": f"sha256:{'b' * 64}",
+        "layer_digests": [f"sha256:{'c' * 64}", f"sha256:{'d' * 64}"],
+        "prometheus_sha256": "e" * 64,
+        "promtool_sha256": "f" * 64,
+        "source_archive_sha256": "3" * 64,
+        "pnpm_binary_sha256": "4" * 64,
+        "transformed_go_mod_sha256": "5" * 64,
+        "transformed_go_sum_sha256": "6" * 64,
+        "module_graph_sha256": "1" * 64,
+        "module_graph_count": 10,
+        "ui_file_count": 20,
+        "ui_total_bytes": 30,
+        "ui_path_inventory_sha256": "7" * 64,
+        "ui_content_tree_sha256": "2" * 64,
+        "gzip_tree_sha256": "8" * 64,
+        "embed_go_sha256": "9" * 64,
+        "builder_image_digest": f"sha256:{'0' * 64}",
+        "builder_status_sha256": f"sha256:{'1' * 64}",
+    }
+
+
+def _candidate_scan() -> dict[str, object]:
+    return {
+        "trivy_version": "0.74.0",
+        "trivy_executable_sha256": f"sha256:{'a' * 64}",
+        "database_identity_sha256": f"sha256:{'b' * 64}",
+        "database_updated_at": "2026-09-04T00:00:00Z",
+        "report_sha256": f"sha256:{'c' * 64}",
+        "coverage_sha256": f"sha256:{'d' * 64}",
+        "covered_targets": list(prometheus_candidate.REQUIRED_TRIVY_TARGETS),
+        "high_count": 0,
+        "critical_count": 0,
+    }
+
+
+def _candidate_trivy_report() -> dict[str, object]:
+    return {
+        "Results": [
+            {
+                "Target": "candidate (debian 12)",
+                "Class": "os-pkgs",
+                "Type": "debian",
+                "Vulnerabilities": [],
+            },
+            {
+                "Target": "/bin/prometheus",
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Vulnerabilities": [],
+            },
+            {
+                "Target": "/bin/promtool",
+                "Class": "lang-pkgs",
+                "Type": "gobinary",
+                "Vulnerabilities": [],
+            },
+        ]
+    }
+
+
+def _candidate_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / "artifacts").mkdir(parents=True, exist_ok=True)
+    (repo / "deploy" / "prometheus").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
+    (repo / "deploy" / "prometheus" / "Containerfile").write_bytes(
+        PROMETHEUS_CONTAINERFILE_PATH.read_bytes()
+    )
+    (repo / "deploy" / "prometheus" / "image-manifest.json").write_bytes(
+        PROMETHEUS_MANIFEST_PATH.read_bytes()
+    )
+    (repo / "scripts" / "ci" / "prometheus_derivative_candidate.py").write_bytes(
+        (REPO_ROOT / "scripts" / "ci" / "prometheus_derivative_candidate.py").read_bytes()
+    )
+    (repo / "scripts" / "ci" / "_prometheus_derivative_transport.py").write_bytes(
+        (REPO_ROOT / "scripts" / "ci" / "_prometheus_derivative_transport.py").read_bytes()
+    )
+    for relative_path in prometheus_candidate.RUNTIME_CONSUMER_RELATIVES:
+        destination = repo / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((REPO_ROOT / relative_path).read_bytes())
+    return repo
+
+
+def _candidate_identity(_repo: Path) -> Mapping[str, str]:
+    return {
+        "git_head": "a" * 40,
+        "git_tree": "b" * 40,
+        "git_path": "/usr/bin/git",
+        "git_sha256": f"sha256:{'1' * 64}",
+        "script_path": "scripts/ci/prometheus_derivative_candidate.py",
+        "script_sha256": f"sha256:{'2' * 64}",
+        "script_version": "1.0.0",
+        "transport_path": "scripts/ci/_prometheus_derivative_transport.py",
+        "transport_sha256": f"sha256:{'5' * 64}",
+        "python_path": "/usr/local/bin/python3",
+        "python_sha256": f"sha256:{'6' * 64}",
+        "python_version": "cpython-3.13.14",
+        "container_path": "/usr/local/bin/container",
+        "container_sha256": f"sha256:{'3' * 64}",
+        "container_version": "1.1.0",
+        "container_release_commit": "5973b9c",
+        "container_system_sha256": f"sha256:{'7' * 64}",
+        "trivy_path": "/usr/local/bin/trivy",
+        "trivy_sha256": f"sha256:{'4' * 64}",
+        "trivy_version": "0.74.0",
+    }
+
+
+def _candidate_controller(
+    tmp_path: Path,
+    *,
+    first: object | None = None,
+    second: object | None = None,
+    scan: object | None = None,
+    publication: _CandidatePublicationAdapter | None = None,
+) -> prometheus_candidate.CandidateController:
+    first_value = _candidate_evidence() if first is None else first
+    second_value = first_value if second is None else second
+    scan_value = _candidate_scan() if scan is None else scan
+    publication_value = publication or _CandidatePublicationAdapter(
+        first_value,
+        scan_value,
+    )
+    return prometheus_candidate.CandidateController(
+        _candidate_repo(tmp_path),
+        identity_provider=_candidate_identity,
+        build_adapter=_CandidateBuildAdapter(first_value, second_value, scan_value),
+        publication_adapter=publication_value,
+    )
+
+
+def test_prometheus_candidate_core_is_canonical_private_and_replay_safe(
+    tmp_path: Path,
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    replay = _candidate_controller(tmp_path)
+    assert replay.candidate_id == controller.candidate_id
+    assert controller.freeze() is True
+    receipt = controller.store.directory / "00-spec.json"
+    before = receipt.stat()
+    before_bytes = receipt.read_bytes()
+    assert controller.freeze() is False
+    after = receipt.stat()
+    assert before_bytes == receipt.read_bytes()
+    assert (before.st_ino, before.st_mtime_ns) == (after.st_ino, after.st_mtime_ns)
+    assert stat.S_IMODE(after.st_mode) == 0o600
+    assert all(
+        stat.S_IMODE(path.stat().st_mode) == 0o700
+        for path in (
+            controller.store.directory,
+            controller.store.directory.parent,
+            controller.store.directory.parent.parent,
+            controller.store.directory.parent.parent.parent,
+        )
+    )
+    selector = controller.spec["runtime_selector"]
+    assert isinstance(selector, dict)
+    assert set(selector) == {"path", "size", "sha256"}
+    local = controller.verify_local()
+    assert controller.candidate_id != f"sha256:{local['tuple_sha256']}"
+    assert re.fullmatch(r"[0-9a-f]{64}", local["tuple_sha256"])
+    assert local["candidate_ref"].endswith(local["tuple_sha256"])
+    assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:4])
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    ("unknown", "gap", "duplicate", "unsafe_mode", "symlink", "hardlink"),
+)
+def test_prometheus_candidate_receipt_store_rejects_unsafe_state(
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    controller.freeze()
+    receipt = controller.store.directory / "00-spec.json"
+    if corruption == "unknown":
+        (controller.store.directory / "unexpected.json").write_text("{}\n", encoding="utf-8")
+    elif corruption == "gap":
+        receipt.rename(controller.store.directory / "20-build-two.json")
+    elif corruption == "duplicate":
+        receipt.write_bytes(
+            receipt.read_bytes().replace(
+                b'{"candidate_id":',
+                b'{"schema":"duplicate","candidate_id":',
+                1,
+            )
+        )
+    elif corruption == "unsafe_mode":
+        receipt.chmod(0o644)
+    elif corruption == "symlink":
+        receipt.unlink()
+        receipt.symlink_to(controller.repo_root / "deploy" / "prometheus" / "image-manifest.json")
+    else:
+        os.link(receipt, controller.repo_root / "receipt-hardlink")
+    with pytest.raises(prometheus_candidate.CandidateHold):
+        controller.store.load()
+
+
+def test_prometheus_candidate_rejects_divergence_selector_and_evidence_drift(
+    tmp_path: Path,
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    controller.freeze()
+    divergent = dict(controller.spec)
+    divergent["state"] = "forged"
+    with pytest.raises(prometheus_candidate.CandidateHold, match="divergent_receipt"):
+        controller.store.append("00-spec", {"spec": divergent})
+    selector = controller.repo_root / "deploy" / "prometheus" / "image-manifest.json"
+    selector.write_bytes(selector.read_bytes() + b" ")
+    with pytest.raises(prometheus_candidate.CandidateHold, match="selector_drift"):
+        controller.status()
+
+    bad_scan = dict(_candidate_scan(), high_count=1)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="scan_findings_present"):
+        prometheus_candidate._scan_evidence(bad_scan)
+    boolean_scan = dict(_candidate_scan(), critical_count=False)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="scan_findings_present"):
+        prometheus_candidate._scan_evidence(boolean_scan)
+    bad_oci = dict(_candidate_evidence(), manifest_digest="a" * 64)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="build_evidence_invalid"):
+        prometheus_candidate._build_evidence(bad_oci)
+    bad_binary = dict(_candidate_evidence(), prometheus_sha256=f"sha256:{'a' * 64}")
+    with pytest.raises(prometheus_candidate.CandidateHold, match="build_evidence_invalid"):
+        prometheus_candidate._build_evidence(bad_binary)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ("binary", "source", "ui", "embedfs", "unknown_field"),
+)
+def test_prometheus_candidate_two_build_comparison_fails_closed(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    first = _candidate_evidence()
+    second = dict(first)
+    field = {
+        "binary": "prometheus_sha256",
+        "source": "source_archive_sha256",
+        "ui": "ui_content_tree_sha256",
+        "embedfs": "embed_go_sha256",
+        "unknown_field": "source_path",
+    }[failure]
+    second[field] = "/tmp/build-two" if failure == "unknown_field" else "0" * 64
+    controller = _candidate_controller(tmp_path, first=first, second=second)
+    with pytest.raises(prometheus_candidate.CandidateHold):
+        controller.verify_local()
+    assert list(controller.store.load()) == ["00-spec"]
+
+
+def test_prometheus_exact_adapter_builds_isolated_plans_without_external_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    spec = prometheus_candidate.build_spec(repo, identity)
+    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
+    build_plans: list[object] = []
+    process_plans: list[object] = []
+    oci = prometheus_candidate.transport.OCIResult(
+        f"sha256:{'a' * 64}",
+        f"sha256:{'b' * 64}",
+        "linux/amd64",
+        (f"sha256:{'c' * 64}", f"sha256:{'d' * 64}"),
+    )
+
+    def fake_build(
+        plan: object,
+        _archive: Path,
+        names: tuple[str, ...],
+        **_bounds: object,
+    ) -> object:
+        build_plans.append(plan)
+        assignments = {
+            name: (
+                "10"
+                if prometheus_candidate.BUILD_OUTPUT_FIELDS[name]
+                in {"module_graph_count", "ui_file_count", "ui_total_bytes"}
+                else "0" * 64
+            )
+            for name in names
+        }
+        assignments["PULSEPLATE_SOURCE_ARCHIVE_SHA256"] = spec["source_archive_sha256"]
+        assignments["PULSEPLATE_PNPM_BINARY_SHA256"] = spec["pnpm_binary_sha256"]
+        dependency = spec["dependency"]
+        assert isinstance(dependency, dict)
+        assignments["PULSEPLATE_TRANSFORMED_GO_MOD_SHA256"] = dependency[
+            "transformed_go_mod_sha256"
+        ]
+        assignments["PULSEPLATE_TRANSFORMED_GO_SUM_SHA256"] = dependency[
+            "transformed_go_sum_sha256"
+        ]
+        return prometheus_candidate.transport.ProcessResult(0, b"", b""), assignments, oci
+
+    def fake_process(plan: object, **_kwargs: object) -> object:
+        process_plans.append(plan)
+        if ("builder", "status") == tuple(plan.argv[1:3]):
+            builder_status = [
+                {
+                    "configuration": {
+                        "image": {
+                            "reference": prometheus_candidate.APPLE_BUILDER_REFERENCE,
+                            "descriptor": {
+                                "digest": prometheus_candidate.APPLE_BUILDER_INDEX_DIGEST,
+                                "mediaType": "application/vnd.oci.image.index.v1+json",
+                            },
+                        },
+                        "platform": {"os": "linux", "architecture": "arm64"},
+                        "rosetta": True,
+                    }
+                }
+            ]
+            return prometheus_candidate.transport.ProcessResult(
+                0,
+                json.dumps(builder_status).encode(),
+                b"",
+            )
+        if "--version" in plan.argv:
+            return prometheus_candidate.transport.ProcessResult(
+                0,
+                b'{"VulnerabilityDB":{"UpdatedAt":"2026-09-04T00:00:00Z"}}',
+                b"",
+            )
+        return prometheus_candidate.transport.ProcessResult(0, b"", b"")
+
+    def fake_json(
+        plan: object,
+        _output: Path,
+        **_kwargs: object,
+    ) -> object:
+        process_plans.append(plan)
+        return (
+            prometheus_candidate.transport.ProcessResult(0, b"", b""),
+            _candidate_trivy_report(),
+        )
+
+    def fake_extract(_archive: Path, destination: Path, **_kwargs: object) -> object:
+        destination.mkdir(mode=0o700)
+        return oci
+
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "execute_build_observation",
+        fake_build,
+    )
+    monkeypatch.setattr(prometheus_candidate.transport, "run_process", fake_process)
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "extract_oci_layout",
+        fake_extract,
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "execute_json_observation",
+        fake_json,
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "observe_registry",
+        lambda _plan: None,
+    )
+
+    first, second, scan = adapter.verify_two_builds(spec)
+    assert first == second
+    assert scan["high_count"] == scan["critical_count"] == 0
+    assert len(build_plans) == 2
+    contexts = [Path(plan.argv[-1]) for plan in build_plans]
+    assert contexts[0] != contexts[1]
+    assert all(
+        [path.name for path in context.iterdir()] == ["Containerfile"] for context in contexts
+    )
+    for plan in build_plans:
+        assert Path(plan.argv[0]).is_absolute()
+        assert plan.env["HOME"] != os.environ.get("HOME")
+        assert plan.env["HOME"].startswith(adapter.temporary[0].name)
+        assert prometheus_candidate.PUBLICATION_INPUT_ENV not in plan.env
+        assert ("--platform", "linux/amd64") == (
+            plan.argv[plan.argv.index("--platform")],
+            plan.argv[plan.argv.index("--platform") + 1],
+        )
+        for exact in ("--cpus", "4", "--memory", "6G", "--no-cache", "--progress", "plain"):
+            assert exact in plan.argv
+    scan_plan = next(plan for plan in process_plans if "--input" in plan.argv)
+    assert Path(scan_plan.argv[scan_plan.argv.index("--input") + 1]).name == (
+        "candidate-oci-layout"
+    )
+    assert scan_plan.argv[scan_plan.argv.index("--config") + 1] == "/dev/null"
+    assert "--skip-db-update" not in scan_plan.argv
+    assert "--vex" not in scan_plan.argv
+    assert "--ignore-policy" not in scan_plan.argv
+    assert "--ignore-status" not in scan_plan.argv
+    local = prometheus_candidate._stage30_payload(
+        "sha256:" + "f" * 64,
+        spec,
+        prometheus_candidate._build_evidence(first),
+        prometheus_candidate._scan_evidence(scan),
+        {"file": "20-build-two.json", "sha256": "sha256:" + "e" * 64},
+        prometheus_candidate._stage2_observation(repo, spec),
+    )
+    preflight = adapter.preflight(local)
+    assert preflight["tag_state"] == "absent"
+    assert len(build_plans) == 3
+    login, push, logout = adapter.process_plans(local["candidate_ref"])
+    assert login.argv[-5:] == (
+        "login",
+        "--password-stdin",
+        "--username",
+        "Katsiarynakavaleuskaya",
+        "ghcr.io",
+    )
+    assert push.argv.count(local["candidate_ref"]) == 1
+    assert logout.argv[-2:] == ("logout", "ghcr.io")
+    assert prometheus_candidate.PUBLICATION_INPUT_ENV not in login.env
+    adapter.close()
+
+
+@pytest.mark.parametrize(
+    ("version_returncode", "scan_returncode", "results", "failure"),
+    (
+        (1, 0, [], "trivy_version_failed"),
+        (0, 1, [], "trivy_execution_failed"),
+        (0, 1, ["finding"], "scan_findings_present"),
+        (0, 0, ["malformed"], "trivy_report_invalid"),
+    ),
+)
+def test_prometheus_exact_adapter_scan_result_semantics_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    version_returncode: int,
+    scan_returncode: int,
+    results: list[object],
+    failure: str,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    adapter = prometheus_candidate.ExactAdapters(
+        repo,
+        identity,
+        prometheus_candidate.build_spec(repo, identity),
+    )
+    report = _candidate_trivy_report()
+    if results == ["finding"]:
+        report["Results"][0]["Vulnerabilities"] = [
+            {
+                "VulnerabilityID": "CVE-TEST",
+                "PkgName": "test",
+                "InstalledVersion": "1",
+                "FixedVersion": "2",
+                "Severity": "HIGH",
+            }
+        ]
+    elif results == ["malformed"]:
+        report = {"Results": results}
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "extract_oci_layout",
+        lambda _archive, destination, **_kwargs: destination.mkdir(mode=0o700),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "run_process",
+        lambda _plan: prometheus_candidate.transport.ProcessResult(
+            version_returncode,
+            b'{"VulnerabilityDB":{"UpdatedAt":"2026-09-04T00:00:00Z"}}',
+            b"",
+        ),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "execute_json_observation",
+        lambda *_args, **_kwargs: (
+            prometheus_candidate.transport.ProcessResult(scan_returncode, b"", b""),
+            report,
+        ),
+    )
+    try:
+        with pytest.raises(prometheus_candidate.CandidateHold, match=failure):
+            adapter._scan(tmp_path / "unused.oci.tar")
+    finally:
+        adapter.close()
+
+
+def test_prometheus_candidate_authorization_is_exact_stdin_shape_and_persists_40(
+    tmp_path: Path,
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    local = controller.verify_local()
+    line = local["expected_authorization_line"]
+    assert line == (
+        f"AUTHORIZE_PROMETHEUS_CANDIDATE_PUSH {local['tuple_sha256']} " f"{local['candidate_ref']}"
+    )
+    with pytest.raises(
+        prometheus_candidate.CandidateHold,
+        match="stale_or_invalid_authorization",
+    ):
+        controller.authorize(line + " stale")
+    assert "40-publication-authorization" not in controller.store.load()
+    assert controller.authorize(line) is True
+    assert controller.authorize(line) is False
+    assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:5])
+
+
+@pytest.mark.parametrize("raw", (b"missing-newline", b"first\nsecond\n", b"carriage\r\n"))
+def test_prometheus_candidate_authorization_stdin_rejects_noncanonical_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    raw: bytes,
+) -> None:
+    stream = io.TextIOWrapper(io.BytesIO(raw), encoding="utf-8")
+    monkeypatch.setattr(prometheus_candidate.sys, "stdin", stream)
+    with pytest.raises(
+        prometheus_candidate.CandidateHold,
+        match="operator_confirmation_not_one_line",
+    ):
+        prometheus_candidate._read_operator_line()
+
+
+def test_prometheus_candidate_preexisting_tag_and_adapter_error_hold_before_50(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence, scan = _candidate_evidence(), _candidate_scan()
+    publication = _CandidatePublicationAdapter(evidence, scan, tag_state="present")
+    controller = _candidate_controller(tmp_path, publication=publication)
+    controller.verify_local()
+    controller.authorize(controller.local_payload()["expected_authorization_line"])
+    monkeypatch.setattr(
+        controller,
+        "_credential_after_intent",
+        lambda: (_ for _ in ()).throw(AssertionError("credential read before intent")),
+    )
+    with pytest.raises(
+        prometheus_candidate.CandidateHold,
+        match="preexisting_or_ambiguous_tag",
+    ):
+        controller.publish_or_reconcile()
+    assert "50-write-intent" not in controller.store.load()
+
+    failed = _CandidatePublicationAdapter(
+        evidence,
+        scan,
+        fail_with_transport_error=True,
+    )
+    second = _candidate_controller(tmp_path / "failure", publication=failed)
+    second.verify_local()
+    second.authorize(second.local_payload()["expected_authorization_line"])
+    with pytest.raises(prometheus_candidate.CandidateHold, match="publication_adapter_failed"):
+        second.publish_or_reconcile()
+
+
+def test_prometheus_candidate_only_50_creator_reads_token_and_pushes_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence, scan = _candidate_evidence(), _candidate_scan()
+    publication = _CandidatePublicationAdapter(evidence, scan)
+    controller = _candidate_controller(tmp_path, publication=publication)
+    controller.verify_local()
+    controller.authorize(controller.local_payload()["expected_authorization_line"])
+    calls: list[tuple[object, ...]] = []
+
+    def fake_credential_primitive(*args: object) -> object:
+        calls.append(args)
+        assert args[-1] == b"opaque-token"
+        assert all(b"opaque-token" not in str(arg).encode() for arg in args[:-1])
+        return prometheus_candidate.transport.ProcessResult(0, b"pushed", b"")
+
+    monkeypatch.setenv(prometheus_candidate.PUBLICATION_INPUT_ENV, "opaque-token")
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "login_push_logout",
+        fake_credential_primitive,
+    )
+    terminal = controller.publish_or_reconcile()
+    assert len(calls) == 1
+    assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER)
+    assert terminal["candidate_selected"] is False
+    assert terminal["runtime_selector_updated"] is False
+    assert terminal["deployment_performed"] is False
+    assert terminal["t0_activated"] is False
+    assert controller.publish_or_reconcile() == terminal
+    assert len(calls) == 1
+
+
+def test_prometheus_candidate_existing_50_is_anonymous_zero_credential_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence, scan = _candidate_evidence(), _candidate_scan()
+    publication = _CandidatePublicationAdapter(evidence, scan)
+    controller = _candidate_controller(tmp_path, publication=publication)
+    local = controller.verify_local()
+    controller.authorize(local["expected_authorization_line"])
+    controller.store.append(
+        "50-write-intent",
+        {
+            "candidate_ref": local["candidate_ref"],
+            "idempotency_key": local["idempotency_key"],
+            "single_write_limit": 1,
+        },
+    )
+    monkeypatch.delenv(prometheus_candidate.PUBLICATION_INPUT_ENV, raising=False)
+
+    def forbidden_credential_primitive(*_args: object) -> object:
+        raise AssertionError("existing intent reached credential primitive")
+
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "login_push_logout",
+        forbidden_credential_primitive,
+    )
+    terminal = controller.publish_or_reconcile()
+    assert publication.preflight_calls == 0
+    assert controller.store.load()["60-push-result"]["payload"] == {
+        "mode": "reconciliation",
+        "push_invoked": False,
+        "remote_truth": False,
+    }
+    assert terminal["candidate_selected"] is False
+
+
+def test_prometheus_transport_login_uses_stdin_once_and_logs_out_on_all_post_login_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    executable = Path("/usr/bin/true")
+
+    def plan(name: str) -> prometheus_candidate.transport.ProcessPlan:
+        return transport.ProcessPlan(
+            (str(executable), name),
+            REPO_ROOT,
+            {},
+            30,
+            1024,
+        )
+
+    events: list[tuple[str, bytes | None]] = []
+
+    def successful_run(
+        process_plan: object,
+        *,
+        stdin: bytes | None = None,
+    ) -> object:
+        events.append((process_plan.argv[1], stdin))
+        return transport.ProcessResult(0, b"", b"")
+
+    monkeypatch.setattr(transport, "run_process", successful_run)
+    transport.login_push_logout(plan("login"), plan("push"), plan("logout"), b"opaque")
+    assert events == [("login", b"opaque"), ("push", None), ("logout", None)]
+
+    for terminal_error in (
+        transport.TransportError("push"),
+        KeyboardInterrupt(),
+    ):
+        events.clear()
+
+        def failing_run(
+            process_plan: object,
+            *,
+            stdin: bytes | None = None,
+        ) -> object:
+            events.append((process_plan.argv[1], stdin))
+            if process_plan.argv[1] == "push":
+                raise terminal_error
+            return transport.ProcessResult(0, b"", b"")
+
+        monkeypatch.setattr(transport, "run_process", failing_run)
+        with pytest.raises(type(terminal_error)):
+            transport.login_push_logout(
+                plan("login"),
+                plan("push"),
+                plan("logout"),
+                b"opaque",
+            )
+        assert events[-1] == ("logout", None)
+
+
+def test_prometheus_transport_authenticated_404_is_absent_but_other_states_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    plan = transport.RegistryPlan(
+        "ghcr.io",
+        "katsiarynakavaleuskaya/pulseplate",
+        "repository:katsiarynakavaleuskaya/pulseplate:pull",
+        "candidate",
+        "application/vnd.oci.image.manifest.v1+json",
+        30,
+        1024,
+        ("ghcr.io",),
+    )
+    challenge = {
+        "www-authenticate": (
+            'Bearer realm="https://ghcr.io/token",service="ghcr.io",'
+            'scope="repository:katsiarynakavaleuskaya/pulseplate:pull"'
+        )
+    }
+    responses = iter(
+        (
+            (401, challenge, b""),
+            (200, {}, b'{"token":"anonymous"}'),
+            (404, {}, b""),
+        )
+    )
+    monkeypatch.setattr(transport._HTTPS, "get", lambda *_args, **_kwargs: next(responses))
+    assert transport.observe_registry(plan) is None
+
+    monkeypatch.setattr(
+        transport._HTTPS,
+        "get",
+        lambda *_args, **_kwargs: (404, {}, b""),
+    )
+    with pytest.raises(transport.TransportError, match="bearer_challenge_invalid"):
+        transport.observe_registry(plan)
+
+    ambiguous_token_responses = iter(
+        (
+            (401, challenge, b""),
+            (200, {}, b'{"token":"one","access_token":"two"}'),
+        )
+    )
+    monkeypatch.setattr(
+        transport._HTTPS,
+        "get",
+        lambda *_args, **_kwargs: next(ambiguous_token_responses),
+    )
+    with pytest.raises(transport.TransportError, match="bearer_token_invalid"):
+        transport.observe_registry(plan)
+    with pytest.raises(transport.TransportError, match="json_invalid"):
+        transport.parse_json_bytes(b'{"value":NaN}')
+
+    monkeypatch.setattr(
+        transport._HTTPS,
+        "get",
+        lambda *_args, **_kwargs: (401, {"www-authenticate": "Bearer malformed"}, b""),
+    )
+    with pytest.raises(transport.TransportError, match="bearer_challenge_invalid"):
+        transport.observe_registry(plan)
+
+
+def test_prometheus_transport_private_writer_completes_partial_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    destination = tmp_path / "private"
+    real_write = transport.os.write
+    write_count = 0
+
+    def partial_write(descriptor: int, payload: memoryview) -> int:
+        nonlocal write_count
+        write_count += 1
+        return real_write(descriptor, bytes(payload[:1]))
+
+    monkeypatch.setattr(transport.os, "write", partial_write)
+    transport.write_private_file(destination, b"complete")
+    assert destination.read_bytes() == b"complete"
+    assert write_count == len(b"complete")
+
+
+def test_prometheus_transport_has_one_way_bounded_authority_surface() -> None:
+    controller_path = REPO_ROOT / "scripts" / "ci" / "prometheus_derivative_candidate.py"
+    transport_path = REPO_ROOT / "scripts" / "ci" / "_prometheus_derivative_transport.py"
+    controller_text = controller_path.read_text(encoding="utf-8")
+    transport_text = transport_path.read_text(encoding="utf-8")
+    importers = []
+    for path in REPO_ROOT.rglob("*.py"):
+        if path == transport_path:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imported = any(
+            isinstance(node, ast.ImportFrom)
+            and node.module == "scripts.ci"
+            and any(alias.name == "_prometheus_derivative_transport" for alias in node.names)
+            or isinstance(node, ast.Import)
+            and any(alias.name == "_prometheus_derivative_transport" for alias in node.names)
+            for node in ast.walk(tree)
+        )
+        if imported:
+            importers.append(path)
+    assert importers == [controller_path]
+    assert "prometheus_derivative_candidate" not in transport_text
+    assert "argparse" not in transport_text
+    assert "__main__" not in transport_text
+    assert "os.environ" not in transport_text
+    for forbidden in (
+        "CandidateHold",
+        "AUTHORIZE_PROMETHEUS",
+        "00-spec",
+        "50-write-intent",
+        "runtime_selector_updated",
+        "PULSEPLATE_PROMETHEUS_GHCR_TOKEN",
+        "PULSEPLATE_",
+        "v1.83.1",
+        "linux/amd64",
+        "ghcr.io",
+    ):
+        assert forbidden not in transport_text
+    assert controller_text.count("transport.login_push_logout(") == 1
+    primitive = transport_text[
+        transport_text.index("def login_push_logout(") : transport_text.index(
+            "\ndef _safe_member_name",
+        )
+    ]
+    assert primitive.count("run_process(push)") == 1
+    primitive_tree = ast.parse(primitive)
+    push_call = next(
+        node
+        for node in ast.walk(primitive_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "run_process"
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "push"
+    )
+    assert not any(
+        isinstance(parent, (ast.For, ast.While)) and push_call in tuple(ast.walk(parent))
+        for parent in ast.walk(primitive_tree)
+    )
+    assert controller_path.read_text(encoding="utf-8").count("\n") < 1400
+    assert transport_path.read_text(encoding="utf-8").count("\n") < 1400
+
+
+def test_prometheus_execution_identity_binds_transport_python_and_rejects_host_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = dict(_candidate_identity(repo))
+
+    def identity_provider(candidate_repo: Path) -> Mapping[str, str]:
+        observed = dict(identity)
+        observed["transport_sha256"] = prometheus_candidate.sha256_digest(
+            (candidate_repo / prometheus_candidate.TRANSPORT_RELATIVE).read_bytes()
+        )
+        return observed
+
+    controller = prometheus_candidate.CandidateController(
+        repo,
+        identity_provider=identity_provider,
+        build_adapter=_CandidateBuildAdapter(
+            _candidate_evidence(), _candidate_evidence(), _candidate_scan()
+        ),
+        publication_adapter=_CandidatePublicationAdapter(_candidate_evidence(), _candidate_scan()),
+    )
+    controller.verify_local()
+    controller.authorize(controller.local_payload()["expected_authorization_line"])
+    assert {
+        "transport_path",
+        "transport_sha256",
+        "python_path",
+        "python_sha256",
+        "python_version",
+        "container_system_sha256",
+    }.issubset(controller.spec["execution_identity"])
+    transport_path = repo / prometheus_candidate.TRANSPORT_RELATIVE
+    transport_path.write_bytes(transport_path.read_bytes() + b"\n# drift\n")
+    with pytest.raises(prometheus_candidate.CandidateHold, match="prebuild_spec_drift"):
+        controller.publish_or_reconcile()
+
+    monkeypatch.setenv("CONTAINER_HOST", "unix:///tmp/untrusted.sock")
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "observe_programs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("override reached program observation")
+        ),
+    )
+    with pytest.raises(
+        prometheus_candidate.CandidateHold,
+        match="container_host_override_forbidden",
+    ):
+        prometheus_candidate.resolve_execution_identity(repo)
+
+
+@pytest.mark.parametrize("relative_path", prometheus_candidate.RUNTIME_CONSUMER_RELATIVES)
+def test_prometheus_runtime_consumer_drift_holds_before_write_intent(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    controller.verify_local()
+    controller.authorize(controller.local_payload()["expected_authorization_line"])
+    consumer = controller.repo_root / relative_path
+    consumer.write_bytes(consumer.read_bytes() + b"\n# drift\n")
+    with pytest.raises(prometheus_candidate.CandidateHold, match="prebuild_spec_drift"):
+        controller.publish_or_reconcile()
+    assert not (controller.store.directory / "50-write-intent.json").exists()
+
+
+def test_prometheus_runtime_consumer_drift_after_remote_observation_blocks_final_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence, scan = _candidate_evidence(), _candidate_scan()
+    publication = _CandidatePublicationAdapter(evidence, scan)
+    controller = _candidate_controller(tmp_path, publication=publication)
+    local = controller.verify_local()
+    controller.authorize(local["expected_authorization_line"])
+    controller.store.append(
+        "50-write-intent",
+        {
+            "candidate_ref": local["candidate_ref"],
+            "idempotency_key": local["idempotency_key"],
+            "single_write_limit": 1,
+        },
+    )
+    consumer = controller.repo_root / prometheus_candidate.RUNTIME_CONSUMER_RELATIVES[0]
+    original = consumer.read_bytes()
+
+    def observe_then_drift(_candidate_ref: str) -> object:
+        consumer.write_bytes(original + b"\n# concurrent drift\n")
+        return prometheus_candidate._oci_fields(evidence)
+
+    monkeypatch.setattr(publication, "observe", observe_then_drift)
+    try:
+        with pytest.raises(prometheus_candidate.CandidateHold, match="stage2_binding_drift"):
+            controller.publish_or_reconcile()
+    finally:
+        consumer.write_bytes(original)
+    assert "80-final-receipt" not in controller.store.load()
+
+
+def test_prometheus_receipt_atomic_noreplace_survives_pre_and_post_commit_faults(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_rename = prometheus_candidate.transport.atomic_rename_noreplace
+    before = _candidate_controller(tmp_path / "before")
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "atomic_rename_noreplace",
+        lambda *_args: (_ for _ in ()).throw(
+            prometheus_candidate.transport.TransportError("before")
+        ),
+    )
+    with pytest.raises(prometheus_candidate.CandidateHold, match="receipt_write_failed"):
+        before.freeze()
+    assert before.store.load() == {}
+
+    after = _candidate_controller(tmp_path / "after")
+
+    def commit_then_fail(source: Path, destination: Path) -> None:
+        real_rename(source, destination)
+        raise prometheus_candidate.transport.TransportError("after")
+
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "atomic_rename_noreplace",
+        commit_then_fail,
+    )
+    with pytest.raises(prometheus_candidate.CandidateHold, match="receipt_write_failed"):
+        after.freeze()
+    assert list(after.store.load()) == ["00-spec"]
+
+
+def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
+    config = json.dumps(
+        {"os": "linux", "architecture": "amd64"},
+        separators=(",", ":"),
+    ).encode()
+    layer = b"synthetic-layer"
+    config_digest = "sha256:" + hashlib.sha256(config).hexdigest()
+    layer_digest = "sha256:" + hashlib.sha256(layer).hexdigest()
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": config_digest,
+            "size": len(config),
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": layer_digest,
+                "size": len(layer),
+            }
+        ],
+    }
+    if mutation == "bad-config-size":
+        manifest["config"]["size"] += 1
+    manifest_raw = json.dumps(manifest, separators=(",", ":")).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_raw).hexdigest()
+    index = {
+        "schemaVersion": 2,
+        "manifests": [
+            {
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "digest": manifest_digest,
+                "size": len(manifest_raw),
+            }
+        ],
+    }
+    index_raw = json.dumps(index, separators=(",", ":")).encode()
+    if mutation == "duplicate-json":
+        index_raw = index_raw.replace(
+            b'{"schemaVersion":2,', b'{"schemaVersion":2,"schemaVersion":2,'
+        )
+    files = {
+        "oci-layout": b'{"imageLayoutVersion":"1.0.0"}',
+        "index.json": index_raw,
+        f"blobs/sha256/{manifest_digest[7:]}": manifest_raw,
+        f"blobs/sha256/{config_digest[7:]}": config,
+        f"blobs/sha256/{layer_digest[7:]}": layer,
+    }
+    if mutation == "extra-file":
+        files["unexpected"] = b"unexpected"
+    archive_path = tmp_path / f"{mutation}.oci.tar"
+    with tarfile.open(archive_path, mode="w") as archive:
+        for name, payload in files.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
+        if mutation in {"traversal", "symlink"}:
+            unsafe = tarfile.TarInfo("../escape" if mutation == "traversal" else "unsafe-link")
+            if mutation == "symlink":
+                unsafe.type = tarfile.SYMTYPE
+                unsafe.linkname = "index.json"
+            archive.addfile(unsafe)
+        if mutation == "duplicate-member":
+            duplicate = tarfile.TarInfo("index.json")
+            duplicate.size = len(index_raw)
+            archive.addfile(duplicate, io.BytesIO(index_raw))
+    return archive_path
+
+
+def test_prometheus_transport_parses_and_extracts_real_synthetic_oci_layout(
+    tmp_path: Path,
+) -> None:
+    transport = prometheus_candidate.transport
+    archive = _synthetic_oci_archive(tmp_path)
+    parsed = transport.parse_oci_archive(
+        archive,
+        max_archive_bytes=1024 * 1024,
+        max_members=32,
+        max_metadata_bytes=1024 * 1024,
+    )
+    assert parsed.platform == "linux/amd64"
+    destination = tmp_path / "layout"
+    assert (
+        transport.extract_oci_layout(
+            archive,
+            destination,
+            max_archive_bytes=1024 * 1024,
+            max_members=32,
+            max_metadata_bytes=1024 * 1024,
+        )
+        == parsed
+    )
+    assert json.loads((destination / "oci-layout").read_text()) == {"imageLayoutVersion": "1.0.0"}
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "bad-config-size",
+        "duplicate-json",
+        "extra-file",
+        "traversal",
+        "symlink",
+        "duplicate-member",
+    ),
+)
+def test_prometheus_transport_rejects_malformed_oci_archives(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    with pytest.raises(prometheus_candidate.transport.TransportError):
+        prometheus_candidate.transport.parse_oci_archive(
+            _synthetic_oci_archive(tmp_path, mutation),
+            max_archive_bytes=1024 * 1024,
+            max_members=32,
+            max_metadata_bytes=1024 * 1024,
+        )
+
+
+def test_prometheus_trivy_coverage_is_path_neutral_and_requires_all_targets() -> None:
+    first = _candidate_trivy_report()
+    second = _candidate_trivy_report()
+    second["Results"][0]["Target"] = "/another/random/rootfs"
+    second["Results"][1]["Target"] = "/random/bin/prometheus"
+    second["Results"][2]["Target"] = "/random/bin/promtool"
+    normalized_first, targets_first = prometheus_candidate._normalize_trivy_report(first)
+    normalized_second, targets_second = prometheus_candidate._normalize_trivy_report(second)
+    assert prometheus_candidate.canonical_json(normalized_first) == (
+        prometheus_candidate.canonical_json(normalized_second)
+    )
+    assert targets_first == targets_second == list(prometheus_candidate.REQUIRED_TRIVY_TARGETS)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="coverage_incomplete"):
+        prometheus_candidate._normalize_trivy_report({"Results": []})
+    wrong = _candidate_trivy_report()
+    wrong["Results"][1]["Target"] = "/bin/unrelated"
+    with pytest.raises(prometheus_candidate.CandidateHold, match="target_invalid"):
+        prometheus_candidate._normalize_trivy_report(wrong)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="trivy_database_stale"):
+        prometheus_candidate._fresh_database_timestamp(
+            {"UpdatedAt": "2026-08-01T00:00:00Z"},
+            now=datetime.fromisoformat("2026-09-04T00:00:00+00:00"),
+        )
+
+
+def test_prometheus_transport_successful_registry_observation_binds_oci_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = prometheus_candidate.transport
+    config = b'{"os":"linux","architecture":"amd64"}'
+    config_digest = "sha256:" + hashlib.sha256(config).hexdigest()
+    layer_digest = "sha256:" + hashlib.sha256(b"layer").hexdigest()
+    manifest = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+                "mediaType": "application/vnd.oci.image.config.v1+json",
+                "digest": config_digest,
+                "size": len(config),
+            },
+            "layers": [
+                {
+                    "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                    "digest": layer_digest,
+                    "size": 5,
+                }
+            ],
+        },
+        separators=(",", ":"),
+    ).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    challenge = {
+        "www-authenticate": (
+            'Bearer realm="https://ghcr.io/token",service="ghcr.io",'
+            'scope="repository:katsiarynakavaleuskaya/pulseplate:pull"'
+        )
+    }
+    responses = iter(
+        (
+            (401, challenge, b""),
+            (200, {"content-type": "application/json"}, b'{"token":"anonymous"}'),
+            (
+                200,
+                {
+                    "content-type": "application/vnd.oci.image.manifest.v1+json",
+                    "docker-content-digest": manifest_digest,
+                },
+                manifest,
+            ),
+            (200, {"content-type": "application/vnd.oci.image.config.v1+json"}, config),
+        )
+    )
+    monkeypatch.setattr(transport._HTTPS, "get", lambda *_args, **_kwargs: next(responses))
+    plan = transport.RegistryPlan(
+        "ghcr.io",
+        "katsiarynakavaleuskaya/pulseplate",
+        "repository:katsiarynakavaleuskaya/pulseplate:pull",
+        "candidate",
+        "application/vnd.oci.image.manifest.v1+json",
+        30,
+        4096,
+        ("ghcr.io",),
+    )
+    observed = transport.observe_registry(plan)
+    assert observed == transport.OCIResult(
+        manifest_digest,
+        config_digest,
+        "linux/amd64",
+        (layer_digest,),
+    )
+
+
+@pytest.mark.parametrize("mutation", ("manifest-type", "declared-digest", "config-body"))
+def test_prometheus_transport_registry_success_path_rejects_binding_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    transport = prometheus_candidate.transport
+    config = b'{"os":"linux","architecture":"amd64"}'
+    config_digest = "sha256:" + hashlib.sha256(config).hexdigest()
+    manifest = json.dumps(
+        {
+            "schemaVersion": 2,
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "config": {
+                "mediaType": "application/vnd.oci.image.config.v1+json",
+                "digest": config_digest,
+                "size": len(config),
+            },
+            "layers": [
+                {
+                    "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                    "digest": "sha256:" + "a" * 64,
+                    "size": 1,
+                }
+            ],
+        },
+        separators=(",", ":"),
+    ).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    challenge = {
+        "www-authenticate": (
+            'Bearer realm="https://ghcr.io/token",service="ghcr.io",'
+            'scope="repository:katsiarynakavaleuskaya/pulseplate:pull"'
+        )
+    }
+    manifest_type = (
+        "application/json"
+        if mutation == "manifest-type"
+        else "application/vnd.oci.image.manifest.v1+json"
+    )
+    declared = "sha256:" + "f" * 64 if mutation == "declared-digest" else manifest_digest
+    config_body = config + b"drift" if mutation == "config-body" else config
+    responses = iter(
+        (
+            (401, challenge, b""),
+            (200, {}, b'{"token":"anonymous"}'),
+            (200, {"content-type": manifest_type, "docker-content-digest": declared}, manifest),
+            (200, {"content-type": "application/vnd.oci.image.config.v1+json"}, config_body),
+        )
+    )
+    monkeypatch.setattr(transport._HTTPS, "get", lambda *_args, **_kwargs: next(responses))
+    plan = transport.RegistryPlan(
+        "ghcr.io",
+        "katsiarynakavaleuskaya/pulseplate",
+        "repository:katsiarynakavaleuskaya/pulseplate:pull",
+        "candidate",
+        "application/vnd.oci.image.manifest.v1+json",
+        30,
+        4096,
+        ("ghcr.io",),
+    )
+    with pytest.raises(transport.TransportError):
+        transport.observe_registry(plan)
 
 
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:

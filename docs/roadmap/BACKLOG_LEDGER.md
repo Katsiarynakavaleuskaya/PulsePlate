@@ -24,6 +24,35 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-cve-2026-16742-systemd-main-image"></a>
+- [ ] P1: Remediate CVE-2026-16742 in the canonical backend container image
+  - Owner: dedicated security-remediation owner (unassigned)
+  - Priority: P1 (current-main container security / release viability)
+  - Target PR: PR-TBD-CVE-2026-16742-SYSTEMD
+  - Status: Blocked pending a separate exact base-image/package investigation;
+    explicitly outside PR #2347's one-identity Caddy/Prometheus gRPC scope.
+  - Reason (EN): Current-main Docker Build and Push run `33684829177` reported
+    two open HIGH Trivy/code-scanning results for CVE-2026-16742 in the backend
+    image. Mixing a systemd/base-image remediation or suppression into PR #2347
+    would combine an unrelated distro identity with the bounded
+    `google.golang.org/grpc` candidate lane. The main-image alert remains a
+    release-readiness stop until a dedicated owner proves the exact package,
+    affected range, fixed-version availability, and bounded remedy.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33684829177`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/652`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/653`
+  - DoD:
+    - authenticate the exact current-main image subject and both alert instances
+    - determine whether the affected systemd component is present/reachable and
+      whether an upstream fixed base/package exists
+    - remediate through a dedicated base-image/package PR, or use the separate
+      unfixed-distro suppression policy with tracker, expiry, and removal proof
+    - rerun the canonical image scan at the exact remediation head with no
+      unresolved HIGH/CRITICAL result for CVE-2026-16742
+    - keep PR #2347, its Prometheus selector, and its Stage-1 publication receipt
+      independent from this remediation
+
 <a id="ledger-client-arch-1-cab-01"></a>
 - [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator

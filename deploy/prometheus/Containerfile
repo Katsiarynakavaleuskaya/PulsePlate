@@ -1,0 +1,218 @@
+# syntax=docker/dockerfile:1.7
+
+FROM quay.io/prometheus/golang-builder:1.27-base@sha256:cdcb06bf0bc5401d4fbf8a71706bb8f74d69276427a1b368a065af53a254bc7f AS builder
+
+ARG SOURCE_DATE_EPOCH=1788079847
+ARG TARGETARCH
+ARG TARGETOS
+
+ENV CGO_ENABLED=0 \
+    GOARCH=amd64 \
+    GOOS=linux \
+    GOPROXY=https://proxy.golang.org,direct \
+    GOSUMDB=sum.golang.org \
+    GOTOOLCHAIN=local \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    TZ=UTC
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+WORKDIR /src
+
+ADD --checksum=sha256:ecca5c5c74ca7436bee52c081e3cae1346d56a23cffba3f7a9d1012a0733665d \
+    https://codeload.github.com/prometheus/prometheus/tar.gz/09fdfcd2659dd9c816e9e23c992fc161c0091757 \
+    /tmp/prometheus-source.tar.gz
+
+RUN <<'BUILD'
+set -eux
+
+test "$SOURCE_DATE_EPOCH" = "1788079847"
+test "$TARGETOS/$TARGETARCH" = "linux/amd64"
+test "$(go version)" = "go version go1.27.0 linux/amd64"
+test "$(node --version)" = "v22.23.2"
+test "$(pnpm --version)" = "11.3.0"
+test "$PNPM_VERSION" = "11.3.0"
+source_archive_sha='ecca5c5c74ca7436bee52c081e3cae1346d56a23cffba3f7a9d1012a0733665d' # pragma: allowlist secret
+printf '%s  %s\n' \
+  "$source_archive_sha" \
+  '/tmp/prometheus-source.tar.gz' \
+  | sha256sum --check -
+installed_pnpm="$(readlink -f "$(command -v pnpm)")"
+pnpm_binary_sha="$(sha256sum "$installed_pnpm" | cut -d' ' -f1)"
+test "$pnpm_binary_sha" = \
+  "e5e29eb103e73729ed4115f0e939fb376386dd0d76db56b12459524041f922a0" # pragma: allowlist secret
+printf 'PULSEPLATE_SOURCE_ARCHIVE_SHA256=%s\n' \
+  "$source_archive_sha"
+printf 'PULSEPLATE_PNPM_BINARY_SHA256=%s\n' "$pnpm_binary_sha"
+
+mkdir -m 0755 /src/prometheus
+tar --extract --gzip \
+  --file=/tmp/prometheus-source.tar.gz \
+  --strip-components=1 \
+  --directory=/src/prometheus
+cd /src/prometheus
+test "$(tr -d '\n' < VERSION)" = "3.14.0"
+pristine_go_mod_sha='0f4c47aa6b66607fa8794a8aee0180990884cf10dbe185c24a882705fb85f2f2' # pragma: allowlist secret
+pristine_go_sum_sha='cc04b3d790c1dacc220fb7d513289edee5c01b2275d69bb8d759688ad40cd584' # pragma: allowlist secret
+pristine_promu_sha='67d58fee103d1e6c057ebc8bb13bef770eebe6f3b56a465772eaff4bf270862d' # pragma: allowlist secret
+pristine_dockerfile_sha='117c14d6c85c075c6754ee131461c682495b831c9ff69f29e0b998c8f5fb79dc' # pragma: allowlist secret
+printf '%s  %s\n' \
+  "$pristine_go_mod_sha" 'go.mod' \
+  "$pristine_go_sum_sha" 'go.sum' \
+  "$pristine_promu_sha" '.promu.yml' \
+  "$pristine_dockerfile_sha" 'Dockerfile.distroless' \
+  | sha256sum --check -
+
+blob_sha1() {
+  local file_path="$1"
+  local file_size
+  file_size="$(wc -c < "$file_path" | tr -d '[:space:]')"
+  { printf 'blob %s\0' "$file_size"; cat "$file_path"; } | sha1sum | cut -d' ' -f1
+}
+ui_root=/src/prometheus
+root_lock="${ui_root}/web/ui/pnpm-lock.yaml"
+react_lock="${ui_root}/web/ui/react-app/pnpm-lock.yaml"
+test "$(blob_sha1 "$root_lock")" = "85902c69f9dc3f0a508bffae47eeda2dd5f9d086" # pragma: allowlist secret
+test "$(blob_sha1 "$react_lock")" = "6e7ff2e0080c36b33f70115eb26ab8c62f18978a" # pragma: allowlist secret
+root_lock_sha="$(sha256sum "$root_lock" | cut -d' ' -f1)"
+react_lock_sha="$(sha256sum "$react_lock" | cut -d' ' -f1)"
+test "$root_lock_sha" = "93240aa1fab3a1b790dac45c6adceb7ee1c5a68853924c5068244b1553426f40" # pragma: allowlist secret
+test "$react_lock_sha" = "4830760f001caac0616e96dd99f691e2d53bd3f830b23ce92dd95eb58fbe5893" # pragma: allowlist secret
+export npm_config_cache=/tmp/pnpm-npm-cache
+export XDG_CACHE_HOME=/tmp/pnpm-xdg-cache
+export XDG_CONFIG_HOME=/tmp/pnpm-xdg-config
+export XDG_DATA_HOME=/tmp/pnpm-xdg-data
+pnpm --dir "${ui_root}/web/ui" install \
+  --frozen-lockfile \
+  --store-dir /tmp/pnpm-store
+pnpm --dir "${ui_root}/web/ui/react-app" install \
+  --frozen-lockfile \
+  --store-dir /tmp/pnpm-store
+CI="" pnpm --dir "${ui_root}/web/ui" run build
+test "$(sha256sum "$root_lock" | cut -d' ' -f1)" = "$root_lock_sha"
+test "$(sha256sum "$react_lock" | cut -d' ' -f1)" = "$react_lock_sha"
+static_dir="${ui_root}/web/ui/static"
+test -d "$static_dir"
+test -n "$(find "$static_dir" -type f -print -quit)"
+test -z "$(find "$static_dir" -mindepth 1 ! -type d ! -type f -print -quit)"
+test -z "$(find "$static_dir" -type f -name '*.gz' -print -quit)"
+path_inventory=/tmp/prometheus-ui-path-inventory
+content_inventory=/tmp/prometheus-ui-content-inventory
+: > "$path_inventory"
+: > "$content_inventory"
+while IFS= read -r -d '' asset; do
+  relative_path="${asset#./}"
+  case "$relative_path" in
+    *$'\n'*|*$'\t'*)
+      echo "UI asset path contains an unsupported control character" >&2
+      exit 1
+      ;;
+  esac
+  asset_path="${static_dir}/${relative_path}"
+  printf '%s\n' "$relative_path" >> "$path_inventory"
+  printf '%s\t%s\t%s\t%s\n' \
+    "$relative_path" \
+    "$(stat -c '%a' "$asset_path")" \
+    "$(stat -c '%s' "$asset_path")" \
+    "$(sha256sum "$asset_path" | cut -d' ' -f1)" \
+    >> "$content_inventory"
+done < <(cd "$static_dir" && find . -type f -print0 | LC_ALL=C sort -z)
+ui_file_count="$(wc -l < "$path_inventory" | tr -d '[:space:]')"
+ui_total_bytes="$(awk -F '\t' '{ total += $3 } END { print total + 0 }' "$content_inventory")"
+ui_inventory_sha="$(sha256sum "$path_inventory" | cut -d' ' -f1)"
+ui_tree_sha="$(sha256sum "$content_inventory" | cut -d' ' -f1)"
+test "$ui_file_count" -gt 0
+test "$ui_total_bytes" -gt 0
+printf 'PULSEPLATE_UI_FILE_COUNT=%s\n' "$ui_file_count"
+printf 'PULSEPLATE_UI_TOTAL_BYTES=%s\n' "$ui_total_bytes"
+printf 'PULSEPLATE_UI_INVENTORY_SHA256=%s\n' "$ui_inventory_sha"
+printf 'PULSEPLATE_UI_TREE_SHA256=%s\n' "$ui_tree_sha"
+
+SKIP_UI_BUILD=1 make DOCKER_IMAGE_TAG=3.14.0 assets-compress
+test -f web/ui/embed.go
+grep -Fx 'var EmbedFS embed.FS' web/ui/embed.go
+embedded_asset_count="$(find web/ui/static -type f -name '*.gz' | wc -l | tr -d '[:space:]')"
+test "$embedded_asset_count" = "$ui_file_count"
+test "$(find "$static_dir" -type f | wc -l | tr -d '[:space:]')" = "$((ui_file_count * 2))"
+gzip_inventory=/tmp/prometheus-ui-gzip-inventory
+: > "$gzip_inventory"
+while IFS=$'\t' read -r relative_path asset_mode asset_size asset_sha; do
+  asset_path="${static_dir}/${relative_path}"
+  gzip_path="${asset_path}.gz"
+  test -f "$asset_path"
+  test -f "$gzip_path"
+  test ! -L "$asset_path"
+  test ! -L "$gzip_path"
+  test "$(stat -c '%a' "$asset_path")" = "$asset_mode"
+  test "$(stat -c '%s' "$asset_path")" = "$asset_size"
+  test "$(sha256sum "$asset_path" | cut -d' ' -f1)" = "$asset_sha"
+  test "$(gzip --decompress --stdout "$gzip_path" | sha256sum | cut -d' ' -f1)" = "$asset_sha"
+  printf '%s\t%s\n' "$relative_path" "$(sha256sum "$gzip_path" | cut -d' ' -f1)" \
+    >> "$gzip_inventory"
+done < "$content_inventory"
+printf 'PULSEPLATE_GZIP_TREE_SHA256=%s\n' \
+  "$(sha256sum "$gzip_inventory" | cut -d' ' -f1)"
+printf 'PULSEPLATE_EMBED_GO_SHA256=%s\n' \
+  "$(sha256sum web/ui/embed.go | cut -d' ' -f1)"
+
+go mod verify
+go mod edit -require=google.golang.org/grpc@v1.83.1
+go mod tidy -go=1.26.0 -compat=1.26
+go mod verify
+transformed_go_mod_sha='a95d4c90bc9b6b55f9668e5d7042e991c121775d98fac25372859a1044a85010' # pragma: allowlist secret
+transformed_go_sum_sha='3f9a08ac142b242f300a5958f0f8b864f0deb9dcf8dfd770ebaba49b2e32dc0a' # pragma: allowlist secret
+printf '%s  %s\n' \
+  "$transformed_go_mod_sha" 'go.mod' \
+  "$transformed_go_sum_sha" 'go.sum' \
+  | sha256sum --check -
+test "$(grep -c '^replace cloud.google.com/go => cloud.google.com/go v0.123.0$' go.mod)" = '1'
+test "$(grep -c '^replace ' go.mod)" = '1'
+go list -m -mod=readonly all | LC_ALL=C sort > /tmp/prometheus-module-graph
+test "$(grep -c '^google.golang.org/grpc v1.83.1$' /tmp/prometheus-module-graph)" = '1'
+test "$(grep -c '^google.golang.org/grpc v1.83.0$' /tmp/prometheus-module-graph)" = '0'
+printf 'PULSEPLATE_TRANSFORMED_GO_MOD_SHA256=%s\n' \
+  "$(sha256sum go.mod | cut -d' ' -f1)"
+printf 'PULSEPLATE_TRANSFORMED_GO_SUM_SHA256=%s\n' \
+  "$(sha256sum go.sum | cut -d' ' -f1)"
+printf 'PULSEPLATE_MODULE_GRAPH_SHA256=%s\n' \
+  "$(sha256sum /tmp/prometheus-module-graph | cut -d' ' -f1)"
+printf 'PULSEPLATE_MODULE_GRAPH_COUNT=%s\n' \
+  "$(wc -l < /tmp/prometheus-module-graph | tr -d '[:space:]')"
+
+install -d -m 0755 /out
+version_ldflags="-s -w \
+  -X github.com/prometheus/common/version.Version=3.14.0 \
+  -X github.com/prometheus/common/version.Revision=09fdfcd2659dd9c816e9e23c992fc161c0091757 \
+  -X github.com/prometheus/common/version.Branch=main \
+  -X github.com/prometheus/common/version.BuildUser=pulseplate@pr-2347 \
+  -X github.com/prometheus/common/version.BuildDate=20260830-08:50:47"
+go build \
+  -mod=readonly \
+  -trimpath \
+  -buildvcs=false \
+  -tags=netgo,builtinassets \
+  -ldflags "$version_ldflags" \
+  -o /out/prometheus \
+  ./cmd/prometheus
+go build \
+  -mod=readonly \
+  -trimpath \
+  -buildvcs=false \
+  -tags=netgo,builtinassets \
+  -ldflags "$version_ldflags" \
+  -o /out/promtool \
+  ./cmd/promtool
+chmod 0755 /out/prometheus /out/promtool
+touch --date="@$SOURCE_DATE_EPOCH" /out/prometheus /out/promtool
+test "$(stat -c '%a' /out/prometheus)" = '755'
+test "$(stat -c '%a' /out/promtool)" = '755'
+printf 'PULSEPLATE_PROMETHEUS_BINARY_SHA256=%s\n' \
+  "$(sha256sum /out/prometheus | cut -d' ' -f1)"
+printf 'PULSEPLATE_PROMTOOL_BINARY_SHA256=%s\n' \
+  "$(sha256sum /out/promtool | cut -d' ' -f1)"
+BUILD
+
+FROM docker.io/prom/prometheus@sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22
+
+COPY --from=builder --chmod=0755 /out/prometheus /bin/prometheus
+COPY --from=builder --chmod=0755 /out/promtool /bin/promtool

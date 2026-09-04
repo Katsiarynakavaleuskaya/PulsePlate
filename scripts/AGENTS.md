@@ -11,6 +11,41 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+## Prometheus derivative candidate
+
+- `scripts/ci/prometheus_derivative_candidate.py` is the only public CLI and
+  owns every expected value, source/execution identity, canonical digest,
+  receipt, state transition, operator confirmation, publication decision, and
+  fail-closed result for the candidate lane.
+- `scripts/ci/_prometheus_derivative_transport.py` is a private one-way
+  dependency. It may execute only controller-built absolute argv/process and
+  HTTP/OCI plans, return structural observations, and perform the one bounded
+  login/push/logout primitive. It must not import the controller, expose a CLI,
+  discover environment credentials, define policy/state vocabulary, compare
+  accepted evidence, or write canonical state.
+- The controller derives its fixed state root below `artifacts/security_lab/`;
+  no public output-root, tool-path, registry, schema, or state override is
+  allowed. Each of the two modules must remain below 1400 physical lines; this
+  is a hard bounded-carrier ceiling, not permission to add a third module or
+  duplicate controller authority in the transport.
+- `authorize` reads one exact line from stdin and atomically authors receipt
+  `40-publication-authorization`. `publish-or-reconcile` takes no confirmation;
+  only the invocation creating `50-write-intent` may read the fixed runtime
+  credential and reach the single push primitive. Existing `50` is anonymous,
+  zero-credential, zero-push reconciliation.
+- Candidate construction/publication has no selector, Compose, deploy,
+  release, or `T0` authority. The selected Prometheus manifest remains
+  byte-frozen; all three canonical Compose consumers are content-bound and
+  rechecked before receipts 50 and 80, and the four authority flags are derived
+  from that bounded observation rather than caller input.
+- The authorization tuple binds the private transport, exact Python
+  interpreter, Apple system/apiserver identity, and post-build builder-image
+  digest. `CONTAINER_HOST` is forbidden. Trivy scans only a validated extracted
+  OCI layout with a fresh private database cache, explicit empty policy inputs,
+  positive OS/prometheus/promtool coverage, and zero HIGH/CRITICAL findings.
+- Receipt files use kernel atomic no-replace rename from staging outside the
+  candidate directory; a hardlink-based publication window is forbidden.
+
 ## Governed Experimentation Runner
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.

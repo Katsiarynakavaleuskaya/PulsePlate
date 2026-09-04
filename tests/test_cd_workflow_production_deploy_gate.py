@@ -307,6 +307,32 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert jobs["production-gates"]["needs"] == "prometheus-image-security"
 
 
+def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    assert isinstance(workflow, dict)
+    triggers = workflow.get("on", workflow.get(True))
+    jobs = workflow.get("jobs")
+    assert isinstance(triggers, dict)
+    assert isinstance(jobs, dict)
+
+    assert "workflow_dispatch" not in triggers
+    assert "prometheus-grpc-candidate-publish" not in jobs
+    assert workflow["permissions"] == {
+        "actions": "read",
+        "contents": "read",
+        "id-token": "write",
+        "packages": "write",
+    }
+    for rejected_carrier in (
+        "expected_head_sha",
+        "publish-prometheus-grpc-v1.83.1-ae54350536bd",
+        "PULSEPLATE_PROMETHEUS_GHCR_TOKEN",
+        "scripts/ci/prometheus_derivative_candidate.py",
+    ):
+        assert rejected_carrier not in workflow_text
+
+
 def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:
     workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow.get("jobs")
