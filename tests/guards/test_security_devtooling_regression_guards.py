@@ -422,6 +422,16 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
         assert profile.run_security is True
 
 
+def test_repo_policy_registration_guard_has_exact_main_ci_diagnostic_routing() -> None:
+    exact_profile = ci_risk_profile.build_risk_profile(["tests/test_repo_policy_guards.py"])
+    near_sibling_profile = ci_risk_profile.build_risk_profile(
+        ["tests/test_repo_policy_sys_modules.py"]
+    )
+
+    assert exact_profile.run_main_ci_diagnostic is True
+    assert near_sibling_profile.run_main_ci_diagnostic is False
+
+
 def test_pytorch_jit_cve_pip_audit_waiver_is_retired_by_vector_backend_removal() -> None:
     pip_audit_text = PIP_AUDIT_HELPER.read_text(encoding="utf-8")
 
