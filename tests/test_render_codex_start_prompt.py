@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shlex
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +14,7 @@ import pytest
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import qoder_dispatch_bridge
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
+import scripts.orchestration.evidence_rail_applicability as rail_applicability
 import scripts.orchestration.task_bootstrap as task_bootstrap
 from scripts.orchestration.context_pack import compute_task_packet_id
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
@@ -737,6 +740,124 @@ def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
 
     assert "Dry run only: this command did not run preflight" in prompt
     assert "only ran analyze preflight" not in prompt
+
+
+def _write_packet_for_applicability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[dict[str, Any], str, str]:
+    packet = task_bootstrap.build_task_packet(
+        goal="Render packet-bound evidence rail selection",
+        task_class="Infrastructure",
+        candidate_paths=["scripts/orchestration/render_codex_start_prompt.py"],
+        invariant_change_classes=["validator"],
+        telemetry_path=tmp_path / "missing-telemetry.json",
+    )
+    packet_path = "artifacts/orchestration/task_packets/" + str(packet["task_packet_id"]) + ".json"
+    target = tmp_path / packet_path
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        json.dumps(packet, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rail_applicability, "REPO_ROOT", tmp_path)
+    snapshot = rail_applicability.read_task_packet_snapshot(packet_path)
+    projection = rail_applicability.canonical_evidence_rail_json(
+        rail_applicability.build_evidence_rail_applicability(snapshot)
+    )
+    return packet, packet_path, projection
+
+
+def test_packet_cli_cross_binds_applicability_and_renders_before_role_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _packet_value, packet_path, projection = _write_packet_for_applicability(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        type("CapturedInput", (), {"buffer": io.BytesIO((projection + "\n").encode())})(),
+    )
+
+    result = main(
+        [
+            "packet",
+            "--packet",
+            packet_path,
+            "--evidence-rail-applicability-stdin",
+            "--evidence-sidecar-state",
+            "unavailable",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0, captured.err
+    assert captured.err == ""
+    assert "Evidence rail applicability: selection-only planning depth" in captured.out
+    assert (
+        "Teleology: full; reasons=invariant_review_required,security_review_required."
+        in captured.out
+    )
+    assert "Euler: finite_review" in captured.out
+    assert "Experiment Runner: required" in captured.out
+    assert "Creative: not_applicable; reasons=creative_scope_not_selected." in captured.out
+    assert captured.out.index("Evidence rail applicability:") < captured.out.index("Role order:")
+    recovery = next(
+        line for line in captured.out.splitlines() if line.startswith("Manual recovery prepare:")
+    )
+    assert recovery.endswith(
+        "--applicable-rail euler --applicable-rail experiment_runner " "--applicable-rail teleology"
+    )
+    assert "[--applicable-rail" not in recovery
+
+
+def test_packet_cli_rejects_stale_projection_before_partial_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _packet_value, packet_path, projection = _write_packet_for_applicability(tmp_path, monkeypatch)
+    parsed = json.loads(projection)
+    parsed["task_packet_fingerprint"] = "sha256:" + "f" * 64
+    forged = json.dumps(parsed, sort_keys=True, separators=(",", ":")) + "\n"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        type("CapturedInput", (), {"buffer": io.BytesIO(forged.encode())})(),
+    )
+
+    result = main(
+        [
+            "packet",
+            "--packet",
+            packet_path,
+            "--evidence-rail-applicability-stdin",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert captured.err == "FAIL: INVALID_INPUT\n"
+    assert "Paste into Codex now:" not in captured.out
+
+
+def test_recipe_prompt_reports_pending_projection_and_requested_additives_only() -> None:
+    prompt = render_recipe_prompt(
+        goal="Dry run evidence rails",
+        task_class="Infrastructure",
+        pr_phase="pre_open",
+        paths=["scripts/orchestration/start_pr_lane.sh"],
+        requested_agents=["agent-coordinator"],
+        additive_rails=["euler", "euler"],
+        preflight_ran=False,
+    )
+
+    assert "Evidence rail applicability: pending validated bootstrap packet." in prompt
+    assert "Requested additive evidence rails: euler" in prompt
+    assert "--additive-rail euler" in prompt
+    assert "Applicable PR evidence sidecar rails:" not in prompt
+    assert "teleology, euler, experiment_runner" not in prompt
 
 
 def test_prompt_goal_escapes_newlines_so_fields_cannot_add_instructions() -> None:
