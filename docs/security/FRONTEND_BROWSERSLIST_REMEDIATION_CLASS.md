@@ -842,7 +842,7 @@ scripts/frontend_npm.sh --prefix frontend explain browserslist
 scripts/frontend_npm.sh --prefix frontend explain qs
 ```
 
-The complete focused file collects 229 tests after the batch expansion.
+The complete focused file collects 233 tests after the batch expansion.
 
 Before merge, rollback means abandoning the branch/PR. After merge, never return
 either identity to an affected version; use a separate secure roll-forward.
