@@ -242,9 +242,11 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   bound at receipt 30 and rechecked immediately before receipts 50 and 80; the
   final four authority flags are derived from that observation.
 - Local verification binds the controller, private transport, exact Python
-  interpreter, Apple system/apiserver and builder-image identities, and a fresh
-  Trivy scan of the validated extracted OCI layout. Empty/wrong-target coverage
-  and ambient Trivy policy inputs fail closed.
+  interpreter, Apple system/apiserver and builder-image identities, exact live
+  four-CPU/6-GiB builder resources before and after every build, and a fresh
+  Trivy scan of the validated extracted OCI layout. Underprovisioned or drifting
+  builder resources, empty/wrong-target coverage, and ambient Trivy policy
+  inputs fail closed.
 
 
 ## Production tag gate

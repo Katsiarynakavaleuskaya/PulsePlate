@@ -39,8 +39,10 @@
   rechecked before receipts 50 and 80, and the four authority flags are derived
   from that bounded observation rather than caller input.
 - The authorization tuple binds the private transport, exact Python
-  interpreter, Apple system/apiserver identity, and post-build builder-image
-  digest. `CONTAINER_HOST` is forbidden. Trivy scans only a validated extracted
+  interpreter, Apple system/apiserver identity, builder-image digest, and exact
+  live four-CPU/6-GiB builder resources observed before and after every build.
+  Underprovisioned or drifting resources fail closed before evidence can
+  advance. `CONTAINER_HOST` is forbidden. Trivy scans only a validated extracted
   OCI layout with a fresh private database cache, explicit empty policy inputs,
   positive OS/prometheus/promtool coverage, and zero HIGH/CRITICAL findings.
 - Receipt files use kernel atomic no-replace rename from staging outside the

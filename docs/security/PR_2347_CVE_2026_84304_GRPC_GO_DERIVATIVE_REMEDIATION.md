@@ -5,8 +5,8 @@
 This document is the single security owner for the bounded
 `google.golang.org/grpc` remediation in PR #2347. Caddy and the candidate-only
 Prometheus derivative select `v1.83.1`; CVE-2026-16742 remains outside this
-PR. No candidate image has been built, scanned, published, selected, deployed,
-or activated by this implementation work.
+PR. The source change does not itself claim a successfully built, scanned,
+published, selected, deployed, or activated candidate image.
 
 Stage-1 postcondition remains **`P=false`**. The selected Prometheus runtime is
 still the exact official record at `deploy/prometheus/image-manifest.json:1`.
@@ -50,13 +50,15 @@ is not the post-verification publication identity.
 ## Local verification and authorization tuple
 
 Two isolated Apple Container builds use distinct controller-created private
-contexts containing only the verified Containerfile. Each exact absolute argv
-uses linux/amd64, four CPUs, 6 GiB memory, no cache, plain progress, and a
-private OCI output. Build, scan, and registry plans receive a controller-owned
-private `HOME`/configuration root rather than the operator's ambient credential
-context. Trivy uses a fresh private cache, an explicit empty ignore input, and
-`--config /dev/null`; ambient VEX, ignore-policy, ignore-status, and credential
-environment are not inherited.
+contexts containing only the verified Containerfile. Before and after each
+build, the controller requires and binds a live builder with exactly four CPUs
+and 6 GiB memory; an underprovisioned builder is `HOLD` before build execution.
+Each exact absolute argv uses linux/amd64, the same resource values, no cache,
+plain progress, and a private OCI output. Build, scan, and registry plans
+receive a controller-owned private `HOME`/configuration root rather than the
+operator's ambient credential context. Trivy uses a fresh private cache, an
+explicit empty ignore input, and `--config /dev/null`; ambient VEX,
+ignore-policy, ignore-status, and credential environment are not inherited.
 
 The controller—not the transport—accepts and compares:
 
@@ -67,7 +69,8 @@ The controller—not the transport—accepts and compares:
 - module graph digest/count;
 - UI file count/bytes/path/content inventories;
 - gzip content-tree evidence and EmbedFS hash;
-- exact Apple builder image digest and normalized builder status;
+- exact Apple builder image digest and normalized pre/post builder status,
+  including four CPUs and 6 GiB memory;
 - exact Trivy executable/version/fresh database identity and normalized report
   digest after scanning the validated, privately extracted OCI layout;
 - positive OS, `/bin/prometheus`, and `/bin/promtool` package coverage, with
@@ -154,10 +157,10 @@ Behavioral tests live in existing files:
 - `tests/test_caddy_deploy_provenance.py:384` keeps the Caddy and subordinate
   Containerfile surface bounded.
 
-All current adapter testing is mocked and non-network. Source implementation
-does not itself prove a successful Apple build, Trivy scan, anonymous GHCR
-observation, registry login, push, or receipt 70. Those remain future explicit
-operator actions and evidence, not claims in this PR editing session.
+Adapter tests are mocked and non-network. Source implementation does not itself
+prove a successful Apple build, Trivy scan, anonymous GHCR observation,
+registry login, push, or receipt 70. Those claims require their separate
+operator-authorized execution and canonical local receipt evidence.
 
 ## Rollback
 

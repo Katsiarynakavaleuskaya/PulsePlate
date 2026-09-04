@@ -774,6 +774,10 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
                         },
                         "platform": {"os": "linux", "architecture": "arm64"},
                         "rosetta": True,
+                        "resources": {
+                            "cpus": prometheus_candidate.APPLE_BUILDER_CPUS,
+                            "memoryInBytes": prometheus_candidate.APPLE_BUILDER_MEMORY_BYTES,
+                        },
                     }
                 }
             ]
@@ -847,6 +851,10 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
         )
         for exact in ("--cpus", "4", "--memory", "6G", "--no-cache", "--progress", "plain"):
             assert exact in plan.argv
+    builder_plans = [
+        plan for plan in process_plans if ("builder", "status") == tuple(plan.argv[1:3])
+    ]
+    assert len(builder_plans) == 4
     scan_plan = next(plan for plan in process_plans if "--input" in plan.argv)
     assert Path(scan_plan.argv[scan_plan.argv.index("--input") + 1]).name == (
         "candidate-oci-layout"
@@ -878,6 +886,55 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     assert push.argv.count(local["candidate_ref"]) == 1
     assert logout.argv[-2:] == ("logout", "ghcr.io")
     assert prometheus_candidate.PUBLICATION_INPUT_ENV not in login.env
+    adapter.close()
+
+
+def test_prometheus_exact_adapter_rejects_underprovisioned_builder_before_build(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    spec = prometheus_candidate.build_spec(repo, identity)
+    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
+    build_plans: list[object] = []
+    builder_status = [
+        {
+            "configuration": {
+                "image": {
+                    "reference": prometheus_candidate.APPLE_BUILDER_REFERENCE,
+                    "descriptor": {
+                        "digest": prometheus_candidate.APPLE_BUILDER_INDEX_DIGEST,
+                        "mediaType": "application/vnd.oci.image.index.v1+json",
+                    },
+                },
+                "platform": {"os": "linux", "architecture": "arm64"},
+                "rosetta": True,
+                "resources": {"cpus": 2, "memoryInBytes": 2 * 1024 * 1024 * 1024},
+            }
+        }
+    ]
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "run_process",
+        lambda _plan: prometheus_candidate.transport.ProcessResult(
+            0,
+            json.dumps(builder_status).encode(),
+            b"",
+        ),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "execute_build_observation",
+        lambda plan, *_args, **_kwargs: build_plans.append(plan),
+    )
+
+    with pytest.raises(
+        prometheus_candidate.CandidateHold,
+        match="apple_builder_resources_invalid",
+    ):
+        adapter.verify_two_builds(spec)
+    assert build_plans == []
     adapter.close()
 
 

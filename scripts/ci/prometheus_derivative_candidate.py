@@ -101,7 +101,17 @@ BUILD_OUTPUT_FIELDS = {
 OCI_FIELDS = {"platform", "manifest_digest", "config_digest", "layer_digests"}
 BUILDER_FIELDS = {"builder_image_digest", "builder_status_sha256"}
 EVIDENCE_FIELDS = set(BUILD_OUTPUT_FIELDS.values()) | OCI_FIELDS | BUILDER_FIELDS
-APPLE_BUILD_RESOURCES = ("--platform", PLATFORM, "--cpus", "4", "--memory", "6G")
+APPLE_BUILDER_CPUS = 4
+APPLE_BUILDER_MEMORY = "6G"
+APPLE_BUILDER_MEMORY_BYTES = 6 * 1024 * 1024 * 1024
+APPLE_BUILD_RESOURCES = (
+    "--platform",
+    PLATFORM,
+    "--cpus",
+    str(APPLE_BUILDER_CPUS),
+    "--memory",
+    APPLE_BUILDER_MEMORY,
+)
 APPLE_BUILD_MODE = ("--no-cache", "--progress", "plain")
 TRIVY_SCAN_SCOPE = ("--scanners", "vuln,secret", "--pkg-types", "os,library")
 TRIVY_SCAN_POLICY = ("--severity", "HIGH,CRITICAL", "--exit-code", "1")
@@ -658,6 +668,7 @@ class ExactAdapters:
         image = configuration.get("image") if isinstance(configuration, dict) else None
         descriptor = image.get("descriptor") if isinstance(image, dict) else None
         platform_value = configuration.get("platform") if isinstance(configuration, dict) else None
+        resources = configuration.get("resources") if isinstance(configuration, dict) else None
         if (
             not isinstance(image, dict)
             or not isinstance(descriptor, dict)
@@ -669,12 +680,22 @@ class ExactAdapters:
             or configuration.get("rosetta") is not True
         ):
             raise _hold("apple_builder_identity_invalid")
+        if (
+            not isinstance(resources, dict)
+            or resources.get("cpus") != APPLE_BUILDER_CPUS
+            or resources.get("memoryInBytes") != APPLE_BUILDER_MEMORY_BYTES
+        ):
+            raise _hold("apple_builder_resources_invalid")
         normalized = {
             "reference": image["reference"],
             "digest": descriptor["digest"],
             "media_type": descriptor.get("mediaType"),
             "platform": platform_value,
             "rosetta": True,
+            "resources": {
+                "cpus": resources["cpus"],
+                "memoryInBytes": resources["memoryInBytes"],
+            },
         }
         return {
             "builder_image_digest": APPLE_BUILDER_INDEX_DIGEST,
@@ -682,6 +703,7 @@ class ExactAdapters:
         }
 
     def _build(self, tag: str) -> tuple[BuildEvidence, Path]:
+        builder_before = self._builder_observation()
         temporary = tempfile.TemporaryDirectory(prefix="pulseplate-prometheus-build-")
         self.temporary.append(temporary)
         root, container = Path(temporary.name), self.identity["container_path"]
@@ -716,6 +738,7 @@ class ExactAdapters:
             max_archive_bytes=MAX_OCI_ARCHIVE_BYTES,
             max_members=MAX_OCI_MEMBERS,
             max_metadata_bytes=MAX_OCI_METADATA_BYTES,
+            code="apple_build_failed",
         )
         result, evidence = _transport_call(
             transport.merge_build_observation,
@@ -725,7 +748,10 @@ class ExactAdapters:
         )
         if result.returncode != 0:
             raise _hold("apple_build_failed")
-        evidence.update(self._builder_observation())
+        builder_after = self._builder_observation()
+        if builder_after != builder_before:
+            raise _hold("apple_builder_identity_drift")
+        evidence.update(builder_after)
         accepted, dependency = _build_evidence(evidence), self.spec["dependency"]
         if not isinstance(dependency, dict) or (
             accepted["source_archive_sha256"] != self.spec["source_archive_sha256"]
