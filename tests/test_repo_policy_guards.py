@@ -198,6 +198,7 @@ import hashlib
 import importlib
 import json
 import sys
+import typing
 
 from app.effective_routes import (
     iter_effective_route_candidates,
@@ -225,6 +226,12 @@ def identity(value):
     return f"{module}.{qualname}"
 
 
+def response_model_identity(value):
+    if typing.get_origin(value) is typing.Annotated:
+        return identity(typing.Annotated)
+    return identity(value)
+
+
 def dependency_ids(route):
     result = set()
     stack = list(getattr(getattr(route, "dependant", None), "dependencies", ()) or ())
@@ -246,7 +253,7 @@ def route_row(route):
         "include_in_schema": route_include_in_schema(route),
         "deprecated": bool(getattr(route, "deprecated", False)),
         "status_code": getattr(route, "status_code", None),
-        "response_model": identity(getattr(route, "response_model", None)),
+        "response_model": response_model_identity(getattr(route, "response_model", None)),
         "response_class": identity(getattr(route, "response_class", None)),
         "openapi_extra": getattr(route, "openapi_extra", None),
         "tags": list(getattr(route, "tags", None) or []),
@@ -296,13 +303,26 @@ else:
         if route_path(route) == "/api/v1/bmi/calculate"
         and "POST" in route_methods(route)
     )
-    if mutation == "foreign_owner":
+    if mutation == "response_model_nested_annotated":
+        vip_regions_route = next(
+            route
+            for route in live_candidates
+            if route_path(route) == "/api/v1/vip/regions"
+            and "GET" in route_methods(route)
+        )
+        vip_regions_route.response_model = typing.Annotated[
+            typing.Annotated[int | str, "inner"],
+            "outer",
+        ]
+    elif mutation == "foreign_owner":
         bmi_route.endpoint = lambda: None
     elif mutation == "visibility":
         bmi_route.include_in_schema = not bmi_route.include_in_schema
     elif mutation == "response_status_metadata":
         bmi_route.status_code = 201
         bmi_route.response_model = dict[str, object]
+    elif mutation == "response_model_plain_union":
+        bmi_route.response_model = int | str
     elif mutation == "dependency":
         guarded_route = next(
             route
@@ -879,6 +899,23 @@ def test_registration_authority_live_manifest_matches_feature_state(
     )
 
 
+def test_registration_authority_live_manifest_accepts_nested_annotated_response_model() -> None:
+    state = "001"
+    expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
+    actual = _registration_live_manifest(state, "response_model_nested_annotated")
+    live_rows = actual["live_rows"]
+    assert isinstance(live_rows, list)
+    regions_row = next(
+        row
+        for row in live_rows
+        if isinstance(row, dict)
+        and row.get("path") == "/api/v1/vip/regions"
+        and "GET" in row.get("methods", [])
+    )
+    assert regions_row["response_model"] == "typing.Annotated"
+    assert _registration_manifest_summary(actual) == expected
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -886,6 +923,7 @@ def test_registration_authority_live_manifest_matches_feature_state(
         "foreign_owner",
         "visibility",
         "response_status_metadata",
+        "response_model_plain_union",
         "dependency",
     ),
 )
@@ -894,6 +932,21 @@ def test_registration_authority_live_manifest_rejects_drift(mutation: str) -> No
     expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
     actual = _registration_live_manifest(state, mutation)
     assert _registration_manifest_summary(actual) != expected
+    if mutation in {"response_status_metadata", "response_model_plain_union"}:
+        live_rows = actual["live_rows"]
+        assert isinstance(live_rows, list)
+        bmi_row = next(
+            row
+            for row in live_rows
+            if isinstance(row, dict)
+            and row.get("path") == "/api/v1/bmi/calculate"
+            and "POST" in row.get("methods", [])
+        )
+        if mutation == "response_status_metadata":
+            assert bmi_row["status_code"] == 201
+            assert bmi_row["response_model"] == "builtins.dict"
+        else:
+            assert bmi_row["response_model"] == "types.UnionType"
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:
