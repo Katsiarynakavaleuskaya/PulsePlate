@@ -10,10 +10,8 @@ import XCTest
 final class IOSREL2V5AssetParityTests: XCTestCase {
     func testDerivedFilesMatchTheApprovedV5Inventory() throws {
         let root = try repositoryRoot()
-        let assetDirectory = root.appendingPathComponent("ios/PulsePlate/Resources/Images")
-
-        for asset in Self.assets {
-            let url = assetDirectory.appendingPathComponent(asset.filename)
+        for asset in Self.assets.flatMap(\.files) {
+            let url = root.appendingPathComponent(asset.runtimeCandidatePath)
             let data = try Data(contentsOf: url)
 
             XCTAssertLessThanOrEqual(
@@ -39,10 +37,8 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
 
     func testDerivedFilesMatchTheFrozenMetadataAndEncodingContract() throws {
         let root = try repositoryRoot()
-        let assetDirectory = root.appendingPathComponent("ios/PulsePlate/Resources/Images")
-
-        for asset in Self.assets {
-            let url = assetDirectory.appendingPathComponent(asset.filename)
+        for asset in Self.assets.flatMap(\.files) {
+            let url = root.appendingPathComponent(asset.runtimeCandidatePath)
             let data = try Data(contentsOf: url)
             let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
             let properties = try XCTUnwrap(
@@ -84,8 +80,34 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testEveryV5AssetResolvesAndDecodesFromTheAppBundle() throws {
+        // Xcode thins the installed catalog to the destination's display scale.
+        // Repository tests cover all three source renditions; this proves the
+        // rendition actually installed on the current iPhone/iPad destination.
+        let scale = UIScreen.main.scale
         for asset in Self.assets {
+            if let catalog = asset.catalog {
+                for style in [UIUserInterfaceStyle.light, .dark] {
+                    let traits = UITraitCollection(traitsFrom: [
+                        UITraitCollection(displayScale: CGFloat(scale)),
+                        UITraitCollection(userInterfaceStyle: style),
+                    ])
+                    let image = try XCTUnwrap(
+                        UIImage(named: catalog.key, in: .main, compatibleWith: traits),
+                        "Missing V5 catalog key: \(catalog.key)"
+                    )
+                    let cgImage = try XCTUnwrap(image.cgImage)
+                    XCTAssertEqual(image.scale, CGFloat(scale), catalog.key)
+                    XCTAssertEqual(image.size.width, CGFloat(asset.width) / 3, accuracy: 0.01)
+                    XCTAssertEqual(image.size.height, CGFloat(asset.height) / 3, accuracy: 0.01)
+                    XCTAssertEqual(cgImage.width, asset.width / 3 * Int(scale), catalog.key)
+                    XCTAssertEqual(cgImage.height, asset.height / 3 * Int(scale), catalog.key)
+                    XCTAssertEqual(cgImage.colorSpace?.model, .rgb, catalog.key)
+                    XCTAssertFalse(hasAlpha(cgImage.alphaInfo), catalog.key)
+                }
+                continue
+            }
             let url = try XCTUnwrap(
                 Bundle.main.url(
                     forResource: asset.resourceName,
@@ -110,6 +132,51 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         }
     }
 
+    func testPromotedCatalogsHaveExactlyTheApprovedDensityFiles() throws {
+        let root = try repositoryRoot()
+        let expectedKeys: Set<String> = [
+            "FitChefThinking", "FitChefOnboardingWelcome",
+            "FitChefActionNutritionPlate", "FitChefActionProgressTracking",
+            "FitChefOnboardingProfileSetup", "FitChefPortraitHappy",
+            "FitChefPortraitEncouraging",
+        ]
+        let catalogs = Self.assets.compactMap(\.catalog)
+        XCTAssertEqual(catalogs.count, 7)
+        XCTAssertEqual(Set(catalogs.map(\.key)), expectedKeys)
+        XCTAssertEqual(Self.assets.flatMap(\.files).count, 24)
+
+        for asset in Self.assets {
+            guard let catalog = asset.catalog else { continue }
+            XCTAssertEqual(catalog.lowerDensitySHA256s.count, 2, catalog.key)
+            let directory = root.appendingPathComponent(catalog.directory)
+            let metadata = try Data(contentsOf: directory.appendingPathComponent("Contents.json"))
+            let actual = try XCTUnwrap(JSONSerialization.jsonObject(with: metadata) as? NSDictionary)
+            let expected: NSDictionary = [
+                "images": (1...3).map { scale in
+                    [
+                        "filename": "\(catalog.stem)@\(scale)x.png",
+                        "idiom": "universal",
+                        "scale": "\(scale)x",
+                    ]
+                },
+                "info": ["author": "xcode", "version": 1],
+            ]
+            // Array equality rejects repeated slots; dictionary equality rejects
+            // extra decoded properties/appearance variants without a custom parser.
+            XCTAssertEqual(actual, expected, catalog.key)
+            XCTAssertEqual(
+                Set(try FileManager.default.contentsOfDirectory(atPath: directory.path)),
+                Set(asset.files.map(\.filename) + ["Contents.json"]),
+                "Missing or unreferenced catalog file: \(catalog.key)"
+            )
+            XCTAssertFalse(FileManager.default.fileExists(
+                atPath: root.appendingPathComponent(
+                    "ios/PulsePlate/Resources/Images/\(asset.filename)"
+                ).path
+            ), "Loose duplicate mascot: \(asset.filename)")
+        }
+    }
+
     func testV5RuntimeOutputHashesAreBoundIntoTheCanonicalAssetRecord() throws {
         let canon = try String(
             contentsOf: repositoryRoot()
@@ -117,12 +184,15 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             encoding: .utf8
         )
 
-        for asset in Self.assets {
+        for asset in Self.assets.flatMap(\.files) {
             let columns = try canonicalAssetRecordColumns(
-                for: asset.filename,
+                for: asset.runtimeCandidatePath,
                 in: canon
             )
-            XCTAssertEqual(columns.count, 6, asset.filename)
+            guard columns.count == 6 else {
+                XCTFail("Expected six canonical columns for \(asset.filename)")
+                continue
+            }
             XCTAssertEqual(columns[2], "`\(asset.runtimeCandidatePath)`", asset.filename)
             XCTAssertEqual(columns[3], "`\(asset.outputSHA256)`", asset.filename)
         }
@@ -144,7 +214,7 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
                 let relativePath = try repositoryRelativePath(sourceFile, root: root)
                 let contents = try String(contentsOf: sourceFile, encoding: .utf8)
                 let referenceCount = occurrenceCount(
-                    of: "\"\(asset.filename)\"",
+                    of: "\"\(asset.runtimeName)\"",
                     in: contents
                 )
                 if referenceCount > 0 {
@@ -162,7 +232,13 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
                 Set([asset.ownerViewPath]),
                 "Unexpected SwiftUI owner for \(asset.filename)"
             )
-            XCTAssertFalse(rootTabs.contains(asset.filename), asset.filename)
+            XCTAssertFalse(rootTabs.contains(asset.runtimeName), asset.runtimeName)
+            if asset.catalog != nil {
+                for sourceFile in swiftSourceFiles {
+                    let contents = try String(contentsOf: sourceFile, encoding: .utf8)
+                    XCTAssertFalse(contents.contains(asset.filename), asset.filename)
+                }
+            }
         }
 
         let plate = try source(root: root, relativePath: "ios/PulsePlate/Views/PlateView.swift")
@@ -214,6 +290,27 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
                     "Plate copy promises unsupported customization for \(locale)"
                 )
             }
+        }
+    }
+
+    func testPlateCanvasAndProgressRingHaveBoundedPresentationContracts() throws {
+        let root = try repositoryRoot()
+        let plate = try source(root: root, relativePath: "ios/PulsePlate/Views/PlateView.swift")
+        XCTAssertTrue(plate.contains(
+            ".frame(width: PlateVisualLayout.segmentCanvasSide, height: PlateVisualLayout.segmentCanvasSide)"
+        ))
+        XCTAssertTrue(plate.contains("static let segmentCanvasSide: CGFloat = 280"))
+        XCTAssertTrue(plate.contains(
+            ".environment(\\.locale, Locale(identifier: localization.currentLanguage))"
+        ))
+        for (locale, expected) in [
+            "en": ("of daily goal", "Daily nutrition progress"),
+            "ru": ("дневной цели", "Прогресс питания за день"),
+            "es": ("del objetivo diario", "Progreso de alimentación diario"),
+        ] {
+            let values = try localizationValues(root: root, locale: locale)
+            XCTAssertEqual(values["progress.complete"], expected.0)
+            XCTAssertEqual(values["progress.label"], expected.1)
         }
     }
 
@@ -539,17 +636,17 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
     }
 
     private func canonicalAssetRecordColumns(
-        for filename: String,
+        for runtimePath: String,
         in canon: String
     ) throws -> [String] {
-        let runtimeCandidate = "`ios/PulsePlate/Resources/Images/\(filename)`"
+        let runtimeCandidate = "`\(runtimePath)`"
         let rows = canon
             .split(whereSeparator: \.isNewline)
             .map(String.init)
             .filter { row in
                 row.hasPrefix("|") && row.contains(runtimeCandidate)
             }
-        XCTAssertEqual(rows.count, 1, "Expected one canonical row for \(filename)")
+        XCTAssertEqual(rows.count, 1, "Expected one canonical row for \(runtimePath)")
         let row = try XCTUnwrap(rows.first)
         return row
             .split(separator: "|", omittingEmptySubsequences: true)
@@ -662,49 +759,105 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
             outputSHA256: "279081197210c7dc66c16234ce0eec6cf7f490a134176af894ab56f0cca67de5", // pragma: allowlist secret
             width: 384,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift"
+            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefOnboardingWelcome",
+                stem: "fitchef-onboarding-welcome",
+                lowerDensitySHA256s: [
+                    "205cb0d86cbb5b2b2592a5997ea97b832267da637657cd51146f9e171f378813", // pragma: allowlist secret
+                    "0cab5104573f747d30aa4e6442662fe5cb08d49df0550fc7f3cacbe8add3bae3", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-action-progress-tracking-v1.png",
             outputSHA256: "8d26d8d8464fdaa764abe439694ecf9fd06c9f937d82a4a8d57f3ecaa02cf46a", // pragma: allowlist secret
             width: 384,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/ProgressView.swift"
+            ownerViewPath: "ios/PulsePlate/Views/ProgressView.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefActionProgressTracking",
+                stem: "FitChefActionProgressTracking",
+                lowerDensitySHA256s: [
+                    "32f1a4f09ed3f29d4b113dc11df586c3ee981c41ba43729f34b45057af5cf2f2", // pragma: allowlist secret
+                    "26eb6b2be8023042fecf0b9c0c8ef2f2a594ac8867bb7e624fbb0397c3a08b1f", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-action-nutrition-plate-v1.png",
             outputSHA256: "da89403f0fec0a3c183cdd7218a1f37996365c6f6c35104ff1a528eb7bceab80", // pragma: allowlist secret
             width: 384,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/PlateView.swift"
+            ownerViewPath: "ios/PulsePlate/Views/PlateView.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefActionNutritionPlate",
+                stem: "FitChefActionNutritionPlate",
+                lowerDensitySHA256s: [
+                    "c3b40ff2117153a9edfd67d017c6e3cb9713fbe3e750cd38c1bedb79f146b5e6", // pragma: allowlist secret
+                    "7dd2b312029b4abf87376774903fab95e3da7d839e640148ecc073edbe2b6fee", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-onboarding-profile-setup-v1.png",
             outputSHA256: "b0e8f856e65c7c78d7f5ae000d30e3c56397d2bcf10ef6b3fda0e692f0d5fbd0", // pragma: allowlist secret
             width: 432,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/ProfileView.swift"
+            ownerViewPath: "ios/PulsePlate/Views/ProfileView.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefOnboardingProfileSetup",
+                stem: "FitChefOnboardingProfileSetup",
+                lowerDensitySHA256s: [
+                    "50bbe535174288033c40ccc40d6afc682ade57516df4ed861576830ea5e52810", // pragma: allowlist secret
+                    "a7a0f18d110a69e519cf406b91c73ca034ac78741d0cf0aec71b1e21bb0d4278", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-portrait-happy-v1.png",
             outputSHA256: "a84aa312d47edf06316f0d47e60fefb99d12a4c5d6fad18595978a3eabf4c445", // pragma: allowlist secret
             width: 576,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift"
+            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefPortraitHappy",
+                stem: "FitChefPortraitHappy",
+                lowerDensitySHA256s: [
+                    "3c319735caeb647c8cb9ae705f13f7d9fd3804afbcd4065f9a9ce4deef6efe05", // pragma: allowlist secret
+                    "e205fef40ce4a9842ae8556dcb7b1a559a299f938917592e676fefbe6bae4eac", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-portrait-encouraging-v1.png",
             outputSHA256: "1399e0735f523bd401f6bb96ecd3edf07c377abe3318c1aa06938b58b542c35c", // pragma: allowlist secret
             width: 384,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift"
+            ownerViewPath: "ios/PulsePlate/Views/Home/HomeExperience.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefPortraitEncouraging",
+                stem: "FitChefPortraitEncouraging",
+                lowerDensitySHA256s: [
+                    "ab8d924717dce3e23edd87083c81e50c1d21f57fd4330b7130a875e08b6a157d", // pragma: allowlist secret
+                    "94da68ed2a9ddd9d30affe276b55c57d6ef82a42bacf944a36067a6f81e734b9", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "fitchef-portrait-thinking-v1.png",
             outputSHA256: "66d8d84e6b309beaba6fdac6c4b008a366c0aef9659c337ae3fabc80e0b1e33c", // pragma: allowlist secret
             width: 384,
             height: 576,
-            ownerViewPath: "ios/PulsePlate/Screens/BMICalculatorScreen.swift"
+            ownerViewPath: "ios/PulsePlate/Screens/BMICalculatorScreen.swift",
+            catalog: V5CatalogExpectation(
+                key: "FitChefThinking",
+                stem: "fitchef-thinking",
+                lowerDensitySHA256s: [
+                    "76356ff16aa6f897ef90bfd5c1454eb1dd2df6d29647edc4bd3c597857bafad8", // pragma: allowlist secret
+                    "2481c99f7a2e2258bba95742b39aaddf22d9dcf6f8b5c0cb39cbf57d40e856a1", // pragma: allowlist secret
+                ]
+            )
         ),
         V5AssetExpectation(
             filename: "photo-daily-plate-salmon-v1.jpg",
@@ -794,6 +947,31 @@ private struct V5AssetExpectation {
     let width: Int
     let height: Int
     let ownerViewPath: String
+    var catalog: V5CatalogExpectation? = nil
+
+    var runtimeName: String {
+        catalog?.key ?? filename
+    }
+
+    var files: [V5AssetFile] {
+        guard let catalog else {
+            return [V5AssetFile(
+                runtimeCandidatePath: "ios/PulsePlate/Resources/Images/\(filename)",
+                outputSHA256: outputSHA256,
+                width: width,
+                height: height
+            )]
+        }
+        return (catalog.lowerDensitySHA256s + [outputSHA256]).enumerated().map { index, hash in
+            let scale = index + 1
+            return V5AssetFile(
+                runtimeCandidatePath: "\(catalog.directory)/\(catalog.stem)@\(scale)x.png",
+                outputSHA256: hash,
+                width: width / 3 * scale,
+                height: height / 3 * scale
+            )
+        }
+    }
 
     var resourceName: String {
         URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
@@ -803,8 +981,30 @@ private struct V5AssetExpectation {
         URL(fileURLWithPath: filename).pathExtension
     }
 
-    var runtimeCandidatePath: String {
-        "ios/PulsePlate/Resources/Images/\(filename)"
+}
+
+private struct V5CatalogExpectation {
+    let key: String
+    let stem: String
+    let lowerDensitySHA256s: [String]
+
+    var directory: String {
+        "ios/PulsePlate/Assets.xcassets/\(key).imageset"
+    }
+}
+
+private struct V5AssetFile {
+    let runtimeCandidatePath: String
+    let outputSHA256: String
+    let width: Int
+    let height: Int
+
+    var filename: String {
+        URL(fileURLWithPath: runtimeCandidatePath).lastPathComponent
+    }
+
+    var fileExtension: String {
+        URL(fileURLWithPath: runtimeCandidatePath).pathExtension
     }
 }
 

@@ -127,6 +127,8 @@
 "plate.preview.subtitle" = "Visualize your plate. Log a meal. Explore the breakdown.";
 "progress.summary.subtitle" = "Track daily nutrition completion and nutrient balance.";
 "progress.nutrient_progress.title" = "Nutrient progress";
+"progress.complete" = "of daily goal";
+"progress.label" = "Daily nutrition progress";
 "progress.chart.nutrient_category" = "Nutrient category";
 "progress.chart.completion" = "Completion";
 "plate.preview.add_meal" = "Add Meal";

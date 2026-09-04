@@ -165,6 +165,9 @@ struct PlateViewPP: View {
         selectedSegment = selectedSegment == index ? nil : index
       }
     }
+    // PlateSegments uses a fixed 280-point drawing canvas. Constrain its
+    // proposal here so a wide iPad does not separate the paths from the circles.
+    .frame(width: PlateVisualLayout.segmentCanvasSide, height: PlateVisualLayout.segmentCanvasSide)
 
     if isAppStoreScreenshotMode {
       return AnyView(content)
@@ -175,6 +178,7 @@ struct PlateViewPP: View {
 
   private var plateRingView: some View {
     let content = PlateRing(progress: progress)
+      .environment(\.locale, Locale(identifier: localization.currentLanguage))
 
     if isAppStoreScreenshotMode {
       return AnyView(content)
@@ -331,7 +335,8 @@ struct PlateViewPP: View {
         )
         .accessibilityHidden(true)
 
-      Image(ppRequiredBundleAsset: "fitchef-action-nutrition-plate-v1.png")
+      Image("FitChefActionNutritionPlate")
+        .renderingMode(.original)
         .resizable()
         .scaledToFill()
         .scaleEffect(
@@ -364,6 +369,7 @@ struct PlateViewPP: View {
 }
 
 private enum PlateVisualLayout {
+  static let segmentCanvasSide: CGFloat = 280
   static let compactHeroSide: CGFloat = 178
   static let regularHeroSide: CGFloat = 270
   static let heroFocalX: CGFloat = 0.42

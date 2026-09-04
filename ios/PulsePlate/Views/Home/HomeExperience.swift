@@ -361,10 +361,10 @@ struct HomeExperienceScreen<Destination: View>: View {
         switch state {
         case .freeReady:
             return horizontalSizeClass == .regular
-                ? "fitchef-portrait-happy-v1.png"
-                : "fitchef-onboarding-welcome-v1.png"
+                ? "FitChefPortraitHappy"
+                : "FitChefOnboardingWelcome"
         case .paidReady:
-            return "fitchef-portrait-encouraging-v1.png"
+            return "FitChefPortraitEncouraging"
         case .loading, .paidNeedsProfile, .unavailable:
             return nil
         }
@@ -383,7 +383,8 @@ struct HomeExperienceScreen<Destination: View>: View {
         width: CGFloat,
         height: CGFloat
     ) -> some View {
-        Image(ppRequiredBundleAsset: assetName)
+        Image(assetName)
+            .renderingMode(.original)
             .resizable()
             .scaledToFill()
             .scaleEffect(

@@ -143,6 +143,8 @@
 "plate.preview.subtitle" = "Visualiza tu plato. Registra una comida. Consulta la composición.";
 "progress.summary.subtitle" = "Sigue tu alimentación diaria y el equilibrio de nutrientes.";
 "progress.nutrient_progress.title" = "Progreso de nutrientes";
+"progress.complete" = "del objetivo diario";
+"progress.label" = "Progreso de alimentación diario";
 "progress.chart.nutrient_category" = "Categoría de nutrientes";
 "progress.chart.completion" = "Progreso";
 "plate.preview.add_meal" = "Añadir comida";

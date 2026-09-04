@@ -26,7 +26,8 @@ struct ProfileView: View {
                 Section {
                     HStack {
                         Spacer(minLength: 0)
-                        Image(ppRequiredBundleAsset: "fitchef-onboarding-profile-setup-v1.png")
+                        Image("FitChefOnboardingProfileSetup")
+                            .renderingMode(.original)
                             .resizable()
                             .scaledToFill()
                             .scaleEffect(

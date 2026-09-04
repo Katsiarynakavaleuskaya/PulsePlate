@@ -143,6 +143,8 @@
 "plate.preview.subtitle" = "Визуализируйте свою тарелку. Добавьте приём пищи. Посмотрите состав.";
 "progress.summary.subtitle" = "Отслеживайте дневное питание и баланс питательных веществ.";
 "progress.nutrient_progress.title" = "Прогресс по питательным веществам";
+"progress.complete" = "дневной цели";
+"progress.label" = "Прогресс питания за день";
 "progress.chart.nutrient_category" = "Категория питательных веществ";
 "progress.chart.completion" = "Выполнение";
 "plate.preview.add_meal" = "Добавить приём пищи";
