@@ -457,7 +457,7 @@ If it is not recorded here — it does not exist.
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
   - Owner: agent-coordinator / dev-operator
-  - Priority: P1 (task-packet identity integrity / parser-authority parity)
+  - Priority: P1
   - Target PR: `PR-TBD`
   - Status: Deferred from ORCH-RAIL-1; no identity recomputation is added in
     the bounded applicability carrier.
