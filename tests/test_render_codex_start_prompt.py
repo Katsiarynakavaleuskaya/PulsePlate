@@ -892,6 +892,7 @@ def test_teleology_cli_delivers_review_instructions_without_assessing_evidence(
     )
     assert "no materiality filter may exclude required scope" in prompt
     assert "every material criterion" not in prompt
+    assert "may revise the accepted goal, requirements or DoD" in prompt
     assert "accepted criteria reference/version" in prompt
     assert "pass that same reference to ordinary QA" in prompt
     assert "achieved, partial, unknown or not_achieved" in prompt
