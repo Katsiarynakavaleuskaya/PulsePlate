@@ -711,3 +711,212 @@ authoring but cannot remove ignored local evidence. Backup/restore, compliance
 deletion, privacy handling, schema migration, and retention policy require
 separate authority and scope. No synthetic primary episode is created by this
 implementation PR, and no empirical 5/10 cohort is claimed.
+
+## Optional lifecycle supervision (EULER-OPS-1)
+
+The separate supervision extension adds `checkpoint`, `status`, and `complete`
+to the same standalone owner. The original v1 policy projection below, four
+original commands, digest domains, receipt/report bytes, claims, denominators,
+and sixteen false grants remain unchanged. Supervision does not infer
+eligibility, enrollment, role execution, identity correspondences, timestamps,
+review completion, or authority. No real episode is enrolled by installing the
+extension or rendering a command recipe.
+
+`checkpoint` accepts the existing joint-pass baseline input. It requires a
+validated enrollment bundle, normalizes the same J value and baseline digest
+as `validate`, and retains those plus the exact recomputed original validate
+acknowledgement in one immutable checkpoint receipt. Submitted acknowledgements
+are not accepted as evidence. Receipt identity uses its separate supervision
+schema, policy version and domain. The acknowledgement records local receipt
+acceptance; it does not authenticate the human assertions or prove execution.
+
+Only `checkpoint` may create the optional `checkpoints/` lane. Its absence in
+an old store is valid. Each bundle remains the existing `receipt.json` shape,
+with at most 128 bundles and 262144 bytes per receipt. The existing 16777216-byte
+aggregate receipt scan budget includes enrollments, checkpoints and terminals.
+When the optional checkpoint lane exists, retained `enroll` and `terminal`
+commands also scan that locked store before publication and reject a new
+receipt whose addition would exceed this aggregate. Identical replay contributes
+zero bytes. The original admission behavior remains unchanged for a store
+without the checkpoint lane. The check does not reserve future receipt space.
+Checkpoint scans reject orphans. A first enrollment also rejects a checkpoint
+already present for that episode instead of repairing its missing enrollment.
+All paths reuse the same private descriptor-relative reads, locks and
+no-replace publisher; no second writer, overwrite, cleanup or root override
+exists.
+
+The first checkpoint must precede terminal publication. A fully validated,
+byte-identical existing checkpoint replays without a write, including after a
+terminal exists. Divergent replay fails. A checkpoint cannot be reconstructed
+from a historical terminal. When a checkpoint exists, later baseline
+validation and terminal/report reads require complete normalized J agreement,
+including correspondence, resolution and timestamp fields. Claiming an
+unavailable or unfinished joint pass contradicts a retained checkpoint and
+fails before episode-level recurrence precedence can conceal the discrepancy.
+
+Before first checkpoint publication or lane creation, the owner checks that
+the mandatory legacy terminal representation can fit the unchanged terminal
+byte, JSON node and depth limits. Its private sizing projection contains only
+known enrollment/baseline/schema/claim fields, both required identity tables,
+and empty placeholders for unknown future scalars and family/recurrence
+status/reason values. The projection is intentionally invalid: it is never
+normalized as a terminal, hashed, returned, retained or published. No C,
+timestamp, outcome or terminal digest is fabricated.
+
+For `F` families and canonical projection bytes `S` including LF, the closed
+minimum non-confirmed representation is `len(S) + 257 + 28*F` bytes. This comes
+from the frozen scalar widths and the smaller of all shortest non-comparable
+rows or one shortest unknown row with remaining shortest non-comparable rows.
+Confirmed rows and additional trigger digests require more bytes. Widths are
+derived from the existing enums and validated fixed-width fields; substituting
+the empty scalars preserves node count and depth. Real terminal normalizer
+fixtures verify the finite sizing alternatives and exact boundaries. Admission
+rejects a representation over these limits with `E_LIMIT`. It proves only
+mandatory structural representability, not that arbitrary future C fits or
+that future aggregate space is reserved. Existing checkpoint replay does not
+rerun first-publication admission.
+
+`status` accepts exactly `schema_version` and positive `pull_request_number`.
+It retains a shared lock and never creates the store, lane or lock artifact.
+Genuine absence returns `absent`; malformed, unsafe, partial and orphaned
+storage returns a bounded error. It validates all stored report generations
+and compares each entire enrollment/terminal manifest with the current store.
+Among exact matches it chooses maximum `(cohort_as_of, report_digest)`.
+Historical validity alone does not establish current reporting. Checkpoints
+never enter the report manifest or denominator.
+
+The status acknowledgement uses a separate supervision schema and returns
+`pull_request_number`, `episode_digest`, `lifecycle`, `report_status`, and
+sixteen false grants. The lifecycle is exactly one of:
+
+- `absent`: no accepted enrollment for this episode;
+- `enrolled_awaiting_checkpoint`: enrollment exists without checkpoint/terminal;
+- `enrolled_awaiting_terminal`: checkpoint exists without terminal;
+- `terminal_awaiting_report`: terminal exists without a current full-store report;
+- `complete`: terminal and a current full-store report both validate.
+
+`report_status` independently distinguishes `absent`, `stale`, and `current`.
+Receipt digest fields appear only when the corresponding receipts exist.
+`joint_pass_baseline_digest` appears with a checkpoint. `report_digest` and
+`cohort_as_of` appear only for the selected current report. A terminal adds its
+existing `observation_status` and `observation_reason`. No field is null.
+An unenrolled target cannot be complete, even when the store has a current
+empty report. Later store growth may change complete to awaiting-report
+without invalidating historical receipts. Completion remains independent of
+positive, zero, unknown, non-comparable or not-applicable recurrence.
+
+`complete` accepts exactly `schema_version`, `terminal`, and `report_request`;
+the nested documents use their existing v1 input schemas. An available
+baseline requires an existing matching checkpoint. Honest baseline-unavailable
+and pass-not-completed inputs are allowed only when there is no checkpoint.
+The original `terminal` also preserves available-baseline-without-checkpoint
+compatibility. Such historical terminals remain readable and can be reported
+with the original `report`; supervision does not backfill their checkpoint.
+
+`complete` uses shared private terminal/report preparation and publication
+helpers under one exclusive store session. Before its first publication it
+validates stored receipts and historical reports, checkpoint agreement, the
+prospective terminal and full-store report, explicit cutoff, receipt byte
+budget and both bundle capacities. Exact replay is accepted at capacity.
+It publishes terminal then report through two existing bundle transactions.
+This is resumable sequencing, not cross-bundle atomicity. Report, fsync or
+acknowledgement failure preserves any already-published evidence. A retry
+requires identical terminal content, revalidates the current store and caller
+cutoff, and resumes publication. Store growth beyond the supplied cutoff
+fails without timestamp repair. A returned acknowledgement can be lost;
+status and exact replay provide recovery without replacing evidence.
+
+The extension's executable projection is separate from the frozen v1 block:
+
+```json
+SUPERVISION_PROJECTION_BEGIN
+{
+  "acknowledgement_schema": "invariant_family_review_episode.supervision_ack.v1",
+  "aggregate_receipt_scan_bytes": 16777216,
+  "checkpoint": {
+    "digest_domain": "pulseplate.invariant-family-review-episode.checkpoint-receipt.v1",
+    "input_schema": "invariant_family_review_episode.joint_pass_baseline_input.v1",
+    "layout": "checkpoints/<episode_digest>/receipt.json",
+    "maximum_bundles": 128,
+    "maximum_receipt_bytes": 262144,
+    "optional_lane": true,
+    "receipt_fields": [
+      "baseline",
+      "checkpoint_receipt_digest",
+      "claims",
+      "downstream_grants",
+      "enrollment_receipt_digest",
+      "episode_digest",
+      "joint_pass_baseline_digest",
+      "policy_version",
+      "pull_request_number",
+      "repository_slug",
+      "schema_version",
+      "transport_capability",
+      "validate_acknowledgement"
+    ],
+    "receipt_schema": "invariant_family_review_episode.checkpoint_receipt.v1"
+  },
+  "complete": {
+    "available_baseline_requires_checkpoint": true,
+    "input_fields": [
+      "report_request",
+      "schema_version",
+      "terminal"
+    ],
+    "input_schema": "invariant_family_review_episode.complete_input.v1",
+    "publication_order": [
+      "terminal",
+      "report"
+    ],
+    "report_request_schema": "invariant_family_review_episode.report_request.v1",
+    "terminal_input_schema": "invariant_family_review_episode.terminal_input.v1"
+  },
+  "downstream_grants": {
+    "approval_authority": false,
+    "implementation_authority": false,
+    "kpp_authority": false,
+    "learning_authority": false,
+    "mapping_authority": false,
+    "merge_authority": false,
+    "oracle_authority": false,
+    "posting_allowed": false,
+    "promotion_authority": false,
+    "reflection_authority": false,
+    "review_authority": false,
+    "routing_authority": false,
+    "runtime_authority": false,
+    "security_authority": false,
+    "side_effects_allowed": false,
+    "thread_resolution_allowed": false
+  },
+  "lifecycle": [
+    "absent",
+    "enrolled_awaiting_checkpoint",
+    "enrolled_awaiting_terminal",
+    "terminal_awaiting_report",
+    "complete"
+  ],
+  "policy_version": "invariant_family_review_episode.supervision.policy.v1",
+  "report_states": [
+    "absent",
+    "stale",
+    "current"
+  ],
+  "status": {
+    "input_fields": [
+      "pull_request_number",
+      "schema_version"
+    ],
+    "input_schema": "invariant_family_review_episode.status_request.v1",
+    "report_selection": "maximum_cohort_as_of_then_digest_of_exact_manifest_matches",
+    "store_creation": false
+  },
+  "verbs": [
+    "checkpoint",
+    "status",
+    "complete"
+  ]
+}
+SUPERVISION_PROJECTION_END
+```
