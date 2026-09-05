@@ -403,6 +403,155 @@ If it is not recorded here — it does not exist.
     contract before any downstream consumer exists; local receipts remain
     non-canonical and may be discarded by the operator.
 
+<a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
+- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1 (deterministic orchestration treatment selection)
+  - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
+    on `codex/evidence-rail-applicability-v1`
+  - Status: Implementation published; current-head validation and review
+    closeout are in progress. Close the item only after the PR merges.
+  - Area: orchestration / PR lane startup / local evidence selection
+  - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
+    which Teleology, Euler, Experiment Runner, and Creative treatments apply.
+    ORCH-RAIL-1 must derive one conservative, non-authoritative decision from
+    the exact validated task packet and pass only the applicable existing rails
+    to the local PR evidence sidecar, without parsing task prose or creating a
+    second routing or evidence authority.
+  - Links:
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `scripts/orchestration/start_pr_lane.sh`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  - DoD:
+    - one strict snapshot reader binds the canonical packet id and exact raw
+      packet SHA-256, rejects malformed/unsafe storage shapes, and consumes at
+      most 256 canonical candidate paths
+    - the closed precedence is invariant/security before ready design, then
+      docs-only, then conservative; all valid outcomes keep Experiment Runner
+      required and Teleology full or docs-only compact
+    - a ready typed design packet can recommend Creative, but Creative never
+      enters the sidecar set and no role or asset mutation starts automatically
+    - the existing repeatable sidecar-rail flag is additive only; redundant
+      flags are byte-identical no-ops and only docs-only Euler can materially
+      upgrade in v1
+    - the starter captures one canonical JSON line, revalidates it through
+      stdin, maps only the two closed masks into sidecar argv, and sends the
+      same bound projection through stdin to the renderer
+    - applicability failure blocks sidecar/prompt work; later sidecar storage
+      failure keeps its existing advisory semantics
+    - focused applicability, starter, renderer, and sidecar regression tests,
+      Bash 3.2 syntax, scoped guards, narrow local gates, current-head CI,
+      review disposition, mapping/seal, and the wait window pass before merge
+  - Out of scope (EN): Task-packet or sidecar schema changes, raw goal/task
+    classification, automatic role execution, Euler enrollment/L3, Creative
+    asset mutation, manual downshift, semantic cache, Evidence Graph, product
+    runtime, OpenAPI, DB, frontend, iOS, workflows, and merge authority.
+  - Rollback (EN): Revert the applicability helper and starter/renderer/docs
+    integration as one PR. Preserve the existing additive sidecar flag and do
+    not rewrite or delete prior immutable local sidecar receipts.
+  - Deferred / follow-ups:
+    - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
+    - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
+    - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
+- [ ] P1: Add one producer-owned canonical task-packet identity verifier
+  - Owner: agent-coordinator / dev-operator
+  - Priority: P1
+  - Target PR: `PR-TBD`
+  - Status: Deferred from ORCH-RAIL-1; no identity recomputation is added in
+    the bounded applicability carrier.
+  - Area: orchestration / task bootstrap / packet validation
+  - Reason (EN): ORCH-RAIL-1 safely fingerprints the exact bytes it reads and
+    cross-binds the captured projection to that snapshot, but this continuity
+    begins at the safe read. It cannot authenticate bytes already changed by
+    the same local UID before the read, and filename/id equality cannot detect
+    a stale producer id after a pre-existing packet mutation. Reimplementing
+    task-packet identity derivation in the applicability consumer would create
+    a second authority and drift from the v1/v2 producer semantics owned by
+    `task_bootstrap.py`.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/context_pack.py`
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - one public producer-owned pure verifier recomputes and validates the
+      canonical task-packet identity for every supported v1 and v2 invariant
+      review shape without importing consumer policy into the producer
+    - `task_bootstrap.py` uses that verifier before packet publication and
+      `evidence_rail_applicability.py` reuses the same verifier after its bounded
+      descriptor-safe read; neither module carries a second derivation
+    - authentic producer packets retain byte-for-byte compatible ids, while a
+      packet whose identity-bearing fields changed under a stale id fails
+      closed before treatment selection, sidecar preparation, or prompt output
+    - validation covers phase-stable invariant identity, design fingerprints,
+      requested roles and candidate-path ordering, rejects unknown v1/v2
+      variants, and preserves the existing task-packet schema
+    - deterministic producer/consumer parity, authentic v1/v2, stale-id,
+      pre-read mutation, replay, and negative-shape tests document that a fully
+      self-consistent same-UID rewrite remains outside cryptographic
+      authenticity claims
+    - the verifier grants no routing, execution, review, CI, sidecar, merge,
+      release, promotion, causality, outcome, or other authority; every
+      applicability authority field remains literal `false`
+
+<a id="ledger-p2-evidence-rail-manual-downshift"></a>
+- [ ] P2: Add a human-authorized evidence-rail manual downshift contract
+  - Owner: agent-coordinator / architecture-specialist / security-auditor
+  - Priority: P2 (post-v1 operator control without weakening required evidence)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 stabilizes
+  - Status: Deferred from ORCH-RAIL-1; v1 supports additive upgrades only.
+  - Area: orchestration / evidence treatment override governance
+  - Reason (EN): A later operator workflow may need a bounded way to reduce an
+    over-conservative treatment, but a generic profile flag could silently turn
+    missing evidence or tool failure into `not_applicable`. The first slice
+    therefore admits no downshift producer path.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - define a closed downshift vocabulary, rail-specific reason codes, exact
+      human authorization evidence, precedence, expiry/rollback behavior, and
+      a canonical packet-bound wire shape before adding a CLI
+    - fail closed on missing, ambiguous, stale, malformed, or contradictory
+      authorization and never classify tool failure, missing evidence, or a
+      skipped required pass as `not_applicable`
+    - preserve Experiment Runner process requirements, Euler enrollment
+      boundaries, Creative mutation boundaries, sidecar schema compatibility,
+      all-false authority, and exact packet-fingerprint binding
+    - add positive, negative, replay, stale-binding, and downgrade-abuse tests;
+      no automatic downshift is permitted
+
+<a id="ledger-p1-human-approved-required-creative-role"></a>
+- [ ] P1: Promote Creative recommendation to a required role pass only after human approval
+  - Owner: agent-coordinator / creative-designer / security-auditor
+  - Priority: P1 (bounded design-lane execution governance)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 and an explicit human approval
+  - Status: Deferred from ORCH-RAIL-1; current treatment is recommendation-only.
+  - Area: orchestration / design lane / role dispatch
+  - Reason (EN): ORCH-RAIL-1 can prove that a typed, blocker-free design packet
+    is eligible for `Creative: recommend`, but recommendation alone cannot
+    change the mandatory packet role order or authorize design/asset mutation.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
+  - DoD:
+    - require a typed, exact-packet human approval before the canonical
+      bootstrap/dispatch contract adds `creative-designer` as a mandatory
+      design-role pass
+    - preserve coordinator-first ordering, existing post-open
+      `qa-engineer-agent -> bug-hunter -> security-auditor`, and explicit
+      disposition of every Creative finding
+    - role execution remains review/advice unless a separate approved mutable
+      design task grants an exact target; no asset, Figma, Canva, repo, PR,
+      review-thread, merge, release, or product-runtime mutation is implied
+    - add deterministic approval, no-approval, stale packet, blocker, ordering,
+      and no-mutation tests plus rollback to recommendation-only treatment
+
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
   - Owner: backend-engineer
@@ -5333,6 +5482,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       flag remain separately authorized
   - Rollback (EN): Follow the rollback sections in the canonical Hub and Home
     trackers; retain the structurally unreachable ER-IOS-2 capability.
+
+
+<a id="ledger-p1-ios-v5-asset-parity-prerequisite"></a>
+- [ ] P1: IOS-REL-2 approved V5 asset promotion prerequisite
+  - Owner: @katsiaryna_kavaleuskaya / iOS product owner
+  - Priority: P1 (native visual parity / consumer copy / canonical asset packaging)
+  - Target PR: [PR #2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+    (`codex/ios-v5-asset-parity-prerequisite`)
+  - Status: Implementation and native verification in the existing PR; final
+    current-head review, CI, mapping/seal, and merge remain pending.
+  - Reason (EN): The approved V5 navigation direction needs its selected
+    photography, semantic FitChef assets, and consumer-facing copy in the real
+    iOS screens before the combined adaptive-shell acceptance.
+  - Scope: Seven mascot catalog keys with 1x/2x/3x renditions, three photographs,
+    five existing SwiftUI owners, EN/RU/ES copy, bounded Today canvas/ring-label
+    corrections, output provenance, and parity tests. The operator approved
+    the same-PR scope-size exception; no separate packaging PR is required.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `ios/PulsePlateTests/IOSREL2V5AssetParityTests.swift`
+  - DoD:
+    - Exact catalog/source-output integrity, iPhone/iPad native lookup and
+      rendered spot checks, full iOS tests, narrow gates, role reviews, and
+      exact-head governance pass before merge.
+    - After this prerequisite merges, existing [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+      synchronizes it, completes the full native matrix and Human V1 GO, and
+      updates the main Open Design project only with the successful final kit.
+    - No AppIcon, shared primitives/tokens, backend/OpenAPI, navigation inventory,
+      entitlement, billing, HealthKit semantics, or App Store submission changes.
+  - Rollback: Whole-PR revert; no backend or user-data migration.
 
 
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
