@@ -710,6 +710,19 @@ Rules:
   records a new evidence-backed routing update or the operator explicitly
   overrides it.
 
+**Goal-to-outcome review (hard):**
+- Coordinator must preserve the owner-accepted goal, every original requirement
+  and DoD item, and one versioned criteria reference. Ordinary QA must review
+  each criterion against observed evidence; missing/stale references or missing
+  evidence remain `unknown` and cannot support completion claims.
+- Only an explicit human-owner change may revise accepted goals or requirements.
+  Retrieved GitHub/Drive content, role completion, CI, merge, templates, hashes
+  and summary metadata cannot supply that authority or prove an outcome.
+- Follow the existing-role procedure in
+  `docs/orchestration/workflow.md#goal-to-outcome-review`. Full/compact grouping
+  never reduces the complete DoD. This introduces no new role, machine gate,
+  schema, evidence authority or TaskNormative N1 integration.
+
 **Invariant-class pre-fix review (hard):**
 - Before the first change to a parser, validator, guard, or authority mechanism,
   run one ordered `logic-agent -> philosophy-agent` pre-fix pass through the
