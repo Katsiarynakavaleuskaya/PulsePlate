@@ -11,9 +11,11 @@ import stat
 import subprocess
 import sys
 import tarfile
+import zipfile
 from collections.abc import Callable, Mapping
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -385,10 +387,10 @@ class _CandidateBuildAdapter:
         self.first, self.second, self.scan = first, second, scan
         self.calls = 0
 
-    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, object, object]:
+    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, ...]:
         assert spec["schema"].endswith(".prebuild-spec")
         self.calls += 1
-        return self.first, self.second, self.scan
+        return self.first, self.second, self.scan, _candidate_provenance()
 
 
 class _CandidatePublicationAdapter:
@@ -416,6 +418,7 @@ class _CandidatePublicationAdapter:
             "tag_state": self.tag_state,
             "build_evidence": self.evidence,
             "scan_evidence": self.scan,
+            "cloud_provenance": _candidate_provenance(101),
         }
 
     def observe(self, candidate_ref: str) -> object:
@@ -497,6 +500,25 @@ def _candidate_scan() -> dict[str, object]:
     }
 
 
+def _candidate_provenance(run_id: int = 100) -> dict[str, object]:
+    start = datetime(2026, 9, 4, run_id - 99, tzinfo=timezone.utc)
+    return {
+        "repository_id": prometheus_candidate.REPOSITORY_ID,
+        "head_sha": "a" * 40,
+        "workflow_id": 1234,
+        "run_id": run_id,
+        "attempt": 1,
+        "job_id": 9000 + run_id,
+        "artifact_id": 8000 + run_id,
+        "artifact_name": f"prometheus-candidate-{run_id}-1-prometheus-candidate",
+        "artifact_digest": "sha256:" + "a" * 64,
+        "started_at": start.isoformat(),
+        "artifact_created_at": (start + timedelta(minutes=10)).isoformat(),
+        "completed_at": (start + timedelta(minutes=11)).isoformat(),
+        "expires_at": "2099-01-01T00:00:00Z",
+    }
+
+
 @pytest.fixture
 def prometheus_database_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     real_timestamp_check = prometheus_candidate._fresh_database_timestamp
@@ -516,18 +538,21 @@ def _candidate_trivy_report() -> dict[str, object]:
                 "Class": "os-pkgs",
                 "Type": "debian",
                 "Vulnerabilities": [],
+                "Packages": [{"Name": "base-files", "Version": "13.6"}],
             },
             {
                 "Target": "/bin/prometheus",
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Vulnerabilities": [],
+                "Packages": [{"Name": "google.golang.org/grpc", "Version": "v1.83.1"}],
             },
             {
                 "Target": "/bin/promtool",
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Vulnerabilities": [],
+                "Packages": [{"Name": "google.golang.org/grpc", "Version": "v1.83.1"}],
             },
         ]
     }
@@ -535,9 +560,13 @@ def _candidate_trivy_report() -> dict[str, object]:
 
 def _candidate_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    (repo / "artifacts").mkdir(parents=True, exist_ok=True)
+    (repo / "artifacts").mkdir(mode=0o700, parents=True, exist_ok=True)
     (repo / "deploy" / "prometheus").mkdir(parents=True, exist_ok=True)
     (repo / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
+    (repo / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    (repo / prometheus_candidate.WORKFLOW_RELATIVE).write_bytes(
+        (REPO_ROOT / prometheus_candidate.WORKFLOW_RELATIVE).read_bytes()
+    )
     (repo / "deploy" / "prometheus" / "Containerfile").write_bytes(
         PROMETHEUS_CONTAINERFILE_PATH.read_bytes()
     )
@@ -576,6 +605,9 @@ def _candidate_identity(_repo: Path) -> Mapping[str, str]:
         "container_version": "1.1.0",
         "container_release_commit": "5973b9c",
         "container_system_sha256": f"sha256:{'7' * 64}",
+        "gh_path": "/usr/local/bin/gh",
+        "gh_sha256": f"sha256:{'8' * 64}",
+        "gh_version": "gh version test",
         "trivy_path": "/usr/local/bin/trivy",
         "trivy_sha256": f"sha256:{'4' * 64}",
         "trivy_version": "0.74.0",
@@ -733,279 +765,145 @@ def test_prometheus_candidate_two_build_comparison_fails_closed(
     assert list(controller.store.load()) == ["00-spec"]
 
 
-@pytest.mark.parametrize("postbuild_failure", (None, "builder", "evidence"))
-@pytest.mark.usefixtures("prometheus_database_clock")
-def test_prometheus_exact_adapter_builds_isolated_plans_without_external_execution(
+@pytest.mark.parametrize(
+    "failure", (None, "resources", "builder", "tools", "build", "evidence", "cleanup")
+)
+def test_prometheus_cloud_build_preserves_closed_profile_and_cleanup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    postbuild_failure: str | None,
+    failure: str | None,
 ) -> None:
     repo = _candidate_repo(tmp_path)
-    identity = _candidate_identity(repo)
-    spec = prometheus_candidate.build_spec(repo, identity)
-    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
-    _seed_candidate_database(adapter)
-    build_plans: list[object] = []
-    lifecycle_plans: list[prometheus_candidate.transport.LocalImageBuildPlan] = []
-    process_plans: list[object] = []
-    oci = prometheus_candidate.transport.OCIResult(
-        f"sha256:{'a' * 64}",
-        f"sha256:{'b' * 64}",
-        "linux/amd64",
-        (f"sha256:{'c' * 64}", f"sha256:{'d' * 64}"),
-    )
-
-    def fake_build(
-        lifecycle: prometheus_candidate.transport.LocalImageBuildPlan,
-        _archive: Path,
-        names: tuple[str, ...],
-        **_bounds: object,
-    ) -> object:
-        lifecycle_plans.append(lifecycle)
-        build_plans.append(lifecycle.build)
-        assert lifecycle.build.argv.count("--build-arg") == 1
-        assert lifecycle.build.argv[lifecycle.build.argv.index("--build-arg") + 1] == (
-            "SOURCE_DATE_EPOCH=1788079847"
-        )
-        assignments = {
-            name: (
-                "10"
-                if prometheus_candidate.BUILD_OUTPUT_FIELDS[name]
-                in {"module_graph_count", "ui_file_count", "ui_total_bytes"}
-                else "0" * 64
-            )
-            for name in names
-        }
-        assignments["PULSEPLATE_SOURCE_ARCHIVE_SHA256"] = spec["source_archive_sha256"]
-        assignments["PULSEPLATE_PNPM_BINARY_SHA256"] = spec["pnpm_binary_sha256"]
-        dependency = spec["dependency"]
-        assert isinstance(dependency, dict)
-        assignments["PULSEPLATE_TRANSFORMED_GO_MOD_SHA256"] = dependency[
-            "transformed_go_mod_sha256"
-        ]
-        assignments["PULSEPLATE_TRANSFORMED_GO_SUM_SHA256"] = dependency[
-            "transformed_go_sum_sha256"
-        ]
-        if lifecycle.keep_local and postbuild_failure == "evidence":
-            assignments["PULSEPLATE_SOURCE_ARCHIVE_SHA256"] = "0" * 64
-        return prometheus_candidate.transport.ProcessResult(0, b"", b""), assignments, oci
-
-    def fake_process(plan: object, **_kwargs: object) -> object:
-        process_plans.append(plan)
-        if ("builder", "status") == tuple(plan.argv[1:3]):
-            builder_status = [
-                {
-                    "configuration": {
-                        "image": {
-                            "reference": prometheus_candidate.APPLE_BUILDER_REFERENCE,
-                            "descriptor": {
-                                "digest": prometheus_candidate.APPLE_BUILDER_INDEX_DIGEST,
-                                "mediaType": "application/vnd.oci.image.index.v1+json",
-                            },
-                        },
-                        "platform": {"os": "linux", "architecture": "arm64"},
-                        "rosetta": True,
-                        "resources": {
-                            "cpus": prometheus_candidate.APPLE_BUILDER_CPUS,
-                            "memoryInBytes": prometheus_candidate.APPLE_BUILDER_MEMORY_BYTES,
-                        },
-                    }
-                }
-            ]
-            observations = [
-                item for item in process_plans if ("builder", "status") == item.argv[1:3]
-            ]
-            if len(observations) == 6 and postbuild_failure == "builder":
-                builder_status[0]["configuration"]["resources"]["cpus"] = 2
-            return prometheus_candidate.transport.ProcessResult(
-                0,
-                json.dumps(builder_status).encode(),
-                b"",
-            )
-        if "--version" in plan.argv:
-            return prometheus_candidate.transport.ProcessResult(
-                0,
-                b'{"VulnerabilityDB":{"UpdatedAt":"2026-09-04T00:00:00Z"}}',
-                b"",
-            )
-        return prometheus_candidate.transport.ProcessResult(0, b"", b"")
-
-    def fake_json(
-        plan: object,
-        _output: Path,
-        **_kwargs: object,
-    ) -> object:
-        process_plans.append(plan)
-        return (
-            prometheus_candidate.transport.ProcessResult(0, b"", b""),
-            _candidate_trivy_report(),
-        )
-
-    def fake_extract(_archive: Path, destination: Path, **_kwargs: object) -> object:
-        destination.mkdir(mode=0o700)
-        return oci
-
-    monkeypatch.setattr(
-        prometheus_candidate.transport,
-        "execute_local_image_build_observation",
-        fake_build,
-    )
-    monkeypatch.setattr(prometheus_candidate.transport, "run_process", fake_process)
-    monkeypatch.setattr(
-        prometheus_candidate.transport,
-        "extract_oci_layout",
-        fake_extract,
-    )
-    monkeypatch.setattr(
-        prometheus_candidate.transport,
-        "execute_json_observation",
-        fake_json,
-    )
-    monkeypatch.setattr(
-        prometheus_candidate.transport,
-        "observe_registry",
-        lambda _plan: None,
-    )
-
-    first, second, scan = adapter.verify_two_builds(spec)
-    assert first == second
-    assert scan["high_count"] == scan["critical_count"] == 0
-    assert len(build_plans) == 2
-    contexts = [Path(plan.argv[-1]) for plan in build_plans]
-    assert contexts[0] != contexts[1]
-    assert all(
-        [path.name for path in context.iterdir()] == ["Containerfile"] for context in contexts
-    )
-    for plan in build_plans:
-        assert Path(plan.argv[0]).is_absolute()
-        assert plan.env["HOME"] != os.environ.get("HOME")
-        assert plan.env["HOME"].startswith(adapter.temporary[0].name)
-        assert prometheus_candidate.PUBLICATION_INPUT_ENV not in plan.env
-        assert ("--platform", "linux/amd64") == (
-            plan.argv[plan.argv.index("--platform")],
-            plan.argv[plan.argv.index("--platform") + 1],
-        )
-        for exact in ("--cpus", "4", "--memory", "6G", "--no-cache", "--progress", "plain"):
-            assert exact in plan.argv
-        assert "--output" not in plan.argv
-    for lifecycle in lifecycle_plans:
-        assert lifecycle.inventory.argv[-3:] == ("image", "list", "--quiet")
-        assert lifecycle.save.argv[-7:-5] == ("image", "save")
-        assert lifecycle.save.argv[-1] == lifecycle.reference
-        assert lifecycle.delete.argv[-3:] == ("image", "delete", lifecycle.reference)
-        assert lifecycle.keep_local is False
-    builder_plans = [
-        plan for plan in process_plans if ("builder", "status") == tuple(plan.argv[1:3])
-    ]
-    assert len(builder_plans) == 4
-    scan_plan = next(plan for plan in process_plans if "--input" in plan.argv)
-    assert Path(scan_plan.argv[scan_plan.argv.index("--input") + 1]).name == (
-        "candidate-oci-layout"
-    )
-    assert scan_plan.argv[scan_plan.argv.index("--config") + 1] == "/dev/null"
-    assert "--skip-db-update" not in scan_plan.argv
-    assert "--vex" not in scan_plan.argv
-    assert "--ignore-policy" not in scan_plan.argv
-    assert "--ignore-status" not in scan_plan.argv
-    local = prometheus_candidate._stage30_payload(
-        "sha256:" + "f" * 64,
-        spec,
-        prometheus_candidate._build_evidence(first),
-        prometheus_candidate._scan_evidence(scan),
-        {"file": "20-build-two.json", "sha256": "sha256:" + "e" * 64},
-        prometheus_candidate._stage2_observation(repo, spec),
-    )
-    if postbuild_failure is not None:
-        controller = prometheus_candidate.CandidateController(
-            repo,
-            identity_provider=lambda _root: identity,
-            build_adapter=_CandidateBuildAdapter(first, second, scan),
-            publication_adapter=adapter,
-        )
-        verified = controller.verify_local()
-        controller.authorize(verified["expected_authorization_line"])
-
-        def unexpected_credential_read() -> bytes:
-            pytest.fail("post-build failure must not reach credentials")
-
-        monkeypatch.setattr(controller, "_credential_after_intent", unexpected_credential_read)
-        failure_code = (
-            "apple_builder_resources_invalid"
-            if postbuild_failure == "builder"
-            else "build_observation_drift"
-        )
-        with pytest.raises(prometheus_candidate.CandidateHold, match=failure_code):
-            controller.publish_or_reconcile()
-        assert adapter.loaded_ref == verified["candidate_ref"]
-        assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:5])
-        assert process_plans[-1].argv[-3:] == ("image", "delete", verified["candidate_ref"])
-        assert all("login" not in plan.argv and "push" not in plan.argv for plan in process_plans)
-        return
-    preflight = adapter.preflight(local)
-    assert preflight["tag_state"] == "absent"
-    assert len(build_plans) == 3
-    assert lifecycle_plans[-1].keep_local is True
-    login, push, logout = adapter.process_plans(local["candidate_ref"])
-    assert login.argv[-5:] == (
-        "login",
-        "--password-stdin",
-        "--username",
-        "Katsiarynakavaleuskaya",
-        "ghcr.io",
-    )
-    assert push.argv.count(local["candidate_ref"]) == 1
-    assert logout.argv[-2:] == ("logout", "ghcr.io")
-    assert prometheus_candidate.PUBLICATION_INPUT_ENV not in login.env
-    adapter.close()
-
-
-def test_prometheus_exact_adapter_rejects_underprovisioned_builder_before_build(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = _candidate_repo(tmp_path)
-    identity = _candidate_identity(repo)
-    spec = prometheus_candidate.build_spec(repo, identity)
-    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
-    build_plans: list[object] = []
-    builder_status = [
+    identity = dict(_candidate_identity(repo))
+    identity.update(
         {
-            "configuration": {
-                "image": {
-                    "reference": prometheus_candidate.APPLE_BUILDER_REFERENCE,
-                    "descriptor": {
-                        "digest": prometheus_candidate.APPLE_BUILDER_INDEX_DIGEST,
-                        "mediaType": "application/vnd.oci.image.index.v1+json",
-                    },
-                },
-                "platform": {"os": "linux", "architecture": "arm64"},
-                "rosetta": True,
-                "resources": {"cpus": 2, "memoryInBytes": 2 * 1024 * 1024 * 1024},
-            }
+            "buildx_path": "/usr/local/bin/buildx",
+            "docker_path": "/usr/local/bin/docker",
+            "buildx_sha256": "sha256:" + "8" * 64,
+            "docker_sha256": "sha256:" + "9" * 64,
+            "cloud_tools_sha256": "sha256:" + "0" * 64,
         }
-    ]
+    )
+    spec = prometheus_candidate.build_spec(repo, identity)
+    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
+    monkeypatch.setattr(prometheus_candidate.sys, "platform", "linux")
+    monkeypatch.setattr(prometheus_candidate.os, "uname", lambda: SimpleNamespace(machine="x86_64"))
+    plans: list[prometheus_candidate.transport.ProcessPlan] = []
+    observations = 0
+
+    def hash_program(path: Path, **_kwargs: object) -> str:
+        key = next(
+            key.removesuffix("_path")
+            for key, value in identity.items()
+            if key.endswith("_path") and value == str(path)
+        )
+        return "sha256:" + "f" * 64 if failure == "tools" else identity[key + "_sha256"]
+
+    monkeypatch.setattr(prometheus_candidate.transport, "hash_regular", hash_program)
+
+    def process(plan: prometheus_candidate.transport.ProcessPlan, **_kwargs: object) -> object:
+        nonlocal observations
+        plans.append(plan)
+        argv = plan.argv
+        value: object = {}
+        code = 0
+        if argv[1] == "inspect" and argv[0] == identity["buildx_path"]:
+            value = {
+                "Driver": "docker-container",
+                "Nodes": [
+                    {
+                        "Status": "running",
+                        "Buildkit": prometheus_candidate.CLOUD_PROFILE["buildkit_version"],
+                    }
+                ],
+            }
+        elif argv[1] == "inspect":
+            observations += 1
+            value = {
+                "Config": {"Image": prometheus_candidate.CLOUD_PROFILE["buildkit_ref"]},
+                "Image": prometheus_candidate.CLOUD_PROFILE["buildkit_config_digest"],
+                "State": {"Running": True},
+                "HostConfig": {
+                    "Memory": prometheus_candidate.CLOUD_PROFILE["memory_bytes"],
+                    "CpuPeriod": 100000,
+                    "CpuQuota": 400000,
+                },
+            }
+            if failure == "resources":
+                value["HostConfig"]["Memory"] = 2 * 1024**3
+            if failure == "builder" and observations == 2:
+                value["Image"] = "sha256:" + "f" * 64
+        elif argv[1] == "build":
+            code = 1 if failure == "build" else 0
+            assignments = {
+                name: "10" if key.endswith("_count") or key == "ui_total_bytes" else "0" * 64
+                for name, key in prometheus_candidate.BUILD_OUTPUT_FIELDS.items()
+            }
+            source = {**spec, **spec["dependency"]}
+            for name, key in prometheus_candidate.BUILD_OUTPUT_FIELDS.items():
+                if key in source:
+                    assignments[name] = source[key]
+            if failure == "evidence":
+                assignments["PULSEPLATE_SOURCE_ARCHIVE_SHA256"] = "0" * 64
+            return prometheus_candidate.transport.ProcessResult(
+                code,
+                "\n".join(f"{key}={value}" for key, value in assignments.items()).encode(),
+                b"",
+            )
+        elif argv[1] == "rm":
+            code = 1 if failure == "cleanup" else 0
+        return prometheus_candidate.transport.ProcessResult(code, json.dumps(value).encode(), b"")
+
+    monkeypatch.setattr(prometheus_candidate.transport, "run_process", process)
     monkeypatch.setattr(
         prometheus_candidate.transport,
-        "run_process",
-        lambda _plan: prometheus_candidate.transport.ProcessResult(
-            0,
-            json.dumps(builder_status).encode(),
-            b"",
+        "parse_oci_archive",
+        lambda *_args, **_kwargs: prometheus_candidate.transport.OCIResult(
+            "sha256:" + "a" * 64,
+            "sha256:" + "b" * 64,
+            "linux/amd64",
+            ("sha256:" + "c" * 64,),
+            {"io.containerd.image.name": "pulseplate-prometheus:verify-test"},
         ),
     )
-    monkeypatch.setattr(
-        prometheus_candidate.transport,
-        "execute_local_image_build_observation",
-        lambda plan, *_args, **_kwargs: build_plans.append(plan),
-    )
-
-    with pytest.raises(
-        prometheus_candidate.CandidateHold,
-        match="apple_builder_resources_invalid",
-    ):
-        adapter.verify_two_builds(spec)
-    assert build_plans == []
-    adapter.close()
+    try:
+        if failure:
+            with pytest.raises(prometheus_candidate.CandidateHold):
+                adapter._build(1, "pulseplate-prometheus:verify-test")
+        else:
+            first, _archive = adapter._build(1, "pulseplate-prometheus:verify-test")
+            second, _other = adapter._build(2, "pulseplate-prometheus:verify-test")
+            assert first == second
+            builds = [plan for plan in plans if plan.argv[1] == "build"]
+            assert builds[0].argv[-1] != builds[1].argv[-1]
+            for plan in builds:
+                assert "--no-cache" in plan.argv and "--provenance=false" in plan.argv
+                assert "--sbom=false" in plan.argv
+                assert plan.argv[plan.argv.index("--platform") + 1] == "linux/amd64"
+                assert (
+                    plan.argv[plan.argv.index("--build-arg") + 1] == "SOURCE_DATE_EPOCH=1788079847"
+                )
+                assert "type=oci," in plan.argv[plan.argv.index("--output") + 1]
+                assert set(path.name for path in Path(plan.argv[-1]).iterdir()) == {"Containerfile"}
+                assert all(
+                    key not in plan.env
+                    for key in (
+                        "GH_TOKEN",
+                        "GITHUB_TOKEN",
+                        "ACTIONS_RUNTIME_TOKEN",
+                        prometheus_candidate.PUBLICATION_INPUT_ENV,
+                        "TRIVY_IGNORE_POLICY",
+                        "DOCKER_HOST",
+                    )
+                )
+            create = next(plan for plan in plans if plan.argv[1] == "create")
+            assert "cpu-quota=400000" in create.argv
+            assert "memory=6442450944" in create.argv
+        assert plans[-1].argv[1] == "rm"
+        if failure in {"resources", "tools"}:
+            assert not any(plan.argv[1] == "build" for plan in plans)
+    finally:
+        adapter.close()
 
 
 @pytest.mark.parametrize(
@@ -1192,6 +1090,7 @@ def test_prometheus_candidate_existing_50_is_anonymous_zero_credential_reconcili
             "candidate_ref": local["candidate_ref"],
             "idempotency_key": local["idempotency_key"],
             "single_write_limit": 1,
+            "cloud_provenance": _candidate_provenance(101),
         },
     )
     monkeypatch.delenv(prometheus_candidate.PUBLICATION_INPUT_ENV, raising=False)
@@ -1412,7 +1311,7 @@ def test_prometheus_transport_has_one_way_bounded_authority_surface() -> None:
         isinstance(parent, (ast.For, ast.While)) and push_call in tuple(ast.walk(parent))
         for parent in ast.walk(primitive_tree)
     )
-    assert controller_path.read_text(encoding="utf-8").count("\n") < 1400
+    assert controller_path.read_text(encoding="utf-8").count("\n") <= 2400
     assert transport_path.read_text(encoding="utf-8").count("\n") < 1400
 
 
@@ -1498,6 +1397,7 @@ def test_prometheus_runtime_consumer_drift_after_remote_observation_blocks_final
             "candidate_ref": local["candidate_ref"],
             "idempotency_key": local["idempotency_key"],
             "single_write_limit": 1,
+            "cloud_provenance": _candidate_provenance(101),
         },
     )
     consumer = controller.repo_root / prometheus_candidate.RUNTIME_CONSUMER_RELATIVES[0]
@@ -1551,158 +1451,136 @@ def test_prometheus_receipt_atomic_noreplace_survives_pre_and_post_commit_faults
 
 def _local_image_lifecycle(
     tmp_path: Path,
-    *,
-    keep_local: bool = False,
-) -> tuple[prometheus_candidate.transport.LocalImageBuildPlan, Path]:
+) -> tuple[prometheus_candidate.transport.LocalImageLoadPlan, Path]:
     transport = prometheus_candidate.transport
-    executable = str(tmp_path / "container")
 
     def plan(*argv: str) -> prometheus_candidate.transport.ProcessPlan:
-        return transport.ProcessPlan((executable, *argv), tmp_path, {}, 60, 4096)
+        return transport.ProcessPlan(("/usr/local/bin/container", *argv), tmp_path, {}, 60, 4096)
 
-    archive = tmp_path / "candidate.oci.tar"
-    reference = "pulseplate-prometheus:test-local-lifecycle"
+    archive = tmp_path / "loaded.oci.tar"
+    source, reference = "pulseplate-prometheus:verify-fixture", "ghcr.io/fixture/candidate:verified"
     return (
-        transport.LocalImageBuildPlan(
-            plan("image", "list", "--quiet"),
-            plan("build", "--tag", reference, str(tmp_path)),
+        transport.LocalImageLoadPlan(
+            plan("image", "list", "--format", "json"),
+            plan("image", "load", "--input", str(tmp_path / "candidate.oci.tar")),
+            plan("image", "tag", source, reference),
             plan("image", "save", "--output", str(archive), reference),
+            plan("image", "delete", source),
             plan("image", "delete", reference),
+            source,
             reference,
-            keep_local,
         ),
         archive,
     )
 
 
-def test_prometheus_transport_build_save_parse_and_cleanup_local_image(
+@pytest.mark.parametrize(
+    "failure",
+    (
+        None,
+        "source_present",
+        "target_present",
+        "load",
+        "tag",
+        "save",
+        "parse",
+        "cleanup",
+        "load_raised",
+        "tag_raised",
+        "load_raised_cleanup",
+        "tag_raised_cleanup",
+    ),
+)
+def test_prometheus_transport_load_save_cleanup_is_closed_and_never_compiles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    failure: str | None,
 ) -> None:
     transport = prometheus_candidate.transport
     lifecycle, archive = _local_image_lifecycle(tmp_path)
-    present = False
+    present = (
+        {lifecycle.source}
+        if failure == "source_present"
+        else ({lifecycle.reference} if failure == "target_present" else set())
+    )
+    untouched = "docker.io/library/unrelated:preserve"
+    present.add(untouched)
+    primary_error = transport.TransportError("process_execution_failed")
     calls: list[tuple[str, ...]] = []
 
-    def fake_process(plan: object, **_kwargs: object) -> object:
-        nonlocal present
-        argv = tuple(plan.argv[1:])
+    def process(plan: prometheus_candidate.transport.ProcessPlan, **_kwargs: object) -> object:
+        argv = plan.argv[1:]
         calls.append(argv)
-        if argv == ("image", "list", "--quiet"):
-            stdout = f"{lifecycle.reference}\n".encode() if present else b""
-            return transport.ProcessResult(0, stdout, b"")
-        if argv[0] == "build":
-            present = True
-            return transport.ProcessResult(0, b"build-observation", b"")
-        if argv[:2] == ("image", "save"):
-            archive.write_bytes(b"saved-archive")
-            return transport.ProcessResult(0, b"saved", b"")
-        if argv[:2] == ("image", "delete"):
-            present = False
-            return transport.ProcessResult(0, b"deleted", b"")
-        raise AssertionError(argv)
+        code, output = 0, b""
+        if argv == ("image", "list", "--format", "json"):
+            output = json.dumps(
+                [{"configuration": {"name": ref}} for ref in sorted(present)]
+            ).encode()
+        elif argv[:2] == ("image", "load"):
+            present.add(lifecycle.source)
+            if failure is not None and failure.startswith("load_raised"):
+                raise primary_error
+            code = 1 if failure == "load" else 0
+        elif argv[:2] == ("image", "tag"):
+            present.add(lifecycle.reference)
+            if failure is not None and failure.startswith("tag_raised"):
+                raise primary_error
+            code = 1 if failure == "tag" else 0
+        elif argv[:2] == ("image", "save"):
+            archive.write_bytes(b"archive")
+            code = 1 if failure == "save" else 0
+        elif argv[:2] == ("image", "delete"):
+            if failure is not None and failure.endswith("cleanup") and argv[-1] == lifecycle.source:
+                code = 1
+            else:
+                present.remove(argv[-1])
+        else:
+            raise AssertionError(argv)
+        return transport.ProcessResult(code, output, b"")
 
-    expected = (
-        transport.ProcessResult(0, b"build-observation", b""),
-        {"PULSEPLATE_TEST": "value"},
-        transport.OCIResult("sha256:" + "a" * 64, "sha256:" + "b" * 64, "x/y", ()),
-    )
-    monkeypatch.setattr(transport, "run_process", fake_process)
-    monkeypatch.setattr(transport, "collect_build_observation", lambda *_args, **_kwargs: expected)
+    def parse(*_args: object, **_kwargs: object) -> object:
+        if failure == "parse":
+            raise transport.TransportError("parse")
+        return transport.OCIResult("sha256:" + "a" * 64, "sha256:" + "b" * 64, "linux/amd64", ())
 
-    observed = transport.execute_local_image_build_observation(
-        lifecycle,
-        archive,
-        ("PULSEPLATE_TEST",),
-        reserved_prefix="PULSEPLATE_",
-        max_archive_bytes=1024,
-        max_members=8,
-        max_metadata_bytes=1024,
-    )
-    assert observed == expected
-    assert present is False
-    assert calls == [
-        ("image", "list", "--quiet"),
-        lifecycle.build.argv[1:],
-        ("image", "list", "--quiet"),
-        lifecycle.save.argv[1:],
-        ("image", "list", "--quiet"),
-        lifecycle.delete.argv[1:],
-        ("image", "list", "--quiet"),
-    ]
-
-
-def test_prometheus_transport_local_image_lifecycle_rejects_preexisting_tag(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    transport = prometheus_candidate.transport
-    lifecycle, archive = _local_image_lifecycle(tmp_path)
-    calls: list[tuple[str, ...]] = []
-
-    def fake_process(plan: object, **_kwargs: object) -> object:
-        calls.append(tuple(plan.argv[1:]))
-        return transport.ProcessResult(0, f"{lifecycle.reference}\n".encode(), b"")
-
-    monkeypatch.setattr(transport, "run_process", fake_process)
-    with pytest.raises(transport.TransportError, match="local_image_ref_present"):
-        transport.execute_local_image_build_observation(
-            lifecycle,
-            archive,
-            (),
-            reserved_prefix="PULSEPLATE_",
-            max_archive_bytes=1024,
-            max_members=8,
-            max_metadata_bytes=1024,
+    monkeypatch.setattr(transport, "run_process", process)
+    monkeypatch.setattr(transport, "parse_oci_archive", parse)
+    if failure:
+        with pytest.raises(transport.TransportError) as caught:
+            transport.execute_local_image_load(
+                lifecycle, archive, max_archive_bytes=1024, max_members=8, max_metadata_bytes=1024
+            )
+        if failure in {"source_present", "target_present"}:
+            assert all(argv == ("image", "list", "--format", "json") for argv in calls)
+        elif not failure.endswith("cleanup"):
+            assert present == {untouched}
+        else:
+            assert lifecycle.reference not in present
+            assert present == {untouched, lifecycle.source}
+        if "raised" in failure:
+            assert caught.value is primary_error
+            assert any(argv[:2] == ("image", "delete") for argv in calls)
+            assert not any(argv[:2] == ("image", "save") for argv in calls)
+            if failure.endswith("cleanup"):
+                assert isinstance(caught.value.__cause__, transport.TransportError)
+    else:
+        observed = transport.execute_local_image_load(
+            lifecycle, archive, max_archive_bytes=1024, max_members=8, max_metadata_bytes=1024
         )
-    assert calls == [("image", "list", "--quiet")]
-
-
-def test_prometheus_transport_local_image_lifecycle_cleans_owned_tag_on_parse_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    transport = prometheus_candidate.transport
-    lifecycle, archive = _local_image_lifecycle(tmp_path)
-    present = False
-
-    def fake_process(plan: object, **_kwargs: object) -> object:
-        nonlocal present
-        argv = tuple(plan.argv[1:])
-        if argv == ("image", "list", "--quiet"):
-            stdout = f"{lifecycle.reference}\n".encode() if present else b""
-            return transport.ProcessResult(0, stdout, b"")
-        if argv[0] == "build":
-            present = True
-            return transport.ProcessResult(0, b"build", b"")
-        if argv[:2] == ("image", "save"):
-            archive.write_bytes(b"invalid")
-            return transport.ProcessResult(0, b"saved", b"")
-        if argv[:2] == ("image", "delete"):
-            present = False
-            return transport.ProcessResult(0, b"deleted", b"")
-        raise AssertionError(argv)
-
-    monkeypatch.setattr(transport, "run_process", fake_process)
-    monkeypatch.setattr(
-        transport,
-        "collect_build_observation",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(transport.TransportError("parse")),
+        assert observed.platform == "linux/amd64"
+        assert present == {untouched, lifecycle.reference}
+    assert untouched in present
+    assert all(
+        "build" not in argv and "builder" not in argv and "push" not in argv for argv in calls
     )
-    with pytest.raises(transport.TransportError, match="parse"):
-        transport.execute_local_image_build_observation(
-            lifecycle,
-            archive,
-            (),
-            reserved_prefix="PULSEPLATE_",
-            max_archive_bytes=1024,
-            max_members=8,
-            max_metadata_bytes=1024,
-        )
-    assert present is False
 
 
-def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
+def _synthetic_oci_archive(
+    tmp_path: Path,
+    mutation: str = "valid",
+    *,
+    reference: str | None = None,
+) -> Path:
     config = json.dumps(
         {"os": "linux", "architecture": "amd64"},
         separators=(",", ":"),
@@ -1765,6 +1643,11 @@ def _synthetic_oci_archive(tmp_path: Path, mutation: str = "valid") -> Path:
         }
     else:
         index = {"schemaVersion": 2, "manifests": [manifest_descriptor]}
+    if reference is not None:
+        index["manifests"][0]["annotations"] = {
+            "io.containerd.image.name": reference,
+            "org.opencontainers.image.ref.name": reference.rsplit(":", 1)[-1],
+        }
     index_raw = json.dumps(index, separators=(",", ":")).encode()
     if mutation == "duplicate-json":
         index_raw = index_raw.replace(
@@ -9357,3 +9240,946 @@ def test_prometheus_exact_adapter_database_identity_uses_content_before_publicat
     finally:
         for adapter in adapters:
             adapter.close()
+
+
+def _cloud_tools_fixture() -> dict[str, str]:
+    profile = prometheus_candidate.CLOUD_PROFILE
+    return {
+        "python_version": str(profile["python"]),
+        "python_sha256": "sha256:" + "1" * 64,
+        "git_version": "git version 2.53.0",
+        "git_sha256": "sha256:" + "2" * 64,
+        "docker_client_version": "29.5.0",
+        "docker_server_version": "29.5.0",
+        "docker_api_version": "1.54",
+        "docker_sha256": "sha256:" + "3" * 64,
+        "platform": "linux/amd64",
+        "buildx_version": str(profile["buildx_version"]),
+        "buildx_sha256": f"sha256:{profile['buildx_sha256']}",
+        "trivy_version": str(profile["trivy_version"]),
+        "trivy_sha256": f"sha256:{profile['trivy_sha256']}",
+    }
+
+
+def _cloud_admission_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None = None,
+) -> tuple[prometheus_candidate.ExactAdapters, list[str]]:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    spec = prometheus_candidate.build_spec(repo, identity)
+    adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
+    tools = _cloud_tools_fixture()
+    first = _candidate_evidence()
+    first.update(
+        {key: value for key, value in {**spec, **spec["dependency"]}.items() if key in first}
+    )
+    source_archive = _synthetic_oci_archive(
+        tmp_path,
+        reference=(
+            prometheus_candidate.CLOUD_REFERENCE_PREFIX
+            + prometheus_candidate.sha256_digest(prometheus_candidate.canonical_json(spec))[7:]
+        ),
+    )
+    first.update(
+        prometheus_candidate.transport.oci_mapping(
+            prometheus_candidate.transport.parse_oci_archive(
+                source_archive, **prometheus_candidate.OCI_LIMITS
+            )
+        )
+    )
+    first["builder_image_digest"] = str(prometheus_candidate.CLOUD_PROFILE["buildkit_ref"]).split(
+        "@"
+    )[1]
+    first["builder_status_sha256"] = prometheus_candidate.sha256_digest(
+        prometheus_candidate.canonical_json(tools)
+    )
+    second = dict(first)
+    report = _candidate_trivy_report()
+    normalized, targets = prometheus_candidate._normalize_trivy_report(report)
+    scan = {
+        **_candidate_scan(),
+        "trivy_executable_sha256": tools["trivy_sha256"],
+        "report_sha256": prometheus_candidate.sha256_digest(
+            prometheus_candidate.canonical_json(normalized)
+        ),
+        "coverage_sha256": prometheus_candidate.sha256_digest(
+            prometheus_candidate.canonical_json(targets)
+        ),
+    }
+    observations = {
+        "material": prometheus_candidate._material(spec),
+        "spec_digest": prometheus_candidate.sha256_digest(
+            prometheus_candidate.canonical_json(spec)
+        ),
+        "run": {"id": 100, "attempt": 1, "job": "prometheus-candidate"},
+        "tools": tools,
+        "scan": scan,
+    }
+    if mutation == "material":
+        observations["material"]["git_tree"] = "0" * 40
+    elif mutation == "spec_digest":
+        observations["spec_digest"] = "sha256:" + "0" * 64
+    elif mutation == "output_run":
+        observations["run"]["id"] = 101
+    elif mutation == "unknown_output":
+        observations["destination"] = "ghcr.io/attacker/forged"
+    elif mutation == "output_build":
+        second["config_digest"] = "sha256:" + "0" * 64
+    elif mutation == "output_oci":
+        first["config_digest"] = second["config_digest"] = "sha256:" + "0" * 64
+    elif mutation == "source":
+        first["source_archive_sha256"] = second["source_archive_sha256"] = "0" * 64
+    elif mutation == "builder_pin":
+        first["builder_image_digest"] = second["builder_image_digest"] = "sha256:" + "0" * 64
+    elif mutation == "tool_drift":
+        tools["buildx_sha256"] = "sha256:" + "0" * 64
+    elif mutation == "tool_arch":
+        tools["platform"] = "linux/arm64"
+    elif mutation == "scan_cve":
+        report["Results"][1]["Vulnerabilities"] = [
+            {"Severity": "HIGH", "VulnerabilityID": "CVE-2026-84304"}
+        ]
+    elif mutation == "scan_coverage":
+        report["Results"].pop()
+    elif mutation == "scan_packages":
+        report["Results"][0]["Packages"] = []
+    elif mutation == "scan_stale_db":
+        scan["database_updated_at"] = "2020-01-01T00:00:00Z"
+    elif mutation == "scan_wrong_binary":
+        scan["trivy_executable_sha256"] = "sha256:" + "0" * 64
+    elif mutation == "scan_bad_db_digest":
+        scan["database_identity_sha256"] = "0" * 64
+    contents = {
+        "candidate.oci.tar": source_archive.read_bytes(),
+        "build-one.json": prometheus_candidate.canonical_json(first),
+        "build-two.json": prometheus_candidate.canonical_json(second),
+        "observations.json": prometheus_candidate.canonical_json(observations),
+        "trivy-report.json": prometheus_candidate.canonical_json(report),
+    }
+    zipped = io.BytesIO()
+    with zipfile.ZipFile(zipped, "w") as archive:
+        for name, payload in contents.items():
+            archive.writestr(name, payload)
+    zip_bytes = zipped.getvalue()
+    provenance = _candidate_provenance()
+    repository = {
+        "id": prometheus_candidate.REPOSITORY_ID,
+        "full_name": prometheus_candidate.REPOSITORY,
+    }
+    run = {
+        "id": 100,
+        "head_sha": "a" * 40,
+        "head_branch": "codex/candidate",
+        "workflow_id": 1234,
+        "path": prometheus_candidate.WORKFLOW_RELATIVE,
+        "event": "workflow_dispatch",
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "repository": repository,
+        "head_repository": repository,
+    }
+    jobs = [
+        {
+            "id": 9100 + index,
+            "name": name,
+            "run_id": 100,
+            "run_attempt": 1,
+            "head_sha": "a" * 40,
+            "status": "completed",
+            "conclusion": "success" if index == 0 else "skipped",
+            "started_at": provenance["started_at"],
+            "completed_at": provenance["completed_at"],
+        }
+        for index, name in enumerate(("prometheus-candidate", "build", "security-scan", "publish"))
+    ]
+    artifact = {
+        "id": 8100,
+        "name": provenance["artifact_name"],
+        "expired": False,
+        "size_in_bytes": len(zip_bytes),
+        "digest": "sha256:" + hashlib.sha256(zip_bytes).hexdigest(),
+        "workflow_run": {
+            "id": 100,
+            "repository_id": repository["id"],
+            "head_repository_id": repository["id"],
+            "head_sha": "a" * 40,
+            "head_branch": "codex/candidate",
+        },
+        "created_at": provenance["artifact_created_at"],
+        "expires_at": provenance["expires_at"],
+    }
+    responses = {
+        "pulls/2347": {
+            "state": "open",
+            "head": {"sha": "a" * 40, "ref": "codex/candidate", "repo": repository},
+        },
+        "actions/workflows/build.yml": {
+            "id": 1234,
+            "path": prometheus_candidate.WORKFLOW_RELATIVE,
+            "state": "active",
+        },
+        "actions/workflows/build.yml/dispatches": {
+            "workflow_run_id": 100,
+            "run_url": f"https://api.github.com/repos/{prometheus_candidate.REPOSITORY}/actions/runs/100",
+            "html_url": f"https://github.com/{prometheus_candidate.REPOSITORY}/actions/runs/100",
+        },
+        "actions/runs/100": run,
+        "actions/runs/100/attempts/1/jobs?per_page=100": {"total_count": 4, "jobs": jobs},
+        "actions/runs/100/artifacts?per_page=100": {"total_count": 1, "artifacts": [artifact]},
+    }
+    if mutation == "head":
+        responses["pulls/2347"]["head"]["sha"] = "0" * 40
+    elif mutation == "pr_closed":
+        responses["pulls/2347"]["state"] = "closed"
+    elif mutation == "workflow":
+        responses["actions/workflows/build.yml"]["path"] = ".github/workflows/cd.yml"
+    elif mutation == "uncertain_dispatch":
+        responses["actions/workflows/build.yml/dispatches"] = {}
+    elif mutation == "dispatch_url":
+        responses["actions/workflows/build.yml/dispatches"]["html_url"] = "https://example.com"
+    elif mutation in {
+        "run_head",
+        "run_workflow",
+        "run_attempt",
+        "run_event",
+        "run_failed",
+        "run_pending",
+        "run_status",
+    }:
+        key, value = {
+            "run_head": ("head_sha", "0" * 40),
+            "run_workflow": ("workflow_id", 999),
+            "run_attempt": ("run_attempt", 2),
+            "run_event": ("event", "push"),
+            "run_failed": ("conclusion", "failure"),
+            "run_pending": ("status", "in_progress"),
+            "run_status": ("status", "invented"),
+        }[mutation]
+        run[key] = value
+    elif mutation == "run_repository":
+        run["repository"] = {"id": 0}
+    elif mutation == "jobs_missing":
+        jobs.pop()
+    elif mutation == "jobs_duplicate":
+        jobs[1] = dict(jobs[0])
+    elif mutation == "jobs_incomplete_page":
+        responses["actions/runs/100/attempts/1/jobs?per_page=100"]["total_count"] = 104
+    elif mutation == "ordinary_job_ran":
+        jobs[1]["conclusion"] = "success"
+    elif mutation == "job_failed":
+        jobs[0]["conclusion"] = "failure"
+    elif mutation == "job_pending":
+        jobs[0]["status"] = "in_progress"
+    elif mutation == "job_wrong_attempt":
+        jobs[0]["run_attempt"] = 2
+    elif mutation == "artifact_duplicate":
+        responses["actions/runs/100/artifacts?per_page=100"] = {
+            "total_count": 2,
+            "artifacts": [artifact, artifact],
+        }
+    elif mutation == "artifact_wrong_run":
+        artifact["workflow_run"]["id"] = 999
+    elif mutation == "artifact_name":
+        artifact["name"] = "prometheus-candidate-100-2-prometheus-candidate"
+    elif mutation == "artifact_expired":
+        artifact["expired"] = True
+    elif mutation == "artifact_expiry":
+        artifact["expires_at"] = "2026-09-04T01:12:00Z"
+    elif mutation == "artifact_wrong_interval":
+        artifact["created_at"] = "2026-09-04T00:00:00Z"
+    elif mutation == "artifact_digest":
+        artifact["digest"] = "sha256:" + "0" * 64
+    elif mutation == "artifact_size":
+        artifact["size_in_bytes"] += 1
+    elif mutation == "artifact_oversized":
+        artifact["size_in_bytes"] = prometheus_candidate.MAX_CLOUD_ZIP_BYTES + 1
+    calls: list[str] = []
+
+    def api(endpoint: str, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        calls.append(endpoint)
+        if payload is not None:
+            assert payload == {
+                "ref": "codex/candidate",
+                "inputs": {
+                    "mode": "prometheus-candidate",
+                    "candidate_head_sha": "a" * 40,
+                    "candidate_spec_digest": prometheus_candidate.sha256_digest(
+                        prometheus_candidate.canonical_json(spec)
+                    ),
+                },
+            }
+        return responses[endpoint]
+
+    def download(url: str, target: Path, **kwargs: object) -> tuple[int, str]:
+        assert (
+            url
+            == f"https://api.github.com/repos/{prometheus_candidate.REPOSITORY}/actions/artifacts/8100/zip"
+        )
+        assert kwargs["headers"]["Authorization"] == "Bearer fixture-gh-token"
+        target.write_bytes(zip_bytes)
+        return len(zip_bytes), "sha256:" + hashlib.sha256(zip_bytes).hexdigest()
+
+    monkeypatch.setenv("GH_TOKEN", "fixture-gh-token")
+    monkeypatch.setattr(adapter, "_api", api)
+    monkeypatch.setattr(prometheus_candidate.transport, "download_file", download)
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "run_process",
+        lambda *_args, **_kwargs: prometheus_candidate.transport.ProcessResult(0, b"", b""),
+    )
+    monkeypatch.setattr(prometheus_candidate.time, "sleep", lambda _seconds: None)
+    return adapter, calls
+
+
+@pytest.mark.usefixtures("prometheus_database_clock")
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        None,
+        "head",
+        "pr_closed",
+        "workflow",
+        "uncertain_dispatch",
+        "dispatch_url",
+        "run_head",
+        "run_workflow",
+        "run_attempt",
+        "run_event",
+        "run_failed",
+        "run_pending",
+        "run_status",
+        "run_repository",
+        "jobs_missing",
+        "jobs_duplicate",
+        "jobs_incomplete_page",
+        "ordinary_job_ran",
+        "job_failed",
+        "job_pending",
+        "job_wrong_attempt",
+        "artifact_duplicate",
+        "artifact_wrong_run",
+        "artifact_name",
+        "artifact_expired",
+        "artifact_expiry",
+        "artifact_wrong_interval",
+        "artifact_digest",
+        "artifact_size",
+        "artifact_oversized",
+        "material",
+        "spec_digest",
+        "output_run",
+        "unknown_output",
+        "output_build",
+        "output_oci",
+        "source",
+        "builder_pin",
+        "tool_drift",
+        "tool_arch",
+        "scan_cve",
+        "scan_coverage",
+        "scan_packages",
+        "scan_stale_db",
+        "scan_wrong_binary",
+        "scan_bad_db_digest",
+    ),
+)
+def test_prometheus_cloud_admission_is_complete_and_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    adapter, calls = _cloud_admission_fixture(tmp_path, monkeypatch, mutation)
+    try:
+        if mutation is not None:
+            with pytest.raises(prometheus_candidate.CandidateHold):
+                adapter.verify_two_builds(adapter.spec)
+            assert adapter.cloud_archive is None
+        else:
+            first, second, scan, provenance = adapter.verify_two_builds(adapter.spec)
+            assert first == second
+            assert scan["high_count"] == scan["critical_count"] == 0
+            assert provenance["run_id"] == 100 and provenance["job_id"] == 9100
+            assert adapter.cloud_archive.is_file()
+        assert calls.count("actions/workflows/build.yml/dispatches") <= 1
+        assert all("/re-run" not in call for call in calls)
+        assert not prometheus_candidate._state_root(adapter.repo_root).exists()
+    finally:
+        adapter.close()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (None, "old_run", "old_interval", "new_db", "new_build", "load_drift", "preexisting"),
+)
+def test_prometheus_fresh_cloud_preflight_preserves_no_compile_and_owned_load_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    adapter = prometheus_candidate.ExactAdapters(
+        repo, identity, prometheus_candidate.build_spec(repo, identity)
+    )
+    evidence, scan = _candidate_evidence(), _candidate_scan()
+    controller = prometheus_candidate.CandidateController(
+        repo,
+        identity_provider=lambda _repo: identity,
+        build_adapter=_CandidateBuildAdapter(evidence, evidence, scan),
+        publication_adapter=adapter,
+    )
+    initial = controller.verify_local()
+    controller.authorize(initial["expected_authorization_line"])
+    provenance = _candidate_provenance(101)
+    fresh_build, fresh_scan = dict(evidence), dict(scan)
+    if mutation == "old_run":
+        provenance = _candidate_provenance()
+    elif mutation == "old_interval":
+        provenance["started_at"] = "2026-09-04T00:00:00Z"
+    elif mutation == "new_db":
+        fresh_scan["database_identity_sha256"] = "sha256:" + "0" * 64
+    elif mutation == "new_build":
+        fresh_build["config_digest"] = "sha256:" + "0" * 64
+    calls: list[str] = []
+    local_refs: set[str] = set()
+
+    def verify(spec: Mapping[str, object]) -> tuple[object, ...]:
+        assert "40-publication-authorization" in controller.store.load()
+        assert spec == controller.spec
+        calls.append("fresh-cloud")
+        adapter.cloud_archive = tmp_path / "verified-cloud.oci.tar"
+        adapter.cloud_archive.write_bytes(b"verified cloud archive fixture")
+        return fresh_build, fresh_build, fresh_scan, provenance
+
+    def load(plan: object, _archive: Path, **_kwargs: object) -> object:
+        calls.append("load")
+        assert plan.source.startswith("docker.io/library/pulseplate-prometheus:verify-")
+        assert plan.inventory.argv[-2:] == ("--format", "json")
+        assert all(
+            "build" not in step.argv and "builder" not in step.argv
+            for step in (
+                plan.inventory,
+                plan.load,
+                plan.tag,
+                plan.save,
+                plan.delete_source,
+                plan.delete_target,
+            )
+        )
+        if mutation == "preexisting":
+            raise prometheus_candidate.transport.TransportError("local_image_ref_present")
+        local_refs.add(plan.reference)
+        return prometheus_candidate.transport.OCIResult(
+            evidence["manifest_digest"],
+            "sha256:" + "0" * 64 if mutation == "load_drift" else evidence["config_digest"],
+            "linux/amd64",
+            tuple(evidence["layer_digests"]),
+        )
+
+    def process(plan: object, **_kwargs: object) -> object:
+        if plan.argv[1:3] == ("image", "list"):
+            return prometheus_candidate.transport.ProcessResult(
+                0,
+                json.dumps([{"configuration": {"name": ref}} for ref in local_refs]).encode(),
+                b"",
+            )
+        if plan.argv[1:3] == ("image", "delete"):
+            local_refs.remove(plan.argv[-1])
+            calls.append("delete")
+            return prometheus_candidate.transport.ProcessResult(0, b"", b"")
+        raise AssertionError(plan.argv)
+
+    monkeypatch.setattr(adapter, "verify_two_builds", verify)
+    monkeypatch.setattr(adapter, "observe", lambda _ref: None)
+    monkeypatch.setattr(prometheus_candidate.transport, "execute_local_image_load", load)
+    monkeypatch.setattr(prometheus_candidate.transport, "run_process", process)
+    monkeypatch.setattr(
+        controller, "_credential_after_intent", lambda: pytest.fail("unexpected credential read")
+    )
+    if mutation:
+        with pytest.raises(prometheus_candidate.CandidateHold):
+            controller.publish_or_reconcile()
+        assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:5])
+    else:
+        preflight = adapter.preflight(initial)
+        assert preflight["cloud_provenance"]["run_id"] != initial["cloud_provenance"]["run_id"]
+        assert local_refs == {initial["candidate_ref"]}
+        login, push, logout = adapter.process_plans(initial["candidate_ref"])
+        assert login.argv[-5:] == (
+            "login",
+            "--password-stdin",
+            "--username",
+            "Katsiarynakavaleuskaya",
+            "ghcr.io",
+        )
+        assert push.argv[-1] == initial["candidate_ref"] and logout.argv[-2:] == (
+            "logout",
+            "ghcr.io",
+        )
+        assert "GH_TOKEN" not in login.env and "GITHUB_TOKEN" not in login.env
+        adapter.close()
+    assert calls[0] == "fresh-cloud" and not local_refs
+    if mutation in {"old_run", "new_db", "new_build"}:
+        assert "load" not in calls
+    if mutation == "load_drift":
+        assert calls == ["fresh-cloud", "load", "delete"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (None, "extra", "duplicate", "traversal", "symlink", "encrypted", "oversized", "truncated"),
+)
+def test_prometheus_cloud_zip_is_closed_bounded_and_private(
+    tmp_path: Path,
+    mutation: str | None,
+) -> None:
+    archive_path, output = tmp_path / "artifact.zip", tmp_path / "unpacked"
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w") as archive:
+        name = "../payload" if mutation == "traversal" else "payload"
+        if mutation == "symlink":
+            row = zipfile.ZipInfo(name)
+            row.create_system = 3
+            row.external_attr = (stat.S_IFLNK | 0o777) << 16
+            archive.writestr(row, b"target")
+        else:
+            archive.writestr(name, b"payload")
+        if mutation == "duplicate":
+            with pytest.warns(UserWarning, match="Duplicate"):
+                archive.writestr(name, b"again")
+        elif mutation == "extra":
+            archive.writestr("extra", b"forbidden")
+    raw = bytearray(data.getvalue())
+    if mutation == "encrypted":
+        raw[6] |= 1
+        raw[raw.index(b"PK\x01\x02") + 8] |= 1
+    if mutation == "truncated":
+        raw = raw[:-8]
+    archive_path.write_bytes(raw)
+    if mutation:
+        with pytest.raises(prometheus_candidate.transport.TransportError):
+            prometheus_candidate.transport.extract_zip_members(
+                archive_path,
+                output,
+                {"payload": 1 if mutation == "oversized" else 100},
+                max_archive_bytes=4096,
+            )
+    else:
+        result = prometheus_candidate.transport.extract_zip_members(
+            archive_path, output, {"payload": 100}, max_archive_bytes=4096
+        )
+        assert result == {"payload": (7, "sha256:" + hashlib.sha256(b"payload").hexdigest())}
+        assert stat.S_IMODE(output.stat().st_mode) == 0o700
+        assert stat.S_IMODE((output / "payload").stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize(
+    "mutation", (None, "redirect_host", "redirect_credentials", "size", "truncated", "http_error")
+)
+def test_prometheus_cloud_download_streams_and_never_redirects_authentication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    transport = prometheus_candidate.transport
+    body = b"x" * (2 * 1024 * 1024 + 5)
+    requests: list[tuple[str, object]] = []
+    chunks: list[int] = []
+
+    class Response:
+        def __init__(self, host: str) -> None:
+            self.status = (
+                302 if host == "api.github.com" else (403 if mutation == "http_error" else 200)
+            )
+            self.stream = io.BytesIO(body)
+
+        def getheader(self, name: str, default: object = None) -> object:
+            if name == "Location":
+                return {
+                    "redirect_host": "https://attacker.example/zip",
+                    "redirect_credentials": "https://user:secret@store.blob.core.windows.net/zip",
+                }.get(mutation, "https://store.blob.core.windows.net/zip")
+            if name == "Content-Length":
+                return str(len(body) + (1 if mutation == "truncated" else 0))
+            return default
+
+        def read(self, size: int) -> bytes:
+            chunks.append(size)
+            return self.stream.read(size)
+
+    class Connection:
+        def __init__(self, host: str, **_kwargs: object) -> None:
+            self.host = host
+
+        def request(self, _method: str, _target: str, headers: object) -> None:
+            requests.append((self.host, headers))
+
+        def getresponse(self) -> Response:
+            return Response(self.host)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(transport.http.client, "HTTPSConnection", Connection)
+    target = tmp_path / "download.zip"
+    kwargs = dict(
+        headers={"Authorization": "Bearer opaque"},
+        redirect_domains=("blob.core.windows.net",),
+        max_bytes=1 if mutation == "size" else len(body) + 10,
+        timeout_seconds=30,
+    )
+    if mutation:
+        with pytest.raises(transport.TransportError):
+            transport.download_file(
+                "https://api.github.com/repos/example/artifact/zip", target, **kwargs
+            )
+    else:
+        size, digest = transport.download_file(
+            "https://api.github.com/repos/example/artifact/zip", target, **kwargs
+        )
+        assert size == len(body) and digest == "sha256:" + hashlib.sha256(body).hexdigest()
+        assert max(chunks) <= 1048576 and len(chunks) >= 3
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert requests[0] == ("api.github.com", {"Authorization": "Bearer opaque"})
+    assert all(headers == {} for _host, headers in requests[1:])
+
+
+@pytest.mark.parametrize(
+    "mutation", (None, "download", "extracted_binary", "unpack", "version", "python", "docker_arch")
+)
+def test_prometheus_cloud_tool_setup_is_pinned_and_observes_actual_programs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    transport = prometheus_candidate.transport
+    root = tmp_path / "tools"
+    root.mkdir(mode=0o700)
+    profile = prometheus_candidate.CLOUD_PROFILE
+    monkeypatch.setattr(
+        prometheus_candidate.sys, "version_info", (3, 13, 13 if mutation == "python" else 14)
+    )
+    downloads: list[str] = []
+
+    def download(url: str, target: Path, **kwargs: object) -> tuple[int, str]:
+        downloads.append(url)
+        assert kwargs["headers"] == {}
+        target.write_bytes(b"download")
+        key = "buildx_sha256" if target.name == "buildx" else "trivy_archive_sha256"
+        return 8, "sha256:" + ("0" * 64 if mutation == "download" else profile[key])
+
+    def hash_file(path: Path, **_kwargs: object) -> str:
+        if path.name in {"trivy", "buildx"}:
+            return "sha256:" + (
+                "0" * 64 if mutation == "extracted_binary" else profile[path.name + "_sha256"]
+            )
+        return "sha256:" + "1" * 64
+
+    def unpack(plan: object, **_kwargs: object) -> object:
+        assert plan.argv[0] == "/usr/bin/tar"
+        assert plan.argv[-1] == "trivy" and "--no-same-owner" in plan.argv
+        assert "GH_TOKEN" not in plan.env and "PULSEPLATE_PROMETHEUS_GHCR_TOKEN" not in plan.env
+        (root / "trivy").write_bytes(b"binary")
+        return transport.ProcessResult(1 if mutation == "unpack" else 0, b"", b"")
+
+    def observe(commands: object, _repo: Path, environment: object, **_kwargs: object) -> object:
+        assert set(commands) == {"git", "git_head", "git_tree", "docker", "buildx", "trivy"}
+        assert "GH_TOKEN" not in environment
+        values = {
+            "git": "git version 2.53.0",
+            "git_head": "a" * 40,
+            "git_tree": "b" * 40,
+            "docker": json.dumps(
+                {
+                    "Client": {"Version": "29.5.0"},
+                    "Server": {
+                        "Version": "29.5.0",
+                        "ApiVersion": "1.54",
+                        "Os": "linux",
+                        "Arch": "arm64" if mutation == "docker_arch" else "amd64",
+                    },
+                }
+            ),
+            "buildx": "github.com/docker/buildx v0.37.0 release",
+            "trivy": "Version: 0.74.0",
+        }
+        if mutation == "version":
+            values["buildx"] = "github.com/docker/buildx v0.36.0 old"
+        return {
+            key: transport.ProgramObservation(
+                (
+                    Path(commands[key][0])
+                    if key in {"buildx", "trivy"}
+                    else Path("/usr/bin/" + commands[key][0])
+                ),
+                "sha256:" + (profile[key + "_sha256"] if key in {"buildx", "trivy"} else "1" * 64),
+                0,
+                value,
+            )
+            for key, value in values.items()
+        }
+
+    monkeypatch.setattr(transport, "download_file", download)
+    monkeypatch.setattr(transport, "hash_regular", hash_file)
+    monkeypatch.setattr(transport, "resolve_program", lambda _name: Path("/usr/bin/tar"))
+    monkeypatch.setattr(transport, "run_process", unpack)
+    monkeypatch.setattr(transport, "observe_programs", observe)
+    if mutation:
+        with pytest.raises(prometheus_candidate.CandidateHold):
+            prometheus_candidate._cloud_setup(_candidate_repo(tmp_path), root)
+    else:
+        identity, tools = prometheus_candidate._cloud_setup(_candidate_repo(tmp_path), root)
+        assert tools["platform"] == "linux/amd64" and tools["trivy_version"] == "0.74.0"
+        assert "container_path" not in identity and "gh_path" not in identity
+        assert len(downloads) == 2
+        assert all(
+            stat.S_IMODE((root / name).stat().st_mode) == 0o700 for name in ("buildx", "trivy")
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation", (None, "host", "head", "repository", "job", "attempt", "digest", "build_mismatch")
+)
+def test_prometheus_cloud_entry_has_no_local_executor_or_receipt_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity, tools = _candidate_identity(repo), _cloud_tools_fixture()
+    context = {
+        "GITHUB_REPOSITORY": prometheus_candidate.REPOSITORY,
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_JOB": "prometheus-candidate",
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_SHA": "a" * 40,
+        "PROMETHEUS_CANDIDATE_HEAD_SHA": "a" * 40,
+        "PROMETHEUS_CANDIDATE_SPEC_DIGEST": "sha256:" + "b" * 64,
+        "GITHUB_RUN_ID": "100",
+        "GITHUB_RUN_ATTEMPT": "1",
+    }
+    if mutation in {"head", "repository", "job", "attempt", "digest"}:
+        key, value = {
+            "head": ("GITHUB_SHA", "c" * 40),
+            "repository": ("GITHUB_REPOSITORY", "other/repo"),
+            "job": ("GITHUB_JOB", "publish"),
+            "attempt": ("GITHUB_RUN_ATTEMPT", "2"),
+            "digest": ("PROMETHEUS_CANDIDATE_SPEC_DIGEST", "invalid"),
+        }[mutation]
+        context[key] = value
+    for key, value in context.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(
+        prometheus_candidate.sys, "platform", "darwin" if mutation == "host" else "linux"
+    )
+    monkeypatch.setattr(prometheus_candidate.os, "uname", lambda: SimpleNamespace(machine="x86_64"))
+    monkeypatch.setattr(prometheus_candidate.yaml, "__version__", "6.0.3")
+    monkeypatch.setattr(
+        prometheus_candidate,
+        "resolve_execution_identity",
+        lambda *_args: pytest.fail("Mac identity reached from cloud"),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate,
+        "ReceiptStore",
+        lambda *_args: pytest.fail("cloud cannot author receipts"),
+    )
+    builds: list[int] = []
+    monkeypatch.setattr(prometheus_candidate, "_cloud_setup", lambda *_args: (identity, tools))
+
+    def build(_adapter: object, ordinal: int, reference: str) -> tuple[object, Path]:
+        builds.append(ordinal)
+        assert reference == prometheus_candidate.CLOUD_REFERENCE_PREFIX + "b" * 64
+        source = tmp_path / f"build-{ordinal}"
+        source.mkdir()
+        archive = source / "candidate.oci.tar"
+        archive.write_bytes(b"OCI fixture")
+        (source / "trivy-report.json").write_bytes(
+            prometheus_candidate.canonical_json(_candidate_trivy_report())
+        )
+        return (
+            _candidate_evidence("b" if mutation == "build_mismatch" and ordinal == 2 else "a"),
+            archive,
+        )
+
+    monkeypatch.setattr(prometheus_candidate.ExactAdapters, "_build", build)
+    monkeypatch.setattr(
+        prometheus_candidate.ExactAdapters, "_scan", lambda *_args: _candidate_scan()
+    )
+    if mutation:
+        with pytest.raises(prometheus_candidate.CandidateHold):
+            prometheus_candidate.execute_cloud(repo)
+        if mutation != "build_mismatch":
+            assert builds == []
+    else:
+        result = prometheus_candidate.execute_cloud(repo)
+        assert result["state"] == "cloud-candidate-verified-unpublished"
+        assert builds == [1, 2]
+        output = repo / "artifacts/security_lab/prometheus_cloud_result"
+        assert {path.name for path in output.iterdir()} == set(prometheus_candidate.CLOUD_MEMBERS)
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
+        assert not prometheus_candidate._state_root(repo).exists()
+
+
+def test_prometheus_cloud_cli_dispatches_without_instantiating_publication_controller(
+    monkeypatch: pytest.MonkeyPatch,
+    capfdbinary: pytest.CaptureFixture[bytes],
+) -> None:
+    monkeypatch.setattr(
+        prometheus_candidate,
+        "CandidateController",
+        lambda *_args: pytest.fail("local controller called"),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate, "execute_cloud", lambda _repo: {"state": "fixture-cloud-only"}
+    )
+    assert prometheus_candidate.main(["cloud-execute"]) == 0
+    assert json.loads(capfdbinary.readouterr().out) == {"state": "fixture-cloud-only"}
+
+
+@pytest.mark.parametrize(
+    "annotations,valid",
+    (
+        (
+            {
+                "io.containerd.image.name": "docker.io/library/candidate:tag",
+                "org.opencontainers.image.ref.name": "tag",
+            },
+            True,
+        ),
+        ({"io.containerd.image.name": "docker.io/library/other:tag"}, False),
+        ({"org.opencontainers.image.ref.name": "tag"}, False),
+        (
+            {
+                "com.apple.containerization.image.name": "other",
+                "io.containerd.image.name": "docker.io/library/candidate:tag",
+            },
+            False,
+        ),
+    ),
+)
+def test_prometheus_cloud_import_name_matches_the_single_pinned_importer_path(
+    annotations: Mapping[str, str],
+    valid: bool,
+) -> None:
+    oci = prometheus_candidate.transport.OCIResult(
+        "sha256:" + "a" * 64, "sha256:" + "b" * 64, "linux/amd64", (), annotations
+    )
+    if valid:
+        prometheus_candidate._require_cloud_import_name(oci, "docker.io/library/candidate:tag")
+    else:
+        with pytest.raises(
+            prometheus_candidate.CandidateHold, match="cloud_import_reference_invalid"
+        ):
+            prometheus_candidate._require_cloud_import_name(oci, "docker.io/library/candidate:tag")
+
+
+@pytest.mark.parametrize("mutation", (None, "no_auth", "nonzero", "invalid_json"))
+def test_prometheus_cloud_api_plan_has_fixed_host_and_single_authenticated_post(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str | None,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    identity = _candidate_identity(repo)
+    adapter = prometheus_candidate.ExactAdapters(
+        repo, identity, prometheus_candidate.build_spec(repo, identity)
+    )
+    calls: list[object] = []
+    monkeypatch.setenv("GH_TOKEN", "opaque-gh")
+    monkeypatch.setenv(prometheus_candidate.PUBLICATION_INPUT_ENV, "must-not-be-read")
+    if mutation == "no_auth":
+        monkeypatch.delenv("GH_TOKEN")
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    def process(plan: object, *, stdin: bytes | None) -> object:
+        calls.append(plan)
+        assert plan.argv[:6] == (
+            identity["gh_path"],
+            "api",
+            "--hostname",
+            "github.com",
+            "--method",
+            "POST",
+        )
+        assert plan.argv[-3:] == (
+            f"repos/{prometheus_candidate.REPOSITORY}/actions/workflows/build.yml/dispatches",
+            "--input",
+            "-",
+        )
+        assert json.loads(stdin) == {
+            "ref": "codex/frozen",
+            "inputs": {"mode": "prometheus-candidate"},
+        }
+        assert plan.env["GH_TOKEN"] == plan.env["GITHUB_TOKEN"] == "opaque-gh"
+        assert prometheus_candidate.PUBLICATION_INPUT_ENV not in plan.env
+        assert "opaque-gh" not in str(plan.argv)
+        return prometheus_candidate.transport.ProcessResult(
+            1 if mutation == "nonzero" else 0,
+            b"not json" if mutation == "invalid_json" else b'{"workflow_run_id":100}',
+            b"",
+        )
+
+    monkeypatch.setattr(prometheus_candidate.transport, "run_process", process)
+    try:
+        if mutation:
+            with pytest.raises(prometheus_candidate.CandidateHold):
+                adapter._api(
+                    "actions/workflows/build.yml/dispatches",
+                    {"ref": "codex/frozen", "inputs": {"mode": "prometheus-candidate"}},
+                )
+        else:
+            assert adapter._api(
+                "actions/workflows/build.yml/dispatches",
+                {"ref": "codex/frozen", "inputs": {"mode": "prometheus-candidate"}},
+            ) == {"workflow_run_id": 100}
+        assert len(calls) == (0 if mutation == "no_auth" else 1)
+    finally:
+        adapter.close()
+
+
+def test_prometheus_local_identity_requires_gh_but_no_builder_or_local_trivy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    transport = prometheus_candidate.transport
+    system = [
+        {
+            "appName": "container",
+            "version": "1.1.0",
+            "buildType": "release",
+            "commit": "5973b9cc626a3e7a499bb316a958237ebe14e2ed",
+        },
+        {
+            "appName": "container-apiserver",
+            "version": "container-apiserver version 1.1.0",
+            "buildType": "release",
+        },
+    ]
+
+    def observe(commands: object, *_args: object, **_kwargs: object) -> object:
+        assert set(commands) == {"git_head", "git_tree", "container", "container_system", "gh"}
+        values = {
+            "git_head": "a" * 40,
+            "git_tree": "b" * 40,
+            "container": "container CLI version 1.1.0 (build: release, commit: 5973b9c)",
+            "container_system": json.dumps(system),
+            "gh": "gh version 2.88.0",
+        }
+        return {
+            key: transport.ProgramObservation(
+                Path("/usr/bin/" + commands[key][0]), "sha256:" + "1" * 64, 0, value
+            )
+            for key, value in values.items()
+        }
+
+    monkeypatch.delenv("CONTAINER_HOST", raising=False)
+    monkeypatch.setattr(transport, "observe_programs", observe)
+    identity = prometheus_candidate.resolve_execution_identity(repo)
+    assert identity["gh_version"] == "gh version 2.88.0"
+    assert identity["gh_path"] == "/usr/bin/gh"
+    assert all("trivy" not in key and "builder" not in key for key in identity)

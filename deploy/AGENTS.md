@@ -215,46 +215,21 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 ### Candidate-only Prometheus derivative
 
 - `deploy/prometheus/image-manifest.json` remains the sole selected runtime
-  record. Candidate verification and publication must preserve its exact bytes
-  and every Compose Prometheus image reference.
-- `scripts/ci/prometheus_derivative_candidate.py` is the sole policy, identity,
-  authorization, receipt, transition, comparison, and fail-closed owner.
-  `scripts/ci/_prometheus_derivative_transport.py` is private mechanics only:
-  no CLI, environment discovery, expected policy values, state vocabulary, or
-  canonical writes.
-- The fixed private receipt root is
-  `artifacts/security_lab/prometheus_derivative_candidate/v1/<candidate-id>`.
-  It is an append-only `00` through `80` prefix with mode-`0700` directories,
-  mode-`0600` files, exact replay/no-replace behavior, and a separate pre-build
-  candidate identity versus post-verification tuple/idempotency identity.
+  record. Candidate verification/publication preserves its exact bytes and
+  every Compose Prometheus image reference; neither step authorizes deploy,
+  release or `T0`.
 - The subordinate Containerfile uses one `/src/prometheus` source/UI root,
   verifies the installed pnpm executable, freezes both locks, validates every
   original asset against its gzip at consumption, retains the sole Go replace,
   selects gRPC `v1.83.1`, and overlays only the two verified binaries on the
   unchanged official linux/amd64 base.
-- Exact operator confirmation is one stdin line owned by `authorize`.
-  `publish-or-reconcile` accepts no confirmation. Only the invocation that
-  atomically creates `50-write-intent` may read the fixed runtime token and
-  perform one push; an existing `50` is anonymous reconciliation with zero
-  token read, login, or push.
-- Candidate publication is not runtime selection, deployment, release, or
-  `T0`. The selector and all three canonical Compose Prometheus consumers are
-  bound at receipt 30 and rechecked immediately before receipts 50 and 80; the
-  final four authority flags are derived from that observation.
-- Local verification binds the controller, private transport, exact Python
-  interpreter, Apple system/apiserver and builder-image identities, exact live
-  four-CPU/6-GiB builder resources before and after every build, and a fresh
-  Trivy scan of the validated extracted OCI layout. Apple Container 1.1.0 local
-  evidence uses one absent exact temporary tag, local build, exact linux/amd64
-  `image save`, and `finally` cleanup; direct or single nested OCI indexes are
-  closed and digest-verified. The Containerfile keeps Node at a 2048-MiB heap
-  cap and both Go builds at `GOMAXPROCS=2`, `GOMEMLIMIT=3GiB`, and `-p=1`;
-  the Go memory target is soft and these controls do not guarantee total RSS.
-  The exact build-argv and retained-image cleanup contract lives in
-  `scripts/AGENTS.md`; final config/history timestamps are part of OCI equality.
-  Underprovisioned or drifting builder resources,
-  preexisting/ambiguous tags, cleanup failures, extra OCI descriptors/members,
-  empty/wrong-target coverage, and ambient Trivy policy inputs fail closed.
+- The canonical cloud-build/local-publication procedure, executor/profile
+  binding, one-push receipts, safe OCI import, and module ceilings live only in
+  [scripts/AGENTS.md](../scripts/AGENTS.md#prometheus-derivative-candidate).
+  Do not restore heavy local compilation or the rejected CD publisher.
+- Runtime selection remains a separately governed change after candidate
+  evidence and separately authorized publication; it is not inferred from a
+  successful cloud job or an artifact.
 
 
 ## Production tag gate

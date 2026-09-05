@@ -52,6 +52,7 @@ SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS = frozenset(
 )
 EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
+    (".github/workflows/build.yml", "prometheus-candidate"),
     (".github/workflows/cd.yml", "postgres-pgvector-ci-admission"),
     (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
     (".github/workflows/experiment-runner-dispatch.yml", "experiment-runner-dispatch-contract"),

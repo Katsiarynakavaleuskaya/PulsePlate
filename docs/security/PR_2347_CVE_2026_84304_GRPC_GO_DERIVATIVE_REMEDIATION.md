@@ -27,94 +27,114 @@ Candidate evidence and a final receipt would not change that selector.
 - The rejected CD `workflow_dispatch` publisher is not an authority or
   compatibility surface.
 
+## Operator-authorized execution transfer
+
+The operator explicitly approved moving only candidate build and verification
+to GitHub Actions in the existing PR, after the local Apple builder exhausted
+disk space during image unpack. That approval did not authorize publication,
+Droplet execution, deployment, runtime selection, or `T0`. The separate exact
+publication line remains mandatory. A subsequent direct approval permits the
+existing controller to contain at most 2400 normally Black-formatted physical
+lines; the private transport remains below 1400 and there are still exactly
+two Python modules, one already-existing workflow, and no new publication
+backend.
+
+The implementation below is not evidence that a new cloud candidate has been
+successfully built or published. Stage-1 `P=false` remains unchanged.
+
 ## Closed pre-build identity
 
-Before receipt `00-spec`, the controller resolves and binds:
+Before receipt `00-spec`, the controller binds exact repository/head/tree,
+controller and private transport bytes, the exact local Python and Git
+executables, resolved GitHub CLI, Apple image-publication CLI/system identity,
+Containerfile, selector, all three Compose consumers, source/locks, destination,
+and the single-write limit. Apple compilation and local Trivy are no longer
+requirements of that publication executor. `CONTAINER_HOST` remains forbidden.
 
-1. the full repository Git HEAD and tree through an absolute resolved Git
-   executable;
-2. the controller and private transport paths and bytes, plus the exact Python
-   interpreter path, bytes, and version;
-3. the exact Containerfile path, size, and SHA-256;
-4. the unchanged runtime-selector path, size, and SHA-256;
-5. the absolute Apple Container executable, bytes, version `1.1.0`, release
-   channel, full system/apiserver identity, and commit `5973b9c`; a non-empty
-   `CONTAINER_HOST` is rejected rather than inherited;
-6. the absolute Trivy executable, bytes, and version `0.74.0`;
-7. all three canonical Compose Prometheus consumers, source revision/archive,
-   gRPC transition, platform, destination, and the fixed single-write ceiling.
+The same spec freezes `.github/workflows/build.yml` bytes and one cloud
+profile: Ubuntu 24.04, Python 3.13.14, the existing pinned checkout/Python/upload
+actions, Buildx 0.37.0, immutable linux/amd64 BuildKit 0.33.0, Trivy 0.74.0,
+two isolated no-cache builds, and explicit
+`SOURCE_DATE_EPOCH=1788079847`. Expected public binary/archive checksums and
+the BuildKit manifest/config digests live in the controller's `CLOUD_PROFILE`.
+Remote executable observations are collected during execution, not invented
+during freeze.
 
-The candidate ID is the SHA-256 of that canonical pre-build specification. It
-is not the post-verification publication identity.
+Primary pinned inputs:
 
-## Local verification and authorization tuple
+- [Buildx 0.37.0 release](https://github.com/docker/buildx/releases/tag/v0.37.0)
+- [BuildKit 0.33.0 release](https://github.com/moby/buildkit/releases/tag/v0.33.0)
+- [Trivy 0.74.0 checksums](https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_checksums.txt)
 
-Two isolated Apple Container builds use distinct controller-created private
-contexts containing only the verified Containerfile. Before and after each
-build, the controller requires and binds a live builder with exactly four CPUs
-and 6 GiB memory; an underprovisioned builder is `HOLD` before build execution.
-Each exact absolute argv uses linux/amd64, the same resource values, no cache,
-plain progress, and `--build-arg SOURCE_DATE_EPOCH=1788079847`. The explicit
-BuildKit argument binds final config/history timestamps; a builder-stage-only
-argument did not do so in the bounded Apple Container reproduction. The
-recipe caps the Node heap at 2048 MiB and serializes Go
-package compilation with `GOMAXPROCS=2`, `GOMEMLIMIT=3GiB`, and `-p=1` on both
-binaries. These controls reduce concurrent allocation pressure; Go's memory
-target is soft, and neither control guarantees total process or host memory.
-Apple Container 1.1.0 cannot create the requested host
-archive through BuildKit `type=oci,dest=...`, so the private transport uses the
-CLI's supported local-image path: require the exact temporary tag to be absent,
-build it into the local image store, save exactly linux/amd64 as an
-OCI-compatible tar, validate the single direct or single nested OCI index, and
-delete verification tags in `finally`. Publication preflight retains its exact
-candidate tag only until the existing adapter cleanup. Ownership is recorded
-immediately after successful transport return, before fallible post-build
-observations, so those failures also reach cleanup. Build, scan, and
-registry plans receive a controller-owned private `HOME`/configuration root
-rather than the operator's ambient credential context. Trivy uses a fresh
-private cache, an explicit empty ignore input, and `--config /dev/null`;
-ambient VEX, ignore-policy, ignore-status, and credential environment are not
-inherited.
+The candidate ID hashes this pre-build spec; it is not the publication tuple.
 
-Database identity is the SHA-256 of the complete private `db/trivy.db` bytes,
-read through the existing bounded regular-file transport after the scanner
-consumes it (2-GiB cap). `UpdatedAt` still enforces freshness. Trivy 0.74 sets
-`DownloadedAt` from the local clock after each download; that operational
-metadata is not database content identity. Equal bytes downloaded at different
-times must compare equally; different or unavailable bytes must reject before
-receipt 50 even when metadata matches. No metadata fallback, field allowlist,
-parser, automatic evidence refresh or retry is introduced. Primary source:
-[Trivy database download implementation](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/db/db.go).
+## Cloud verification and authenticated admission
 
-The controller—not the transport—accepts and compares:
+The existing `build.yml` has one independent read-only
+`prometheus-candidate` job. Candidate mode skips the complete ordinary
+build/security-scan/publish topology. Manual dispatch defaults to `disabled`;
+ordinary manual runs now require explicit `normal` mode and empty candidate
+inputs. Push, PR and tag semantics remain unchanged. The rejected CD publisher
+stays absent; the existing CD-Test listener still admits only successful
+push-to-main builds.
 
-- OCI manifest, config, platform, and layer digests;
-- exact local-tag absence, single-image save, nested-index shape when emitted
-  by Apple, and verification-tag cleanup;
-- Prometheus and promtool hashes;
-- source archive and installed pnpm executable hashes;
-- transformed `go.mod` and `go.sum`;
-- module graph digest/count;
-- UI file count/bytes/path/content inventories;
-- gzip content-tree evidence and EmbedFS hash;
-- exact Apple builder image digest and normalized pre/post builder status,
-  including four CPUs and 6 GiB memory;
-- exact Node heap and Go memory/concurrency controls;
-- exact Trivy executable/version/fresh database identity and normalized report
-  digest after scanning the validated, privately extracted OCI layout;
-- positive OS, `/bin/prometheus`, and `/bin/promtool` package coverage, with
-  zero HIGH/CRITICAL findings.
+Python dependencies use the existing canonical
+`scripts/ci/install_locked_python_requirements.py:1` installer with the locked
+`ci-lite` profile and direct-proxy mode. Only the credential-free repository
+variable `PULSEPLATE_PYTHON_INDEX_URL` enters its sanitized `env -i` environment
+alongside the private `HOME`, `PATH`, and disabled ambient pip configuration.
+URL/floor validation and startup-hook inspection remain owned by that
+installer. Proxy failure stops the job; this transfer grants no public-index
+fallback, direct package-install bypass, `.netrc`, or private-index secret.
 
-Receipt `30-local-verification` owns the path-independent equality result and
-the complete authorization tuple. The tuple binds repository, Git HEAD/tree,
-controller, private transport, Python, Containerfile, selector, three Compose
-consumers, Apple Container system/builder, OCI, binaries,
-source/module/UI/EmbedFS, Trivy, destination, the receipt-chain head entering
-30, `single_write_limit=1`, and the derived runtime/deploy observation.
+The new `cloud-execute` subcommand does not instantiate the Mac publication
+executor or local receipt store. It downloads only checksum-verified public
+Buildx/Trivy tools, constructs two isolated builders with no shared build cache,
+and verifies their exact BuildKit identity and four-CPU/6-GiB limits before and
+after each build. The unchanged recipe retains its source/archive, pnpm, locked
+module graph, UI/gzip/EmbedFS and binary checks, Node 2048-MiB heap cap and Go
+`GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/`-p=1` controls. These are not a total-host
+memory guarantee. Provenance/SBOM attestations are disabled to retain the
+existing single-image OCI recognizer, not to claim signed provenance.
 
-The tuple SHA-256—not the candidate ID—derives the candidate tag and
-idempotency key. `show-publication-tuple` reports the tuple, derived reference,
-digest/key, and this exact expected line:
+Both OCI archives are parsed and compared in cloud before one candidate
+archive is exported alongside two complete build observations, bounded
+material/tool/run observations, and the full Trivy report. Trivy scans the
+validated extracted OCI layout with a fresh private cache, explicit empty
+ignore input, `--config /dev/null`, positive package coverage for OS,
+Prometheus and promtool, and zero HIGH/CRITICAL findings. GitHub platform
+checkout/artifact authentication exists, but no operator/project/registry/
+private-index/deploy secrets enter candidate build/scan plans.
+
+Local `verify-local` retains its name but dispatches this cloud execution once
+through the resolved authenticated GitHub CLI. The direct REST dispatch run ID
+is required; an uncertain response is `HOLD`, never a blind POST retry.
+Admission requires exact repository/head/workflow/run/attempt bindings, the
+complete attempt-scoped four-job census, candidate success and ordinary-job
+skips, and one non-expired artifact with exact ID/name/digest. Artifact API
+metadata does not contain a producer job ID: producer binding is derived from
+the frozen sole-uploader workflow, complete job census, name containing
+run/attempt/job, and artifact creation within the successful job interval.
+This is not cryptographic producer attestation. The echoed spec digest is
+correlation only and cannot authenticate its own producer.
+
+The ZIP is streamed to adjacent private local support storage with a bounded
+byte count and exact API digest, never buffered as a multi-GiB subprocess
+result. Duplicate, extra, traversal, link, encrypted, oversized and truncated
+members fail closed. The existing OCI parser remains the only admitted shape
+recognizer. Local admission independently compares material, pinned tools,
+both build observations, OCI digests and the complete normalized scan report.
+
+Database identity remains SHA-256 of the complete regular, single-link private
+`db/trivy.db` consumed by the scanner, capped at 2 GiB. `UpdatedAt` owns
+freshness. `DownloadedAt` is local operational metadata, not database identity.
+Changed/stale/missing DB evidence is `HOLD`, with no automatic refresh or
+reseal. [Trivy DB implementation](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/db/db.go).
+
+Receipt `30-local-verification` binds initial authenticated cloud provenance
+into the exact publication tuple alongside all stable material/build/scan and
+local executor identity. Its SHA-256 derives the candidate tag/idempotency key.
+`show-publication-tuple` reports, but cannot authorize, the required line:
 
 `AUTHORIZE_PROMETHEUS_CANDIDATE_PUSH <64-lowercase-hex-tuple-sha256> <derived-candidate-ref>`
 
@@ -150,8 +170,19 @@ atomically records receipt 40 only when it equals the tuple-derived line.
 
 ## Publication boundary
 
-Before 50, the controller may perform only credential-free build/scan
-revalidation and anonymous bearer-token tag census. A tag present before
+After valid 40 and before 50, the controller initiates and admits a new cloud
+two-build/scan proof. It compares stable content, tools and DB-byte identity
+with 30; ephemeral run/job/artifact provenance must be fresh rather than equal.
+An old run or a rescan alone is insufficient. Receipt 50 records that fresh
+provenance. No local compilation fallback exists.
+
+The verified OCI is then loaded locally only after exact source/candidate tag
+absence. Its outer descriptor must bind the expected fully qualified
+containerd image name with no Apple name override. JSON image inventory uses
+`configuration.name`, not denormalized quiet display strings. The controller
+tags the loaded image, saves/reparses exactly linux/amd64, and compares
+manifest/config/layers before anonymous destination census and final material
+checks. Owned names are cleaned even on post-load failure. A tag present before
 intent is `HOLD`, even when its bytes appear to match.
 
 Only the invocation that atomically creates `50-write-intent` may read the
@@ -161,7 +192,8 @@ never argv, receipt, log, or error data. Logout runs on every post-login
 success, failure, or interruption path. There is no push retry.
 
 An invocation observing an existing 50 performs anonymous reconciliation only:
-zero token read, zero login, and zero push. A push process result at 60 is not
+zero cloud build, zero local compilation, zero token read, zero login, and zero
+push. A push process result at 60 is not
 remote truth. Receipt 70 requires anonymous remote
 manifest/config/platform/layer equality with receipt 30.
 
@@ -187,13 +219,14 @@ Behavioral tests live in existing files:
   Containerfile surface bounded.
 
 Adapter tests are mocked and non-network. Source implementation does not itself
-prove a successful Apple build, Trivy scan, anonymous GHCR observation,
+prove a successful cloud build, Trivy scan, anonymous GHCR observation,
 registry login, push, or receipt 70. Those claims require their separate
 operator-authorized execution and canonical local receipt evidence.
 
 ## Rollback
 
 Rollback is a normal revert of the Caddy gRPC selection, subordinate
-Containerfile, two Python modules, bounded tests, and these instruction/docs
+Containerfile, the existing workflow's candidate-only additions, two Python
+modules, bounded tests, and these instruction/docs
 updates. The selected Prometheus selector and all Compose/deploy consumers are
 unchanged, so no runtime rollback action exists for this Stage-1 source change.

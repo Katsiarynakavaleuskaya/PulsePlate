@@ -25,9 +25,10 @@
   accepted evidence, or write canonical state.
 - The controller derives its fixed state root below `artifacts/security_lab/`;
   no public output-root, tool-path, registry, schema, or state override is
-  allowed. Each of the two modules must remain below 1400 physical lines; this
-  is a hard bounded-carrier ceiling, not permission to add a third module or
-  duplicate controller authority in the transport.
+  allowed. The controller must remain at most 2400 normally Black-formatted
+  physical lines; the private transport must remain below 1400. These are
+  bounded-carrier ceilings, not permission for a third module, a generic
+  execution backend, or policy authority in the transport.
 - `authorize` reads one exact line from stdin and atomically authors receipt
   `40-publication-authorization`. `publish-or-reconcile` takes no confirmation;
   only the invocation creating `50-write-intent` may read the fixed runtime
@@ -38,25 +39,49 @@
   byte-frozen; all three canonical Compose consumers are content-bound and
   rechecked before receipts 50 and 80, and the four authority flags are derived
   from that bounded observation rather than caller input.
-- The authorization tuple binds the private transport, exact Python
-  interpreter, Apple system/apiserver identity, builder-image digest, and exact
-  live four-CPU/6-GiB builder resources observed before and after every build.
-  Underprovisioned or drifting resources fail closed before evidence can
-  advance. Apple Container 1.1.0 evidence must use an absent exact local tag,
-  local build, exact-platform `image save`, closed direct-or-single-nested OCI
-  parsing, and `finally` cleanup rather than the broken BuildKit
-  `type=oci,dest=...` host export. The subordinate recipe must retain its exact
-  Node 2048-MiB heap cap and serialized Go `GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/
-  `-p=1` controls. These are not total-process or host-memory guarantees.
-  Build argv must pass the recipe's fixed `SOURCE_DATE_EPOCH` explicitly to
-  BuildKit so final-stage config/history timestamps are reproducible. Merely
-  declaring that argument in the builder stage does not bind the final image.
-  Retained local-image ownership must be recorded immediately after successful
-  transport return, before fallible observation checks, so cleanup also covers
-  those failures. `CONTAINER_HOST` is forbidden. Trivy scans
-  only a validated extracted OCI layout with a fresh private database cache,
-  explicit empty policy inputs, positive OS/prometheus/promtool coverage, and
-  zero HIGH/CRITICAL findings.
+- `freeze` binds the exact repository/head/tree, controller/transport/recipe,
+  selector/consumers, `build.yml` bytes, fixed cloud profile, and local
+  Git/Python/GitHub/Apple publication executor before any dispatch.
+  `verify-local` retains its public name but dispatches the single read-only
+  `prometheus-candidate` job; it does not compile locally. Manual `build.yml`
+  dispatch defaults to `disabled`. Ordinary manual execution requires explicit
+  `normal` mode and empty candidate inputs; candidate mode skips every ordinary
+  build/security/publish job. Push/PR/tag behavior stays unchanged.
+- `cloud-execute` runs only the fixed native linux/amd64 profile, two isolated
+  no-cache builds, explicit `SOURCE_DATE_EPOCH`, disabled attestations, and
+  suppression-free Trivy over the parsed OCI layout. BuildKit identity and
+  four-CPU/6-GiB limits are checked before and after each build. The unchanged
+  recipe retains Node 2048-MiB heap and Go `GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/
+  `-p=1`; these are not total-host-memory guarantees. Cloud execution has no
+  local receipt store, publication credential, selector or deploy authority.
+  GitHub checkout/artifact authentication is platform transport only and must
+  not enter build/scan plans or the locked dependency installation environment.
+  Install Python dependencies through the existing canonical installer's
+  `ci-lite` profile and the credential-free repository-variable
+  `PULSEPLATE_PYTHON_INDEX_URL`, inside `env -i` with a private `HOME`.
+  The canonical installer owns URL/floor/startup-hook enforcement; missing or
+  rejected proxy access must fail without a public-index fallback, `.netrc`,
+  extra credentials, or a duplicate validator.
+- Local admission requires authenticated exact repo/head/workflow/run/attempt,
+  a complete four-job census with the sole candidate success and every ordinary
+  job skipped, one name/time-bound non-expired artifact, its exact ZIP digest,
+  safe streaming extraction, and complete source/tool/build/scan equality.
+  The artifact's spec-digest echo is correlation, not self-authentication.
+  Producer binding follows the frozen sole-uploader workflow and job census;
+  it is not cryptographic producer attestation. Initial provenance belongs in
+  receipt 30 and its authorization tuple. Large downloads stay in adjacent
+  private temporary support directories, never inside the `00` through `80`
+  candidate directory. Missing dispatch response is `HOLD`, not a POST retry.
+- After valid 40, publication preflight requires a new cloud build-and-scan,
+  stable evidence equality with 30, and fresh provenance in 50. It cannot reuse
+  the old run, rescan alone, compile locally, or automatically refresh evidence.
+  Only then may Apple Container load the verified OCI under one fixed fully
+  qualified source name, tag the absent exact candidate, save/reparse exactly
+  linux/amd64, and compare manifest/config/layers. Use JSON image inventory's
+  `configuration.name`, not denormalized quiet display names. Bind the outer
+  descriptor's exact containerd name with no Apple name override before load.
+  Record retained ownership before fallible post-load checks and clean only
+  the exact owned tags in `finally`. `CONTAINER_HOST` remains forbidden.
 - Trivy database identity is the SHA-256 of the complete regular, single-link
   private `db/trivy.db` file with a 2-GiB byte cap, after the scanner consumes
   it. Freshness remains bound to `UpdatedAt`; local download metadata is not

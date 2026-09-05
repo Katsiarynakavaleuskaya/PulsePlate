@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed local state core for the Prometheus gRPC derivative candidate."""
+"""Closed cloud-build and local publication controller for one Prometheus candidate."""
 
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ import re
 import stat
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, TypeVar, cast
 
 import yaml
 
@@ -24,7 +25,7 @@ else:
     import _prometheus_derivative_transport as transport
 SCHEMA = "pulseplate.prometheus_derivative_candidate.v1"
 RECEIPT_SCHEMA = "pulseplate.prometheus_derivative_candidate_receipt.v1"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 PLATFORM = "linux/amd64"
 CONTAINERFILE_RELATIVE = "deploy/prometheus/Containerfile"
 SELECTOR_RELATIVE = "deploy/prometheus/image-manifest.json"
@@ -47,10 +48,38 @@ EXPECTED_SELECTOR_SHA256 = (
 PUBLICATION_INPUT_ENV = "PULSEPLATE_PROMETHEUS_GHCR_TOKEN"
 PUBLICATION_REPOSITORY = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
 PUBLICATION_TAG_PREFIX = "prometheus-grpc-v1.83.1"
-APPLE_BUILDER_REFERENCE = "ghcr.io/apple/container-builder-shim/builder:0.12.0"
-APPLE_BUILDER_INDEX_DIGEST = (
-    "sha256:edf820e05c3374485390e7fe3669f1b6b429eda502a6d174a456647fb9ed26fe"
-)
+REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+REPOSITORY_ID = 1043311030
+WORKFLOW_RELATIVE = ".github/workflows/build.yml"
+CLOUD_JOB = "prometheus-candidate"
+CLOUD_REFERENCE_PREFIX = "docker.io/library/pulseplate-prometheus:verify-"
+ORDINARY_JOBS = ("build", "security-scan", "publish")
+CLOUD_PROFILE = {
+    "runner": "ubuntu-24.04",
+    "platform": PLATFORM,
+    "python": "3.13.14",
+    "pyyaml": "6.0.3",
+    "checkout": "de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+    "setup_python": "a309ff8b426b58ec0e2a45f0f869d46889d02405",
+    "upload_artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    "buildx_version": "0.37.0",
+    "buildx_sha256": "ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba",
+    "buildkit_version": "v0.33.0",
+    "buildkit_ref": "moby/buildkit@sha256:a461e7f0ce921972028acfbed628d45663d83e67ac1230722c2b34cf72760a0d",
+    "buildkit_config_digest": "sha256:41f915d3a122bca46b3da83160cd805697b0faa1bf30b0c0de851eb78f992c70",
+    "trivy_version": "0.74.0",
+    "trivy_archive_sha256": "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a",
+    "trivy_sha256": "d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791",
+    "source_date_epoch": "1788079847",
+    "builds": 2,
+    "no_cache": True,
+    "cpus": 4,
+    "memory_bytes": 6 * 1024 * 1024 * 1024,
+    "node_heap_mib": 2048,
+    "gomaxprocs": 2,
+    "gomemlimit": "3GiB",
+    "go_parallelism": 1,
+}
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_RECEIPT_BYTES = 1_048_576
 MAX_EXECUTABLE_BYTES = 256 * 1024 * 1024
@@ -58,6 +87,27 @@ MAX_OCI_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
 MAX_DATABASE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_OCI_MEMBERS = 4096
 MAX_OCI_METADATA_BYTES = 4 * 1024 * 1024
+CLOUD_MEMBERS = {
+    "candidate.oci.tar": MAX_OCI_ARCHIVE_BYTES,
+    "build-one.json": MAX_RECEIPT_BYTES,
+    "build-two.json": MAX_RECEIPT_BYTES,
+    "observations.json": MAX_RECEIPT_BYTES,
+    "trivy-report.json": MAX_FILE_BYTES,
+}
+MAX_CLOUD_ZIP_BYTES = sum(CLOUD_MEMBERS.values()) + MAX_FILE_BYTES
+
+
+class OCILimits(TypedDict):
+    max_archive_bytes: int
+    max_members: int
+    max_metadata_bytes: int
+
+
+OCI_LIMITS = OCILimits(
+    max_archive_bytes=MAX_OCI_ARCHIVE_BYTES,
+    max_members=MAX_OCI_MEMBERS,
+    max_metadata_bytes=MAX_OCI_METADATA_BYTES,
+)
 SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}")
 HEX_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 RECEIPT_ORDER = (
@@ -102,18 +152,6 @@ BUILD_OUTPUT_FIELDS = {
 OCI_FIELDS = {"platform", "manifest_digest", "config_digest", "layer_digests"}
 BUILDER_FIELDS = {"builder_image_digest", "builder_status_sha256"}
 EVIDENCE_FIELDS = set(BUILD_OUTPUT_FIELDS.values()) | OCI_FIELDS | BUILDER_FIELDS
-APPLE_BUILDER_CPUS = 4
-APPLE_BUILDER_MEMORY = "6G"
-APPLE_BUILDER_MEMORY_BYTES = 6 * 1024 * 1024 * 1024
-APPLE_BUILD_RESOURCES = (
-    "--platform",
-    PLATFORM,
-    "--cpus",
-    str(APPLE_BUILDER_CPUS),
-    "--memory",
-    APPLE_BUILDER_MEMORY,
-)
-APPLE_BUILD_MODE = ("--no-cache", "--progress", "plain")
 TRIVY_SCAN_SCOPE = ("--scanners", "vuln,secret", "--pkg-types", "os,library")
 TRIVY_SCAN_POLICY = ("--severity", "HIGH,CRITICAL", "--exit-code", "1")
 REQUIRED_TRIVY_TARGETS = (
@@ -352,7 +390,7 @@ def resolve_execution_identity(repo_root: Path) -> ExecutionIdentity:
             "git_tree": ("git", "rev-parse", "HEAD^{tree}"),
             "container": ("container", "--version"),
             "container_system": ("container", "system", "version", "--format", "json"),
-            "trivy": ("trivy", "--version"),
+            "gh": ("gh", "--version"),
         },
         repo_root,
         environment,
@@ -363,14 +401,12 @@ def resolve_execution_identity(repo_root: Path) -> ExecutionIdentity:
     )
     if any(fact.returncode != 0 for fact in observed.values()):
         raise _hold("execution_identity_command_failed")
-    git, container, trivy = (observed[name] for name in ("git_head", "container", "trivy"))
+    git, container, gh = (observed[name] for name in ("git_head", "container", "gh"))
     head, tree = observed["git_head"].stdout, observed["git_tree"].stdout
     if not re.fullmatch(r"[0-9a-f]{40}", head) or not re.fullmatch(r"[0-9a-f]{40}", tree):
         raise _hold("git_identity_invalid")
     if container.stdout != "container CLI version 1.1.0 (build: release, commit: 5973b9c)":
         raise _hold("container_identity_invalid")
-    if not trivy.stdout.splitlines() or trivy.stdout.splitlines()[0] != "Version: 0.74.0":
-        raise _hold("trivy_identity_invalid")
     script = repo_root / "scripts" / "ci" / "prometheus_derivative_candidate.py"
     transport_path = repo_root / TRANSPORT_RELATIVE
     interpreter = Path(sys.executable).resolve()
@@ -430,9 +466,9 @@ def resolve_execution_identity(repo_root: Path) -> ExecutionIdentity:
         "container_version": "1.1.0",
         "container_release_commit": "5973b9c",
         "container_system_sha256": sha256_digest(canonical_json(system_identity)),
-        "trivy_path": str(trivy.path),
-        "trivy_sha256": trivy.sha256,
-        "trivy_version": "0.74.0",
+        "gh_path": str(gh.path),
+        "gh_sha256": gh.sha256,
+        "gh_version": gh.stdout,
     }
 
 
@@ -460,6 +496,9 @@ def build_spec(repo_root: Path, identity: ExecutionIdentity) -> dict[str, object
         },
         "pnpm_binary_sha256": "e5e29eb103e73729ed4115f0e939fb376386dd0d76db56b12459524041f922a0",  # pragma: allowlist secret
         "execution_identity": dict(identity),
+        "repository": REPOSITORY,
+        "workflow": _binding(WORKFLOW_RELATIVE, _read_regular(repo_root / WORKFLOW_RELATIVE)),
+        "cloud_profile": dict(CLOUD_PROFILE),
         "isolated_no_cache_builds": 2,
         "publication": {
             "repository": PUBLICATION_REPOSITORY,
@@ -478,7 +517,7 @@ ScanEvidence = dict[str, object]
 
 
 class BuildAdapter(Protocol):
-    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, object, object]: ...
+    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, ...]: ...
 
 
 class PublicationAdapter(Protocol):
@@ -573,6 +612,20 @@ def _normalize_trivy_report(value: object) -> tuple[list[dict[str, object]], lis
         else:
             raise _hold("trivy_report_target_invalid")
         covered.add(logical_target)
+        packages = row.get("Packages")
+        if (
+            not isinstance(packages, list)
+            or not packages
+            or any(
+                not isinstance(package, dict)
+                or not isinstance(package.get("Name"), str)
+                or not package["Name"]
+                or not isinstance(package.get("Version"), str)
+                or not package["Version"]
+                for package in packages
+            )
+        ):
+            raise _hold("trivy_package_coverage_incomplete")
         findings: list[dict[str, object]] = []
         for collection, identity_field in (
             ("Vulnerabilities", "VulnerabilityID"),
@@ -603,6 +656,17 @@ def _normalize_trivy_report(value: object) -> tuple[list[dict[str, object]], lis
                 "class": row_class,
                 "type": row_type,
                 "findings": sorted(findings, key=lambda item: canonical_json(item)),
+                "packages_sha256": sha256_digest(
+                    canonical_json(
+                        sorted(
+                            [
+                                {"name": package["Name"], "version": package["Version"]}
+                                for package in packages
+                            ],
+                            key=lambda item: canonical_json(item),
+                        )
+                    )
+                ),
             }
         )
     targets = sorted(covered)
@@ -627,6 +691,334 @@ def _fresh_database_timestamp(
     return updated.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _material(spec: Mapping[str, object]) -> dict[str, object]:
+    identity = cast(Mapping[str, str], spec["execution_identity"])
+    return {
+        **{
+            key: spec[key]
+            for key in (
+                "containerfile",
+                "runtime_selector",
+                "runtime_consumers",
+                "workflow",
+                "cloud_profile",
+                "repository",
+            )
+        },
+        **{
+            key: identity[key]
+            for key in ("git_head", "git_tree", "script_sha256", "transport_sha256")
+        },
+    }
+
+
+def _timestamp(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise _hold("cloud_timestamp_invalid")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise _hold("cloud_timestamp_invalid") from exc
+    if parsed.tzinfo is None:
+        raise _hold("cloud_timestamp_invalid")
+    return parsed
+
+
+def _provenance(value: object, spec: Mapping[str, object]) -> dict[str, object]:
+    fields = {
+        "repository_id",
+        "head_sha",
+        "workflow_id",
+        "run_id",
+        "attempt",
+        "job_id",
+        "artifact_id",
+        "artifact_name",
+        "artifact_digest",
+        "started_at",
+        "completed_at",
+        "artifact_created_at",
+        "expires_at",
+    }
+    if not isinstance(value, dict) or set(value) != fields:
+        raise _hold("cloud_provenance_invalid")
+    if any(
+        type(value[key]) is not int or value[key] <= 0
+        for key in ("repository_id", "workflow_id", "run_id", "attempt", "job_id", "artifact_id")
+    ):
+        raise _hold("cloud_provenance_invalid")
+    if (
+        value["repository_id"] != REPOSITORY_ID
+        or value["attempt"] != 1
+        or value["head_sha"] != cast(Mapping[str, str], spec["execution_identity"])["git_head"]
+        or value["artifact_name"] != f"{CLOUD_JOB}-{value['run_id']}-1-{CLOUD_JOB}"
+        or not isinstance(value["artifact_digest"], str)
+        or SHA256_RE.fullmatch(value["artifact_digest"]) is None
+        or not (
+            _timestamp(value["started_at"])
+            <= _timestamp(value["artifact_created_at"])
+            <= _timestamp(value["completed_at"])
+            < _timestamp(value["expires_at"])
+        )
+    ):
+        raise _hold("cloud_provenance_invalid")
+    return dict(value)
+
+
+def _cloud_tool_evidence(value: object) -> dict[str, str]:
+    expected = {
+        "python_version": str(CLOUD_PROFILE["python"]),
+        "platform": PLATFORM,
+        "buildx_version": str(CLOUD_PROFILE["buildx_version"]),
+        "buildx_sha256": f"sha256:{CLOUD_PROFILE['buildx_sha256']}",
+        "trivy_version": str(CLOUD_PROFILE["trivy_version"]),
+        "trivy_sha256": f"sha256:{CLOUD_PROFILE['trivy_sha256']}",
+    }
+    observed_fields = {
+        "python_sha256",
+        "git_sha256",
+        "git_version",
+        "docker_sha256",
+        "docker_client_version",
+        "docker_server_version",
+        "docker_api_version",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(expected) | observed_fields
+        or any(value.get(key) != item for key, item in expected.items())
+        or any(
+            not isinstance(item, str)
+            or not item
+            or len(item) > 512
+            or any(ord(character) < 32 for character in item)
+            for item in value.values()
+        )
+        or any(SHA256_RE.fullmatch(value[key]) is None for key in value if key.endswith("_sha256"))
+    ):
+        raise _hold("cloud_tools_invalid")
+    return dict(value)
+
+
+def _require_cloud_import_name(oci: transport.OCIResult, reference: str) -> None:
+    annotations = oci.annotations or {}
+    if (
+        "com.apple.containerization.image.name" in annotations
+        or annotations.get("io.containerd.image.name") != reference
+    ):
+        raise _hold("cloud_import_reference_invalid")
+
+
+def _cloud_setup(repo_root: Path, root: Path) -> tuple[ExecutionIdentity, dict[str, str]]:
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in {"PATH", "TMPDIR", "LANG", "LC_ALL"}
+    }
+    environment.update({"HOME": str(root), "DOCKER_CONFIG": str(root / ".docker")})
+    downloads = {
+        "buildx": (
+            f"https://github.com/docker/buildx/releases/download/v{CLOUD_PROFILE['buildx_version']}/"
+            f"buildx-v{CLOUD_PROFILE['buildx_version']}.linux-amd64",
+            "buildx_sha256",
+        ),
+        "trivy.tar.gz": (
+            f"https://github.com/aquasecurity/trivy/releases/download/v{CLOUD_PROFILE['trivy_version']}/"
+            f"trivy_{CLOUD_PROFILE['trivy_version']}_Linux-64bit.tar.gz",
+            "trivy_archive_sha256",
+        ),
+    }
+    for name, (url, digest_key) in downloads.items():
+        _size, digest = _transport_call(
+            transport.download_file,
+            url,
+            root / name,
+            headers={},
+            redirect_domains=("githubusercontent.com",),
+            max_bytes=MAX_EXECUTABLE_BYTES,
+            timeout_seconds=60,
+        )
+        if digest != f"sha256:{CLOUD_PROFILE[digest_key]}":
+            raise _hold("cloud_tool_download_mismatch")
+    tar = _transport_call(transport.resolve_program, "tar")
+    unpacked = _transport_call(
+        transport.run_process,
+        transport.ProcessPlan(
+            (
+                str(tar),
+                "-xzf",
+                str(root / "trivy.tar.gz"),
+                "--no-same-owner",
+                "--no-same-permissions",
+                "-C",
+                str(root),
+                "trivy",
+            ),
+            repo_root,
+            environment,
+            120,
+            MAX_RECEIPT_BYTES,
+        ),
+    )
+    if unpacked.returncode:
+        raise _hold("cloud_tool_unpack_failed")
+    for name in ("buildx", "trivy"):
+        if (
+            _transport_call(transport.hash_regular, root / name, max_bytes=MAX_EXECUTABLE_BYTES)
+            != f"sha256:{CLOUD_PROFILE[name + '_sha256']}"
+        ):
+            raise _hold("cloud_tool_download_mismatch")
+        (root / name).chmod(0o700)
+    commands = {
+        "git": ("git", "--version"),
+        "git_head": ("git", "rev-parse", "HEAD"),
+        "git_tree": ("git", "rev-parse", "HEAD^{tree}"),
+        "docker": ("docker", "version", "--format", "{{json .}}"),
+        "buildx": (str(root / "buildx"), "version"),
+        "trivy": (str(root / "trivy"), "--version"),
+    }
+    observed = _transport_call(
+        transport.observe_programs,
+        commands,
+        repo_root,
+        environment,
+        timeout_seconds=60,
+        max_output_bytes=65536,
+        max_program_bytes=MAX_EXECUTABLE_BYTES,
+    )
+    if any(row.returncode for row in observed.values()):
+        raise _hold("cloud_tool_observation_failed")
+    docker = _parse_json(observed["docker"].stdout.encode(), code="cloud_docker_invalid")
+    if (
+        not isinstance(docker, dict)
+        or not isinstance(docker.get("Client"), dict)
+        or not isinstance(docker.get("Server"), dict)
+    ):
+        raise _hold("cloud_docker_invalid")
+    interpreter = Path(sys.executable).resolve()
+    identity = {key: observed[key].stdout for key in ("git_head", "git_tree")}
+    for key in ("git", "docker", "buildx", "trivy"):
+        identity.update(
+            {key + "_path": str(observed[key].path), key + "_sha256": observed[key].sha256}
+        )
+    identity.update(
+        {
+            "script_sha256": _transport_call(
+                transport.hash_regular,
+                repo_root / "scripts/ci/prometheus_derivative_candidate.py",
+                max_bytes=MAX_EXECUTABLE_BYTES,
+            ),
+            "transport_sha256": _transport_call(
+                transport.hash_regular,
+                repo_root / TRANSPORT_RELATIVE,
+                max_bytes=MAX_EXECUTABLE_BYTES,
+            ),
+            "python_path": str(interpreter),
+            "python_sha256": _transport_call(
+                transport.hash_regular, interpreter, max_bytes=MAX_EXECUTABLE_BYTES, executable=True
+            ),
+            "trivy_version": "0.74.0",
+        }
+    )
+    if (
+        not observed["buildx"].stdout.startswith(
+            f"github.com/docker/buildx v{CLOUD_PROFILE['buildx_version']} "
+        )
+        or not observed["trivy"].stdout.splitlines()
+        or observed["trivy"].stdout.splitlines()[0] != "Version: 0.74.0"
+    ):
+        raise _hold("cloud_tool_version_mismatch")
+    tools = _cloud_tool_evidence(
+        {
+            **{
+                key: identity[key]
+                for key in (
+                    "python_sha256",
+                    "git_sha256",
+                    "docker_sha256",
+                    "buildx_sha256",
+                    "trivy_sha256",
+                )
+            },
+            "python_version": ".".join(str(part) for part in sys.version_info[:3]),
+            "git_version": observed["git"].stdout,
+            "docker_client_version": docker["Client"].get("Version"),
+            "docker_server_version": docker["Server"].get("Version"),
+            "docker_api_version": docker["Server"].get("ApiVersion"),
+            "platform": f"{docker['Server'].get('Os')}/{docker['Server'].get('Arch')}",
+            "buildx_version": str(CLOUD_PROFILE["buildx_version"]),
+            "trivy_version": "0.74.0",
+        }
+    )
+    identity["cloud_tools_sha256"] = sha256_digest(canonical_json(tools))
+    return identity, tools
+
+
+def execute_cloud(repo_root: Path) -> dict[str, object]:
+    """Candidate-only remote execution: no local publication identity or receipt store."""
+    head = os.environ.get("PROMETHEUS_CANDIDATE_HEAD_SHA", "")
+    digest = os.environ.get("PROMETHEUS_CANDIDATE_SPEC_DIGEST", "")
+    run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    if (
+        sys.platform != "linux"
+        or os.uname().machine != "x86_64"
+        or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY
+        or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+        or os.environ.get("GITHUB_JOB") != CLOUD_JOB
+        or os.environ.get("GITHUB_ACTIONS") != "true"
+        or re.fullmatch(r"[0-9a-f]{40}", head) is None
+        or head != os.environ.get("GITHUB_SHA")
+        or SHA256_RE.fullmatch(digest) is None
+        or not run_id.isdecimal()
+        or int(run_id) <= 0
+        or attempt != "1"
+        or yaml.__version__ != CLOUD_PROFILE["pyyaml"]
+    ):
+        raise _hold("cloud_execution_context_invalid")
+    output = repo_root / "artifacts/security_lab/prometheus_cloud_result"
+    for directory in (output.parents[1], output.parent):
+        _ensure_private_directory(directory)
+    output.mkdir(mode=0o700)
+    with tempfile.TemporaryDirectory(prefix="pulseplate-cloud-tools-") as temporary:
+        identity, tools = _cloud_setup(repo_root, Path(temporary))
+        if identity["git_head"] != head:
+            raise _hold("cloud_checkout_mismatch")
+        spec = build_spec(repo_root, identity)
+        adapter = ExactAdapters(repo_root, identity, spec)
+        try:
+            reference = CLOUD_REFERENCE_PREFIX + digest[7:]
+            first, archive = adapter._build(1, reference)
+            second, _second_archive = adapter._build(2, reference)
+            if first != second:
+                raise _hold("path_independent_build_mismatch")
+            scan = adapter._scan(archive)
+            if build_spec(repo_root, identity) != spec:
+                raise _hold("cloud_material_drift")
+            observations = {
+                "material": _material(spec),
+                "spec_digest": digest,
+                "run": {"id": int(run_id), "attempt": 1, "job": CLOUD_JOB},
+                "tools": tools,
+                "scan": scan,
+            }
+            for name, value in (
+                ("build-one.json", first),
+                ("build-two.json", second),
+                ("observations.json", observations),
+            ):
+                _transport_call(transport.write_private_file, output / name, canonical_json(value))
+            for name in ("candidate.oci.tar", "trivy-report.json"):
+                _transport_call(
+                    transport.copy_private_file,
+                    archive.parent / name,
+                    output / name,
+                    max_bytes=CLOUD_MEMBERS[name],
+                )
+        finally:
+            adapter.close()
+    return {"state": "cloud-candidate-verified-unpublished", "spec_digest": digest}
+
+
 class ExactAdapters:
     def __init__(
         self, repo_root: Path, identity: ExecutionIdentity, spec: Mapping[str, object]
@@ -640,6 +1032,7 @@ class ExactAdapters:
         self.trivy_cache = session_root / "trivy-cache"
         self.trivy_cache.mkdir(mode=0o700)
         self.loaded_ref: str | None = None
+        self.cloud_archive: Path | None = None
 
     def _env(self) -> dict[str, str]:
         allowed = {"PATH", "TMPDIR", "LANG", "LC_ALL"}
@@ -657,127 +1050,461 @@ class ExactAdapters:
     def _plan(self, argv: Sequence[str], timeout: int = 7200) -> transport.ProcessPlan:
         return transport.ProcessPlan(tuple(argv), self.repo_root, self._env(), timeout, 8_388_608)
 
-    def _builder_observation(self) -> dict[str, str]:
-        container = self.identity["container_path"]
+    def _github_env(self) -> dict[str, str]:
+        token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise _hold("github_auth_required")
+        return {**self._env(), "GH_TOKEN": token, "GITHUB_TOKEN": token}
+
+    def _api(self, endpoint: str, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        argv = (
+            self.identity["gh_path"],
+            "api",
+            "--hostname",
+            "github.com",
+            "--method",
+            "POST" if payload is not None else "GET",
+            "-H",
+            "X-GitHub-Api-Version: 2026-03-10",
+            f"repos/{REPOSITORY}/{endpoint}",
+        )
         result = _transport_call(
             transport.run_process,
-            self._plan((container, "builder", "status", "--format", "json"), 60),
+            transport.ProcessPlan(
+                (*argv, "--input", "-") if payload is not None else argv,
+                self.repo_root,
+                self._github_env(),
+                60,
+                MAX_RECEIPT_BYTES,
+            ),
+            stdin=canonical_json(payload) if payload is not None else None,
         )
-        if result.returncode != 0:
-            raise _hold("apple_builder_identity_unavailable")
-        value = _parse_json(result.stdout, code="apple_builder_identity_invalid")
-        if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
-            raise _hold("apple_builder_identity_invalid")
-        configuration = value[0].get("configuration")
-        image = configuration.get("image") if isinstance(configuration, dict) else None
-        descriptor = image.get("descriptor") if isinstance(image, dict) else None
-        platform_value = configuration.get("platform") if isinstance(configuration, dict) else None
-        resources = configuration.get("resources") if isinstance(configuration, dict) else None
+        value = _parse_json(result.stdout, code="github_response_invalid")
+        if result.returncode or not isinstance(value, dict):
+            raise _hold("github_response_invalid")
+        return value
+
+    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, ...]:
+        if spec != self.spec:
+            raise _hold("prebuild_spec_drift")
+        authenticated = _transport_call(
+            transport.run_process,
+            transport.ProcessPlan(
+                (self.identity["gh_path"], "auth", "status", "--hostname", "github.com"),
+                self.repo_root,
+                self._github_env(),
+                30,
+                65536,
+            ),
+        )
+        if authenticated.returncode:
+            raise _hold("github_auth_required")
+        pr = self._api("pulls/2347")
+        head = pr.get("head")
         if (
-            not isinstance(image, dict)
-            or not isinstance(descriptor, dict)
-            or image.get("reference") != APPLE_BUILDER_REFERENCE
-            or descriptor.get("digest") != APPLE_BUILDER_INDEX_DIGEST
-            or not isinstance(platform_value, dict)
-            or platform_value.get("os") != "linux"
-            or platform_value.get("architecture") != "arm64"
-            or not isinstance(configuration, dict)
-            or configuration.get("rosetta") is not True
+            pr.get("state") != "open"
+            or not isinstance(head, dict)
+            or head.get("sha") != self.identity["git_head"]
+            or not isinstance(head.get("ref"), str)
+            or not isinstance(head.get("repo"), dict)
+            or head["repo"].get("id") != REPOSITORY_ID
+            or head["repo"].get("full_name") != REPOSITORY
         ):
-            raise _hold("apple_builder_identity_invalid")
+            raise _hold("cloud_live_head_mismatch")
+        workflow = self._api("actions/workflows/build.yml")
         if (
-            not isinstance(resources, dict)
-            or resources.get("cpus") != APPLE_BUILDER_CPUS
-            or resources.get("memoryInBytes") != APPLE_BUILDER_MEMORY_BYTES
+            workflow.get("path") != WORKFLOW_RELATIVE
+            or workflow.get("state") != "active"
+            or type(workflow.get("id")) is not int
         ):
-            raise _hold("apple_builder_resources_invalid")
-        normalized = {
-            "reference": image["reference"],
-            "digest": descriptor["digest"],
-            "media_type": descriptor.get("mediaType"),
-            "platform": platform_value,
-            "rosetta": True,
-            "resources": {
-                "cpus": resources["cpus"],
-                "memoryInBytes": resources["memoryInBytes"],
+            raise _hold("cloud_workflow_mismatch")
+        dispatched = self._api(
+            "actions/workflows/build.yml/dispatches",
+            {
+                "ref": head["ref"],
+                "inputs": {
+                    "mode": CLOUD_JOB,
+                    "candidate_head_sha": self.identity["git_head"],
+                    "candidate_spec_digest": sha256_digest(canonical_json(spec)),
+                },
             },
-        }
+        )
+        run_id = dispatched.get("workflow_run_id")
+        if (
+            type(run_id) is not int
+            or run_id <= 0
+            or dispatched.get("run_url")
+            != f"https://api.github.com/repos/{REPOSITORY}/actions/runs/{run_id}"
+            or dispatched.get("html_url")
+            != f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"
+        ):
+            raise _hold("cloud_dispatch_uncertain_no_retry")
+        for _ in range(120):
+            run = self._api(f"actions/runs/{run_id}")
+            for field in ("repository", "head_repository"):
+                repository = run.get(field)
+                if not isinstance(repository, dict) or repository.get("id") != REPOSITORY_ID:
+                    raise _hold("cloud_run_repository_mismatch")
+            if any(
+                run.get(key) != value
+                for key, value in {
+                    "id": run_id,
+                    "head_sha": self.identity["git_head"],
+                    "head_branch": head["ref"],
+                    "workflow_id": workflow["id"],
+                    "path": WORKFLOW_RELATIVE,
+                    "event": "workflow_dispatch",
+                    "run_attempt": 1,
+                }.items()
+            ):
+                raise _hold("cloud_run_identity_mismatch")
+            if run.get("status") == "completed":
+                break
+            if run.get("status") not in {
+                "queued",
+                "in_progress",
+                "waiting",
+                "pending",
+                "requested",
+            }:
+                raise _hold("cloud_run_status_invalid")
+            print(f"Cloud candidate run {run_id}: {run['status']}", file=sys.stderr, flush=True)
+            time.sleep(60)
+        else:
+            raise _hold("cloud_run_pending")
+        if run.get("conclusion") != "success":
+            raise _hold("cloud_run_failed")
+        census = self._api(f"actions/runs/{run_id}/attempts/1/jobs?per_page=100")
+        jobs = census.get("jobs")
+        if (
+            not isinstance(jobs, list)
+            or census.get("total_count") != 4
+            or len(jobs) != 4
+            or any(
+                not isinstance(job, dict)
+                or not isinstance(job.get("name"), str)
+                or type(job.get("id")) is not int
+                or job["id"] <= 0
+                for job in jobs
+            )
+            or len({job["id"] for job in jobs}) != 4
+            or {job.get("name") for job in jobs} != {CLOUD_JOB, *ORDINARY_JOBS}
+        ):
+            raise _hold("cloud_jobs_incomplete")
+        for job in jobs:
+            if (
+                job.get("run_id") != run_id
+                or job.get("head_sha") != self.identity["git_head"]
+                or job.get("run_attempt") != 1
+                or type(job.get("run_attempt")) is not int
+                or job.get("status") != "completed"
+                or job.get("conclusion") != ("success" if job["name"] == CLOUD_JOB else "skipped")
+            ):
+                raise _hold("cloud_job_not_admitted")
+        producer = next(job for job in jobs if job["name"] == CLOUD_JOB)
+        listing = self._api(f"actions/runs/{run_id}/artifacts?per_page=100")
+        artifacts = listing.get("artifacts")
+        if (
+            listing.get("total_count") != 1
+            or not isinstance(artifacts, list)
+            or len(artifacts) != 1
+            or not isinstance(artifacts[0], dict)
+        ):
+            raise _hold("cloud_artifacts_incomplete")
+        artifact = artifacts[0]
+        source = artifact.get("workflow_run")
+        if (
+            not isinstance(source, dict)
+            or any(
+                source.get(key) != expected
+                for key, expected in {
+                    "id": run_id,
+                    "repository_id": REPOSITORY_ID,
+                    "head_repository_id": REPOSITORY_ID,
+                    "head_sha": self.identity["git_head"],
+                    "head_branch": head["ref"],
+                }.items()
+            )
+            or artifact.get("expired") is not False
+            or type(artifact.get("size_in_bytes")) is not int
+            or not 0 < artifact["size_in_bytes"] <= MAX_CLOUD_ZIP_BYTES
+        ):
+            raise _hold("cloud_artifact_identity_invalid")
+        provenance = _provenance(
+            {
+                "repository_id": REPOSITORY_ID,
+                "head_sha": self.identity["git_head"],
+                "workflow_id": workflow["id"],
+                "run_id": run_id,
+                "attempt": 1,
+                "job_id": producer.get("id"),
+                "artifact_id": artifact.get("id"),
+                "artifact_name": artifact.get("name"),
+                "artifact_digest": artifact.get("digest"),
+                "started_at": producer.get("started_at"),
+                "completed_at": producer.get("completed_at"),
+                "artifact_created_at": artifact.get("created_at"),
+                "expires_at": artifact.get("expires_at"),
+            },
+            spec,
+        )
+        if _timestamp(provenance["expires_at"]) <= datetime.now(timezone.utc):
+            raise _hold("cloud_artifact_expired")
+        support = _state_root(self.repo_root).parent
+        _ensure_private_directory(support.parent)
+        _ensure_private_directory(support)
+        temporary = tempfile.TemporaryDirectory(prefix="cloud-download-", dir=support)
+        self.temporary.append(temporary)
+        root, archive = Path(temporary.name), Path(temporary.name) / "artifact.zip"
+        size, digest = _transport_call(
+            transport.download_file,
+            f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip",
+            archive,
+            headers={
+                "Authorization": f"Bearer {self._github_env()['GH_TOKEN']}",
+                "X-GitHub-Api-Version": "2026-03-10",
+            },
+            redirect_domains=("blob.core.windows.net",),
+            max_bytes=MAX_CLOUD_ZIP_BYTES,
+            timeout_seconds=60,
+        )
+        if digest != artifact["digest"] or size != artifact["size_in_bytes"]:
+            raise _hold("cloud_artifact_digest_mismatch")
+        extracted = root / "verified"
+        _transport_call(
+            transport.extract_zip_members,
+            archive,
+            extracted,
+            CLOUD_MEMBERS,
+            max_archive_bytes=MAX_CLOUD_ZIP_BYTES,
+        )
+        observations = _parse_json(
+            _read_regular(extracted / "observations.json"), code="cloud_output_invalid"
+        )
+        if (
+            not isinstance(observations, dict)
+            or set(observations) != {"material", "spec_digest", "run", "tools", "scan"}
+            or observations["material"] != _material(spec)
+            or observations["spec_digest"] != sha256_digest(canonical_json(spec))
+            or observations["run"] != {"id": run_id, "attempt": 1, "job": CLOUD_JOB}
+        ):
+            raise _hold("cloud_output_identity_mismatch")
+        first, second = (
+            _build_evidence(
+                _parse_json(_read_regular(extracted / name), code="cloud_output_invalid")
+            )
+            for name in ("build-one.json", "build-two.json")
+        )
+        scan = _scan_evidence(observations["scan"])
+        report, targets = _normalize_trivy_report(
+            _parse_json(_read_regular(extracted / "trivy-report.json"), code="cloud_output_invalid")
+        )
+        _fresh_database_timestamp({"UpdatedAt": scan["database_updated_at"]})
+        oci = _transport_call(
+            transport.parse_oci_archive, extracted / "candidate.oci.tar", **OCI_LIMITS
+        )
+        _require_cloud_import_name(
+            oci, CLOUD_REFERENCE_PREFIX + sha256_digest(canonical_json(spec))[7:]
+        )
+        tools = _cloud_tool_evidence(observations["tools"])
+        expected_source = {**spec, **cast(dict[str, object], spec["dependency"])}
+        if (
+            first != second
+            or transport.oci_mapping(oci) != _oci_fields(first)
+            or first["builder_status_sha256"] != sha256_digest(canonical_json(tools))
+            or first["builder_image_digest"] != str(CLOUD_PROFILE["buildkit_ref"]).split("@")[1]
+            or any(
+                first[field] != expected_source[field]
+                for field in (
+                    "source_archive_sha256",
+                    "pnpm_binary_sha256",
+                    "transformed_go_mod_sha256",
+                    "transformed_go_sum_sha256",
+                )
+            )
+            or scan["trivy_executable_sha256"] != f"sha256:{CLOUD_PROFILE['trivy_sha256']}"
+            or scan["report_sha256"] != sha256_digest(canonical_json(report))
+            or scan["coverage_sha256"] != sha256_digest(canonical_json(targets))
+            or any(row["findings"] for row in report)
+        ):
+            raise _hold("cloud_evidence_mismatch")
+        final_pr = self._api("pulls/2347")
+        final_head = final_pr.get("head")
+        if (
+            final_pr.get("state") != "open"
+            or not isinstance(final_head, dict)
+            or any(final_head.get(key) != head[key] for key in ("sha", "ref"))
+        ):
+            raise _hold("cloud_live_head_mismatch")
+        self.cloud_archive = extracted / "candidate.oci.tar"
+        return first, second, scan, provenance
+
+    def _run_json(self, argv: Sequence[str]) -> dict[str, object]:
+        result = _transport_call(transport.run_process, self._plan(argv, 120))
+        value = _parse_json(result.stdout, code="tool_observation_invalid")
+        if result.returncode or not isinstance(value, dict):
+            raise _hold("tool_observation_invalid")
+        return value
+
+    def _builder_observation(self, name: str) -> dict[str, str]:
+        for program in ("docker", "buildx", "trivy", "python"):
+            if (
+                _transport_call(
+                    transport.hash_regular,
+                    Path(self.identity[program + "_path"]),
+                    max_bytes=MAX_EXECUTABLE_BYTES,
+                    executable=True,
+                )
+                != self.identity[program + "_sha256"]
+            ):
+                raise _hold("cloud_tool_identity_drift")
+        node = self._run_json(
+            (self.identity["buildx_path"], "inspect", name, "--bootstrap", "--format", "{{json .}}")
+        )
+        status = self._run_json(
+            (
+                self.identity["docker_path"],
+                "inspect",
+                "--format",
+                "{{json .}}",
+                f"buildx_buildkit_{name}0",
+            )
+        )
+        nodes = node.get("Nodes")
+        state, configuration, resources = (
+            status.get(key) for key in ("State", "Config", "HostConfig")
+        )
+        if (
+            node.get("Driver") != "docker-container"
+            or not isinstance(nodes, list)
+            or len(nodes) != 1
+            or not isinstance(nodes[0], dict)
+            or nodes[0].get("Status") != "running"
+            or nodes[0].get("Buildkit") != CLOUD_PROFILE["buildkit_version"]
+            or not isinstance(state, dict)
+            or state.get("Running") is not True
+            or not isinstance(resources, dict)
+            or not isinstance(configuration, dict)
+            or configuration.get("Image") != CLOUD_PROFILE["buildkit_ref"]
+            or status.get("Image") != CLOUD_PROFILE["buildkit_config_digest"]
+        ):
+            raise _hold("cloud_builder_identity_invalid")
+        if (
+            resources.get("Memory") != CLOUD_PROFILE["memory_bytes"]
+            or resources.get("CpuPeriod") != 100000
+            or resources.get("CpuQuota") != 400000
+        ):
+            raise _hold("cloud_builder_resources_invalid")
         return {
-            "builder_image_digest": APPLE_BUILDER_INDEX_DIGEST,
-            "builder_status_sha256": sha256_digest(canonical_json(normalized)),
+            "builder_image_digest": str(CLOUD_PROFILE["buildkit_ref"]).split("@")[1],
+            "builder_status_sha256": self.identity["cloud_tools_sha256"],
         }
 
-    def _build(self, tag: str, *, keep_local: bool = False) -> tuple[BuildEvidence, Path]:
-        builder_before = self._builder_observation()
-        temporary = tempfile.TemporaryDirectory(prefix="pulseplate-prometheus-build-")
+    def _build(self, ordinal: int, reference: str) -> tuple[BuildEvidence, Path]:
+        if sys.platform != "linux" or os.uname().machine != "x86_64":
+            raise _hold("cloud_native_linux_required")
+        temporary = tempfile.TemporaryDirectory(prefix=f"pulseplate-cloud-{ordinal}-")
         self.temporary.append(temporary)
-        root, container = Path(temporary.name), self.identity["container_path"]
+        root, buildx = Path(temporary.name), self.identity["buildx_path"]
         context = root / "context"
         context.mkdir(mode=0o700)
-        recipe = context / "Containerfile"
+        recipe, archive = context / "Containerfile", root / "candidate.oci.tar"
         _transport_call(
             transport.write_private_file,
             recipe,
             _read_regular(self.repo_root / CONTAINERFILE_RELATIVE),
         )
-        archive = root / "candidate.oci.tar"
-        argv = (
-            container,
-            "build",
-            "--file",
-            str(recipe),
-            "--tag",
-            tag,
-            *APPLE_BUILD_RESOURCES,
-            *APPLE_BUILD_MODE,
-            "--build-arg",
-            "SOURCE_DATE_EPOCH=1788079847",
-            str(context),
+        name = f"pp-prometheus-{ordinal}"
+        created = _transport_call(
+            transport.run_process,
+            self._plan(
+                (
+                    buildx,
+                    "create",
+                    "--name",
+                    name,
+                    "--driver",
+                    "docker-container",
+                    "--buildkitd-flags",
+                    "",
+                    "--driver-opt",
+                    f"image={CLOUD_PROFILE['buildkit_ref']}",
+                    "--driver-opt",
+                    f"memory={CLOUD_PROFILE['memory_bytes']}",
+                    "--driver-opt",
+                    "cpu-period=100000",
+                    "--driver-opt",
+                    "cpu-quota=400000",
+                ),
+                120,
+            ),
         )
-        save_prefix = (container, "image", "save", "--platform", PLATFORM, "--output")
-        save_argv = (*save_prefix, str(archive), tag)
-        lifecycle = transport.LocalImageBuildPlan(
-            self._plan((container, "image", "list", "--quiet"), 120),
-            self._plan(argv),
-            self._plan(save_argv, 600),
-            self._plan((container, "image", "delete", tag), 120),
-            tag,
-            keep_local,
-        )
-        observed = _transport_call(
-            transport.execute_local_image_build_observation,
-            lifecycle,
-            archive,
-            tuple(BUILD_OUTPUT_FIELDS),
-            reserved_prefix="PULSEPLATE_",
-            max_archive_bytes=MAX_OCI_ARCHIVE_BYTES,
-            max_members=MAX_OCI_MEMBERS,
-            max_metadata_bytes=MAX_OCI_METADATA_BYTES,
-            code="apple_build_failed",
-        )
-        if keep_local:
-            self.loaded_ref = tag
-        result, evidence = _transport_call(
-            transport.merge_build_observation,
-            observed,
-            BUILD_OUTPUT_FIELDS,
-            ("module_graph_count", "ui_file_count", "ui_total_bytes"),
-        )
-        if result.returncode != 0:
-            raise _hold("apple_build_failed")
-        builder_after = self._builder_observation()
-        if builder_after != builder_before:
-            raise _hold("apple_builder_identity_drift")
-        evidence = {**evidence, **builder_after}
-        accepted, dependency = _build_evidence(evidence), self.spec["dependency"]
-        if not isinstance(dependency, dict) or (
-            accepted["source_archive_sha256"] != self.spec["source_archive_sha256"]
-            or accepted["pnpm_binary_sha256"] != self.spec["pnpm_binary_sha256"]
-            or accepted["transformed_go_mod_sha256"] != dependency["transformed_go_mod_sha256"]
-            or accepted["transformed_go_sum_sha256"] != dependency["transformed_go_sum_sha256"]
-        ):
-            raise _hold("build_observation_drift")
-        return accepted, archive
+        if created.returncode:
+            raise _hold("cloud_builder_create_failed")
+        try:
+            before = self._builder_observation(name)
+            result = _transport_call(
+                transport.run_process,
+                self._plan(
+                    (
+                        buildx,
+                        "build",
+                        "--builder",
+                        name,
+                        "--file",
+                        str(recipe),
+                        "--platform",
+                        PLATFORM,
+                        "--no-cache",
+                        "--progress",
+                        "plain",
+                        "--provenance=false",
+                        "--sbom=false",
+                        "--build-arg",
+                        f"SOURCE_DATE_EPOCH={CLOUD_PROFILE['source_date_epoch']}",
+                        "--output",
+                        f"type=oci,dest={archive},name={reference},oci-mediatypes=true",
+                        str(context),
+                    )
+                ),
+            )
+            if result.returncode:
+                sys.stderr.buffer.write(result.stderr[-65536:])
+                raise _hold("cloud_build_failed")
+            observed = _transport_call(
+                transport.collect_build_observation,
+                result,
+                archive,
+                tuple(BUILD_OUTPUT_FIELDS),
+                reserved_prefix="PULSEPLATE_",
+                **OCI_LIMITS,
+            )
+            _require_cloud_import_name(observed[2], reference)
+            _result, evidence = transport.merge_build_observation(
+                observed,
+                BUILD_OUTPUT_FIELDS,
+                ("module_graph_count", "ui_file_count", "ui_total_bytes"),
+            )
+            if self._builder_observation(name) != before:
+                raise _hold("cloud_builder_identity_drift")
+            accepted = _build_evidence({**evidence, **before})
+            dependency = cast(dict[str, object], self.spec["dependency"])
+            expected = {**self.spec, **dependency}
+            if any(
+                accepted[field] != expected[field]
+                for field in (
+                    "source_archive_sha256",
+                    "pnpm_binary_sha256",
+                    "transformed_go_mod_sha256",
+                    "transformed_go_sum_sha256",
+                )
+            ):
+                raise _hold("build_observation_drift")
+            return accepted, archive
+        finally:
+            deleted = _transport_call(transport.run_process, self._plan((buildx, "rm", name), 120))
+            if deleted.returncode:
+                raise _hold("cloud_builder_cleanup_failed")
 
     def _scan(self, archive: Path) -> ScanEvidence:
         trivy, report = self.identity["trivy_path"], archive.parent / "trivy-report.json"
@@ -802,6 +1529,7 @@ class ExactAdapters:
             "--input",
             str(layout),
             *TRIVY_SCAN_SCOPE,
+            "--list-all-pkgs",
             "--ignorefile",
             str(ignore),
             *TRIVY_SCAN_POLICY,
@@ -850,13 +1578,6 @@ class ExactAdapters:
             raise _hold("trivy_execution_failed")
         return accepted
 
-    def verify_two_builds(self, spec: Mapping[str, object]) -> tuple[object, object, object]:
-        if spec != self.spec:
-            raise _hold("prebuild_spec_drift")
-        first, archive = self._build("pulseplate-prometheus:verify-one")
-        second, _archive = self._build("pulseplate-prometheus:verify-two")
-        return first, second, self._scan(archive)
-
     def _registry(self, candidate_ref: str) -> transport.RegistryPlan:
         prefix = f"{PUBLICATION_REPOSITORY}:"
         if not candidate_ref.startswith(prefix):
@@ -880,12 +1601,53 @@ class ExactAdapters:
         candidate_ref = payload["candidate_ref"]
         if not isinstance(candidate_ref, str):
             raise _hold("candidate_ref_invalid")
-        build, archive = self._build(candidate_ref, keep_local=True)
-        scan = self._scan(archive)
+        build, _second, scan, provenance = self.verify_two_builds(self.spec)
+        fresh = _provenance(provenance, self.spec)
+        initial = _provenance(payload.get("cloud_provenance"), self.spec)
+        if fresh["run_id"] == initial["run_id"] or _timestamp(fresh["started_at"]) < _timestamp(
+            initial["completed_at"]
+        ):
+            raise _hold("cloud_run_reuse_forbidden")
+        if build != payload["build_evidence"] or scan != payload["scan_evidence"]:
+            raise _hold("publication_preflight_mismatch")
+        if self.cloud_archive is None:
+            raise _hold("cloud_archive_missing")
+        container = self.identity["container_path"]
+        source = CLOUD_REFERENCE_PREFIX + sha256_digest(canonical_json(self.spec))[7:]
+        archive = self.cloud_archive.parent / "loaded.oci.tar"
+        lifecycle = transport.LocalImageLoadPlan(
+            self._plan((container, "image", "list", "--format", "json"), 120),
+            self._plan((container, "image", "load", "--input", str(self.cloud_archive)), 600),
+            self._plan((container, "image", "tag", source, candidate_ref), 120),
+            self._plan(
+                (
+                    container,
+                    "image",
+                    "save",
+                    "--platform",
+                    PLATFORM,
+                    "--output",
+                    str(archive),
+                    candidate_ref,
+                ),
+                600,
+            ),
+            self._plan((container, "image", "delete", source), 120),
+            self._plan((container, "image", "delete", candidate_ref), 120),
+            source,
+            candidate_ref,
+        )
+        loaded = _transport_call(
+            transport.execute_local_image_load, lifecycle, archive, **OCI_LIMITS
+        )
+        self.loaded_ref = candidate_ref
+        if transport.oci_mapping(loaded) != _oci_fields(cast(BuildEvidence, build)):
+            raise _hold("local_load_content_drift")
         return {
             "tag_state": "absent" if self.observe(candidate_ref) is None else "present",
             "build_evidence": build,
             "scan_evidence": scan,
+            "cloud_provenance": provenance,
         }
 
     def process_plans(self, candidate_ref: str) -> tuple[transport.ProcessPlan, ...]:
@@ -908,17 +1670,20 @@ class ExactAdapters:
         )
 
     def close(self) -> None:
-        if self.loaded_ref is not None:
-            container = self.identity["container_path"]
-            deleted = _transport_call(
-                transport.run_process,
-                self._plan((container, "image", "delete", self.loaded_ref), 120),
-                code="local_image_cleanup_failed",
-            )
-            if deleted.returncode != 0:
-                raise _hold("local_image_cleanup_failed")
-        for temporary in self.temporary:
-            temporary.cleanup()
+        try:
+            if self.loaded_ref is not None:
+                container = self.identity["container_path"]
+                _transport_call(
+                    transport.delete_local_image,
+                    self._plan((container, "image", "list", "--format", "json"), 120),
+                    self._plan((container, "image", "delete", self.loaded_ref), 120),
+                    self.loaded_ref,
+                    code="local_image_cleanup_failed",
+                )
+                self.loaded_ref = None
+        finally:
+            for temporary in self.temporary:
+                temporary.cleanup()
 
 
 def _stage2_observation(repo_root: Path, spec: Mapping[str, object]) -> dict[str, bool]:
@@ -945,12 +1710,16 @@ def _stage30_payload(
     scan: ScanEvidence,
     chain_head: Mapping[str, str],
     stage2: Mapping[str, bool],
+    provenance: Mapping[str, object],
 ) -> dict[str, object]:
     authorization_tuple = {
         "schema": f"{SCHEMA}.publication-tuple",
         "repository": "Katsiarynakavaleuskaya/PulsePlate",
         "candidate_id": candidate_id,
         "execution_identity": spec["execution_identity"],
+        "workflow": spec["workflow"],
+        "cloud_profile": spec["cloud_profile"],
+        "cloud_provenance": dict(provenance),
         "containerfile": spec["containerfile"],
         "runtime_selector": spec["runtime_selector"],
         "runtime_consumers": spec["runtime_consumers"],
@@ -969,6 +1738,7 @@ def _stage30_payload(
         "build_evidence": dict(evidence),
         "scan_evidence": dict(scan),
         "authorization_tuple": authorization_tuple,
+        "cloud_provenance": dict(provenance),
         "tuple_sha256": tuple_sha256,
         "idempotency_key": f"sha256:{tuple_sha256}",
         "candidate_ref": candidate_ref,
@@ -1038,6 +1808,7 @@ class ReceiptStore:
                 scan,
                 previous,
                 _stage2_observation(self.repo_root, self.spec),
+                _provenance(payload.get("cloud_provenance"), self.spec),
             )
             if payload != local:
                 raise _hold("local_verification_receipt_invalid")
@@ -1052,10 +1823,18 @@ class ReceiptStore:
             if chain["40-publication-authorization"]["payload"] != expected:
                 raise _hold("publication_authorization_invalid")
         if "50-write-intent" in chain:
+            intent = cast(dict[str, object], chain["50-write-intent"]["payload"])
+            fresh = _provenance(intent.get("cloud_provenance"), self.spec)
+            initial = cast(dict[str, object], local["cloud_provenance"]) if local else {}
+            if fresh["run_id"] == initial.get("run_id") or _timestamp(
+                fresh["started_at"]
+            ) < _timestamp(initial.get("completed_at")):
+                raise _hold("cloud_run_reuse_forbidden")
             expected = {
                 "candidate_ref": local["candidate_ref"] if local else None,
                 "idempotency_key": local["idempotency_key"] if local else None,
                 "single_write_limit": 1,
+                "cloud_provenance": fresh,
             }
             if chain["50-write-intent"]["payload"] != expected:
                 raise _hold("write_intent_invalid")
@@ -1191,14 +1970,19 @@ class CandidateController:
         if "30-local-verification" in chain:
             return cast(dict[str, object], chain["30-local-verification"]["payload"]).copy()
         try:
-            first_raw, second_raw, scan_raw = self.build_adapter.verify_two_builds(self.spec)
+            observations = self.build_adapter.verify_two_builds(self.spec)
         except transport.TransportError as exc:
             raise _hold("build_adapter_failed") from exc
+        if not isinstance(observations, tuple) or len(observations) != 4:
+            raise _hold("cloud_observations_incomplete")
+        first_raw, second_raw, scan_raw, provenance_raw = observations
         first = _build_evidence(first_raw)
         second = _build_evidence(second_raw)
         scan = _scan_evidence(scan_raw)
+        provenance = _provenance(provenance_raw, self.spec)
         if canonical_json(first) != canonical_json(second):
             raise _hold("path_independent_build_mismatch")
+        self._assert_bindings()
         self.store.append("10-build-one", {"ordinal": 1, "evidence": first})
         self.store.append("20-build-two", {"ordinal": 2, "evidence": first})
         local = _stage30_payload(
@@ -1208,6 +1992,7 @@ class CandidateController:
             scan,
             self.store.link("20-build-two"),
             _stage2_observation(self.repo_root, self.spec),
+            provenance,
         )
         self.store.append("30-local-verification", local)
         return local
@@ -1274,7 +2059,7 @@ class CandidateController:
         try:
             if "50-write-intent" not in chain:
                 preflight = self.publication_adapter.preflight(local)
-                required = {"tag_state", "build_evidence", "scan_evidence"}
+                required = {"tag_state", "build_evidence", "scan_evidence", "cloud_provenance"}
                 if not isinstance(preflight, dict) or set(preflight) != required:
                     raise _hold("publication_preflight_invalid")
                 if preflight["tag_state"] != "absent":
@@ -1284,6 +2069,12 @@ class CandidateController:
                     or _scan_evidence(preflight["scan_evidence"]) != expected_scan
                 ):
                     raise _hold("publication_preflight_mismatch")
+                provenance = _provenance(preflight["cloud_provenance"], self.spec)
+                initial = cast(dict[str, object], local["cloud_provenance"])
+                if provenance["run_id"] == initial["run_id"] or _timestamp(
+                    provenance["started_at"]
+                ) < _timestamp(initial["completed_at"]):
+                    raise _hold("cloud_run_reuse_forbidden")
                 self._assert_bindings()
                 _stage2_observation(self.repo_root, self.spec)
                 created = self.store.append(
@@ -1292,6 +2083,7 @@ class CandidateController:
                         "candidate_ref": local["candidate_ref"],
                         "idempotency_key": local["idempotency_key"],
                         "single_write_limit": 1,
+                        "cloud_provenance": provenance,
                     },
                 )
             if created:
@@ -1357,6 +2149,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("show-publication-tuple")
     commands.add_parser("authorize")
     commands.add_parser("publish-or-reconcile")
+    commands.add_parser("cloud-execute")
     return parser
 
 
@@ -1373,9 +2166,13 @@ def _read_operator_line() -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
+        if arguments.command == "cloud-execute":
+            result = execute_cloud(_repo_root())
+            sys.stdout.buffer.write(canonical_json(result))
+            return 0
         controller = CandidateController(_repo_root())
         if arguments.command == "freeze":
-            result: object = {"created": controller.freeze(), **controller.status()}
+            result = {"created": controller.freeze(), **controller.status()}
         elif arguments.command == "status":
             result = controller.status()
         elif arguments.command == "verify-local":

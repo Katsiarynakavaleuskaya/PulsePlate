@@ -14,6 +14,7 @@ import stat
 import subprocess  # nosec B404: # required for bounded absolute-argv tool execution (remove-by: 2026-10-31, ref: PR-2347)
 import sys
 import tarfile
+import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -51,13 +52,15 @@ class ProcessResult:
 
 
 @dataclass(frozen=True)
-class LocalImageBuildPlan:
+class LocalImageLoadPlan:
     inventory: ProcessPlan
-    build: ProcessPlan
+    load: ProcessPlan
+    tag: ProcessPlan
     save: ProcessPlan
-    delete: ProcessPlan
+    delete_source: ProcessPlan
+    delete_target: ProcessPlan
+    source: str
     reference: str
-    keep_local: bool
 
 
 @dataclass(frozen=True)
@@ -66,6 +69,7 @@ class OCIResult:
     config_digest: str
     platform: str
     layer_digests: tuple[str, ...]
+    annotations: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -298,6 +302,39 @@ def write_private_file(path: Path, payload: bytes) -> None:
             os.close(descriptor)
 
 
+def copy_private_file(source: Path, destination: Path, *, max_bytes: int) -> str:
+    """Copy an existing regular file without buffering the complete payload."""
+    source_digest = hash_regular(source, max_bytes=max_bytes)
+    source_fd = target_fd = -1
+    try:
+        source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        target_fd = os.open(
+            destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+        )
+        count = 0
+        while chunk := os.read(source_fd, 1_048_576):
+            count += len(chunk)
+            if count > max_bytes:
+                raise TransportError("copy_size_invalid")
+            view = memoryview(chunk)
+            while view:
+                written = os.write(target_fd, view)
+                if written <= 0:
+                    raise TransportError("copy_write_failed")
+                view = view[written:]
+        os.fsync(target_fd)
+    except OSError as exc:
+        raise TransportError("copy_failed") from exc
+    finally:
+        if source_fd >= 0:
+            os.close(source_fd)
+        if target_fd >= 0:
+            os.close(target_fd)
+    if hash_regular(destination, max_bytes=max_bytes) != source_digest:
+        raise TransportError("copy_content_changed")
+    return source_digest
+
+
 def atomic_rename_noreplace(source: Path, destination: Path) -> None:
     """Atomically move one prepared file without replacing a winner."""
 
@@ -507,13 +544,16 @@ def _local_image_ref_count(plan: ProcessPlan, reference: str) -> int:
     observed = run_process(plan)
     if observed.returncode != 0:
         raise TransportError("local_image_inventory_failed")
-    try:
-        lines = observed.stdout.decode("utf-8").splitlines()
-    except UnicodeDecodeError as exc:
-        raise TransportError("local_image_inventory_invalid") from exc
-    if any(not line or line.strip() != line or "\x00" in line for line in lines):
+    rows = _json(observed.stdout)
+    if not isinstance(rows, list) or any(
+        not isinstance(row, dict)
+        or not isinstance(row.get("configuration"), dict)
+        or not isinstance(row["configuration"].get("name"), str)
+        or not row["configuration"]["name"]
+        for row in rows
+    ):
         raise TransportError("local_image_inventory_invalid")
-    return lines.count(reference)
+    return sum(row["configuration"]["name"] == reference for row in rows)
 
 
 def delete_local_image(
@@ -528,69 +568,84 @@ def delete_local_image(
         raise TransportError("local_image_cleanup_failed")
 
 
-def execute_local_image_build_observation(
-    lifecycle: LocalImageBuildPlan,
+def execute_local_image_load(
+    lifecycle: LocalImageLoadPlan,
     archive: Path,
-    names: Sequence[str],
     *,
-    reserved_prefix: str,
     max_archive_bytes: int,
     max_members: int,
     max_metadata_bytes: int,
-) -> tuple[ProcessResult, Mapping[str, str], OCIResult]:
-    if _local_image_ref_count(lifecycle.inventory, lifecycle.reference) != 0:
+) -> OCIResult:
+    if any(
+        _local_image_ref_count(lifecycle.inventory, ref) != 0
+        for ref in (lifecycle.source, lifecycle.reference)
+    ):
         raise TransportError("local_image_ref_present")
-    owned = False
+    owned_source = owned_target = False
     completed = False
     primary_error: BaseException | None = None
-    try:
-        result = run_process(lifecycle.build)
-        count = _local_image_ref_count(lifecycle.inventory, lifecycle.reference)
-        if count == 1:
-            owned = True
-        elif count != 0:
-            raise TransportError("local_image_ref_ambiguous")
-        if result.returncode != 0:
-            raise TransportError("build_process_failed")
-        if not owned:
-            raise TransportError("local_image_ref_missing")
+
+    def attempt_and_census(
+        plan: ProcessPlan, reference: str
+    ) -> tuple[ProcessResult | None, bool, BaseException | None]:
+        result, owned = None, False
+        error: BaseException | None = None
         try:
-            os.lstat(archive)
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            raise TransportError("oci_archive_unavailable") from exc
-        else:
+            result = run_process(plan)
+        except BaseException as exc:
+            error = exc
+        try:
+            owned = _local_image_ref_count(lifecycle.inventory, reference) == 1
+        except BaseException as exc:
+            if error is None:
+                error = exc
+        return result, owned, error
+
+    try:
+        result, owned_source, error = attempt_and_census(lifecycle.load, lifecycle.source)
+        if error is not None:
+            raise error
+        if result is None or result.returncode != 0 or not owned_source:
+            raise TransportError("local_image_load_failed")
+        result, owned_target, error = attempt_and_census(lifecycle.tag, lifecycle.reference)
+        if error is not None:
+            raise error
+        if result is None or result.returncode != 0 or not owned_target:
+            raise TransportError("local_image_tag_failed")
+        if archive.exists() or archive.is_symlink():
             raise TransportError("oci_archive_exists")
         saved = run_process(lifecycle.save)
         if saved.returncode != 0:
             raise TransportError("local_image_save_failed")
-        observation = collect_build_observation(
-            result,
+        observation = parse_oci_archive(
             archive,
-            names,
-            reserved_prefix=reserved_prefix,
             max_archive_bytes=max_archive_bytes,
             max_members=max_members,
             max_metadata_bytes=max_metadata_bytes,
         )
-        completed = lifecycle.keep_local
+        delete_local_image(lifecycle.inventory, lifecycle.delete_source, lifecycle.source)
+        owned_source = False
+        completed = True
         return observation
     except BaseException as exc:
         primary_error = exc
         raise
     finally:
-        if owned and not completed:
-            try:
-                delete_local_image(
-                    lifecycle.inventory,
-                    lifecycle.delete,
-                    lifecycle.reference,
-                )
-            except TransportError as cleanup_error:
-                if primary_error is not None:
-                    raise primary_error from cleanup_error
-                raise
+        cleanup_error: BaseException | None = None
+        for owned, delete, reference in (
+            (owned_source, lifecycle.delete_source, lifecycle.source),
+            (owned_target and not completed, lifecycle.delete_target, lifecycle.reference),
+        ):
+            if owned:
+                try:
+                    delete_local_image(lifecycle.inventory, delete, reference)
+                except BaseException as exc:
+                    if cleanup_error is None:
+                        cleanup_error = exc
+        if cleanup_error is not None:
+            if primary_error is not None:
+                raise primary_error from cleanup_error
+            raise cleanup_error
 
 
 def execute_json_observation(
@@ -600,20 +655,121 @@ def execute_json_observation(
     return result, parse_json_bytes(read_regular(output, max_bytes=max_bytes))
 
 
-def execute_versioned_json_observation(
-    version_plan: ProcessPlan,
-    observation_plan: ProcessPlan,
-    output: Path,
+def download_file(
+    url: str,
+    destination: Path,
     *,
+    headers: Mapping[str, str],
+    redirect_domains: Sequence[str],
     max_bytes: int,
-) -> tuple[ProcessResult, ProcessResult, object, object]:
-    version = run_process(version_plan)
-    observation, report = execute_json_observation(
-        observation_plan,
-        output,
-        max_bytes=max_bytes,
-    )
-    return version, observation, parse_json_bytes(version.stdout), report
+    timeout_seconds: int,
+) -> tuple[int, str]:
+    """Stream a bounded HTTPS response; credentials never follow a redirect."""
+    for redirects in range(3):
+        try:
+            parsed = urlsplit(url)
+            port = parsed.port
+        except ValueError as exc:
+            raise TransportError("download_url_invalid") from exc
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or port not in {None, 443}
+            or parsed.fragment
+        ):
+            raise TransportError("download_url_invalid")
+        if redirects and not any(
+            parsed.hostname == domain or parsed.hostname.endswith("." + domain)
+            for domain in redirect_domains
+        ):
+            raise TransportError("download_redirect_invalid")
+        connection = http.client.HTTPSConnection(parsed.hostname, timeout=timeout_seconds)
+        try:
+            target = parsed.path + ("?" + parsed.query if parsed.query else "")
+            connection.request("GET", target, headers=dict(headers) if not redirects else {})
+            response = connection.getresponse()
+            if response.status in {301, 302, 307, 308}:
+                url = response.getheader("Location", "")
+                continue
+            if response.status != 200:
+                raise TransportError("download_response_invalid")
+            declared = response.getheader("Content-Length")
+            if declared is not None and (not declared.isdecimal() or int(declared) > max_bytes):
+                raise TransportError("download_size_invalid")
+            descriptor = os.open(
+                destination,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+            )
+            count, digest = 0, hashlib.sha256()
+            with os.fdopen(descriptor, "wb") as output:
+                while chunk := response.read(min(1_048_576, max_bytes - count + 1)):
+                    count += len(chunk)
+                    if count > max_bytes:
+                        raise TransportError("download_size_invalid")
+                    output.write(chunk)
+                    digest.update(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            if declared is not None and count != int(declared):
+                raise TransportError("download_truncated")
+            return count, f"sha256:{digest.hexdigest()}"
+        except (OSError, http.client.HTTPException, ValueError) as exc:
+            raise TransportError("download_failed") from exc
+        finally:
+            connection.close()
+    raise TransportError("download_redirect_invalid")
+
+
+def extract_zip_members(
+    path: Path, destination: Path, members: Mapping[str, int], *, max_archive_bytes: int
+) -> Mapping[str, tuple[int, str]]:
+    """Extract only caller-listed regular members, streaming into private files."""
+    hash_regular(path, max_bytes=max_archive_bytes)
+    observed: dict[str, tuple[int, str]] = {}
+    try:
+        destination.mkdir(mode=0o700)
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            if len(entries) != len(members) or {row.filename for row in entries} != set(members):
+                raise TransportError("zip_inventory_invalid")
+            for row in entries:
+                kind = stat.S_IFMT(row.external_attr >> 16)
+                if (
+                    _safe_member_name(row.filename) != row.filename
+                    or row.is_dir()
+                    or row.flag_bits & 1
+                    or kind not in {0, stat.S_IFREG}
+                    or row.file_size > members[row.filename]
+                    or row.file_size < 0
+                ):
+                    raise TransportError("zip_member_unsafe")
+                target = destination / row.filename
+                descriptor = os.open(
+                    target,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                )
+                count, digest = 0, hashlib.sha256()
+                with os.fdopen(descriptor, "wb") as output, archive.open(row) as source:
+                    while chunk := source.read(min(1_048_576, row.file_size - count + 1)):
+                        count += len(chunk)
+                        if count > row.file_size:
+                            raise TransportError("zip_member_unsafe")
+                        output.write(chunk)
+                        digest.update(chunk)
+                    output.flush()
+                    os.fsync(output.fileno())
+                if count != row.file_size:
+                    raise TransportError("zip_member_truncated")
+                observed[row.filename] = (count, f"sha256:{digest.hexdigest()}")
+        return observed
+    except TransportError:
+        raise
+    except (OSError, zipfile.BadZipFile, RuntimeError, NotImplementedError) as exc:
+        raise TransportError("zip_invalid") from exc
 
 
 def _descriptor(value: object) -> tuple[str, int]:
@@ -704,6 +860,12 @@ def parse_oci_archive(
             descriptor = descriptors[0]
             if not isinstance(descriptor, dict):
                 raise TransportError("oci_index_invalid")
+            annotations = descriptor.get("annotations", {})
+            if not isinstance(annotations, dict) or any(
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in annotations.items()
+            ):
+                raise TransportError("oci_index_invalid")
             expected_files = {"oci-layout", "index.json"}
             descriptor_platform: object = None
             if descriptor.get("mediaType") == _OCI_INDEX:
@@ -792,6 +954,7 @@ def parse_oci_archive(
                 config_digest,
                 f"{os_name}/{architecture}",
                 tuple(layers),
+                annotations,
             )
     except TransportError:
         raise
