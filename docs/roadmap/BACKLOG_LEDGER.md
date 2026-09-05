@@ -404,13 +404,13 @@ If it is not recorded here — it does not exist.
     non-canonical and may be discarded by the operator.
 
 <a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
-- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+- [x] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (deterministic orchestration treatment selection)
   - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
     on `codex/evidence-rail-applicability-v1`
-  - Status: Implementation published; current-head validation and review
-    closeout are in progress. Close the item only after the PR merges.
+  - Status: Completed in PR #2378, merged as
+    `6f42cf6187823c39495fb1a85f72fa52898b491b`.
   - Area: orchestration / PR lane startup / local evidence selection
   - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
     which Teleology, Euler, Experiment Runner, and Creative treatments apply.
