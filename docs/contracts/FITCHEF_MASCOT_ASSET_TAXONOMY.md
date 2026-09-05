@@ -47,9 +47,33 @@ This contract does not define:
 - `FitChefSurprised`
 - `FitChefSleepy`
 - `FitChefOnboardingWelcome`
+- `FitChefActionNutritionPlate`
+- `FitChefActionProgressTracking`
+- `FitChefOnboardingProfileSetup`
+- `FitChefPortraitHappy`
+- `FitChefPortraitEncouraging`
 
 Each variant must live in its own `.imageset` bucket. Semantic variants must
 not be encoded by abusing `1x/2x/3x` slots inside one shared bucket.
+
+### IOS-REL-2 V5 promotion
+
+PR #2380 promotes the owner-selected V5 variants through these same catalog
+keys. Thinking and welcome reuse `FitChefThinking` and
+`FitChefOnboardingWelcome`; they are not duplicated under versioned keys.
+The five action/profile/happy/encouraging buckets extend the existing family.
+The neutral `FitChef`, other emotion buckets, and AppIcon stay unchanged.
+
+Each promoted bucket contains one composition at universal `1x`, `2x`, and
+`3x` densities. The approved V5 PNG bytes remain the `3x` rendition; lower
+densities are deterministic full-color, aspect-preserving derivatives. The same
+artwork serves Light and Dark; no unapproved appearance variant is invented.
+SwiftUI references the semantic key, not a loose PNG filename. The three
+editorial photographs remain ordinary bundle resources, not mascot variants.
+
+Exact paths, output checksums, dimensions, source lineage, and bounded owners
+are recorded in
+[`FITCHEF_MASCOT_ASSET_CANON.md`](../design/FITCHEF_MASCOT_ASSET_CANON.md).
 
 ## Naming rules
 
