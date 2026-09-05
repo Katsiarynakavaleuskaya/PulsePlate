@@ -17,8 +17,6 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
-from hypothesis import settings
-from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, rule
 
 from scripts.orchestration import invariant_family_review_episode as episode
 
@@ -2674,79 +2672,337 @@ def test_complete_holds_one_exclusive_lock_across_both_publications(
     assert results[0]["lifecycle"] == "complete"
 
 
-class _SupervisionMachine(RuleBasedStateMachine):
-    def __init__(self) -> None:
-        super().__init__()
-        self.temporary = tempfile.TemporaryDirectory(prefix="euler-supervision-")
-        self.anchor = _Anchor(Path(self.temporary.name))
+class _SupervisionSequence:
+    """Independent local lifecycle model for the finite operation recipes below."""
+
+    def __init__(self, anchor: _Anchor, case: int) -> None:
+        self.anchor = anchor
+        self.pr_number = 100 + 2 * case
+        self.completed_without_baseline = case % 2 == 0
+        self.positive = case % 3 == 0
         self.enrolled: dict[str, object] = {}
         self.baseline: dict[str, object] = {}
-        self.checkpointed = False
+        self.checkpoint: dict[str, object] = {}
         self.terminal: dict[str, object] = {}
-        self.reported = False
+        self.report_state = "absent"
+        self.other_enrolled = False
 
-    @rule()
-    def enroll_or_replay(self) -> None:
-        self.enrolled = _run(self.anchor, "enroll", _enrollment())
-        self.baseline = _baseline(self.enrolled)
+    def lifecycle(self) -> str:
+        if self.terminal:
+            return "complete" if self.report_state == "current" else "terminal_awaiting_report"
+        if self.checkpoint:
+            return "enrolled_awaiting_terminal"
+        return "enrolled_awaiting_checkpoint" if self.enrolled else "absent"
 
-    @precondition(lambda self: bool(self.enrolled) and not self.terminal)
-    @rule()
-    def checkpoint_or_replay(self) -> None:
-        _run(self.anchor, "checkpoint", self.baseline)
-        self.checkpointed = True
-
-    @precondition(lambda self: bool(self.enrolled))
-    @rule()
-    def complete_or_replay(self) -> None:
-        if not self.terminal:
-            self.terminal = (
-                _terminal_available(
-                    self.enrolled, self.baseline, _run(self.anchor, "checkpoint", self.baseline)
-                )
-                if self.checkpointed
-                else _terminal_without_available_baseline(self.enrolled, completed=True)
+    def terminal_input(self) -> dict[str, object]:
+        if self.terminal:
+            return self.terminal
+        if self.checkpoint:
+            return _terminal_available(
+                self.enrolled, self.baseline, self.checkpoint, positive=self.positive
             )
-        _run(self.anchor, "complete", _complete_request(self.terminal))
-        self.reported = True
-
-    @precondition(lambda self: bool(self.terminal))
-    @rule()
-    def checkpoint_after_terminal(self) -> None:
-        before = _store_snapshot(self.anchor)
-        if self.checkpointed:
-            _run(self.anchor, "checkpoint", self.baseline)
-        else:
-            with pytest.raises(episode.EpisodeError, match="E_ORDER"):
-                _run(self.anchor, "checkpoint", self.baseline)
-        assert _store_snapshot(self.anchor) == before
-
-    @invariant()
-    def status_is_read_only_and_matches_receipt_lifecycle(self) -> None:
-        expected = (
-            "complete"
-            if self.reported
-            else (
-                "enrolled_awaiting_terminal"
-                if self.checkpointed
-                else "enrolled_awaiting_checkpoint" if self.enrolled else "absent"
-            )
+        return _terminal_without_available_baseline(
+            self.enrolled, completed=self.completed_without_baseline
         )
+
+    def step(self, operation: str) -> str:
         before = _store_snapshot(self.anchor)
-        result = _run(self.anchor, "status", _status_request())
-        assert result["lifecycle"] == expected
+        no_write = False
+        label = operation
+        if operation == "status":
+            _run(self.anchor, "status", _status_request(self.pr_number))
+            no_write = True
+        elif operation == "enroll":
+            no_write = bool(self.enrolled)
+            label = "enroll_replay" if no_write else "enroll_first"
+            actual = _run(self.anchor, "enroll", _enrollment(self.pr_number))
+            if self.enrolled:
+                assert actual == self.enrolled
+            else:
+                self.enrolled = actual
+                self.baseline = _baseline(actual)
+                if self.report_state == "current":
+                    self.report_state = "stale"
+        elif operation == "other_enroll":
+            no_write = self.other_enrolled
+            label = "other_enroll_replay" if no_write else "other_enroll_first"
+            _run(self.anchor, "enroll", _enrollment(self.pr_number + 1))
+            self.other_enrolled = True
+            if not no_write and self.report_state == "current":
+                self.report_state = "stale"
+        elif operation == "checkpoint":
+            assert self.enrolled
+            no_write = bool(self.checkpoint) or bool(self.terminal)
+            if self.terminal and not self.checkpoint:
+                label = "checkpoint_after_terminal_rejected"
+                with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+                    _run(self.anchor, "checkpoint", self.baseline)
+            else:
+                label = (
+                    "checkpoint_after_terminal_replay"
+                    if self.terminal
+                    else "checkpoint_replay" if self.checkpoint else "checkpoint_first"
+                )
+                actual = _run(self.anchor, "checkpoint", self.baseline)
+                if self.checkpoint:
+                    assert actual == self.checkpoint
+                self.checkpoint = actual
+        elif operation in ("checkpoint_divergent", "enroll_divergent", "complete_divergent"):
+            no_write = True
+            label += "_rejected"
+            if operation == "checkpoint_divergent":
+                assert self.checkpoint
+                verb, document = "checkpoint", copy.deepcopy(self.baseline)
+                document["joint_pass_completed_at"] = "2026-08-15T10:02:01Z"
+            elif operation == "enroll_divergent":
+                assert self.enrolled
+                verb, document = "enroll", _enrollment(self.pr_number)
+                document["material_head_sha"] = "f" * 40
+            else:
+                assert self.terminal
+                changed = copy.deepcopy(self.terminal)
+                changed["terminal_material_head_sha"] = "a" * 40
+                verb, document = "complete", _complete_request(changed)
+            with pytest.raises(episode.EpisodeError, match="E_REPLAY_DIVERGENT"):
+                _run(self.anchor, verb, document)
+        elif operation == "complete_absent":
+            assert not self.enrolled
+            no_write = True
+            label = "complete_absent_rejected"
+            proposed = episode._build_enrollment_receipt(_enrollment(self.pr_number))
+            terminal = _terminal_without_available_baseline(proposed, completed=False)
+            with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+                _run(self.anchor, "complete", _complete_request(terminal))
+        elif operation == "complete_cutoff":
+            no_write = True
+            label = "complete_cutoff_rejected"
+            with pytest.raises(episode.EpisodeError, match="E_ORDER"):
+                _run(
+                    self.anchor,
+                    "complete",
+                    _complete_request(self.terminal_input(), "2026-08-15T10:03:00Z"),
+                )
+        elif operation in ("terminal", "complete"):
+            assert self.enrolled
+            terminal = self.terminal_input()
+            if operation == "terminal":
+                no_write = bool(self.terminal)
+                label = "terminal_replay" if no_write else "terminal_first"
+                _run(self.anchor, "terminal", terminal)
+                if not no_write and self.report_state == "current":
+                    self.report_state = "stale"
+            else:
+                no_write = bool(self.terminal) and self.report_state == "current"
+                label = (
+                    "complete_replay"
+                    if no_write
+                    else (
+                        "complete_resume"
+                        if self.terminal
+                        else (
+                            "complete_first_with_checkpoint"
+                            if self.checkpoint
+                            else "complete_first_without_checkpoint"
+                        )
+                    )
+                )
+                _run(self.anchor, "complete", _complete_request(terminal))
+                self.report_state = "current"
+            self.terminal = terminal
+        elif operation == "report":
+            no_write = self.report_state == "current"
+            _run(self.anchor, "report", _report_request())
+            self.report_state = "current"
+        else:
+            raise AssertionError(f"unknown sequence operation: {operation}")
+        if no_write:
+            assert _store_snapshot(self.anchor) == before
+        return label
+
+    def assert_status(self) -> None:
+        before = _store_snapshot(self.anchor)
+        result = _run(self.anchor, "status", _status_request(self.pr_number))
+        assert result["lifecycle"] == self.lifecycle()
+        assert result["report_status"] == self.report_state
+        assert ("enrollment_receipt_digest" in result) == bool(self.enrolled)
+        assert ("checkpoint_receipt_digest" in result) == bool(self.checkpoint)
+        assert ("terminal_receipt_digest" in result) == bool(self.terminal)
+        assert ("report_digest" in result) == (self.report_state == "current")
+        assert result["downstream_grants"] == dict.fromkeys(episode.AUTHORITY_FIELDS, False)
+        assert len(result["downstream_grants"]) == 16
+        assert None not in result.values()
         assert _store_snapshot(self.anchor) == before
-        assert all(value is False for value in result["downstream_grants"].values())
-
-    def teardown(self) -> None:
-        self.anchor.close()
-        self.temporary.cleanup()
 
 
-TestSupervisionStateMachine = _SupervisionMachine.TestCase
-TestSupervisionStateMachine.settings = settings(
-    database=None, derandomize=True, deadline=None, max_examples=25, stateful_step_count=20
+# Five fixed schedules vary PR identity, honest missing-baseline status and
+# positive/zero observations across 25 isolated cases. No exploration/shrinking claim.
+_SUPERVISION_SEQUENCES = (
+    (
+        "status",
+        "enroll",
+        "enroll",
+        "checkpoint",
+        "checkpoint",
+        "checkpoint_divergent",
+        "complete",
+        "complete",
+        "checkpoint",
+        "complete_divergent",
+        "status",
+        "enroll",
+        "other_enroll",
+        "status",
+        "report",
+        "report",
+        "complete",
+        "checkpoint",
+        "enroll_divergent",
+        "status",
+    ),
+    (
+        "status",
+        "complete_absent",
+        "enroll",
+        "enroll",
+        "complete",
+        "checkpoint",
+        "complete",
+        "complete_divergent",
+        "status",
+        "other_enroll",
+        "status",
+        "report",
+        "report",
+        "complete",
+        "enroll",
+        "status",
+        "checkpoint",
+        "complete",
+        "enroll_divergent",
+        "status",
+    ),
+    (
+        "status",
+        "enroll",
+        "checkpoint",
+        "complete_cutoff",
+        "status",
+        "terminal",
+        "status",
+        "checkpoint",
+        "complete_cutoff",
+        "complete",
+        "complete",
+        "checkpoint",
+        "other_enroll",
+        "status",
+        "report",
+        "complete",
+        "enroll",
+        "status",
+        "report",
+        "status",
+    ),
+    (
+        "status",
+        "report",
+        "enroll",
+        "status",
+        "report",
+        "checkpoint",
+        "status",
+        "report",
+        "checkpoint_divergent",
+        "terminal",
+        "status",
+        "report",
+        "complete",
+        "complete_divergent",
+        "checkpoint",
+        "other_enroll",
+        "status",
+        "complete",
+        "status",
+        "report",
+    ),
+    (
+        "status",
+        "enroll",
+        "report",
+        "status",
+        "terminal",
+        "status",
+        "checkpoint",
+        "complete",
+        "complete",
+        "complete_divergent",
+        "enroll",
+        "other_enroll",
+        "status",
+        "report",
+        "complete",
+        "checkpoint",
+        "status",
+        "report",
+        "terminal",
+        "status",
+    ),
 )
+
+
+def test_supervision_deterministic_sequences_cover_required_transitions() -> None:
+    transitions: set[tuple[str, str, str]] = set()
+    report_states: set[str] = set()
+    operations = 0
+    for case in range(25):
+        recipe = _SUPERVISION_SEQUENCES[case % len(_SUPERVISION_SEQUENCES)]
+        assert len(recipe) == 20
+        with tempfile.TemporaryDirectory(prefix="euler-supervision-") as directory:
+            anchor = _Anchor(Path(directory))
+            model = _SupervisionSequence(anchor, case)
+            try:
+                model.assert_status()
+                for step, operation in enumerate(recipe):
+                    try:
+                        before = model.lifecycle()
+                        label = model.step(operation)
+                        model.assert_status()
+                        transitions.add((before, label, model.lifecycle()))
+                        report_states.add(model.report_state)
+                        operations += 1
+                    except Exception as error:
+                        raise AssertionError(
+                            f"sequence={case}, step={step}, operation={operation}"
+                        ) from error
+            finally:
+                anchor.close()
+    required = {
+        ("absent", "status", "absent"),
+        ("absent", "complete_absent_rejected", "absent"),
+        ("absent", "enroll_first", "enrolled_awaiting_checkpoint"),
+        ("enrolled_awaiting_checkpoint", "enroll_replay", "enrolled_awaiting_checkpoint"),
+        ("enrolled_awaiting_checkpoint", "checkpoint_first", "enrolled_awaiting_terminal"),
+        ("enrolled_awaiting_terminal", "checkpoint_replay", "enrolled_awaiting_terminal"),
+        (
+            "enrolled_awaiting_terminal",
+            "checkpoint_divergent_rejected",
+            "enrolled_awaiting_terminal",
+        ),
+        ("enrolled_awaiting_terminal", "complete_cutoff_rejected", "enrolled_awaiting_terminal"),
+        ("enrolled_awaiting_terminal", "complete_first_with_checkpoint", "complete"),
+        ("enrolled_awaiting_checkpoint", "complete_first_without_checkpoint", "complete"),
+        ("complete", "checkpoint_after_terminal_replay", "complete"),
+        ("complete", "checkpoint_after_terminal_rejected", "complete"),
+        ("complete", "complete_replay", "complete"),
+        ("complete", "complete_divergent_rejected", "complete"),
+        ("complete", "enroll_divergent_rejected", "complete"),
+        ("complete", "other_enroll_first", "terminal_awaiting_report"),
+        ("terminal_awaiting_report", "complete_resume", "complete"),
+        ("terminal_awaiting_report", "report", "complete"),
+    }
+    assert required <= transitions, sorted(required - transitions)
+    assert report_states == {"absent", "stale", "current"}
+    assert operations == 25 * 20
 
 
 # Captured from unmodified base 863d16ea2328dd32fa6fec6cef4d8f117b6edf85.

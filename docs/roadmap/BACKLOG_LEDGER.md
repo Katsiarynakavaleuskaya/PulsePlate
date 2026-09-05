@@ -12688,9 +12688,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
   - Target PR: [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) (`codex/euler-lifecycle-supervision`)
-  - Status: PR #2382 is open and its required post-open role passes are complete. The writer is correcting QA-1 normalized terminal shape admission and BH-1 carrier metadata; CI-1 test dependency resolution and the renderer scope decision remain pending. Final exact-head validation, review dispositions and merge are pending.
+  - Status: PR #2382 is open; required post-open role passes are complete and QA-1/BH-1 corrections are committed. The operator selected deterministic stdlib sequences for CI-1 and a separate renderer follow-up. The bounded core is ready for final validation; current-head checks, review dispositions and merge remain pending.
   - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
-  - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow); merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291); renderer/sidecar integration only after authenticated #2378 MERGED and ancestry-preserving synchronization in this same carrier.
+  - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow) and merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291). Renderer/sidecar work is outside this core PR and tracked in the [renderer handoff follow-up](#ledger-p1-euler-supervision-renderer-handoff).
   - Links:
     - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
     - [Owning CLI](../../scripts/orchestration/invariant_family_review_episode.py)
@@ -12699,10 +12699,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - checkpoint retains accepted-enrollment-bound normalized J and recomputed validate acknowledgement through the existing create-only publisher; original v1 policy, bytes, limits, recurrence and denominator semantics remain unchanged
     - status is read-only and distinguishes absent, stale and current full-store reporting; complete prevalidates and safely resumes terminal/report publication with exact replay, bounded resources and no retrospective repair
-    - renderer guidance remains a command recipe over the existing applicability projection, with no Euler import/execution, automatic enrollment or role dispatch
+    - 25 deterministic stdlib sequences execute 20 operations each, assert independent state after every step, and prove the finite required transition census; separate corruption, replay, fault, production-boundary and barrier tests remain unconditional without new dependencies or CI workflow changes
     - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before human merge authorization
   - Rollback: Revert supervision code and guidance while preserving immutable local bundles; retain v1 receipts and optional checkpoint data, without rewriting or reconstructing evidence.
-  - Out of scope: Scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
+  - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
+
+<a id="ledger-p1-euler-supervision-renderer-handoff"></a>
+- [ ] P1: Euler supervision renderer and sidecar command handoff
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
+  - Target PR: TBD, after authenticated merge of [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) and [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382)
+  - Status: Deferred by explicit operator scope decision; independent follow-up after both prerequisites merge, not a completion condition for the core PR.
+  - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
+  - Scope:
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `tests/test_render_codex_start_prompt.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - Links:
+    - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+  - DoD:
+    - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
+    - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
+    - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
+  - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
+  - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
