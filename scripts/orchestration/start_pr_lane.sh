@@ -3,6 +3,10 @@
 # Creates an isolated worktree, runs analyze preflight, and emits a bootstrap packet.
 # Experiment Runner participation is evidence after bootstrap, never lane-start authority.
 set -euo pipefail
+# Do not let an inherited SHELLOPTS=allexport export captured packet projections.
+set +a
+# A variable exported before this script keeps its export attribute after set +a.
+unset APPLICABILITY_JSON
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -36,8 +40,21 @@ Options:
                              Repeatable; parser, validator, guard, or authority.
   --requested-agent <slug>   Repeatable; forwarded to task_bootstrap.py.
   --evidence-sidecar-rail <rail>
-                             Repeatable; teleology, euler, or experiment_runner.
-                             experiment_runner is included by default.
+                             Repeatable additive upgrade: teleology, euler, or
+                             experiment_runner. Automatic rails come from the
+                             validated packet-bound applicability projection.
+  --design-source <source>   Forward typed design source to task_bootstrap.py.
+  --source-url <url>         Forward typed design source URL.
+  --file-key-or-workspace <id>
+                             Forward typed design file/workspace identity.
+  --node-id-or-frame-id <id> Forward typed design node/frame identity.
+  --target-surface <surface> Forward typed design target surface.
+  --task-mode <mode>         Forward typed design task mode.
+  --figma-lane-tool <tool>   Forward typed Figma lane tool.
+  --design-blocker <blocker> Repeatable; forward a typed design blocker.
+  --code-native-design-brief-path <path>
+                             Forward the design brief path.
+  --explicit-creation-mode   Forward explicit design creation mode.
   --plugin <name>            Repeatable; operator/runtime plugin checklist item.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none. Default: pre_open.
   --base <ref>               Base ref for worktree creation. Default: origin/main.
@@ -170,6 +187,7 @@ REPO_PYTHON="$(resolve_repo_python)"
 PREFLIGHT_PY="${REPO_ROOT}/scripts/orchestration/check_preflight.py"
 TASK_BOOTSTRAP_PY="${REPO_ROOT}/scripts/orchestration/task_bootstrap.py"
 RENDER_CODEX_PROMPT_PY="${REPO_ROOT}/scripts/orchestration/render_codex_start_prompt.py"
+EVIDENCE_RAIL_APPLICABILITY_PY="${REPO_ROOT}/scripts/orchestration/evidence_rail_applicability.py"
 if [[ ! -f "${PREFLIGHT_PY}" ]]; then
     die "missing ${PREFLIGHT_PY}"
 fi
@@ -178,6 +196,9 @@ if [[ ! -f "${TASK_BOOTSTRAP_PY}" ]]; then
 fi
 if [[ ! -f "${RENDER_CODEX_PROMPT_PY}" ]]; then
     die "missing ${RENDER_CODEX_PROMPT_PY}"
+fi
+if [[ ! -f "${EVIDENCE_RAIL_APPLICABILITY_PY}" ]]; then
+    die "missing ${EVIDENCE_RAIL_APPLICABILITY_PY}"
 fi
 
 GOAL=""
@@ -192,7 +213,8 @@ PATH_ARGS=()
 INVARIANT_CLASS_ARGS=()
 REQUESTED_ARGS=(--requested-agent "agent-coordinator")
 PLUGIN_ARGS=()
-EVIDENCE_SIDECAR_RAILS=("experiment_runner")
+EVIDENCE_SIDECAR_RAILS=()
+DESIGN_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -246,16 +268,27 @@ while [[ $# -gt 0 ]]; do
                 *) die_usage "--evidence-sidecar-rail must be one of: teleology, euler, experiment_runner" ;;
             esac
             sidecar_rail_seen=0
-            for existing_rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-                if [[ "${existing_rail}" == "$2" ]]; then
-                    sidecar_rail_seen=1
-                    break
-                fi
-            done
+            if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+                for existing_rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+                    if [[ "${existing_rail}" == "$2" ]]; then
+                        sidecar_rail_seen=1
+                        break
+                    fi
+                done
+            fi
             if [[ "${sidecar_rail_seen}" -eq 0 ]]; then
                 EVIDENCE_SIDECAR_RAILS+=("$2")
             fi
             shift 2
+            ;;
+        --design-source|--source-url|--file-key-or-workspace|--node-id-or-frame-id|--target-surface|--task-mode|--figma-lane-tool|--design-blocker|--code-native-design-brief-path)
+            if [[ $# -lt 2 ]]; then die_usage "$1 requires a value"; fi
+            DESIGN_ARGS+=("$1" "$2")
+            shift 2
+            ;;
+        --explicit-creation-mode)
+            DESIGN_ARGS+=("$1")
+            shift
             ;;
         --plugin)
             if [[ $# -lt 2 ]]; then die_usage "--plugin requires a value"; fi
@@ -384,12 +417,19 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     for ((i = 0; i < ${#REQUESTED_ARGS[@]}; i += 2)); do
         printf " %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
-    printf "\n"
-    printf "Would run in worktree after bootstrap: %q scripts/orchestration/pr_evidence_sidecar.py prepare --packet '<bootstrap-packet>' --base-sha '<worktree-HEAD>'" "${REPO_PYTHON}"
-    for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
-        printf " --applicable-rail %q" "${rail}"
+    for ((i = 0; i < ${#DESIGN_ARGS[@]}; i++)); do
+        printf " %q" "${DESIGN_ARGS[i]}"
     done
     printf "\n"
+    printf "Would run in worktree after bootstrap: %q scripts/orchestration/evidence_rail_applicability.py build --packet '<bootstrap-packet>'" "${REPO_PYTHON}"
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            printf " --additive-rail %q" "${rail}"
+        done
+    fi
+    printf "\n"
+    printf "Would validate the captured applicability JSON through stdin and derive one closed sidecar mask.\n"
+    printf "Would run in worktree after validation: %q scripts/orchestration/pr_evidence_sidecar.py prepare --packet '<bootstrap-packet>' --base-sha '<worktree-HEAD>' --applicable-rail '<validated-mask-rails>'\n" "${REPO_PYTHON}"
     echo ""
     prompt_cmd=(
         "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py
@@ -408,6 +448,14 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     fi
     if ((${#REQUESTED_ARGS[@]})); then
         prompt_cmd+=("${REQUESTED_ARGS[@]}")
+    fi
+    if ((${#DESIGN_ARGS[@]})); then
+        prompt_cmd+=("${DESIGN_ARGS[@]}")
+    fi
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            prompt_cmd+=(--evidence-sidecar-rail "${rail}")
+        done
     fi
     "${prompt_cmd[@]}"
     exit 0
@@ -438,6 +486,9 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
     if ((${#REQUESTED_ARGS[@]})); then
         bootstrap_cmd+=("${REQUESTED_ARGS[@]}")
     fi
+    if ((${#DESIGN_ARGS[@]})); then
+        bootstrap_cmd+=("${DESIGN_ARGS[@]}")
+    fi
     BOOTSTRAP_OUTPUT="$("${bootstrap_cmd[@]}")"
     echo "${BOOTSTRAP_OUTPUT}"
     echo ""
@@ -464,6 +515,44 @@ for skill in payload["recommended_skills"]:
     print(f"    - {skill}")
 PY
     echo ""
+    if [[ ! -f scripts/orchestration/evidence_rail_applicability.py ]]; then
+        die "evidence rail applicability helper is unavailable after bootstrap"
+    fi
+    applicability_cmd=(
+        "${REPO_PYTHON}" scripts/orchestration/evidence_rail_applicability.py build
+        --packet "${BOOTSTRAP_PACKET_PATH}"
+    )
+    if ((${#EVIDENCE_SIDECAR_RAILS[@]})); then
+        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+            applicability_cmd+=(--additive-rail "${rail}")
+        done
+    fi
+    if ! APPLICABILITY_JSON="$("${applicability_cmd[@]}")"; then
+        die "evidence rail applicability build failed"
+    fi
+    if [[ -z "${APPLICABILITY_JSON}" ]]; then
+        die "evidence rail applicability build returned empty output"
+    fi
+    if ! EVIDENCE_SIDECAR_MASK="$(
+        printf '%s\n' "${APPLICABILITY_JSON}" |
+            "${REPO_PYTHON}" scripts/orchestration/evidence_rail_applicability.py validate \
+                --packet "${BOOTSTRAP_PACKET_PATH}" --emit sidecar-mask
+    )"; then
+        die "evidence rail applicability validation failed"
+    fi
+    case "${EVIDENCE_SIDECAR_MASK}" in
+        experiment_runner,teleology)
+            EFFECTIVE_EVIDENCE_SIDECAR_RAILS=("experiment_runner" "teleology")
+            ;;
+        euler,experiment_runner,teleology)
+            EFFECTIVE_EVIDENCE_SIDECAR_RAILS=("euler" "experiment_runner" "teleology")
+            ;;
+        *)
+            die "evidence rail applicability returned an unsupported sidecar mask"
+            ;;
+    esac
+    echo "Evidence rail applicability: validated packet-bound selection."
+    echo ""
     EVIDENCE_SIDECAR_STATE="unavailable"
     EVIDENCE_SIDECAR_ID=""
     if [[ ! -f scripts/orchestration/pr_evidence_sidecar.py ]]; then
@@ -475,7 +564,7 @@ PY
             --packet "${BOOTSTRAP_PACKET_PATH}"
             --base-sha "${WORKTREE_HEAD}"
         )
-        for rail in "${EVIDENCE_SIDECAR_RAILS[@]}"; do
+        for rail in "${EFFECTIVE_EVIDENCE_SIDECAR_RAILS[@]}"; do
             sidecar_cmd+=(--applicable-rail "${rail}")
         done
         if SIDECAR_OUTPUT="$("${sidecar_cmd[@]}" 2>&1)"; then
@@ -528,12 +617,14 @@ PY
     if [[ "${EVIDENCE_SIDECAR_STATE}" == "prepared" ]]; then
         evidence_prompt_args+=(--evidence-sidecar-id "${EVIDENCE_SIDECAR_ID}")
     fi
-    "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py \
-        packet \
-        --packet "${BOOTSTRAP_PACKET_PATH}" \
-        --branch "${BRANCH}" \
-        --worktree "${WORKTREE_REL}" \
-        "${evidence_prompt_args[@]}"
+    printf '%s\n' "${APPLICABILITY_JSON}" |
+        "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py \
+            packet \
+            --packet "${BOOTSTRAP_PACKET_PATH}" \
+            --branch "${BRANCH}" \
+            --worktree "${WORKTREE_REL}" \
+            --evidence-rail-applicability-stdin \
+            "${evidence_prompt_args[@]}"
 
     echo ""
     echo "Next steps:"
