@@ -416,6 +416,43 @@
 - Contract and terminal rail truth table:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`.
 
+## Packet-bound evidence-rail applicability
+
+- `evidence_rail_applicability.py` is the sole owner of the selection-only
+  treatment projection for Teleology, Euler, Experiment Runner, and Creative.
+  It consumes only validated structured fields from one schema-3.1 task-packet
+  snapshot; raw goal or task-class prose must not select a treatment.
+- The closed precedence is higher assurance (invariant or security) before a
+  ready design lane, then docs-only, then the conservative default. Experiment
+  Runner remains `required`; Teleology remains `full` or docs-only `compact`;
+  Creative is recommendation-only and never becomes a sidecar rail.
+- `design_lane_contract.py::normalize_design_lane_packet_projection` owns the
+  exact frozen design-packet recognizer used by this decision. Its
+  `execution_ready` result means packet-local contract readiness only; it does
+  not infer role execution, human approval, authorization, or asset mutation.
+- `--evidence-sidecar-rail` remains a repeatable additive upgrade. It must not
+  downshift an automatic treatment, create an N/A path for required evidence,
+  or grant Euler enrollment, Creative execution, asset mutation, review, CI,
+  routing, merge, release, promotion, or outcome authority.
+- `start_pr_lane.sh` builds the projection only after bootstrap, keeps the
+  canonical JSON ephemeral, revalidates it through stdin, and sends only the
+  exact effective legacy rails to `pr_evidence_sidecar.py`. Applicability
+  failure blocks sidecar preparation and prompt rendering; sidecar storage
+  failure retains the existing advisory `unavailable` / `invalid` behavior.
+- The packet fingerprint and task-packet id must be cross-bound again before
+  the renderer prints treatments. Do not pass the projection in argv, an
+  environment variable, a temporary file, or a new persistent artifact.
+- Raw packet-fingerprint continuity starts only at the descriptor-safe read. It
+  must not be described as authenticating bytes already changed by the same
+  local UID or as proving that a pre-existing packet id matches producer v1/v2
+  semantics. ORCH-RAIL-1 does not recompute that identity; the shared
+  producer-owned verifier is tracked in
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier`.
+  Every applicability authority field remains literal `false`.
+- Contract and readiness boundaries:
+  `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and
+  `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
+
 ## Pre-push backend tests (smart diff runner)
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.

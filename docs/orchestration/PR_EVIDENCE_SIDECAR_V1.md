@@ -53,10 +53,20 @@ descriptor reads with no-follow semantics and reject linked or replaced paths.
 ## Commands
 
 ```bash
+APPLICABILITY_JSON="$(
+  $VENV_PYTHON scripts/orchestration/evidence_rail_applicability.py build \
+    --packet artifacts/orchestration/task_packets/<id>.json
+)"
+
+printf '%s\n' "$APPLICABILITY_JSON" | \
+  $VENV_PYTHON scripts/orchestration/evidence_rail_applicability.py validate \
+    --packet artifacts/orchestration/task_packets/<id>.json \
+    --emit sidecar-mask
+
 $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py prepare \
   --packet artifacts/orchestration/task_packets/<id>.json \
   --base-sha <lowercase-40-sha> \
-  --applicable-rail experiment_runner
+  --applicable-rail <each-rail-from-the-validated-mask>
 
 $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py finalize \
   --sidecar-id sha256:<64-lowercase-hex> \
@@ -68,11 +78,76 @@ $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py validate \
 $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py report
 ```
 
+When an operator explicitly requests an additive upgrade, append one or more
+`--additive-rail teleology|euler|experiment_runner` arguments inside the quoted
+`build` command substitution. The captured projection stays in one local shell
+value and reaches `validate` only through stdin.
+
 `prepare` accepts repeatable applicability rails from the closed set
-`teleology`, `euler`, and `experiment_runner`. The starter includes
-`experiment_runner` by default. Starter integration is advisory: unavailable
-storage/tooling is rendered as `unavailable`, and malformed/conflicting output
-as `invalid`; either state continues bootstrap without creating authority.
+`teleology`, `euler`, and `experiment_runner`. Direct callers remain responsible
+for supplying the exact applicable set. The lane starter first builds and
+revalidates the packet-bound projection, then supplies each rail in the closed
+validated mask exactly once. An applicability failure stops the starter before
+sidecar preparation and prompt rendering. After applicability succeeds, sidecar
+storage/tooling remains advisory: unavailable storage/tooling is rendered as
+`unavailable`, and malformed/conflicting sidecar output as `invalid`; either
+sidecar state continues bootstrap without creating authority.
+
+## Packet-bound treatment selection
+
+`scripts/orchestration/evidence_rail_applicability.py` owns the deterministic
+selection-only projection. It validates and fingerprints the exact task-packet
+bytes, consumes only producer-bound structured packet fields, and emits one
+canonical ASCII JSON line. The captured JSON is ephemeral: the starter keeps it
+in one quoted shell value and passes it to the validator and renderer only over
+stdin. There is no applicability artifact, root override, environment carrier,
+or argv carrier.
+
+The closed precedence and treatment matrix are:
+
+| Structured branch | Teleology | Euler | Experiment Runner | Creative |
+| --- | --- | --- | --- | --- |
+| invariant or security | `full` | `finite_review` | `required` | `not_applicable` |
+| ready design, without invariant/security | `full` | `finite_review` | `required` | `recommend` |
+| docs-only, without earlier branches | `compact` | `not_applicable` | `required` | `not_applicable` |
+| other valid packet | `full` | `finite_review` | `required` | `not_applicable` |
+
+Invariant applicability is phase-stable: v1 uses the canonical non-empty
+`change_classes`, while v2 uses its validated `required_pending` repeated-family
+projection. Security and docs-only signals are recomputed through their existing
+closed recognizers. Design recommendation requires the existing finite `design`
+classification plus the frozen
+`normalize_design_lane_packet_projection(...)` recognizer returning
+`execution_ready=true`. That field means packet-local contract readiness only;
+it is not role execution, human approval, authorization, or asset-mutation
+evidence. Raw `goal`, raw `task_class`, keywords, regexes, and model inference
+are not classification inputs.
+
+The existing `--evidence-sidecar-rail` flag is additive only. Redundant rails
+are canonical no-ops; in v1 the only material upgrade is docs-only Euler from
+`not_applicable` to `finite_review`. It cannot downshift treatments or control
+Creative. `recommend` does not execute Creative or authorize asset mutation,
+and `finite_review` does not enroll Euler or open L3. Every authority field in
+the projection is literal `false`; treatments make no execution, completion,
+PASS, review, CI, routing, merge, release, promotion, causality, or outcome
+claim. Creative never enters the sidecar rail set.
+
+The renderer reopens the canonical packet and cross-binds the captured
+`task_packet_id` and raw packet SHA-256 before it prints any prompt. A stale,
+noncanonical, oversized, malformed, contradictory, or unbound projection fails
+closed without a partial `Paste into Codex now:` block. This protects the
+cooperative local workflow against packet replacement before rendering; it does
+not widen the sidecar's documented same-UID threat model.
+
+The raw fingerprint continuity begins only when the descriptor-safe packet read
+starts. It detects later replacement or drift relative to that snapshot, but it
+does not authenticate packet bytes already changed by the same local UID before
+the read and does not prove that a pre-existing `task_packet_id` still matches
+the producer's v1/v2 identity semantics. ORCH-RAIL-1 therefore makes no
+historical-integrity or producer-authenticity claim. One shared producer-owned
+identity verifier for bootstrap and applicability is tracked as
+[P1 canonical task-packet identity verifier](../roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier).
+All applicability and sidecar authority fields remain literal `false`.
 
 ## Terminal truth
 
