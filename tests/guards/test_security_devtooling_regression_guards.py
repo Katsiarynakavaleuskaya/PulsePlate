@@ -902,6 +902,8 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
     )
     assert completed.returncode in (0, 1)
     allowed = {
+        # Generated scanner metadata records source filenames without executing Euler.
+        ".secrets.baseline",
         "docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md",
         "docs/roadmap/BACKLOG_LEDGER.md",
         "scripts/AGENTS.md",
@@ -955,9 +957,36 @@ def test_invariant_family_episode_delegates_only_to_no_replace_publisher() -> No
     tree = ast.parse(source)
     calls = _episode_function_calls(tree)
 
-    for handler in ("_run_enroll", "_run_terminal", "_run_report"):
+    for handler in (
+        "_run_enroll",
+        "_run_terminal",
+        "_run_report",
+        "_run_checkpoint",
+        "_run_complete",
+    ):
         assert _episode_reachable(calls, handler, "_publish_bundle")
-    assert not _episode_reachable(calls, "_run_validate", "_publish_bundle")
+    for handler in ("_run_validate", "_run_status"):
+        assert not _episode_reachable(calls, handler, "_publish_bundle")
+    for handler in ("_run_terminal", "_run_report"):
+        assert not _episode_reachable(calls, "_run_complete", handler)
+    for target in (
+        "_publish_bundle",
+        "_normalize_terminal_input",
+        "_build_terminal_receipt",
+        "_domain_digest",
+        "_supervision_ack",
+    ):
+        assert not _episode_reachable(calls, "_minimum_terminal_receipt_bytes", target)
+    checkpoint_lane_creators = {
+        function.name
+        for function in ast.walk(tree)
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "create_checkpoint_lane"
+    }
+    assert checkpoint_lane_creators == {"_run_checkpoint"}
     assert invariant_family_review_episode.BUNDLE_SHAPES == {
         "receipt": ("receipt.json",),
         "report": ("report.json", "report.md"),

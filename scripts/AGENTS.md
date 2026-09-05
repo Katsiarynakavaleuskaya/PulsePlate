@@ -528,3 +528,15 @@ fail-closed kernel no-replace publisher for its two fixed-root/private-mode
 bundle shapes. Its focused security/dev-tooling guard is mandatory; arbitrary
 path selection, overwrite, repair, delete, or a second publication bypass is
 forbidden.
+
+Use the owning worktree's Euler module: the Python interpreter does not select
+its fixed store. `validate` returns a non-persisted baseline acknowledgement;
+`checkpoint` explicitly retains normalized J and that acknowledgement in an
+immutable receipt bound to an accepted enrollment. The optional checkpoint lane
+preserves v1 receipt/source compatibility. `status` never writes and establishes
+current reporting only through whole-store manifest equality. Explicit
+`complete` uses caller-supplied terminal/report inputs and resumes published
+evidence without inferring missing J, time or outcomes. These operations grant
+no downstream authority. Follow the
+[episode contract](../docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+and its [focused tests](../tests/test_invariant_family_review_episode.py).
