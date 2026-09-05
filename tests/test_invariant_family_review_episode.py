@@ -3718,3 +3718,97 @@ def test_actual_normalized_terminal_node_boundary_is_prepublication(
     assert status["lifecycle"] == (
         "enrolled_awaiting_terminal" if terminal_nodes > episode.MAX_JSON_NODES else "complete"
     )
+
+
+def test_checkpoint_lane_fsync_failure_preserves_enrollment_and_allows_retry(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrolled = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrolled)
+    enrollment_path = _receipt_path(anchor, "enrollments", enrolled["episode_digest"])
+    original_enrollment = (enrollment_path.stat().st_ino, enrollment_path.read_bytes())
+    root = anchor.path / "artifacts/orchestration/review_invariant_family_episodes"
+    root_metadata = root.stat()
+    real_fsync = episode.os.fsync
+    failed = False
+
+    def fail_module_root_fsync(descriptor: int) -> None:
+        nonlocal failed
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) == (root_metadata.st_dev, root_metadata.st_ino):
+            failed = True
+            raise OSError("synthetic checkpoint namespace durability failure")
+        real_fsync(descriptor)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode.os, "fsync", fail_module_root_fsync)
+        with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
+            _run(anchor, "checkpoint", baseline)
+    assert failed
+    assert (enrollment_path.stat().st_ino, enrollment_path.read_bytes()) == original_enrollment
+    assert (root / "checkpoints").is_dir()
+    assert list((root / "checkpoints").iterdir()) == []
+    assert _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_checkpoint"
+    acknowledged = _run(anchor, "checkpoint", baseline)
+    assert (
+        _load_json(_receipt_path(anchor, "checkpoints", enrolled["episode_digest"]))[
+            "checkpoint_receipt_digest"
+        ]
+        == acknowledged["checkpoint_receipt_digest"]
+    )
+    report = _run(anchor, "report", _report_request())
+    assert _run(anchor, "status", _status_request())["report_digest"] == report["report_digest"]
+
+
+@pytest.mark.parametrize("verb", ["checkpoint", "complete"])
+def test_supervision_rejects_unenrolled_target_in_existing_valid_store(
+    anchor: _Anchor, verb: str
+) -> None:
+    _run(anchor, "enroll", _enrollment(18))
+    proposed = episode._build_enrollment_receipt(_enrollment(17))
+    document = (
+        _baseline(proposed)
+        if verb == "checkpoint"
+        else _complete_request(_terminal_without_available_baseline(proposed, completed=False))
+    )
+    before = _store_snapshot(anchor)
+    with pytest.raises(episode.EpisodeError, match="E_DEPENDENCY"):
+        _run(anchor, verb, document)
+    assert _store_snapshot(anchor) == before
+    assert _run(anchor, "status", _status_request(17))["lifecycle"] == "absent"
+    assert (
+        _run(anchor, "status", _status_request(18))["lifecycle"] == "enrolled_awaiting_checkpoint"
+    )
+    assert _store_snapshot(anchor) == before
+    assert _run(anchor, "report", _report_request())["operation"] == "report"
+
+
+@pytest.mark.parametrize(
+    ("verb", "expected_error"),
+    [
+        ("enroll", "E_PUBLISH_FAILED"),
+        ("terminal", "E_PUBLISH_FAILED"),
+        ("checkpoint", "E_PUBLISH_FAILED"),
+        ("complete", "E_PUBLISH_FAILED"),
+        ("validate", "E_DEPENDENCY"),
+        ("status", "E_DEPENDENCY"),
+        ("report", "E_REPORT_MANIFEST"),
+    ],
+)
+def test_main_sanitizes_unexpected_anchor_failure_for_every_public_verb(
+    anchor: _Anchor,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+    verb: str,
+    expected_error: str,
+) -> None:
+    def unexpected_anchor_failure() -> int:
+        raise RuntimeError("synthetic private anchor diagnostic")
+
+    monkeypatch.setattr(episode, "_read_bounded_stdin", lambda: b"{}")
+    monkeypatch.setattr(episode, "_open_repository_anchor", unexpected_anchor_failure)
+    assert episode.main([verb]) == 1
+    captured = capfd.readouterr()
+    assert captured.out == ""
+    assert captured.err == expected_error + "\n"
+    assert _store_snapshot(anchor) == {}
