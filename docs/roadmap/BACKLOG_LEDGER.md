@@ -12662,7 +12662,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
   - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 [PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291) (`codex/euler-l2-eval-v1`); lifecycle supervision is tracked in [EULER-OPS-1](#ledger-p1-euler-ops-1-lifecycle-supervision); L3 requires a separate reviewed target PR
-  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. EULER-OPS-1 remains in progress; no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
+  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. See the [EULER-OPS-1 core implementation/closure record](#ledger-p1-euler-ops-1-lifecycle-supervision) and [open renderer follow-up](#ledger-p1-euler-supervision-renderer-handoff); no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
@@ -12684,11 +12684,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
 
 <a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
-- [ ] P1: EULER-OPS-1 explicit local episode lifecycle supervision
+- [x] P1: EULER-OPS-1 explicit local episode lifecycle supervision
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
   - Target PR: [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) (`codex/euler-lifecycle-supervision`)
-  - Status: PR #2382 is open; required post-open role passes are complete and QA-1/BH-1 corrections are committed. The operator selected deterministic stdlib sequences for CI-1 and a separate renderer follow-up. The bounded core is ready for final validation; current-head checks, review dispositions and merge remain pending.
+  - Status: Implemented in PR #2382: optional checkpoint, read-only status and resumable complete, with deterministic stdlib lifecycle coverage and preserved v1 compatibility. This checked entry proposes closure of the bounded core item and becomes authoritative only when PR #2382 merges; it does not assert that merge or pending required checks have completed.
   - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
   - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow) and merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291). Renderer/sidecar work is outside this core PR and tracked in the [renderer handoff follow-up](#ledger-p1-euler-supervision-renderer-handoff).
   - Links:
@@ -12700,7 +12700,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - checkpoint retains accepted-enrollment-bound normalized J and recomputed validate acknowledgement through the existing create-only publisher; original v1 policy, bytes, limits, recurrence and denominator semantics remain unchanged
     - status is read-only and distinguishes absent, stale and current full-store reporting; complete prevalidates and safely resumes terminal/report publication with exact replay, bounded resources and no retrospective repair
     - 25 deterministic stdlib sequences execute 20 operations each, assert independent state after every step, and prove the finite required transition census; separate corruption, replay, fault, production-boundary and barrier tests remain unconditional without new dependencies or CI workflow changes
-    - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before human merge authorization
+    - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before merge execution
   - Rollback: Revert supervision code and guidance while preserving immutable local bundles; retain v1 receipts and optional checkpoint data, without rewriting or reconstructing evidence.
   - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
 
