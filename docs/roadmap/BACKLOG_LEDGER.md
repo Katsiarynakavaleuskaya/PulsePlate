@@ -12811,8 +12811,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 target branch `codex/euler-l2-eval-v1`; L3 requires a separate reviewed target PR
-  - Status: L1 and bounded L2 are merged; L2-EVAL v1 is the next prospective descriptive evidence stage; collection begins only after its implementation PR merges; L3 remains closed and is not authorized by L1, L2, or L2-EVAL
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 [PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291) (`codex/euler-l2-eval-v1`); lifecycle supervision is tracked in [EULER-OPS-1](#ledger-p1-euler-ops-1-lifecycle-supervision); L3 requires a separate reviewed target PR
+  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. See the [EULER-OPS-1 core implementation/closure record](#ledger-p1-euler-ops-1-lifecycle-supervision) and [open renderer follow-up](#ledger-p1-euler-supervision-renderer-handoff); no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
@@ -12830,8 +12830,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
     - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
     - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
-    - No synthetic primary episode or empirical 5/10 cohort exists at implementation time; real qualifying PRs accrue only after L2-EVAL merges, and its interim/target-count labels are not effectiveness or L3 decisions
+    - Synthetic fixtures are test evidence only; real prospective counts require validated local current-store reports, and interim/target-count labels are not effectiveness or L3 decisions
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
+
+<a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
+- [x] P1: EULER-OPS-1 explicit local episode lifecycle supervision
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
+  - Target PR: [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) (`codex/euler-lifecycle-supervision`)
+  - Status: Implemented in PR #2382: optional checkpoint, read-only status and resumable complete, with deterministic stdlib lifecycle coverage and preserved v1 compatibility. This checked entry proposes closure of the bounded core item and becomes authoritative only when PR #2382 merges; it does not assert that merge or pending required checks have completed.
+  - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
+  - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow) and merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291). Renderer/sidecar work is outside this core PR and tracked in the [renderer handoff follow-up](#ledger-p1-euler-supervision-renderer-handoff).
+  - Links:
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+    - [Owning CLI](../../scripts/orchestration/invariant_family_review_episode.py)
+    - [Focused lifecycle and v1 compatibility tests](../../tests/test_invariant_family_review_episode.py)
+    - [Publisher and consumer guards](../../tests/guards/test_security_devtooling_regression_guards.py)
+  - DoD:
+    - checkpoint retains accepted-enrollment-bound normalized J and recomputed validate acknowledgement through the existing create-only publisher; original v1 policy, bytes, limits, recurrence and denominator semantics remain unchanged
+    - status is read-only and distinguishes absent, stale and current full-store reporting; complete prevalidates and safely resumes terminal/report publication with exact replay, bounded resources and no retrospective repair
+    - 25 deterministic stdlib sequences execute 20 operations each, assert independent state after every step, and prove the finite required transition census; separate corruption, replay, fault, production-boundary and barrier tests remain unconditional without new dependencies or CI workflow changes
+    - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before merge execution
+  - Rollback: Revert supervision code and guidance while preserving immutable local bundles; retain v1 receipts and optional checkpoint data, without rewriting or reconstructing evidence.
+  - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
+
+<a id="ledger-p1-euler-supervision-renderer-handoff"></a>
+- [ ] P1: Euler supervision renderer and sidecar command handoff
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
+  - Target PR: TBD, after authenticated merge of [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) and [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382)
+  - Status: Deferred by explicit operator scope decision; independent follow-up after both prerequisites merge, not a completion condition for the core PR.
+  - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
+  - Scope:
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `tests/test_render_codex_start_prompt.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `tests/guards/test_security_devtooling_regression_guards.py` (companion consumer/publisher guard responsibility)
+  - Links:
+    - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+  - DoD:
+    - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
+    - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
+    - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
+    - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
+  - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
+  - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
