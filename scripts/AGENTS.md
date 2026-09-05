@@ -338,6 +338,26 @@
 - `role_dispatch_bridge.py` is the runtime-agnostic custom role dispatch
   manifest CLI. The older `qoder_dispatch_bridge.py` filename is a compatibility
   facade only; new packets should point at `role_dispatch_bridge.py`.
+- `context_bundle.py` is the single owner of opt-in exact JSON packet-backed
+  role-context materialization. `--role-context-order N` selects one existing final
+  one-based dispatch occurrence and returns a separate
+  `pulseplate.role-context-output.v1` envelope around the unchanged v2
+  manifest. It reads only explicit canonical repo paths, preserves full strict
+  UTF-8 bytes, rejects symlink/hardlink/nonregular and changed sources, and is
+  bounded to 128 sources, 2 MiB per source and 8 MiB total. Packet content and
+  current dispatch metadata remain dynamic and grant no new authority. A
+  declared static source with the packet's captured device/inode identity
+  blocks instead of duplicating or silently dropping the packet.
+- Exact role context is not persisted. Do not add a cache flag, watcher,
+  service, alternate store, or commit-only freshness shortcut through this
+  materializer. Any future persistence proposal requires its own bounded lane
+  and evidence.
+- Exact context never expands wildcards or directories. Those inputs produce
+  `complete=false` for the existing manual loading route. Missing, unsafe,
+  malformed, changed, or over-limit required sources fail closed. Explicit
+  instruction files must be repo-relative Markdown under an admitted repo
+  skill root or already selected context; recommended skill names are not
+  content authority.
 - `creative_pilot_workspace.py` is the local adaptive production-adjacent
   planning entrypoint. It may bind one or two exact tracked files only under
   `core/rag/` or `core/insight/`, reuses the existing mutable-surface validator

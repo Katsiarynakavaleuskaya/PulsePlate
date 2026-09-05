@@ -39,6 +39,18 @@ Full mapping: `rules/role-mapping.md`
 3. Include loaded content in the subagent prompt under "Required Context"
 4. If total context exceeds ~50K tokens, summarize secondary/conditional files
 
+For JSON packet-backed roles that require exact full context, opt in with
+`--role-context-order <N>`. The resulting
+`pulseplate.role-context-output.v1` envelope wraps the unchanged v2 manifest,
+the selected current dispatch occurrence, exact full source contents, the
+current packet outside the static source list, and read metrics. Use those
+returned contents directly. Do not summarize, truncate, or reread a successful
+exact delivery. Unsupported glob or directory context returns
+`complete=false` and requires the existing manual loading route.
+
+The bridge has no context-cache flag or persisted context store. Every exact
+invocation revalidates current repository bytes.
+
 ## Parallelization Rules
 
 - Agents in the same `parallelizable_groups` array MAY run concurrently
