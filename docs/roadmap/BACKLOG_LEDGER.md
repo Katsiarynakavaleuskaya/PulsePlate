@@ -12715,12 +12715,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/render_codex_start_prompt.py`
     - `tests/test_render_codex_start_prompt.py`
     - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `tests/guards/test_security_devtooling_regression_guards.py` (companion consumer/publisher guard responsibility)
   - Links:
     - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
     - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
   - DoD:
     - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
     - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
+    - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
     - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
   - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
   - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.

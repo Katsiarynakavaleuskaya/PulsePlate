@@ -3321,6 +3321,8 @@ def test_supervision_cli_uses_owning_module_store_and_sanitized_errors(tmp_path:
     module = tmp_path / "scripts/orchestration/invariant_family_review_episode.py"
     module.parent.mkdir(parents=True)
     module.write_bytes(Path(episode.__file__).read_bytes())
+    caller_cwd = tmp_path / "caller"
+    caller_cwd.mkdir(mode=0o700)
 
     def invoke(verb: str, request: Mapping[str, object]) -> dict[str, object]:
         result = subprocess.run(
@@ -3329,7 +3331,7 @@ def test_supervision_cli_uses_owning_module_store_and_sanitized_errors(tmp_path:
             capture_output=True,
             check=False,
             timeout=30,
-            cwd=CONTRACT.parent,
+            cwd=caller_cwd,
         )
         assert result.returncode == 0, result.stderr.decode()
         assert result.stderr == b""
@@ -3337,7 +3339,10 @@ def test_supervision_cli_uses_owning_module_store_and_sanitized_errors(tmp_path:
 
     assert invoke("status", _status_request())["lifecycle"] == "absent"
     assert not (tmp_path / "artifacts").exists()
+    assert not (caller_cwd / "artifacts").exists()
     enrolled = invoke("enroll", _enrollment())
+    assert (tmp_path / "artifacts/orchestration/review_invariant_family_episodes").is_dir()
+    assert not (caller_cwd / "artifacts").exists()
     baseline = _baseline(enrolled)
     checkpoint = invoke("checkpoint", baseline)
     terminal = _terminal_available(enrolled, baseline, checkpoint)
@@ -3349,6 +3354,7 @@ def test_supervision_cli_uses_owning_module_store_and_sanitized_errors(tmp_path:
         capture_output=True,
         check=False,
         timeout=30,
+        cwd=caller_cwd,
     )
     assert failed.returncode == 1
     assert failed.stdout == b""
