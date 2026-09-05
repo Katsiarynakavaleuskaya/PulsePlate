@@ -6,7 +6,7 @@ Review-Seal-Version: v1
 Packet: `artifacts/orchestration/task_packets/132db9936aa1.json`
 
 ## Experiment Runner Evidence
-Artifact: `artifacts/orchestration/experiments/results/pr2371-final-material-e8b3-oracle-result.json`
+Artifact: `artifacts/orchestration/experiments/results/pr2371-final-material-59a6-oracle-result.json`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -175,6 +175,26 @@ Evidence: docs/security/DEPENDABOT_ALERT_INVENTORY.md:39 now points to tests/tes
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3918818444 -> 604ef0e50b8a48cd8fea3faf9e4cda4bb1bd2a49
 
 Disposition: FIXED
+Commit: c39ab21fb98495fc5a24bda87fbf2992795615cb
+Evidence: tests/test_frontend_dependency_guards.py:1544 and tests/test_frontend_dependency_guards.py:2842 require each root lock dependency map to exactly match its same-root tracked manifest and reject an invented Browserslist root demand; the focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3919022426 -> c39ab21fb98495fc5a24bda87fbf2992795615cb
+
+Disposition: FIXED
+Commit: c39ab21fb98495fc5a24bda87fbf2992795615cb
+Evidence: tests/test_frontend_dependency_guards.py:1657 and tests/test_frontend_dependency_guards.py:2865 admit only lockfileVersion 3 and reject the version-2 compatibility-tree ambiguity; the focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3919022436 -> c39ab21fb98495fc5a24bda87fbf2992795615cb
+
+Disposition: FIXED
+Commit: c39ab21fb98495fc5a24bda87fbf2992795615cb
+Evidence: tests/test_frontend_dependency_guards.py:1458 and tests/test_frontend_dependency_guards.py:3051 load every governed npm JSON surface with duplicate-member rejection and exercise a duplicate packages-key control; the focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3919022439 -> c39ab21fb98495fc5a24bda87fbf2992795615cb
+
+Disposition: FIXED
+Commit: c39ab21fb98495fc5a24bda87fbf2992795615cb
+Evidence: tests/test_frontend_dependency_guards.py:3267 derives the applicable Browserslist advisory set by evaluating the governed base version against every reconciled affected range and requires exact equality; all boundary controls pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3919022444 -> c39ab21fb98495fc5a24bda87fbf2992795615cb
+
+Disposition: FIXED
 Commit: d1341f488c1262f889a89f820623d1b3ca92595b
 Evidence: docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:724-780; exact base, prior candidate, current default JSON, MODERATE, and HIGH commands are separate and carry their real exit/output claims
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3919121658 -> d1341f488c1262f889a89f820623d1b3ca92595b
@@ -208,6 +228,51 @@ Disposition: FIXED
 Commit: e8b30562978614708f7c02b15ed79b9eb2bea0dc
 Evidence: tests/test_frontend_dependency_guards.py:3434 binds the retained receipt to the exact externally confirmed operator_authorization value recorded at docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:103; both receipt controls and all 233 focused tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3936817069 -> e8b30562978614708f7c02b15ed79b9eb2bea0dc
+
+Disposition: FIXED
+Commit: 2288c20266d19427febb6f6789dcba880c21b411
+Evidence: tests/test_frontend_dependency_guards.py:3500 and tests/test_frontend_dependency_guards.py:3625 bind the exact 13-record metadata projection and record schema; tests/test_frontend_dependency_guards.py:3639 and tests/test_frontend_dependency_guards.py:3648 enforce CVE, severity, and canonical timestamp semantics; all 233 focused tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3937722710 -> 2288c20266d19427febb6f6789dcba880c21b411
+
+Disposition: FIXED
+Commit: 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+Evidence: tests/test_frontend_dependency_guards.py:3665 requires the exact four-key schema for every retained vulnerability row; all 24 rows and the complete 233-test focused suite pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3937949484 -> 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+
+Disposition: FIXED
+Commit: 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+Evidence: tests/test_frontend_dependency_guards.py:3700 requires non-boolean integer exit codes and nonnegative exact-integer severity metrics while the existing whole-root equality retains exact keys and values; the focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3937949489 -> 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+
+Disposition: FIXED
+Commit: 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+Evidence: tests/test_frontend_dependency_guards.py:3677 validates every retained first_patched_version through the existing exact stable npm SemVer parser before exact range/version projection; the focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3937949495 -> 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+
+Disposition: FIXED
+Commit: 63acf11e2765c5aed9c055d91aa735d9166be494
+Evidence: tests/test_frontend_dependency_guards.py:1667 rejects true or malformed hasShrinkwrap on every lock record before executable absence, while tests/test_frontend_dependency_guards.py:2759 covers missing, exact-false, true, and non-boolean non-target carriers for both target/absence directions; all 233 focused tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938084880 -> 63acf11e2765c5aed9c055d91aa735d9166be494
+
+Disposition: FIXED
+Commit: 63acf11e2765c5aed9c055d91aa735d9166be494
+Evidence: tests/test_frontend_dependency_guards.py:3633 admits each batch target receipt through the existing exact-object helper with exactly the eight query, cutoff, pagination, count, observation, and records fields; all receipt controls pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938084884 -> 63acf11e2765c5aed9c055d91aa735d9166be494
+
+Disposition: FIXED
+Commit: 3b34b8a4282566304ae04dc533f4312e91277d37
+Evidence: tests/test_frontend_dependency_guards.py:3538 closes scanner_snapshot with _require_exact_object to exactly base_sha, observed_at, roots, terminal, and vulnerable_dependency_identities. The immutable scanner and batch digests are unchanged; the full 236-control focused suite passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938280292 -> 3b34b8a4282566304ae04dc533f4312e91277d37
+
+Disposition: FIXED
+Commit: 3b34b8a4282566304ae04dc533f4312e91277d37
+Evidence: tests/test_frontend_dependency_guards.py:1434 validates peer metadata object/field shape and exact optional booleans for every manifest and lock record; :1547 enforces root parity; :2782 proves optional true absence, required false/empty rejection, and malformed truthiness rejection for both identities. All-record :1674 inflation checks also reject shrinkwrap/bundled metadata before absence; 236 focused controls pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938280296 -> 3b34b8a4282566304ae04dc533f4312e91277d37
+
+Disposition: FIXED
+Commit: 3b34b8a4282566304ae04dc533f4312e91277d37
+Evidence: docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:861 preserves the historical receipt and records a newly executed four-root audit recipe over immutable base/head bytes: Node24.18.1/npm11.16.0, env-i whitelist, empty user/global configs, official npmjs registry, four includes, omit=[], workspaces/global=false. Raw results are base root0/frontend1 with exactly browserslist+qs and the same four applicable GHSA/ranges, candidate both0. This corroborates but does not recreate historical environment or widen authorization.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938280301 -> 3b34b8a4282566304ae04dc533f4312e91277d37
 
 Disposition: FIXED
 Commit: 937db0926f257684cc57ef39b1dcf78589643aeb
@@ -304,6 +369,26 @@ Commit: e8b30562978614708f7c02b15ed79b9eb2bea0dc
 Evidence: tests/test_frontend_dependency_guards.py:3434 closes the review's sole authorization-binding actionable; docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:462 retains the corrected duplicate-key evidence anchor and Docs Phase 1 passes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#pullrequestreview-5116543068 -> e8b30562978614708f7c02b15ed79b9eb2bea0dc
 
+Disposition: FIXED
+Commit: 2288c20266d19427febb6f6789dcba880c21b411
+Evidence: tests/test_frontend_dependency_guards.py:3500-3659 closes the review's sole retained-advisory metadata actionable with exact keys, exact per-GHSA tuples, closed severity/CVE formats, and calendar-valid UTC ordering; the focused suite and Docs Phase 1 pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#pullrequestreview-5117578783 -> 2288c20266d19427febb6f6789dcba880c21b411
+
+Disposition: FIXED
+Commit: 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+Evidence: tests/test_frontend_dependency_guards.py:3665-3704 closes the review's three row-schema, exact-version, and scanner-metric type actionables with one generic receipt hardening; all 233 focused tests and Docs Phase 1 pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#pullrequestreview-5117933693 -> 54662fd8f83f19dcf9b89dfe509ee0912893a82b
+
+Disposition: FIXED
+Commit: 63acf11e2765c5aed9c055d91aa735d9166be494
+Evidence: tests/test_frontend_dependency_guards.py:1667 and tests/test_frontend_dependency_guards.py:3633 close the review's real shrinkwrap-inflation and target-receipt schema actionables; its synthetic reviewed-ref root has a separate evidence-backed NOT-A-BUG disposition.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#pullrequestreview-5118091280 -> 63acf11e2765c5aed9c055d91aa735d9166be494
+
+Disposition: FIXED
+Commit: 3b34b8a4282566304ae04dc533f4312e91277d37
+Evidence: tests/test_frontend_dependency_guards.py:1434, :1674, :3538 and docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md:861 collectively close all three actionable review roots: exact scanner schema, optional peer truthiness/root parity, and controlled registry/include/omit audit evidence. Original receipt/digests remain immutable. Published bundle inflation is also rejected without a new graph parser. Full236/Docs/preflight/consistency/make validate-changed and bounded role reviews pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#pullrequestreview-5118307578 -> 3b34b8a4282566304ae04dc533f4312e91277d37
+
 Disposition: NOT-A-BUG
 Evidence: Authenticated live head 05c9710a46b982ce1a7fbb437c25e57cfaf244bc contains reachable material 08c1e90e47dcf35bcfd41e36b981fe8400718ae1; the cited f49aa935 is not the live pre-merge PR graph.
 Reason: Pre-merge owner evidence binds the authenticated live branch; a future squash SHA belongs to post-merge proof.
@@ -344,8 +429,13 @@ Evidence: The cited 6989e33f467c3f47c88b2236129b013222b72d80 is absent from loca
 Reason: A synthetic reviewer projection has no repository or ancestry authority and cannot replace the authenticated live PR graph or real transition owner.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3933716308
 
+Disposition: NOT-A-BUG
+Evidence: The cited 6b5d8654bfd1a08e2eda2ac83f7f9b405c6d920c is absent from local Git (cat-file exit 128), returns HTTP 422 from the authenticated Commit API, and is absent from the complete live PR graph; real e8b30562978614708f7c02b15ed79b9eb2bea0dc and transition 6897a711cb8d92864ec0cfd7a1c9d68e7dff1a21 are ancestors of authenticated material. The older e8-bound seal is an invalidated historical receipt, strict closeout remains fail-closed, and no READY claim relies on it; final closeout independently binds the real final material.
+Reason: The root treats a synthetic reviewed ref as a concrete side-history commit and an intentionally invalidated historical seal as current authority. The authenticated PR graph is authoritative; one final reseal after active remediation is the pre-existing lifecycle requirement, so no stale seal is accepted and no actionable is waived.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3938084873
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:7df618a079f4158953c4991574b345eedd864ceea1501715c7df92ff29a5206f","material_head_sha":"e8b30562978614708f7c02b15ed79b9eb2bea0dc","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85","blocking":false,"head_revision":"e8b30562978614708f7c02b15ed79b9eb2bea0dc","material_digest":"sha256:7df618a079f4158953c4991574b345eedd864ceea1501715c7df92ff29a5206f","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85","digest":"sha256:7df618a079f4158953c4991574b345eedd864ceea1501715c7df92ff29a5206f","material_head_sha":"e8b30562978614708f7c02b15ed79b9eb2bea0dc","merge_base_sha":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85","policy_version":"pulseplate.material-classification/v1"},"pr_number":2371,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:7df618a079f4158953c4991574b345eedd864ceea1501715c7df92ff29a5206f","material_head_sha":"e8b30562978614708f7c02b15ed79b9eb2bea0dc","report_payload":{"actionable_findings_count":0,"base_ref_oid":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85","calibration":{"case_labels":["large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/132db9936aa1.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"132db9936aa1"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 2348 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast","make validate-changed"],"generated_at_utc":"2026-09-04T19:05:22Z","material_digest":"sha256:7df618a079f4158953c4991574b345eedd864ceea1501715c7df92ff29a5206f","material_head_sha":"e8b30562978614708f7c02b15ed79b9eb2bea0dc","merge_base_sha":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"863d16ea2328dd32fa6fec6cef4d8f117b6edf85..e8b30562978614708f7c02b15ed79b9eb2bea0dc","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2371_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":[".secrets.baseline","docs/security/DEPENDABOT_ALERT_INVENTORY.md","docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md","frontend/package-lock.json","tests/test_frontend_dependency_guards.py"],"diff_summary":{"additions":2286,"changed_lines":2348,"deletions":62,"files":5},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","frontend/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:f097f0ec1ef8e6ed578b1672a7254ee8fce0e31bf57708e4a52fdf7e5d54a82a","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
+{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:f29b95265cb1c6ba67512e12345b8a6f3cf30eeaf670bcd45efad74b06af6152","material_head_sha":"59a6976cf91adb9d4917c8a1726b055a69f1c405","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"5adbb917e54261e999c076e77bbff92d3c53fcdd","blocking":false,"head_revision":"59a6976cf91adb9d4917c8a1726b055a69f1c405","material_digest":"sha256:f29b95265cb1c6ba67512e12345b8a6f3cf30eeaf670bcd45efad74b06af6152","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"5adbb917e54261e999c076e77bbff92d3c53fcdd","digest":"sha256:f29b95265cb1c6ba67512e12345b8a6f3cf30eeaf670bcd45efad74b06af6152","material_head_sha":"59a6976cf91adb9d4917c8a1726b055a69f1c405","merge_base_sha":"5adbb917e54261e999c076e77bbff92d3c53fcdd","policy_version":"pulseplate.material-classification/v1"},"pr_number":2371,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:f29b95265cb1c6ba67512e12345b8a6f3cf30eeaf670bcd45efad74b06af6152","material_head_sha":"59a6976cf91adb9d4917c8a1726b055a69f1c405","report_payload":{"actionable_findings_count":0,"base_ref_oid":"5adbb917e54261e999c076e77bbff92d3c53fcdd","calibration":{"case_labels":["large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/132db9936aa1.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"132db9936aa1"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 2763 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast","make validate-changed"],"generated_at_utc":"2026-09-05T08:42:38Z","material_digest":"sha256:f29b95265cb1c6ba67512e12345b8a6f3cf30eeaf670bcd45efad74b06af6152","material_head_sha":"59a6976cf91adb9d4917c8a1726b055a69f1c405","merge_base_sha":"5adbb917e54261e999c076e77bbff92d3c53fcdd","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"5adbb917e54261e999c076e77bbff92d3c53fcdd..59a6976cf91adb9d4917c8a1726b055a69f1c405","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2371_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":[".secrets.baseline","docs/security/DEPENDABOT_ALERT_INVENTORY.md","docs/security/FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md","frontend/package-lock.json","tests/test_frontend_dependency_guards.py"],"diff_summary":{"additions":2701,"changed_lines":2763,"deletions":62,"files":5},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":["AGENTS.md","frontend/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:eb64d36989c05884a1562f1c4fb38e6850222a923fb1110e12adb39b7c7db27d","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
