@@ -3805,7 +3805,10 @@ def test_main_sanitizes_unexpected_anchor_failure_for_every_public_verb(
     def unexpected_anchor_failure() -> int:
         raise RuntimeError("synthetic private anchor diagnostic")
 
-    monkeypatch.setattr(episode, "_read_bounded_stdin", lambda: b"{}")
+    def empty_document() -> bytes:
+        return b"{}"
+
+    monkeypatch.setattr(episode, "_read_bounded_stdin", empty_document)
     monkeypatch.setattr(episode, "_open_repository_anchor", unexpected_anchor_failure)
     assert episode.main([verb]) == 1
     captured = capfd.readouterr()
