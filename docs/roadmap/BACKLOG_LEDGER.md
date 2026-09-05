@@ -5483,6 +5483,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     trackers; retain the structurally unreachable ER-IOS-2 capability.
 
 
+<a id="ledger-p1-ios-v5-asset-parity-prerequisite"></a>
+- [ ] P1: IOS-REL-2 approved V5 asset promotion prerequisite
+  - Owner: @katsiaryna_kavaleuskaya / iOS product owner
+  - Priority: P1 (native visual parity / consumer copy / canonical asset packaging)
+  - Target PR: [PR #2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+    (`codex/ios-v5-asset-parity-prerequisite`)
+  - Status: Implementation and native verification in the existing PR; final
+    current-head review, CI, mapping/seal, and merge remain pending.
+  - Reason (EN): The approved V5 navigation direction needs its selected
+    photography, semantic FitChef assets, and consumer-facing copy in the real
+    iOS screens before the combined adaptive-shell acceptance.
+  - Scope: Seven mascot catalog keys with 1x/2x/3x renditions, three photographs,
+    five existing SwiftUI owners, EN/RU/ES copy, bounded Today canvas/ring-label
+    corrections, output provenance, and parity tests. The operator approved
+    the same-PR scope-size exception; no separate packaging PR is required.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `ios/PulsePlateTests/IOSREL2V5AssetParityTests.swift`
+  - DoD:
+    - Exact catalog/source-output integrity, iPhone/iPad native lookup and
+      rendered spot checks, full iOS tests, narrow gates, role reviews, and
+      exact-head governance pass before merge.
+    - After this prerequisite merges, existing [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+      synchronizes it, completes the full native matrix and Human V1 GO, and
+      updates the main Open Design project only with the successful final kit.
+    - No AppIcon, shared primitives/tokens, backend/OpenAPI, navigation inventory,
+      entitlement, billing, HealthKit semantics, or App Store submission changes.
+  - Rollback: Whole-PR revert; no backend or user-data migration.
+
+
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
 - [x] P1: ER-IOS-4 single Home FitChef Coach entry compatibility alias
   - Owner: @katsiaryna_kavaleuskaya / iOS product owner
