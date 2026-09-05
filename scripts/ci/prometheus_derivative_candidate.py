@@ -55,6 +55,7 @@ MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_RECEIPT_BYTES = 1_048_576
 MAX_EXECUTABLE_BYTES = 256 * 1024 * 1024
 MAX_OCI_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
+MAX_DATABASE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_OCI_MEMBERS = 4096
 MAX_OCI_METADATA_BYTES = 4 * 1024 * 1024
 SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}")
@@ -825,7 +826,7 @@ class ExactAdapters:
             raise _hold("trivy_database_identity_missing")
         normalized_report, covered_targets = _normalize_trivy_report(report_value)
         database = version_value["VulnerabilityDB"]
-        updated_at = _fresh_database_timestamp(database)
+        database_path = self.trivy_cache / "db" / "trivy.db"
         severities = [
             finding["severity"]
             for row in normalized_report
@@ -834,8 +835,10 @@ class ExactAdapters:
         value = {
             "trivy_version": self.identity["trivy_version"],
             "trivy_executable_sha256": self.identity["trivy_sha256"],
-            "database_identity_sha256": sha256_digest(canonical_json(database)),
-            "database_updated_at": updated_at,
+            "database_updated_at": _fresh_database_timestamp(database),
+            "database_identity_sha256": _transport_call(
+                transport.hash_regular, database_path, max_bytes=MAX_DATABASE_BYTES
+            ),
             "report_sha256": sha256_digest(canonical_json(normalized_report)),
             "coverage_sha256": sha256_digest(canonical_json(covered_targets)),
             "covered_targets": covered_targets,
@@ -1073,10 +1076,7 @@ class ReceiptStore:
             if chain["70-remote-verification"]["payload"] != expected:
                 raise _hold("remote_verification_invalid")
         if "80-final-receipt" in chain:
-            expected = _final_payload(
-                local,
-                _stage2_observation(self.repo_root, self.spec),
-            )
+            expected = _final_payload(local, _stage2_observation(self.repo_root, self.spec))
             if chain["80-final-receipt"]["payload"] != expected:
                 raise _hold("final_receipt_invalid")
 

@@ -744,6 +744,7 @@ def test_prometheus_exact_adapter_builds_isolated_plans_without_external_executi
     identity = _candidate_identity(repo)
     spec = prometheus_candidate.build_spec(repo, identity)
     adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
+    _seed_candidate_database(adapter)
     build_plans: list[object] = []
     lifecycle_plans: list[prometheus_candidate.transport.LocalImageBuildPlan] = []
     process_plans: list[object] = []
@@ -1032,6 +1033,7 @@ def test_prometheus_exact_adapter_scan_result_semantics_fail_closed(
         identity,
         prometheus_candidate.build_spec(repo, identity),
     )
+    _seed_candidate_database(adapter)
     report = _candidate_trivy_report()
     if results == ["finding"]:
         report["Results"][0]["Vulnerabilities"] = [
@@ -9244,3 +9246,114 @@ def test_obs1b_deploy_scripts_keep_canonical_guard_product_first_and_non_destruc
     assert production_script.index("up -d --remove-orphans caddy") < production_script.index(
         "up -d --pull never prometheus"
     )
+
+
+def _seed_candidate_database(
+    adapter: prometheus_candidate.ExactAdapters,
+    payload: bytes = b"synthetic immutable Trivy DB",
+) -> Path:
+    directory = adapter.trivy_cache / "db"
+    directory.mkdir(mode=0o700, exist_ok=True)
+    database = directory / "trivy.db"
+    database.write_bytes(payload)
+    return database
+
+
+@pytest.mark.usefixtures("prometheus_database_clock")
+@pytest.mark.parametrize("mutation", ("download_time", "database_bytes", "missing_database"))
+def test_prometheus_exact_adapter_database_identity_uses_content_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    repo = _candidate_repo(tmp_path / "repo")
+    identity = _candidate_identity(repo)
+    spec = prometheus_candidate.build_spec(repo, identity)
+    adapters = [prometheus_candidate.ExactAdapters(repo, identity, spec) for _ in range(2)]
+    metadata: dict[str, dict[str, object]] = {}
+    for ordinal, adapter in enumerate(adapters):
+        payload = b"database-v2-a"
+        if ordinal == 1 and mutation == "database_bytes":
+            payload = b"database-v2-b"
+        if ordinal == 0 or mutation != "missing_database":
+            _seed_candidate_database(adapter, payload)
+        metadata[str(adapter.trivy_cache)] = {
+            "Version": 2,
+            "UpdatedAt": "2026-09-04T00:00:00Z",
+            "NextUpdate": "2026-09-05T00:00:00Z",
+            "DownloadedAt": (
+                "2026-09-04T00:20:00Z"
+                if ordinal == 1 and mutation == "download_time"
+                else "2026-09-04T00:10:00Z"
+            ),
+        }
+
+    def version_observation(
+        plan: prometheus_candidate.transport.ProcessPlan,
+    ) -> prometheus_candidate.transport.ProcessResult:
+        assert plan.argv[1:] == ("--version", "--format", "json")
+        value = {"Version": "0.74.0", "VulnerabilityDB": metadata[plan.env["TRIVY_CACHE_DIR"]]}
+        return prometheus_candidate.transport.ProcessResult(0, json.dumps(value).encode(), b"")
+
+    monkeypatch.setattr(prometheus_candidate.transport, "run_process", version_observation)
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "extract_oci_layout",
+        lambda _archive, destination, **_kwargs: destination.mkdir(mode=0o700),
+    )
+    monkeypatch.setattr(
+        prometheus_candidate.transport,
+        "execute_json_observation",
+        lambda *_args, **_kwargs: (
+            prometheus_candidate.transport.ProcessResult(0, b"", b""),
+            _candidate_trivy_report(),
+        ),
+    )
+    scans = []
+    try:
+        for ordinal, adapter in enumerate(adapters):
+            archive = tmp_path / f"scan-{ordinal}" / "candidate.oci.tar"
+            archive.parent.mkdir()
+            if ordinal == 1 and mutation == "missing_database":
+                with pytest.raises(
+                    prometheus_candidate.CandidateHold, match="external_mechanism_failed"
+                ):
+                    adapter._scan(archive)
+                return
+            scans.append(adapter._scan(archive))
+        expected_digest = "sha256:" + hashlib.sha256(b"database-v2-a").hexdigest()
+        assert scans[0]["database_identity_sha256"] == expected_digest
+        if mutation == "download_time":
+            assert scans[0] == scans[1]
+            return
+        assert metadata[str(adapters[0].trivy_cache)] == metadata[str(adapters[1].trivy_cache)]
+        assert scans[0]["database_identity_sha256"] != scans[1]["database_identity_sha256"]
+        evidence = _candidate_evidence()
+        publication = _CandidatePublicationAdapter(evidence, scans[1])
+        controller = prometheus_candidate.CandidateController(
+            repo,
+            identity_provider=lambda _root: identity,
+            build_adapter=_CandidateBuildAdapter(evidence, evidence, scans[0]),
+            publication_adapter=publication,
+        )
+        local = controller.verify_local()
+        controller.authorize(local["expected_authorization_line"])
+
+        def forbidden_credential_read() -> bytes:
+            pytest.fail("different database bytes must reject before credentials")
+
+        def forbidden_push(*_args: object, **_kwargs: object) -> None:
+            pytest.fail("different database bytes must reject before login/push")
+
+        monkeypatch.setattr(controller, "_credential_after_intent", forbidden_credential_read)
+        monkeypatch.setattr(prometheus_candidate.transport, "login_push_logout", forbidden_push)
+        with pytest.raises(
+            prometheus_candidate.CandidateHold, match="publication_preflight_mismatch"
+        ):
+            controller.publish_or_reconcile()
+        assert list(controller.store.load()) == list(prometheus_candidate.RECEIPT_ORDER[:5])
+        assert publication.observe_calls == 0
+        assert publication.closed == 1
+    finally:
+        for adapter in adapters:
+            adapter.close()

@@ -57,6 +57,12 @@
   only a validated extracted OCI layout with a fresh private database cache,
   explicit empty policy inputs, positive OS/prometheus/promtool coverage, and
   zero HIGH/CRITICAL findings.
+- Trivy database identity is the SHA-256 of the complete regular, single-link
+  private `db/trivy.db` file with a 2-GiB byte cap, after the scanner consumes
+  it. Freshness remains bound to `UpdatedAt`; local download metadata is not
+  content identity. Missing, unsafe, oversized or changed database bytes fail
+  closed before publication intent. Do not substitute metadata hashing,
+  metadata-field exceptions, automatic refresh/retry/reset, or a new DB parser.
 - Receipt files use kernel atomic no-replace rename from staging outside the
   candidate directory; a hardlink-based publication window is forbidden.
 

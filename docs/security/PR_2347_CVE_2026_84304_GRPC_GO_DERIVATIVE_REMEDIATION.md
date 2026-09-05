@@ -76,6 +76,16 @@ private cache, an explicit empty ignore input, and `--config /dev/null`;
 ambient VEX, ignore-policy, ignore-status, and credential environment are not
 inherited.
 
+Database identity is the SHA-256 of the complete private `db/trivy.db` bytes,
+read through the existing bounded regular-file transport after the scanner
+consumes it (2-GiB cap). `UpdatedAt` still enforces freshness. Trivy 0.74 sets
+`DownloadedAt` from the local clock after each download; that operational
+metadata is not database content identity. Equal bytes downloaded at different
+times must compare equally; different or unavailable bytes must reject before
+receipt 50 even when metadata matches. No metadata fallback, field allowlist,
+parser, automatic evidence refresh or retry is introduced. Primary source:
+[Trivy database download implementation](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/db/db.go).
+
 The controller—not the transport—accepts and compares:
 
 - OCI manifest, config, platform, and layer digests;
