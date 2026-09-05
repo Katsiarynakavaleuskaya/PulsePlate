@@ -886,6 +886,12 @@ def test_teleology_cli_delivers_review_instructions_without_assessing_evidence(
     other_grouping = "Full review:" if compact else "Compact review:"
     assert other_grouping not in prompt
     assert "Grouping must preserve every original requirement and DoD item." in prompt
+    assert (
+        "every original requirement and DoD item must be explicitly covered by an "
+        "individually achieved criterion with observed evidence" in prompt
+    )
+    assert "no materiality filter may exclude required scope" in prompt
+    assert "every material criterion" not in prompt
     assert "accepted criteria reference/version" in prompt
     assert "pass that same reference to ordinary QA" in prompt
     assert "achieved, partial, unknown or not_achieved" in prompt

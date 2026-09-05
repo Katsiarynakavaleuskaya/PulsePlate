@@ -42,11 +42,11 @@ See canonical Quality Gates: `RUNBOOK_AGENT.md` (Quality Gates section)
 Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review), including
 its outcome classifications, evidence gaps and untrusted-evidence procedure.
 
-| Criterion reference | Outcome | Observed evidence / freshness | Remaining gap or correction |
-| --- | --- | --- | --- |
-| [Same stable criterion ID] | unknown | [Evidence reference or explicit absence] | [Gap or none] |
+| Criterion reference | Original requirement / DoD references | Outcome | Observed evidence / freshness | Remaining gap or correction |
+| --- | --- | --- | --- | --- |
+| [Same stable criterion ID] | [Explicit source items covered] | unknown | [Evidence reference or explicit absence] | [Gap or none] |
 
-**Complete Original DoD Coverage:** [Reference every original requirement/DoD item]
+**Complete Original DoD Coverage:** [Map every original requirement/DoD item to its criterion; no required source item excluded]
 
 **Owner-Authorized Goal Change:** [Versioned change reference, or none]
 

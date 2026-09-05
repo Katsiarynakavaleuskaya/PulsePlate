@@ -31,9 +31,9 @@
 Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review), including
 its grouping and untrusted-evidence procedure.
 
-| Criterion reference | Observable acceptance criterion | Planned evidence |
-| --- | --- | --- |
-| [Stable criterion ID] | [Expected result] | [Test, observation or reviewed artifact] |
+| Criterion reference | Original requirement / DoD references | Observable acceptance criterion | Planned evidence |
+| --- | --- | --- | --- |
+| [Stable criterion ID] | [Explicit source items covered] | [Expected result] | [Test, observation or reviewed artifact] |
 
 **Rollback / Recovery:** [Existing reversal or compensation plan]
 

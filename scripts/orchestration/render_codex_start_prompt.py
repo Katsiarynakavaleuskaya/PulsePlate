@@ -417,8 +417,10 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "QA: in the existing Work Review, map each criterion to achieved, partial, "
         "unknown or not_achieved, with observed evidence or an explicit evidence gap. "
         "DoD and the final response must reference that review.",
-        "Overall completion: every material criterion must be individually achieved "
-        "with evidence; any partial, unknown or not_achieved criterion prevents an "
+        "Overall completion: every original requirement and DoD item must be "
+        "explicitly covered by an individually achieved criterion with observed evidence. "
+        "Name each covered source item; no materiality filter may exclude required scope. "
+        "Any partial, unknown or not_achieved criterion prevents an "
         "overall completion claim. Missing or stale "
         "references and missing evidence remain unknown. CI or merge cannot turn "
         "partial, unknown or not_achieved into achieved.",

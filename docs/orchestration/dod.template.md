@@ -25,7 +25,7 @@ Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review).
 
 - [ ] Every original requirement and DoD item is represented in the review
 - [ ] Every criterion has observed evidence or an explicit evidence gap and outcome
-- [ ] Every material criterion is individually achieved with evidence before claiming overall completion
+- [ ] Every original requirement and DoD item is explicitly covered by an individually achieved criterion with evidence before claiming overall completion
 - [ ] Any partial, unknown or not_achieved criterion prevents an overall completion claim
 
 ### Code Quality

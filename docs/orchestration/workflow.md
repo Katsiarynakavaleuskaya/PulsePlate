@@ -109,8 +109,11 @@ evidence gap, using these human/agent review classifications:
 These labels are review prose, not new machine states or API fields. A blank
 scorecard, a checklist, role completion, a successful test/CI run, or a merge
 does not establish the substantive outcome. Claim the overall outcome
-`achieved` only when every material criterion is individually `achieved` with
-the required evidence. Any `partial`, `unknown` or `not_achieved` criterion
+`achieved` only when every original requirement and DoD item is explicitly
+covered by an individually `achieved` criterion with observed evidence. A
+criterion may cover multiple source items only when each item is named; no
+materiality filter may exclude or downgrade required scope. Any `partial`,
+`unknown` or `not_achieved` criterion
 prevents an overall completion claim. Current-surface defects still
 follow the existing fix/disposition rules; an outcome label cannot defer
 unfinished requested work or authorize merge.

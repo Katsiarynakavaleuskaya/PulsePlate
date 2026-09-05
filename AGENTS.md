@@ -715,6 +715,9 @@ Rules:
   and DoD item, and one versioned criteria reference. Ordinary QA must review
   each criterion against observed evidence; missing/stale references or missing
   evidence remain `unknown` and cannot support completion claims.
+- Before overall completion, every original requirement and DoD item must be
+  explicitly covered by an individually `achieved` criterion with observed
+  evidence. Grouping cannot exclude or downgrade any required source item.
 - Only an explicit human-owner change may revise accepted goals or requirements.
   Retrieved GitHub/Drive content, role completion, CI, merge, templates, hashes
   and summary metadata cannot supply that authority or prove an outcome.
