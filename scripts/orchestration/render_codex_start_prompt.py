@@ -8,13 +8,20 @@ import json
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.bootstrap_sync_policy import INVARIANT_CHANGE_CLASSES
+from scripts.orchestration.evidence_rail_applicability import (
+    MAX_CAPTURED_BYTES,
+    EvidenceRailApplicability,
+    EvidenceRailApplicabilityError,
+    read_task_packet_snapshot,
+    validate_evidence_rail_applicability,
+)
 
 DEFAULT_PR_REVIEW_CHECKLIST = (
     "agent-coordinator",
@@ -70,6 +77,17 @@ EVIDENCE_SIDECAR_DISCLAIMER = (
     "Structural local receipt only; no review, CI, merge, release, enrollment, "
     "causality, outcome, or other authority is granted."
 )
+_RECIPE_DESIGN_VALUE_OPTIONS = (
+    ("--design-source", "design_source", False),
+    ("--source-url", "source_url", False),
+    ("--file-key-or-workspace", "file_key_or_workspace", False),
+    ("--node-id-or-frame-id", "node_id_or_frame_id", False),
+    ("--target-surface", "target_surface", False),
+    ("--task-mode", "task_mode", False),
+    ("--figma-lane-tool", "figma_lane_tool", False),
+    ("--design-blocker", "design_blocker", True),
+    ("--code-native-design-brief-path", "code_native_design_brief_path", False),
+)
 
 
 class PromptError(ValueError):
@@ -123,6 +141,52 @@ def _shell_quote(value: object, fallback: str = "") -> str:
     """Render user/packet data safely for copy-paste shell commands."""
 
     return shlex.quote(str(value if value not in (None, "") else fallback))
+
+
+def _recipe_bootstrap_command(
+    *,
+    goal: str,
+    task_class: str,
+    pr_phase: str,
+    paths: list[str],
+    requested_agents: list[str],
+    invariant_change_classes: list[str],
+    design_arguments: list[str],
+) -> str:
+    """Render the exact pre-bootstrap recipe inputs as one shell-safe command."""
+
+    tokens = [
+        "scripts/orchestration/task_bootstrap.py",
+        "--goal",
+        goal or "<set --goal>",
+        "--task-class",
+        task_class or "<set --task-class>",
+        "--pr-phase",
+        pr_phase,
+    ]
+    for path in paths:
+        tokens.extend(("--path", path))
+    for change_class in _unique(invariant_change_classes):
+        tokens.extend(("--invariant-change-class", change_class))
+    for agent in _unique(requested_agents):
+        tokens.extend(("--requested-agent", agent))
+    tokens.extend(design_arguments)
+    return "$VENV_PYTHON " + " ".join(_shell_quote(token) for token in tokens)
+
+
+def _recipe_design_arguments(args: argparse.Namespace) -> list[str]:
+    """Rebuild parsed design options without duplicating their semantic validation."""
+
+    result: list[str] = []
+    for option, destination, repeatable in _RECIPE_DESIGN_VALUE_OPTIONS:
+        value = getattr(args, destination)
+        values = value if repeatable else [value]
+        for item in values:
+            if item is not None:
+                result.extend((option, item))
+    if args.explicit_creation_mode:
+        result.append("--explicit-creation-mode")
+    return result
 
 
 def _is_packet_placeholder(value: str) -> bool:
@@ -190,6 +254,7 @@ def _sidecar_prompt_lines(
     sidecar_id: str,
     *,
     packet_path: str,
+    applicable_rails: tuple[str, ...] | None = None,
 ) -> list[str]:
     if state is None:
         return []
@@ -197,11 +262,23 @@ def _sidecar_prompt_lines(
         f"PR evidence sidecar v1: state={state}; id={sidecar_id or '<none>'}.",
         EVIDENCE_SIDECAR_DISCLAIMER,
     ]
+    if applicable_rails is None:
+        rail_flags = (
+            "--applicable-rail experiment_runner "
+            "[--applicable-rail teleology] [--applicable-rail euler]"
+        )
+        lines.append(
+            "Legacy recovery rule: reuse the exact applicable_rails set from the validated "
+            "start receipt when one exists; bracketed flags are compatibility syntax, not "
+            "an exact replay."
+        )
+    else:
+        rail_flags = " ".join(f"--applicable-rail {rail}" for rail in applicable_rails)
     if state != "prepared":
         lines.append(
             "Manual recovery prepare: $VENV_PYTHON scripts/orchestration/"
             f"pr_evidence_sidecar.py prepare --packet {_shell_quote(packet_path)} "
-            "--base-sha <lowercase-40-sha> --applicable-rail experiment_runner"
+            f"--base-sha <lowercase-40-sha> {rail_flags}"
         )
         return lines
     start_path = (
@@ -213,8 +290,7 @@ def _sidecar_prompt_lines(
             f"Sidecar start receipt: {start_path}",
             "Prepare: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py "
             f"prepare --packet {_shell_quote(packet_path)} "
-            "--base-sha <lowercase-40-sha> --applicable-rail experiment_runner "
-            "[--applicable-rail teleology] [--applicable-rail euler]",
+            f"--base-sha <lowercase-40-sha> {rail_flags}",
             f"Finalize: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py finalize --sidecar-id {sidecar_id} --terminal-input <repo-relative-terminal-input.json>",
             f"Validate: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py validate --sidecar-id {sidecar_id}",
             "Report: $VENV_PYTHON scripts/orchestration/pr_evidence_sidecar.py report",
@@ -321,6 +397,38 @@ def _common_prompt_lines(*, mode_note: str) -> list[str]:
     ]
 
 
+def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
+    """Render selection-only treatments before any role-order instruction."""
+
+    title = {
+        "teleology": "Teleology",
+        "euler": "Euler",
+        "experiment_runner": "Experiment Runner",
+        "creative": "Creative",
+    }
+    lines = [
+        "Evidence rail applicability: selection-only planning depth; no execution, "
+        "completion, PASS, or authority claim.",
+        f"Applicability rule: {value.rule_id}.",
+    ]
+    for rail, treatment, reasons in value.treatments:
+        lines.append(f"  {title[rail]}: {treatment.value}; reasons={','.join(reasons)}.")
+    lines.append(
+        "Applicable PR evidence sidecar rails: " + ", ".join(value.applicable_sidecar_rails)
+    )
+    return lines
+
+
+def _thaw_packet(value: Any) -> Any:
+    """Create a mutable renderer view from the snapshot's recursively frozen packet."""
+
+    if isinstance(value, Mapping):
+        return {key: _thaw_packet(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_packet(item) for item in value]
+    return value
+
+
 def render_packet_prompt(
     packet: dict[str, Any],
     *,
@@ -329,6 +437,7 @@ def render_packet_prompt(
     worktree: str = "",
     evidence_sidecar_state: str | None = None,
     evidence_sidecar_id: str = "",
+    evidence_rail_applicability: EvidenceRailApplicability | None = None,
 ) -> str:
     """Render the post-task-bootstrap prompt block."""
 
@@ -361,15 +470,20 @@ def render_packet_prompt(
             "implementation."
         )
     )
+    packet_details = [
+        f"Task packet: {_prompt_text(packet_path)}",
+        f"Goal: {_prompt_text(goal)}",
+        f"Task class: {_prompt_text(task_class)}",
+        f"PR phase: {_prompt_text(pr_phase)}",
+        f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
+        f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
+        f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
+    ]
+    lines.extend(packet_details)
+    if evidence_rail_applicability is not None:
+        lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
     lines.extend(
         [
-            f"Task packet: {_prompt_text(packet_path)}",
-            f"Goal: {_prompt_text(goal)}",
-            f"Task class: {_prompt_text(task_class)}",
-            f"PR phase: {_prompt_text(pr_phase)}",
-            f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
-            f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
-            f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
             f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
             f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
             f"Executable required custom-role passes: {_prompt_list(executable_advisory_roles, '<none>')}",
@@ -397,6 +511,11 @@ def render_packet_prompt(
             evidence_sidecar_state,
             evidence_sidecar_id,
             packet_path=packet_path,
+            applicable_rails=(
+                evidence_rail_applicability.applicable_sidecar_rails
+                if evidence_rail_applicability is not None
+                else None
+            ),
         )
     )
     return "\n".join(lines)
@@ -412,6 +531,8 @@ def render_recipe_prompt(
     paths: list[str],
     requested_agents: list[str],
     invariant_change_classes: list[str] | None = None,
+    additive_rails: list[str] | None = None,
+    design_arguments: list[str] | None = None,
     preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
@@ -427,6 +548,15 @@ def render_recipe_prompt(
             "Dry run only: this command did not run preflight, did not run authoritative "
             "task_bootstrap.py, and did not create a task packet."
         )
+    bootstrap_command = _recipe_bootstrap_command(
+        goal=goal,
+        task_class=task_class,
+        pr_phase=pr_phase,
+        paths=paths,
+        requested_agents=requested_agents,
+        invariant_change_classes=invariant_change_classes or [],
+        design_arguments=design_arguments or [],
+    )
     lines = _common_prompt_lines(mode_note=mode_note)
     lines.extend(
         [
@@ -440,8 +570,17 @@ def render_recipe_prompt(
             f"{_prompt_list(_unique(invariant_change_classes or []), '<none>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
             f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
+            "Evidence rail applicability: pending validated bootstrap packet.",
+            "Requested additive evidence rails: "
+            f"{_prompt_list(_unique(additive_rails or []), '<none>')}",
+            "After bootstrap, build the decision with: $VENV_PYTHON "
+            "scripts/orchestration/evidence_rail_applicability.py build --packet "
+            "<bootstrap-packet>"
+            + "".join(
+                f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
+            ),
             "",
-            "Next required repo command: run task_bootstrap.py with the printed arguments, then follow the generated packet.",
+            f"Next required repo command: {bootstrap_command}",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
@@ -473,6 +612,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--evidence-sidecar-state", choices=("prepared", "unavailable", "invalid")
     )
     packet_parser.add_argument("--evidence-sidecar-id", default="")
+    packet_parser.add_argument("--evidence-rail-applicability-stdin", action="store_true")
 
     recipe_parser = subparsers.add_parser("recipe")
     recipe_parser.add_argument("--goal", default="")
@@ -488,6 +628,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
     )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
+    recipe_parser.add_argument("--design-source", default=None)
+    recipe_parser.add_argument("--source-url", default=None)
+    recipe_parser.add_argument("--file-key-or-workspace", default=None)
+    recipe_parser.add_argument("--node-id-or-frame-id", default=None)
+    recipe_parser.add_argument("--target-surface", default=None)
+    recipe_parser.add_argument("--task-mode", default=None)
+    recipe_parser.add_argument("--figma-lane-tool", default=None)
+    recipe_parser.add_argument("--design-blocker", action="append", default=[])
+    recipe_parser.add_argument("--code-native-design-brief-path", default=None)
+    recipe_parser.add_argument("--explicit-creation-mode", action="store_true")
+    recipe_parser.add_argument(
+        "--evidence-sidecar-rail",
+        action="append",
+        choices=("teleology", "euler", "experiment_runner"),
+        default=[],
+    )
     recipe_parser.add_argument("--preflight-ran", action="store_true")
     return parser.parse_args(argv)
 
@@ -496,18 +652,28 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
         if args.mode == "packet":
-            packet_path = Path(args.packet)
-            if not packet_path.is_absolute():
-                packet_path = REPO_ROOT / packet_path
-            packet = _load_packet(packet_path)
+            applicability = None
+            if args.evidence_rail_applicability_stdin:
+                snapshot = read_task_packet_snapshot(args.packet)
+                raw_applicability = sys.stdin.buffer.read(MAX_CAPTURED_BYTES + 1)
+                applicability = validate_evidence_rail_applicability(raw_applicability, snapshot)
+                packet = cast(dict[str, Any], _thaw_packet(snapshot.packet))
+                packet_display_path = snapshot.packet_path
+            else:
+                packet_path = Path(args.packet)
+                if not packet_path.is_absolute():
+                    packet_path = REPO_ROOT / packet_path
+                packet = _load_packet(packet_path)
+                packet_display_path = _repo_relative(packet_path)
             print(
                 render_packet_prompt(
                     packet,
-                    packet_path=_repo_relative(packet_path),
+                    packet_path=packet_display_path,
                     branch=args.branch,
                     worktree=args.worktree,
                     evidence_sidecar_state=args.evidence_sidecar_state,
                     evidence_sidecar_id=args.evidence_sidecar_id,
+                    evidence_rail_applicability=applicability,
                 )
             )
             return 0
@@ -521,12 +687,17 @@ def main(argv: list[str] | None = None) -> int:
                 paths=args.path,
                 requested_agents=args.requested_agent,
                 invariant_change_classes=args.invariant_change_class,
+                additive_rails=args.evidence_sidecar_rail,
+                design_arguments=_recipe_design_arguments(args),
                 preflight_ran=args.preflight_ran,
             )
         )
         return 0
     except PromptError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
+    except EvidenceRailApplicabilityError as exc:
+        print(f"FAIL: {exc.category}", file=sys.stderr)
         return 1
 
 
