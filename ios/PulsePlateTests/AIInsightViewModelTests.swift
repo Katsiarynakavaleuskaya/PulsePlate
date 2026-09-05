@@ -192,20 +192,24 @@ final class AIInsightViewModelTests: XCTestCase {
     }
 
     private func awaitEventuallyState(_ vm: AIInsightViewModel) async -> AIInsightState {
-        for _ in 0..<200 {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(2))
+        while clock.now < deadline {
             let state = await MainActor.run { vm.state }
-            if case .idle = state {
-                await Task.yield()
-                continue
+            switch state {
+            case .idle, .loading:
+                do {
+                    try await Task.sleep(for: .milliseconds(5))
+                } catch {
+                    XCTFail("Cancelled while waiting for the insight request")
+                    return state
+                }
+            default:
+                return state
             }
-            if case .loading = state {
-                await Task.yield()
-                continue
-            }
-            return state
         }
 
-        try? await Task.sleep(for: .milliseconds(10))
+        XCTFail("Timed out waiting for the insight request to leave idle/loading")
         return await MainActor.run { vm.state }
     }
 }

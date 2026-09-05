@@ -4,6 +4,8 @@ struct ProfileView: View {
     @ObservedObject var localization = LocalizationManager.shared
     @State private var showAnimationTest = false
     @State private var showBundleTest = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     // RU: Минимальный PRO-профиль для Plate (/api/v1/pro/nutrition/daily).
     // EN: Minimal PRO profile for Plate (/api/v1/pro/nutrition/daily).
@@ -21,6 +23,34 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Image(ppRequiredBundleAsset: "FitChefOnboardingProfileSetup")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFill()
+                            .scaleEffect(
+                                ProfileVisualLayout.heroZoom,
+                                anchor: UnitPoint(
+                                    x: ProfileVisualLayout.heroFocalX,
+                                    y: ProfileVisualLayout.heroFocalY
+                                )
+                            )
+                            .frame(width: profileHeroWidth, height: profileHeroHeight)
+                            .clipped()
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: PPDesignTokens.Radius.large,
+                                    style: .continuous
+                                )
+                            )
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 Section(header: Text(localization.localized("pro.profile.header"))) {
                     Picker(localization.localized("pro.profile.sex"), selection: $proSex) {
                         Text(localization.localized("common.not_set")).tag("")
@@ -59,7 +89,10 @@ struct ProfileView: View {
                         .foregroundStyle(.secondary)
                 }
                 Section(header: Text(localization.localized("profile_language_section"))) {
-                    Text(localization.localized("profile_language_value"))
+                    Label(
+                        localization.localized("profile_language_value"),
+                        systemImage: "globe"
+                    )
                 }
                 if !isAppStoreScreenshotMode {
                     Section(header: Text("Animation Test")) {
@@ -76,14 +109,24 @@ struct ProfileView: View {
                 }
                 Section(header: Text(localization.localized("profile_legal_section"))) {
                     if let privacyURL = URL(string: "https://pulseplate.app/privacy") {
-                        Link(localization.localized("profile_privacy_policy"), destination: privacyURL)
+                        Link(destination: privacyURL) {
+                            Label(
+                                localization.localized("profile_privacy_policy"),
+                                systemImage: "lock.shield"
+                            )
+                        }
                     }
                     if let termsURL = URL(string: "https://pulseplate.app/terms") {
-                        Link(localization.localized("profile_terms_of_use"), destination: termsURL)
+                        Link(destination: termsURL) {
+                            Label(
+                                localization.localized("profile_terms_of_use"),
+                                systemImage: "doc.text"
+                            )
+                        }
                     }
                 }
             }
-            .navigationTitle("Profile")
+            .navigationTitle(localization.localized("home.action.profile.title"))
             .sheet(isPresented: $showAnimationTest) {
                 SimpleVideoTest()
             }
@@ -93,4 +136,34 @@ struct ProfileView: View {
             .accessibilityLabel(localization.localized("profile_screen_accessibility_label"))
         }
     }
+
+    private var profileHeroWidth: CGFloat {
+        if dynamicTypeSize.isAccessibilitySize {
+            return ProfileVisualLayout.accessibilityWidth
+        }
+        return horizontalSizeClass == .regular
+            ? ProfileVisualLayout.regularWidth
+            : ProfileVisualLayout.compactWidth
+    }
+
+    private var profileHeroHeight: CGFloat {
+        if dynamicTypeSize.isAccessibilitySize {
+            return ProfileVisualLayout.accessibilityHeight
+        }
+        return horizontalSizeClass == .regular
+            ? ProfileVisualLayout.regularHeight
+            : ProfileVisualLayout.compactHeight
+    }
+}
+
+private enum ProfileVisualLayout {
+    static let compactWidth: CGFloat = 112
+    static let compactHeight: CGFloat = 148
+    static let regularWidth: CGFloat = 160
+    static let regularHeight: CGFloat = 148
+    static let accessibilityWidth: CGFloat = 112
+    static let accessibilityHeight: CGFloat = 132
+    static let heroFocalX: CGFloat = 0.5
+    static let heroFocalY: CGFloat = 0.44
+    static let heroZoom: CGFloat = 1.02
 }
