@@ -248,8 +248,10 @@ def _normalize_timeout_partial_output(value: object) -> str:
 
 def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProcess[str]:
     env = _alembic_subprocess_env(database_url)
+    is_check = arguments == ("check",)
     command = [
         sys.executable,
+        *(("-W", "error") if is_check else ()),
         "-m",
         "alembic",
         "-c",
@@ -280,12 +282,32 @@ def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProc
             f"stdout tail:\n{stdout[-4000:]}\n"
             f"stderr tail:\n{stderr[-4000:]}"
         )
+    failure_reason: str | None = None
     if completed.returncode != 0:
+        failure_reason = f"Alembic PostgreSQL subprocess failed (rc={completed.returncode})"
+    elif is_check:
+        # alembic.ini sends these exact INFO logger records to stdout. Their
+        # bodies remain prose, not another table/sequence ownership inventory.
+        info_prefixes = (
+            "INFO  [alembic.runtime.migration] ",
+            "INFO  [alembic.ddl.postgresql] ",
+            "INFO  [alembic.runtime.plugins] ",
+        )
+        success_line = "No new upgrade operations detected."
+        stdout_lines = completed.stdout.splitlines()
+        if (
+            completed.stderr
+            or stdout_lines.count(success_line) != 1
+            or any(
+                line != success_line and not line.startswith(info_prefixes) for line in stdout_lines
+            )
+        ):
+            failure_reason = "Alembic check output is not warning-free zero-operation proof"
+    if failure_reason is not None:
         stdout = _redact_database_output(completed.stdout, database_url)
         stderr = _redact_database_output(completed.stderr, database_url)
         pytest.fail(
-            "Alembic PostgreSQL subprocess failed "
-            f"(rc={completed.returncode})\n"
+            f"{failure_reason}\n"
             f"stdout tail:\n{stdout[-4000:]}\n"
             f"stderr tail:\n{stderr[-4000:]}"
         )
@@ -1896,7 +1918,134 @@ def test_pg_alembic_subprocess_environment_does_not_inherit_host_carriers(
     assert env["TESTING"] == "true"
 
 
+@pytest.mark.parametrize(
+    "stdout",
+    (
+        "No new upgrade operations detected.\n",
+        "INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\n"
+        "INFO  [alembic.runtime.migration] Will assume transactional DDL.\n"
+        "INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate\n"
+        "INFO  [alembic.ddl.postgresql] Detected sequence named 'users_id_seq' as "
+        "owned by integer column 'users(id)', assuming SERIAL and omitting\n"
+        "No new upgrade operations detected.\n",
+    ),
+)
+def test_pg_alembic_check_requires_clean_positive_output_and_warning_errors(
+    stdout: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PYTHONWARNINGS", "ignore")
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+    captured_command: list[str] = []
+    captured_env: dict[str, str] = {}
+
+    def successful_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured_command.extend(command)
+        raw_env = kwargs["env"]
+        assert isinstance(raw_env, dict)
+        captured_env.update({str(key): str(value) for key, value in raw_env.items()})
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", successful_run)
+
+    completed = _run_alembic(database_url, "check")
+
+    assert completed.stdout == stdout
+    assert captured_command == [
+        sys.executable,
+        "-W",
+        "error",
+        "-m",
+        "alembic",
+        "-c",
+        str(REPO_ROOT / "alembic.ini"),
+        "check",
+    ]
+    assert captured_env == _alembic_subprocess_env(database_url)
+    assert "PYTHONWARNINGS" not in captured_env
+
+
+@pytest.mark.parametrize(
+    "stdout,stderr",
+    (
+        ("", ""),
+        ("INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\n", ""),
+        ("No new upgrade operations detected.\nNo new upgrade operations detected.\n", ""),
+        ("No new upgrade operations detected. trailing text\n", ""),
+        ("SAWarning: incomplete comparison\nNo new upgrade operations detected.\n", ""),
+        ("No new upgrade operations detected.\n", "SAWarning: incomplete comparison\n"),
+        (
+            "WARNI [alembic.runtime.migration] incomplete comparison\n"
+            "No new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "ERROR [alembic.ddl.postgresql] comparison error\nNo new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "DEBUG [alembic.runtime.plugins] unexpected detail\nNo new upgrade operations detected.\n",
+            "",
+        ),
+        ("INFO  [unreviewed.logger] unknown output\nNo new upgrade operations detected.\n", ""),
+        (
+            "INFO  [alembic.runtime.migration.extra] unknown output\n"
+            "No new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "No new upgrade operations detected.\n",
+            "INFO  [alembic.runtime.migration] unexpected stream\n",
+        ),
+    ),
+)
+def test_pg_alembic_check_rejects_zero_exit_with_unproven_or_warning_output(
+    stdout: str,
+    stderr: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+
+    def unproven_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(subprocess, "run", unproven_run)
+
+    with pytest.raises(
+        pytest.fail.Exception, match="check output is not warning-free zero-operation proof"
+    ):
+        _run_alembic(database_url, "check")
+
+
+@pytest.mark.parametrize("arguments", (("upgrade", "head"), ("current", "--check-heads")))
+def test_pg_alembic_other_commands_preserve_output_and_warning_options(
+    arguments: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+
+    def successful_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert command[1:3] == ["-m", "alembic"]
+        assert "-W" not in command
+        return subprocess.CompletedProcess(
+            command, 0, stdout="command output", stderr="diagnostics"
+        )
+
+    monkeypatch.setattr(subprocess, "run", successful_run)
+
+    completed = _run_alembic(database_url, *arguments)
+
+    assert completed.stdout == "command output"
+    assert completed.stderr == "diagnostics"
+
+
+@pytest.mark.parametrize(
+    "arguments,returncode",
+    ((("upgrade", "head"), 9), (("check",), 9), (("check",), 0)),
+)
 def test_pg_alembic_failure_diagnostics_redact_url_and_password(
+    arguments: tuple[str, ...],
+    returncode: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     database_url = URL.create(
@@ -1918,7 +2067,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
         captured_env.update({str(key): str(value) for key, value in raw_env.items()})
         return subprocess.CompletedProcess(
             command,
-            9,
+            returncode,
             stdout=credentialed_url,
             stderr="decoded@password decoded%40password",
         )
@@ -1926,7 +2075,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
     monkeypatch.setattr(subprocess, "run", failed_run)
 
     with pytest.raises(pytest.fail.Exception) as failure:
-        _run_alembic(database_url, "upgrade", "head")
+        _run_alembic(database_url, *arguments)
 
     message = str(failure.value)
     assert captured_command[0] == sys.executable
