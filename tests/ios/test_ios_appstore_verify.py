@@ -10,6 +10,7 @@ Verifies that:
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import shutil
 import struct
@@ -239,6 +240,73 @@ def test_appicon_validator_normalizes_invalid_utf8_to_stable_failure(
     results = module.check_appicon_marketing()
 
     _assert_appicon_failure(results, "Invalid AppIcon Contents.json")
+
+
+def test_appicon_validator_rejects_non_object_json_root(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid JSON array must fail the object-shaped metadata contract."""
+    module = _load_validator_module()
+    _appicon_dir, contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    _write_appicon_payload(contents_path, [])
+
+    _assert_appicon_failure(
+        module.check_appicon_marketing(), "AppIcon Contents.json root must be an object"
+    )
+
+
+def test_appicon_validator_normalizes_png_stat_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An I/O failure after regular-file admission must preserve the Results shape."""
+    module = _load_validator_module()
+    appicon_dir, _contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    png_path = appicon_dir / "AppIcon-1024.png"
+    original_stat = pathlib.Path.stat
+    png_stat_calls = 0
+
+    def fail_after_file_check(
+        path: pathlib.Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        nonlocal png_stat_calls
+        if path == png_path and follow_symlinks:
+            png_stat_calls += 1
+            if png_stat_calls == 2:
+                raise PermissionError("fixture PNG stat denied")
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pathlib.Path, "stat", fail_after_file_check)
+        results = module.check_appicon_marketing()
+
+    assert png_stat_calls == 2
+    _assert_appicon_failure(results, "Cannot inspect ios-marketing PNG: fixture PNG stat denied")
+
+
+def test_appicon_validator_normalizes_png_hash_read_failure(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hash-read error must fail even after the PNG header was accepted."""
+    module = _load_validator_module()
+    appicon_dir, _contents_path, _payload = _prepare_appicon_fixture(module, tmp_path, monkeypatch)
+    png_path = appicon_dir / "AppIcon-1024.png"
+    original_read_bytes = pathlib.Path.read_bytes
+
+    def fail_png_read(path: pathlib.Path) -> bytes:
+        if path == png_path:
+            raise PermissionError("fixture PNG hash read denied")
+        return original_read_bytes(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pathlib.Path, "read_bytes", fail_png_read)
+        results = module.check_appicon_marketing()
+
+    _assert_appicon_failure(
+        results, "Cannot read ios-marketing PNG bytes: fixture PNG hash read denied"
+    )
 
 
 @pytest.mark.parametrize(
