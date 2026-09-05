@@ -29,7 +29,7 @@ describe('Select', () => {
   it('inherits error semantics through FormField', () => {
     render(
       <FormField
-        error={{ message: 'Choose a valid meal slot.' }}
+        error={{ type: 'validate', message: 'Choose a valid meal slot.' }}
         label="Meal slot"
         name="meal_slot"
       >

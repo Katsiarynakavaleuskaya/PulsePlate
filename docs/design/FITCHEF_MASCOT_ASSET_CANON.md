@@ -1,6 +1,6 @@
 # FitChef Mascot Asset Canon
 
-Status: `Seed Pack v1 + Public Demo Pack v1`
+Status: `Seed Pack v1 + Public Demo Pack v1 + Web Hero Scenario v1`
 Owner: `@katsiaryna_kavaleuskaya`
 Scope: `Repo brand asset canon for FitChef mascot/logo references`
 
@@ -18,6 +18,7 @@ Current source-of-truth pack:
 - `frontend/src/assets/brand/fitchef-portrait-sleepy-v1.png`
 - `frontend/src/assets/brand/fitchef-portrait-surprised-v1.png`
 - `frontend/src/assets/brand/fitchef-onboarding-welcome-v1.png`
+- `frontend/src/assets/brand/fitchef-hero-stretch-v1.webp`
 - `frontend/src/assets/brand/fitchef-public-demo/v1/`
 
 ## Canonical Rules
@@ -142,6 +143,211 @@ PNG bytes and their source hashes remain the Open Design and future iOS
 authority. The existing
 `fitchef-portrait-neutral-v1.png` remains the neutral H1 mascot and is not a
 thirteenth public-demo derivative.
+
+## IOS-REL-2 V5 iOS Runtime Derivative Pack
+
+Status: `IMPLEMENTATION_REQUIRED / PENDING NATIVE V1`
+
+The Human Product Owner selected Candidate A (`Home / BMI / Today / Progress /
+Profile`) with the exact outcome `APPROVE_A` after reviewing the immutable V5
+navigation epoch. The Open Design epoch digest is
+`05eed1a9b01f4b92c3961690b114c08158939ff8b8bdfafde329b0cc4d8437fc`;
+the separate human-decision receipt digest is
+`604e3553fe9e574f870aedae9fd298048dd0d22c222b43413d1171a70bd04d03`.
+Those receipts select the following bounded ten-image set without modifying the
+Open Design sources or promoting the V5 HTML/WebP review package as runtime
+truth.
+
+The seven FitChef sources belong to the Open Design project
+`ds-nutrition-ai-assistant-design-system`. The three photographic PNG originals
+belong to the already owner-approved Public Demo Photographic Pack v1 and remain
+the iOS source authority; the WebP derivatives listed above are not derivative
+inputs for this pack.
+
+The Open Design authoring model has two complementary project pages/surfaces:
+
+- the Design System page (`ds-nutrition-ai-assistant-design-system`, including
+  `kit.html` and `assets/fitchef/`) owns composition, tokens, structural visual
+  language, and the FitChef family;
+- the approved Web Marketing page
+  (`er-ios-1-fitchef-support-choice-clean/fitchef-public-web-demo-pr2.html` and
+  its `pr2-public-demo` originals) owns the photographic lifestyle language
+  deliberately planned for governed iOS reuse.
+
+Neither page substitutes for the other. iOS combines the Design System's
+FitChef identity with only the explicitly selected Marketing-page photographs;
+it must not fall back to the older schematic chart/icon imagery when an approved
+photographic source is listed below.
+
+| Approved source identity | Source PNG SHA-256 | iOS runtime candidate | Output SHA-256 | Pixels / bytes | Bounded use |
+| --- | --- | --- | --- | --- | --- |
+| `assets/fitchef/onboarding/assets_FITCHEF_ONBOARDING_WELCOME_V1.png` | `7e37a0a90772a5423f546948e94d36a876a30877ed8c80b336b2f291dd07eb98` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingWelcome.imageset/fitchef-onboarding-welcome@3x.png` | `279081197210c7dc66c16234ce0eec6cf7f490a134176af894ab56f0cca67de5` | `384x576 RGB`, `182824 B` | compact/narrow free-ready Home hero |
+| `assets/fitchef/actions/assets_FITCHEF_ACTION_PROGRESS_TRACKING_V1.png` | `38b9604a3a27f229535c948e0e5e8e22fe2ae185e0b585c965b040b330d4d65f` | `ios/PulsePlate/Assets.xcassets/FitChefActionProgressTracking.imageset/FitChefActionProgressTracking@3x.png` | `8d26d8d8464fdaa764abe439694ecf9fd06c9f937d82a4a8d57f3ecaa02cf46a` | `384x576 RGB`, `128577 B` | compact Progress summary; future wide Weekly row only after the navigation carrier sync |
+| `assets/fitchef/actions/assets_FITCHEF_ACTION_NUTRITION_PLATE_V1.png` | `e73bcbf5fd3f2f9af60e89e93db79570e1be89fac7213bdb39b131adc881955b` | `ios/PulsePlate/Assets.xcassets/FitChefActionNutritionPlate.imageset/FitChefActionNutritionPlate@3x.png` | `da89403f0fec0a3c183cdd7218a1f37996365c6f6c35104ff1a528eb7bceab80` | `384x576 RGB`, `124822 B` | Today plate-photo medallion, replacing the generic duplicate mascot |
+| `assets/fitchef/onboarding/assets_FITCHEF_ONBOARDING_PROFILE_SETUP_V1.png` | `3ae7e0265de31221e6b105b7e0592f1a2b510eebde3e876432cedd33dd853b81` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingProfileSetup.imageset/FitChefOnboardingProfileSetup@3x.png` | `b0e8f856e65c7c78d7f5ae000d30e3c56397d2bcf10ef6b3fda0e692f0d5fbd0` | `432x576 RGB`, `212832 B` | single bounded Profile illustration |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_HAPPY_V1.png` | `3f5cd3a5084f1b8f8e1cdec2e3ca2e492fd14cb03f97e45d0c2e6401c8033697` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitHappy.imageset/FitChefPortraitHappy@3x.png` | `a84aa312d47edf06316f0d47e60fefb99d12a4c5d6fad18595978a3eabf4c445` | `576x576 RGB`, `264170 B` | regular-width free-ready Home hero |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_ENCOURAGING_V1.png` | `e61dfecab8d092374d61ddfd535fec76d2d74652a2f3dac6194df44ae47ac9fb` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitEncouraging.imageset/FitChefPortraitEncouraging@3x.png` | `1399e0735f523bd401f6bb96ecd3edf07c377abe3318c1aa06938b58b542c35c` | `384x576 RGB`, `106863 B` | sole paid-ready Home hero; module cards remain system glyphs |
+| `assets/fitchef/portraits/assets_FITCHEF_PORTRAIT_THINKING_V1.png` | `41f557ccf00663035551e9c0f5c535cd772c47e7c5efb1c81297435d076ff98e` | `ios/PulsePlate/Assets.xcassets/FitChefThinking.imageset/fitchef-thinking@3x.png` | `66d8d84e6b309beaba6fdac6c4b008a366c0aef9659c337ae3fabc80e0b1e33c` | `384x576 RGB`, `135780 B` | BMI support medallion |
+| `pr2-public-demo/daily-plate-a-salmon-1024.png` | `5bb635cdf4a86359d2763235dd31e7ef8f7d5b8c5776826823c5ff0a63806331` | `ios/PulsePlate/Resources/Images/photo-daily-plate-salmon-v1.jpg` | `666651b6caf3b2c4b3e3e6eda1243caf773ad97bdb2cb8a3de49251bdf4314e2` | `768x768 RGB`, `183118 B` | Today plate context |
+| `pr2-public-demo/activity-palette/endurance.png` | `687a5a49c8fe321990f036cb6efdd1889bd08c5ff38983cf6eda94a3546bcda2` | `ios/PulsePlate/Resources/Images/photo-activity-endurance-v1.jpg` | `5108de91fce089419785fbb62c3318bb943ce3319b1f4bfd130baf3a99344cc9` | `640x800 RGB`, `196028 B` | regular-width Progress context |
+| `pr2-public-demo/activity-palette/movement-everyday-fitness.png` | `d0b9be1359c0f56c6fd6dfffe849c4f6de2c699c8acfe8fb204f2a890e2ec1d5` | `ios/PulsePlate/Resources/Images/photo-activity-movement-everyday-fitness-v1.jpg` | `27b1c0beabdd428cb3651906ea45064c007562ba8d92f0b973d499a585183a25` | `640x800 RGB`, `208127 B` | BMI movement context |
+
+The seven mascot runtime identities are the semantic catalog keys in the
+taxonomy contract. The table above binds their approved 3x payloads. Each
+bucket also contains the following 1x/2x rendition derived from that exact
+3x payload, without cropping, compositing, or new visual content:
+
+| Approved source identity | Source PNG SHA-256 | iOS runtime candidate | Output SHA-256 | Pixels / bytes | Bounded use |
+| --- | --- | --- | --- | --- | --- |
+| `FitChefOnboardingWelcome @3x` | `279081197210c7dc66c16234ce0eec6cf7f490a134176af894ab56f0cca67de5` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingWelcome.imageset/fitchef-onboarding-welcome@1x.png` | `205cb0d86cbb5b2b2592a5997ea97b832267da637657cd51146f9e171f378813` | `128x192 RGB`, `29590 B` | 1x density; same approved owner/composition |
+| `FitChefOnboardingWelcome @3x` | `279081197210c7dc66c16234ce0eec6cf7f490a134176af894ab56f0cca67de5` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingWelcome.imageset/fitchef-onboarding-welcome@2x.png` | `0cab5104573f747d30aa4e6442662fe5cb08d49df0550fc7f3cacbe8add3bae3` | `256x384 RGB`, `95092 B` | 2x density; same approved owner/composition |
+| `FitChefActionProgressTracking @3x` | `8d26d8d8464fdaa764abe439694ecf9fd06c9f937d82a4a8d57f3ecaa02cf46a` | `ios/PulsePlate/Assets.xcassets/FitChefActionProgressTracking.imageset/FitChefActionProgressTracking@1x.png` | `32f1a4f09ed3f29d4b113dc11df586c3ee981c41ba43729f34b45057af5cf2f2` | `128x192 RGB`, `27791 B` | 1x density; same approved owner/composition |
+| `FitChefActionProgressTracking @3x` | `8d26d8d8464fdaa764abe439694ecf9fd06c9f937d82a4a8d57f3ecaa02cf46a` | `ios/PulsePlate/Assets.xcassets/FitChefActionProgressTracking.imageset/FitChefActionProgressTracking@2x.png` | `26eb6b2be8023042fecf0b9c0c8ef2f2a594ac8867bb7e624fbb0397c3a08b1f` | `256x384 RGB`, `76438 B` | 2x density; same approved owner/composition |
+| `FitChefActionNutritionPlate @3x` | `da89403f0fec0a3c183cdd7218a1f37996365c6f6c35104ff1a528eb7bceab80` | `ios/PulsePlate/Assets.xcassets/FitChefActionNutritionPlate.imageset/FitChefActionNutritionPlate@1x.png` | `c3b40ff2117153a9edfd67d017c6e3cb9713fbe3e750cd38c1bedb79f146b5e6` | `128x192 RGB`, `24137 B` | 1x density; same approved owner/composition |
+| `FitChefActionNutritionPlate @3x` | `da89403f0fec0a3c183cdd7218a1f37996365c6f6c35104ff1a528eb7bceab80` | `ios/PulsePlate/Assets.xcassets/FitChefActionNutritionPlate.imageset/FitChefActionNutritionPlate@2x.png` | `7dd2b312029b4abf87376774903fab95e3da7d839e640148ecc073edbe2b6fee` | `256x384 RGB`, `70316 B` | 2x density; same approved owner/composition |
+| `FitChefOnboardingProfileSetup @3x` | `b0e8f856e65c7c78d7f5ae000d30e3c56397d2bcf10ef6b3fda0e692f0d5fbd0` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingProfileSetup.imageset/FitChefOnboardingProfileSetup@1x.png` | `50bbe535174288033c40ccc40d6afc682ade57516df4ed861576830ea5e52810` | `144x192 RGB`, `28217 B` | 1x density; same approved owner/composition |
+| `FitChefOnboardingProfileSetup @3x` | `b0e8f856e65c7c78d7f5ae000d30e3c56397d2bcf10ef6b3fda0e692f0d5fbd0` | `ios/PulsePlate/Assets.xcassets/FitChefOnboardingProfileSetup.imageset/FitChefOnboardingProfileSetup@2x.png` | `a7a0f18d110a69e519cf406b91c73ca034ac78741d0cf0aec71b1e21bb0d4278` | `288x384 RGB`, `106835 B` | 2x density; same approved owner/composition |
+| `FitChefPortraitHappy @3x` | `a84aa312d47edf06316f0d47e60fefb99d12a4c5d6fad18595978a3eabf4c445` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitHappy.imageset/FitChefPortraitHappy@1x.png` | `3c319735caeb647c8cb9ae705f13f7d9fd3804afbcd4065f9a9ce4deef6efe05` | `192x192 RGB`, `42888 B` | 1x density; same approved owner/composition |
+| `FitChefPortraitHappy @3x` | `a84aa312d47edf06316f0d47e60fefb99d12a4c5d6fad18595978a3eabf4c445` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitHappy.imageset/FitChefPortraitHappy@2x.png` | `e205fef40ce4a9842ae8556dcb7b1a559a299f938917592e676fefbe6bae4eac` | `384x384 RGB`, `139532 B` | 2x density; same approved owner/composition |
+| `FitChefPortraitEncouraging @3x` | `1399e0735f523bd401f6bb96ecd3edf07c377abe3318c1aa06938b58b542c35c` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitEncouraging.imageset/FitChefPortraitEncouraging@1x.png` | `ab8d924717dce3e23edd87083c81e50c1d21f57fd4330b7130a875e08b6a157d` | `128x192 RGB`, `22596 B` | 1x density; same approved owner/composition |
+| `FitChefPortraitEncouraging @3x` | `1399e0735f523bd401f6bb96ecd3edf07c377abe3318c1aa06938b58b542c35c` | `ios/PulsePlate/Assets.xcassets/FitChefPortraitEncouraging.imageset/FitChefPortraitEncouraging@2x.png` | `94da68ed2a9ddd9d30affe276b55c57d6ef82a42bacf944a36067a6f81e734b9` | `256x384 RGB`, `62357 B` | 2x density; same approved owner/composition |
+| `FitChefThinking @3x` | `66d8d84e6b309beaba6fdac6c4b008a366c0aef9659c337ae3fabc80e0b1e33c` | `ios/PulsePlate/Assets.xcassets/FitChefThinking.imageset/fitchef-thinking@1x.png` | `76356ff16aa6f897ef90bfd5c1454eb1dd2df6d29647edc4bd3c597857bafad8` | `128x192 RGB`, `28992 B` | 1x density; same approved owner/composition |
+| `FitChefThinking @3x` | `66d8d84e6b309beaba6fdac6c4b008a366c0aef9659c337ae3fabc80e0b1e33c` | `ios/PulsePlate/Assets.xcassets/FitChefThinking.imageset/fitchef-thinking@2x.png` | `2481c99f7a2e2258bba95742b39aaddf22d9dcf6f8b5c0cb39cbf57d40e856a1` | `256x384 RGB`, `79515 B` | 2x density; same approved owner/composition |
+
+Deterministic derivative contract:
+
+- Encoder: Pillow `12.3.0`, libjpeg `6.2`, zlib
+  `1.3.1.zlib-ng`, `Image.Resampling.LANCZOS`.
+- FitChef PNGs: apply EXIF orientation, require the exact source hash,
+  dimensions, `RGB`, and no alpha, then use `ImageOps.contain` within
+  `576x576`; save full-color PNG with `optimize=True` and
+  `compress_level=9`. Portrait sources preserve their complete aspect ratio;
+  no derivative-stage crop, padding, compositing, or palette quantization is
+  permitted.
+- Photographs: apply EXIF orientation and the same source admission, then use
+  `ImageOps.fit` with `(0.42, 0.50)` for salmon, `(0.50, 0.36)` for endurance,
+  and `(0.50, 0.42)` for movement; save baseline, non-progressive JPEG at
+  `quality=92`, `subsampling=0`, and `optimize=True`.
+- The catalog contains 21 PNGs for seven semantic variants; the three JPEGs
+  remain unchanged. The 1x/2x PNGs are Lanczos downscales to one-third/two-thirds
+  of the approved 3x geometry, using the same encoder and frozen ICC payload.
+  The longest intrinsic dimension is 192 points at all three densities.
+  No appearance-specific artwork is introduced; Light and Dark use the same
+  original-color image. The seven former loose mascot files are removed from
+  Resources/Images so there is no second runtime packaging owner.
+- All 24 outputs embed only the frozen `588`-byte sRGB ICC payload with
+  SHA-256
+  `86453c6e1ee138f0be42c75ab37a6d73422df68e4767da1b1d3ae6c05aa20e39`.
+  EXIF, XMP, IPTC, GPS, comments, textual PNG chunks, timestamps, and source
+  DPI metadata are absent.
+- Two clean generations on the recorded toolchain produced byte-identical
+  output hashes. Every file is below the strict `512000 B` ceiling; aggregate
+  candidate size is `2577437 B` across the 24 files.
+
+Repository tests independently hash and inspect all 24 checked-in runtime
+derivatives. They also verify all seven Contents.json inventories, semantic
+bundle lookups at the native destination scale in Light/Dark, and absence of
+loose mascot copies. Xcode may thin installed catalogs to the device scale;
+repository checks cover all three densities independently of that thinning.
+They verify the exact output bytes, decoded geometry/color, frozen
+ICC payload, PNG/JPEG encoding structure, and forbidden-metadata absence. The
+external Open Design/Public Demo source bytes remain in the immutable planning
+archive: their hashes are provenance recorded here and verified during the
+governed derivative-generation step, not a claim that those external originals
+are checked into or re-hashed by the iOS unit-test bundle.
+
+SwiftUI owns the V5 focal crop through bounded `scaledToFill` containers.
+Home hero uses 112x148 points on compact widths, 220x220 on regular widths,
+and 148x148 at Accessibility text sizes in either width class. Both stacked
+and horizontal arrangements consume the same presentation-only size selector.
+The files must not become tab icons, be tinted, stretched, or replace native SF
+Symbols. F12 remains `REFERENCE_ONLY / NON-RUNTIME` and contributes no iOS
+asset. The pack adds no App Icon, Fastlane, screenshot export, privacy,
+entitlement, navigation-inventory, CTA, backend, OpenAPI, or token authority.
+The same bounded parity fix removes the visible Profile API/paid-tier wording
+from EN/RU/ES and uses the approved system glyphs for Language, Privacy, and
+Legal without changing profile fields or persistence behavior.
+
+Native iPad inspection also bounds the existing PlateSegments drawing canvas
+to 280 points at its PlateView owner so the sectors and background stay
+concentric. The ring's completion/VoiceOver keys exist in EN/RU/ES and inherit
+the app-selected locale. These are presentation corrections, not new chart
+data, nutrient calculations, shared primitives, or action behavior.
+
+Native V1 Product Owner review on 2026-09-04 supersedes only the V5 Today
+supporting sentence after the exact SwiftUI render exposed it as decorative and
+non-actionable. The runtime copy is frozen as:
+
+- EN: `Visualize your plate. Log a meal. Explore the breakdown.`
+- RU: `Визуализируйте свою тарелку. Добавьте приём пищи. Посмотрите состав.`
+- ES: `Visualiza tu plato. Registra una comida. Consulta la composición.`
+
+The immutable V5 epoch remains unchanged. This bounded copy correction describes
+the existing visualization, Add Meal, and View Details actions; it grants no
+nutrition calculation, camera/CV, photo-generation, or client-authority change.
+
+The same native review rejects `Segment balance` and `Segment progress` as
+internal implementation vocabulary. The current chart renders vegetables,
+protein, carbohydrates, and fats; it does not yet prove a micronutrient dataset.
+Until a backend/OpenAPI contract adds that data, runtime wording stays factual:
+
+- EN: `Track daily nutrition completion and nutrient balance.` /
+  `Nutrient progress`
+- RU: `Отслеживайте дневное питание и баланс питательных веществ.` /
+  `Прогресс по питательным веществам`
+- ES: `Sigue tu alimentación diaria y el equilibrio de nutrientes.` /
+  `Progreso de nutrientes`
+
+This wording must not be promoted to `micro- and macronutrient` until the
+underlying canonical response actually carries both classes.
+The Swift Charts semantic labels use localized `Nutrient category` and
+`Completion` equivalents in EN/RU/ES, so VoiceOver does not reintroduce the
+internal English `Segment` vocabulary after the visible copy is corrected.
+
+These deterministic files are still candidates until exact-head Release bundle
+lookup and native simulator review prove the Home, BMI, Today, Progress, and
+Profile compositions. This record is neither Human V1 `GO` nor `SUBMIT_READY`.
+
+## Public Web Hero Scenario v1
+
+The public Web Hero uses a separate photographic situation from the static VIP
+editorial. The Human Product Owner selected the gentle stretch composition on
+2026-09-02 after reviewing actual `1440`, `768`, and `320` browser previews.
+This choice keeps the Hero relevant to BMI and movement while avoiding a weight
+number, body judgment, medical framing, or anthropomorphic exercise.
+
+Identity and generation provenance:
+
+- Approved real-cat identity reference SHA-256:
+  `3c6a588b776c12fce79f7a6ba2552a6b5efec16e1ab6e0ccb64e052141c98990`.
+- Selected identity-preserving source PNG SHA-256:
+  `e1b1a062d9df2f40d74afd73faa404c2d8661bd288ed3034940e22523c1135c9`.
+- The selected source was produced with the built-in image-generation tool from
+  the approved identity reference and retained as gitignored design evidence.
+- Open Design, iCloud, Figma, and the approved VIP source were not modified by
+  this promotion.
+
+Runtime contract:
+
+| Runtime path | Selected source PNG SHA-256 | Runtime WebP SHA-256 | Pixels | Web delivery |
+| --- | --- | --- | --- | --- |
+| `frontend/src/assets/brand/fitchef-hero-stretch-v1.webp` | `e1b1a062d9df2f40d74afd73faa404c2d8661bd288ed3034940e22523c1135c9` | `7ff3adc9f4121112cf6edfc9b0b664acdb0fa83cc425645aa913a249c994660c` | `1122x1402 RGB` | Pillow 12.3.0, q96, method 6, 307676 B, PSNR 45.2109 dB, frozen 588-byte sRGB ICC |
+
+Usage and authority:
+
+- `editorial-real`: the public Web Hero may use the selected full-frame
+  photographic scenario as static acquisition context.
+- `ui-flat`: the Daily/Weekly interaction keeps the existing compact
+  illustrated neutral guide; the photographic Hero does not enter the
+  `FitChefMascot` variant enum.
+- The existing VIP asset
+  `vip/fitchef-vip-editorial-owner-approved-logo-v2.webp` remains unchanged and
+  continues to own the Personal Nutrition Guide story.
+- The Hero image is code-native content inside a semantic `figure`; it creates
+  no route, calculation, API call, analytics event, payment action, live-AI
+  behavior, or availability claim.
+- Only the tracked WebP has Web runtime authority. The generated source and
+  rejected scale alternative remain local design evidence.
 
 ### Frozen locale design authority
 

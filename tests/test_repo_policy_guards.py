@@ -103,10 +103,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 48,
             "live_count": 48,
             "source_digest": _digest_literal(
-                "5601-d59d-71a7-2bf4-c73f-8cbb-e438-cd3f-739a-8326-2434-b48f-3f24-816e-c067-1614"
+                "5984-b9dd-9d1e-7a3e-effa-3a28-0c3c-3be0-1e9a-81e9-a00d-eb43-52be-95cf-34df-b177"
             ),
             "live_digest": _digest_literal(
-                "a79a-af95-65ea-4f90-7fe4-9fb2-5f73-a725-010a-0455-cf41-f5db-0a0b-6732-1353-e701"
+                "b12e-aa70-6e9c-be59-bb82-b55f-5439-a8ef-6d40-3f48-0125-c008-43cd-4cb7-97d8-ed97"
             ),
         },
         "010": {
@@ -123,10 +123,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 48,
             "live_count": 48,
             "source_digest": _digest_literal(
-                "5601-d59d-71a7-2bf4-c73f-8cbb-e438-cd3f-739a-8326-2434-b48f-3f24-816e-c067-1614"
+                "5984-b9dd-9d1e-7a3e-effa-3a28-0c3c-3be0-1e9a-81e9-a00d-eb43-52be-95cf-34df-b177"
             ),
             "live_digest": _digest_literal(
-                "a79a-af95-65ea-4f90-7fe4-9fb2-5f73-a725-010a-0455-cf41-f5db-0a0b-6732-1353-e701"
+                "b12e-aa70-6e9c-be59-bb82-b55f-5439-a8ef-6d40-3f48-0125-c008-43cd-4cb7-97d8-ed97"
             ),
         },
         "100": {
@@ -143,10 +143,10 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 51,
             "live_count": 51,
             "source_digest": _digest_literal(
-                "5e19-8e40-6984-d4d4-8ff3-364b-79c4-4c63-fac5-a354-6666-75fc-6dd3-7b9a-c39c-257c"
+                "b6a8-ed97-4445-1f0c-722b-f099-9869-f2ad-7928-4750-4202-131a-b259-2fbf-129e-055b"
             ),
             "live_digest": _digest_literal(
-                "3419-b40e-b789-584c-552f-da2e-4ecf-2951-4df9-2f65-6420-b3c1-b68c-a91e-c273-e9e8"
+                "3d90-2b37-e15d-8c21-6d27-20f0-1b9d-49a2-ee65-053a-c9fb-b5b5-e79e-62b0-265b-bc1e"
             ),
         },
         "110": {
@@ -163,16 +163,16 @@ _REGISTRATION_AUTHORITY_MANIFEST = {
             "source_count": 51,
             "live_count": 51,
             "source_digest": _digest_literal(
-                "5e19-8e40-6984-d4d4-8ff3-364b-79c4-4c63-fac5-a354-6666-75fc-6dd3-7b9a-c39c-257c"
+                "b6a8-ed97-4445-1f0c-722b-f099-9869-f2ad-7928-4750-4202-131a-b259-2fbf-129e-055b"
             ),
             "live_digest": _digest_literal(
-                "3419-b40e-b789-584c-552f-da2e-4ecf-2951-4df9-2f65-6420-b3c1-b68c-a91e-c273-e9e8"
+                "3d90-2b37-e15d-8c21-6d27-20f0-1b9d-49a2-ee65-053a-c9fb-b5b5-e79e-62b0-265b-bc1e"
             ),
         },
     },
 }
 _REGISTRATION_AUTHORITY_MANIFEST_SHA256 = _digest_literal(
-    "ab9c-0205-8371-7e4a-70b0-5b76-7fb1-bf17-fcad-4484-6db5-f377-c2bf-d9f7-9c6a-b844"
+    "f5da-a1c8-4996-69e2-8b0a-5546-9082-e23f-c07f-f7d6-253a-6a28-a72e-535e-1f93-3a31"
 )
 
 _REGISTRATION_AUTHORITY_MINIMAL_SOURCE = """
@@ -198,6 +198,7 @@ import hashlib
 import importlib
 import json
 import sys
+import typing
 
 from app.effective_routes import (
     iter_effective_route_candidates,
@@ -225,6 +226,12 @@ def identity(value):
     return f"{module}.{qualname}"
 
 
+def response_model_identity(value: object) -> str | None:
+    if typing.get_origin(value) is typing.Annotated:
+        return identity(typing.Annotated)
+    return identity(value)
+
+
 def dependency_ids(route):
     result = set()
     stack = list(getattr(getattr(route, "dependant", None), "dependencies", ()) or ())
@@ -237,7 +244,7 @@ def dependency_ids(route):
     return sorted(result)
 
 
-def route_row(route):
+def route_row(route: object) -> dict[str, object]:
     return {
         "path": route_path(route),
         "methods": sorted(route_methods(route) - {"HEAD", "OPTIONS"}) or ["WEBSOCKET"],
@@ -246,7 +253,7 @@ def route_row(route):
         "include_in_schema": route_include_in_schema(route),
         "deprecated": bool(getattr(route, "deprecated", False)),
         "status_code": getattr(route, "status_code", None),
-        "response_model": identity(getattr(route, "response_model", None)),
+        "response_model": response_model_identity(getattr(route, "response_model", None)),
         "response_class": identity(getattr(route, "response_class", None)),
         "openapi_extra": getattr(route, "openapi_extra", None),
         "tags": list(getattr(route, "tags", None) or []),
@@ -296,13 +303,26 @@ else:
         if route_path(route) == "/api/v1/bmi/calculate"
         and "POST" in route_methods(route)
     )
-    if mutation == "foreign_owner":
+    if mutation == "response_model_nested_annotated":
+        vip_regions_route = next(
+            route
+            for route in live_candidates
+            if route_path(route) == "/api/v1/vip/regions"
+            and "GET" in route_methods(route)
+        )
+        vip_regions_route.response_model = typing.Annotated[
+            typing.Annotated[int | str, "inner"],
+            "outer",
+        ]
+    elif mutation == "foreign_owner":
         bmi_route.endpoint = lambda: None
     elif mutation == "visibility":
         bmi_route.include_in_schema = not bmi_route.include_in_schema
     elif mutation == "response_status_metadata":
         bmi_route.status_code = 201
         bmi_route.response_model = dict[str, object]
+    elif mutation == "response_model_plain_union":
+        bmi_route.response_model = int | str
     elif mutation == "dependency":
         guarded_route = next(
             route
@@ -879,6 +899,23 @@ def test_registration_authority_live_manifest_matches_feature_state(
     )
 
 
+def test_registration_authority_live_manifest_accepts_nested_annotated_response_model() -> None:
+    state = "001"
+    expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
+    actual = _registration_live_manifest(state, "response_model_nested_annotated")
+    live_rows = actual["live_rows"]
+    assert isinstance(live_rows, list)
+    regions_row = next(
+        row
+        for row in live_rows
+        if isinstance(row, dict)
+        and row.get("path") == "/api/v1/vip/regions"
+        and "GET" in row.get("methods", [])
+    )
+    assert regions_row["response_model"] == "typing.Annotated"
+    assert _registration_manifest_summary(actual) == expected
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -886,6 +923,7 @@ def test_registration_authority_live_manifest_matches_feature_state(
         "foreign_owner",
         "visibility",
         "response_status_metadata",
+        "response_model_plain_union",
         "dependency",
     ),
 )
@@ -894,6 +932,21 @@ def test_registration_authority_live_manifest_rejects_drift(mutation: str) -> No
     expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
     actual = _registration_live_manifest(state, mutation)
     assert _registration_manifest_summary(actual) != expected
+    if mutation in {"response_status_metadata", "response_model_plain_union"}:
+        live_rows = actual["live_rows"]
+        assert isinstance(live_rows, list)
+        bmi_row = next(
+            row
+            for row in live_rows
+            if isinstance(row, dict)
+            and row.get("path") == "/api/v1/bmi/calculate"
+            and "POST" in row.get("methods", [])
+        )
+        if mutation == "response_status_metadata":
+            assert bmi_row["status_code"] == 201
+            assert bmi_row["response_model"] == "builtins.dict"
+        else:
+            assert bmi_row["response_model"] == "types.UnionType"
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:

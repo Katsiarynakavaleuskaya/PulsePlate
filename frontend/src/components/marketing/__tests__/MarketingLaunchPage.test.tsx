@@ -32,7 +32,9 @@ import {
 import type { FitChefDemoEvent, FitChefDemoState } from '../FitChefValueDemo';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(currentDirectory, '../../../../..');
 const componentPath = resolve(currentDirectory, '../FitChefValueDemo.tsx');
+const heroComponentPath = resolve(currentDirectory, '../HeroSection.tsx');
 const marketingComponentsDirectory = resolve(currentDirectory, '..');
 const frontendSourceDirectory = resolve(currentDirectory, '../../..');
 const storybookConfigDirectory = resolve(currentDirectory, '../../../../.storybook');
@@ -44,6 +46,18 @@ const marketingPagePath = resolve(
 const routesPath = resolve(currentDirectory, '../../../config/routes.ts');
 const marketingStylesPath = resolve(currentDirectory, '../marketing.css');
 const marketingTokensPath = resolve(currentDirectory, '../marketing-tokens.css');
+const heroAssetPath = resolve(
+  frontendSourceDirectory,
+  'assets/brand/fitchef-hero-stretch-v1.webp',
+);
+const fitChefAssetCanonPath = resolve(
+  repositoryRoot,
+  'docs/design/FITCHEF_MASCOT_ASSET_CANON.md',
+);
+const fitChefIdentityProfilePath = resolve(
+  repositoryRoot,
+  'docs/sora/prompts/brand_core/FITCHEF_IDENTITY_PROFILE_v1.md',
+);
 const promotedAssetRoot = resolve(frontendSourceDirectory, 'assets/brand/fitchef-public-demo/v1');
 const hppTokenGuidelinesPath = resolve(currentDirectory, '../../../stories/HppTokenGuidelines.mdx');
 const designSystemGuidelinesPath = resolve(
@@ -139,6 +153,15 @@ const promotedAssetContract = [
     sha256: '8d8f4d53b3f55e323a346520313d5e98021aca94734117e855d1d9b4953fc73d', // pragma: allowlist secret
   },
 ] as const;
+
+const heroAssetContract = {
+  relativePath: 'assets/brand/fitchef-hero-stretch-v1.webp',
+  width: 1122,
+  height: 1402,
+  runtimeBytes: 307676,
+  sha256: '7ff3adc9f4121112cf6edfc9b0b664acdb0fa83cc425645aa913a249c994660c', // pragma: allowlist secret
+  sourceSha256: 'e1b1a062d9df2f40d74afd73faa404c2d8661bd288ed3034940e22523c1135c9', // pragma: allowlist secret
+} as const;
 
 type PromotedAssetContractEntry = (typeof promotedAssetContract)[number];
 
@@ -970,6 +993,37 @@ describe('FitChefValueDemo', (): void => {
     });
   });
 
+  it('locks the selected FitChef Hero asset, profile, and single-scenario membership', () => {
+    const file = lstatSync(heroAssetPath);
+    const buffer = readFileSync(heroAssetPath);
+    const webp = inspectWebP(buffer);
+    const brandAssetDirectory = resolve(frontendSourceDirectory, 'assets/brand');
+    const heroScenarioAssets = readdirSync(brandAssetDirectory)
+      .filter((name) => /^fitchef-hero-.*\.webp$/.test(name))
+      .sort();
+    const assetCanon = readFileSync(fitChefAssetCanonPath, 'utf8');
+    const identityProfile = readFileSync(fitChefIdentityProfilePath, 'utf8');
+
+    expect(file.isFile()).toBe(true);
+    expect(file.isSymbolicLink()).toBe(false);
+    expect(file.size).toBe(heroAssetContract.runtimeBytes);
+    expect(file.size).toBeLessThan(480 * 1024);
+    expect(createHash('sha256').update(buffer).digest('hex')).toBe(heroAssetContract.sha256);
+    expect({ width: webp.width, height: webp.height }).toEqual({
+      width: heroAssetContract.width,
+      height: heroAssetContract.height,
+    });
+    expect(webp.chunks).toEqual([...frozenWebPChunkSequence]);
+    expect(webp.iccProfileSha256).toBe(frozenWebPIccProfileSha256);
+    expect(heroScenarioAssets).toEqual(['fitchef-hero-stretch-v1.webp']);
+    expect(assetCanon).toContain(heroAssetContract.relativePath);
+    expect(assetCanon).toContain(heroAssetContract.sourceSha256);
+    expect(assetCanon).toContain(heroAssetContract.sha256);
+    expect(identityProfile).toContain('editorial-real');
+    expect(identityProfile).toContain('ui-flat');
+    expect(identityProfile).toContain('motion');
+  });
+
   it('locks promoted WebP hashes, dimensions, profiles, budgets, and exact membership', () => {
     const expectedPaths = promotedAssetContract.map(({ relativePath }) => relativePath).sort();
     const canonicalAssetRoot = realpathSync(promotedAssetRoot);
@@ -1277,6 +1331,28 @@ describe('FitChefValueDemo', (): void => {
     expect(source).not.toMatch(/\b(location|history)\b/);
   });
 
+  it('keeps the Hero inside the static acquisition and single-asset boundary', () => {
+    const source = readFileSync(heroComponentPath, 'utf8');
+    const dependencies = enumerateModuleDependencies(source);
+
+    expect(dependencies).toEqual(
+      [
+        'react-router-dom',
+        'lucide-react',
+        '../../assets/brand/fitchef-hero-stretch-v1.webp',
+        '../../assets/brand/pulseplate-brand-mark.png',
+        './MarketingPrimitives',
+      ].sort(),
+    );
+    expect(dependencies.join('\n')).not.toMatch(forbiddenDependencyFamilyPattern);
+    expect(executableLoaderViolations(source)).toEqual([]);
+    expect(source).not.toMatch(
+      /\b(useEffect|fetch|XMLHttpRequest|WebSocket|sendBeacon|localStorage|sessionStorage|indexedDB|setTimeout|setInterval|Promise)\b/,
+    );
+    expect(source).not.toMatch(/\b(gtag|dataLayer|PaymentRequest|cookieStore)\b|document\.cookie/);
+    expect(source).not.toMatch(/App Store|calorie/i);
+  });
+
   it('uses the TypeScript parser for every supported module dependency carrier', () => {
     const parserFixture = `
       import defaultExport from 'default-import';
@@ -1562,7 +1638,7 @@ describe('FitChefValueDemo', (): void => {
       .join('\n');
     const normalizedCompleteMarketingCopy = completeMarketingCopy
       .toLowerCase()
-      .replaceAll('’', "'");
+      .replace(/’/g, "'");
     const finiteRetiredGenericPhrases = [
       'at your own pace',
       'what feels useful',
@@ -1620,9 +1696,6 @@ describe('PulsePlateMarketingPage', (): void => {
       Array.from(root.querySelectorAll(selector), (element) => exactText(element, selector));
 
     const hero = requiredElement('#top');
-    expect(exactText(hero.querySelector('.ppm-hero-copy > .ppm-eyebrow'), 'hero eyebrow')).toBe(
-      'Free on the web',
-    );
     expect(exactText(within(hero).getByRole('heading', { level: 1 }), 'hero h1')).toBe(
       'Check your BMI and see how FitChef works',
     );
@@ -1633,66 +1706,46 @@ describe('PulsePlateMarketingPage', (): void => {
       'See how FitChef works',
       'Try the free BMI calculator',
     ]);
-    expect(exactTexts(hero, '.ppm-pill-row > .ppm-pill')).toEqual([
+    expect(within(hero).getByRole('link', { name: 'See how FitChef works' })).toHaveAttribute(
+      'href',
+      '#fitchef-demo',
+    );
+    expect(within(hero).getByRole('link', { name: 'Try the free BMI calculator' })).toHaveAttribute(
+      'href',
+      '/bmi',
+    );
+
+    const scenario = requiredElement('#product-preview');
+    expect(scenario.tagName).toBe('FIGURE');
+    const scenarioImage = within(scenario).getByRole('img', {
+      name: 'FitChef, a tabby cat stretching on an exercise mat',
+    });
+    expect(scenarioImage).toHaveAttribute('data-fitchef-hero-asset', 'fitchef-hero-stretch-v1.webp');
+    expect(scenarioImage).toHaveAttribute('src', expect.stringMatching(/fitchef-hero-stretch-v1\.webp$/));
+    expect(scenarioImage).toHaveAttribute('width', '1122');
+    expect(scenarioImage).toHaveAttribute('height', '1402');
+    expect(scenarioImage).toHaveAttribute('loading', 'eager');
+    expect(scenarioImage).toHaveAttribute('fetchpriority', 'high');
+    expect(scenarioImage).toHaveAttribute('decoding', 'async');
+
+    const retiredHeroCopy = [
+      'Wellness-safe guidance',
+      'Wellness',
+      'Free on the web',
       'Free website',
       'No purchases here',
       'Prepared FitChef preview',
-    ]);
-    expect(exactTexts(hero, '.ppm-action-card .ppm-action-text')).toEqual([
-      'Daily Plate',
-      'Free BMI calculator',
-      'FitChef choice',
-      'Weekly Planning',
-    ]);
-    expect(exactTexts(hero, '.ppm-action-card .ppm-action-helper')).toEqual([
-      'For today',
-      'On this website',
-      'Today or this week',
-      'For seven days',
-    ]);
-    expect(exactTexts(hero, '.ppm-stat-card .ppm-stat-label')).toEqual([
-      'Website',
-      'FitChef',
-      'Today',
-      'This week',
-    ]);
-    expect(exactTexts(hero, '.ppm-stat-card .ppm-stat-value')).toEqual([
-      'Free BMI calculator',
-      'Today or this week',
-      'Daily Plate',
-      'Weekly Planning',
-    ]);
-    expect(exactText(hero.querySelector('.ppm-fitchef-copy'), 'hero FitChef description')).toBe(
-      'A short preview of how FitChef connects a choice to a planning view.',
-    );
-    expect(exactTexts(hero, '.ppm-preview > .ppm-preview-row > .ppm-pill')).toEqual([
       'Prepared example',
       'Nothing is saved',
-    ]);
+      'A short preview of how FitChef connects a choice to a planning view.',
+    ];
+    retiredHeroCopy.forEach((text) => expect(hero).not.toHaveTextContent(text));
+    expect(hero).not.toHaveTextContent(/App Store|calorie/i);
     expect(
-      exactText(
-        hero.querySelector('.ppm-subsection > .ppm-preview-row .ppm-subsection-title'),
-        'hero choice subsection title',
+      hero.querySelectorAll(
+        '.ppm-eyebrow, .ppm-pill-row, .ppm-preview, .ppm-grid-2, .ppm-action-grid, .ppm-preview-lower',
       ),
-    ).toBe('Try the two choices');
-    expect(
-      exactText(
-        hero.querySelector('.ppm-subsection > .ppm-preview-row .ppm-subsection-meta'),
-        'hero choice subsection meta',
-      ),
-    ).toBe('Today or this week');
-    expect(
-      exactText(hero.querySelector('.ppm-insight-card .ppm-subsection-title'), 'hero result title'),
-    ).toBe('FitChef result');
-    expect(exactText(hero.querySelector('.ppm-insight-card .ppm-pill'), 'hero result badge')).toBe(
-      'Prepared example',
-    );
-    expect(
-      exactText(hero.querySelector('.ppm-insight-card .ppm-insight-body'), 'hero result body'),
-    ).toBe('Today points to Daily Plate. This week points to Weekly Planning.');
-    expect(
-      exactText(hero.querySelector('.ppm-insight-card .ppm-insight-note'), 'hero result note'),
-    ).toBe('This preview uses no personal data.');
+    ).toHaveLength(0);
 
     const statusCards = requiredElement('.ppm-status-grid').querySelectorAll('.ppm-band-card');
     expect(

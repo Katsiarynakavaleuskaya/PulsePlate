@@ -19,7 +19,11 @@ function TextareaDemo({
   return (
     <div className="w-[360px]">
       <FormField
-        error={invalid ? { message: 'Add enough detail for the weekly plan to help.' } : undefined}
+        error={
+          invalid
+            ? { type: 'validate', message: 'Add enough detail for the weekly plan to help.' }
+            : undefined
+        }
         label="Planning notes"
         name="planning-notes"
       >

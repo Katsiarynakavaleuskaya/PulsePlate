@@ -19,7 +19,7 @@ describe('Textarea', () => {
   it('inherits form field error messaging', () => {
     render(
       <FormField
-        error={{ message: 'Planning notes are required.' }}
+        error={{ type: 'validate', message: 'Planning notes are required.' }}
         label="Planning notes"
         name="planning_notes"
       >

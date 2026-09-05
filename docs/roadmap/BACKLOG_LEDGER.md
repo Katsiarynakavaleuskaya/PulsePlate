@@ -25,14 +25,17 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-client-arch-1-cab-01"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
+- [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (iOS build integrity / false-green prevention / release evidence)
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
-  - Status: Open non-draft; post-sync local evidence passes the complete 276-test target in EN/US
-    and RU/RU, while the Runner refresh, exact-material self-review, mapping reseal, GitHub
-    current-head CI, the wait window, and merge remain pending
+  - Status: ✅ Closed by merged PR #2368 on 2026-09-01 at squash merge
+    `6327960917e2a04e5fec0d89b358b51781b12f67`; canonical exact-main CI run
+    [33560886407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33560886407)
+    and Nightly Full Tests run
+    [33600127482](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33600127482)
+    completed successfully on that merge SHA.
   - Area: iOS unit-test selection / CI routing / local Swift syntax diagnostics / localization tests
   - Reason (EN): At the CAB-01 base, the canonical iOS lane selected a maintained class allowlist,
     so an enabled test could be omitted without making the blocking job fail. The base pre-commit
@@ -60,6 +63,64 @@ If it is not recorded here — it does not exist.
       dispositions, mapping/seal, and the mandatory wait window pass before merge authorization
   - Rollback (EN): Revert the CAB-01 carrier. No persisted data, backend repair, OpenAPI
     regeneration, asset rollback, or release migration is required.
+
+<a id="ledger-client-arch-1-cab-02"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (frontend build integrity / false-green prevention / development velocity)
+  - Target PR: [PR #2374](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2374)
+    (`codex/frontend-typecheck-build-truth`)
+  - Status: Open non-draft; local material establishes the exact TypeScript-before-Vite build and
+    fail-closed Vitest pre-commit contracts. Current-head CI, post-open review, review closeout,
+    the mandatory wait window, and human merge remain pending.
+  - Area: frontend / TypeScript / Vite production build / pre-commit test enforcement
+  - Dependency: [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01) is closed.
+  - Reason (EN): Vite transpiled the production graph without running the repository's existing
+    strict TypeScript contract, while the frontend pre-commit hook converted Vitest failures into
+    success. CAB-02 makes both existing recognizers fail closed without changing product behavior,
+    dependencies, generated contracts, marketing design, backend, or iOS.
+  - Links:
+    - `frontend/package.json`
+    - `.pre-commit-config.yaml`
+    - `frontend/AGENTS.md`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - DoD:
+    - `npm run typecheck` validates the complete `frontend/tsconfig.json` graph
+    - `npm run build` runs typecheck before Vite and stops before bundling on a TypeScript failure
+    - the frontend Vitest pre-commit hook preserves both zero and non-zero test exits
+    - current strict diagnostics are repaired without suppressions, weakened compiler settings,
+      dependency/lock changes, or product-behavior changes
+    - focused/full frontend tests, accessibility, build, CSS smoke, narrow repository gates,
+      current-head CI, review dispositions, mapping/seal, and the mandatory wait window pass
+  - Rollback (EN): Revert the CAB-02 carrier. No database, backend, API, payment, asset, iOS, or
+    persisted-data repair is required.
+
+<a id="ledger-client-arch-1-cab-03"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
+  - Owner: app-store-release-agent / agent-coordinator
+  - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
+  - Target PR: pending (`codex/ios-release-build-appicon-integrity`)
+  - Status: Planned; implementation starts only after CAB-02 is merged, synchronized to `main`,
+    and closed with exact-main evidence.
+  - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
+  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) must be merged and closed.
+  - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
+    canonical iOS job runs Debug unit coverage without a separate Release app build. CAB-03 will
+    close those two bounded seams without pixel, production Swift, signing, upload, or App Store
+    execution changes.
+  - Links:
+    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
+    - `scripts/release/check_ios_appstore_verify.py`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - the unique `ios-marketing` entry has exact filename, idiom, platform, size, and `scale=1x`
+    - the approved AppIcon PNG remains byte-identical and 1024x1024
+    - focused and unified validators reject missing or incorrect slot metadata
+    - the existing blocking iOS job runs a separate Release simulator build after the full unit run
+    - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
+      Web, production Swift, or visual redesign scope is introduced
+  - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
+    asset-source restoration is required.
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo
@@ -341,6 +402,155 @@ If it is not recorded here — it does not exist.
   - Rollback (EN): Remove the tool, starter/renderer integration, tests, and
     contract before any downstream consumer exists; local receipts remain
     non-canonical and may be discarded by the operator.
+
+<a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
+- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1 (deterministic orchestration treatment selection)
+  - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
+    on `codex/evidence-rail-applicability-v1`
+  - Status: Implementation published; current-head validation and review
+    closeout are in progress. Close the item only after the PR merges.
+  - Area: orchestration / PR lane startup / local evidence selection
+  - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
+    which Teleology, Euler, Experiment Runner, and Creative treatments apply.
+    ORCH-RAIL-1 must derive one conservative, non-authoritative decision from
+    the exact validated task packet and pass only the applicable existing rails
+    to the local PR evidence sidecar, without parsing task prose or creating a
+    second routing or evidence authority.
+  - Links:
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `scripts/orchestration/start_pr_lane.sh`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  - DoD:
+    - one strict snapshot reader binds the canonical packet id and exact raw
+      packet SHA-256, rejects malformed/unsafe storage shapes, and consumes at
+      most 256 canonical candidate paths
+    - the closed precedence is invariant/security before ready design, then
+      docs-only, then conservative; all valid outcomes keep Experiment Runner
+      required and Teleology full or docs-only compact
+    - a ready typed design packet can recommend Creative, but Creative never
+      enters the sidecar set and no role or asset mutation starts automatically
+    - the existing repeatable sidecar-rail flag is additive only; redundant
+      flags are byte-identical no-ops and only docs-only Euler can materially
+      upgrade in v1
+    - the starter captures one canonical JSON line, revalidates it through
+      stdin, maps only the two closed masks into sidecar argv, and sends the
+      same bound projection through stdin to the renderer
+    - applicability failure blocks sidecar/prompt work; later sidecar storage
+      failure keeps its existing advisory semantics
+    - focused applicability, starter, renderer, and sidecar regression tests,
+      Bash 3.2 syntax, scoped guards, narrow local gates, current-head CI,
+      review disposition, mapping/seal, and the wait window pass before merge
+  - Out of scope (EN): Task-packet or sidecar schema changes, raw goal/task
+    classification, automatic role execution, Euler enrollment/L3, Creative
+    asset mutation, manual downshift, semantic cache, Evidence Graph, product
+    runtime, OpenAPI, DB, frontend, iOS, workflows, and merge authority.
+  - Rollback (EN): Revert the applicability helper and starter/renderer/docs
+    integration as one PR. Preserve the existing additive sidecar flag and do
+    not rewrite or delete prior immutable local sidecar receipts.
+  - Deferred / follow-ups:
+    - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
+    - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
+    - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
+- [ ] P1: Add one producer-owned canonical task-packet identity verifier
+  - Owner: agent-coordinator / dev-operator
+  - Priority: P1
+  - Target PR: `PR-TBD`
+  - Status: Deferred from ORCH-RAIL-1; no identity recomputation is added in
+    the bounded applicability carrier.
+  - Area: orchestration / task bootstrap / packet validation
+  - Reason (EN): ORCH-RAIL-1 safely fingerprints the exact bytes it reads and
+    cross-binds the captured projection to that snapshot, but this continuity
+    begins at the safe read. It cannot authenticate bytes already changed by
+    the same local UID before the read, and filename/id equality cannot detect
+    a stale producer id after a pre-existing packet mutation. Reimplementing
+    task-packet identity derivation in the applicability consumer would create
+    a second authority and drift from the v1/v2 producer semantics owned by
+    `task_bootstrap.py`.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/context_pack.py`
+    - `scripts/orchestration/evidence_rail_applicability.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - one public producer-owned pure verifier recomputes and validates the
+      canonical task-packet identity for every supported v1 and v2 invariant
+      review shape without importing consumer policy into the producer
+    - `task_bootstrap.py` uses that verifier before packet publication and
+      `evidence_rail_applicability.py` reuses the same verifier after its bounded
+      descriptor-safe read; neither module carries a second derivation
+    - authentic producer packets retain byte-for-byte compatible ids, while a
+      packet whose identity-bearing fields changed under a stale id fails
+      closed before treatment selection, sidecar preparation, or prompt output
+    - validation covers phase-stable invariant identity, design fingerprints,
+      requested roles and candidate-path ordering, rejects unknown v1/v2
+      variants, and preserves the existing task-packet schema
+    - deterministic producer/consumer parity, authentic v1/v2, stale-id,
+      pre-read mutation, replay, and negative-shape tests document that a fully
+      self-consistent same-UID rewrite remains outside cryptographic
+      authenticity claims
+    - the verifier grants no routing, execution, review, CI, sidecar, merge,
+      release, promotion, causality, outcome, or other authority; every
+      applicability authority field remains literal `false`
+
+<a id="ledger-p2-evidence-rail-manual-downshift"></a>
+- [ ] P2: Add a human-authorized evidence-rail manual downshift contract
+  - Owner: agent-coordinator / architecture-specialist / security-auditor
+  - Priority: P2 (post-v1 operator control without weakening required evidence)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 stabilizes
+  - Status: Deferred from ORCH-RAIL-1; v1 supports additive upgrades only.
+  - Area: orchestration / evidence treatment override governance
+  - Reason (EN): A later operator workflow may need a bounded way to reduce an
+    over-conservative treatment, but a generic profile flag could silently turn
+    missing evidence or tool failure into `not_applicable`. The first slice
+    therefore admits no downshift producer path.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+  - DoD:
+    - define a closed downshift vocabulary, rail-specific reason codes, exact
+      human authorization evidence, precedence, expiry/rollback behavior, and
+      a canonical packet-bound wire shape before adding a CLI
+    - fail closed on missing, ambiguous, stale, malformed, or contradictory
+      authorization and never classify tool failure, missing evidence, or a
+      skipped required pass as `not_applicable`
+    - preserve Experiment Runner process requirements, Euler enrollment
+      boundaries, Creative mutation boundaries, sidecar schema compatibility,
+      all-false authority, and exact packet-fingerprint binding
+    - add positive, negative, replay, stale-binding, and downgrade-abuse tests;
+      no automatic downshift is permitted
+
+<a id="ledger-p1-human-approved-required-creative-role"></a>
+- [ ] P1: Promote Creative recommendation to a required role pass only after human approval
+  - Owner: agent-coordinator / creative-designer / security-auditor
+  - Priority: P1 (bounded design-lane execution governance)
+  - Target PR: `PR-TBD` after ORCH-RAIL-1 and an explicit human approval
+  - Status: Deferred from ORCH-RAIL-1; current treatment is recommendation-only.
+  - Area: orchestration / design lane / role dispatch
+  - Reason (EN): ORCH-RAIL-1 can prove that a typed, blocker-free design packet
+    is eligible for `Creative: recommend`, but recommendation alone cannot
+    change the mandatory packet role order or authorize design/asset mutation.
+  - Links:
+    - [ORCH-RAIL-1](#ledger-p1-orch-rail-1-evidence-rail-applicability)
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
+  - DoD:
+    - require a typed, exact-packet human approval before the canonical
+      bootstrap/dispatch contract adds `creative-designer` as a mandatory
+      design-role pass
+    - preserve coordinator-first ordering, existing post-open
+      `qa-engineer-agent -> bug-hunter -> security-auditor`, and explicit
+      disposition of every Creative finding
+    - role execution remains review/advice unless a separate approved mutable
+      design task grants an exact target; no asset, Figma, Canva, repo, PR,
+      review-thread, merge, release, or product-runtime mutation is implied
+    - add deterministic approval, no-approval, stale packet, blocker, ordering,
+      and no-mutation tests plus rollback to recommendation-only treatment
 
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
@@ -3136,8 +3346,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), merged [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, squash merge `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`), merged [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) (TC2-09F, squash merge `cf096f335a53c1ce056f570142ca9b20a13eb0b1`), merged [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) (TC2-09G, squash merge `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`), and current [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) (TC2-09H, `codex/testclient-tc2-09h-import-order-lifecycle`, synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`); terminal TC2-10 remains TBD
-  - Status: 🟡 In progress — TC2-09G / PR #2361 is merged; TC2-09H / PR #2366 is the current bounded two-site executable-string import-order lifecycle carrier from synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`; the tracker remains open and TC2-10 remains blocked
+  - Target PR: PR #2312 (TC2-09), merged PR #2325 / PR #2330 stabilization, merged PR #2332 direct-getter ownership stabilization, merged PR #2334 (TC2-09B), merged PR #2342 (TC2-09C), merged [PR #2351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2351) (TC2-09D, squash merge `e58f911c372bb46e1f0e99436feb0ca34c22b82d`), merged [PR #2353](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2353) (TC2-09E, squash merge `74b3ef863d3f663400c11a11e0f9aa37012b2fdf`), merged [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) (TC2-09F, squash merge `cf096f335a53c1ce056f570142ca9b20a13eb0b1`), merged [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) (TC2-09G, squash merge `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`), merged [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) (TC2-09H, squash merge `13f393f95e14e60fd6f3d3adf6caae0fcebaa508`), and pending TC2-09I after live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372); terminal TC2-10 remains TBD
+  - Status: 🟡 In progress — TC2-09H / PR #2366 is merged; TC2-09I is `BLOCKED_PENDING_VIP_REGION_RUNTIME_PREREQUISITE` until live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372) merges and exact-main CI is terminal; the tracker remains open and TC2-10 remains blocked
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
   - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
@@ -3160,8 +3370,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Merged TC2-09F nutrition-log lifecycle closure: [PR #2357](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2357) on branch `codex/testclient-tc2-09f-nutrition-log-lifecycle` squash-merged as `cf096f335a53c1ce056f570142ca9b20a13eb0b1` after migrating exactly three recognized direct constructions in `tests/test_nutrition_log_api.py` to the existing function-scoped `isolated_test_client` and explicit `pro_headers`, without changing shared fixtures or runtime. The same ten collected nodes retain eleven HTTP call sites / twelve runtime requests: nine authorized source sites / ten authorized requests preserve `8 × 200` and `2 × 422`, while the two explicit negative-auth requests preserve `1 × 401` and `1 × 403`. Seven source-level JSON parses, executed eight times because the boundary loop runs twice, require JSON Content-Type first. Exact fresh-state assertions require single-write `n == 1`, boundary state counts `1 → 2`, strict adherence/slip directions, direct `risk_slip` keys, and complete meal-POST / risk-GET state equality so a shared or stale analyzer state cannot false-green. Its measured bounded AST census moved from 366 sites / 90 files total and 365 / 89 outside `tests/_client.py` to 363 / 89 total and 362 / 88 outside the helper, with one canonical helper construction and target recognized sites `3 → 0`; the existing finite literal guard gained only the three removed target spellings.
     - Merged TC2-09G Bayesian adherence lifecycle carrier: [PR #2361](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361) on branch `codex/testclient-tc2-09g-bayes-adherence-lifecycle` squash-merged as `f2dc7f222c17cc8357240b7e0015ecc1c465fbe3`; against synchronized exact base `a157d445c98c3e4bea76bd95c2a8d333c99725c1`, it migrated the sole recognized direct construction in `tests/test_bayes_adherence_api.py` to the existing function-scoped `isolated_test_client` with explicit `pro_headers` or `vip_headers` on every request, without changing shared fixtures or runtime. The same `10 → 10` collected nodes retained `17 → 17` HTTP source sites and `22 → 22` runtime requests with exact outcomes `18 × 200` and `4 × 422`; all nine JSON parses require JSON Content-Type first. Exact default, meal, slip, `n=6`, `n=7`, custom-key, and PRO/VIP state assertions prevent stale or cross-principal analyzer state from false-greening. The remeasured bounded AST census remained 363 sites / 89 files total and 362 / 88 outside `tests/_client.py` at that base, moving to 362 / 88 total and 361 / 87 outside the helper, with one canonical helper construction and target recognized sites `1 → 0`. The recognized target construction and the class-owned manual client/DB cleanup lifecycle owner each moved from `1 → 0`; the finite literal guard gained only the exact removed target spelling.
     - TC2-09G residual boundary: the census counts only direct `ast.Call` nodes whose `Name.id` or `Attribute.attr` callee ends with `TestClient`; the exact-string guard separately covers only its enumerated literals after its explicit exclusions. Neither result covers aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation, and neither proves universal TestClient absence. The strengthened fresh-state assertions cover only the ten selected SQLite-backed test nodes and do not prove production database, concurrency, or universal adherence correctness beyond the explicitly tested PRO/VIP principals and analyzer keys. The lifecycle checkbox and umbrella tracker remain open. TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
-    - Current TC2-09H import-order lifecycle carrier: [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) on branch `codex/testclient-tc2-09h-import-order-lifecycle`, against synchronized exact base `96263df2840f4a9ab2a915b6456afba68027ee6d`, replaces exactly two executable-string raw constructors in the third node of `tests/test_app_main_import.py` with two `tests._client.open_test_client(...)` managed contexts. The same three collected nodes preserve package-facade-first import order, explicit later canonical-main import, `/health == 200`, built `middleware_stack`, explicit synthetic `X-API-Key` on `/metrics`, `/metrics == 200`, and subprocess return-code diagnostics. Because both migrated spellings live inside an executed string rather than target-file AST calls, the bounded AST census remains 362 sites / 88 files total and 361 / 87 outside `tests/_client.py`, with one canonical helper construction and target recognized sites remaining zero; the finite exact-string guard gains only `TestClient(app_package.app)` and `TestClient(main_module.app)`.
-    - TC2-09H residual boundary: the lifecycle proof covers only the two enumerated executable-string constructors and the three-node import-order scenario. The unchanged AST census and expanded exact-string guard do not cover aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation and do not prove universal TestClient absence. The lifecycle checkbox and umbrella tracker remain open, and TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
+    - Merged TC2-09H import-order lifecycle carrier: [PR #2366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2366) on branch `codex/testclient-tc2-09h-import-order-lifecycle` squash-merged as `13f393f95e14e60fd6f3d3adf6caae0fcebaa508` after replacing exactly two executable-string raw constructors in the third node of `tests/test_app_main_import.py` with two `tests._client.open_test_client(...)` managed contexts. The same three collected nodes preserve package-facade-first import order, explicit later canonical-main import, `/health == 200`, built `middleware_stack`, explicit synthetic `X-API-Key` on `/metrics`, `/metrics == 200`, and subprocess return-code diagnostics. Because both migrated spellings live inside an executed string rather than target-file AST calls, the bounded AST census remains 362 sites / 88 files total and 361 / 87 outside `tests/_client.py`, with one canonical helper construction and target recognized sites remaining zero; the finite exact-string guard gains only `TestClient(app_package.app)` and `TestClient(main_module.app)`.
+    - TC2-09H residual boundary: the lifecycle proof covers only the two enumerated executable-string constructors and the three-node import-order scenario. The unchanged AST census and expanded exact-string guard do not cover aliases, formatting variants, wrappers, reflection, dynamic lookup, generated code, or runtime mutation and do not prove universal TestClient absence. The lifecycle checkbox and umbrella tracker remain open, TC2-09I is blocked by the bounded VIP regional-catalog runtime prerequisite, and TC2-10 remains blocked until recognized outside-helper construction callers reach zero and every terminal tracker condition passes.
+    - TC2-09I prerequisite boundary: live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372) owns only the bounded runtime/OpenAPI correctness defect exposed by valid VIP probes; it does not migrate TestClient callers. TC2-09I may start only after that prerequisite merges, exact-main CI is terminal, and a fresh ownership/node/census admission pass confirms the selected lifecycle cohort remains valid.
     - TC2-09G closeout recovery boundary: after the authorized second main synchronization exposed the late stale-seal review root [discussion_r3890117016](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2361#discussion_r3890117016), the operator approved one non-runtime synthetic governance successor so PR #2361 can record the already-pushed mapping-only fix `a60c5b29ce1ccdcaac05bf2519860a7ca1e8a0f4` through the ordinary canonical `FIXED` mapping path. This recovery changes no TestClient caller, helper, fixture, Bayesian state, route, response, OpenAPI, dependency, workflow, deployment, or product behavior and grants no TC2-10 admission, tracker closure, provider claim, review approval, or merge authority.
     - Closeout recovery boundary: after the authorized ancestry-preserving main synchronization exposed a late stale-seal review finding, the operator approved one non-runtime synthetic governance successor so PR #2351 can record that finding through the ordinary canonical mapping path. This recovery changes no TestClient caller, helper, fixture, route, response, OpenAPI, dependency, deployment, or product behavior and grants no TC2-10 admission or terminal tracker claim. Review evidence is commit-bound: historical `file:line` pointers in a FIXED block are evaluated in that block's mapped fix SHA; current-head proof uses the stable `ledger-p1-test-hygiene-client-lifecycle` anchor and the current Target PR/status plus carrier/census entries.
     - Coupled correctness closure: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-auto-repair-request-contract` is implemented in the same PR #2312 work-package by explicit operator decision
@@ -3169,6 +3380,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
     - Closeable test resources have deterministic teardown
     - Targeted xdist smoke for touched files passes without stale client/session state
+
+<a id="ledger-p1-vip-region-catalog-runtime-contract"></a>
+- [ ] P1: Repair the VIP regional-catalog runtime and OpenAPI contracts before TC2-09I
+  - Owner: Backend / `backend-engineer`
+  - Priority: P1
+  - Target PR: live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372)
+  - Status: 🟡 In progress — PR #2372 is the bounded prerequisite for TC2-09I
+  - Area: backend / VIP / regional catalog / OpenAPI
+  - Finding Type: runtime lookup, route-precedence, and response-contract defect
+  - Reason (EN): valid VIP probes exposed case-sensitive catalog lookup, blank optional-category filtering, and comparison-route shadowing while the five public operations still advertised untyped response objects. The prerequisite must restore one canonical lookup path and closed status-discriminated wire contracts before lifecycle-only tests can be tightened without masking runtime defects.
+  - Links:
+    - `core/region_catalog.py`
+    - `app/routers/vip.py`
+    - `app/schemas/vip.py`
+    - `tests/test_vip_region_catalog_contract.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-client-lifecycle`
+  - DoD:
+    - Every region-consuming catalog method uses one case-insensitive stripped lookup key while public response echoes retain caller labels
+    - Blank optional search categories mean no filter, while blank required category lookup never means all products
+    - The existing comparison route precedes the three conflicting dynamic routes without changing public paths, methods, guards, or operation IDs
+    - All five operations validate closed success/error branches, preserve frozen VIP error aliases and handled-error HTTP `200`, and document canonical VIP `403`
+    - Focused runtime/schema/OpenAPI tests pass, generated frontend artifacts are synchronized through `make openapi`, and current-head CI is terminal
+
+<a id="ledger-p1-vip-provider-import-isolation"></a>
+- [ ] P1: Isolate VIP regional-catalog imports from unrelated provider families
+  - Owner: Backend / `backend-engineer`
+  - Priority: P1
+  - Target PR: live [PR #2372](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372)
+  - Status: 🟡 In progress — folded into PR #2372 under explicit operator authorization; checkbox remains open until merge
+  - Area: backend / VIP / optional provider loading
+  - Finding Type: broad import-failure coupling
+  - Reason (EN): review on live PR #2372 proved an active regional startup-path defect: `app/routers/vip.py` loaded unrelated optional provider families inside one broad import block, so one absent optional dependency could suppress otherwise available regional-catalog bindings. The operator explicitly authorized folding the bounded import-isolation correction into PR #2372 while TC2-09I remains blocked.
+  - Links:
+    - `app/routers/vip.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-vip-region-catalog-runtime-contract`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2372#discussion_r3911849129`
+  - DoD:
+    - Regional-catalog callables resolve as one all-or-none family independently of the existing auto-repair/menu/recipe import block, without `sys.modules`, facade, or fallback registries
+    - Failure of one unrelated provider cannot suppress regional-catalog bindings
+    - Provider-unavailable behavior remains deterministic, sanitized, and covered by focused startup/runtime tests
 
 <a id="ledger-p1-vip-auto-repair-request-contract"></a>
 - [ ] P1: Repair the VIP auto-repair request-to-domain contract before TC2-09 closeout
@@ -4920,14 +5171,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remediation plan defined (PR-596 scope)
 
 
-- [ ] Stabilize/restore PlateViewTests in CI (iOS)
+- [x] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: [PR #2368](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2368)
     (`codex/ios-complete-unit-signal`)
   - Priority: P1
-  - Status: Active in CAB-01; post-sync local EN/US and RU/RU target evidence passes 276 tests,
-    while the Runner refresh, exact-material self-review, mapping reseal, GitHub current-head CI,
-    the wait window, and merge remain pending
+  - Status: ✅ Closed by merged PR #2368 on 2026-09-01 at squash merge
+    `6327960917e2a04e5fec0d89b358b51781b12f67`; the complete `PulsePlateTests` selector and
+    exact-main iOS unit job include the stabilized locale-safe `PlateViewTests` coverage.
   - Reason: PlateViewTests were unstable historically. CAB-01 now owns their locale-safe
     stabilization and inclusion through the complete `PulsePlateTests` target while preserving the
     separate UI-smoke lane.
@@ -5230,6 +5481,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       flag remain separately authorized
   - Rollback (EN): Follow the rollback sections in the canonical Hub and Home
     trackers; retain the structurally unreachable ER-IOS-2 capability.
+
+
+<a id="ledger-p1-ios-v5-asset-parity-prerequisite"></a>
+- [ ] P1: IOS-REL-2 approved V5 asset promotion prerequisite
+  - Owner: @katsiaryna_kavaleuskaya / iOS product owner
+  - Priority: P1 (native visual parity / consumer copy / canonical asset packaging)
+  - Target PR: [PR #2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+    (`codex/ios-v5-asset-parity-prerequisite`)
+  - Status: Implementation and native verification in the existing PR; final
+    current-head review, CI, mapping/seal, and merge remain pending.
+  - Reason (EN): The approved V5 navigation direction needs its selected
+    photography, semantic FitChef assets, and consumer-facing copy in the real
+    iOS screens before the combined adaptive-shell acceptance.
+  - Scope: Seven mascot catalog keys with 1x/2x/3x renditions, three photographs,
+    five existing SwiftUI owners, EN/RU/ES copy, bounded Today canvas/ring-label
+    corrections, output provenance, and parity tests. The operator approved
+    the same-PR scope-size exception; no separate packaging PR is required.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `ios/PulsePlateTests/IOSREL2V5AssetParityTests.swift`
+  - DoD:
+    - Exact catalog/source-output integrity, iPhone/iPad native lookup and
+      rendered spot checks, full iOS tests, narrow gates, role reviews, and
+      exact-head governance pass before merge.
+    - After this prerequisite merges, existing [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+      synchronizes it, completes the full native matrix and Human V1 GO, and
+      updates the main Open Design project only with the successful final kit.
+    - No AppIcon, shared primitives/tokens, backend/OpenAPI, navigation inventory,
+      entitlement, billing, HealthKit semantics, or App Store submission changes.
+  - Rollback: Whole-PR revert; no backend or user-data migration.
 
 
 <a id="ledger-p1-er-ios-4-home-fitchef-coach-entry"></a>
@@ -10054,13 +10336,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: [PR #2369](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2369)
-    (`codex/fitchef-public-visual-story`)
-  - Status: 🚧 In review in PR #2369. The current carrier promotes the owner-approved
-    Daily/Weekly/Food Context/VIP photographic story and removes the old onboarding mascot from
-    the shared marketing graph. It also closes the first public-demo transfer-budget slice: eight
-    card-only assets now use measured 410x512 derivatives and the complete 12-file pack is
-    1906308 bytes. The umbrella stays open for remaining onboarding-consumer, mascot-variant,
-    Storybook guidance, and evidence-driven delivery work for other eligible consumers.
+    (`codex/fitchef-public-visual-story`, merged); current child
+    [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
+    (`codex/fitchef-web-photographic-hero`)
+  - Status: 🚧 Umbrella open. PR #2369 merged as
+    `159c55e63e0e657262b95b8bf917d2f501bb5749`, promoting the owner-approved
+    Daily/Weekly/Food Context/VIP photographic story and its measured 12-file WebP pack. The
+    current bounded child promotes one user-approved stretch photograph for the public Web Hero,
+    removes internal implementation labels from that Hero, keeps the illustrated Daily/Weekly
+    guide, and leaves the approved VIP story unchanged. Remaining onboarding-consumer,
+    localization, and later platform work keep the umbrella open.
   - Area: design / frontend / marketing
   - Finding Type: brand rollout
   - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
@@ -10080,8 +10365,58 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       where appropriate; PR #2369 satisfies this for the public demo's eight card-only images,
       while other consumers remain part of the open umbrella
     - Marketing/storybook guidance reflects the same variant contract
-    - `make verify` passes with updated web tests if consumers change
+    - Focused Web tests, design/token guards, the local narrow bundle, and exact-head CI pass when
+      consumers change; full local `make verify` remains outside the default machine budget
   - Blockers: Depends on repo mascot canon landing first
+
+<a id="ledger-p1-fitchef-ipad-photographic-identity"></a>
+- [ ] P1: FitChef photographic identity for a bounded iPad surface
+  - Owner: @katsiaryna_kavaleuskaya / iOS product-design owner
+  - Priority: P1
+  - Target PR: PR-TBD after [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
+  - Status: Planned; CAB-01 merged in PR #2368, but the exact iPad surface and preview still require
+    a separate Human Product Owner decision
+  - Area: iOS / iPad / SwiftUI / FitChef visual identity
+  - Finding Type: platform-specific identity follow-up
+  - Reason (EN): The approved identity system uses illustrated or animated FitChef more often on
+    iPhone and reserves photographic FitChef for a larger, separately reviewed iPad composition.
+    Mixing that work into the Web Hero carrier would combine platform ownership and bypass the
+    required iPad preview, Dynamic Type, and idiom-specific evidence.
+  - Links:
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/sora/prompts/brand_core/FITCHEF_IDENTITY_PROFILE_v1.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-client-arch-1-cab-01`
+  - DoD:
+    - one exact existing iPad product surface is selected before implementation
+    - compact iPhone layouts retain the illustrated or animated identity by default
+    - the iPad composition uses one versioned photographic asset with source and runtime hashes
+    - representative iPad, Dynamic Type, VoiceOver, contrast, crop, and memory evidence passes
+    - no Home/Hub duplication, entitlement inference, App Store claim, or Web+iPad mixed PR is added
+  - Blockers: Requires a dedicated iPad visual preview and explicit Human Product Owner approval
+
+<a id="ledger-p1-fitchef-web-calorie-calculation-demo"></a>
+- [ ] P1: Backend-driven FitChef calorie-calculation Web demo
+  - Owner: backend-engineer / frontend-engineer / product owner
+  - Priority: P1
+  - Target PR: PR-TBD after [PR #2373](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2373)
+  - Status: Planned as a separate product-flow carrier
+  - Area: backend / OpenAPI / frontend / free Web education
+  - Finding Type: product demonstration follow-up
+  - Reason (EN): After the visual FitChef story, a visitor should be able to understand how a real
+    calculation becomes a structured planning result. The calculation must remain backend-owned;
+    the Web client may submit canonical inputs and render the response but must not duplicate BMI,
+    calorie, target, tier, or nutrition rules.
+  - Links:
+    - `frontend/src/components/marketing/FitChefValueDemo.tsx`
+    - `frontend/AGENTS.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - the product owner freezes the exact educational scenario and whether it is anonymous or gated
+    - backend schema and OpenAPI own every calculation input and result field
+    - the Web implementation uses the canonical API adapter and generated types with no local math
+    - deterministic success, validation, error-envelope, accessibility, and no-persistence tests pass
+    - the demo makes no live-AI, payment, entitlement, medical, or automatic plan-mutation claim
+  - Blockers: Requires a separate backend/OpenAPI contract and privacy/product decision
 
 <a id="ledger-p1-fitchef-figma-production-sync"></a>
 - [ ] P1: FitChef Figma production sync
