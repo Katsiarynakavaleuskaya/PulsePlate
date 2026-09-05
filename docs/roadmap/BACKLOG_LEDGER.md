@@ -12656,8 +12656,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: EULER-OPS-1 explicit local episode lifecycle supervision
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
-  - Target PR: TBD (`codex/euler-lifecycle-supervision`)
-  - Status: Core implemented in `d6a6659e18d36a34197f0594673a6fe83993b164` and validated locally; renderer integration awaits [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) merge. PR creation, remaining exact-head gates, review and merge are pending.
+  - Target PR: [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) (`codex/euler-lifecycle-supervision`)
+  - Status: PR #2382 is open and its required post-open role passes are complete. The writer is correcting QA-1 normalized terminal shape admission and BH-1 carrier metadata; CI-1 test dependency resolution and the renderer scope decision remain pending. Final exact-head validation, review dispositions and merge are pending.
   - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
   - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow); merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291); renderer/sidecar integration only after authenticated #2378 MERGED and ancestry-preserving synchronization in this same carrier.
   - Links:

@@ -3164,6 +3164,7 @@ def _prepare_terminal_publication(
         available_requires_checkpoint=available_requires_checkpoint,
     )
     receipt = _build_terminal_receipt(document, enrollment)
+    _count_json_shape(receipt)
     files = {"receipt.json": _canonical_json_bytes(receipt, trailing_lf=True)}
     _preflight_bundle_publication(
         "receipt",

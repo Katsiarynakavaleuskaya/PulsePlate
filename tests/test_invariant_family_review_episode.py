@@ -3335,3 +3335,124 @@ def test_unrepresentable_512_identity_checkpoint_rejected_before_lane_creation(
     assert _store_snapshot(anchor) == before
     assert _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_checkpoint"
     _run(anchor, "report", _report_request())
+
+
+def _expanded_terminal_boundary_inputs(
+    extra_joint_members: int,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, object]]:
+    # Fixed production-limit witness from the ordered post-open QA pass.
+    ids = [f"i{index:03x}" for index in range(512)]
+    raw = _enrollment()
+    raw["identity_classes"] = [
+        {"identity_class_id": ids[index], "trigger_finding_id": f"t{index:03x}"}
+        for index in range(256)
+    ]
+    raw["families"] = [
+        {
+            "family_key": f"f{index}",
+            "trigger_family_id": f"tf{index}",
+            "trigger_identity_class_ids": ids[32 * index : 32 * (index + 1)],
+        }
+        for index in range(8)
+    ]
+    receipt = episode._build_enrollment_receipt(raw)
+    baseline = _baseline(receipt)
+    baseline["identity_classes"] = [
+        {
+            "identity_class_id": ids[index],
+            "phase_bindings": (
+                [{"phase": "trigger", "finding_id": f"t{index:03x}"}] if index < 256 else []
+            )
+            + [{"phase": "joint_pass", "finding_id": f"j{index:03x}"}],
+        }
+        for index in range(512)
+    ]
+    baseline["families"] = [
+        {
+            "family_key": f"f{index}",
+            "joint_pass_family_id": f"jf{index}",
+            "joint_pass_cumulative_identity_class_ids": (
+                ids[32 * index : 32 * (index + 1)] + ids[256 + 32 * index : 256 + 32 * (index + 1)]
+            ),
+            "recommended_resolution": "family_fix",
+        }
+        for index in range(8)
+    ]
+    memberships = []
+    for index, family in enumerate(baseline["families"]):
+        own = set(family["joint_pass_cumulative_identity_class_ids"])
+        others = [identifier for identifier in ids if identifier not in own]
+        memberships.append(sorted(own | set(others[: 37 if index == 0 else 384])))
+    baseline["families"][0]["joint_pass_cumulative_identity_class_ids"].extend(
+        ids[32 : 32 + extra_joint_members]
+    )
+    checkpoint = episode._build_checkpoint_receipt(baseline, receipt)
+    terminal = _terminal_available(receipt, baseline, checkpoint)
+    terminal["joint_pass"]["identity_classes"] = copy.deepcopy(baseline["identity_classes"])
+    for index, row in enumerate(terminal["joint_pass"]["identity_classes"]):
+        row["phase_bindings"].append({"phase": "terminal", "finding_id": f"c{index:03x}"})
+    terminal["joint_pass"]["family_observations"] = [
+        {
+            "status": "confirmed",
+            "reason": "same_scope_confirmed",
+            "family_key": f"f{index}",
+            "terminal_family_id": f"cf{index}",
+            "terminal_cumulative_identity_class_ids": members,
+        }
+        for index, members in enumerate(memberships)
+    ]
+    return raw, receipt, baseline, terminal
+
+
+def _json_node_count(value: object) -> int:
+    children = (
+        value.values() if isinstance(value, dict) else value if isinstance(value, list) else []
+    )
+    return 1 + sum(_json_node_count(child) for child in children)
+
+
+@pytest.mark.parametrize("verb", ["complete", "terminal"])
+@pytest.mark.parametrize("extra_joint_members", [0, 1, 2])
+def test_actual_normalized_terminal_node_boundary_is_prepublication(
+    anchor: _Anchor, verb: str, extra_joint_members: int
+) -> None:
+    raw, receipt, baseline, terminal = _expanded_terminal_boundary_inputs(extra_joint_members)
+    request = _complete_request(terminal) if verb == "complete" else terminal
+    parsed = episode._strict_json_document(json.dumps(request).encode())
+    expected_input_nodes = (13080 if verb == "complete" else 13075) + extra_joint_members
+    assert _json_node_count(parsed) == expected_input_nodes
+    normalized = episode._build_terminal_receipt(terminal, receipt)
+    terminal_nodes = _json_node_count(normalized)
+    assert terminal_nodes == 16383 + extra_joint_members
+    assert episode.MAX_JSON_NODES == 16384
+    assert (
+        len(episode._canonical_json_bytes(normalized, trailing_lf=True))
+        < episode.MAX_TERMINAL_RECEIPT_BYTES
+    )
+    # Closed normalizer expansion adds sibling fields, not deeper containers.
+    assert _json_depth(normalized) == _json_depth(terminal) <= episode.MAX_JSON_DEPTH
+    _run(anchor, "enroll", raw)
+    _run(anchor, "checkpoint", baseline)
+    before = _store_snapshot(anchor)
+    if terminal_nodes > episode.MAX_JSON_NODES:
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            episode._run_operation(verb, parsed, anchor.fd)
+        assert _store_snapshot(anchor) == before
+        assert not _receipt_path(anchor, "terminals", receipt["episode_digest"]).exists()
+        assert (
+            _run(anchor, "status", _status_request())["lifecycle"] == "enrolled_awaiting_terminal"
+        )
+        assert _store_snapshot(anchor) == before
+    else:
+        ack = episode._run_operation(verb, parsed, anchor.fd)
+        stored = _receipt_path(anchor, "terminals", receipt["episode_digest"])
+        assert _load_json(stored) == normalized
+        after = _store_snapshot(anchor)
+        assert episode._run_operation(verb, parsed, anchor.fd) == ack
+        assert _store_snapshot(anchor) == after
+    report = _run(anchor, "report", _report_request())
+    status = _run(anchor, "status", _status_request())
+    assert status["report_digest"] == report["report_digest"]
+    assert status["lifecycle"] == (
+        "enrolled_awaiting_terminal" if terminal_nodes > episode.MAX_JSON_NODES else "complete"
+    )
