@@ -39,7 +39,7 @@ The candidate dependency transaction is owned by
 lock resolves `browserslist 4.28.8` at `frontend/package-lock.json:4743` and
 `qs 6.16.0` at `frontend/package-lock.json:8938`, while
 `frontend/package.json` remains byte-identical. The exact two-target permanent
-all-occurrence guard is `tests/test_frontend_dependency_guards.py:1638`.
+all-occurrence guard is `tests/test_frontend_dependency_guards.py:1644`.
 
 That candidate repository evidence does not close Dependabot alert `#273` and
 does not invent a provider closure event for the not-projected `qs` identity.

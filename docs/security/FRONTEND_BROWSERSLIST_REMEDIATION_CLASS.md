@@ -23,7 +23,7 @@ or merge authority. Canonical admission policy is the
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1638`.
+`tests/test_frontend_dependency_guards.py:1644`.
 
 ## Exact base, material head, and governed surfaces
 
@@ -459,7 +459,7 @@ exit: 0 per query
 ```
 
 The content-binding test `test_transitive_npm_batch_receipt_digest_and_projection_are_bound`
-at `tests/test_frontend_dependency_guards.py:3660` rejects unknown scanner/target/record/row keys,
+at `tests/test_frontend_dependency_guards.py:3812` rejects unknown scanner/target/record/row keys,
 wrong batch/scanner identities or metric types, record/range omissions, and package/ecosystem drift,
 plus noncanonical first-patched npm versions or per-GHSA CVE/severity/timestamp metadata.
 
@@ -494,7 +494,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3617`
+`tests/test_frontend_dependency_guards.py:3769`
 (`test_qs_every_advisory_row_retains_affected_and_patched_boundary`).
 
 ## Resolver actions and exact disjoint partition
@@ -790,7 +790,7 @@ replay-proven dependency partition or substitute for the successful retry.
 
 The exact authorization literal and data maps are at
 `tests/test_frontend_dependency_guards.py:215`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1638`:
+`tests/test_frontend_dependency_guards.py:1644`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -801,8 +801,9 @@ The exact authorization literal and data maps are at
    the manifest and exact optional-peer booleans in manifests and all lock records;
 6. validates every non-root lock record through the existing canonical
    registry-provenance adapter;
-7. loads each complete virtual graph through the hermetic repository npm
-   wrapper, with ambient graph-shaping configuration removed;
+7. delegates each complete admitted manifest/lock snapshot pair through the
+   repository npm wrapper in a separate temporary project, isolating it from
+   original-project configuration and filesystem topology;
 8. independently discovers every raw canonical/nested target occurrence;
 9. rejects true/malformed `hasShrinkwrap` or `inBundle`, and nonempty/true bundle
    declarations on every lock record; rejects target links, malformed versions,
@@ -813,8 +814,10 @@ The exact authorization literal and data maps are at
 
 The permanent guard does not freeze base/candidate hashes, occurrence counts,
 or `4.28.8` / `6.16.0` as the only future-safe versions. SRI and absent/false/empty
-inflation flags do not prove fetched contents. Bundles/shrinkwraps or future npm
-inflation semantics stop for rescope instead of adding a carrier parser.
+inflation flags do not prove fetched contents. Published nested bundles or
+shrinkwraps and future npm inflation semantics stop for rescope instead of adding
+a carrier parser. An admitted top-level `npm-shrinkwrap.json` remains a supported
+lock authority, with its original basename preserved during graph admission.
 
 ## Provider projection
 
@@ -1000,14 +1003,14 @@ The original FIXED proof remains historical evidence; it does not prove that
 later material retained the correction. Prior test counts above are not
 retroactively rewritten to include these new controls.
 
-The two real entrypoints at `tests/test_frontend_dependency_guards.py:2764` and
-`tests/test_frontend_dependency_guards.py:2770` now forward an explicit fixture
+The two real entrypoints at `tests/test_frontend_dependency_guards.py:2770` and
+`tests/test_frontend_dependency_guards.py:2776` now forward an explicit fixture
 root to the same universal executor without requiring any target to remain
 present at a historical path. Exact policy/evidence target identities and the
 complete source, occurrence and npm virtual-graph checks remain enforced.
 The module's real npm-wrapper location is not patched or replaced.
 
-The 14 controls at `tests/test_frontend_dependency_guards.py:2810` invoke both
+The 14 controls at `tests/test_frontend_dependency_guards.py:2816` invoke both
 actual entrypoints against five admissible graphs and two affected graphs:
 both targets absent, either mixed state, both safe, and a wholly relocated
 tracked npm project; then affected Browserslist or affected qs with the other
@@ -1072,12 +1075,12 @@ No warning parser, configuration ban, npm patch, new carrier or resolver action
 was introduced.
 
 The bounded controls cover missing required production/development/peer root
-carriers at `tests/test_frontend_dependency_guards.py:3066`, missing versus
+carriers at `tests/test_frontend_dependency_guards.py:3072`, missing versus
 safe Browserslist below an installed production carrier at
-`tests/test_frontend_dependency_guards.py:3106`, and valid missing optional
-child behavior at `tests/test_frontend_dependency_guards.py:3143`.
+`tests/test_frontend_dependency_guards.py:3112`, and valid missing optional
+child behavior at `tests/test_frontend_dependency_guards.py:3149`.
 The exact four-kind tuple is checked at
-`tests/test_frontend_dependency_guards.py:3168`. All prior actual-entrypoint,
+`tests/test_frontend_dependency_guards.py:3320`. All prior actual-entrypoint,
 advisory, provenance and integrity controls remain unchanged.
 
 Command, first against the old include tuple and then the corrected tuple:
@@ -1109,5 +1112,79 @@ child of an installed carrier; no npm error was waived and no optional edge
 was made mandatory. The guard continues to fail closed when its delegated npm
 execution cannot establish graph validity. This correction makes no claim of
 support for every possible optional-root graph or future npm configuration.
+
+## Admitted-snapshot input isolation (2026-09-07)
+
+After the genuine base synchronization to
+`9cf03aba9aa127b3d5f4bbd790c51458721cc202`, the pre-correction local head was
+`c0ce5e0624740f0ab665fcb39e66f6d73432965e`. A second project-configuration
+counterexample exposed the limit of the preceding inclusion correction:
+`depth=0` truncates the existing npm command even with `--all`. For both targets,
+a missing required child or a safe but incompatible hoisted copy could therefore
+pass. The direct operator approved replacing the original-directory invocation
+with admitted-snapshot isolation in this same PR. Packet `0592da32d5d1` completed
+the ordered read-only Coordinator, Logic, Philosophy, Architecture and Security
+passes before the first tracked correction. This is not another depth flag or
+a new configuration parser.
+
+The existing helper at `tests/test_frontend_dependency_guards.py:1492` now
+serializes the whole already-admitted manifest and uniquely selected lock objects
+into distinct flat temporary projects. Each invocation retains the original
+lock basename and uses the same private directory for `cwd` and `--prefix`.
+The helper no longer receives the original root directory. It does not reread
+source JSON or copy source `.npmrc`, `node_modules`, local packages or parent
+topology. Existing wrapper, environment filtering, empty user/global configs,
+policy arguments, timeout and nonzero/error/problems/invalid-JSON rejection
+remain unchanged. Object values, nesting, array order and optional metadata are
+preserved; historical JSON whitespace is not a semantic input requirement.
+
+The real-guard controls at `tests/test_frontend_dependency_guards.py:3190`
+exercise both identities, missing and incompatible required edges, complete safe
+graphs and optional-child absence, with and without source `depth=0`. They also
+exercise safe and missing-edge top-level shrinkwrap graphs for both identities.
+The transport-only oracle at `tests/test_frontend_dependency_guards.py:3247`
+checks distinct source projects and both lock basenames, exact decoded snapshot
+equality after source-file changes, unchanged caller objects, no copied source
+artifacts, consistent private `cwd`/prefix and temporary cleanup on both success
+and execution failure. Its synthetic subprocess result is not graph-validity
+evidence; the behavioral matrix uses real npm.
+
+Commands used Node `24.18.1` / npm `11.16.0` through the existing wrapper and
+repository Python. The new behavioral tests against the unchanged helper:
+
+```bash
+"$VENV_PYTHON" -m pytest tests/test_frontend_dependency_guards.py -k graph_is_independent_of_source_depth
+```
+
+Raw result, exit `1` (retained expected-red evidence, not committed):
+
+```text
+E   Failed: DID NOT RAISE AssertionError
+6 failed, 14 passed, 255 deselected in 8.96s
+```
+
+After the helper correction and transport controls:
+
+```bash
+"$VENV_PYTHON" -m pytest tests/test_frontend_dependency_guards.py -k 'graph_is_independent_of_source_depth or graph_transports_only_admitted_snapshots'
+"$VENV_PYTHON" -m pytest tests/test_frontend_dependency_guards.py
+```
+
+Raw results, each exit `0`:
+
+```text
+22 passed, 255 deselected in 8.66s
+277 passed in 30.97s
+```
+
+The established claim is original-project configuration noninterference for
+the admitted snapshots under the trusted host, wrapper, npm and temporary-file
+assumptions. It is not universal host hermeticity, protection from a hostile
+same-UID process, proof of fetched package contents or future npm semantics.
+Both advisory inventories, all previous absence/entrypoint/provenance/integrity
+controls and dependency bytes are unchanged. Any need to import source/local
+files or add another recognizer remains a stop. The historical resolver receipt
+and all prior review proof blocks remain intact; the final material identity and
+current-head readiness must be refreshed through the existing closeout process.
 
 <!-- markdownlint-enable MD013 MD031 MD032 -->

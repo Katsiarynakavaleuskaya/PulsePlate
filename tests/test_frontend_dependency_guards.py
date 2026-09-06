@@ -1489,8 +1489,8 @@ def _npm_virtual_graph_environment() -> dict[str, str]:
     }
 
 
-def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) -> None:
-    """Delegate every lock-bearing project graph to the active repository npm."""
+def _assert_npm_virtual_lock_graphs(*, surfaces: dict[str, dict]) -> None:
+    """Delegate admitted snapshots without reopening the original project directory."""
 
     wrapper = REPO_ROOT / "scripts" / "frontend_npm.sh"
     assert wrapper.is_file() and os.access(
@@ -1564,11 +1564,16 @@ def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) ->
         global_config = config_root / "global.npmrc"
         user_config.write_text("", encoding="utf-8")
         global_config.write_text("", encoding="utf-8")
-        for project_relative, lock_surface in sorted(
-            lock_roots.items(),
-            key=lambda item: item[0].as_posix(),
+        for index, (project_relative, lock_surface) in enumerate(
+            sorted(lock_roots.items(), key=lambda item: item[0].as_posix())
         ):
-            project_root = root.joinpath(*project_relative.parts)
+            project_root = config_root / f"project-{index}"
+            project_root.mkdir()
+            manifest_surface = (project_relative / "package.json").as_posix()
+            for surface in (manifest_surface, lock_surface):
+                (project_root / PurePosixPath(surface).name).write_text(
+                    json.dumps(surfaces[surface]), encoding="utf-8"
+                )
             try:
                 result = subprocess.run(
                     [
@@ -1587,6 +1592,7 @@ def _assert_npm_virtual_lock_graphs(*, root: Path, surfaces: dict[str, dict]) ->
                     ],
                     check=False,
                     capture_output=True,
+                    cwd=project_root,
                     env=npm_env,
                     timeout=60,
                 )
@@ -1709,7 +1715,7 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
                 )
                 lock_occurrences[target][(relative, path)] = package
 
-    _assert_npm_virtual_lock_graphs(root=root, surfaces=surfaces)
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
     return {
         target: frozenset(relative for relative, _ in target_occurrences)
         for target, target_occurrences in lock_occurrences.items()
@@ -3163,6 +3169,152 @@ def test_browserslist_virtual_graph_preserves_optional_child_absence(tmp_path: P
     )
     (tmp_path / "frontend/.npmrc").write_text("omit=optional\n", encoding="utf-8")
     assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("target", "affected_version", "safe_version"),
+    (("browserslist", "4.28.2", "4.28.8"), ("qs", "6.15.2", "6.16.0")),
+)
+@pytest.mark.parametrize(
+    ("graph_state", "depth", "lock_basename"),
+    [
+        (state, depth, "package-lock.json")
+        for state in ("missing", "incompatible", "safe", "optional")
+        for depth in (None, "0")
+    ]
+    + [
+        ("safe", "0", "npm-shrinkwrap.json"),
+        ("missing", "0", "npm-shrinkwrap.json"),
+    ],
+)
+def test_transitive_npm_graph_is_independent_of_source_depth(
+    tmp_path: Path,
+    target: str,
+    affected_version: str,
+    safe_version: str,
+    graph_state: str,
+    depth: str | None,
+    lock_basename: str,
+) -> None:
+    """Source config cannot hide missing/incompatible edges or forbid valid absence."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "1.0.0"}}
+    edge_field = "optionalDependencies" if graph_state == "optional" else "dependencies"
+    edge_version = safe_version if graph_state == "safe" else affected_version
+    packages: dict[str, object] = {
+        "": manifest,
+        "node_modules/carrier": {
+            **_transitive_npm_entry(target="carrier", version="1.0.0"),
+            edge_field: {target: edge_version},
+        },
+    }
+    if graph_state in {"safe", "incompatible"}:
+        packages[f"node_modules/{target}"] = _transitive_npm_entry(
+            target=target, version=safe_version
+        )
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": packages,
+        },
+    )
+    project = tmp_path / "frontend"
+    if lock_basename != "package-lock.json":
+        (project / "package-lock.json").rename(project / lock_basename)
+    if depth is not None:
+        (project / ".npmrc").write_text(f"depth={depth}\n", encoding="utf-8")
+    _git_stdout("add", "--all", "--", "frontend", repo_root=tmp_path)
+    if graph_state in {"missing", "incompatible"}:
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    else:
+        assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+            identity: (
+                frozenset({f"frontend/{lock_basename}"})
+                if identity == target and graph_state == "safe"
+                else frozenset()
+            )
+            for identity in AUTHORIZED_TRANSITIVE_NPM_BATCH
+        }
+
+
+@pytest.mark.parametrize("execution_fails", (False, True))
+def test_transitive_npm_graph_transports_only_admitted_snapshots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    execution_fails: bool,
+) -> None:
+    """Transport/cleanup oracle only; real npm tests separately prove graph validity."""
+
+    surfaces: dict[str, dict] = {}
+    expected: dict[str, tuple[str, str]] = {}
+    source_projects = []
+    for index, (project, basename) in enumerate(
+        (("outer", "package-lock.json"), ("outer/inner", "npm-shrinkwrap.json"))
+    ):
+        manifest = {
+            "name": f"snapshot-{index}",
+            "version": "1.0.0",
+            "keywords": ["second", "first"],
+            "config": {"nested": [{"optional": True}, "é"]},
+        }
+        lock = {"lockfileVersion": 3, "packages": {"": deepcopy(manifest)}}
+        project_root = tmp_path / project
+        project_root.mkdir(parents=True)
+        source_projects.append(project_root)
+        (project_root / ".npmrc").write_text("depth=0\n", encoding="utf-8")
+        (project_root / "node_modules").mkdir()
+        for filename, document in (("package.json", manifest), (basename, lock)):
+            source_path = project_root / filename
+            source_path.write_text(json.dumps(document), encoding="utf-8")
+            surfaces[f"{project}/{filename}"] = _load_transitive_npm_surface(source_path)
+            source_path.write_text("{}", encoding="utf-8")
+        expected[manifest["name"]] = (f"{project}/package.json", f"{project}/{basename}")
+    before = deepcopy(surfaces)
+    visited: list[Path] = []
+
+    def inspect_transport(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: int,
+    ) -> subprocess.CompletedProcess[bytes]:
+        assert command[0] == str(REPO_ROOT / "scripts/frontend_npm.sh")
+        assert cwd == Path(command[command.index("--prefix") + 1])
+        assert cwd not in source_projects and cwd not in visited
+        visited.append(cwd)
+        manifest = json.loads((cwd / "package.json").read_text(encoding="utf-8"))
+        manifest_surface, lock_surface = expected[manifest["name"]]
+        basename = PurePosixPath(lock_surface).name
+        assert {path.name for path in cwd.iterdir()} == {"package.json", basename}
+        assert manifest == before[manifest_surface]
+        assert json.loads((cwd / basename).read_text(encoding="utf-8")) == before[lock_surface]
+        for flag in ("--userconfig", "--globalconfig"):
+            assert Path(command[command.index(flag) + 1]).read_bytes() == b""
+        assert not check and capture_output and timeout == 60
+        assert env == _npm_virtual_graph_environment()
+        if execution_fails and len(visited) == len(expected):
+            raise OSError("controlled npm execution failure")
+        return subprocess.CompletedProcess(command, 0, stdout=b"{}", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", inspect_transport)
+    if execution_fails:
+        with pytest.raises(AssertionError, match="npm virtual graph execution failed"):
+            _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    else:
+        _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    assert len(visited) == len(expected)
+    assert len({path.parent for path in visited}) == 1
+    assert all(not path.parent.exists() for path in visited)
+    assert surfaces == before
 
 
 def test_browserslist_virtual_graph_configuration_is_hermetic(
