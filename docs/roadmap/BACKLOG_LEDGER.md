@@ -106,8 +106,8 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
   - Target PR: [PR #2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
     (`codex/ios-release-build-appicon-integrity`)
-  - Status: Implementation active in PR #2381; current-head CI, post-open review, review closeout,
-    wait window, and human merge remain pending.
+  - Status: Implementation active in PR #2381; ordered post-open role review and targeted QA
+    completed. Final current-head CI, exact-material closeout, wait window and human merge remain pending.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
   - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
@@ -118,6 +118,7 @@ If it is not recorded here — it does not exist.
     - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
     - `scripts/release/check_ios_appstore_verify.py`
     - `.github/workflows/ci.yml`
+    - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md#cab-03-owner-approved-acceptance-clarification`
   - DoD:
     - under the current-Xcode/actool-qualified contract, the unique `ios-marketing` entry has
       exactly filename, idiom, scale, and size, with `platform` absent from this entry only
@@ -130,10 +131,44 @@ If it is not recorded here — it does not exist.
     - the existing blocking iOS job invokes the canonical repo-local validator exactly once before
       the complete unit run, with any non-zero validator result failing the job
     - the existing blocking iOS job runs a separate Release simulator build after the full unit run
+    - owner-approved CAB-03 acceptance retains a 60-minute job fallback and separate 600-second
+      Release bound; the absent pre-lock icon-core silhouette inputs are inapplicable to this
+      unchanged-PNG metadata-only carrier, not a silhouette PASS
+    - the canonical CI no-coverable-lines result remains N/A, with fresh exact-material local
+      changed-line coverage at least 97%; all other current-head gates remain unchanged
     - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
       Web, production Swift, or visual redesign scope is introduced
   - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
     asset-source restoration is required.
+
+<a id="ledger-client-arch-1-continuation"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
+  - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
+  - Priority: P1 (ordered client architecture and release-integrity follow-ups)
+  - Target PR: pending, separate carrier PRs after CAB-03 merge and exact-main proof
+  - Status: Open; no later carrier is implemented or closed by CAB-03. The accepted CAB-03
+    handoff names the reservations below; this record grants no new implementation or release authority.
+  - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
+    warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
+  - Links:
+    - [CAB-03 implementation](#ledger-client-arch-1-cab-03)
+    - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
+    - `ios/AGENTS.md`
+  - Open reservations:
+    - [ ] CAB-04: actor-isolation work; exact scope and DoD require its own admission.
+    - [ ] CAB-05: warning cleanup / warnings-as-errors, including the unrelated AppIntents
+      metadata-extraction warning; no warning-free claim is made by CAB-03.
+    - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.
+    - [ ] CAB-07: reserved slot; no concrete scope was specified in the retained CAB-03 handoff.
+    - [ ] CAB-08: Web bundle work; exact scope and DoD require its own admission.
+    - [ ] CAB-09: Mac Catalyst/macOS admission; no platform support is changed by CAB-03.
+  - DoD:
+    - after CAB-03 merges, its required exact-main proof and ledger closeout identify CAB-04
+      as the next planned carrier without claiming CAB-04 implementation has begun
+    - each reservation receives a separately accepted scope, implementation owner, observable
+      criteria and real Target PR before implementation; no missing scope is inferred from its number
+    - each checkbox closes only with that carrier's actual merge/evidence or an explicit owner
+      won't-do decision; this tracking group remains open while any reservation is open
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo

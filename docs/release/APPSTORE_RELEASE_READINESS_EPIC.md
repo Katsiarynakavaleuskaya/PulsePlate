@@ -287,6 +287,27 @@ Protected upload completion remains outside implementation PRs and requires
 operator-owned App Store Connect evidence per
 `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`.
 
+### CAB-03 owner-approved acceptance clarification
+
+For PR #2381 only, the owner explicitly accepted these three clarifications on
+2026-09-06 after the criterion-by-criterion QA review:
+
+- The outer iOS job fallback is 60 minutes; the separate Release step remains
+  bounded at 600 seconds. Nominal setup headroom is not guaranteed.
+- `icon-silhouette-check` is inapplicable to this unchanged-PNG metadata-only
+  carrier: its separate pre-lock icon-core master inputs are absent. Preserve
+  that command's failure as evidence, not PASS; do not create or substitute
+  bitmap inputs. Exact AppIcon hash/dimensions and `design-guard` remain required.
+- The canonical GitHub diff-coverage job's no-coverable-lines result remains
+  N/A because this diff's Python changes are in scripts/tests. CAB-03 also
+  requires fresh exact-material supplemental local changed-line coverage at
+  least 97%. Never present the local percentage as a GitHub measurement.
+
+All other current-head CI, security, review, mapping/seal and wait-window gates
+remain required. These clarifications authorize neither merge nor release and
+do not alter acceptance for another carrier. The reserved subsequent carriers
+remain open in the [CLIENT-ARCH-1 continuation ledger](../roadmap/BACKLOG_LEDGER.md#ledger-client-arch-1-continuation).
+
 ## Security Notes
 
 - App Privacy must not declare `DATA_NOT_COLLECTED` while profile, AI, billing,
