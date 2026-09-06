@@ -1086,7 +1086,11 @@ def test_prometheus_cloud_build_preserves_closed_profile_and_cleanup(
                 assert (
                     plan.argv[plan.argv.index("--build-arg") + 1] == "SOURCE_DATE_EPOCH=1788079847"
                 )
-                assert "type=oci," in plan.argv[plan.argv.index("--output") + 1]
+                archive = Path(plan.argv[-1]).parent / "candidate.oci.tar"
+                assert plan.argv[plan.argv.index("--output") + 1] == (
+                    f"type=oci,dest={archive},name=pulseplate-prometheus:verify-test,"
+                    "oci-mediatypes=true,rewrite-timestamp=true"
+                )
                 assert set(path.name for path in Path(plan.argv[-1]).iterdir()) == {"Containerfile"}
                 assert all(
                     key not in plan.env
@@ -10283,6 +10287,7 @@ def test_prometheus_cloud_tool_setup_is_pinned_and_observes_actual_programs(
 def test_prometheus_cloud_entry_has_no_local_executor_or_receipt_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     mutation: str | None,
 ) -> None:
     repo = _candidate_repo(tmp_path)
@@ -10343,22 +10348,84 @@ def test_prometheus_cloud_entry_has_no_local_executor_or_receipt_authority(
         )
 
     monkeypatch.setattr(prometheus_candidate.ExactAdapters, "_build", build)
-    monkeypatch.setattr(
-        prometheus_candidate.ExactAdapters, "_scan", lambda *_args: _candidate_scan()
-    )
+    scans: list[Path] = []
+
+    def scan(_adapter: object, archive: Path) -> object:
+        scans.append(archive)
+        return _candidate_scan()
+
+    monkeypatch.setattr(prometheus_candidate.ExactAdapters, "_scan", scan)
     if mutation:
         with pytest.raises(prometheus_candidate.CandidateHold):
             prometheus_candidate.execute_cloud(repo)
+        assert scans == []
         if mutation != "build_mismatch":
             assert builds == []
+            assert capsys.readouterr().err == ""
+        else:
+            assert builds == [1, 2]
+            assert "Build mismatch manifest_digest:" in capsys.readouterr().err
+            assert list((repo / "artifacts/security_lab/prometheus_cloud_result").iterdir()) == []
+        assert not prometheus_candidate._state_root(repo).exists()
     else:
         result = prometheus_candidate.execute_cloud(repo)
         assert result["state"] == "cloud-candidate-verified-unpublished"
         assert builds == [1, 2]
+        assert len(scans) == 1
+        assert capsys.readouterr().err == ""
         output = repo / "artifacts/security_lab/prometheus_cloud_result"
         assert {path.name for path in output.iterdir()} == set(prometheus_candidate.CLOUD_MEMBERS)
         assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
         assert not prometheus_candidate._state_root(repo).exists()
+
+
+@pytest.mark.parametrize(
+    "field", ("prometheus_sha256", "config_digest", "layer_digests", "ui_file_count")
+)
+def test_prometheus_cloud_mismatch_diagnostic_is_closed_and_bounded(
+    field: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first, second = _candidate_evidence(), _candidate_evidence()
+    replacement = {
+        "prometheus_sha256": "0" * 64,
+        "config_digest": "sha256:" + "e" * 64,
+        "layer_digests": ["sha256:" + "e" * 64] * 4096,
+        "ui_file_count": 11,
+    }[field]
+    second[field] = replacement
+    prometheus_candidate._report_build_mismatch(first, second)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith(f"Build mismatch {field}: first=")
+    assert len(captured.err) < 300
+    assert captured.err.count("\n") == 1
+    if field == "layer_digests":
+        assert "count=4096" in captured.err
+        assert (
+            prometheus_candidate.sha256_digest(prometheus_candidate.canonical_json(replacement))
+            in captured.err
+        )
+        assert "e" * 64 not in captured.err
+    else:
+        assert f"second={replacement}" in captured.err
+
+
+def test_prometheus_cloud_mismatch_diagnostic_rejects_unvalidated_data_and_caps_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    first, second = _candidate_evidence(), _candidate_evidence()
+    for malformed in (
+        dict(first, prometheus_sha256="DO-NOT-LOG arbitrary path/token data"),
+        dict(first, unexpected="DO-NOT-LOG arbitrary path/token data"),
+    ):
+        with pytest.raises(prometheus_candidate.CandidateHold, match="build_evidence_invalid"):
+            prometheus_candidate._report_build_mismatch(first, malformed)
+        assert capsys.readouterr().err == ""
+    second = dict(first, ui_file_count=1 << 4096)
+    prometheus_candidate._report_build_mismatch(first, second)
+    captured = capsys.readouterr().err
+    assert "second=count-exceeds-uint64" in captured
+    assert len(captured) < 150
 
 
 def test_prometheus_cloud_cli_dispatches_without_instantiating_publication_controller(

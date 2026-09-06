@@ -14,6 +14,10 @@ Candidate evidence and a final receipt would not change that selector.
 
 ## Current truth
 
+- Run `34047493123` on head `cfe313c3a7413b201000d953a4dcd9716df5c4fd`
+  completed both build calls and their input/parser/identity checks, then
+  stopped at `HOLD:path_independent_build_mismatch` before scanning. This is
+  two completed builds, not a reproducible, scanned or admitted candidate.
 - The official selected Prometheus linux/amd64 image embeds gRPC `v1.83.0`;
   CVE-2026-84304 is fixed in `v1.83.1`.
 - Caddy's exact module graph and binary metadata now select `v1.83.1` at
@@ -117,6 +121,37 @@ option. [Current versioned REST contract](https://docs.github.com/en/rest/action
 
 These corrections and the request-contract disposition do not supply the
 outstanding cloud build, scan, publication or selector evidence.
+
+## Reproducibility export and bounded failure evidence
+
+The failed equality run did not retain differing field values before its
+normal temporary-archive cleanup. It cannot establish whether binary, UI or
+OCI metadata differed; its receipt 00 remains failed and is not reused.
+
+The pinned upstream compression script uses gzip `-n`, so no gzip-option
+change is justified. Pinned BuildKit 0.33.0 separately requires
+`rewrite-timestamp=true` to apply `SOURCE_DATE_EPOCH` to image-layer file
+timestamps. The existing OCI exporter omitted that option; touching only the
+two binaries did not prove normalization of every emitted entry. The common
+build path now supplies the documented option for both builds and subsequent
+fresh pre-publication verification, while preserving the recipe, sources,
+locks, base, resources and full equality predicate.
+[Pinned gzip implementation](https://github.com/prometheus/prometheus/blob/09fdfcd2659dd9c816e9e23c992fc161c0091757/scripts/compress_assets.sh#L16),
+[pinned BuildKit timestamp contract](https://github.com/moby/buildkit/blob/v0.33.0/docs/build-repro.md#source_date_epoch),
+[exporter option](https://github.com/moby/buildkit/blob/v0.33.0/exporter/containerimage/opts.go#L57).
+
+Before the unchanged mismatch HOLD, the controller reports only differing
+validated evidence fields, digest values and bounded counts. Layer lists are
+represented by count and canonical digest, not dumped; oversized numeric
+diagnostics are explicitly marked. Invalid or unknown evidence is rejected
+before logging. No scan or success artifact follows a mismatch. This is
+stderr diagnostics, not a new receipt or authority surface. The relevant
+implementation remains `scripts/ci/prometheus_derivative_candidate.py:567`.
+
+The missing exporter normalization is a supported contract correction, not
+proof that timestamps were the sole cause of the observed mismatch. Only a
+fresh exact-head run can establish equality and then the unchanged scanner
+postcondition. Expected content hashes are not rewritten to accept drift.
 
 ## Closed pre-build identity
 

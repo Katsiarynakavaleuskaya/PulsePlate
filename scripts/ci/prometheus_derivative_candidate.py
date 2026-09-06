@@ -564,6 +564,22 @@ def _build_evidence(value: object) -> BuildEvidence:
     return dict(value)
 
 
+def _report_build_mismatch(first: BuildEvidence, second: BuildEvidence) -> None:
+    first, second = _build_evidence(first), _build_evidence(second)
+    for field in sorted(EVIDENCE_FIELDS):
+        if first[field] == second[field]:
+            continue
+        rendered: list[str] = []
+        for value in (first[field], second[field]):
+            if isinstance(value, list):
+                rendered.append(f"count={len(value)} {sha256_digest(canonical_json(value))}")
+            elif isinstance(value, int):
+                rendered.append(str(value) if value.bit_length() <= 64 else "count-exceeds-uint64")
+            else:
+                rendered.append(str(value))
+        print(f"Build mismatch {field}: first={rendered[0]} second={rendered[1]}", file=sys.stderr)
+
+
 def _scan_evidence(value: object) -> ScanEvidence:
     if not isinstance(value, dict) or set(value) != SCAN_FIELDS:
         raise _hold("scan_evidence_invalid")
@@ -996,6 +1012,7 @@ def execute_cloud(repo_root: Path) -> dict[str, object]:
             first, archive = adapter._build(1, reference)
             second, _second_archive = adapter._build(2, reference)
             if first != second:
+                _report_build_mismatch(first, second)
                 raise _hold("path_independent_build_mismatch")
             scan = adapter._scan(archive)
             if build_spec(repo_root, identity) != spec:
@@ -1480,7 +1497,7 @@ class ExactAdapters:
                         "--build-arg",
                         f"SOURCE_DATE_EPOCH={CLOUD_PROFILE['source_date_epoch']}",
                         "--output",
-                        f"type=oci,dest={archive},name={reference},oci-mediatypes=true",
+                        f"type=oci,dest={archive},name={reference},oci-mediatypes=true,rewrite-timestamp=true",
                         str(context),
                     )
                 ),

@@ -105,6 +105,12 @@
   `Version`. Missing/duplicate output, name/node/version drift and Docker
   image/resource mismatches remain HOLD; human-readable table parsing is not
   an admitted fallback.
+- OCI export must carry `rewrite-timestamp=true` alongside the fixed
+  `SOURCE_DATE_EPOCH`; touching the output binaries alone does not normalize
+  all layer entries. Keep complete build-evidence equality. On mismatch,
+  report only closed validated field names, hashes/digests and bounded counts
+  before the same HOLD; diagnostics never advance scan, receipt or publication
+  state and must not dump arbitrary objects or full build logs.
 - Local admission requires authenticated exact repo/head/workflow/run/attempt,
   a complete four-job census with the sole candidate success and every ordinary
   job skipped, one name/time-bound non-expired artifact, its exact ZIP digest,
