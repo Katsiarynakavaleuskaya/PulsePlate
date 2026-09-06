@@ -8,6 +8,9 @@ PostgreSQL does not define an equality operator for ``json`` values.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import json
@@ -20,6 +23,65 @@ _JSON_SQL_LITERAL = re.compile(
     r"^'(?P<payload>(?:[^']|'')*)'(?:\s*::\s*(?P<cast>json|jsonb))?$",
     re.IGNORECASE,
 )
+
+AUTOGENERATE_EXEMPT_TABLE_ROOTS = frozenset(
+    {
+        ("public", "foods"),
+        ("public", "pulseplate_migration_ownership"),
+        ("public", "restaurant_chains"),
+        ("public", "restaurant_menu_items"),
+    }
+)
+
+_PROVEN_DEFAULT_SCHEMA: ContextVar[str | None] = ContextVar(
+    "pulseplate_alembic_proven_default_schema",
+    default=None,
+)
+
+
+@contextmanager
+def proven_autogenerate_default_schema(default_schema_name: str) -> Iterator[None]:
+    """Admit implicit-schema reflection only after an exact public-schema proof."""
+
+    if default_schema_name != "public":
+        raise ValueError("autogenerate_default_schema_not_public")
+    token = _PROVEN_DEFAULT_SCHEMA.set(default_schema_name)
+    try:
+        yield
+    finally:
+        _PROVEN_DEFAULT_SCHEMA.reset(token)
+
+
+def include_autogenerate_object(
+    obj: object,
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: object | None,
+) -> bool:
+    """Exclude only four exact reflected migration-only table roots.
+
+    PostgreSQL reports default-schema tables with ``schema=None``.  That value
+    is interpreted as ``public`` only inside a same-execution proof scope
+    established by :func:`proven_autogenerate_default_schema`.  Every
+    exclusion, including an explicitly schema-qualified ``public`` table,
+    requires that same scope so another dialect cannot inherit this policy.
+    """
+
+    proven_default_schema = _PROVEN_DEFAULT_SCHEMA.get()
+    if proven_default_schema != "public":
+        return True
+    schema = getattr(obj, "schema", None)
+    if schema is None:
+        schema = proven_default_schema
+    return not (
+        type_ == "table"
+        and reflected is True
+        and compare_to is None
+        and isinstance(name, str)
+        and isinstance(schema, str)
+        and (schema, name) in AUTOGENERATE_EXEMPT_TABLE_ROOTS
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,4 +179,9 @@ def compare_postgresql_server_default(
     return inspected_value != metadata_value
 
 
-__all__ = ["compare_postgresql_server_default"]
+__all__ = [
+    "AUTOGENERATE_EXEMPT_TABLE_ROOTS",
+    "compare_postgresql_server_default",
+    "include_autogenerate_object",
+    "proven_autogenerate_default_schema",
+]

@@ -19,10 +19,9 @@ import re
 import subprocess
 import sys
 import time
-import warnings
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -33,14 +32,10 @@ from uuid import uuid4
 
 import pytest
 from alembic.config import Config
-from alembic.autogenerate import produce_migrations
-from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import (
     BigInteger,
     Column,
-    Constraint,
-    Index,
     MetaData,
     Table,
     Text,
@@ -51,16 +46,19 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy import inspect as sqlalchemy_inspect
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Connection, Engine, make_url
 from sqlalchemy.engine.url import URL
-from sqlalchemy.exc import DBAPIError, InvalidRequestError, SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.types import UserDefinedType
 
 from core.db_rls import apply_user_rls_context
+from scripts.ci.check_alembic_autogenerate_completeness import (
+    ADMISSION_RESULT_CLAIM,
+    evaluate_alembic_autogenerate_admission,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PGVECTOR_COMPAT_DATABASE_URL = "PGVECTOR_COMPAT_DATABASE_URL"
@@ -74,65 +72,6 @@ TENANT_ONE = 101
 TENANT_TWO = 202
 ALEMBIC_DATABASE_PREFIX = "pulseplate_alembic_"
 PRE_DRIFT_RECONCILIATION_HEAD = "202608270001"
-EXPECTED_POSTFIX_ALEMBIC_RESIDUAL = frozenset(
-    {
-        "public.foods",
-        "public.pulseplate_migration_ownership",
-        "public.restaurant_chains",
-        "public.restaurant_menu_items",
-    }
-)
-UNEXPECTED_ALEMBIC_LEAF_REPORT_CAP = 128
-FOUNDATION_OWNERSHIP_REVISION = "202604120001"
-FOUNDATION_CATALOG_TABLES = frozenset({"foods", "restaurant_chains", "restaurant_menu_items"})
-FOUNDATION_INTERNAL_TABLE = "pulseplate_migration_ownership"
-FOUNDATION_INDEX_CONTRACTS = {
-    ("foods", "ix_foods_canonical_name"): ("canonical_name", "btree", "text_ops"),
-    ("foods", "ix_foods_group_name"): ("group_name", "btree", "text_ops"),
-    ("foods", "ix_foods_source"): ("source", "btree", "text_ops"),
-    ("foods", "ix_foods_gtin"): ("gtin", "btree", "text_ops"),
-    ("foods", "ix_foods_canonical_name_gin_trgm"): (
-        "canonical_name",
-        "gin",
-        "gin_trgm_ops",
-    ),
-    ("foods", "ix_foods_group_name_gin_trgm"): (
-        "group_name",
-        "gin",
-        "gin_trgm_ops",
-    ),
-    ("foods", "ix_foods_brand_gin_trgm"): ("brand", "gin", "gin_trgm_ops"),
-    ("restaurant_chains", "ix_restaurant_chains_name"): ("name", "btree", "text_ops"),
-    ("restaurant_menu_items", "ix_restaurant_menu_items_chain_id"): (
-        "chain_id",
-        "btree",
-        "text_ops",
-    ),
-    ("restaurant_menu_items", "ix_restaurant_menu_items_item_name"): (
-        "item_name",
-        "btree",
-        "text_ops",
-    ),
-    ("restaurant_menu_items", "ix_restaurant_menu_items_food_id"): (
-        "food_id",
-        "btree",
-        "text_ops",
-    ),
-}
-EXPECTED_RAW_ALEMBIC_IDENTITIES = frozenset(
-    {
-        *(
-            "operation_class=remove_table;subject_class=Table;"
-            f"table=public.{table_name};object={table_name}"
-            for table_name in (*sorted(FOUNDATION_CATALOG_TABLES), FOUNDATION_INTERNAL_TABLE)
-        ),
-        *(
-            "operation_class=remove_index;subject_class=Index;"
-            f"table=public.{table_name};object={index_name}"
-            for table_name, index_name in sorted(FOUNDATION_INDEX_CONTRACTS)
-        ),
-    }
-)
 CONTROLLED_ALEMBIC_ENV = {
     "APP_ENV": "test",
     "ENVIRONMENT": "test",
@@ -309,8 +248,10 @@ def _normalize_timeout_partial_output(value: object) -> str:
 
 def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProcess[str]:
     env = _alembic_subprocess_env(database_url)
+    is_check = arguments == ("check",)
     command = [
         sys.executable,
+        *(("-W", "error") if is_check else ()),
         "-m",
         "alembic",
         "-c",
@@ -341,285 +282,53 @@ def _run_alembic(database_url: URL, *arguments: str) -> subprocess.CompletedProc
             f"stdout tail:\n{stdout[-4000:]}\n"
             f"stderr tail:\n{stderr[-4000:]}"
         )
+    failure_reason: str | None = None
     if completed.returncode != 0:
+        failure_reason = f"Alembic PostgreSQL subprocess failed (rc={completed.returncode})"
+    elif is_check:
+        # alembic.ini sends these exact INFO logger records to stdout. Their
+        # bodies remain prose, not another table/sequence ownership inventory.
+        info_prefixes = (
+            "INFO  [alembic.runtime.migration] ",
+            "INFO  [alembic.ddl.postgresql] ",
+            "INFO  [alembic.runtime.plugins] ",
+        )
+        success_line = "No new upgrade operations detected."
+        stdout_lines = completed.stdout.splitlines()
+        if (
+            completed.stderr
+            or stdout_lines.count(success_line) != 1
+            or any(
+                line != success_line and not line.startswith(info_prefixes) for line in stdout_lines
+            )
+        ):
+            failure_reason = "Alembic check output is not warning-free zero-operation proof"
+    if failure_reason is not None:
         stdout = _redact_database_output(completed.stdout, database_url)
         stderr = _redact_database_output(completed.stderr, database_url)
         pytest.fail(
-            "Alembic PostgreSQL subprocess failed "
-            f"(rc={completed.returncode})\n"
+            f"{failure_reason}\n"
             f"stdout tail:\n{stdout[-4000:]}\n"
             f"stderr tail:\n{stderr[-4000:]}"
         )
     return completed
 
 
-def _alembic_diff_identity(diff: object) -> str:
-    """Return a bounded secret-free identity for one Alembic diff tuple."""
-
-    if not isinstance(diff, tuple) or not diff:
-        return (
-            "operation_class=<unknown>;subject_class=<unknown>;"
-            "table=public.<unknown>;object=<unknown>"
-        )
-
-    operation = diff[0] if isinstance(diff[0], str) else "<unknown>"
-    subject = next(
-        (item for item in diff[1:] if isinstance(item, (Table, Index, Constraint, Column))),
-        None,
-    )
-    subject_class = "<unknown>" if subject is None else type(subject).__name__
-    table: Table | None = subject if isinstance(subject, Table) else None
-    object_name: str | None = subject.name if subject is not None else None
-    if subject is not None and table is None:
-        try:
-            candidate_table = subject.table
-        except (AttributeError, InvalidRequestError):
-            candidate_table = None
-        if isinstance(candidate_table, Table):
-            table = candidate_table
-
-    schema_name: str | None = None
-    table_name: str | None = None
-    if table is not None:
-        schema_name = table.schema
-        table_name = table.name
-    elif len(diff) >= 4:
-        schema_name = diff[1] if isinstance(diff[1], str) else None
-        table_name = diff[2] if isinstance(diff[2], str) else None
-        if object_name is None and isinstance(diff[3], str):
-            object_name = diff[3]
-
-    normalized_schema = "public" if schema_name in {None, "public"} else schema_name
-    return (
-        f"operation_class={operation};subject_class={subject_class};"
-        f"table={normalized_schema}.{table_name or '<unknown>'};"
-        f"object={object_name or '<unnamed>'}"
-    )
-
-
-def _fail_capped_identity_inventory(prefix: str, identities: Sequence[str]) -> NoReturn:
-    """Fail once with a deterministic bounded identity inventory."""
-
-    ordered_identities = sorted(identities)
-    emitted_identities = ordered_identities[:UNEXPECTED_ALEMBIC_LEAF_REPORT_CAP]
-    raise pytest.fail.Exception(
-        f"{prefix}:"
-        f"count={len(ordered_identities)};"
-        f"cap={UNEXPECTED_ALEMBIC_LEAF_REPORT_CAP};"
-        f"truncated={len(ordered_identities) > len(emitted_identities)};"
-        f"identities={json.dumps(emitted_identities, separators=(',', ':'))}"
-    )
-
-
-def _assert_foundation_ownership_rows(connection: Connection) -> None:
-    """Cross-bind the closed foundation objects to their exact ownership rows."""
-
-    inspector = sqlalchemy_inspect(connection)
-    assert inspector.has_table(FOUNDATION_INTERNAL_TABLE, schema="public")
-    observed_rows = tuple(
-        tuple(str(value) for value in row)
-        for row in connection.execute(
-            text("""
-                SELECT revision_id, object_type, table_name, object_name
-                FROM public.pulseplate_migration_ownership
-                WHERE revision_id = :revision_id
-                ORDER BY object_type COLLATE "C", table_name COLLATE "C", object_name COLLATE "C"
-                """),
-            {"revision_id": FOUNDATION_OWNERSHIP_REVISION},
-        ).all()
-    )
-    expected_rows = {
-        *(
-            (FOUNDATION_OWNERSHIP_REVISION, "table", table_name, table_name)
-            for table_name in FOUNDATION_CATALOG_TABLES
-        ),
-        *(
-            (FOUNDATION_OWNERSHIP_REVISION, "index", table_name, index_name)
-            for table_name, index_name in FOUNDATION_INDEX_CONTRACTS
-        ),
-    }
-    if len(observed_rows) != len(expected_rows) or set(observed_rows) != expected_rows:
-        identities = tuple(
-            "ownership_row:"
-            f"revision={revision_id};type={object_type};"
-            f"table=public.{table_name};object={object_name}"
-            for revision_id, object_type, table_name, object_name in observed_rows
-        )
-        _fail_capped_identity_inventory("foundation_ownership_mismatch", identities)
-
-
-def _fail_foundation_index_descriptor(table_name: str, index_name: str, field: str) -> NoReturn:
-    raise pytest.fail.Exception(
-        "foundation_index_descriptor_mismatch:"
-        f"table=public.{table_name};object={index_name};field={field}"
-    )
-
-
-def _assert_foundation_index_descriptors(connection: Connection) -> None:
-    """Validate the exact physical descriptor of every migration-owned index."""
-
-    rows = connection.execute(text("""
-            SELECT
-                table_relation.relname AS table_name,
-                index_relation.relname AS index_name,
-                ARRAY(
-                    SELECT attribute.attname
-                    FROM pg_catalog.unnest(index_state.indkey) WITH ORDINALITY
-                        AS index_key(attribute_number, position)
-                    JOIN pg_catalog.pg_attribute AS attribute
-                      ON attribute.attrelid = table_relation.oid
-                     AND attribute.attnum = index_key.attribute_number
-                    WHERE index_key.position <= index_state.indnkeyatts
-                    ORDER BY index_key.position
-                ) AS key_columns,
-                ARRAY(
-                    SELECT selected_opclass.opcname
-                    FROM pg_catalog.unnest(index_state.indclass) WITH ORDINALITY
-                        AS index_opclass(opclass_oid, position)
-                    JOIN pg_catalog.pg_opclass AS selected_opclass
-                      ON selected_opclass.oid = index_opclass.opclass_oid
-                    WHERE index_opclass.position <= index_state.indnkeyatts
-                    ORDER BY index_opclass.position
-                ) AS opclass_names,
-                access_method.amname AS access_method,
-                index_state.indisunique AS is_unique,
-                index_state.indisvalid AS is_valid,
-                index_state.indisready AS is_ready,
-                index_state.indislive AS is_live,
-                index_state.indnatts - index_state.indnkeyatts AS included_column_count,
-                pg_catalog.pg_get_expr(index_state.indpred, index_state.indrelid) AS predicate,
-                pg_catalog.pg_get_expr(index_state.indexprs, index_state.indrelid) AS expressions,
-                constraint_state.conname AS constraint_owner
-            FROM pg_catalog.pg_index AS index_state
-            JOIN pg_catalog.pg_class AS index_relation
-              ON index_relation.oid = index_state.indexrelid
-            JOIN pg_catalog.pg_class AS table_relation
-              ON table_relation.oid = index_state.indrelid
-            JOIN pg_catalog.pg_namespace AS namespace
-              ON namespace.oid = table_relation.relnamespace
-            JOIN pg_catalog.pg_am AS access_method
-              ON access_method.oid = index_relation.relam
-            LEFT JOIN pg_catalog.pg_constraint AS constraint_state
-              ON constraint_state.conindid = index_state.indexrelid
-            WHERE namespace.nspname = 'public'
-              AND table_relation.relname IN (
-                    'foods', 'restaurant_chains', 'restaurant_menu_items'
-              )
-              AND index_relation.relname IN (
-                    'ix_foods_brand_gin_trgm',
-                    'ix_foods_canonical_name',
-                    'ix_foods_canonical_name_gin_trgm',
-                    'ix_foods_group_name',
-                    'ix_foods_group_name_gin_trgm',
-                    'ix_foods_gtin',
-                    'ix_foods_source',
-                    'ix_restaurant_chains_name',
-                    'ix_restaurant_menu_items_chain_id',
-                    'ix_restaurant_menu_items_food_id',
-                    'ix_restaurant_menu_items_item_name'
-              )
-            ORDER BY table_relation.relname COLLATE "C", index_relation.relname COLLATE "C"
-            """)).mappings().all()
-    observed_keys = tuple((str(row["table_name"]), str(row["index_name"])) for row in rows)
-    if len(observed_keys) != len(FOUNDATION_INDEX_CONTRACTS) or set(observed_keys) != set(
-        FOUNDATION_INDEX_CONTRACTS
-    ):
-        identities = tuple(
-            f"foundation_index:table=public.{table_name};object={index_name}"
-            for table_name, index_name in observed_keys
-        )
-        _fail_capped_identity_inventory("foundation_index_inventory_mismatch", identities)
-
-    inspector = sqlalchemy_inspect(connection)
-    inspector_indexes = {
-        (table_name, str(index["name"])): index
-        for table_name in FOUNDATION_CATALOG_TABLES
-        for index in inspector.get_indexes(table_name, schema="public")
-        if index.get("name") is not None
-    }
-    for row in rows:
-        table_name = str(row["table_name"])
-        index_name = str(row["index_name"])
-        expected_column, expected_access_method, expected_opclass = FOUNDATION_INDEX_CONTRACTS[
-            (table_name, index_name)
-        ]
-        key_columns = row["key_columns"]
-        opclass_names = row["opclass_names"]
-        checks = (
-            (
-                "key_columns",
-                isinstance(key_columns, (list, tuple)) and tuple(key_columns) == (expected_column,),
-            ),
-            (
-                "opclass",
-                isinstance(opclass_names, (list, tuple))
-                and tuple(opclass_names) == (expected_opclass,),
-            ),
-            ("access_method", str(row["access_method"]) == expected_access_method),
-            ("unique", row["is_unique"] is False),
-            ("valid", row["is_valid"] is True),
-            ("ready", row["is_ready"] is True),
-            ("live", row["is_live"] is True),
-            ("include_columns", int(row["included_column_count"]) == 0),
-            ("predicate", row["predicate"] is None),
-            ("expressions", row["expressions"] is None),
-            ("constraint_owner", row["constraint_owner"] is None),
-        )
-        for descriptor_field, accepted in checks:
-            if not accepted:
-                _fail_foundation_index_descriptor(table_name, index_name, descriptor_field)
-
-        inspected = inspector_indexes.get((table_name, index_name))
-        if inspected is None:
-            _fail_foundation_index_descriptor(table_name, index_name, "inspector_presence")
-        if tuple(str(value) for value in inspected.get("column_names") or ()) != (expected_column,):
-            _fail_foundation_index_descriptor(table_name, index_name, "inspector_columns")
-        if bool(inspected.get("unique")):
-            _fail_foundation_index_descriptor(table_name, index_name, "inspector_unique")
-
-
 def _assert_exact_postfix_alembic_residual(connection: Connection) -> None:
-    """Require the 23 reconciled leaves to be absent from a full comparison.
-
-    The remaining exact four tables are owned by migration-only schema history
-    and are intentionally left for the separate autogenerate-completeness lane.
-    This assertion does not install or duplicate that lane's object filter.
-    """
+    """Require the bounded raw, descriptor, and admitted comparison rails."""
 
     from core.db import load_canonical_orm_metadata
-    from core.db_alembic_comparison import compare_postgresql_server_default
 
-    metadata = load_canonical_orm_metadata()
-    comparison_context = MigrationContext.configure(
+    report = evaluate_alembic_autogenerate_admission(
         connection,
-        opts={
-            "compare_type": True,
-            "compare_server_default": compare_postgresql_server_default,
-        },
+        load_canonical_orm_metadata(),
     )
-    with warnings.catch_warnings(record=True) as comparison_warnings:
-        warnings.simplefilter("always")
-        migration_script = produce_migrations(comparison_context, metadata)
-
-    assert not comparison_warnings, tuple(
-        f"{warning.category.__name__}:{warning.message}" for warning in comparison_warnings
-    )
-    diffs = tuple(migration_script.upgrade_ops.as_diffs())
-    observed_identities = tuple(_alembic_diff_identity(diff) for diff in diffs)
-    if (
-        len(observed_identities) != len(EXPECTED_RAW_ALEMBIC_IDENTITIES)
-        or set(observed_identities) != EXPECTED_RAW_ALEMBIC_IDENTITIES
-    ):
-        _fail_capped_identity_inventory("alembic_raw_residual_mismatch", observed_identities)
-
-    remove_table_keys = frozenset(
-        identity.split("table=", maxsplit=1)[1].split(";", maxsplit=1)[0]
-        for identity in observed_identities
-        if identity.startswith("operation_class=remove_table;")
-    )
-    assert remove_table_keys == EXPECTED_POSTFIX_ALEMBIC_RESIDUAL
-    _assert_foundation_ownership_rows(connection)
-    _assert_foundation_index_descriptors(connection)
+    assert report.result == "pass", report.to_json()
+    assert report.claim == ADMISSION_RESULT_CLAIM
+    assert report.descriptor_validation == "passed"
+    assert len(report.raw_leaf_operations) == 15
+    assert report.admitted_leaf_operations == ()
+    assert report.warning_categories == ()
 
 
 def _drift_unique_object_inventory(connection: Connection) -> tuple[tuple[object, ...], ...]:
@@ -1725,6 +1434,20 @@ def _raise_preserved_failures(
 class _CreatedDatabaseReceipt:
     database_name: str
     oid: int
+    cluster_identifier: str
+    user_name: str
+    server_address: str
+    server_port: int
+
+
+@dataclass(frozen=True)
+class _DatabaseIdentity:
+    database_name: str
+    database_oid: int
+    cluster_identifier: str
+    user_name: str
+    server_address: str
+    server_port: int
 
 
 @dataclass(frozen=True)
@@ -1748,6 +1471,63 @@ class _CompatDatabase:
     schema: str
     table: Table
     extension_version: str
+
+
+def _database_identity(connection: Connection) -> _DatabaseIdentity:
+    row = connection.execute(text("""
+            SELECT current_database() AS database_name,
+                   database_record.oid AS database_oid,
+                   control_record.system_identifier::text AS cluster_identifier,
+                   current_user AS user_name,
+                   inet_server_addr()::text AS server_address,
+                   inet_server_port() AS server_port
+            FROM pg_catalog.pg_database AS database_record
+            CROSS JOIN pg_catalog.pg_control_system() AS control_record
+            WHERE database_record.datname = current_database()
+            """)).one()
+    if row.server_address is None or row.server_port is None:
+        raise AssertionError("PostgreSQL identity requires a TCP server address and port")
+    return _DatabaseIdentity(
+        database_name=str(row.database_name),
+        database_oid=int(row.database_oid),
+        cluster_identifier=str(row.cluster_identifier),
+        user_name=str(row.user_name),
+        server_address=str(row.server_address),
+        server_port=int(row.server_port),
+    )
+
+
+def _target_identity_matches_receipt(
+    identity: _DatabaseIdentity,
+    receipt: _CreatedDatabaseReceipt,
+) -> bool:
+    return (
+        identity.database_name == receipt.database_name
+        and identity.database_oid == receipt.oid
+        and identity.cluster_identifier == receipt.cluster_identifier
+        and identity.user_name == receipt.user_name
+        and identity.server_address == receipt.server_address
+        and identity.server_port == receipt.server_port
+    )
+
+
+def _database_drop_admitted(
+    *,
+    target_disposed: bool,
+    admin_identity: _DatabaseIdentity | None,
+    receipt: _CreatedDatabaseReceipt,
+    current_target_oid: int | None,
+) -> bool:
+    return (
+        target_disposed
+        and admin_identity is not None
+        and admin_identity.database_name == "pgvector_compat"
+        and admin_identity.cluster_identifier == receipt.cluster_identifier
+        and admin_identity.user_name == receipt.user_name
+        and admin_identity.server_address == receipt.server_address
+        and admin_identity.server_port == receipt.server_port
+        and current_target_oid == receipt.oid
+    )
 
 
 def _seed_tenant_rows(database: _CompatDatabase) -> None:
@@ -2018,6 +1798,10 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "  # Fast testing for feature branches",
         maxsplit=1,
     )[0]
+    route_contract_blocks = tuple(
+        section.split("                ;;", maxsplit=1)[0]
+        for section in workflow.split("              route_contract_safety)\n")[1:]
+    )
 
     direct_proof_inputs = (
         ".github/workflows/ci.yml",
@@ -2031,9 +1815,15 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "deploy/docker-compose.staging.yaml",
         "deploy/docker-compose.production.selfhosted.yaml",
         "deploy/postgres-pgvector/**",
+        "scripts/ci/check_alembic_autogenerate_completeness.py",
+        "core/db.py",
+        "core/db_alembic_comparison.py",
+        "core/models.py",
+        "app/models/**",
         "alembic.ini",
         "alembic/env.py",
         "alembic/versions/**",
+        "tests/test_alembic_autogenerate_completeness.py",
         "tests/test_pgvector_compat.py",
         "tests/test_pgvector_embedding_migration.py",
         "tests/test_vector_rag.py",
@@ -2042,12 +1832,18 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
     assert all(f"'{path}'" in filter_contract for path in direct_proof_inputs)
     assert "'alembic/**'" not in filter_contract
     executable_proof_inputs = (
+        "tests/test_alembic_autogenerate_completeness.py",
         "tests/test_pgvector_compat.py",
         "tests/test_pgvector_embedding_migration.py",
         "tests/test_vector_rag.py",
         "tests/test_db_rls.py",
     )
     assert all(path in compat_job for path in executable_proof_inputs)
+    assert len(route_contract_blocks) == 2
+    assert all(
+        block.count("tests/test_alembic_autogenerate_completeness.py") == 1
+        for block in route_contract_blocks
+    )
 
     merge_gate_needs = merge_gate.split("needs:", maxsplit=1)[1].splitlines()[0]
     security_needs = security_job.split("needs:", maxsplit=1)[1].splitlines()[0]
@@ -2158,7 +1954,134 @@ def test_pg_alembic_subprocess_environment_does_not_inherit_host_carriers(
     assert env["TESTING"] == "true"
 
 
+@pytest.mark.parametrize(
+    "stdout",
+    (
+        "No new upgrade operations detected.\n",
+        "INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\n"
+        "INFO  [alembic.runtime.migration] Will assume transactional DDL.\n"
+        "INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate\n"
+        "INFO  [alembic.ddl.postgresql] Detected sequence named 'users_id_seq' as "
+        "owned by integer column 'users(id)', assuming SERIAL and omitting\n"
+        "No new upgrade operations detected.\n",
+    ),
+)
+def test_pg_alembic_check_requires_clean_positive_output_and_warning_errors(
+    stdout: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PYTHONWARNINGS", "ignore")
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+    captured_command: list[str] = []
+    captured_env: dict[str, str] = {}
+
+    def successful_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured_command.extend(command)
+        raw_env = kwargs["env"]
+        assert isinstance(raw_env, dict)
+        captured_env.update({str(key): str(value) for key, value in raw_env.items()})
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", successful_run)
+
+    completed = _run_alembic(database_url, "check")
+
+    assert completed.stdout == stdout
+    assert captured_command == [
+        sys.executable,
+        "-W",
+        "error",
+        "-m",
+        "alembic",
+        "-c",
+        str(REPO_ROOT / "alembic.ini"),
+        "check",
+    ]
+    assert captured_env == _alembic_subprocess_env(database_url)
+    assert "PYTHONWARNINGS" not in captured_env
+
+
+@pytest.mark.parametrize(
+    "stdout,stderr",
+    (
+        ("", ""),
+        ("INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.\n", ""),
+        ("No new upgrade operations detected.\nNo new upgrade operations detected.\n", ""),
+        ("No new upgrade operations detected. trailing text\n", ""),
+        ("SAWarning: incomplete comparison\nNo new upgrade operations detected.\n", ""),
+        ("No new upgrade operations detected.\n", "SAWarning: incomplete comparison\n"),
+        (
+            "WARNI [alembic.runtime.migration] incomplete comparison\n"
+            "No new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "ERROR [alembic.ddl.postgresql] comparison error\nNo new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "DEBUG [alembic.runtime.plugins] unexpected detail\nNo new upgrade operations detected.\n",
+            "",
+        ),
+        ("INFO  [unreviewed.logger] unknown output\nNo new upgrade operations detected.\n", ""),
+        (
+            "INFO  [alembic.runtime.migration.extra] unknown output\n"
+            "No new upgrade operations detected.\n",
+            "",
+        ),
+        (
+            "No new upgrade operations detected.\n",
+            "INFO  [alembic.runtime.migration] unexpected stream\n",
+        ),
+    ),
+)
+def test_pg_alembic_check_rejects_zero_exit_with_unproven_or_warning_output(
+    stdout: str,
+    stderr: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+
+    def unproven_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(subprocess, "run", unproven_run)
+
+    with pytest.raises(
+        pytest.fail.Exception, match="check output is not warning-free zero-operation proof"
+    ):
+        _run_alembic(database_url, "check")
+
+
+@pytest.mark.parametrize("arguments", (("upgrade", "head"), ("current", "--check-heads")))
+def test_pg_alembic_other_commands_preserve_output_and_warning_options(
+    arguments: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = _required_ci_pgvector_url(_ci_authority_environment())
+
+    def successful_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert command[1:3] == ["-m", "alembic"]
+        assert "-W" not in command
+        return subprocess.CompletedProcess(
+            command, 0, stdout="command output", stderr="diagnostics"
+        )
+
+    monkeypatch.setattr(subprocess, "run", successful_run)
+
+    completed = _run_alembic(database_url, *arguments)
+
+    assert completed.stdout == "command output"
+    assert completed.stderr == "diagnostics"
+
+
+@pytest.mark.parametrize(
+    "arguments,returncode",
+    ((("upgrade", "head"), 9), (("check",), 9), (("check",), 0)),
+)
 def test_pg_alembic_failure_diagnostics_redact_url_and_password(
+    arguments: tuple[str, ...],
+    returncode: int,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     database_url = URL.create(
@@ -2180,7 +2103,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
         captured_env.update({str(key): str(value) for key, value in raw_env.items()})
         return subprocess.CompletedProcess(
             command,
-            9,
+            returncode,
             stdout=credentialed_url,
             stderr="decoded@password decoded%40password",
         )
@@ -2188,7 +2111,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
     monkeypatch.setattr(subprocess, "run", failed_run)
 
     with pytest.raises(pytest.fail.Exception) as failure:
-        _run_alembic(database_url, "upgrade", "head")
+        _run_alembic(database_url, *arguments)
 
     message = str(failure.value)
     assert captured_command[0] == sys.executable
@@ -2252,6 +2175,133 @@ def test_database_failure_aggregation_preserves_primary_and_cleanup_errors() -> 
         _raise_preserved_failures(primary, [cleanup])
 
     assert grouped.value.exceptions == (primary, cleanup)
+
+
+def _identity_test_values() -> tuple[
+    _CreatedDatabaseReceipt,
+    _DatabaseIdentity,
+    _DatabaseIdentity,
+]:
+    receipt = _CreatedDatabaseReceipt(
+        database_name="pulseplate_alembic_0123456789abcdef0123456789abcdef",
+        oid=4242,
+        cluster_identifier="cluster-1",
+        user_name="pgvector_compat",
+        server_address="127.0.0.1",
+        server_port=5432,
+    )
+    target = _DatabaseIdentity(
+        database_name=receipt.database_name,
+        database_oid=receipt.oid,
+        cluster_identifier=receipt.cluster_identifier,
+        user_name=receipt.user_name,
+        server_address=receipt.server_address,
+        server_port=receipt.server_port,
+    )
+    admin = replace(target, database_name="pgvector_compat", database_oid=1)
+    return receipt, target, admin
+
+
+def test_created_database_receipt_requires_every_identity_field() -> None:
+    parameters = inspect.signature(_CreatedDatabaseReceipt).parameters
+
+    assert tuple(parameters) == (
+        "database_name",
+        "oid",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
+    )
+    assert all(parameter.default is inspect.Parameter.empty for parameter in parameters.values())
+
+
+def _mismatched_database_identity(
+    identity: _DatabaseIdentity,
+    field_name: str,
+) -> _DatabaseIdentity:
+    if field_name == "database_name":
+        return replace(identity, database_name="other_database")
+    if field_name == "database_oid":
+        return replace(identity, database_oid=4343)
+    if field_name == "cluster_identifier":
+        return replace(identity, cluster_identifier="cluster-2")
+    if field_name == "user_name":
+        return replace(identity, user_name="other_user")
+    if field_name == "server_address":
+        return replace(identity, server_address="127.0.0.2")
+    if field_name == "server_port":
+        return replace(identity, server_port=5433)
+    raise AssertionError(f"Unsupported identity field: {field_name}")
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "database_name",
+        "database_oid",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
+    ),
+)
+def test_target_identity_predicate_rejects_every_authority_mismatch(
+    field_name: str,
+) -> None:
+    receipt, target, _ = _identity_test_values()
+
+    assert _target_identity_matches_receipt(target, receipt)
+    assert not _target_identity_matches_receipt(
+        _mismatched_database_identity(target, field_name),
+        receipt,
+    )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "database_name",
+        "cluster_identifier",
+        "user_name",
+        "server_address",
+        "server_port",
+    ),
+)
+def test_cleanup_predicate_rejects_every_admin_authority_mismatch(
+    field_name: str,
+) -> None:
+    receipt, _, admin = _identity_test_values()
+
+    assert _database_drop_admitted(
+        target_disposed=True,
+        admin_identity=admin,
+        receipt=receipt,
+        current_target_oid=receipt.oid,
+    )
+    assert not _database_drop_admitted(
+        target_disposed=True,
+        admin_identity=_mismatched_database_identity(admin, field_name),
+        receipt=receipt,
+        current_target_oid=receipt.oid,
+    )
+
+
+def test_cleanup_predicate_withholds_drop_without_disposal_or_exact_oid() -> None:
+    receipt, _, admin = _identity_test_values()
+
+    assert not _database_drop_admitted(
+        target_disposed=False,
+        admin_identity=None,
+        receipt=receipt,
+        current_target_oid=None,
+    )
+    assert not _database_drop_admitted(
+        target_disposed=True,
+        admin_identity=admin,
+        receipt=receipt,
+        current_target_oid=receipt.oid + 1,
+    )
 
 
 def test_pg_synthetic_projection_is_content_identity_and_multiplicity_sensitive() -> None:
@@ -2577,12 +2627,7 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
 
     try:
         with admin_engine.connect() as connection:
-            identity = connection.execute(text("""
-                    SELECT
-                        current_database() AS database_name,
-                        current_user AS user_name,
-                        inet_server_port() AS server_port
-                    """)).one()
+            identity = _database_identity(connection)
             assert identity.database_name == "pgvector_compat"
             assert identity.user_name == "pgvector_compat"
             assert identity.server_port == 5432
@@ -2593,11 +2638,22 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
                 raise pytest.fail.Exception(
                     "Created database has no unambiguous positive OID receipt"
                 )
-            receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
+            receipt = _CreatedDatabaseReceipt(
+                database_name=database_name,
+                oid=created_oid,
+                cluster_identifier=identity.cluster_identifier,
+                user_name=identity.user_name,
+                server_address=identity.server_address,
+                server_port=identity.server_port,
+            )
 
         target_url = parsed_url.set(database=database_name)
         target_engine = create_engine(target_url, poolclass=NullPool)
+        with target_engine.connect() as connection:
+            target_identity = _database_identity(connection)
+            assert _target_identity_matches_receipt(target_identity, receipt)
         _run_alembic(target_url, "upgrade", "head")
+        _run_alembic(target_url, "current", "--check-heads")
 
         scripts = ScriptDirectory.from_config(Config(str(REPO_ROOT / "alembic.ini")))
         heads = tuple(scripts.get_heads())
@@ -2605,6 +2661,7 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
         assert heads[0]
         assert heads[0] == "202608290001"
         with target_engine.connect() as connection:
+            assert _target_identity_matches_receipt(_database_identity(connection), receipt)
             _assert_exact_postfix_alembic_residual(connection)
             assert _drift_unique_object_inventory(connection) == (
                 (
@@ -2622,6 +2679,14 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
                     ("user_id", "date"),
                 ),
             )
+
+        admission_projection = _project_postgres_migration_state(target_engine)
+        _run_alembic(target_url, "check")
+        with target_engine.connect() as connection:
+            assert _target_identity_matches_receipt(_database_identity(connection), receipt)
+        assert _project_postgres_migration_state(target_engine) == admission_projection
+        _run_alembic(target_url, "upgrade", "head")
+        assert _project_postgres_migration_state(target_engine) == admission_projection
 
         from app.models import UserKnowledge
 
@@ -2648,10 +2713,6 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
             assert json.loads(stored_embedding) == pytest.approx(vector_values)
         first_projection = _project_postgres_migration_state(target_engine)
         assert first_projection.head == heads[0]
-
-        _run_alembic(target_url, "current", "--check-heads")
-        _run_alembic(target_url, "upgrade", "head")
-        assert _project_postgres_migration_state(target_engine) == first_projection
 
         with target_engine.begin() as connection:
             connection.execute(text("""
@@ -2780,10 +2841,16 @@ def test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
         try:
             if receipt is not None and target_disposed:
                 with admin_engine.connect() as connection:
+                    cleanup_identity = _database_identity(connection)
                     current_oid = _database_oid(connection, receipt.database_name)
-                    if current_oid != receipt.oid:
+                    if not _database_drop_admitted(
+                        target_disposed=target_disposed,
+                        admin_identity=cleanup_identity,
+                        receipt=receipt,
+                        current_target_oid=current_oid,
+                    ):
                         raise AssertionError(
-                            "Created database cleanup receipt no longer matches the server OID"
+                            "Created database cleanup authority no longer matches the server"
                         )
                     connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")
                     if _database_oid(connection, receipt.database_name) is not None:
@@ -2830,6 +2897,10 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
 
     try:
         with admin_engine.connect() as connection:
+            identity = _database_identity(connection)
+            assert identity.database_name == "pgvector_compat"
+            assert identity.user_name == "pgvector_compat"
+            assert identity.server_port == 5432
             assert _database_oid(connection, database_name) is None
             connection.exec_driver_sql(f"CREATE DATABASE {quoted_database}")
             created_oid = _database_oid(connection, database_name)
@@ -2837,7 +2908,14 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
                 raise pytest.fail.Exception(
                     "FitChef outcome test database has no positive OID receipt"
                 )
-            receipt = _CreatedDatabaseReceipt(database_name=database_name, oid=created_oid)
+            receipt = _CreatedDatabaseReceipt(
+                database_name=database_name,
+                oid=created_oid,
+                cluster_identifier=identity.cluster_identifier,
+                user_name=identity.user_name,
+                server_address=identity.server_address,
+                server_port=identity.server_port,
+            )
             connection.exec_driver_sql(
                 f"CREATE ROLE {quoted_role} WITH LOGIN "
                 f"PASSWORD '{OWNER_PASSWORD}' NOSUPERUSER NOBYPASSRLS"
@@ -2997,10 +3075,16 @@ def test_fitchef_outcome_fresh_migration_forces_exact_rls_and_real_role_isolatio
         try:
             if receipt is not None and target_disposed:
                 with admin_engine.connect() as connection:
+                    cleanup_identity = _database_identity(connection)
                     current_oid = _database_oid(connection, receipt.database_name)
-                    if current_oid != receipt.oid:
+                    if not _database_drop_admitted(
+                        target_disposed=target_disposed,
+                        admin_identity=cleanup_identity,
+                        receipt=receipt,
+                        current_target_oid=current_oid,
+                    ):
                         raise AssertionError(
-                            "FitChef outcome database cleanup receipt no longer matches OID"
+                            "FitChef outcome database cleanup authority no longer matches"
                         )
                     connection.exec_driver_sql(f"DROP DATABASE {quoted_database}")
                     if role_created:

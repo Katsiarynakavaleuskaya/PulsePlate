@@ -7,12 +7,18 @@ EN: Alembic configuration for managing database migrations.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from contextlib import nullcontext
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from core.db_alembic_comparison import compare_postgresql_server_default
+from core.db_alembic_comparison import (
+    compare_postgresql_server_default,
+    include_autogenerate_object,
+    proven_autogenerate_default_schema,
+)
 from core.db import get_database_url, load_canonical_orm_metadata
 
 # Interpret the config file for Python logging.
@@ -28,6 +34,14 @@ config.set_main_option("sqlalchemy.url", get_database_url())
 target_metadata = load_canonical_orm_metadata()
 
 
+def _is_autogenerate_execution() -> bool:
+    """Return whether Alembic is executing revision autogenerate or check."""
+
+    revision_context = context.get_context().opts.get("revision_context")
+    command_args = getattr(revision_context, "command_args", None)
+    return isinstance(command_args, Mapping) and command_args.get("autogenerate") is True
+
+
 def run_migrations_offline() -> None:
     """RU: Запустить миграции в offline-режиме.
 
@@ -41,6 +55,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         compare_type=True,
         compare_server_default=compare_postgresql_server_default,
+        include_object=include_autogenerate_object,
     )
 
     with context.begin_transaction():
@@ -65,10 +80,16 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=compare_postgresql_server_default,
+            include_object=include_autogenerate_object,
         )
-
-        with context.begin_transaction():
-            context.run_migrations()
+        schema_scope = (
+            proven_autogenerate_default_schema(str(connection.dialect.default_schema_name))
+            if connection.dialect.name == "postgresql" and _is_autogenerate_execution()
+            else nullcontext()
+        )
+        with schema_scope:
+            with context.begin_transaction():
+                context.run_migrations()
 
 
 if context.is_offline_mode():

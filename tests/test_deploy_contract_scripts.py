@@ -2666,6 +2666,25 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     assert reuse_run.index(marker) > reuse_run.index(
         'index .Config.Labels "com.pulseplate.pgvector.version"'
     )
+    ci_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
+    filter_step = next(
+        step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
+    )
+    compatibility_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
+    expected_paths = {".github/workflows/cd.yml"}
+    for compatibility_path in compatibility_paths:
+        if compatibility_path.startswith("alembic/versions/"):
+            expected_paths.add("alembic/versions")
+        else:
+            expected_paths.add(compatibility_path.removesuffix("/**"))
+    terminal_paths = set(
+        terminal_program.split("pgvector_relevant_paths=(", maxsplit=1)[1]
+        .split(")", maxsplit=1)[0]
+        .split()
+    )
+    assert terminal_paths == expected_paths
 
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
@@ -2714,12 +2733,18 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
         "deploy/docker-compose.staging.yaml",
         "deploy/docker-compose.production.selfhosted.yaml",
         "deploy/postgres-pgvector/Containerfile",
+        "scripts/ci/check_alembic_autogenerate_completeness.py",
+        "core/db.py",
+        "core/db_alembic_comparison.py",
         "core/rag/vector_rag.py",
         "core/db_rls.py",
+        "core/models.py",
+        "app/models/nested/probe.py",
         "alembic.ini",
         "alembic/env.py",
         "alembic/versions/base.py",
         "tests/test_deploy_contract_scripts.py",
+        "tests/test_alembic_autogenerate_completeness.py",
         "tests/test_pgvector_compat.py",
         "tests/test_pgvector_embedding_migration.py",
         "tests/test_vector_rag.py",
@@ -2804,8 +2829,8 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
     pgvector_compat_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
     for compatibility_path in pgvector_compat_paths:
         classifier_pattern = compatibility_path
-        if compatibility_path.startswith("deploy/postgres-pgvector/"):
-            classifier_pattern = "deploy/postgres-pgvector/*"
+        if compatibility_path.endswith("/**"):
+            classifier_pattern = compatibility_path[:-1]
         elif compatibility_path.startswith("alembic/versions/"):
             classifier_pattern = "alembic/versions/*"
         assert classifier_pattern in classifier_program
@@ -2909,6 +2934,20 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
     assert zero_output == "changed=true\n"
     malformed_result, _ = classify("not-a-sha", material_head)
     assert malformed_result.returncode != 0
+
+    previous_head = unrelated_head
+    for compatibility_path in pgvector_compat_paths:
+        probe_path = compatibility_path.replace("**", "nested/compatibility_probe.py")
+        target = fixture_root / probe_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"compatibility input: {probe_path}\n", encoding="utf-8")
+        git("add", probe_path)
+        git("commit", "-qm", f"compatibility member {probe_path}")
+        member_head = git("rev-parse", "HEAD")
+        member_result, member_output = classify(previous_head, member_head)
+        assert member_result.returncode == 0, (probe_path, member_result.stderr)
+        assert member_output == "changed=true\n", probe_path
+        previous_head = member_head
 
     statuses = ("success", "failure", "cancelled", "skipped", "")
     for changed in ("true", "false"):

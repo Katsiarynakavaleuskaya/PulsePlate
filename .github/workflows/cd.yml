@@ -765,12 +765,18 @@ jobs:
               deploy/docker-compose.staging.yaml | \
               deploy/docker-compose.production.selfhosted.yaml | \
               deploy/postgres-pgvector/* | \
+              scripts/ci/check_alembic_autogenerate_completeness.py | \
+              core/db.py | \
+              core/db_alembic_comparison.py | \
               core/rag/vector_rag.py | \
               core/db_rls.py | \
+              core/models.py | \
+              app/models/* | \
               alembic.ini | \
               alembic/env.py | \
               alembic/versions/* | \
               tests/test_deploy_contract_scripts.py | \
+              tests/test_alembic_autogenerate_completeness.py | \
               tests/test_pgvector_compat.py | \
               tests/test_pgvector_embedding_migration.py | \
               tests/test_vector_rag.py | \
@@ -2514,12 +2520,18 @@ jobs:
               deploy/docker-compose.staging.yaml
               deploy/docker-compose.production.selfhosted.yaml
               deploy/postgres-pgvector
+              scripts/ci/check_alembic_autogenerate_completeness.py
+              core/db.py
+              core/db_alembic_comparison.py
               core/rag/vector_rag.py
               core/db_rls.py
+              core/models.py
+              app/models
               alembic.ini
               alembic/env.py
               alembic/versions
               tests/test_deploy_contract_scripts.py
+              tests/test_alembic_autogenerate_completeness.py
               tests/test_pgvector_compat.py
               tests/test_pgvector_embedding_migration.py
               tests/test_vector_rag.py
