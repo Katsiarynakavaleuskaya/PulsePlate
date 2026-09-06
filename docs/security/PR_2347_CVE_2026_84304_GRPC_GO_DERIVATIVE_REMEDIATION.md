@@ -78,6 +78,11 @@ inputs. Push, PR and tag semantics remain unchanged. The rejected CD publisher
 stays absent; the existing CD-Test listener still admits only successful
 push-to-main builds.
 
+Candidate checkout takes `github.sha` directly; the dispatch head is only an
+equality assertion against the run and checked-out Git identity, never the
+authority selecting code to execute. This removes the input-driven checkout
+reported by CodeQL without changing candidate admission or publication gates.
+
 Python dependencies use the existing canonical
 `scripts/ci/install_locked_python_requirements.py:1` installer with the locked
 `ci-lite` profile and direct-proxy mode. Only the credential-free repository

@@ -8729,6 +8729,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove all and only the admitted versioned aliases in a separate PR with contract and rollback tests
 
 
+<a id="ledger-p1-fastlane-rubyzip-return-to-official"></a>
+- [ ] P1: Retire the temporary maintained Fastlane RubyZip compatibility fork
+  - Owner: Katsiaryna / @Katsiarynakavaleuskaya
+  - Priority: P1 (release-tooling security / source maintenance)
+  - Target PR: introduction and current CVE remediation in [PR #2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347); retirement in `PR-TBD-FASTLANE-RUBYZIP-OFFICIAL`
+  - Status: In progress — the operator-approved three-file fork and native lock/replay are verified locally; current-head security/review/CI and PR merge remain unclaimed.
+  - Reason (EN): The inspected official Fastlane graph excludes patched RubyZip 3.x and its IPA analyser uses the incompatible two-positional-argument API. The operator approved maintaining one transparent immutable fork until an official release supports the patched graph. No installed-metadata override or suppression is allowed.
+  - Evidence owner: [`PR_2347_CVE_2026_85396_RUBYZIP_REMEDIATION.md`](../security/PR_2347_CVE_2026_85396_RUBYZIP_REMEDIATION.md)
+  - DoD:
+    - Maintain the explicit fork source and immutable revision; review new RubyZip/Fastlane advisories without silently accepting dependency or source drift.
+    - Select an immutable official Fastlane release whose genuine gemspec admits the patched RubyZip graph, then reproduce the governed native Bundler lock and complete dependency delta.
+    - Preserve CFPropertyList/public_suffix/nkf and prior JWT/JSON/Excon security constraints; pass IPA regressions, no-auth metadata validation, finite advisory checks and exact-current-head security/CI.
+    - Remove the temporary fork source pin only in that reviewed retirement PR; update the evidence owner and this item with its result.
+
+
 <a id="ledger-p2-root-nutrition-alias-sunset"></a>
 - [ ] P2: Decide auth and sunset policy for root nutrition aliases
   - Owner: @katsiaryna_kavaleuskaya

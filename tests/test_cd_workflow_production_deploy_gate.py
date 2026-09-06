@@ -53,7 +53,7 @@ def test_prometheus_candidate_workflow_has_one_read_only_producer_and_closed_top
         == "actions/checkout@" + prometheus_derivative_candidate.CLOUD_PROFILE["checkout"]
     )
     assert steps[0]["with"] == {
-        "ref": "${{ inputs.candidate_head_sha }}",
+        "ref": "${{ github.sha }}",
         "persist-credentials": False,
     }
     assert (

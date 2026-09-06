@@ -183,7 +183,14 @@ jobs:
         uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1
         with:
           ruby-version: "3.4.10"
+          bundler: "2.4.22"
           working-directory: ios
+
+      - name: Test native RubyZip/Fastlane guard behavior
+        run: ruby tests/test_rubyzip_fastlane.rb
+
+      - name: Check native RubyZip/Fastlane source and advisory contracts
+        run: ruby scripts/ci/check_rubyzip_fastlane.rb
 
       - name: Check Ruby jwt/Fastlane unblock state
         run: python3 scripts/ci/check_jwt_fastlane_unblock.py
