@@ -1953,7 +1953,7 @@ def _load_packet_payload(
                 raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
             if not isinstance(payload, dict):
                 raise ValueError("invalid strict JSON task packet: expected object")
-            return cast(Dict[str, Any], payload)
+            return payload
         return _load_strict_json_packet(resolved_packet_path)
     return _load_json_packet(resolved_packet_path)
 
