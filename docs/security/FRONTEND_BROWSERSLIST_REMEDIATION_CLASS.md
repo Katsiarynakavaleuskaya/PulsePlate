@@ -18,12 +18,12 @@ The operator directly confirmed this exact two-identity expansion on 3 September
 all-and-only set. That confirmation grants no third identity, future batch,
 suppression, override, direct pin, alert dismissal, force push, provider claim,
 or merge authority. Canonical admission policy is the
-`dependency-remediation-admission:v2` block at `AGENTS.md:2324`.
+`dependency-remediation-admission:v2` block at `AGENTS.md:2340`.
 
 For each `D` in `B`, this owner records an independent `S_base`, `S_head`,
 `F_cutoff`, non-empty `A`, authored `I_R`, replay-proven `C_R`, and universal
 `P`. The permanent data-driven guard is
-`tests/test_frontend_dependency_guards.py:1636`.
+`tests/test_frontend_dependency_guards.py:1638`.
 
 ## Exact base, material head, and governed surfaces
 
@@ -43,7 +43,7 @@ batch-evidence refresh is:
 This material head contains the ancestry-preserving base sync plus the refreshed
 npm-generated resolver closure. Generated detect-secrets line-number refreshes
 remain isolated in their dedicated hook commits. The tracked surface enumerator at
-`tests/test_frontend_dependency_guards.py:1108` discovers exactly five
+`tests/test_frontend_dependency_guards.py:1110` discovers exactly five
 base/head npm surfaces:
 
 | Surface | Base SHA-256 | Candidate SHA-256 | Reconciliation |
