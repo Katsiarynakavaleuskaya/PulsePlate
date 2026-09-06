@@ -32,6 +32,12 @@ This file lists, per agent slug:
 - `optional_context` is loaded only if remaining budget allows
 - Priority order: required > conditional (matched) > optional
 
+These budget rules govern the ordinary manual prompt path. They do not permit
+summarization inside an exact delivery requested with
+`--role-context-order <N>`. Exact mode either returns every byte of its finite
+supported source inventory or returns an incomplete/manual result or a
+fail-closed error.
+
 ## Prompt Assembly Order
 
 ```
@@ -44,7 +50,19 @@ This file lists, per agent slug:
 
 ## Caching
 
-- Context files rarely change mid-session — cache loaded content
-- If a file was already loaded for a previous agent in the same dispatch,
-  reuse the cached version
-- Invalidate cache only if the dispatch spans multiple commits
+The bridge does not persist exact context and exposes no cache CLI control.
+Every invocation reacquires and revalidates the selected finite repository
+sources. Historical experiment evidence belongs in the governing backlog item
+and local lane artifacts, not in permanent dispatch instructions.
+
+For exact JSON packet-backed delivery:
+
+1. Select one existing final dispatch occurrence by one-based order.
+2. Use the returned raw role definition and ordered source contents directly.
+3. Keep the returned packet dynamic and outside the static source digest. Any
+   static path resolving to the packet's captured device/inode identity blocks
+   the exact invocation.
+4. Do not reread, summarize, truncate, normalize, or infer instructions from
+   recommended skill names.
+5. Treat `complete=false` as a manual-loading requirement. Missing, unsafe,
+   malformed, changed, or over-limit sources block the exact invocation.

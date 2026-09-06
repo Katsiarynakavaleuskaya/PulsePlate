@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast, Dict, List
 
 import pytest
@@ -17,6 +20,7 @@ from scripts.orchestration import (
     task_bootstrap,
 )
 from scripts.orchestration.context_pack import compute_task_packet_id
+from scripts.orchestration import context_bundle
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -65,6 +69,117 @@ REQUIRED_ENTRY_KEYS = {
 
 class _LegacyCandidatePathList(list[object]):
     pass
+
+
+def _write_exact_dispatch_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    required_context: object = ("packet-context.md",),
+    selected_context: str = "role-context.md",
+    repeated_reviewer: bool = False,
+) -> Path:
+    """Create one small packet-backed exact-context repository fixture."""
+
+    agents = tmp_path / ".cursor" / "agents"
+    agents.mkdir(parents=True, exist_ok=True)
+    coordinator_body = "\n".join(f"coordinator line {index}" for index in range(230)) + "\n"
+    (agents / "agent-coordinator.md").write_text(
+        "---\nname: agent-coordinator\nreadonly: true\n---\n" + coordinator_body,
+        encoding="utf-8",
+        newline="",
+    )
+    (agents / "security-auditor.md").write_text(
+        "---\nname: security-auditor\nreadonly: true\n---\nsecurity body\n",
+        encoding="utf-8",
+        newline="",
+    )
+    docs = tmp_path / "docs" / "orchestration"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "AGENT_CONTEXT_MAP.md").write_text(
+        "### Coordinator (`agent-coordinator`)\n"
+        f"- `{selected_context}`\n\n"
+        "### Security (`security-auditor`)\n"
+        "- `security-context.md`\n",
+        encoding="utf-8",
+        newline="",
+    )
+    (docs / "AGENT_ROUTING_GRAPH.md").write_text(
+        "# exact routing selection fixture\n",
+        encoding="utf-8",
+        newline="",
+    )
+    if not any(character in selected_context for character in "*?["):
+        target = tmp_path / selected_context
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("selected role context\n", encoding="utf-8", newline="")
+    (tmp_path / "security-context.md").write_text(
+        "security context\n", encoding="utf-8", newline=""
+    )
+    (tmp_path / "packet-context.md").write_text(
+        "ordinary packet context\n", encoding="utf-8", newline=""
+    )
+    instruction = tmp_path / "tools" / "codex_skills" / "pulseplate-workflow"
+    instruction.mkdir(parents=True, exist_ok=True)
+    (instruction / "SKILL.md").write_text("explicit instruction\n", encoding="utf-8", newline="")
+    reviewer = "agent-coordinator" if repeated_reviewer else "security-auditor"
+    packet: Dict[str, Any] = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [{"repo_agent_slug": "security-auditor"}],
+            "advisory": [],
+            "reviewer": {"repo_agent_slug": reviewer},
+        },
+        "required_context": (
+            list(required_context) if isinstance(required_context, tuple) else required_context
+        ),
+        "task_packet_id": "deliberately-not-authenticated-by-exact-context",
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet) + "\n", encoding="utf-8", newline="")
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_routing_graph", None)
+
+    def load_fixture_routing(_path: Path) -> Dict[str, SimpleNamespace]:
+        return {
+            "ops": SimpleNamespace(
+                cluster="ops",
+                primary="agent-coordinator",
+                secondary="security-auditor",
+                reviewer="security-auditor",
+            )
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "load_routing_graph", load_fixture_routing)
+    return packet_path
+
+
+def _write_v2_exact_dispatch_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Copy the finite real v2 context needed for an exact CLI regression."""
+
+    packet = _v2_packet(monkeypatch)
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(cast(Dict[str, Any], packet))
+    required_context = cast(List[str], packet["required_context"])
+    paths = [
+        qoder_dispatch_bridge.CONTEXT_MAP_SOURCE_PATH,
+        qoder_dispatch_bridge.ROUTING_GRAPH_SOURCE_PATH,
+        *[f".cursor/agents/{role}.md" for role in roles],
+        *required_context,
+    ]
+    for relative in dict.fromkeys(paths):
+        source = REPO_ROOT / relative
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, destination)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet) + "\n", encoding="utf-8", newline="")
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_routing_graph", None)
+    return packet_path
 
 
 @pytest.fixture(autouse=True)
@@ -4718,6 +4833,629 @@ def test_bracket_group_detection_strips_inline_code_ticks(tmp_path: Path) -> Non
         fake_packet.read_text(encoding="utf-8").splitlines()
     )
     assert groups == [[slug_a, slug_b]]
+
+
+# ---------------------------------------------------------------------------
+# Exact role-context delivery
+# ---------------------------------------------------------------------------
+
+
+def test_default_cli_schema_does_not_emit_exact_context_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = qoder_dispatch_bridge.main(["--roles", "agent-coordinator", "--mode", "analysis"])
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+    assert "role_context" not in manifest
+    assert "context_io_metrics" not in manifest
+    assert set(manifest) == REQUIRED_TOP_LEVEL_KEYS | {"missing_agents"}
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--instruction-file", "tools/codex_skills/pulseplate-workflow/SKILL.md"],
+    ],
+)
+def test_exact_context_controls_require_occurrence_opt_in(
+    args: List[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = qoder_dispatch_bridge.main(
+        ["--roles", "agent-coordinator", "--mode", "analysis", *args]
+    )
+
+    assert result == 1
+    assert "--role-context-order" in capsys.readouterr().err
+
+
+def test_negative_benchmark_removed_context_cache_cli() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        qoder_dispatch_bridge._parse_args(
+            [
+                "--roles",
+                "agent-coordinator",
+                "--role-context-order",
+                "1",
+                "--context-cache",
+                "on",
+            ]
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_cli_help_and_output_messages_distinguish_manifest_from_exact_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as help_exit:
+        qoder_dispatch_bridge._parse_args(["--help"])
+    assert help_exit.value.code == 0
+    help_output = capsys.readouterr().out
+    normalized_help = " ".join(help_output.split())
+    assert "JSON or Markdown governance packet" in normalized_help
+    assert "Exact --role-context-order delivery requires JSON" in normalized_help
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    exact_output = tmp_path / "exact-output.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--output",
+                str(exact_output),
+            ]
+        )
+        == 0
+    )
+    exact_stderr = capsys.readouterr().err
+    exact_payload = json.loads(exact_output.read_text(encoding="utf-8"))
+    assert f"Role context output written to: {exact_output}" in exact_stderr
+    assert exact_payload["schema_version"] == context_bundle.OUTPUT_SCHEMA_VERSION
+    assert exact_payload["manifest"]["schema_version"] == (
+        qoder_dispatch_bridge.MANIFEST_SCHEMA_VERSION
+    )
+
+    manifest_output = tmp_path / "manifest.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--output",
+                str(manifest_output),
+            ]
+        )
+        == 0
+    )
+    manifest_stderr = capsys.readouterr().err
+    manifest_payload = json.loads(manifest_output.read_text(encoding="utf-8"))
+    assert f"Manifest written to: {manifest_output}" in manifest_stderr
+    assert "Role context output written" not in manifest_stderr
+    assert manifest_payload["schema_version"] == qoder_dispatch_bridge.MANIFEST_SCHEMA_VERSION
+    assert "manifest" not in manifest_payload
+
+
+def test_pinned_routing_source_supports_only_canonical_utf8_reads() -> None:
+    source = qoder_dispatch_bridge._PinnedRoutingGraphSource("routing text")
+
+    assert source.is_file() is True
+    assert source.read_text() == "routing text"
+    assert source.read_text(encoding="utf-8") == "routing text"
+    with pytest.raises(ValueError, match="unexpected encoding"):
+        source.read_text(encoding="utf-16")
+
+
+@pytest.mark.parametrize("source_text", ["{", "[]"])
+def test_exact_json_source_text_requires_a_strict_object(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    packet = tmp_path / "packet.json"
+
+    with pytest.raises(ValueError, match="invalid strict JSON task packet"):
+        qoder_dispatch_bridge._load_packet_payload(
+            packet,
+            json_designated=True,
+            source_text=source_text,
+        )
+
+
+def test_exact_context_requires_packet_backed_dispatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = qoder_dispatch_bridge.main(
+        ["--roles", "agent-coordinator", "--role-context-order", "1"]
+    )
+
+    assert result == 1
+    assert "requires a packet-backed dispatch" in capsys.readouterr().err
+
+
+def test_exact_context_rejects_non_json_packet_before_source_loading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = tmp_path / "packet.md"
+    packet.write_text("# packet\n", encoding="utf-8", newline="")
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "requires a JSON task packet" in capsys.readouterr().err
+
+
+def test_exact_packet_delivery_preserves_full_bytes_and_ordinary_v1_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet),
+            "--mode",
+            "analysis",
+            "--role-context-order",
+            "1",
+            "--instruction-file",
+            "tools/codex_skills/pulseplate-workflow/SKILL.md",
+        ]
+    )
+
+    assert result == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == context_bundle.OUTPUT_SCHEMA_VERSION
+    manifest = output["manifest"]
+    assert manifest["schema_version"] == qoder_dispatch_bridge.MANIFEST_SCHEMA_VERSION
+    assert "role_context" not in manifest
+    assert "context_io_metrics" not in manifest
+    assert output["selected_dispatch"] == manifest["dispatch_sequence"][0]
+    delivery = output["role_context"]
+    assert delivery["complete"] is True
+    assert "cache" not in delivery
+    source_rows = delivery["sources"]
+    assert [row["path"] for row in source_rows] == [
+        ".cursor/agents/agent-coordinator.md",
+        "role-context.md",
+        "packet-context.md",
+        "tools/codex_skills/pulseplate-workflow/SKILL.md",
+    ]
+    definition = source_rows[0]["content"]
+    assert definition.startswith("---\nname: agent-coordinator")
+    assert "coordinator line 200" in definition
+    assert len(definition) > 500
+    assert delivery["dynamic_packet"]["content"] == packet.read_text(encoding="utf-8")
+    assert "deliberately-not-authenticated" in delivery["dynamic_packet"]["content"]
+    assert manifest["dispatch_sequence"][0]["system_prompt_excerpt"] != definition
+
+
+def test_exact_output_wraps_an_unchanged_v2_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    assert qoder_dispatch_bridge.main(["--packet", str(packet), "--mode", "analysis"]) == 0
+    default_manifest = json.loads(capsys.readouterr().out)
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--mode",
+                "analysis",
+                "--role-context-order",
+                "1",
+            ]
+        )
+        == 0
+    )
+    exact_output = json.loads(capsys.readouterr().out)
+    wrapped_manifest = exact_output["manifest"]
+
+    default_manifest.pop("generated_at")
+    wrapped_manifest.pop("generated_at")
+    assert wrapped_manifest == default_manifest
+    assert set(exact_output) == {
+        "schema_version",
+        "manifest",
+        "selected_dispatch",
+        "role_context",
+        "context_io_metrics",
+    }
+
+
+@pytest.mark.parametrize("packet_kind", ["invariant_v2", "creative_synthesis"])
+def test_current_packet_validators_use_invocation_pinned_canonical_routing(
+    monkeypatch: pytest.MonkeyPatch,
+    packet_kind: str,
+) -> None:
+    packet = (
+        _v2_packet(monkeypatch)
+        if packet_kind == "invariant_v2"
+        else _single_coordinator_synthesis_packet()
+    )
+    routing_text = (REPO_ROOT / qoder_dispatch_bridge.ROUTING_GRAPH_SOURCE_PATH).read_text(
+        encoding="utf-8"
+    )
+    pinned = qoder_dispatch_bridge._PinnedRoutingGraphSource(routing_text)
+    real_load = qoder_dispatch_bridge.load_routing_graph
+    observed_sources: list[object] = []
+
+    def observed_load(path: object = None) -> Dict[str, Any]:
+        observed_sources.append(path)
+        assert path is pinned
+        return cast(Dict[str, Any], real_load(cast(Path, path)))
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_routing_validation_source", cast(Path, pinned))
+    monkeypatch.setattr(qoder_dispatch_bridge, "load_routing_graph", observed_load)
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(cast(Dict[str, Any], packet))
+
+    assert roles
+    assert observed_sources
+    assert set(observed_sources) == {pinned}
+
+
+def test_v2_routing_change_after_role_validation_fails_final_bracket(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_v2_exact_dispatch_fixture(tmp_path, monkeypatch)
+    routing_path = tmp_path / qoder_dispatch_bridge.ROUTING_GRAPH_SOURCE_PATH
+    real_parse = qoder_dispatch_bridge._parse_loaded_packet_roles
+
+    def parse_then_mutate(
+        resolved_packet_path: Path,
+        payload: Dict[str, Any] | None,
+    ) -> List[str]:
+        roles = real_parse(resolved_packet_path, payload)
+        routing_path.write_text(
+            routing_path.read_text(encoding="utf-8") + "\n<!-- changed -->\n",
+            encoding="utf-8",
+            newline="",
+        )
+        return roles
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "_parse_loaded_packet_roles",
+        parse_then_mutate,
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "SOURCE_CHANGED" in capsys.readouterr().err
+
+
+def test_exact_occurrence_selects_duplicate_role_by_final_position(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        repeated_reviewer=True,
+    )
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet),
+            "--mode",
+            "analysis",
+            "--role-context-order",
+            "3",
+        ]
+    )
+
+    assert result == 0
+    output = json.loads(capsys.readouterr().out)
+    manifest = output["manifest"]
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == [
+        "agent-coordinator",
+        "security-auditor",
+        "agent-coordinator",
+    ]
+    assert output["role_context"]["role_context_order"] == 3
+    assert output["role_context"]["sources"][0]["path"] == (".cursor/agents/agent-coordinator.md")
+
+
+def test_exact_occurrence_preserves_selected_readonly_and_mode_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet),
+            "--mode",
+            "review",
+            "--role-context-order",
+            "2",
+        ]
+    )
+
+    assert result == 0
+    output = json.loads(capsys.readouterr().out)
+    manifest = output["manifest"]
+    selected = manifest["dispatch_sequence"][1]
+    assert selected["role_slug"] == "security-auditor"
+    assert selected["mode"] == "review"
+    assert selected["readonly"] is True
+    assert selected["qoder_subagent_type"] == "CodeReview"
+
+
+@pytest.mark.parametrize("required_context", [None, "AGENTS.md", [""], [1]])
+def test_packet_backed_exact_context_rejects_missing_or_malformed_required_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    required_context: object,
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        required_context=required_context,
+    )
+    if required_context is None:
+        payload = json.loads(packet.read_text(encoding="utf-8"))
+        payload.pop("required_context")
+        packet.write_text(json.dumps(payload) + "\n", encoding="utf-8", newline="")
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "required_context" in capsys.readouterr().err
+
+
+def test_ordinary_v1_packet_rejects_credentials_extension_without_emitting_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        required_context=("config/credentials.yaml",),
+    )
+    sensitive = tmp_path / "config/credentials.yaml"
+    sensitive.parent.mkdir(parents=True, exist_ok=True)
+    sensitive.write_text(
+        "api_token: SECRET_SENTINEL\n",
+        encoding="utf-8",
+        newline="",
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "STATIC_SOURCE_FORBIDDEN: config/credentials.yaml" in captured.err
+    assert captured.out == ""
+    assert "SECRET_SENTINEL" not in captured.err
+
+
+def test_dynamic_packet_cannot_select_itself_as_static_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        required_context=("packet.json",),
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "DYNAMIC_PACKET_SELECTED_AS_STATIC: packet.json" in capsys.readouterr().err
+
+
+def test_dynamic_packet_case_alias_uses_kernel_identity_and_preserves_distinct_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        required_context=("PACKET.JSON",),
+    )
+    alias = tmp_path / "PACKET.JSON"
+    same_object_alias = alias.exists()
+    if not same_object_alias:
+        alias.write_text("distinct static context\n", encoding="utf-8", newline="")
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    captured = capsys.readouterr()
+    if same_object_alias:
+        assert result == 1
+        assert "DYNAMIC_PACKET_SELECTED_AS_STATIC_OBJECT: PACKET.JSON" in captured.err
+        assert alias.stat().st_ino == packet.stat().st_ino
+    else:
+        assert result == 0
+        output = json.loads(captured.out)
+        assert alias.stat().st_ino != packet.stat().st_ino
+        assert output["role_context"]["complete"] is True
+        assert any(
+            row == {"path": "PACKET.JSON", "content": "distinct static context\n"}
+            for row in output["role_context"]["sources"]
+        )
+
+
+def test_exact_selection_source_and_canonical_routing_failures_are_explicit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    (tmp_path / qoder_dispatch_bridge.CONTEXT_MAP_SOURCE_PATH).unlink()
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "SOURCE_MISSING" in capsys.readouterr().err
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    def invalid_routing(_path: object) -> Dict[str, Any]:
+        raise ValueError("invalid routing fixture")
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "load_routing_graph", invalid_routing)
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "canonical routing graph unavailable" in capsys.readouterr().err
+
+
+def test_exact_context_rejects_absolute_instruction_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    instruction = tmp_path / "tools/codex_skills/pulseplate-workflow/SKILL.md"
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet),
+            "--role-context-order",
+            "1",
+            "--instruction-file",
+            str(instruction),
+        ]
+    )
+
+    assert result == 1
+    assert "INSTRUCTION_FILE_MUST_BE_REPO_RELATIVE" in capsys.readouterr().err
+
+
+def test_exact_wildcard_context_is_structured_manual_result_without_partial_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        selected_context="docs/orchestration/*",
+    )
+
+    result = qoder_dispatch_bridge.main(
+        [
+            "--packet",
+            str(packet),
+            "--role-context-order",
+            "1",
+        ]
+    )
+
+    assert result == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["role_context"] == {
+        "schema_version": context_bundle.DELIVERY_SCHEMA_VERSION,
+        "complete": False,
+        "role_context_order": 1,
+        "manual_loading_required": True,
+        "reason": "UNSUPPORTED_SOURCE_PATTERN",
+        "path": "docs/orchestration/*",
+    }
+    assert "bundle_bytes_written" not in output["context_io_metrics"]
+    assert "sources" not in output["role_context"]
+
+
+def test_exact_definition_change_after_selection_blocks_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    real_materialize = qoder_dispatch_bridge.materialize_context_bundle
+
+    def mutate_then_materialize(*args: object, **kwargs: object) -> dict[str, object]:
+        definition = tmp_path / ".cursor/agents/agent-coordinator.md"
+        original = definition.stat()
+        raw = definition.read_bytes()
+        replacement = raw.replace(b"coordinator line 200", b"coordinator line XXX")
+        assert len(replacement) == len(raw)
+        definition.write_bytes(replacement)
+        os.utime(definition, ns=(original.st_atime_ns, original.st_mtime_ns))
+        return real_materialize(*args, **kwargs)
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "materialize_context_bundle",
+        mutate_then_materialize,
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "SOURCE_CHANGED" in capsys.readouterr().err
+
+
+def test_exact_context_map_change_after_inventory_selection_blocks_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    real_materialize = qoder_dispatch_bridge.materialize_context_bundle
+
+    def mutate_then_materialize(*args: object, **kwargs: object) -> dict[str, object]:
+        context_map = tmp_path / "docs/orchestration/AGENT_CONTEXT_MAP.md"
+        context_map.write_text(
+            context_map.read_text(encoding="utf-8") + "\n<!-- changed -->\n",
+            encoding="utf-8",
+            newline="",
+        )
+        return real_materialize(*args, **kwargs)
+
+    monkeypatch.setattr(
+        qoder_dispatch_bridge,
+        "materialize_context_bundle",
+        mutate_then_materialize,
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    assert result == 1
+    assert "SOURCE_CHANGED" in capsys.readouterr().err
+
+
+def test_exact_context_order_must_select_existing_positive_occurrence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+
+    assert qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "0"]) == 1
+    assert "positive one-based occurrence" in capsys.readouterr().err
+    assert qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "99"]) == 1
+    assert "does not select an existing" in capsys.readouterr().err
 
 
 def test_fallback_role_order_field_continuation_is_parsed(

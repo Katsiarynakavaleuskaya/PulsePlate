@@ -417,13 +417,13 @@ If it is not recorded here — it does not exist.
     non-canonical and may be discarded by the operator.
 
 <a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
-- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+- [x] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (deterministic orchestration treatment selection)
   - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
     on `codex/evidence-rail-applicability-v1`
-  - Status: Implementation published; current-head validation and review
-    closeout are in progress. Close the item only after the PR merges.
+  - Status: Completed in PR #2378, merged as
+    `6f42cf6187823c39495fb1a85f72fa52898b491b`.
   - Area: orchestration / PR lane startup / local evidence selection
   - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
     which Teleology, Euler, Experiment Runner, and Creative treatments apply.
@@ -467,6 +467,63 @@ If it is not recorded here — it does not exist.
     - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
     - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
     - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-orch-cache-1-exact-role-context"></a>
+- [x] P1: ORCH-CACHE-1 exact role-context materialization
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1 (complete, current role-context delivery)
+  - Target PR: [#2385](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2385)
+    on `codex/orchestration-exact-context-bundle-reuse`
+  - Status: Implementation and same-PR validation closure are recorded in PR
+    #2385. Closure takes effect when PR #2385 merges; until then current-head CI,
+    review closeout, and merge remain pending. The historical ORCH-CACHE-1 lane
+    name is retained for traceability, but no context cache is included after
+    the accepted benchmark decision.
+  - Area: orchestration / role dispatch / context loading
+  - Reason (EN): The dispatch manifest carries a 500-character prompt excerpt
+    and source paths, while actual role execution requires the complete raw role
+    definition, selected context, current packet, and explicit instructions.
+    Repeated manual assembly can omit or summarize required content and can mix
+    bytes observed at different times.
+  - Links:
+    - `scripts/orchestration/context_bundle.py`
+    - `scripts/orchestration/qoder_dispatch_bridge.py`
+    - `.agents/skills/pulseplate-orchestration-dispatch/rules/context-loading.md`
+  - DoD:
+    - default bridge output remains the unchanged v2 manifest; opt-in
+      `--role-context-order N` returns a separate exact-context output envelope
+      for one existing final one-based occurrence
+    - the raw role definition, selected manifest context, ordinary packet
+      `required_context`, and explicit admitted instruction files are delivered
+      in first-occurrence order without excerpting, summarization, or newline
+      normalization
+    - packet content and current dispatch metadata remain dynamic; any static
+      source with the packet's captured device/inode identity blocks, and exact
+      materialization adds no packet-authenticity, routing, role, write, review,
+      CI, merge, semantic-cache, provider, or product-runtime authority
+    - descriptor-relative no-follow reads reject traversal, symlinks, hardlinks,
+      nonregular files, source/selection drift, non-UTF-8, missing and over-limit
+      input; globs and directories yield an explicit incomplete manual route
+    - deterministic tests cover complete content beyond line 200 and character
+      500, ordinary packet context, duplicate occurrences, mode/readonly
+      preservation, unsafe inputs, selection drift, bounds, default output, and
+      separate envelope ownership
+    - the frozen A/B/C benchmark uses real orders 4/5/6 and two 30-repeat
+      series; stored content is actually consumed, wall-clock B/C covers the
+      full operation, and the canonical selector read outside the prototype's
+      `ContextIOMetrics` counters is separately disclosed as a derived count;
+      only aggregate timings were retained, without raw per-trial samples
+    - persistence remains removed because C failed the required median
+      improvement against B in both measured series (38.092 ms vs 41.665 ms,
+      then 38.888 ms vs 42.654 ms); the ignored prototype and raw benchmark
+      result remain evidence only and grant no cache authority
+  - Out of scope (EN): Renderer, workflow, task-packet identity, selector and
+    routing changes, host/plugin discovery, provider-token savings, watcher,
+    Redis/service storage, semantic serving, Evidence Graph, product runtime,
+    API/OpenAPI, frontend, iOS, dependencies, and merge authority.
+  - Rollback (EN): Revert the materializer, opt-in bridge envelope, tests, and
+    synchronized dispatch guidance. Default manifest behavior remains the
+    compatibility baseline.
 
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
@@ -564,6 +621,31 @@ If it is not recorded here — it does not exist.
       review-thread, merge, release, or product-runtime mutation is implied
     - add deterministic approval, no-approval, stale packet, blocker, ordering,
       and no-mutation tests plus rollback to recommendation-only treatment
+
+<a id="ledger-p1-teleology-goal-outcome-workflow"></a>
+- [ ] P1: TELO-OPS-2 goal-to-outcome review in the existing coordinator and QA workflow
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1 (observable task completion and reduced manual follow-up)
+  - Target PR: [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383) (`codex/teleology-goal-outcome-workflow`)
+  - Status: Open non-draft; synchronized with main after PR #2378 merged; post-open findings are being closed before material freeze. Not merged.
+  - Area: orchestration / startup instructions / existing review templates
+  - Reason (EN): The existing rail selector names Teleology full/compact but does not carry the accepted goal criteria into ordinary QA and criterion-to-evidence closeout.
+  - Links:
+    - `docs/orchestration/workflow.md#goal-to-outcome-review`
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-evidence-sidecar-v1`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-task-normative-envelope-v1-shadow`
+  - DoD:
+    - validated full/compact treatments render static instructions; grouping preserves all original requirements and DoD items
+    - one accepted criterion reference/version passes from Task Analysis/runbook to ordinary QA Work Review and final DoD
+    - every original requirement and DoD item is explicitly covered by an individually achieved criterion with observed evidence before overall completion; no materiality filter excludes required scope
+    - achieved, partial, unknown and not_achieved classifications require observed evidence or an explicit gap; CI, merge, hashes and template presence do not prove the outcome
+    - untrusted GitHub/Drive evidence cannot change accepted goals, role order, status or authority; existing dynamic fields remain escaped
+    - existing packet, role, N1 and sidecar interfaces remain unchanged; no new parser, schema, store, provider, scheduler or CI blocker
+    - focused regressions, narrow local gates and applicable current-head PR checks are reported distinctly
+  - Dependency / operator decision (EN): The operator explicitly authorized starting from #2378 before its merge and shared-main stabilization. After #2378 merged, the same branch synchronized main without rewriting history; the follow-up PR targets main. A later explicit operator instruction authorizes merging this owned PR only after all required checks and review gates pass, followed by main synchronization, sanity, gitignored evidence retention and a Google Drive documentation update. No authority over #2378 is granted.
+  - Deferred / follow-up (EN): After merge, coordinator/QA observe the first three newly eligible product-priority PRs through existing Work Reviews: criterion/evidence completeness, corrections attributable to the reminder as reviewer observations, and known operator minutes (missing values stay unknown). Target: first three post-merge eligible PRs; no new telemetry tool or causal claim. N1 p1-05 and its GO/DEFER/STOP decision remain separate.
+  - Rollback (EN): Revert the instruction, procedure and template change together; preserve the parent selector and existing receipts/artifacts.
 
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
