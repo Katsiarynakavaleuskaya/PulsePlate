@@ -404,13 +404,13 @@ If it is not recorded here — it does not exist.
     non-canonical and may be discarded by the operator.
 
 <a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
-- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+- [x] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (deterministic orchestration treatment selection)
   - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
     on `codex/evidence-rail-applicability-v1`
-  - Status: Implementation published; current-head validation and review
-    closeout are in progress. Close the item only after the PR merges.
+  - Status: Completed in PR #2378, merged as
+    `6f42cf6187823c39495fb1a85f72fa52898b491b`.
   - Area: orchestration / PR lane startup / local evidence selection
   - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
     which Teleology, Euler, Experiment Runner, and Creative treatments apply.
@@ -454,6 +454,63 @@ If it is not recorded here — it does not exist.
     - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
     - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
     - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-orch-cache-1-exact-role-context"></a>
+- [x] P1: ORCH-CACHE-1 exact role-context materialization
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1 (complete, current role-context delivery)
+  - Target PR: [#2385](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2385)
+    on `codex/orchestration-exact-context-bundle-reuse`
+  - Status: Implementation and same-PR validation closure are recorded in PR
+    #2385. Closure takes effect when PR #2385 merges; until then current-head CI,
+    review closeout, and merge remain pending. The historical ORCH-CACHE-1 lane
+    name is retained for traceability, but no context cache is included after
+    the accepted benchmark decision.
+  - Area: orchestration / role dispatch / context loading
+  - Reason (EN): The dispatch manifest carries a 500-character prompt excerpt
+    and source paths, while actual role execution requires the complete raw role
+    definition, selected context, current packet, and explicit instructions.
+    Repeated manual assembly can omit or summarize required content and can mix
+    bytes observed at different times.
+  - Links:
+    - `scripts/orchestration/context_bundle.py`
+    - `scripts/orchestration/qoder_dispatch_bridge.py`
+    - `.agents/skills/pulseplate-orchestration-dispatch/rules/context-loading.md`
+  - DoD:
+    - default bridge output remains the unchanged v2 manifest; opt-in
+      `--role-context-order N` returns a separate exact-context output envelope
+      for one existing final one-based occurrence
+    - the raw role definition, selected manifest context, ordinary packet
+      `required_context`, and explicit admitted instruction files are delivered
+      in first-occurrence order without excerpting, summarization, or newline
+      normalization
+    - packet content and current dispatch metadata remain dynamic; any static
+      source with the packet's captured device/inode identity blocks, and exact
+      materialization adds no packet-authenticity, routing, role, write, review,
+      CI, merge, semantic-cache, provider, or product-runtime authority
+    - descriptor-relative no-follow reads reject traversal, symlinks, hardlinks,
+      nonregular files, source/selection drift, non-UTF-8, missing and over-limit
+      input; globs and directories yield an explicit incomplete manual route
+    - deterministic tests cover complete content beyond line 200 and character
+      500, ordinary packet context, duplicate occurrences, mode/readonly
+      preservation, unsafe inputs, selection drift, bounds, default output, and
+      separate envelope ownership
+    - the frozen A/B/C benchmark uses real orders 4/5/6 and two 30-repeat
+      series; stored content is actually consumed, wall-clock B/C covers the
+      full operation, and the canonical selector read outside the prototype's
+      `ContextIOMetrics` counters is separately disclosed as a derived count;
+      only aggregate timings were retained, without raw per-trial samples
+    - persistence remains removed because C failed the required median
+      improvement against B in both measured series (38.092 ms vs 41.665 ms,
+      then 38.888 ms vs 42.654 ms); the ignored prototype and raw benchmark
+      result remain evidence only and grant no cache authority
+  - Out of scope (EN): Renderer, workflow, task-packet identity, selector and
+    routing changes, host/plugin discovery, provider-token savings, watcher,
+    Redis/service storage, semantic serving, Evidence Graph, product runtime,
+    API/OpenAPI, frontend, iOS, dependencies, and merge authority.
+  - Rollback (EN): Revert the materializer, opt-in bridge envelope, tests, and
+    synchronized dispatch guidance. Default manifest behavior remains the
+    compatibility baseline.
 
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
