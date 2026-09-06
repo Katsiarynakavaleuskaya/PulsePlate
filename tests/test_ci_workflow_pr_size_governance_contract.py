@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 import fnmatch
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -2056,7 +2057,13 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         ".github/actions/**",
         "scripts/ios_test_targets.sh",
         "scripts/ci/check_ios_swift_syntax.sh",
+        "scripts/release/check_ios_appstore_verify.py",
     ]
+    for path, expected in (
+        ("scripts/release/check_ios_appstore_verify.py", True),
+        ("scripts/release/release_manifest.py", False),
+    ):
+        assert any(fnmatch.fnmatchcase(path, pattern) for pattern in ios_filters) is expected
 
     agents_text = AGENTS_PATH.read_text(encoding="utf-8")
     for path in ios_filters:
@@ -3798,6 +3805,283 @@ def test_frontend_node24_precommit_guard_rejects_inner_script_drift(
 
     with pytest.raises((AssertionError, KeyError)):
         _assert_frontend_node24_build_and_precommit_contract(package, config)
+
+
+IOS_APPSTORE_VERIFY_STEP_NAME = "iOS App Store repo-local verification"
+IOS_APPSTORE_VERIFY_COMMAND = "python3 scripts/release/check_ios_appstore_verify.py"
+IOS_UNIT_STEP_NAME = "iOS tests (project-based, app scheme)"
+IOS_RELEASE_BUILD_STEP_NAME = "iOS Release simulator build (unsigned)"
+IOS_TESTS_JOB_IF = (
+    "needs.changes.outputs.ios == 'true' && (\n"
+    "  github.event_name == 'pull_request' ||\n"
+    "  (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || "
+    "startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, "
+    "'refs/heads/feature/') || github.ref == 'refs/heads/main'))\n"
+    ")\n"
+)
+# SHA-256 of the exact yaml.safe_load() complete-unit run scalar; no normalization is permitted.
+IOS_UNIT_RUN_SHA256 = (
+    "db7b3a74ea8066fd3094627b8458c4c02c34178ffd212a35b9d3f32af771fbdb"  # pragma: allowlist secret
+)
+# SHA-256 of the exact yaml.safe_load() Release run scalar; no normalization is permitted.
+IOS_RELEASE_BUILD_RUN_SHA256 = (
+    "c3aa3d5582fa3e4261156f9f4aaa8acfbc4d34641bf8842fa3c10b94468910bb"  # pragma: allowlist secret
+)
+
+
+def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
+    """Assert the bounded Debug-unit -> Release-build sequence in ios-tests."""
+
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["defaults"] == {"run": {"shell": "bash"}}
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    assert set(ios_tests) == {"name", "runs-on", "timeout-minutes", "if", "needs", "steps"}
+    assert ios_tests["name"] == "iOS unit tests (xcodebuild)"
+    assert ios_tests["runs-on"] == "macos-15"
+    assert ios_tests["needs"] == ["changes"]
+    assert ios_tests["if"] == IOS_TESTS_JOB_IF
+    assert "continue-on-error" not in ios_tests
+    assert ios_tests["timeout-minutes"] == (
+        "${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}"
+    )
+
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    assert all(isinstance(step, dict) for step in steps)
+    step_names = [step.get("name") for step in steps]
+    assert step_names == [
+        "Checkout",
+        "Select Xcode (require 26.x for iOS 26 SDK readiness)",
+        "Cache SwiftPM packages (SourcePackages only, not Build)",
+        "Select iOS simulator destination (stable)",
+        IOS_APPSTORE_VERIFY_STEP_NAME,
+        IOS_UNIT_STEP_NAME,
+        IOS_RELEASE_BUILD_STEP_NAME,
+    ]
+    assert step_names.count(IOS_APPSTORE_VERIFY_STEP_NAME) == 1
+    assert step_names.count(IOS_UNIT_STEP_NAME) == 1
+    assert step_names.count(IOS_RELEASE_BUILD_STEP_NAME) == 1
+    validator_index = step_names.index(IOS_APPSTORE_VERIFY_STEP_NAME)
+    unit_index = step_names.index(IOS_UNIT_STEP_NAME)
+    release_index = step_names.index(IOS_RELEASE_BUILD_STEP_NAME)
+    assert validator_index + 1 == unit_index
+    assert release_index == unit_index + 1
+
+    validator_step = steps[validator_index]
+    assert isinstance(validator_step, dict)
+    assert set(validator_step) == {"name", "run"}
+    assert validator_step["name"] == IOS_APPSTORE_VERIFY_STEP_NAME
+    assert validator_step["run"] == IOS_APPSTORE_VERIFY_COMMAND
+    assert (
+        sum(
+            isinstance(step.get("run"), str) and IOS_APPSTORE_VERIFY_COMMAND in step["run"]
+            for step in steps
+        )
+        == 1
+    )
+
+    unit_step = steps[unit_index]
+    assert isinstance(unit_step, dict)
+    assert set(unit_step) == {"name", "working-directory", "env", "run"}
+    assert unit_step["working-directory"] == "ios"
+    assert unit_step["env"] == {"DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}"}
+    unit_run = unit_step["run"]
+    assert isinstance(unit_run, str)
+    assert hashlib.sha256(unit_run.encode("utf-8")).hexdigest() == IOS_UNIT_RUN_SHA256
+    assert unit_run.index('"xcodebuild", "build-for-testing"') < unit_run.index(
+        '"xcodebuild", "test-without-building"'
+    )
+    assert "result = subprocess.run(cmd, timeout=600, check=True)" in unit_run
+    assert "subprocess.run(cmd, timeout=900, check=True)" in unit_run
+
+    release_step = steps[release_index]
+    assert isinstance(release_step, dict)
+    assert set(release_step) == {"name", "working-directory", "env", "run"}
+    assert release_step["name"] == IOS_RELEASE_BUILD_STEP_NAME
+    assert release_step["working-directory"] == "ios"
+    release_env = release_step["env"]
+    assert isinstance(release_env, dict)
+    assert release_env == {
+        "DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}",
+        "DESTINATION": "${{ steps.select-destination.outputs.destination }}",
+        "IOS_RELEASE_BUILD_TIMEOUT_SECONDS": 600,
+    }
+    release_run = release_step["run"]
+    assert isinstance(release_run, str)
+    assert hashlib.sha256(release_run.encode("utf-8")).hexdigest() == (IOS_RELEASE_BUILD_RUN_SHA256)
+
+
+def test_ios_release_simulator_build_stays_blocking_after_complete_unit_run() -> None:
+    workflow = _load_ci_workflow()
+
+    _assert_ios_release_build_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    ("scope", "key", "value"),
+    (
+        ("job", "defaults", {"run": {"shell": "bash -c '{0} || true'"}}),
+        ("job", "environment", "production"),
+        ("job", "permissions", {"contents": "write", "id-token": "write"}),
+        ("job", "name", "optional iOS check"),
+        ("job", "runs-on", "self-hosted"),
+        (
+            "job",
+            "steps",
+            {"name": "Archive", "run": "xcodebuild archive && xcodebuild -exportArchive"},
+        ),
+        ("workflow", "permissions", {"contents": "write"}),
+        ("workflow", "defaults", {"run": {"shell": "bash -c '{0} || true'"}}),
+    ),
+)
+def test_ios_job_rejects_extra_execution_and_authority(scope: str, key: str, value: object) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["ios-tests"]
+    assert isinstance(job, dict)
+    if key == "steps":
+        steps = job["steps"]
+        assert isinstance(steps, list)
+        steps.append(value)
+    else:
+        target = workflow if scope == "workflow" else job
+        target[key] = value
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("remove", "duplicate", "after-unit", "continue-on-error", "mask-exit"),
+)
+def test_ios_appstore_validator_stays_single_blocking_before_unit_run(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    validator_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == IOS_APPSTORE_VERIFY_STEP_NAME
+    )
+
+    if mutation == "remove":
+        steps.pop(validator_index)
+    elif mutation == "duplicate":
+        steps.insert(validator_index, dict(steps[validator_index]))
+    elif mutation == "after-unit":
+        validator_step = steps.pop(validator_index)
+        unit_index = next(
+            index for index, step in enumerate(steps) if step.get("name") == IOS_UNIT_STEP_NAME
+        )
+        steps.insert(unit_index + 1, validator_step)
+    elif mutation == "continue-on-error":
+        steps[validator_index]["continue-on-error"] = True
+    else:
+        steps[validator_index]["run"] = f"{IOS_APPSTORE_VERIFY_COMMAND} || true"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "unit-continue-on-error",
+        "unit-if-false",
+        "build-check-false",
+        "test-check-false",
+        "build-cmd-rebound",
+        "test-cmd-rebound",
+        "unit-developer-dir-drift",
+        "job-continue-on-error",
+        "job-if-forced-false",
+    ),
+)
+def test_ios_unit_and_job_reject_false_green_blocking_mutations(mutation: str) -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    unit_step = next(step for step in steps if step.get("name") == IOS_UNIT_STEP_NAME)
+    assert isinstance(unit_step, dict)
+
+    if mutation == "unit-continue-on-error":
+        unit_step["continue-on-error"] = True
+    elif mutation == "unit-if-false":
+        unit_step["if"] = "false"
+    elif mutation == "build-check-false":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            "result = subprocess.run(cmd, timeout=600, check=False)",
+            1,
+        )
+    elif mutation == "test-check-false":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "subprocess.run(cmd, timeout=900, check=True)",
+            "subprocess.run(cmd, timeout=900, check=False)",
+            1,
+        )
+    elif mutation == "build-cmd-rebound":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            'cmd = ["/usr/bin/true"]\n              '
+            "result = subprocess.run(cmd, timeout=600, check=True)",
+            1,
+        )
+    elif mutation == "test-cmd-rebound":
+        unit_run = unit_step["run"]
+        assert isinstance(unit_run, str)
+        unit_step["run"] = unit_run.replace(
+            "subprocess.run(cmd, timeout=900, check=True)",
+            'cmd = ["/usr/bin/true"]\n              '
+            "subprocess.run(cmd, timeout=900, check=True)",
+            1,
+        )
+    elif mutation == "unit-developer-dir-drift":
+        unit_step["env"] = {"DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"}
+    elif mutation == "job-continue-on-error":
+        ios_tests["continue-on-error"] = True
+    else:
+        ios_tests["if"] = f"{IOS_TESTS_JOB_IF.rstrip()} && false\n"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
+
+
+def test_ios_release_build_run_digest_rejects_appended_command() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    ios_tests = jobs["ios-tests"]
+    assert isinstance(ios_tests, dict)
+    steps = ios_tests["steps"]
+    assert isinstance(steps, list)
+    release_step = next(step for step in steps if step.get("name") == IOS_RELEASE_BUILD_STEP_NAME)
+    assert isinstance(release_step, dict)
+    release_run = release_step["run"]
+    assert isinstance(release_run, str)
+    release_step["run"] = release_run + "\necho unexpected-release-command\n"
+
+    with pytest.raises(AssertionError):
+        _assert_ios_release_build_contract(workflow)
 
 
 def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
