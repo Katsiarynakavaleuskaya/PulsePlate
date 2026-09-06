@@ -458,8 +458,8 @@ next_page: null per target
 exit: 0 per query
 ```
 
-The content-binding tests at `tests/test_frontend_dependency_guards.py:3511` and
-`tests/test_frontend_dependency_guards.py:3830` reject unknown scanner/target/record/row keys,
+The content-binding test `test_transitive_npm_batch_receipt_digest_and_projection_are_bound`
+at `tests/test_frontend_dependency_guards.py:3660` rejects unknown scanner/target/record/row keys,
 wrong batch/scanner identities or metric types, record/range omissions, and package/ecosystem drift,
 plus noncanonical first-patched npm versions or per-GHSA CVE/severity/timestamp metadata.
 
@@ -494,7 +494,7 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3542`
+`tests/test_frontend_dependency_guards.py:3617`
 (`test_qs_every_advisory_row_retains_affected_and_patched_boundary`).
 
 ## Resolver actions and exact disjoint partition
@@ -790,7 +790,7 @@ replay-proven dependency partition or substitute for the successful retry.
 
 The exact authorization literal and data maps are at
 `tests/test_frontend_dependency_guards.py:215`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1637`:
+`tests/test_frontend_dependency_guards.py:1638`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -1000,14 +1000,14 @@ The original FIXED proof remains historical evidence; it does not prove that
 later material retained the correction. Prior test counts above are not
 retroactively rewritten to include these new controls.
 
-The two real entrypoints at `tests/test_frontend_dependency_guards.py:2763` and
-`tests/test_frontend_dependency_guards.py:2769` now forward an explicit fixture
+The two real entrypoints at `tests/test_frontend_dependency_guards.py:2764` and
+`tests/test_frontend_dependency_guards.py:2770` now forward an explicit fixture
 root to the same universal executor without requiring any target to remain
 present at a historical path. Exact policy/evidence target identities and the
 complete source, occurrence and npm virtual-graph checks remain enforced.
 The module's real npm-wrapper location is not patched or replaced.
 
-The 14 controls at `tests/test_frontend_dependency_guards.py:2809` invoke both
+The 14 controls at `tests/test_frontend_dependency_guards.py:2810` invoke both
 actual entrypoints against five admissible graphs and two affected graphs:
 both targets absent, either mixed state, both safe, and a wholly relocated
 tracked npm project; then affected Browserslist or affected qs with the other
@@ -1051,5 +1051,63 @@ manifest/lock bytes, recognizer, resolver, wrapper, verifier or public interface
 Final review and merge readiness still require the separately refreshed
 exact-material seal and current-head gates; these local results grant no
 provider-closure or merge authority.
+
+## Production graph-inclusion correction (2026-09-06)
+
+A review reproducer exposed a false absence in the existing delegated npm
+invocation. On Node `24.18.1` / npm `11.16.0`, a project `.npmrc` containing
+`omit=prod` made an installed production carrier's missing required
+Browserslist edge disappear from `npm ls --all --package-lock-only --json`.
+The unchanged guard then accepted both target occurrence projections as empty.
+Without that configuration, the same graph was rejected. npm warned that
+`omit=prod` was invalid configuration but nevertheless returned an empty graph
+and exit `0`; this observation does not describe `prod` as a supported omit value.
+
+The existing policy tuple at `tests/test_frontend_dependency_guards.py:230`
+now explicitly includes all four dependency kinds: `prod`, `dev`, `optional`,
+and `peer`. Adding only `--include=prod` restored exit `1` / `ELSPROBLEMS` for
+the missing required production edge. npm remains the owner of graph validity
+and optionality; the guard still rejects nonzero exits, errors and problems.
+No warning parser, configuration ban, npm patch, new carrier or resolver action
+was introduced.
+
+The bounded controls cover missing required production/development/peer root
+carriers at `tests/test_frontend_dependency_guards.py:3066`, missing versus
+safe Browserslist below an installed production carrier at
+`tests/test_frontend_dependency_guards.py:3106`, and valid missing optional
+child behavior at `tests/test_frontend_dependency_guards.py:3143`.
+The exact four-kind tuple is checked at
+`tests/test_frontend_dependency_guards.py:3168`. All prior actual-entrypoint,
+advisory, provenance and integrity controls remain unchanged.
+
+Command, first against the old include tuple and then the corrected tuple:
+
+```bash
+"$VENV_PYTHON" -m pytest tests/test_frontend_dependency_guards.py -k 'virtual_graph_ignores_ambient_npm_omit or production_edge_is_not_hidden or virtual_graph_configuration_is_hermetic or virtual_graph_preserves_optional_child_absence'
+```
+
+Old-policy raw result, exit `1`:
+
+```text
+E   Failed: DID NOT RAISE AssertionError
+E     At index 3 diff: '--include=dev' != '--include=prod'
+2 failed, 5 passed, 248 deselected in 3.36s
+```
+
+Corrected-policy raw result, exit `0`:
+
+```text
+.......                                                                  [100%]
+7 passed, 248 deselected in 2.56s
+```
+
+An initial positive fixture with an absent optional root carrier instead
+triggered npm's own null `isWorkspace` access under `--workspaces=false`, both
+before and after production inclusion. Those failed calibration results were
+retained. The positive control was refined to a separately verified optional
+child of an installed carrier; no npm error was waived and no optional edge
+was made mandatory. The guard continues to fail closed when its delegated npm
+execution cannot establish graph validity. This correction makes no claim of
+support for every possible optional-root graph or future npm configuration.
 
 <!-- markdownlint-enable MD013 MD031 MD032 -->

@@ -231,6 +231,7 @@ NPM_VIRTUAL_GRAPH_POLICY_ARGS = (
     "--global=false",
     "--workspaces=false",
     "--link=false",
+    "--include=prod",
     "--include=dev",
     "--include=optional",
     "--include=peer",
@@ -3054,11 +3055,21 @@ def test_browserslist_class_rejects_lockfile_v2_compatibility_tree(tmp_path: Pat
         _assert_browserslist_security_class(root=tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("dependency_kind", "manifest_field"),
+    (
+        ("prod", "dependencies"),
+        ("dev", "devDependencies"),
+        ("peer", "peerDependencies"),
+    ),
+)
 def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    dependency_kind: str,
+    manifest_field: str,
 ) -> None:
-    """Ambient npm omit settings cannot weaken delegated full-graph admission."""
+    """Ambient omission cannot hide a required carrier of any dependency kind."""
 
     dependency = {"carrier": "^1.0.0"}
     _write_browserslist_repo(
@@ -3066,7 +3077,7 @@ def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
         package_json={
             "name": "fixture",
             "version": "1.0.0",
-            "devDependencies": dependency,
+            manifest_field: dependency,
         },
         package_lock={
             "name": "fixture",
@@ -3077,18 +3088,81 @@ def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
                 "": {
                     "name": "fixture",
                     "version": "1.0.0",
-                    "devDependencies": dependency,
+                    manifest_field: dependency,
                 }
             },
         },
     )
-    monkeypatch.setenv("npm_config_omit", "dev")
+    monkeypatch.setenv("npm_config_omit", dependency_kind)
     (tmp_path / "frontend/.npmrc").write_text(
-        "omit=dev\nglobal=true\nlink=true\nlegacy-peer-deps=true\n",
+        f"omit={dependency_kind}\nglobal=true\nlink=true\nlegacy-peer-deps=true\n",
         encoding="utf-8",
     )
     with pytest.raises(AssertionError, match="npm virtual graph rejected"):
         _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize("target_present", (False, True))
+def test_browserslist_production_edge_is_not_hidden_by_project_omit(
+    tmp_path: Path,
+    target_present: bool,
+) -> None:
+    """Production inclusion distinguishes a missing required edge from a safe graph."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "^1.0.0"}}
+    packages: dict[str, object] = {
+        "": manifest,
+        "node_modules/carrier": {
+            **_transitive_npm_entry(target="carrier", version="1.0.0"),
+            "dependencies": {"browserslist": "^4.28.2"},
+        },
+    }
+    if target_present:
+        packages["node_modules/browserslist"] = _browserslist_entry("4.28.8")
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": packages,
+        },
+    )
+    (tmp_path / "frontend/.npmrc").write_text("omit=prod\n", encoding="utf-8")
+    if target_present:
+        assert _assert_browserslist_security_class(root=tmp_path) == frozenset(
+            {"frontend/package-lock.json"}
+        )
+    else:
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_virtual_graph_preserves_optional_child_absence(tmp_path: Path) -> None:
+    """Including optional edges does not make an absent optional child required."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "^1.0.0"}}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": manifest,
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "optionalDependencies": {"browserslist": "^4.28.2"},
+                },
+            },
+        },
+    )
+    (tmp_path / "frontend/.npmrc").write_text("omit=optional\n", encoding="utf-8")
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
 
 
 def test_browserslist_virtual_graph_configuration_is_hermetic(
@@ -3111,6 +3185,7 @@ def test_browserslist_virtual_graph_configuration_is_hermetic(
         "--global=false",
         "--workspaces=false",
         "--link=false",
+        "--include=prod",
         "--include=dev",
         "--include=optional",
         "--include=peer",
