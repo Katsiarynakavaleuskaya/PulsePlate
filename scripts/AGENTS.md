@@ -11,6 +11,28 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+## Native RubyZip/Fastlane guard
+
+- `ruby scripts/ci/check_rubyzip_fastlane.rb` is the read-only source, lock and
+  advisory guard in the existing Ruby-enabled JWT/Fastlane CI job; that job
+  uses Ruby 3.4.10 and Bundler 2.4.22 and retains the independent JWT guard.
+  Its stdlib behavioral fixtures run as `ruby tests/test_rubyzip_fastlane.rb`
+  in that same job; Python CI/pre-commit tests retain static contracts only and
+  must not install or require a Ruby toolchain.
+- The tracked Ruby dependency inventory is exactly `ios/Gemfile` and its lock.
+  New/aliased surfaces, nonliteral Gemfile code, duplicate declarations or lock
+  rows, and unreconciled sources fail closed. Native Ripper recognizes only
+  literal `source`/`gem` calls; never evaluate the Gemfile or introduce a Python
+  Ruby/version parser. Bundler's lock parser and Gem version/requirement types
+  own dependency semantics.
+- The guard binds the approved immutable maintained Fastlane fork and genuine
+  version, checks compatible dependencies and retained floors, and requires
+  every selected RubyZip occurrence to satisfy all frozen advisory records.
+  It must permit future authorized compatible RubyZip versions, not freeze an
+  entire historical dependency graph. It performs no resolution, installation,
+  network request, lock write or release action; native solver replay and IPA
+  compatibility evidence remain separate requirements.
+
 ## Prometheus derivative candidate
 
 - `scripts/ci/prometheus_derivative_candidate.py` is the only public CLI and
@@ -47,6 +69,8 @@
   dispatch defaults to `disabled`. Ordinary manual execution requires explicit
   `normal` mode and empty candidate inputs; candidate mode skips every ordinary
   build/security/publish job. Push/PR/tag behavior stays unchanged.
+  Candidate checkout derives directly from `github.sha`; the head input is
+  retained only for equality/correlation, not as the checkout source.
 - `cloud-execute` runs only the fixed native linux/amd64 profile, two isolated
   no-cache builds, explicit `SOURCE_DATE_EPOCH`, disabled attestations, and
   suppression-free Trivy over the parsed OCI layout. BuildKit identity and
