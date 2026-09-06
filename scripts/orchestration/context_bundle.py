@@ -127,7 +127,8 @@ def canonical_repo_path(raw_path: str) -> str:
         raise UnsupportedContextSource("UNSUPPORTED_SOURCE_PATTERN", raw_path)
     candidate = PurePosixPath(raw_path)
     if (
-        candidate.is_absolute()
+        not candidate.parts
+        or candidate.is_absolute()
         or candidate.as_posix() != raw_path
         or any(part in {"", ".", ".."} for part in candidate.parts)
     ):

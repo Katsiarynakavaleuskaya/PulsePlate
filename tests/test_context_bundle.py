@@ -81,6 +81,44 @@ def test_noncanonical_paths_fail_closed(tmp_path: Path, path: str) -> None:
         _materialize(tmp_path, [path])
 
 
+def test_root_dot_alias_fails_structured_before_source_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempted: list[str] = []
+
+    def unexpected_read(
+        _repo_root: Path,
+        raw_path: str,
+        *,
+        metrics: context_bundle.ContextIOMetrics,
+        freshness: bool = False,
+        limit: int = context_bundle.MAX_SOURCE_BYTES,
+    ) -> context_bundle.SourceSnapshot:
+        del metrics, freshness, limit
+        attempted.append(raw_path)
+        raise AssertionError("root alias must fail before acquisition")
+
+    monkeypatch.setattr(context_bundle, "read_repo_source", unexpected_read)
+
+    for operation in (
+        context_bundle.canonical_repo_path,
+        context_bundle.validate_static_source_path,
+    ):
+        with pytest.raises(
+            context_bundle.ContextBundleError,
+            match=r"INVALID_SOURCE_PATH: \.",
+        ):
+            operation(".")
+    with pytest.raises(
+        context_bundle.ContextBundleError,
+        match=r"INVALID_SOURCE_PATH: \.",
+    ):
+        _materialize(tmp_path, ["."])
+
+    assert attempted == []
+
+
 @pytest.mark.parametrize("pattern", ["docs/*.md", "docs/?a.md", "docs/[ab].md"])
 def test_patterns_return_explicit_manual_incomplete_without_partial_content(
     tmp_path: Path,
