@@ -919,7 +919,7 @@ def _produce_upgrade_ops(
 
 def _operation_leaf(operation: object, *, default_schema_name: str) -> OperationLeaf | None:
     if isinstance(operation, ops.DropTableOp):
-        schema = operation.schema or default_schema_name
+        schema = default_schema_name if operation.schema is None else operation.schema
         table_name = _bounded_identifier(operation.table_name)
         return OperationLeaf(
             "DropTableOp",
@@ -928,7 +928,7 @@ def _operation_leaf(operation: object, *, default_schema_name: str) -> Operation
             table_name,
         )
     if isinstance(operation, ops.DropIndexOp):
-        schema = operation.schema or default_schema_name
+        schema = default_schema_name if operation.schema is None else operation.schema
         return OperationLeaf(
             "DropIndexOp",
             _bounded_identifier(schema),
@@ -960,7 +960,9 @@ def _semantic_leaves(
                     reasons.append("autogenerate_container_topology_invalid")
                     observed.append("container:UpgradeOps:nested")
             elif isinstance(operation, ops.ModifyTableOps):
-                parent_schema = _bounded_identifier(operation.schema or default_schema_name)
+                parent_schema = _bounded_identifier(
+                    default_schema_name if operation.schema is None else operation.schema
+                )
                 parent_table = _bounded_identifier(operation.table_name)
                 child_parent = (parent_schema, parent_table)
                 if depth != 1:
@@ -982,6 +984,11 @@ def _semantic_leaves(
             reasons.append("autogenerate_operation_unclassified")
             observed.append(f"operation:{type(operation).__name__}")
             return
+        if isinstance(operation, ops.DropTableOp) and (depth != 1 or parent_table_root is not None):
+            reasons.append("autogenerate_drop_table_topology_invalid")
+            observed.append(
+                f"operation:DropTableOp:{leaf.schema}.{leaf.table_name}:not_upgrade_root_child"
+            )
         if isinstance(operation, ops.DropIndexOp):
             leaf_root = (leaf.schema, leaf.table_name)
             if parent_table_root is None:

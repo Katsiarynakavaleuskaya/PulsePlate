@@ -264,6 +264,111 @@ def test_semantic_tree_counts_only_supported_leaves() -> None:
     assert observed == ()
 
 
+def test_raw_tree_normalizes_only_implicit_none_schemas() -> None:
+    raw_root = _raw_tree()
+    for operation in raw_root.ops:
+        assert isinstance(operation, (ops.DropTableOp, ops.ModifyTableOps))
+        operation.schema = None
+        if isinstance(operation, ops.ModifyTableOps):
+            for child in operation.ops:
+                assert isinstance(child, ops.DropIndexOp)
+                child.schema = None
+
+    leaves, reasons, observed = checker._semantic_leaves(
+        raw_root,
+        default_schema_name="public",
+    )
+
+    assert leaves == checker.EXPECTED_RAW_LEAVES
+    assert reasons == ()
+    assert observed == ()
+
+
+@pytest.mark.parametrize("schema", ("", False, 0), ids=("empty", "false", "zero"))
+@pytest.mark.parametrize("operation_kind", ("DropTableOp", "DropIndexOp", "ModifyTableOps"))
+def test_explicit_falsey_raw_schema_cannot_be_admitted_as_public(
+    schema: object,
+    operation_kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _patch_valid_evaluator_inputs(monkeypatch)
+    raw_root = _raw_tree()
+    if operation_kind == "DropIndexOp":
+        parent = next(op for op in raw_root.ops if isinstance(op, ops.ModifyTableOps))
+        malformed_operation = parent.ops[0]
+    else:
+        operation_type = ops.DropTableOp if operation_kind == "DropTableOp" else ops.ModifyTableOps
+        malformed_operation = next(op for op in raw_root.ops if isinstance(op, operation_type))
+    monkeypatch.setattr(malformed_operation, "schema", schema)
+
+    def produce(
+        connection: Connection,
+        target_metadata: MetaData,
+        *,
+        admitted: bool,
+    ) -> tuple[ops.UpgradeOps, tuple[str, ...]]:
+        del connection, target_metadata
+        calls.append(admitted)
+        return (ops.UpgradeOps([]) if admitted else raw_root), ()
+
+    monkeypatch.setattr(checker, "_produce_upgrade_ops", produce)
+
+    report = checker.evaluate_alembic_autogenerate_admission(
+        _fake_connection(),
+        load_canonical_orm_metadata(),
+    )
+
+    assert report.result == "fail"
+    assert report.claim is None
+    assert report.descriptor_validation == "not_run"
+    assert calls == [False]
+    if operation_kind == "ModifyTableOps":
+        assert "autogenerate_drop_index_parent_mismatch" in report.reason_codes
+    else:
+        assert "raw_leaf_inventory_missing" in report.reason_codes
+        assert "raw_leaf_inventory_extra" in report.reason_codes
+    assert any("<invalid>" in identity for identity in report.observed_identities)
+
+
+def test_drop_table_nested_in_modify_cannot_admit_an_exact_leaf_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _patch_valid_evaluator_inputs(monkeypatch)
+    raw_root = _raw_tree()
+    drop_table = next(
+        op for op in raw_root.ops if isinstance(op, ops.DropTableOp) and op.table_name == "foods"
+    )
+    parent = next(
+        op for op in raw_root.ops if isinstance(op, ops.ModifyTableOps) and op.table_name == "foods"
+    )
+    raw_root.ops.remove(drop_table)
+    parent.ops.append(drop_table)
+
+    def produce(
+        connection: Connection,
+        target_metadata: MetaData,
+        *,
+        admitted: bool,
+    ) -> tuple[ops.UpgradeOps, tuple[str, ...]]:
+        del connection, target_metadata
+        calls.append(admitted)
+        return (ops.UpgradeOps([]) if admitted else raw_root), ()
+
+    monkeypatch.setattr(checker, "_produce_upgrade_ops", produce)
+
+    report = checker.evaluate_alembic_autogenerate_admission(
+        _fake_connection(),
+        load_canonical_orm_metadata(),
+    )
+
+    assert report.raw_leaf_operations == checker.EXPECTED_RAW_LEAVES
+    assert report.result == "fail"
+    assert report.claim is None
+    assert report.descriptor_validation == "not_run"
+    assert report.reason_codes == ("autogenerate_drop_table_topology_invalid",)
+    assert calls == [False]
+
+
 def test_raw_tree_rejects_extra_empty_modify_table_container() -> None:
     raw_root = _raw_tree()
     raw_root.ops.append(ops.ModifyTableOps("foods", [], schema="public"))
@@ -322,8 +427,14 @@ def test_nested_supported_container_is_structurally_rejected_but_leaves_recurse(
     )
 
     assert leaves == (leaf,)
-    assert reasons == ("autogenerate_container_topology_invalid",)
-    assert observed == ("container:UpgradeOps:nested",)
+    assert reasons == (
+        "autogenerate_container_topology_invalid",
+        "autogenerate_drop_table_topology_invalid",
+    )
+    assert observed == (
+        "container:UpgradeOps:nested",
+        "operation:DropTableOp:public.foods:not_upgrade_root_child",
+    )
 
 
 @pytest.mark.parametrize(
@@ -710,6 +821,11 @@ def test_admitted_comparison_rejects_empty_modify_table_container(
         (
             "_read_named_constraints",
             (checker.NamedConstraintDescriptor("foods", "c", "unexpected", "CHECK (true)"),),
+            "migration_unique_or_check_constraint_mismatch",
+        ),
+        (
+            "_read_named_constraints",
+            (checker.NamedConstraintDescriptor("foods", "u", "unexpected", "UNIQUE (name)"),),
             "migration_unique_or_check_constraint_mismatch",
         ),
         (
