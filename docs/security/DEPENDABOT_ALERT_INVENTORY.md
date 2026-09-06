@@ -1,11 +1,11 @@
 <!-- markdownlint-disable MD013 MD031 MD032 -->
 
-# Dependabot open alert inventory - 2026-09-04
+# Dependabot open alert inventory - 2026-09-06
 
 ## Snapshot boundary
 
 This is the complete authenticated open-alert census observed at
-`2026-09-04T20:11:31Z` using all REST pagination:
+`2026-09-06T17:45:46Z` using all REST pagination:
 
 ```text
 GET /repos/Katsiarynakavaleuskaya/PulsePlate/dependabot/alerts
@@ -39,7 +39,7 @@ The candidate dependency transaction is owned by
 lock resolves `browserslist 4.28.8` at `frontend/package-lock.json:4743` and
 `qs 6.16.0` at `frontend/package-lock.json:8938`, while
 `frontend/package.json` remains byte-identical. The exact two-target permanent
-all-occurrence guard is `tests/test_frontend_dependency_guards.py:1636`.
+all-occurrence guard is `tests/test_frontend_dependency_guards.py:1637`.
 
 That candidate repository evidence does not close Dependabot alert `#273` and
 does not invent a provider closure event for the not-projected `qs` identity.
@@ -49,9 +49,34 @@ provider state, report repository remediation and provider closure separately.
 
 ## Closed alert reconciliation
 
+The open census intentionally excludes historical pip alert `#225` for
+`msgpack` / `GHSA-6v7p-g79w-8964`. Its separately authenticated exact-alert
+lookup was rechecked with the current census and remains:
+
+```text
+alert_number=225
+ecosystem=pip
+package=msgpack
+advisory=GHSA-6v7p-g79w-8964
+state=fixed
+fixed_at=2026-06-22T22:34:21Z
+dismissed_at=null
+auto_dismissed_at=null
+manifest=requirements-ci-lite.txt
+```
+
+The corresponding item is closed at
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-msgpack-ci-lite-alert-recheck`.
+This is provider-state reconciliation only: no pip dependency material is
+changed by the exact frontend npm batch. The existing parity guard at
+`tests/test_dependency_security_guard.py:314` binds this historical tuple to
+the unchanged ledger. New closed alerts must not replace this evidence.
+
+## Closed RubyGems alert reconciliation
+
 The open census intentionally excludes the now-fixed RubyGems alert `#239` for
 `json` / `GHSA-x2f5-4prf-w687`. Its separately authenticated exact-alert lookup
-is:
+was rechecked with the current census and is:
 
 ```text
 alert_number=239

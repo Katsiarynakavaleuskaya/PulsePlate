@@ -494,7 +494,8 @@ ranges end before `6.15.2`. `GHSA-q8mj-m7cp-5q26` ends at `6.15.1`.
 `withdrawn_at=2020-06-16T21:32:53Z`; retention in frozen `F_cutoff` and
 universal `P_qs` is not a claim that the withdrawn record is an active current
 vulnerability. All twenty-one row boundaries are executable at
-`tests/test_frontend_dependency_guards.py:3468`.
+`tests/test_frontend_dependency_guards.py:3542`
+(`test_qs_every_advisory_row_retains_affected_and_patched_boundary`).
 
 ## Resolver actions and exact disjoint partition
 
