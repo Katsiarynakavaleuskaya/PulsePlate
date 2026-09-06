@@ -65,14 +65,19 @@ If it is not recorded here — it does not exist.
     regeneration, asset rollback, or release migration is required.
 
 <a id="ledger-client-arch-1-cab-02"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
+- [x] P1: CLIENT-ARCH-1 / CAB-02 TypeScript production build truth
   - Owner: frontend-engineer / agent-coordinator
   - Priority: P1 (frontend build integrity / false-green prevention / development velocity)
   - Target PR: [PR #2374](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2374)
     (`codex/frontend-typecheck-build-truth`)
-  - Status: Open non-draft; local material establishes the exact TypeScript-before-Vite build and
-    fail-closed Vitest pre-commit contracts. Current-head CI, post-open review, review closeout,
-    the mandatory wait window, and human merge remain pending.
+  - Status: ✅ Closed by merged PR #2374 on 2026-09-03 at squash merge
+    `2bfb7ff96dfcc98a806de9c113eff5242bfbe479`; canonical exact-main CI push run
+    [33684829304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33684829304),
+    Nightly Full Tests run
+    [33846083377](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33846083377),
+    and Nightly Tests run
+    [33846268611](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33846268611)
+    completed successfully. These runs do not classify unrelated shared Docker/CD workflows as green.
   - Area: frontend / TypeScript / Vite production build / pre-commit test enforcement
   - Dependency: [CLIENT-ARCH-1 / CAB-01](#ledger-client-arch-1-cab-01) is closed.
   - Reason (EN): Vite transpiled the production graph without running the repository's existing
@@ -99,11 +104,12 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
   - Owner: app-store-release-agent / agent-coordinator
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
-  - Target PR: pending (`codex/ios-release-build-appicon-integrity`)
-  - Status: Planned; implementation starts only after CAB-02 is merged, synchronized to `main`,
-    and closed with exact-main evidence.
+  - Target PR: [PR #2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
+    (`codex/ios-release-build-appicon-integrity`)
+  - Status: Implementation active in PR #2381; ordered post-open role review and targeted QA
+    completed. Final current-head CI, exact-material closeout, wait window and human merge remain pending.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
-  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) must be merged and closed.
+  - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
     canonical iOS job runs Debug unit coverage without a separate Release app build. CAB-03 will
     close those two bounded seams without pixel, production Swift, signing, upload, or App Store
@@ -112,15 +118,57 @@ If it is not recorded here — it does not exist.
     - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
     - `scripts/release/check_ios_appstore_verify.py`
     - `.github/workflows/ci.yml`
+    - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md#cab-03-owner-approved-acceptance-clarification`
   - DoD:
-    - the unique `ios-marketing` entry has exact filename, idiom, platform, size, and `scale=1x`
-    - the approved AppIcon PNG remains byte-identical and 1024x1024
+    - under the current-Xcode/actool-qualified contract, the unique `ios-marketing` entry has
+      exactly filename, idiom, scale, and size, with `platform` absent from this entry only
+    - the four-key correction changes no other asset entry and implies no iOS/visionOS support,
+      Xcode project-setting, target-membership, target, or PNG-content change
+    - the current CAB-03 admitted AppIcon baseline remains byte-identical and 1024x1024
+    - a future dedicated asset-focused visual/provenance PR may atomically replace the PNG and
+      rotate the single validator-owned approved hash pin; that visual change remains outside CAB-03
     - focused and unified validators reject missing or incorrect slot metadata
+    - the existing blocking iOS job invokes the canonical repo-local validator exactly once before
+      the complete unit run, with any non-zero validator result failing the job
     - the existing blocking iOS job runs a separate Release simulator build after the full unit run
+    - owner-approved CAB-03 acceptance retains a 60-minute job fallback and separate 600-second
+      Release bound; the absent pre-lock icon-core silhouette inputs are inapplicable to this
+      unchanged-PNG metadata-only carrier, not a silhouette PASS
+    - the canonical CI no-coverable-lines result remains N/A, with fresh exact-material local
+      changed-line coverage at least 97%; all other current-head gates remain unchanged
     - no archive, export, signing, provisioning, TestFlight, App Store upload, backend, OpenAPI,
       Web, production Swift, or visual redesign scope is introduced
   - Rollback (EN): Revert the CAB-03 carrier. No database, API, user-data, payment, deployment, or
     asset-source restoration is required.
+
+<a id="ledger-client-arch-1-continuation"></a>
+- [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
+  - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
+  - Priority: P1 (ordered client architecture and release-integrity follow-ups)
+  - Target PR: pending, separate carrier PRs after CAB-03 merge and exact-main proof
+  - Status: Open; no later carrier is implemented or closed by CAB-03. The accepted CAB-03
+    handoff names the reservations below; this record grants no new implementation or release authority.
+  - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
+    warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
+  - Links:
+    - [CAB-03 implementation](#ledger-client-arch-1-cab-03)
+    - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
+    - `ios/AGENTS.md`
+  - Open reservations:
+    - [ ] CAB-04: actor-isolation work; exact scope and DoD require its own admission.
+    - [ ] CAB-05: warning cleanup / warnings-as-errors, including the unrelated AppIntents
+      metadata-extraction warning; no warning-free claim is made by CAB-03.
+    - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.
+    - [ ] CAB-07: reserved slot; no concrete scope was specified in the retained CAB-03 handoff.
+    - [ ] CAB-08: Web bundle work; exact scope and DoD require its own admission.
+    - [ ] CAB-09: Mac Catalyst/macOS admission; no platform support is changed by CAB-03.
+  - DoD:
+    - after CAB-03 merges, its required exact-main proof and ledger closeout identify CAB-04
+      as the next planned carrier without claiming CAB-04 implementation has begun
+    - each reservation receives a separately accepted scope, implementation owner, observable
+      criteria and real Target PR before implementation; no missing scope is inferred from its number
+    - each checkbox closes only with that carrier's actual merge/evidence or an explicit owner
+      won't-do decision; this tracking group remains open while any reservation is open
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo

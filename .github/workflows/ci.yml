@@ -73,7 +73,7 @@ jobs:
             ios: [
               'ios/**', '.github/workflows/**', '.github/actions/**',
               'scripts/ios_test_targets.sh',
-              'scripts/ci/check_ios_swift_syntax.sh']
+              'scripts/ci/check_ios_swift_syntax.sh', 'scripts/release/check_ios_appstore_verify.py']
             pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'scripts/ci/check_alembic_autogenerate_completeness.py', 'core/db.py', 'core/db_alembic_comparison.py', 'core/db_rls.py', 'core/models.py', 'core/rag/vector_rag.py', 'app/models/**', 'alembic.ini', 'alembic/env.py', 'alembic/versions/**', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_alembic_autogenerate_completeness.py', 'tests/test_pgvector_compat.py', 'tests/test_pgvector_embedding_migration.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
       - name: Build CI risk profile
         id: risk_profile
@@ -1957,7 +1957,10 @@ jobs:
   ios-tests:
     name: iOS unit tests (xcodebuild)
     runs-on: macos-15
-    timeout-minutes: 25
+    # Explicit caps total 40m (boot 5m + Debug 10m + unit 15m + Release 10m).
+    # The 60m fallback leaves nominal 20m setup/diagnostic headroom, not a guarantee or SLA;
+    # IOS_TESTS_JOB_TIMEOUT_MINUTES may override it.
+    timeout-minutes: ${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}
     if: |
       needs.changes.outputs.ios == 'true' && (
         github.event_name == 'pull_request' ||
@@ -2172,6 +2175,9 @@ jobs:
                   f.write(f"- **Destination:** `{dest}`\n")
           PY
 
+      - name: iOS App Store repo-local verification
+        run: python3 scripts/release/check_ios_appstore_verify.py
+
       - name: iOS tests (project-based, app scheme)
         working-directory: ios
         env:
@@ -2368,6 +2374,88 @@ jobs:
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
+          PY
+
+      - name: iOS Release simulator build (unsigned)
+        working-directory: ios
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          DESTINATION: ${{ steps.select-destination.outputs.destination }}
+          IOS_RELEASE_BUILD_TIMEOUT_SECONDS: 600
+        run: |
+          set -euo pipefail
+
+          python3 - << 'PY'
+          import os
+          import re
+          import shutil
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not re.fullmatch(
+              r"platform=iOS Simulator,id=[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}",
+              destination,
+          ):
+              print(
+                  "::error::Release build requires an exact UDID-only iOS Simulator destination",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          developer_dir = os.environ.get("DEVELOPER_DIR", "")
+          if not developer_dir:
+              print("::error::DEVELOPER_DIR is empty", file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              timeout_s = int(os.environ["IOS_RELEASE_BUILD_TIMEOUT_SECONDS"])
+          except (KeyError, ValueError):
+              print(
+                  "::error::IOS_RELEASE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+          if timeout_s <= 0:
+              print(
+                  "::error::IOS_RELEASE_BUILD_TIMEOUT_SECONDS must be a positive integer",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+
+          xcodebuild = shutil.which("xcodebuild")
+          if not xcodebuild:
+              print("::error::xcodebuild was not found on PATH", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              xcodebuild,
+              "build",
+              "-project",
+              "PulsePlate.xcodeproj",
+              "-scheme",
+              "PulsePlate",
+              "-destination",
+              destination,
+              "-configuration",
+              "Release",
+              "-derivedDataPath",
+              ".derivedData",
+              "-clonedSourcePackagesDirPath",
+              ".derivedData/SourcePackages",
+              "CODE_SIGNING_ALLOWED=NO",
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=timeout_s, check=True)
+          except subprocess.TimeoutExpired:
+              print(
+                  f"::error::xcodebuild Release build timed out after {timeout_s} seconds",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          except subprocess.CalledProcessError as exc:
+              sys.exit(exc.returncode)
           PY
 
   # iOS UI smoke (minimal, separate signal from unit tests)

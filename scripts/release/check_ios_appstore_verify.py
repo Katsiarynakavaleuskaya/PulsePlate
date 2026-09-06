@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import plistlib
@@ -19,6 +20,7 @@ import re
 import struct
 import sys
 import unicodedata
+import zlib
 from typing import Any, List, Tuple
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -30,6 +32,17 @@ APPCONFIG_SWIFT = REPO_ROOT / "ios" / "PulsePlate" / "Services" / "AppConfig.swi
 APPICON_CONTENTS = (
     REPO_ROOT / "ios" / "PulsePlate" / "Assets.xcassets" / "AppIcon.appiconset" / "Contents.json"
 )
+EXPECTED_APPICON_MARKETING_ENTRY = {
+    "filename": "AppIcon-1024.png",
+    "idiom": "ios-marketing",
+    "scale": "1x",
+    "size": "1024x1024",
+}
+# CAB-03 admitted baseline; a future asset PR rotates this validator-owned pin with the PNG.
+EXPECTED_APPICON_MARKETING_SHA256 = (
+    "f238b1eae8dd17dd8a30e4eaf15a16a9827462eec129e98770feb878a0e83c4b"  # pragma: allowlist secret
+)
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PRIVACY_MANIFEST = REPO_ROOT / "ios" / "PulsePlate" / "PrivacyInfo.xcprivacy"
 APP_PRIVACY_JSON = REPO_ROOT / "ios" / "fastlane" / "app_privacy_details.json"
 HEALTHKIT_MANAGER = REPO_ROOT / "ios" / "PulsePlate" / "Models" / "HealthKitManager.swift"
@@ -599,16 +612,34 @@ def _scan_text_variants(value: str) -> list[str]:
 def _read_png_dimensions(path: pathlib.Path) -> Tuple[int, int]:
     """Read width/height from PNG IHDR chunk (no external deps)."""
     with open(path, "rb") as fh:
-        sig = fh.read(8)
-        if sig[:4] != b"\x89PNG":
+        signature = fh.read(8)
+        if signature != PNG_SIGNATURE:
             raise ValueError(f"Not a PNG file: {path}")
-        # IHDR is always first chunk after signature.
-        fh.read(4)  # chunk length (not needed for IHDR)
+
+        length_bytes = fh.read(4)
+        if len(length_bytes) != 4:
+            raise ValueError(f"Incomplete IHDR length: {path}")
+        chunk_length = struct.unpack(">I", length_bytes)[0]
+        if chunk_length != 13:
+            raise ValueError(f"Invalid IHDR length {chunk_length}: {path}")
+
         chunk_type = fh.read(4)
         if chunk_type != b"IHDR":
             raise ValueError(f"Missing IHDR chunk: {path}")
-        data = fh.read(8)
-        width, height = struct.unpack(">II", data)
+
+        ihdr_data = fh.read(chunk_length)
+        if len(ihdr_data) != chunk_length:
+            raise ValueError(f"Incomplete IHDR data: {path}")
+        crc_bytes = fh.read(4)
+        if len(crc_bytes) != 4:
+            raise ValueError(f"Incomplete IHDR CRC: {path}")
+        expected_crc = zlib.crc32(chunk_type)
+        expected_crc = zlib.crc32(ihdr_data, expected_crc) & 0xFFFFFFFF
+        actual_crc = struct.unpack(">I", crc_bytes)[0]
+        if actual_crc != expected_crc:
+            raise ValueError(f"Invalid IHDR CRC: {path}")
+
+        width, height = struct.unpack(">II", ihdr_data[:8])
     return width, height
 
 
@@ -1298,21 +1329,38 @@ def check_release_base_url() -> Results:
 
 
 def check_appicon_marketing() -> Results:
-    """Verify AppIcon has exactly one ios-marketing entry at 1024x1024."""
+    """Verify the exact AppIcon marketing slot and approved PNG bytes."""
     results: Results = []
     tag = "appicon_marketing"
 
-    if not APPICON_CONTENTS.exists():
+    if APPICON_CONTENTS.parent.is_symlink():
+        results.append((False, tag, f"Symlink is not allowed: {APPICON_CONTENTS.parent}"))
+        return results
+    if APPICON_CONTENTS.is_symlink():
+        results.append((False, tag, f"Symlink is not allowed: {APPICON_CONTENTS}"))
+        return results
+    if not APPICON_CONTENTS.is_file():
         results.append((False, tag, f"File missing: {APPICON_CONTENTS}"))
         return results
 
     try:
         data = json.loads(APPICON_CONTENTS.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         results.append((False, tag, f"Invalid AppIcon Contents.json: {exc}"))
         return results
 
-    images = data.get("images", [])
+    if not isinstance(data, dict):
+        results.append((False, tag, "AppIcon Contents.json root must be an object"))
+        return results
+
+    images = data.get("images")
+    if not isinstance(images, list):
+        results.append((False, tag, "AppIcon images must be a list"))
+        return results
+    if any(not isinstance(img, dict) for img in images):
+        results.append((False, tag, "Every AppIcon images entry must be an object"))
+        return results
+
     marketing = [img for img in images if img.get("idiom") == "ios-marketing"]
 
     if len(marketing) != 1:
@@ -1322,25 +1370,45 @@ def check_appicon_marketing() -> Results:
         return results
 
     entry = marketing[0]
-    if entry.get("size") != "1024x1024":
-        results.append(
-            (False, tag, f"ios-marketing size is {entry.get('size')}, expected 1024x1024")
-        )
+    expected_keys = set(EXPECTED_APPICON_MARKETING_ENTRY)
+    actual_keys = set(entry)
+    if actual_keys != expected_keys:
+        missing = sorted(expected_keys - actual_keys)
+        extra = sorted(actual_keys - expected_keys)
+        results.append((False, tag, f"ios-marketing key drift; missing={missing}, extra={extra}"))
         return results
 
-    filename = entry.get("filename", "")
-    if not filename:
-        results.append((False, tag, "ios-marketing entry has no filename"))
-        return results
+    for field, expected_value in EXPECTED_APPICON_MARKETING_ENTRY.items():
+        actual_value = entry.get(field)
+        if actual_value != expected_value:
+            results.append(
+                (
+                    False,
+                    tag,
+                    f"ios-marketing {field} is {actual_value!r}, expected {expected_value!r}",
+                )
+            )
+            return results
 
+    filename = EXPECTED_APPICON_MARKETING_ENTRY["filename"]
     png_path = APPICON_CONTENTS.parent / filename
-    if not png_path.exists():
+    if png_path.is_symlink():
+        results.append((False, tag, f"Symlink is not allowed: {png_path}"))
+        return results
+    if not png_path.is_file():
         results.append((False, tag, f"ios-marketing PNG missing: {png_path}"))
+        return results
+    try:
+        if png_path.stat().st_size == 0:
+            results.append((False, tag, f"ios-marketing PNG is empty: {png_path}"))
+            return results
+    except OSError as exc:
+        results.append((False, tag, f"Cannot inspect ios-marketing PNG: {exc}"))
         return results
 
     try:
         w, h = _read_png_dimensions(png_path)
-    except (ValueError, struct.error) as exc:
+    except (OSError, ValueError, struct.error) as exc:
         results.append((False, tag, f"Cannot read PNG dimensions: {exc}"))
         return results
 
@@ -1348,7 +1416,24 @@ def check_appicon_marketing() -> Results:
         results.append((False, tag, f"PNG dimensions {w}x{h}, expected 1024x1024"))
         return results
 
-    results.append((True, tag, f"AppIcon ios-marketing 1024x1024 OK ({filename})"))
+    try:
+        digest = hashlib.sha256(png_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        results.append((False, tag, f"Cannot read ios-marketing PNG bytes: {exc}"))
+        return results
+    if digest != EXPECTED_APPICON_MARKETING_SHA256:
+        results.append(
+            (
+                False,
+                tag,
+                "ios-marketing PNG SHA-256 differs from the approved AppIcon baseline",
+            )
+        )
+        return results
+
+    results.append(
+        (True, tag, f"AppIcon exact ios-marketing slot and approved PNG OK ({filename})")
+    )
     return results
 
 
