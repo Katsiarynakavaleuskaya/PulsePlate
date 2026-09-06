@@ -788,8 +788,8 @@ replay-proven dependency partition or substitute for the successful retry.
 ## Permanent conjunctive postcondition
 
 The exact authorization literal and data maps are at
-`tests/test_frontend_dependency_guards.py:214`. The shared executor at
-`tests/test_frontend_dependency_guards.py:1636`:
+`tests/test_frontend_dependency_guards.py:215`. The shared executor at
+`tests/test_frontend_dependency_guards.py:1637`:
 
 1. requires exactly the literal targets `browserslist` and `qs`;
 2. enumerates each tracked npm surface and rejects duplicate raw JSON members;
@@ -988,5 +988,67 @@ still hashes to `4b6649721614c6a937d3d1dd445301d1e905700df814a63ea5d6e8fa28bfb61
 The final review seal independently binds the synchronized live base,
 merge-base, material head, and digest; this historical resolver receipt is not
 a claim that its old base remains the live PR base.
+
+## Repository-entrypoint regression correction (2026-09-06)
+
+Ordinary goal-to-outcome QA identified `GO-QA-01`: the actual repository tests
+had reintroduced exact, nonempty `frontend/package-lock.json` occurrence-set
+assertions. This regressed the earlier correction of
+[discussion_r3911621759](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2371#discussion_r3911621759).
+The original FIXED proof remains historical evidence; it does not prove that
+later material retained the correction. Prior test counts above are not
+retroactively rewritten to include these new controls.
+
+The two real entrypoints at `tests/test_frontend_dependency_guards.py:2763` and
+`tests/test_frontend_dependency_guards.py:2769` now forward an explicit fixture
+root to the same universal executor without requiring any target to remain
+present at a historical path. Exact policy/evidence target identities and the
+complete source, occurrence and npm virtual-graph checks remain enforced.
+The module's real npm-wrapper location is not patched or replaced.
+
+The 14 controls at `tests/test_frontend_dependency_guards.py:2809` invoke both
+actual entrypoints against five admissible graphs and two affected graphs:
+both targets absent, either mixed state, both safe, and a wholly relocated
+tracked npm project; then affected Browserslist or affected qs with the other
+target safe. The relocated graph uses Browserslist `4.28.7`, also disproving an
+exact-selected-version constraint. Negative controls match the affected
+target's advisory diagnostic, including qs rejection through the
+Browserslist-named entrypoint. Existing structural controls remain unchanged.
+
+Before removing the old equalities, the following command exited `1` with
+seven expected outer-assertion failures; the red intermediate was not committed:
+
+```bash
+"$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py -k repository_entrypoints --tb=short
+```
+
+```text
+FF.FFF..FF....                                                           [100%]
+    assert _assert_browserslist_security_class(root=root) == frozenset({"frontend/package-lock.json"})
+E   AssertionError: assert frozenset() == frozenset({'f...e-lock.json'})
+```
+
+After the correction, the same command exited `0`:
+
+```text
+..............                                                           [100%]
+```
+
+The complete focused suite also exited `0`:
+
+```bash
+"$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py
+```
+
+```text
+........................................................................ [ 86%]
+..................................                                       [100%]
+```
+
+This correction changes no dependency identity, advisory inventory, npm
+manifest/lock bytes, recognizer, resolver, wrapper, verifier or public interface.
+Final review and merge readiness still require the separately refreshed
+exact-material seal and current-head gates; these local results grant no
+provider-closure or merge authority.
 
 <!-- markdownlint-enable MD013 MD031 MD032 -->

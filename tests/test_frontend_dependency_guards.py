@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlparse
@@ -2733,6 +2734,7 @@ def _browserslist_entry(version: str) -> dict[str, str]:
 def _write_browserslist_repo(
     root: Path,
     *,
+    project_directory: str = "frontend",
     package_json: dict[str, object] | None = None,
     package_lock: dict[str, object] | None = None,
     write_lock: bool = True,
@@ -2740,8 +2742,8 @@ def _write_browserslist_repo(
     """Create one tracked, lock-bearing npm project for delegated guard tests."""
 
     _git_stdout("init", repo_root=root)
-    frontend = root / "frontend"
-    frontend.mkdir(parents=True)
+    project = root / project_directory
+    project.mkdir(parents=True)
     manifest = package_json or {"name": "fixture", "version": "1.0.0"}
     lock = package_lock or {
         "name": "fixture",
@@ -2750,29 +2752,101 @@ def _write_browserslist_repo(
         "requires": True,
         "packages": {"": {"name": "fixture", "version": "1.0.0"}},
     }
-    (frontend / "package.json").write_text(json.dumps(manifest), encoding="utf-8")
-    tracked = ["frontend/package.json"]
+    (project / "package.json").write_text(json.dumps(manifest), encoding="utf-8")
+    tracked = [f"{project_directory}/package.json"]
     if write_lock:
-        (frontend / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
-        tracked.append("frontend/package-lock.json")
+        (project / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
+        tracked.append(f"{project_directory}/package-lock.json")
     _git_stdout("add", "--", *tracked, repo_root=root)
 
 
-def test_browserslist_class_covers_every_current_tracked_surface() -> None:
+def test_browserslist_class_covers_every_current_tracked_surface(root: Path = REPO_ROOT) -> None:
     """The current repository graph satisfies the delegated universal postcondition."""
 
-    assert _assert_browserslist_security_class() == frozenset({"frontend/package-lock.json"})
+    _assert_browserslist_security_class(root=root)
 
 
-def test_transitive_npm_batch_covers_exact_authorized_targets() -> None:
+def test_transitive_npm_batch_covers_exact_authorized_targets(root: Path = REPO_ROOT) -> None:
     """The current graph satisfies both and only the two authorized target policies."""
 
     assert frozenset(TRANSITIVE_NPM_HEAD_POLICIES) == AUTHORIZED_TRANSITIVE_NPM_BATCH
     assert frozenset(TRANSITIVE_NPM_EVIDENCE_EXPECTATIONS) == AUTHORIZED_TRANSITIVE_NPM_BATCH
-    assert _assert_transitive_npm_security_batch() == {
-        "browserslist": frozenset({"frontend/package-lock.json"}),
-        "qs": frozenset({"frontend/package-lock.json"}),
-    }
+    assert (
+        frozenset(_assert_transitive_npm_security_batch(root=root))
+        == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    )
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    (
+        test_browserslist_class_covers_every_current_tracked_surface,
+        test_transitive_npm_batch_covers_exact_authorized_targets,
+    ),
+    ids=("browserslist-entrypoint", "batch-entrypoint"),
+)
+@pytest.mark.parametrize(
+    ("project_directory", "target_versions", "affected_target"),
+    (
+        ("frontend", {}, None),
+        ("frontend", {"browserslist": "4.28.8"}, None),
+        ("frontend", {"qs": "6.16.0"}, None),
+        ("frontend", {"browserslist": "4.28.8", "qs": "6.16.0"}, None),
+        ("tooling/browser-targets", {"browserslist": "4.28.7", "qs": "6.16.0"}, None),
+        ("frontend", {"browserslist": "4.28.2", "qs": "6.16.0"}, "browserslist"),
+        ("frontend", {"browserslist": "4.28.8", "qs": "6.15.2"}, "qs"),
+    ),
+    ids=(
+        "both-absent",
+        "browserslist-only",
+        "qs-only",
+        "both-safe",
+        "relocated-safe",
+        "affected-browserslist",
+        "affected-qs",
+    ),
+)
+def test_transitive_npm_repository_entrypoints_preserve_universal_postcondition(
+    tmp_path: Path,
+    entrypoint: Callable[[Path], None],
+    project_directory: str,
+    target_versions: dict[str, str],
+    affected_target: str | None,
+) -> None:
+    """Exercise real repository tests, not just their absence-capable helpers."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": root_dependencies}
+    _write_browserslist_repo(
+        tmp_path,
+        project_directory=project_directory,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": manifest,
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": target_versions,
+                },
+                **{
+                    f"node_modules/{target}": _transitive_npm_entry(target=target, version=version)
+                    for target, version in target_versions.items()
+                },
+            },
+        },
+    )
+    if affected_target is None:
+        entrypoint(tmp_path)
+    else:
+        with pytest.raises(
+            AssertionError,
+            match=rf"{affected_target}/GHSA-.*: governed occurrence remains affected",
+        ):
+            entrypoint(tmp_path)
 
 
 @pytest.mark.parametrize(
