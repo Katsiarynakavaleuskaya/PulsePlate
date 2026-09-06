@@ -10,6 +10,135 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+- Before mocking a pinned external CLI or workflow adapter, verify its real
+  flags, serialization fields and permitted Actions contexts through native
+  help, pinned primary source and actionlint. A fixture accepting an invented
+  flag, output field or expression context is not execution evidence.
+
+## Native RubyZip/Fastlane guard
+
+- `ruby scripts/ci/check_rubyzip_fastlane.rb` is the read-only source, lock and
+  advisory guard in the existing Ruby-enabled JWT/Fastlane CI job; that job
+  uses Ruby 3.4.10 and Bundler 2.4.22 and retains the independent JWT guard.
+  Its stdlib behavioral fixtures run as `ruby tests/test_rubyzip_fastlane.rb`
+  in that same job; Python CI/pre-commit tests retain static contracts only and
+  must not install or require a Ruby toolchain.
+- The tracked Ruby dependency inventory is exactly `ios/Gemfile` and its lock.
+  New/aliased surfaces, nonliteral Gemfile code, duplicate declarations or lock
+  rows, and unreconciled sources fail closed. Native Ripper recognizes only
+  literal `source`/`gem` calls; never evaluate the Gemfile or introduce a Python
+  Ruby/version parser. Bundler's lock parser and Gem version/requirement types
+  own dependency semantics.
+- The guard binds the approved immutable maintained Fastlane fork and genuine
+  version, checks compatible dependencies and retained floors, and requires
+  every selected RubyZip occurrence to satisfy all frozen advisory records.
+  It must permit future authorized compatible RubyZip versions, not freeze an
+  entire historical dependency graph. It performs no resolution, installation,
+  network request, lock write or release action; native solver replay and IPA
+  compatibility evidence remain separate requirements.
+
+## Prometheus derivative candidate
+
+- `scripts/ci/prometheus_derivative_candidate.py` is the only public CLI and
+  owns every expected value, source/execution identity, canonical digest,
+  receipt, state transition, operator confirmation, publication decision, and
+  fail-closed result for the candidate lane.
+- `scripts/ci/_prometheus_derivative_transport.py` is a private one-way
+  dependency. It may execute only controller-built absolute argv/process and
+  HTTP/OCI plans, return structural observations, and perform the one bounded
+  login/push/logout primitive. It must not import the controller, expose a CLI,
+  discover environment credentials, define policy/state vocabulary, compare
+  accepted evidence, or write canonical state.
+- The controller derives its fixed state root below `artifacts/security_lab/`;
+  no public output-root, tool-path, registry, schema, or state override is
+  allowed. The controller must remain at most 2400 normally Black-formatted
+  physical lines; the private transport must remain below 1400. These are
+  bounded-carrier ceilings, not permission for a third module, a generic
+  execution backend, or policy authority in the transport.
+- First use creates a missing fixed `artifacts/` root with mode `0700`, then
+  validates it and each private descendant. Existing safe shared-root modes
+  are preserved; links, non-directories and unsafe private modes are rejected,
+  never repaired or followed through a recursive directory-creation fallback.
+- `ProcessPlan.max_output_bytes` is a per-stream bound. Drain stdout/stderr
+  while feeding stdin, reject overflow before retaining excess bytes, and
+  terminate/reap the isolated subprocess group on timeout or failure. This is
+  bounded capture, not a total-process/host RSS guarantee; credentials and raw
+  captured output must not be added to exception messages.
+- `authorize` reads one exact line from stdin and atomically authors receipt
+  `40-publication-authorization`. `publish-or-reconcile` takes no confirmation;
+  only the invocation creating `50-write-intent` may read the fixed runtime
+  credential and reach the single push primitive. Existing `50` is anonymous,
+  zero-credential, zero-push reconciliation.
+- Candidate construction/publication has no selector, Compose, deploy,
+  release, or `T0` authority. The selected Prometheus manifest remains
+  byte-frozen; all three canonical Compose consumers are content-bound and
+  rechecked before receipts 50 and 80, and the four authority flags are derived
+  from that bounded observation rather than caller input.
+- `freeze` binds the exact repository/head/tree, controller/transport/recipe,
+  selector/consumers, `build.yml` bytes, fixed cloud profile, and local
+  Git/Python/GitHub/Apple publication executor before any dispatch.
+  `verify-local` retains its public name but dispatches the single read-only
+  `prometheus-candidate` job; it does not compile locally. Manual `build.yml`
+  dispatch defaults to `disabled`. Ordinary manual execution requires explicit
+  `normal` mode and empty candidate inputs; candidate mode skips every ordinary
+  build/security/publish job. Push/PR/tag behavior stays unchanged.
+  Candidate checkout derives directly from `github.sha`; the head input is
+  retained only for equality/correlation, not as the checkout source.
+- `cloud-execute` runs only the fixed native linux/amd64 profile, two isolated
+  no-cache builds, explicit `SOURCE_DATE_EPOCH`, disabled attestations, and
+  suppression-free Trivy over the parsed OCI layout. BuildKit identity and
+  four-CPU/6-GiB limits are checked before and after each build. The unchanged
+  recipe retains Node 2048-MiB heap and Go `GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/
+  `-p=1`; these are not total-host-memory guarantees. Cloud execution has no
+  local receipt store, publication credential, selector or deploy authority.
+  GitHub checkout/artifact authentication is platform transport only and must
+  not enter build/scan plans or the locked dependency installation environment.
+  Install Python dependencies through the existing canonical installer's
+  `ci-lite` profile and the credential-free repository-variable
+  `PULSEPLATE_PYTHON_INDEX_URL`, inside `env -i` with a private `HOME`.
+  The canonical installer owns URL/floor/startup-hook enforcement; missing or
+  rejected proxy access must fail without a public-index fallback, `.netrc`,
+  extra credentials, or a duplicate validator.
+- With pinned Buildx 0.37, bootstrap through `inspect <name> --bootstrap`,
+  then obtain the exact named builder from `ls --format` canonical Builder
+  JSON. `inspect` has no format flag; the node's JSON version field is
+  `Version`. Missing/duplicate output, name/node/version drift and Docker
+  image/resource mismatches remain HOLD; human-readable table parsing is not
+  an admitted fallback.
+- OCI export must carry `rewrite-timestamp=true` alongside the fixed
+  `SOURCE_DATE_EPOCH`; touching the output binaries alone does not normalize
+  all layer entries. Keep complete build-evidence equality. On mismatch,
+  report only closed validated field names, hashes/digests and bounded counts
+  before the same HOLD; diagnostics never advance scan, receipt or publication
+  state and must not dump arbitrary objects or full build logs.
+- Local admission requires authenticated exact repo/head/workflow/run/attempt,
+  a complete four-job census with the sole candidate success and every ordinary
+  job skipped, one name/time-bound non-expired artifact, its exact ZIP digest,
+  safe streaming extraction, and complete source/tool/build/scan equality.
+  The artifact's spec-digest echo is correlation, not self-authentication.
+  Producer binding follows the frozen sole-uploader workflow and job census;
+  it is not cryptographic producer attestation. Initial provenance belongs in
+  receipt 30 and its authorization tuple. Large downloads stay in adjacent
+  private temporary support directories, never inside the `00` through `80`
+  candidate directory. Missing dispatch response is `HOLD`, not a POST retry.
+- After valid 40, publication preflight requires a new cloud build-and-scan,
+  stable evidence equality with 30, and fresh provenance in 50. It cannot reuse
+  the old run, rescan alone, compile locally, or automatically refresh evidence.
+  Only then may Apple Container load the verified OCI under one fixed fully
+  qualified source name, tag the absent exact candidate, save/reparse exactly
+  linux/amd64, and compare manifest/config/layers. Use JSON image inventory's
+  `configuration.name`, not denormalized quiet display names. Bind the outer
+  descriptor's exact containerd name with no Apple name override before load.
+  Record retained ownership before fallible post-load checks and clean only
+  the exact owned tags in `finally`. `CONTAINER_HOST` remains forbidden.
+- Trivy database identity is the SHA-256 of the complete regular, single-link
+  private `db/trivy.db` file with a 2-GiB byte cap, after the scanner consumes
+  it. Freshness remains bound to `UpdatedAt`; local download metadata is not
+  content identity. Missing, unsafe, oversized or changed database bytes fail
+  closed before publication intent. Do not substitute metadata hashing,
+  metadata-field exceptions, automatic refresh/retry/reset, or a new DB parser.
+- Receipt files use kernel atomic no-replace rename from staging outside the
+  candidate directory; a hardlink-based publication window is forbidden.
 
 ## Governed Experimentation Runner
 

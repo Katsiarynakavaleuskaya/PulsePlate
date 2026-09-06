@@ -24,6 +24,35 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-cve-2026-16742-systemd-main-image"></a>
+- [ ] P1: Remediate CVE-2026-16742 in the canonical backend container image
+  - Owner: dedicated security-remediation owner (unassigned)
+  - Priority: P1 (current-main container security / release viability)
+  - Target PR: PR-TBD-CVE-2026-16742-SYSTEMD
+  - Status: Blocked pending a separate exact base-image/package investigation;
+    explicitly outside PR #2347's one-identity Caddy/Prometheus gRPC scope.
+  - Reason (EN): Current-main Docker Build and Push run `33684829177` reported
+    two open HIGH Trivy/code-scanning results for CVE-2026-16742 in the backend
+    image. Mixing a systemd/base-image remediation or suppression into PR #2347
+    would combine an unrelated distro identity with the bounded
+    `google.golang.org/grpc` candidate lane. The main-image alert remains a
+    release-readiness stop until a dedicated owner proves the exact package,
+    affected range, fixed-version availability, and bounded remedy.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/33684829177`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/652`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/653`
+  - DoD:
+    - authenticate the exact current-main image subject and both alert instances
+    - determine whether the affected systemd component is present/reachable and
+      whether an upstream fixed base/package exists
+    - remediate through a dedicated base-image/package PR, or use the separate
+      unfixed-distro suppression policy with tracker, expiry, and removal proof
+    - rerun the canonical image scan at the exact remediation head with no
+      unresolved HIGH/CRITICAL result for CVE-2026-16742
+    - keep PR #2347, its Prometheus selector, and its Stage-1 publication receipt
+      independent from this remediation
+
 <a id="ledger-client-arch-1-cab-01"></a>
 - [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator
@@ -8730,15 +8759,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (legacy compatibility / telemetry-governed retirement)
-  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) (OBS1B repository contour) → bounded image prerequisite `codex/fix-alembic-image-package-collision` → separate future alias-retirement PR
-  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B merged as `9fd673cca03ca1fd9cab3cecfba20b70803c5620`. The authorized private-staging activation stopped before any migration revision executed because repository path `/app/alembic` shadowed the installed Alembic package. The bounded image lane closes only that repository/image prerequisite. Private-staging activation and baseline, separately authorized production deployment, human-authored `T₀`, the complete `30 × 24h` production window, consumer classification, and a future retirement PR remain required and unclaimed
+  - Target PR: merged [PR #2319](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2319) (OBS1A application/evidence foundation) → merged [PR #2324](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2324) (OBS1B repository contour) → merged [PR #2331](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2331) (Alembic image collision prerequisite) → current bounded immutable PG15+pgvector carrier [PR #2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347) → separate future alias-retirement PR
+  - Status: ⏳ OBS1A merged as `7e8f0f69e7a893c851cba6a3e3e87ac581b7c9e2`; OBS1B merged as `9fd673cca03ca1fd9cab3cecfba20b70803c5620`; the Alembic image collision prerequisite merged in PR #2331 as `5599317c848bcc9f094b6e9ba486d43c9ee1de2c`. The earlier authorized private-staging attempt stopped before any migration revision executed. PR #2347 replaces the floating local PostgreSQL image only for staging and `production.selfhosted` with one reproducible DHI Alpine PostgreSQL 15.19 plus pgvector 0.8.6 image, an exact existing-package GHCR digest, Trivy 0.74 suppression-free admission, one exact empty UID-70 compatibility mountpoint for fresh Docker named volumes, and fail-closed deploy contracts. Its main-only PostgreSQL compatibility job is credential-free: it consumes only credential-free repository proxy variables, while the protected `pgvector-publish` environment begins only after compatibility admission succeeds. The mountpoint does not repair or mutate existing volumes. Late exact-head review hardening makes the main classifier cover the complete finite pgvector compatibility surface, gives reuse one final read-only main/tag recheck, and requires rendered staging app/worker DSNs to match the local PostgreSQL service before any pull or quiesce. Final closeout will be refreshed after the authorized dependency-base sync; squash merge and post-merge image admission remain required. This lane does not activate staging, change managed production, deploy production, author `T₀`, start the `30 × 24h` window, classify consumers, or authorize alias retirement; all remain required and unclaimed
   - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
+  - Current-PR security prerequisite (EN): The operator authorized PR #2347's bounded Caddy/Prometheus `google.golang.org/grpc v1.83.1` remediation and transfer of candidate-only Prometheus build/verification to the existing GitHub Actions `build.yml`. The controller-only 2400-line exception preserves exactly two modules, private transport below 1400 lines, frozen runtime selector/Compose consumers, and separate exact publication authorization. Cloud execution, successful image admission, publication, runtime selection, merge and deployment remain unclaimed until their respective evidence/gates pass. Canonical owner: [`PR_2347_CVE_2026_84304_GRPC_GO_DERIVATIVE_REMEDIATION.md`](../security/PR_2347_CVE_2026_84304_GRPC_GO_DERIVATIVE_REMEDIATION.md).
   - Links:
     - `app/security/production_invariants.py`
     - `app/middleware/metrics.py`
     - `scripts/verify_premium_alias_telemetry.py`
     - `deploy/prometheus/prometheus.yml`
     - `deploy/prometheus/image-manifest.json`
+    - `deploy/postgres-pgvector/image-manifest.json`
     - `Dockerfile`
     - `alembic.ini`
     - `docs/deploy/OPERATIONAL_SIGNALS.md`
@@ -8750,6 +8781,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Prove aggregation across every API replica/worker plus complete scrape coverage and retention for the whole window
     - Confirm there is no known supported consumer; no-data, partial retention, per-process-only evidence, or any hit blocks removal
     - Remove all and only the admitted versioned aliases in a separate PR with contract and rollback tests
+
+
+<a id="ledger-p1-fastlane-rubyzip-return-to-official"></a>
+- [ ] P1: Retire the temporary maintained Fastlane RubyZip compatibility fork
+  - Owner: Katsiaryna / @Katsiarynakavaleuskaya
+  - Priority: P1 (release-tooling security / source maintenance)
+  - Target PR: introduction and current CVE remediation in [PR #2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347); retirement in `PR-TBD-FASTLANE-RUBYZIP-OFFICIAL`
+  - Status: In progress — the operator-approved three-file fork and native lock/replay are verified locally; current-head security/review/CI and PR merge remain unclaimed.
+  - Reason (EN): The inspected official Fastlane graph excludes patched RubyZip 3.x and its IPA analyser uses the incompatible two-positional-argument API. The operator approved maintaining one transparent immutable fork until an official release supports the patched graph. No installed-metadata override or suppression is allowed.
+  - Evidence owner: [`PR_2347_CVE_2026_85396_RUBYZIP_REMEDIATION.md`](../security/PR_2347_CVE_2026_85396_RUBYZIP_REMEDIATION.md)
+  - DoD:
+    - Maintain the explicit fork source and immutable revision; review new RubyZip/Fastlane advisories without silently accepting dependency or source drift.
+    - Select an immutable official Fastlane release whose genuine gemspec admits the patched RubyZip graph, then reproduce the governed native Bundler lock and complete dependency delta.
+    - Preserve CFPropertyList/public_suffix/nkf and prior JWT/JSON/Excon security constraints; pass IPA regressions, no-auth metadata validation, finite advisory checks and exact-current-head security/CI.
+    - Remove the temporary fork source pin only in that reviewed retirement PR; update the evidence owner and this item with its result.
 
 
 <a id="ledger-p2-root-nutrition-alias-sunset"></a>

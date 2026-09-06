@@ -20,10 +20,11 @@ CVE_SECURITY_OWNER = (
 STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_IMAGE_MANIFEST = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
+PROMETHEUS_CONTAINERFILE = REPO_ROOT / "deploy" / "prometheus" / "Containerfile"
 CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
-TRIVY_VERSION = "v0.72.0"
+TRIVY_VERSION = "v0.74.0"
 
 GO_BUILDER = (
     "golang:1.26.6-alpine3.23@"
@@ -52,7 +53,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             '    cd "$build_dir"; \\',
             "    go mod init pulseplate.local/caddy-build; \\",
             "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \\",
-            "    go get google.golang.org/grpc@v1.82.1; \\",
+            "    go get google.golang.org/grpc@v1.83.1; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
@@ -88,7 +89,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'golang.org/x/term v0.45.0' \\",
             "      'golang.org/x/text v0.41.0' \\",
             "      'golang.org/x/tools v0.48.0' \\",
-            "      'google.golang.org/grpc v1.82.1' \\",
+            "      'google.golang.org/grpc v1.83.1' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
             "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
@@ -121,7 +122,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'dep golang.org/x/sys v0.47.0' \\",
             "      'dep golang.org/x/term v0.45.0' \\",
             "      'dep golang.org/x/text v0.41.0' \\",
-            "      'dep google.golang.org/grpc v1.82.1' \\",
+            "      'dep google.golang.org/grpc v1.83.1' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
             "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
@@ -288,7 +289,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert 'build_dir="$(mktemp -d)"' in text
     assert "go mod init pulseplate.local/caddy-build" in text
     caddy_get = "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4"
-    grpc_get = "go get google.golang.org/grpc@v1.82.1"
+    grpc_get = "go get google.golang.org/grpc@v1.83.1"
     crypto_get = "go get golang.org/x/crypto@v0.55.0"
     assert caddy_get in text
     assert grpc_get in text
@@ -299,7 +300,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
-        "google.golang.org/grpc v1.82.1",
+        "google.golang.org/grpc v1.83.1",
         "golang.org/x/crypto v0.55.0",
         "golang.org/x/mod v0.38.0",
         "golang.org/x/net v0.57.0",
@@ -319,7 +320,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary" in text
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
-        "dep google.golang.org/grpc v1.82.1",
+        "dep google.golang.org/grpc v1.83.1",
         "dep golang.org/x/crypto v0.55.0",
         "dep golang.org/x/net v0.57.0",
         "dep golang.org/x/sync v0.22.0",
@@ -346,6 +347,8 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "GOSUMDB=off",
         "google.golang.org/grpc@v1.81.0",
         "google.golang.org/grpc v1.81.0",
+        "google.golang.org/grpc@v1.82.1",
+        "google.golang.org/grpc v1.82.1",
         "golang.org/x/crypto@v0.53.0",
         "golang.org/x/crypto@v0.54.0",
         "golang.org/x/crypto v0.53.0",
@@ -376,6 +379,38 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
 
 def test_caddy_dockerfile_keeps_closed_fixed_builder_stage_recipe() -> None:
     _assert_caddy_builder_stage_contract(DOCKERFILE.read_text(encoding="utf-8"))
+
+
+def test_prometheus_candidate_containerfile_is_one_bounded_subordinate_recipe() -> None:
+    containerfile = PROMETHEUS_CONTAINERFILE.read_text(encoding="utf-8")
+    assert not (PROMETHEUS_CONTAINERFILE.parent / "build-inputs.json").exists()
+    assert containerfile.count("\nFROM ") == 2
+    assert containerfile.count("/src/prometheus") >= 2
+    assert "--directory=/tmp/prometheus-ui" not in containerfile
+    assert "ui_root=/tmp/prometheus-ui" not in containerfile
+    assert "verify_pnpm_archive.go" not in containerfile
+    assert "ADD --checksum=sha256:6eb506b5" not in containerfile
+    assert "PULSEPLATE_PNPM_BINARY_SHA256" in containerfile
+    assert "go mod edit -require=google.golang.org/grpc@v1.83.1" in containerfile
+    assert "go mod tidy -go=1.26.0 -compat=1.26" in containerfile
+    assert "replace cloud.google.com/go => cloud.google.com/go v0.123.0" in containerfile
+    assert "SKIP_UI_BUILD=1 make DOCKER_IMAGE_TAG=3.14.0 assets-compress" in containerfile
+    assert "gzip --decompress --stdout" in containerfile
+    assert "PULSEPLATE_GZIP_TREE_SHA256" in containerfile
+    assert "PULSEPLATE_EMBED_GO_SHA256" in containerfile
+    assert "export NODE_OPTIONS=--max-old-space-size=2048" in containerfile
+    assert "export GOMAXPROCS=2" in containerfile
+    assert "export GOMEMLIMIT=3GiB" in containerfile
+    assert containerfile.count("  -p=1 \\\n") == 2
+    final = containerfile.split(
+        "FROM docker.io/prom/prometheus@sha256:"
+        "84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",  # pragma: allowlist secret
+        maxsplit=1,
+    )[1]
+    assert final == (
+        "\n\nCOPY --from=builder --chmod=0755 /out/prometheus /bin/prometheus\n"
+        "COPY --from=builder --chmod=0755 /out/promtool /bin/promtool\n"
+    )
 
 
 def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:
@@ -702,6 +737,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
 
@@ -718,6 +754,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
 
@@ -772,17 +809,19 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="3"' in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="4"' in script
     for filename in (
         "deploy.sh",
         "docker-compose.staging.yaml",
         "prometheus/prometheus.yml",
         "prometheus/image-manifest.json",
+        "postgres-pgvector/image-manifest.json",
         "Caddyfile",
         "scripts/ops/postgres_backup.sh",
     ):
@@ -833,19 +872,24 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert env["PROMETHEUS_IMAGE_MANIFEST_SHA256"] == (
         "${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}"
     )
+    assert env["POSTGRES_IMAGE_MANIFEST_SHA256"] == (
+        "${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}"
+    )
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     deploy_call = './deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"'
     assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
-    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="3"') < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="4"') < script.index(deploy_call)
     for filename, expected_hash in (
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
+        ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
         ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),
     ):
@@ -857,7 +901,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="3"' in text
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="4"' in text
     assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
     assert "0:0:644" in text
     assert "STAGING_IMAGE_REF" in text

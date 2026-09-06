@@ -182,7 +182,11 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
         "6c25",
     )
 )
-TRIVY_RUNTIME_VERSION = "v0.72.0"
+TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW = {
+    BUILD_WORKFLOW_PATH: "v0.74.0",
+    CD_WORKFLOW_PATH: "v0.74.0",
+    TRIVY_WORKFLOW_PATH: "v0.74.0",
+}
 CODEQL_ACTION_V4_37_1_SHA = "".join(
     (
         "7188",
@@ -2407,6 +2411,11 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
 
 
 def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> None:
+    assert set(TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW) == {
+        BUILD_WORKFLOW_PATH,
+        CD_WORKFLOW_PATH,
+        TRIVY_WORKFLOW_PATH,
+    }
     """Guard remaining Node 20 workflow action migrations against regression."""
 
     active_workflow_text = "\n".join(
@@ -2670,7 +2679,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
                 "trivyignores": ".trivyignore",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -2693,7 +2702,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
                 "exit-code": "1",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -2715,7 +2724,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "timeout": "15m",
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[CD_WORKFLOW_PATH],
                 "cache-dir": "/tmp/trivy-cache-staging-backend",
             },
             None,
@@ -2737,7 +2746,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "exit-code": "1",
                 "timeout": "15m",
                 "trivyignores": ".trivyignore-caddy",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[CD_WORKFLOW_PATH],
                 "cache-dir": "/tmp/trivy-cache-staging-caddy",
             },
             None,
@@ -2763,7 +2772,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "exit-code": "1",
-                "version": TRIVY_RUNTIME_VERSION,
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[TRIVY_WORKFLOW_PATH],
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -2940,7 +2949,9 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "sbom.spdx.json",
             },
-            "github.event_name != 'pull_request'",
+            "github.event_name != 'pull_request' && "
+            "(github.event_name != 'workflow_dispatch' || "
+            "(inputs.mode == 'normal' && inputs.candidate_head_sha == '' && inputs.candidate_spec_digest == ''))",
             None,
             None,
             None,
@@ -3134,7 +3145,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 5,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -3181,6 +3192,22 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             )
 
     assert observed_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "prometheus-candidate",
+            "Upload the sole candidate evidence artifact",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "prometheus-candidate-${{ github.run_id }}-${{ github.run_attempt }}-prometheus-candidate",
+                "path": "artifacts/security_lab/prometheus_cloud_result/*",
+                "if-no-files-found": "error",
+                "compression-level": 0,
+                "retention-days": 2,
+            },
+            None,
+            None,
+            None,
+        ),
         (
             ".github/workflows/build.yml",
             "build",
@@ -4224,6 +4251,45 @@ def test_machine_heavy_local_verify_deferral_contract_is_documented() -> None:
         "security/governance checks",
     )
     _assert_contains_all_tokens(contract_text, contract_tokens)
+
+
+def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
+    workflow = _load_ci_workflow()
+
+    checkout_step = _job_step_by_name(workflow, job_id="lint", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+    pre_commit_step = _job_step_by_name(
+        workflow,
+        job_id="lint",
+        step_name="Pre-commit (lint/format/security quick checks)",
+    )
+    assert "pre-commit run --all-files" in pre_commit_step["run"]
+
+
+def test_ci_main_matrix_uses_full_history_for_git_evidence_guards() -> None:
+    workflow = _load_ci_workflow()
+
+    checkout_step = _job_step_by_name(workflow, job_id="test-main", step_name="Checkout")
+    assert checkout_step["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert checkout_step["with"]["fetch-depth"] == 0
+
+
+def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
+    workflow = _load_ci_workflow()
+
+    setup_node_step = _job_step_by_name(workflow, job_id="lint", step_name="Setup Node.js")
+    assert setup_node_step["uses"] == f"actions/setup-node@{SETUP_NODE_NODE24_SHA}"
+    assert setup_node_step["with"]["node-version-file"] == "${{ env.FRONTEND_NODE_VERSION_FILE }}"
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    lint_steps = jobs["lint"]["steps"]
+    step_names = [step.get("name") for step in lint_steps]
+    assert step_names.index("Setup Node.js") < step_names.index(
+        "Pre-commit (lint/format/security quick checks)"
+    )
 
 
 def _assert_ci_lint_node24_frontend_hook_dependency_contract(

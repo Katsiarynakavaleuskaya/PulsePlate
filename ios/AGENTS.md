@@ -31,6 +31,20 @@
 - Canonical FitChef mascot/icon taxonomy for asset-focused PRs lives in:
   `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`.
 
+## Fastlane dependency layout in App Store asset CI
+
+- All three `ios-appstore-assets.yml` jobs keep `BUNDLE_GEMFILE` on the
+  canonical `ios/Gemfile`. Before Ruby setup, one initializer derives a literal
+  job-specific root from trusted `RUNNER_TEMP`, creates it and exports
+  `PULSEPLATE_BUNDLE_ROOT` plus `BUNDLE_APP_CONFIG` through `GITHUB_ENV`.
+  The setup action's working directory uses that external root; do not use
+  the unavailable `runner` expression context in job-level `env`.
+  Keep `bundler-cache: true`; the pinned action derives `vendor/bundle` from
+  that external working directory. Later Bundler/Fastlane commands still run
+  in `ios` with the same job environment. Do not add `BUNDLE_PATH` or an
+  unsupported `bundle-path` input, move gem sources into Snapshot's recursive
+  project search tree, or bypass/update the canonical Snapshot helper check.
+
 ## CI: Greenlight iOS preflight (P0 report-only)
 
 - Workflow: `.github/workflows/greenlight-ios.yml`

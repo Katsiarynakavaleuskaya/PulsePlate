@@ -4,6 +4,7 @@
 - This AGENTS.md applies to: `deploy/` and below.
 - Key files: `deploy/Caddyfile`, `deploy/Caddyfile.production`, `deploy/docker-compose.staging.yaml`,
   `deploy/docker-compose.production.yaml`, `deploy/docker-compose.production.selfhosted.yaml`,
+  `deploy/postgres-pgvector/Containerfile`, `deploy/postgres-pgvector/image-manifest.json`,
   `frontend/Dockerfile.caddy-spa`, root `Dockerfile`, root `docker-compose.yaml`.
 - **METATRON offensive lab (out-of-band):** `deploy/metatron-lab/` — optional isolated-network
   stub only; see `deploy/metatron-lab/README.md:1` and ADR
@@ -41,7 +42,11 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   pulseplate-caddy:contract caddy validate --config /etc/caddy/Caddyfile
 ```
 
-- Staging deploys accept only two distinct `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<digest>` references (backend and Caddy). Floating tags and `latest` are forbidden.
+- Staging deploys accept only two distinct operator-supplied
+  `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<digest>` references
+  (backend and Caddy). PostgreSQL is not a third CLI argument: its sole identity
+  comes from `deploy/postgres-pgvector/image-manifest.json` and the matching
+  digest-pinned Compose service. Floating tags and `latest` are forbidden.
 - `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, Postgres backup helper, root-owned contract marker, and current-commit hashes are synchronized. The staging `.env` must be a regular non-symlink file with mode `0600`; it is Compose data and must never be shell-sourced by the deploy path. Merge alone does not update `/srv/pulseplate-staging`.
 
 ## Commands (run from repo root)
@@ -89,12 +94,143 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   validates metadata but must never source, print, archive, or independently
   parse the value; semantic validation stays in
   `app/security/production_invariants.py`.
-- Staging deploy contract version `3` cross-binds the deploy script, staging
-  Compose, Prometheus config, image manifest, Caddyfile, and backup helper.
+- Staging deploy contract version `4` cross-binds the deploy script, staging
+  Compose, Prometheus config/image manifest, PostgreSQL image manifest,
+  Caddyfile, and backup helper.
   Merge does not synchronize a host or enable
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
   `docs/deploy/OPERATIONAL_SIGNALS.md` for the operator sequence and rollback.
+
+## Immutable PostgreSQL 15 plus pgvector contour
+
+- The sole repository image record is
+  `deploy/postgres-pgvector/image-manifest.json`. It binds the exact DHI
+  PostgreSQL 15.19 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
+  source commit/archive hash, exact APK build closure, reproducible build
+  epoch, Containerfile hash, derived GHCR platform/config digests, and Trivy
+  0.74 suppression-free scan contract.
+- `deploy/postgres-pgvector/Containerfile` is a two-stage build. Source enters
+  only as the preverified `pgvector-v0.8.6.tar.gz` context file; the file is not
+  tracked. The builder must use
+  `/usr/libexec/postgresql15/pg_config`, `make -j1`, empty `OPTFLAGS`, and the
+  closed artifact inventory. Do not add curl, git, floating APK packages, a
+  second source path, or a host build toolchain.
+- The final image adds one and only one compatibility mountpoint layer:
+  `/var/lib/postgresql/data` is an empty real directory, owner `70:70`, mode
+  `0700`, copied from one verified empty builder directory. This lets the
+  tested Docker engine seed a brand-new named-volume root for the inherited
+  non-root UID 70 entrypoint. It does not repair, chown, migrate, or prove any
+  existing volume. Final-stage `RUN`, `USER`, `ENV`, `VOLUME`, wrapper scripts,
+  marker files, broad `/out/var` copies, Compose user overrides, and host-side
+  ownership workarounds are forbidden.
+- Only staging and `production.selfhosted` use the derived image. Both retain
+  the named `postgres_data` mount at `/var/lib/postgresql/data`, explicitly set
+  `PGDATA` to that legacy-compatible target, select `linux/amd64`, and publish
+  no database port. Managed production remains external and has no Compose
+  `postgres` service.
+- Pull-request execution is DHI-secret-free and registry-write-free. Only an
+  exact trusted push to `refs/heads/main` may read `DHI_USERNAME` and
+  `DHI_ACCESS_TOKEN`, reproduce the frozen digest twice, scan exact bases,
+  builder, and final image with Trivy 0.74 and an empty ignore file, publish to
+  the existing GHCR PulsePlate package, and attach derived provenance/SBOM.
+- DHI Community is the only admitted Docker entitlement. Docker documents its
+  Community core as free to use, share, and build on under Apache 2.0. The
+  existing `pulseplate` GHCR package was authenticated in the GitHub UI as
+  `public` on 2026-08-27; workflow publication must require that exact existing
+  owner/name/source/visibility before and after writes and must never create a
+  package, change visibility, purchase a subscription, or claim Select,
+  Enterprise, Docker support, official DHI, or mirror status.
+- Treat the output only as a PulsePlate-owned incorporated deployment
+  component built from DHI Community. Preserve inherited notices and upstream
+  PostgreSQL/pgvector attribution. The bounded public-package disposition is
+  tied to Docker's DHI Community docs and Terms observed on 2026-08-27; any
+  terms, tier, source-image, package, or topology drift is `HOLD`.
+- Install Docker Scout from the exact checksum-pinned official `v1.24.0`
+  archive and require its exact binary build identity. Source-attestation
+  verification must bind the two exact DHI linux/amd64 subjects. Docker's
+  documented `--skip-tlog` path verifies the Docker signature without public
+  Rekor/transparency proof; it is source-subject-only and never a scanner,
+  VEX, derived-attestation, provenance, or security-gate suppression.
+- Deploy scripts must validate the manifest and rendered Compose first, pull
+  the exact PostgreSQL digest under temporary GHCR credentials, inspect its
+  platform/config/labels, and remove credentials. An existing self-hosted
+  transition then captures container/image/volume identity, quiesces worker,
+  Caddy, and app, and requires the closed predecessor/current image identity,
+  UID 70, exact PGDATA, PostgreSQL 15.19, stable runtime identity, and a
+  mode-0600 custom dump accepted by `pg_restore --list` from the still-running
+  old database before stopping it. Only then may the candidate use
+  `--pull never`; orphan or ambiguous identities/volumes fail closed. Hosts
+  never receive DHI credentials. The backup helper must receive the same
+  explicitly selected Compose `ENV_FILE` as its parent deploy command and pass
+  it through `docker compose --env-file`; it must not fall back to a sibling
+  project `.env` during an override-based deployment. The app, Caddy, and
+  worker running-state census must also fail closed on Docker inspect failure
+  or any value other than the exact booleans `true` and `false`; an unknown
+  running state must never be treated as an absent restart target.
+- The checked main workflow must prove the exact four-directory mountpoint
+  layer inventory and then attach a uniquely named fresh empty volume with a
+  non-initializing command. The mounted root must be empty `70:70:0700` before
+  normal PostgreSQL initialization. This is bounded Docker-engine evidence,
+  not universal runtime or existing-volume evidence.
+- A fresh PostgreSQL transition must prove the rendered named volume absent
+  twice: once before product quiesce and once immediately before the single
+  no-pull Compose start. The second census is the declared fresh-volume
+  handoff boundary; any appearance, malformed listing, or listing error leaves
+  captured writers quiesced and returns `HOLD`. Do not add further same-step
+  polling or rollback writes; concurrent manual Compose/Docker mutation is
+  outside the admitted transition and requires a separate host-lock design.
+- The `postgres-pgvector-publish` canonical-tag write is provisional until an
+  immediate exact-main revalidation of the closed PostgreSQL material set
+  gates `runtime_ref` output and admission. If that post-write check detects a
+  superseding main commit, the publisher must fail without inspection output
+  or downstream admission. Do not roll the tag back or add another write: the
+  serialized replacement publisher is the sole repair owner, while consumers
+  remain bound to the immutable digest. This post-write gate is the declared
+  transaction boundary; stronger exclusivity requires a separate ownership
+  and threat-model lane rather than additional same-job race checks.
+- The PostgreSQL material classifier must cover the complete finite
+  compatibility surface owned by the canonical CI `pgvector_compat` filter,
+  plus the publication workflow itself. A main push that changes any migration,
+  dependency, Compose, deploy, pgvector runtime, or compatibility-test owner
+  must take the credential-free compatibility and publisher path; it must not
+  fall through to reuse.
+- Read-only PostgreSQL reuse has one terminal transaction boundary after scans,
+  attestations, and runtime checks: a main run must refetch `main`, prove that
+  the complete compatibility surface is unchanged from its exact run SHA, and
+  all reuse events must recheck that the canonical tag still selects the frozen
+  digest. This final check is read-only and single-pass. Do not add a polling
+  loop or tag rollback; stronger exclusion requires a separate ownership/lock
+  lane.
+- The preceding `postgres-pgvector-ci-admission` compatibility job must remain
+  credential-free even on its trusted main-only path. It may consume only the
+  single-line, credential-free repository proxy variables; it must not receive
+  `DEVPI_CI_*`, publication credentials, an environment-secret grant, or any
+  other `secrets.*` expression. The protected `pgvector-publish` environment
+  begins only at the publisher job after compatibility admission succeeds.
+- Repository/image admission is not activation. Volume census, backup,
+  deployment, restore, production release, volume deletion, and the Prometheus
+  `T₀` remain separate human-authorized actions.
+
+### Candidate-only Prometheus derivative
+
+- `deploy/prometheus/image-manifest.json` remains the sole selected runtime
+  record. Candidate verification/publication preserves its exact bytes and
+  every Compose Prometheus image reference; neither step authorizes deploy,
+  release or `T0`.
+- The subordinate Containerfile uses one `/src/prometheus` source/UI root,
+  verifies the installed pnpm executable, freezes both locks, validates every
+  original asset against its gzip at consumption, retains the sole Go replace,
+  selects gRPC `v1.83.1`, and overlays only the two verified binaries on the
+  unchanged official linux/amd64 base.
+- The canonical cloud-build/local-publication procedure, executor/profile
+  binding, one-push receipts, safe OCI import, and module ceilings live only in
+  [scripts/AGENTS.md](../scripts/AGENTS.md#prometheus-derivative-candidate).
+  Do not restore heavy local compilation or the rejected CD publisher.
+- Runtime selection remains a separately governed change after candidate
+  evidence and separately authorized publication; it is not inferred from a
+  successful cloud job or an artifact.
+
 
 ## Production tag gate
 - Semver production tags stay build-only until all three deploy inputs agree: `PROD_DEPLOY_MODE`,

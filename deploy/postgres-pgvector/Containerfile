@@ -1,0 +1,68 @@
+ARG SOURCE_DATE_EPOCH=1785349734
+
+FROM dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a AS builder
+
+ARG SOURCE_DATE_EPOCH
+
+COPY pgvector-v0.8.6.tar.gz /tmp/pgvector-v0.8.6.tar.gz
+
+RUN set -eu; \
+    echo "10bf9938906e5d643bbc4a7eea104b6f57ba4898e5b76b20e60484ea1d5a7f8f  /tmp/pgvector-v0.8.6.tar.gz" | sha256sum -c -; \
+    apk update; \
+    apk add --no-cache build-base=0.5-r3 postgresql15-dev=15.19-r0; \
+    apk info -v | sort > /tmp/builder-apk-closure.txt; \
+    echo "fdf15a85f72f12790911b7e8d15a4cc877255f829b20071593139430aa371c9a  /tmp/builder-apk-closure.txt" | sha256sum -c -; \
+    test "$(wc -l < /tmp/builder-apk-closure.txt | tr -d '[:space:]')" = "94"; \
+    test "$(/usr/libexec/postgresql15/pg_config --version)" = "PostgreSQL 15.19"; \
+    test "$(/usr/libexec/postgresql15/pg_config --pkglibdir)" = "/usr/lib/postgresql15"; \
+    test "$(/usr/libexec/postgresql15/pg_config --sharedir)" = "/usr/share/postgresql15"; \
+    mkdir -p /work /out; \
+    tar -xzf /tmp/pgvector-v0.8.6.tar.gz -C /work; \
+    cd /work/pgvector-0.8.6; \
+    unset CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS PG_CPPFLAGS SHLIB_LINK CC LD; \
+    make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS=""; \
+    make -j1 PG_CONFIG=/usr/libexec/postgresql15/pg_config OPTFLAGS="" DESTDIR=/out install; \
+    install -D -o 0 -g 0 -m 0644 LICENSE /out/usr/share/licenses/pgvector/LICENSE; \
+    touch -d "@${SOURCE_DATE_EPOCH}" /out/usr/share/licenses/pgvector/LICENSE; \
+    test "$(stat -c %Y /out/usr/share/licenses/pgvector/LICENSE)" = "$SOURCE_DATE_EPOCH"; \
+    test -f /out/usr/share/licenses/pgvector/LICENSE; \
+    test ! -L /out/usr/share/licenses/pgvector/LICENSE; \
+    first_symlink="$(find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type l -print -quit)"; \
+    if [ -n "$first_symlink" ]; then \
+      echo "symlink in pgvector runtime artifact set: $first_symlink" >&2; \
+      exit 1; \
+    fi; \
+    find /out/usr/lib/postgresql15 /out/usr/share/postgresql15/extension /out/usr/share/licenses/pgvector -type f | \
+      sort > /tmp/runtime-artifact-paths.txt; \
+    : > /tmp/runtime-artifact-inventory.txt; \
+    while IFS= read -r path; do \
+      mode="$(stat -c %a "$path")"; \
+      size="$(wc -c < "$path" | tr -d '[:space:]')"; \
+      digest="$(sha256sum "$path" | cut -d' ' -f1)"; \
+      printf '%s %s %s %s\n' "$mode" "$size" "$digest" "$path" >> /tmp/runtime-artifact-inventory.txt; \
+    done < /tmp/runtime-artifact-paths.txt; \
+    test "$(wc -l < /tmp/runtime-artifact-inventory.txt | tr -d '[:space:]')" = "64"; \
+    echo "a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57  /tmp/runtime-artifact-inventory.txt" | sha256sum -c -; \
+    install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data; \
+    test "$(stat -c '%u:%g:%a' /out/var/lib/postgresql/data)" = "70:70:700"; \
+    test -z "$(find /out/var/lib/postgresql/data -mindepth 1 -print -quit)"
+
+FROM dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee
+
+ARG SOURCE_DATE_EPOCH
+
+COPY --from=builder --chown=0:0 /out/usr/lib/postgresql15/vector.so /usr/lib/postgresql15/vector.so
+COPY --from=builder --chown=0:0 /out/usr/lib/postgresql15/bitcode/ /usr/lib/postgresql15/bitcode/
+COPY --from=builder --chown=0:0 /out/usr/share/postgresql15/extension/ /usr/share/postgresql15/extension/
+COPY --from=builder --chown=0:0 /out/usr/share/licenses/pgvector/LICENSE /usr/share/licenses/pgvector/LICENSE
+COPY --from=builder --chown=70:70 --chmod=0700 /out/var/lib/postgresql/data/ /var/lib/postgresql/data/
+
+LABEL org.opencontainers.image.title="PulsePlate PostgreSQL 15 with pgvector"
+LABEL org.opencontainers.image.description="PulsePlate deployment image derived from exact DHI PostgreSQL 15 Alpine 3.23 with pgvector 0.8.6"
+LABEL org.opencontainers.image.version="15.19-pgvector0.8.6"
+LABEL org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+LABEL org.opencontainers.image.licenses="Apache-2.0 AND PostgreSQL"
+LABEL com.pulseplate.postgres.base-manifest="sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+LABEL com.pulseplate.postgres.dev-manifest="sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a"
+LABEL com.pulseplate.pgvector.version="0.8.6"
+LABEL com.pulseplate.pgvector.source-commit="8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"

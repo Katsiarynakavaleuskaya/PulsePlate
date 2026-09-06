@@ -1,4 +1,4 @@
-"""Compatibility proof for the pgvector 0.5 Python binding and PostgreSQL 0.8.2.
+"""Compatibility proof for the pgvector 0.5 Python binding and PostgreSQL 0.8.6.
 
 The source/lock and import canaries always run.  The database assertions run
 when ``PGVECTOR_COMPAT_DATABASE_URL`` is configured; CI makes that contract
@@ -66,7 +66,7 @@ PGVECTOR_COMPAT_REQUIRED = "PGVECTOR_COMPAT_REQUIRED"
 PGVECTOR_BINDING_FEATURE = "pgvector_binding_ci_lite"
 PGVECTOR_DATABASE_FEATURE = "pgvector_compat_database"
 EXPECTED_BINDING_VERSION = "0.5.0"
-EXPECTED_EXTENSION_VERSION = "0.8.2"
+EXPECTED_EXTENSION_VERSION = "0.8.6"
 OWNER_PASSWORD = "pgvector_compat_owner_password"  # pragma: allowlist secret
 TENANT_ONE = 101
 TENANT_TWO = 202
@@ -201,7 +201,7 @@ def _required_ci_pgvector_url(environment: Mapping[str, str] | None = None) -> U
     )
     expected_contract = (
         "postgresql+psycopg",
-        "localhost",
+        "127.0.0.1",
         5432,
         "pgvector_compat",
         "pgvector_compat",
@@ -1810,6 +1810,11 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "requirements-test.txt",
         "scripts/ci/emergency_python_wheels.json",
         "scripts/ci/install_locked_python_requirements.py",
+        "scripts/deploy.sh",
+        "scripts/deploy_production.sh",
+        "deploy/docker-compose.staging.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+        "deploy/postgres-pgvector/**",
         "scripts/ci/check_alembic_autogenerate_completeness.py",
         "core/db.py",
         "core/db_alembic_comparison.py",
@@ -1849,8 +1854,8 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
     assert "needs.pgvector_compat.result" in security_job
     assert '"true:success"|"false:skipped"' in security_job
     assert (
-        "pgvector/pgvector:0.8.2-pg15-bookworm"
-        "@sha256:bd12d6788a617f4147d5a2ae0b56d07921398adabfe5a033bd3f50c245df55a1" in compat_job
+        "pgvector/pgvector:0.8.6-pg15-trixie"
+        "@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f" in compat_job
     )
     assert 'PGVECTOR_COMPAT_REQUIRED: "1"' in compat_job
     assert "scripts/ci/install_locked_python_requirements.py" in compat_job
@@ -1858,12 +1863,43 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
     assert "--install-mode direct-proxy" in compat_job
 
 
+def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> None:
+    workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
+    contract_job = workflow.split("\n  postgres-pgvector-contract:\n", maxsplit=1)[1].split(
+        "\n  main-push-admission:\n", maxsplit=1
+    )[0]
+    publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
+        "\n  postgres-pgvector-reuse:\n", maxsplit=1
+    )[0]
+    assert "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec" in contract_job
+    assert (
+        "EXPECTED_PLATFORM_DIGEST: "
+        "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}" in publish_job
+    )
+    assert (
+        "sha256:82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in publish_job
+    )
+    assert publish_job.count('--build-arg "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"') >= 3
+    assert publish_job.count("rewrite-timestamp=true") >= 3
+    assert 'stat -c "%u:%g:%a" /var/lib/postgresql/data' in publish_job
+    assert '"70:70:700"' in publish_job
+    assert "find /var/lib/postgresql/data -mindepth 1 -print -quit" in publish_job
+    assert (
+        "postgres:15-alpine@sha256:"
+        "a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181" in publish_job
+    )
+    assert "transitioned_oid" in publish_job
+    assert "transitioned_sentinel" in publish_job
+    assert 'test "$transitioned_vector" = "0.8.6"' in publish_job
+    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' in publish_job
+
+
 def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]:
     selected_url = database_url or URL.create(
         "postgresql+psycopg",
         username="pgvector_compat",
         password="ephemeral-test-password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pgvector_compat",
     )
@@ -1881,7 +1917,7 @@ def test_bounded_projection_authority_rejects_every_query_parameter(query_key: s
         "postgresql+psycopg",
         username="pgvector_compat",
         password="ephemeral-test-password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pgvector_compat",
         query={query_key: "override"},
@@ -2052,7 +2088,7 @@ def test_pg_alembic_failure_diagnostics_redact_url_and_password(
         "postgresql+psycopg",
         username="pgvector_compat",
         password="decoded@password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pulseplate_alembic_test",
     )
@@ -2095,7 +2131,7 @@ def test_pg_alembic_timeout_diagnostics_normalize_and_redact_partial_output(
         "postgresql+psycopg",
         username="pgvector_compat",
         password="decoded@password",  # pragma: allowlist secret
-        host="localhost",
+        host="127.0.0.1",
         port=5432,
         database="pulseplate_alembic_timeout_test",
     )
