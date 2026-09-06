@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM quay.io/prometheus/golang-builder:1.27-base@sha256:cdcb06bf0bc5401d4fbf8a71706bb8f74d69276427a1b368a065af53a254bc7f AS builder
+FROM quay.io/prometheus/golang-builder:1.27-base@sha256:7eeded2a35a4ce199f4e108cf81f1b89b5a0df1366233da673a36f12b436f95b AS builder
 
 ARG SOURCE_DATE_EPOCH=1788079847
 ARG TARGETARCH
@@ -28,7 +28,7 @@ set -eux
 
 test "$SOURCE_DATE_EPOCH" = "1788079847"
 test "$TARGETOS/$TARGETARCH" = "linux/amd64"
-test "$(go version)" = "go version go1.27.0 linux/amd64"
+test "$(go version)" = "go version go1.27.1 linux/amd64"
 test "$(node --version)" = "v22.23.2"
 test "$(pnpm --version)" = "11.3.0"
 test "$PNPM_VERSION" = "11.3.0"

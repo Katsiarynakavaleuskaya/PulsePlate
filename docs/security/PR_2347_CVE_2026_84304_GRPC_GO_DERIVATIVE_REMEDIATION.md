@@ -52,6 +52,35 @@ profile change is used. [Pinned inspect flags](https://github.com/docker/buildx/
 The failed run and receipt 00 remain retained, not reset or counted as image
 evidence; the corrected material requires a fresh head-bound candidate.
 
+The second cloud attempt, head
+`5cf70a19a880082e6baf0bc2f060e31d5a417e6c`, run `34042515054` / job
+`101511716740`, passed that observation and failed at
+`deploy/prometheus/Containerfile:3`: the pinned official builder manifest
+`sha256:cdcb06bf0bc5401d4fbf8a71706bb8f74d69276427a1b368a065af53a254bc7f`
+returned `404 MANIFEST_UNKNOWN`. Its receipt 00 is also preserved as failed.
+
+On 2026-09-06, independent registry reads of the official `1.27-base` tag and
+the exact replacement digest returned byte-identical manifests:
+
+- Manifest: `sha256:7eeded2a35a4ce199f4e108cf81f1b89b5a0df1366233da673a36f12b436f95b`.
+- Config: `sha256:fd24ead1d7b2b586c49bf15d11fcaba118f0f16f9cbe8f182da9c104abbe9a5a`.
+- Platform: `linux/amd64`; upstream creation: 2026-09-03.
+- Go archive checksum agrees with the official Go download inventory for
+  `go1.27.1.linux-amd64.tar.gz`:
+  `63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445`.
+- The hash-verified system layer records Node `22.23.2-1nodesource1` as
+  installed. The hash-verified pnpm layer's actual executable retains
+  `e5e29eb103e73729ed4115f0e939fb376386dd0d76db56b12459524041f922a0`.
+
+The bounded repair refreshes only the immutable builder pin, the exact Go
+assertion to `1.27.1`, and the controller's recipe hash. Node, pnpm, source,
+UI/Go locks, runtime base and all verification/publication gates are unchanged.
+Registry metadata and extracted package/executable bytes are input evidence,
+not a successful execution or reproducibility result. The real build must
+still pass every executable assertion and compare two freshly measured binary
+and image identities. [Official builder](https://github.com/prometheus/golang-builder),
+[Go 1.27.1 patch release](https://go.dev/doc/devel/release#go1.27.1).
+
 The implementation below is not evidence that a new cloud candidate has been
 successfully built or published. Stage-1 `P=false` remains unchanged.
 

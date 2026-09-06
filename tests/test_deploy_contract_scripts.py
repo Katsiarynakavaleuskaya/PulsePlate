@@ -637,6 +637,38 @@ def _candidate_controller(
     )
 
 
+@pytest.mark.parametrize("changed_input", (None, "builder", "go", "node", "pnpm"))
+def test_prometheus_candidate_recipe_keeps_exact_patched_toolchain(
+    tmp_path: Path,
+    changed_input: str | None,
+) -> None:
+    repo = _candidate_repo(tmp_path)
+    recipe = repo / prometheus_candidate.CONTAINERFILE_RELATIVE
+    content = recipe.read_text(encoding="utf-8")
+    expected_inputs = {
+        "builder": (
+            "FROM quay.io/prometheus/golang-builder:1.27-base@sha256:"
+            "7eeded2a35a4ce199f4e108cf81f1b89b5a0df1366233da673a36f12b436f95b AS builder"
+        ),
+        "go": 'test "$(go version)" = "go version go1.27.1 linux/amd64"',
+        "node": 'test "$(node --version)" = "v22.23.2"',
+        "pnpm": 'test "$(pnpm --version)" = "11.3.0"',
+    }
+    assert all(content.count(value) == 1 for value in expected_inputs.values())
+    identity = _candidate_identity(repo)
+    if changed_input is not None:
+        recipe.write_text(content.replace(expected_inputs[changed_input], "# removed"), "utf-8")
+        with pytest.raises(prometheus_candidate.CandidateHold, match="containerfile_drift"):
+            prometheus_candidate.build_spec(repo, identity)
+    else:
+        spec = prometheus_candidate.build_spec(repo, identity)
+        assert spec["containerfile"] == {
+            "path": prometheus_candidate.CONTAINERFILE_RELATIVE,
+            "size": recipe.stat().st_size,
+            "sha256": "sha256:" + hashlib.sha256(recipe.read_bytes()).hexdigest(),
+        }
+
+
 def test_prometheus_candidate_core_is_canonical_private_and_replay_safe(
     tmp_path: Path,
 ) -> None:
