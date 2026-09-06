@@ -8576,7 +8576,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     Python facade projections while preserving their canonical schema/service
     owners and every HTTP, VIP, input-guard, transparency, quota, rate-limit,
     error-envelope, OpenAPI, and app-identity contract. PR #2349 then merged
-    canonical ORM registration at `942cc0f109d3`, and PR #2355 merged bounded
+    canonical ORM registration at `942cc0f10995d89be74f5ffc7ab9329809865e0b`, and PR #2355 merged bounded
     PostgreSQL ORM/Alembic drift reconciliation at `a157d445c98c`. The current
     bounded exact-head admission child is non-runtime and does not retire another legacy
     surface; a fresh residual facade census follows it. This parent stays open:

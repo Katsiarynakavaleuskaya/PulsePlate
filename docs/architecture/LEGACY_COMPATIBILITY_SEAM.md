@@ -239,7 +239,7 @@ eleven-name planning/export cohort plus the exact synthetic
 `8243c30e7989713cc9c2d3d77ed5dd5ec389144b`, removing only the fourth
 eight-name Insight Python projection and extending the same exact-name data to
 39 without changing recognizer semantics. PR #2349 merged canonical ORM model
-registration at `942cc0f109d3`, and PR #2355 merged the bounded PostgreSQL
+registration at `942cc0f10995d89be74f5ffc7ab9329809865e0b`, and PR #2355 merged the bounded PostgreSQL
 ORM/Alembic drift reconciliation at
 `a157d445c98c3e4bea76bd95c2a8d333c99725c1`. The current
 [PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365)
