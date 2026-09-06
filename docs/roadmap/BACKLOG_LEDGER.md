@@ -8598,7 +8598,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) -> [PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365) (`codex/alembic-autogenerate-completeness`) -> PR-TBD-FRESH-RESIDUAL-FACADE-CENSUS -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -8623,16 +8623,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `8243c30e7989713cc9c2d3d77ed5dd5ec389144b`, retiring only eight Insight
     Python facade projections while preserving their canonical schema/service
     owners and every HTTP, VIP, input-guard, transparency, quota, rate-limit,
-    error-envelope, OpenAPI, and app-identity contract. The current bounded
-    child is the operator-selected canonical ORM registration prerequisite;
-    it does not retire another legacy surface. This parent stays open:
+    error-envelope, OpenAPI, and app-identity contract. PR #2349 then merged
+    canonical ORM registration at `942cc0f10995d89be74f5ffc7ab9329809865e0b`, and PR #2355 merged bounded
+    PostgreSQL ORM/Alembic drift reconciliation at `a157d445c98c`. The current
+    bounded exact-head admission child is non-runtime and does not retire another legacy
+    surface; a fresh residual facade census follows it. This parent stays open:
     telemetry-admitted versioned aliases, retained Insight HTTP aliases,
     root-alias auth/sunset, residual facade census, and final facade deletion
     remain separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
-    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
     - app/routers/api_key.py
     - app/services/scheduler_access.py
     - app/services/legacy_premium_weekly_plan.py
@@ -8678,24 +8679,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-alembic-autogenerate-completeness"></a>
-- [ ] P1: Prove Alembic autogenerate completeness against upgraded PostgreSQL
+- [x] P1: Prove bounded exact-head Alembic autogenerate admission on PostgreSQL
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) for the active drift-reconciliation prerequisite; final completeness carrier `PR-TBD-ALEMBIC-AUTOGENERATE-COMPLETENESS`
-  - Status: 🔄 In progress — prerequisite implementation is active in PR #2355; final autogenerate completeness remains Planned
-  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) — IN PROGRESS (open; merge readiness not claimed). This bounded PostgreSQL ORM/Alembic drift reconciliation must merge before completeness work resumes; it does not close this ledger item.
-  - Reason (EN): PR #2355 reconciles the observed ORM/revision drift and wires Alembic to the canonical mapped metadata, while the four migration-only tables `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, and `restaurant_menu_items` intentionally remain outside ORM ownership. A zero-diff completeness claim still requires their exact admission/filter policy plus independent PostgreSQL reflection proof.
+  - Target PR: [PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365) (`codex/alembic-autogenerate-completeness`); prerequisite [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355)
+  - Status: Bounded implementation closeout recorded in PR #2365 under the operator's explicit same-PR ledger-closure instruction; PR OPEN / merge pending. The checkbox does not claim a completed PR lane, final exact-head seal, merge readiness, merge, or deployment.
+  - Prerequisite: PR [#2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) merged at `a157d445c98c3e4bea76bd95c2a8d333c99725c1`. Its canonical metadata/type/default comparison baseline is preserved; that baseline alone is not admission proof.
+  - Reason (EN): Raw comparison intentionally retains four table-removal and eleven index-removal leaves for exactly `public.foods`, `public.pulseplate_migration_ownership`, `public.restaurant_chains`, and `public.restaurant_menu_items`. These migration-only roots require independent physical descriptor validation before exact table-root admission; admitted zero is not universal PostgreSQL completeness.
   - Links:
     - `alembic/env.py`
+    - `core/db_alembic_comparison.py`
+    - `scripts/ci/check_alembic_autogenerate_completeness.py`
+    - `tests/test_alembic_autogenerate_completeness.py`
+    - `tests/test_pgvector_compat.py`
     - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
     - `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-orm-model-registration`
   - DoD:
-    - Upgrade an empty PostgreSQL database through the complete Alembic head using the repository-approved path
-    - Compare the exact upgraded PostgreSQL schema with the intended model/migration ownership inventory, including `pulseplate_migration_ownership`, `foods`, `restaurant_chains`, `restaurant_menu_items`, and every known drift item
-    - Run and retain an exact autogenerate comparison whose zero/non-zero result is explained table-by-table and object-by-object
-    - Reconcile drift through reviewed models/revisions or explicit narrow ownership dispositions; broad include/exclude filters and false zero-diff claims are forbidden
-    - Add deterministic regression evidence for the admitted comparison without weakening migration or schema checks
+    - Require dynamically loaded canonical `Base.metadata`, matching singleton `ScriptDirectory` and live database heads, proven `public` default schema, and an exact public-root census of canonical mapped roots, the four exempt roots, and `alembic_version`
+    - Require the warning-free unfiltered raw operation tree to contain all and only four `remove_table` plus eleven `remove_index` leaves before any admission
+    - Independently validate the declared four-root physical projection: ordered columns, PostgreSQL types, nullability, defaults, identity/generated state, PKs, FK targets/actions, all eleven index descriptors, exact provenance rows, and expected absence of unique/CHECK constraints, RLS/policies, and table-owned sequences
+    - Require the admitted programmatic tree and real `alembic check` to be warning-free and empty, with the bounded schema projection and exact target identity unchanged
+    - Execute the real proof through the existing current-head `pgvector-compat` disposable lifecycle, retaining exact-name/OID/cluster authorization and fail-closed regressions for drift, unknown roots/operations, warnings, identity mismatch, and cleanup withholding
+    - Limit the positive claim to `bounded_exact_head_autogenerate_admission=PASS`; make no revision, model, runtime, FoodData, or deployment changes and grant no production-parity, deployment-safety, or merge authority
 
 
 <a id="ledger-p1-pro-nutrition-canonical-cutover"></a>
