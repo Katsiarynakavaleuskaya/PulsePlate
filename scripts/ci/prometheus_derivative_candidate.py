@@ -1358,9 +1358,16 @@ class ExactAdapters:
                 != self.identity[program + "_sha256"]
             ):
                 raise _hold("cloud_tool_identity_drift")
-        node = self._run_json(
-            (self.identity["buildx_path"], "inspect", name, "--bootstrap", "--format", "{{json .}}")
+        bootstrap = _transport_call(
+            transport.run_process,
+            self._plan((self.identity["buildx_path"], "inspect", name, "--bootstrap"), 120),
         )
+        if bootstrap.returncode:
+            sys.stderr.buffer.write(bootstrap.stderr[-4096:])
+            raise _hold("cloud_builder_bootstrap_failed")
+        # Buildx 0.37 inspect is text-only; ls exposes the canonical Builder JSON.
+        template = "{{if eq .Name " + json.dumps(name) + "}}{{json .Builder}}{{end}}"
+        node = self._run_json((self.identity["buildx_path"], "ls", "--format", template))
         status = self._run_json(
             (
                 self.identity["docker_path"],
@@ -1375,12 +1382,16 @@ class ExactAdapters:
             status.get(key) for key in ("State", "Config", "HostConfig")
         )
         if (
-            node.get("Driver") != "docker-container"
+            node.get("Name") != name
+            or node.get("Err")
+            or node.get("Driver") != "docker-container"
             or not isinstance(nodes, list)
             or len(nodes) != 1
             or not isinstance(nodes[0], dict)
+            or nodes[0].get("Name") != f"{name}0"
+            or nodes[0].get("Err")
             or nodes[0].get("Status") != "running"
-            or nodes[0].get("Buildkit") != CLOUD_PROFILE["buildkit_version"]
+            or nodes[0].get("Version") != CLOUD_PROFILE["buildkit_version"]
             or not isinstance(state, dict)
             or state.get("Running") is not True
             or not isinstance(resources, dict)

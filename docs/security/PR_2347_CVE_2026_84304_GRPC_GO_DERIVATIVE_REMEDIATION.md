@@ -39,6 +39,19 @@ lines; the private transport remains below 1400 and there are still exactly
 two Python modules, one already-existing workflow, and no new publication
 backend.
 
+The first real cloud attempt for head
+`80fb75e29d87aabe7552380077831ae7999ad203`, run `34039556026` / job
+`101503713637`, stopped before compilation with `tool_observation_invalid`.
+Pinned Buildx 0.37 has no `inspect --format` flag. The collector now bootstraps
+with supported `inspect`, then asks `ls --format` for the single exact named
+Builder JSON and checks the real node `Version` field, before the unchanged
+Docker image/config/resource checks. No text parser, version widening or
+profile change is used. [Pinned inspect flags](https://github.com/docker/buildx/blob/v0.37.0/commands/inspect.go#L182),
+[canonical JSON formatter](https://github.com/docker/buildx/blob/v0.37.0/commands/ls.go#L206),
+[node JSON fields](https://github.com/docker/buildx/blob/v0.37.0/builder/node.go#L197).
+The failed run and receipt 00 remain retained, not reset or counted as image
+evidence; the corrected material requires a fresh head-bound candidate.
+
 The implementation below is not evidence that a new cloud candidate has been
 successfully built or published. Stage-1 `P=false` remains unchanged.
 

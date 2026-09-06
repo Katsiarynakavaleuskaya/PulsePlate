@@ -10,6 +10,10 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+- Before mocking a pinned external CLI or workflow adapter, verify its real
+  flags, serialization fields and permitted Actions contexts through native
+  help, pinned primary source and actionlint. A fixture accepting an invented
+  flag, output field or expression context is not execution evidence.
 
 ## Native RubyZip/Fastlane guard
 
@@ -86,6 +90,12 @@
   The canonical installer owns URL/floor/startup-hook enforcement; missing or
   rejected proxy access must fail without a public-index fallback, `.netrc`,
   extra credentials, or a duplicate validator.
+- With pinned Buildx 0.37, bootstrap through `inspect <name> --bootstrap`,
+  then obtain the exact named builder from `ls --format` canonical Builder
+  JSON. `inspect` has no format flag; the node's JSON version field is
+  `Version`. Missing/duplicate output, name/node/version drift and Docker
+  image/resource mismatches remain HOLD; human-readable table parsing is not
+  an admitted fallback.
 - Local admission requires authenticated exact repo/head/workflow/run/attempt,
   a complete four-job census with the sole candidate success and every ordinary
   job skipped, one name/time-bound non-expired artifact, its exact ZIP digest,

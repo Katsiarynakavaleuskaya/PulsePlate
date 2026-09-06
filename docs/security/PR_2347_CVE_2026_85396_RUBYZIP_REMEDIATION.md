@@ -155,6 +155,21 @@ claim, a dependency patch, a substitute implementation or a skipped test.
 If a supported launcher adopts the global flag, this disposition no longer
 applies and that new contract needs its own explicit compatibility work.
 
+The first current-head asset job exposed a separate installation-layout
+failure: Fastlane's real helper census found its own stale example under
+`ios/vendor/bundle/.../snapshot/example/fastlane/SnapshotHelper.swift`.
+The application helper already has the same version marker as the pinned
+Fastlane asset; neither Swift nor the three-file fork changes. The three
+existing App Store jobs now run Ruby setup from their external job-specific
+temporary bundle root, with an absolute canonical `BUNDLE_GEMFILE` and an
+external `BUNDLE_APP_CONFIG`. The supported action still owns its cached
+`vendor/bundle` path; later commands stay in `ios`. No `BUNDLE_PATH` override,
+helper-check skip, installed-gem mutation or cache bypass is used.
+Evidence: `.github/workflows/ios-appstore-assets.yml:35` and the existing
+workflow contract tests. The failed `34039456718` / `101503444122` run remains
+retained; actual screenshot/helper-check success requires fresh current-head
+CI and is not inferred from the no-auth metadata proof above.
+
 ## P and remaining gates
 
 Every governed head RubyZip occurrence must be comparable and outside every

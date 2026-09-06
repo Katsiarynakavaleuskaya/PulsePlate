@@ -766,7 +766,25 @@ def test_prometheus_candidate_two_build_comparison_fails_closed(
 
 
 @pytest.mark.parametrize(
-    "failure", (None, "resources", "builder", "tools", "build", "evidence", "cleanup")
+    "failure",
+    (
+        None,
+        "resources",
+        "builder",
+        "tools",
+        "build",
+        "evidence",
+        "cleanup",
+        "bootstrap",
+        "missing_builder",
+        "duplicate_builder",
+        "wrong_name",
+        "wrong_node",
+        "wrong_version",
+        "legacy_version_field",
+        "builder_error",
+        "node_error",
+    ),
 )
 def test_prometheus_cloud_build_preserves_closed_profile_and_cleanup(
     tmp_path: Path,
@@ -808,15 +826,62 @@ def test_prometheus_cloud_build_preserves_closed_profile_and_cleanup(
         value: object = {}
         code = 0
         if argv[1] == "inspect" and argv[0] == identity["buildx_path"]:
+            assert argv == (
+                identity["buildx_path"],
+                "inspect",
+                "pp-prometheus-1",
+                "--bootstrap",
+            ) or (argv == (identity["buildx_path"], "inspect", "pp-prometheus-2", "--bootstrap"))
+            return prometheus_candidate.transport.ProcessResult(
+                1 if failure == "bootstrap" else 0,
+                b"Name: pp-prometheus-1\nDriver: docker-container\n",
+                b"bootstrap unavailable" if failure == "bootstrap" else b"",
+            )
+        elif argv[1] == "ls" and argv[0] == identity["buildx_path"]:
+            name = (
+                "pp-prometheus-2"
+                if len([p for p in plans if p.argv[1] == "create"]) == 2
+                else "pp-prometheus-1"
+            )
+            assert argv == (
+                identity["buildx_path"],
+                "ls",
+                "--format",
+                '{{if eq .Name "' + name + '"}}{{json .Builder}}{{end}}',
+            )
+            assert plans[-2].argv == (identity["buildx_path"], "inspect", name, "--bootstrap")
             value = {
+                "Name": name,
                 "Driver": "docker-container",
                 "Nodes": [
                     {
+                        "Name": name + "0",
                         "Status": "running",
-                        "Buildkit": prometheus_candidate.CLOUD_PROFILE["buildkit_version"],
+                        "Version": prometheus_candidate.CLOUD_PROFILE["buildkit_version"],
                     }
                 ],
             }
+            if failure == "missing_builder":
+                return prometheus_candidate.transport.ProcessResult(0, b"\n\n", b"")
+            if failure == "duplicate_builder":
+                return prometheus_candidate.transport.ProcessResult(
+                    0, json.dumps(value).encode() + b"\n" + json.dumps(value).encode(), b""
+                )
+            if failure == "wrong_name":
+                value["Name"] = "unrelated"
+            if failure == "wrong_node":
+                value["Nodes"][0]["Name"] = "unrelated0"
+            if failure == "wrong_version":
+                value["Nodes"][0]["Version"] = "v0.32.0"
+            if failure == "legacy_version_field":
+                value["Nodes"][0]["Buildkit"] = value["Nodes"][0].pop("Version")
+            if failure == "builder_error":
+                value["Err"] = "builder failed"
+            if failure == "node_error":
+                value["Nodes"][0]["Err"] = "node failed"
+            return prometheus_candidate.transport.ProcessResult(
+                0, b"\n" + json.dumps(value).encode() + b"\n\n", b""
+            )
         elif argv[1] == "inspect":
             observations += 1
             value = {
@@ -900,7 +965,19 @@ def test_prometheus_cloud_build_preserves_closed_profile_and_cleanup(
             assert "cpu-quota=400000" in create.argv
             assert "memory=6442450944" in create.argv
         assert plans[-1].argv[1] == "rm"
-        if failure in {"resources", "tools"}:
+        if failure in {
+            "resources",
+            "tools",
+            "bootstrap",
+            "missing_builder",
+            "duplicate_builder",
+            "wrong_name",
+            "wrong_node",
+            "wrong_version",
+            "legacy_version_field",
+            "builder_error",
+            "node_error",
+        }:
             assert not any(plan.argv[1] == "build" for plan in plans)
     finally:
         adapter.close()
