@@ -609,6 +609,31 @@ If it is not recorded here — it does not exist.
     - add deterministic approval, no-approval, stale packet, blocker, ordering,
       and no-mutation tests plus rollback to recommendation-only treatment
 
+<a id="ledger-p1-teleology-goal-outcome-workflow"></a>
+- [ ] P1: TELO-OPS-2 goal-to-outcome review in the existing coordinator and QA workflow
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1 (observable task completion and reduced manual follow-up)
+  - Target PR: [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383) (`codex/teleology-goal-outcome-workflow`)
+  - Status: Open non-draft; synchronized with main after PR #2378 merged; post-open findings are being closed before material freeze. Not merged.
+  - Area: orchestration / startup instructions / existing review templates
+  - Reason (EN): The existing rail selector names Teleology full/compact but does not carry the accepted goal criteria into ordinary QA and criterion-to-evidence closeout.
+  - Links:
+    - `docs/orchestration/workflow.md#goal-to-outcome-review`
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-evidence-sidecar-v1`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-task-normative-envelope-v1-shadow`
+  - DoD:
+    - validated full/compact treatments render static instructions; grouping preserves all original requirements and DoD items
+    - one accepted criterion reference/version passes from Task Analysis/runbook to ordinary QA Work Review and final DoD
+    - every original requirement and DoD item is explicitly covered by an individually achieved criterion with observed evidence before overall completion; no materiality filter excludes required scope
+    - achieved, partial, unknown and not_achieved classifications require observed evidence or an explicit gap; CI, merge, hashes and template presence do not prove the outcome
+    - untrusted GitHub/Drive evidence cannot change accepted goals, role order, status or authority; existing dynamic fields remain escaped
+    - existing packet, role, N1 and sidecar interfaces remain unchanged; no new parser, schema, store, provider, scheduler or CI blocker
+    - focused regressions, narrow local gates and applicable current-head PR checks are reported distinctly
+  - Dependency / operator decision (EN): The operator explicitly authorized starting from #2378 before its merge and shared-main stabilization. After #2378 merged, the same branch synchronized main without rewriting history; the follow-up PR targets main. A later explicit operator instruction authorizes merging this owned PR only after all required checks and review gates pass, followed by main synchronization, sanity, gitignored evidence retention and a Google Drive documentation update. No authority over #2378 is granted.
+  - Deferred / follow-up (EN): After merge, coordinator/QA observe the first three newly eligible product-priority PRs through existing Work Reviews: criterion/evidence completeness, corrections attributable to the reminder as reviewer observations, and known operator minutes (missing values stay unknown). Target: first three post-merge eligible PRs; no new telemetry tool or causal claim. N1 p1-05 and its GO/DEFER/STOP decision remain separate.
+  - Rollback (EN): Revert the instruction, procedure and template change together; preserve the parent selector and existing receipts/artifacts.
+
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
   - Owner: backend-engineer
