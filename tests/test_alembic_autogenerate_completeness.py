@@ -250,6 +250,22 @@ def test_callback_normalizes_none_only_inside_proven_public_scope() -> None:
             pytest.fail("invalid default schema scope must not open")
 
 
+@pytest.mark.parametrize(
+    "schema",
+    ([], {}, False, 0, ""),
+    ids=("list", "dict", "false", "zero", "empty-string"),
+)
+def test_callback_keeps_wrong_type_and_falsey_schema_visible(
+    schema: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    table = Table("foods", MetaData(), Column("id", Integer), schema="public")
+    monkeypatch.setattr(table, "schema", schema)
+
+    with proven_autogenerate_default_schema("public"):
+        assert include_autogenerate_object(table, "foods", "table", True, None) is True
+
+
 def test_semantic_tree_counts_only_supported_leaves() -> None:
     leaves, reasons, observed = checker._semantic_leaves(  # pylint: disable=protected-access
         _raw_tree(),

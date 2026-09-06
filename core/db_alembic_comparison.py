@@ -79,6 +79,7 @@ def include_autogenerate_object(
         and reflected is True
         and compare_to is None
         and isinstance(name, str)
+        and isinstance(schema, str)
         and (schema, name) in AUTOGENERATE_EXEMPT_TABLE_ROOTS
     )
 
