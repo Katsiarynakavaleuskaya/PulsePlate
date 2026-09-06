@@ -2533,7 +2533,10 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--packet",
         type=str,
         default=None,
-        help="Path to governance packet markdown file.",
+        help=(
+            "Path to a JSON or Markdown governance packet. "
+            "Exact --role-context-order delivery requires JSON."
+        ),
     )
     source.add_argument(
         "--roles",
@@ -2919,7 +2922,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             out_path = (REPO_ROOT / out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(json_output + "\n", encoding="utf-8")
-        print(f"Manifest written to: {out_path}", file=sys.stderr)
+        output_label = "Role context output" if selected_context_output is not None else "Manifest"
+        print(f"{output_label} written to: {out_path}", file=sys.stderr)
     else:
         print(json_output)
 

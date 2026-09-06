@@ -663,6 +663,12 @@ def test_instruction_admission_is_explicit_and_bounded() -> None:
     [
         ".env",
         ".env.local",
+        "config/credentials",
+        "config/credentials.json",
+        "config/credentials.yaml",
+        "config/credentials.toml",
+        "config/credentials.backup.md",
+        "config/CREDENTIALS.YML",
         "secrets/id_rsa",
         "config/client.pem",
         "logs/provider.log",
@@ -674,6 +680,60 @@ def test_instruction_admission_is_explicit_and_bounded() -> None:
 def test_sensitive_or_dynamic_static_source_classes_are_forbidden(path: str) -> None:
     with pytest.raises(context_bundle.ContextBundleError, match="STATIC_SOURCE_FORBIDDEN"):
         context_bundle.validate_static_source_path(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "config/credential.yaml",
+        "config/mycredentials.yaml",
+        "config/credentials_yaml.md",
+        "docs/credentials-guide.md",
+        "credentials/config.yaml",
+        "config/ordinary.yaml",
+    ],
+)
+def test_credential_family_near_misses_remain_admitted(path: str) -> None:
+    assert context_bundle.validate_static_source_path(path) == path
+
+
+def test_materializer_rejects_credential_family_before_source_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(tmp_path, "config/credentials.yaml", "api_token: SECRET_SENTINEL\n")
+    attempted: list[str] = []
+
+    def unexpected_read(
+        _repo_root: Path,
+        raw_path: str,
+        *,
+        metrics: context_bundle.ContextIOMetrics,
+        freshness: bool = False,
+        limit: int = context_bundle.MAX_SOURCE_BYTES,
+    ) -> context_bundle.SourceSnapshot:
+        del metrics, freshness, limit
+        attempted.append(raw_path)
+        raise AssertionError("credential source must be rejected before acquisition")
+
+    monkeypatch.setattr(context_bundle, "read_repo_source", unexpected_read)
+
+    with pytest.raises(
+        context_bundle.ContextBundleError,
+        match="STATIC_SOURCE_FORBIDDEN: config/credentials.yaml",
+    ):
+        _materialize(tmp_path, ["config/credentials.yaml"])
+
+    assert attempted == []
+
+
+def test_ordinary_static_source_still_materializes(tmp_path: Path) -> None:
+    _write(tmp_path, "config/ordinary.yaml", "setting: safe\n")
+
+    result, _metrics = _materialize(tmp_path, ["config/ordinary.yaml"])
+
+    assert result["complete"] is True
+    assert result["sources"] == [{"path": "config/ordinary.yaml", "content": "setting: safe\n"}]
 
 
 def test_materializer_has_no_persistence_surface_after_negative_benchmark(

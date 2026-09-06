@@ -30,8 +30,6 @@ DECLARED_SKILL_ROOTS = (
 _SENSITIVE_FILENAMES = frozenset(
     {
         ".netrc",
-        "credentials",
-        "credentials.json",
         "id_dsa",
         "id_ecdsa",
         "id_ed25519",
@@ -340,6 +338,8 @@ def validate_static_source_path(path: str) -> str:
         or any(part in {".git", ".venv", "logs", "node_modules"} for part in lowered_parts)
         or filename == ".env"
         or filename.startswith(".env.")
+        or filename == "credentials"
+        or filename.startswith("credentials.")
         or filename in _SENSITIVE_FILENAMES
         or candidate.suffix.casefold() in _SENSITIVE_SUFFIXES
     ):
@@ -376,9 +376,12 @@ def materialize_context_bundle(
         bracket_path_list.append(dynamic_packet_path)
     initial = dict(initial_snapshots or {})
     try:
+        validated_source_paths = [
+            validate_static_source_path(path) for path in ordered_source_paths
+        ]
         ordered_paths, snapshots = capture_sources(
             repo_root,
-            ordered_source_paths,
+            validated_source_paths,
             metrics=metrics,
             existing=initial_snapshots,
         )

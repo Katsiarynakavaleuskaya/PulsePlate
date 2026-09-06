@@ -456,15 +456,16 @@ If it is not recorded here — it does not exist.
     - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
 
 <a id="ledger-p1-orch-cache-1-exact-role-context"></a>
-- [ ] P1: ORCH-CACHE-1 exact role-context materialization
+- [x] P1: ORCH-CACHE-1 exact role-context materialization
   - Owner: security-auditor / agent-coordinator
   - Priority: P1 (complete, current role-context delivery)
-  - Target PR: current ORCH-CACHE-1 implementation PR; number assigned at open
-  - Status: Exact materializer implemented and locally focused-tested; PR
-    publication, current-head CI, review closeout, and merge remain pending. The
-    historical
-    ORCH-CACHE-1 lane name is retained for traceability, but no context cache is
-    included after the accepted benchmark decision.
+  - Target PR: [#2385](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2385)
+    on `codex/orchestration-exact-context-bundle-reuse`
+  - Status: Implementation and same-PR validation closure are recorded in PR
+    #2385. Closure takes effect when PR #2385 merges; until then current-head CI,
+    review closeout, and merge remain pending. The historical ORCH-CACHE-1 lane
+    name is retained for traceability, but no context cache is included after
+    the accepted benchmark decision.
   - Area: orchestration / role dispatch / context loading
   - Reason (EN): The dispatch manifest carries a 500-character prompt excerpt
     and source paths, while actual role execution requires the complete raw role

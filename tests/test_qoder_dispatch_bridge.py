@@ -4886,6 +4886,62 @@ def test_negative_benchmark_removed_context_cache_cli() -> None:
     assert exc_info.value.code == 2
 
 
+def test_cli_help_and_output_messages_distinguish_manifest_from_exact_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as help_exit:
+        qoder_dispatch_bridge._parse_args(["--help"])
+    assert help_exit.value.code == 0
+    help_output = capsys.readouterr().out
+    normalized_help = " ".join(help_output.split())
+    assert "JSON or Markdown governance packet" in normalized_help
+    assert "Exact --role-context-order delivery requires JSON" in normalized_help
+
+    packet = _write_exact_dispatch_fixture(tmp_path, monkeypatch)
+    exact_output = tmp_path / "exact-output.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--role-context-order",
+                "1",
+                "--output",
+                str(exact_output),
+            ]
+        )
+        == 0
+    )
+    exact_stderr = capsys.readouterr().err
+    exact_payload = json.loads(exact_output.read_text(encoding="utf-8"))
+    assert f"Role context output written to: {exact_output}" in exact_stderr
+    assert exact_payload["schema_version"] == context_bundle.OUTPUT_SCHEMA_VERSION
+    assert exact_payload["manifest"]["schema_version"] == (
+        qoder_dispatch_bridge.MANIFEST_SCHEMA_VERSION
+    )
+
+    manifest_output = tmp_path / "manifest.json"
+    assert (
+        qoder_dispatch_bridge.main(
+            [
+                "--packet",
+                str(packet),
+                "--output",
+                str(manifest_output),
+            ]
+        )
+        == 0
+    )
+    manifest_stderr = capsys.readouterr().err
+    manifest_payload = json.loads(manifest_output.read_text(encoding="utf-8"))
+    assert f"Manifest written to: {manifest_output}" in manifest_stderr
+    assert "Role context output written" not in manifest_stderr
+    assert manifest_payload["schema_version"] == qoder_dispatch_bridge.MANIFEST_SCHEMA_VERSION
+    assert "manifest" not in manifest_payload
+
+
 def test_pinned_routing_source_supports_only_canonical_utf8_reads() -> None:
     source = qoder_dispatch_bridge._PinnedRoutingGraphSource("routing text")
 
@@ -5169,6 +5225,33 @@ def test_packet_backed_exact_context_rejects_missing_or_malformed_required_conte
 
     assert result == 1
     assert "required_context" in capsys.readouterr().err
+
+
+def test_ordinary_v1_packet_rejects_credentials_extension_without_emitting_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _write_exact_dispatch_fixture(
+        tmp_path,
+        monkeypatch,
+        required_context=("config/credentials.yaml",),
+    )
+    sensitive = tmp_path / "config/credentials.yaml"
+    sensitive.parent.mkdir(parents=True, exist_ok=True)
+    sensitive.write_text(
+        "api_token: SECRET_SENTINEL\n",
+        encoding="utf-8",
+        newline="",
+    )
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet), "--role-context-order", "1"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "STATIC_SOURCE_FORBIDDEN: config/credentials.yaml" in captured.err
+    assert captured.out == ""
+    assert "SECRET_SENTINEL" not in captured.err
 
 
 def test_dynamic_packet_cannot_select_itself_as_static_context(

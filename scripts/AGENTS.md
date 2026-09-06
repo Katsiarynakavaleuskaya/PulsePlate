@@ -348,6 +348,9 @@
   current dispatch metadata remain dynamic and grant no new authority. A
   declared static source with the packet's captured device/inode identity
   blocks instead of duplicating or silently dropping the packet.
+- `context_bundle.py` alone owns final static-source class admission before
+  acquisition; callers may validate instruction-root eligibility, but they
+  must not become the sole carrier of sensitive or dynamic source denial.
 - Exact role context is not persisted. Do not add a cache flag, watcher,
   service, alternate store, or commit-only freshness shortcut through this
   materializer. Any future persistence proposal requires its own bounded lane
