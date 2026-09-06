@@ -9,11 +9,14 @@ import http.client
 import json
 import os
 import re
+import selectors
 import shutil
+import signal
 import stat
 import subprocess  # nosec B404: # required for bounded absolute-argv tool execution (remove-by: 2026-10-31, ref: PR-2347)
 import sys
 import tarfile
+import time
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -207,6 +210,16 @@ def read_regular(path: Path, *, max_bytes: int, expected_mode: int | None = None
     return payload
 
 
+def _stop_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Stop only the isolated session started by this primitive, then reap its leader."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    finally:
+        process.wait(timeout=5)
+
+
 def run_process(plan: ProcessPlan, *, stdin: bytes | None = None) -> ProcessResult:
     _checked_program(plan.argv)
     if (
@@ -218,25 +231,89 @@ def run_process(plan: ProcessPlan, *, stdin: bytes | None = None) -> ProcessResu
         )
     ):
         raise TransportError("process_plan_invalid")
+    process: subprocess.Popen[bytes] | None = None
+    completed_normally = False
+    output = {"stdout": bytearray(), "stderr": bytearray()}
+    pending = memoryview(stdin or b"")
+    deadline = time.monotonic() + plan.timeout_seconds
     try:
-        completed = subprocess.run(  # nosec B603: # argv is absolute and validated by _checked_program (remove-by: 2026-10-31, ref: PR-2347)
+        process = subprocess.Popen(  # nosec B603: # argv is absolute and validated by _checked_program (remove-by: 2026-10-31, ref: PR-2347)
             list(plan.argv),
             cwd=plan.cwd,
             env=dict(plan.env),
-            input=stdin,
-            capture_output=True,
-            check=False,
-            timeout=plan.timeout_seconds,
+            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=0,
             shell=False,
+            start_new_session=True,
         )
+        with selectors.DefaultSelector() as selector:
+            for label, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+                if stream is None:
+                    raise TransportError("process_execution_failed")
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, label)
+            if process.stdin is not None:
+                if pending:
+                    os.set_blocking(process.stdin.fileno(), False)
+                    selector.register(process.stdin, selectors.EVENT_WRITE, "stdin")
+                else:
+                    process.stdin.close()
+            offset = 0
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TransportError("process_execution_failed")
+                for key, _event in selector.select(min(remaining, 0.25)):
+                    if key.data == "stdin":
+                        try:
+                            written = os.write(key.fd, pending[offset : offset + 65_536])
+                        except BlockingIOError:
+                            continue
+                        except BrokenPipeError:
+                            written = 0
+                            offset = len(pending)
+                        offset += written
+                        if offset == len(pending):
+                            selector.unregister(key.fileobj)
+                            if process.stdin is not None:
+                                process.stdin.close()
+                    else:
+                        buffer = output[key.data]
+                        try:
+                            chunk = os.read(
+                                key.fd, min(65_536, plan.max_output_bytes - len(buffer) + 1)
+                            )
+                        except BlockingIOError:
+                            continue
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                        elif len(buffer) + len(chunk) > plan.max_output_bytes:
+                            raise TransportError("process_output_too_large")
+                        else:
+                            buffer.extend(chunk)
+            returncode = process.wait(timeout=max(0, deadline - time.monotonic()))
+        result = ProcessResult(returncode, bytes(output["stdout"]), bytes(output["stderr"]))
+        completed_normally = True
+        return result
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise TransportError("process_execution_failed") from exc
-    if (
-        len(completed.stdout) > plan.max_output_bytes
-        or len(completed.stderr) > plan.max_output_bytes
-    ):
-        raise TransportError("process_output_too_large")
-    return ProcessResult(completed.returncode, completed.stdout, completed.stderr)
+    finally:
+        pending.release()
+        if process is not None:
+            primary_error = sys.exception()
+            try:
+                if not completed_normally:
+                    _stop_process_group(process)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                if primary_error is None:
+                    raise TransportError("process_execution_failed") from exc
+                raise primary_error from exc
+            finally:
+                for stream in (process.stdin, process.stdout, process.stderr):
+                    if stream is not None:
+                        stream.close()
 
 
 def observe_programs(

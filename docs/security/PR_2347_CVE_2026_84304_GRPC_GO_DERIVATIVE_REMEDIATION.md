@@ -84,6 +84,40 @@ and image identities. [Official builder](https://github.com/prometheus/golang-bu
 The implementation below is not evidence that a new cloud candidate has been
 successfully built or published. Stage-1 `P=false` remains unchanged.
 
+## First-use and subprocess review corrections
+
+Two review findings exposed defects in the existing mechanics, not authority
+to expand the candidate lane. First freeze now creates the missing fixed
+`artifacts/` root before validating it, at
+`scripts/ci/prometheus_derivative_candidate.py:256`. The test fixture no longer
+pre-creates that root. Clean/partial/replayed state, every fixed path component,
+creation races and unsafe existing modes are exercised without a permission
+repair or alternate output root.
+
+The private process primitive at
+`scripts/ci/_prometheus_derivative_transport.py:223` now checks its existing
+per-stream byte limit during simultaneous output collection and stdin delivery,
+instead of buffering an entire command before checking. Real subprocess tests
+exercise live stdout/stderr/mixed floods, exact limits, input/output pipe
+pressure, EOF, nonzero exits, timeout and isolated-group termination/reaping.
+The public plan/result and stable error contracts remain unchanged; no spill
+file, provider, generic executor or extra module is introduced. Operational
+rules remain in `scripts/AGENTS.md:40`.
+
+The separate dispatch-option finding is **NOT-A-BUG** for the selected API.
+The existing request explicitly sends `X-GitHub-Api-Version: 2026-03-10` at
+`scripts/ci/prometheus_derivative_candidate.py:1074`. That version returns
+HTTP 200 with run identity by default; `return_run_details` belongs to the
+older version's opt-in contract. The cited CLI implementation itself notes
+the new-version distinction. Exact-header and empty-response/no-retry tests
+retain the current request rather than adding an unnecessary compatibility
+option. [Current versioned REST contract](https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event),
+[older opt-in contract](https://docs.github.com/en/rest/actions/workflows?apiVersion=2022-11-28#create-a-workflow-dispatch-event),
+[CLI version distinction](https://github.com/cli/cli/blob/v2.96.0/pkg/cmd/workflow/run/run.go#L306).
+
+These corrections and the request-contract disposition do not supply the
+outstanding cloud build, scan, publication or selector evidence.
+
 ## Closed pre-build identity
 
 Before receipt `00-spec`, the controller binds exact repository/head/tree,

@@ -256,6 +256,12 @@ def _ensure_private_directory(path: Path) -> None:
 def _ensure_private_tree(repo_root: Path, candidate_directory: Path) -> None:
     artifacts = repo_root / "artifacts"
     try:
+        os.mkdir(artifacts, 0o700)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise _hold("artifacts_directory_unavailable") from exc
+    try:
         metadata = os.lstat(artifacts)
     except OSError as exc:
         raise _hold("artifacts_directory_unavailable") from exc

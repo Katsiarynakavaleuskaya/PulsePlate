@@ -55,6 +55,15 @@
   physical lines; the private transport must remain below 1400. These are
   bounded-carrier ceilings, not permission for a third module, a generic
   execution backend, or policy authority in the transport.
+- First use creates a missing fixed `artifacts/` root with mode `0700`, then
+  validates it and each private descendant. Existing safe shared-root modes
+  are preserved; links, non-directories and unsafe private modes are rejected,
+  never repaired or followed through a recursive directory-creation fallback.
+- `ProcessPlan.max_output_bytes` is a per-stream bound. Drain stdout/stderr
+  while feeding stdin, reject overflow before retaining excess bytes, and
+  terminate/reap the isolated subprocess group on timeout or failure. This is
+  bounded capture, not a total-process/host RSS guarantee; credentials and raw
+  captured output must not be added to exception messages.
 - `authorize` reads one exact line from stdin and atomically authors receipt
   `40-publication-authorization`. `publish-or-reconcile` takes no confirmation;
   only the invocation creating `50-write-intent` may read the fixed runtime

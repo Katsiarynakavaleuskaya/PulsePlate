@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -560,7 +561,6 @@ def _candidate_trivy_report() -> dict[str, object]:
 
 def _candidate_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
-    (repo / "artifacts").mkdir(mode=0o700, parents=True, exist_ok=True)
     (repo / "deploy" / "prometheus").mkdir(parents=True, exist_ok=True)
     (repo / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
     (repo / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
@@ -667,6 +667,112 @@ def test_prometheus_candidate_recipe_keeps_exact_patched_toolchain(
             "size": recipe.stat().st_size,
             "sha256": "sha256:" + hashlib.sha256(recipe.read_bytes()).hexdigest(),
         }
+
+
+@pytest.mark.parametrize("seed", ("missing", "existing", "partial"))
+def test_prometheus_candidate_freeze_creates_only_missing_fixed_directories(
+    tmp_path: Path, seed: str
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    artifacts = controller.repo_root / "artifacts"
+    assert not artifacts.exists()
+    if seed != "missing":
+        artifacts.mkdir(mode=0o755)
+        artifacts.chmod(0o755)
+    if seed == "partial":
+        (artifacts / "security_lab").mkdir(mode=0o700)
+    assert controller.freeze() is True
+    assert stat.S_IMODE(artifacts.stat().st_mode) == (0o700 if seed == "missing" else 0o755)
+    receipt = controller.store.directory / "00-spec.json"
+    before = receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns
+    assert controller.freeze() is False
+    assert before == (receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns)
+    assert list(controller.store.load()) == ["00-spec"]
+
+
+@pytest.mark.parametrize(
+    "component", ("artifacts", "security_lab", "controller", "v1", "candidate")
+)
+@pytest.mark.parametrize("kind", ("file", "symlink", "dangling_symlink"))
+def test_prometheus_candidate_freeze_rejects_unsafe_fixed_directory_components(
+    tmp_path: Path, component: str, kind: str
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    artifacts = controller.repo_root / "artifacts"
+    target = {
+        "artifacts": artifacts,
+        "security_lab": artifacts / "security_lab",
+        "controller": controller.store.directory.parent.parent,
+        "v1": controller.store.directory.parent,
+        "candidate": controller.store.directory,
+    }[component]
+    parents: list[Path] = []
+    parent = target.parent
+    while parent != controller.repo_root:
+        parents.append(parent)
+        parent = parent.parent
+    for parent in reversed(parents):
+        parent.mkdir(mode=0o700)
+    outside = tmp_path / "outside"
+    if kind == "file":
+        target.write_text("not a directory", encoding="utf-8")
+    else:
+        if kind == "symlink":
+            outside.mkdir(mode=0o700)
+        target.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(prometheus_candidate.CandidateHold):
+        controller.freeze()
+    assert not (controller.store.directory / "00-spec.json").exists()
+    if outside.exists():
+        assert list(outside.iterdir()) == []
+
+
+@pytest.mark.parametrize("race", ("directory", "file", "symlink", "denied"))
+def test_prometheus_candidate_first_directory_creation_race_is_validated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, race: str
+) -> None:
+    controller = _candidate_controller(tmp_path)
+    artifacts = controller.repo_root / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    real_mkdir = os.mkdir
+    attempted = False
+
+    def create_directory(path: Path, mode: int = 0o777, *, dir_fd: int | None = None) -> None:
+        nonlocal attempted
+        if Path(path) == artifacts and not attempted:
+            attempted = True
+            if race == "denied":
+                raise PermissionError("synthetic create denial")
+            if race == "directory":
+                real_mkdir(path, 0o700)
+            elif race == "file":
+                artifacts.write_text("race", encoding="utf-8")
+            else:
+                artifacts.symlink_to(outside, target_is_directory=True)
+            raise FileExistsError("synthetic concurrent creator")
+        real_mkdir(path, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(prometheus_candidate.os, "mkdir", create_directory)
+    if race == "directory":
+        assert controller.freeze() is True
+    else:
+        with pytest.raises(prometheus_candidate.CandidateHold):
+            controller.freeze()
+        assert not (controller.store.directory / "00-spec.json").exists()
+    assert attempted
+    assert list(outside.iterdir()) == []
+
+
+def test_prometheus_candidate_does_not_repair_unsafe_private_parent_mode(tmp_path: Path) -> None:
+    controller = _candidate_controller(tmp_path)
+    parent = controller.repo_root / "artifacts" / "security_lab"
+    parent.mkdir(mode=0o700, parents=True)
+    parent.chmod(0o755)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="unsafe_private_directory"):
+        controller.freeze()
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
+    assert not controller.store.directory.exists()
 
 
 def test_prometheus_candidate_core_is_canonical_private_and_replay_safe(
@@ -1220,6 +1326,125 @@ def test_prometheus_candidate_existing_50_is_anonymous_zero_credential_reconcili
         "remote_truth": False,
     }
     assert terminal["candidate_selected"] is False
+
+
+def _bounded_process_plan(
+    directory: Path, code: str, *, limit: int = 1024, timeout: int = 5
+) -> prometheus_candidate.transport.ProcessPlan:
+    return prometheus_candidate.transport.ProcessPlan(
+        (str(Path(sys.executable).resolve()), "-I", "-S", "-c", code),
+        directory,
+        {},
+        timeout,
+        limit,
+    )
+
+
+@pytest.mark.parametrize("input_bytes", (None, b"", b"synthetic input"))
+@pytest.mark.parametrize("exit_code", (0, 7))
+def test_prometheus_transport_process_preserves_input_output_and_nonzero_exit(
+    tmp_path: Path, input_bytes: bytes | None, exit_code: int
+) -> None:
+    result = prometheus_candidate.transport.run_process(
+        _bounded_process_plan(
+            tmp_path,
+            "import os, sys; data = sys.stdin.buffer.read(); "
+            f"os.write(1, data); os.write(2, b'diagnostic'); sys.exit({exit_code})",
+        ),
+        stdin=input_bytes,
+    )
+    assert result == prometheus_candidate.transport.ProcessResult(
+        exit_code, input_bytes or b"", b"diagnostic"
+    )
+
+
+def test_prometheus_transport_process_drains_both_exact_limits_while_feeding_input(
+    tmp_path: Path,
+) -> None:
+    limit = 131_072
+    payload = b"i" * (limit * 2)
+    result = prometheus_candidate.transport.run_process(
+        _bounded_process_plan(
+            tmp_path,
+            "import sys; "
+            f"sys.stdout.buffer.write(b'o' * {limit}); sys.stdout.buffer.flush(); "
+            f"sys.stderr.buffer.write(b'e' * {limit}); sys.stderr.buffer.flush(); "
+            f"assert sys.stdin.buffer.read() == b'i' * {len(payload)}",
+            limit=limit,
+        ),
+        stdin=payload,
+    )
+    assert result == prometheus_candidate.transport.ProcessResult(0, b"o" * limit, b"e" * limit)
+
+
+def test_prometheus_transport_process_preserves_output_after_broken_input_pipe(
+    tmp_path: Path,
+) -> None:
+    result = prometheus_candidate.transport.run_process(
+        _bounded_process_plan(tmp_path, "import os; os.close(0); os.write(1, b'complete')"),
+        stdin=b"i" * 262_144,
+    )
+    assert result == prometheus_candidate.transport.ProcessResult(0, b"complete", b"")
+
+
+@pytest.mark.parametrize(
+    "failure", ("stdout", "stderr", "mixed", "timeout", "eof_timeout", "interrupt")
+)
+def test_prometheus_transport_process_stops_live_floods_and_reaps_its_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    transport = prometheus_candidate.transport
+    processes: list[subprocess.Popen[bytes]] = []
+    killed_groups: list[tuple[int, int]] = []
+    real_popen, real_killpg = subprocess.Popen, os.killpg
+
+    def launch(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        assert kwargs["start_new_session"] is True
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    def kill_group(pid: int, sig: int) -> None:
+        killed_groups.append((pid, sig))
+        real_killpg(pid, sig)
+
+    monkeypatch.setattr(transport.subprocess, "Popen", launch)
+    monkeypatch.setattr(transport.os, "killpg", kill_group)
+    body = {
+        "stdout": "os.write(1, b'o' * 1025)",
+        "stderr": "os.write(2, b'e' * 1025)",
+        "mixed": "[(os.write(1, b'o' * 64), os.write(2, b'e' * 64)) for _ in range(17)]",
+        "timeout": "pass",
+        "eof_timeout": "os.close(1); os.close(2)",
+        "interrupt": "pass",
+    }[failure]
+    if failure == "interrupt":
+        selector = transport.selectors.DefaultSelector()
+
+        def interrupt_select(_timeout: float | None = None) -> list[object]:
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(selector, "select", interrupt_select)
+        monkeypatch.setattr(transport.selectors, "DefaultSelector", lambda: selector)
+    timed_out = failure in {"timeout", "eof_timeout"}
+    code = "process_execution_failed" if timed_out else "process_output_too_large"
+    expected_error = KeyboardInterrupt if failure == "interrupt" else transport.TransportError
+    with pytest.raises(expected_error, match=None if failure == "interrupt" else code):
+        transport.run_process(
+            _bounded_process_plan(
+                tmp_path,
+                f"import os, signal; {body}; signal.pause()",
+                timeout=1 if timed_out else 5,
+            )
+        )
+    assert len(processes) == 1
+    process = processes[0]
+    assert killed_groups == [(process.pid, signal.SIGKILL)]
+    assert process.returncode == -signal.SIGKILL
+    assert all(
+        stream is None or stream.closed
+        for stream in (process.stdin, process.stdout, process.stderr)
+    )
 
 
 def test_prometheus_transport_login_uses_stdin_once_and_logs_out_on_all_post_login_paths(
@@ -9376,6 +9601,9 @@ def _cloud_admission_fixture(
     mutation: str | None = None,
 ) -> tuple[prometheus_candidate.ExactAdapters, list[str]]:
     repo = _candidate_repo(tmp_path)
+    # This direct adapter seam normally follows controller.freeze(); public
+    # first-use tests deliberately start without this shared parent.
+    (repo / "artifacts").mkdir(mode=0o700)
     identity = _candidate_identity(repo)
     spec = prometheus_candidate.build_spec(repo, identity)
     adapter = prometheus_candidate.ExactAdapters(repo, identity, spec)
@@ -10186,7 +10414,7 @@ def test_prometheus_cloud_import_name_matches_the_single_pinned_importer_path(
             prometheus_candidate._require_cloud_import_name(oci, "docker.io/library/candidate:tag")
 
 
-@pytest.mark.parametrize("mutation", (None, "no_auth", "nonzero", "invalid_json"))
+@pytest.mark.parametrize("mutation", (None, "no_auth", "nonzero", "invalid_json", "empty_body"))
 def test_prometheus_cloud_api_plan_has_fixed_host_and_single_authenticated_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10214,6 +10442,7 @@ def test_prometheus_cloud_api_plan_has_fixed_host_and_single_authenticated_post(
             "--method",
             "POST",
         )
+        assert plan.argv[6:8] == ("-H", "X-GitHub-Api-Version: 2026-03-10")
         assert plan.argv[-3:] == (
             f"repos/{prometheus_candidate.REPOSITORY}/actions/workflows/build.yml/dispatches",
             "--input",
@@ -10226,9 +10455,14 @@ def test_prometheus_cloud_api_plan_has_fixed_host_and_single_authenticated_post(
         assert plan.env["GH_TOKEN"] == plan.env["GITHUB_TOKEN"] == "opaque-gh"
         assert prometheus_candidate.PUBLICATION_INPUT_ENV not in plan.env
         assert "opaque-gh" not in str(plan.argv)
+        response = b'{"workflow_run_id":100}'
+        if mutation == "invalid_json":
+            response = b"not json"
+        elif mutation == "empty_body":
+            response = b""
         return prometheus_candidate.transport.ProcessResult(
             1 if mutation == "nonzero" else 0,
-            b"not json" if mutation == "invalid_json" else b'{"workflow_run_id":100}',
+            response,
             b"",
         )
 
