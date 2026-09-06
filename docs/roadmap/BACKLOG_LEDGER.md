@@ -404,13 +404,13 @@ If it is not recorded here — it does not exist.
     non-canonical and may be discarded by the operator.
 
 <a id="ledger-p1-orch-rail-1-evidence-rail-applicability"></a>
-- [ ] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
+- [x] P1: ORCH-RAIL-1 packet-bound evidence-rail applicability
   - Owner: dev-operator / agent-coordinator
   - Priority: P1 (deterministic orchestration treatment selection)
   - Target PR: [#2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378)
     on `codex/evidence-rail-applicability-v1`
-  - Status: Implementation published; current-head validation and review
-    closeout are in progress. Close the item only after the PR merges.
+  - Status: Completed in PR #2378, merged as
+    `6f42cf6187823c39495fb1a85f72fa52898b491b`.
   - Area: orchestration / PR lane startup / local evidence selection
   - Reason (EN): Fresh PR lanes currently require an operator to reconstruct
     which Teleology, Euler, Experiment Runner, and Creative treatments apply.
@@ -454,6 +454,63 @@ If it is not recorded here — it does not exist.
     - [P1 canonical task-packet identity verifier](#ledger-p1-canonical-task-packet-identity-verifier)
     - [P2 manual evidence-rail downshift contract](#ledger-p2-evidence-rail-manual-downshift)
     - [P1 human-approved required Creative role pass](#ledger-p1-human-approved-required-creative-role)
+
+<a id="ledger-p1-orch-cache-1-exact-role-context"></a>
+- [x] P1: ORCH-CACHE-1 exact role-context materialization
+  - Owner: security-auditor / agent-coordinator
+  - Priority: P1 (complete, current role-context delivery)
+  - Target PR: [#2385](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2385)
+    on `codex/orchestration-exact-context-bundle-reuse`
+  - Status: Implementation and same-PR validation closure are recorded in PR
+    #2385. Closure takes effect when PR #2385 merges; until then current-head CI,
+    review closeout, and merge remain pending. The historical ORCH-CACHE-1 lane
+    name is retained for traceability, but no context cache is included after
+    the accepted benchmark decision.
+  - Area: orchestration / role dispatch / context loading
+  - Reason (EN): The dispatch manifest carries a 500-character prompt excerpt
+    and source paths, while actual role execution requires the complete raw role
+    definition, selected context, current packet, and explicit instructions.
+    Repeated manual assembly can omit or summarize required content and can mix
+    bytes observed at different times.
+  - Links:
+    - `scripts/orchestration/context_bundle.py`
+    - `scripts/orchestration/qoder_dispatch_bridge.py`
+    - `.agents/skills/pulseplate-orchestration-dispatch/rules/context-loading.md`
+  - DoD:
+    - default bridge output remains the unchanged v2 manifest; opt-in
+      `--role-context-order N` returns a separate exact-context output envelope
+      for one existing final one-based occurrence
+    - the raw role definition, selected manifest context, ordinary packet
+      `required_context`, and explicit admitted instruction files are delivered
+      in first-occurrence order without excerpting, summarization, or newline
+      normalization
+    - packet content and current dispatch metadata remain dynamic; any static
+      source with the packet's captured device/inode identity blocks, and exact
+      materialization adds no packet-authenticity, routing, role, write, review,
+      CI, merge, semantic-cache, provider, or product-runtime authority
+    - descriptor-relative no-follow reads reject traversal, symlinks, hardlinks,
+      nonregular files, source/selection drift, non-UTF-8, missing and over-limit
+      input; globs and directories yield an explicit incomplete manual route
+    - deterministic tests cover complete content beyond line 200 and character
+      500, ordinary packet context, duplicate occurrences, mode/readonly
+      preservation, unsafe inputs, selection drift, bounds, default output, and
+      separate envelope ownership
+    - the frozen A/B/C benchmark uses real orders 4/5/6 and two 30-repeat
+      series; stored content is actually consumed, wall-clock B/C covers the
+      full operation, and the canonical selector read outside the prototype's
+      `ContextIOMetrics` counters is separately disclosed as a derived count;
+      only aggregate timings were retained, without raw per-trial samples
+    - persistence remains removed because C failed the required median
+      improvement against B in both measured series (38.092 ms vs 41.665 ms,
+      then 38.888 ms vs 42.654 ms); the ignored prototype and raw benchmark
+      result remain evidence only and grant no cache authority
+  - Out of scope (EN): Renderer, workflow, task-packet identity, selector and
+    routing changes, host/plugin discovery, provider-token savings, watcher,
+    Redis/service storage, semantic serving, Evidence Graph, product runtime,
+    API/OpenAPI, frontend, iOS, dependencies, and merge authority.
+  - Rollback (EN): Revert the materializer, opt-in bridge envelope, tests, and
+    synchronized dispatch guidance. Default manifest behavior remains the
+    compatibility baseline.
 
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
@@ -551,6 +608,31 @@ If it is not recorded here — it does not exist.
       review-thread, merge, release, or product-runtime mutation is implied
     - add deterministic approval, no-approval, stale packet, blocker, ordering,
       and no-mutation tests plus rollback to recommendation-only treatment
+
+<a id="ledger-p1-teleology-goal-outcome-workflow"></a>
+- [ ] P1: TELO-OPS-2 goal-to-outcome review in the existing coordinator and QA workflow
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1 (observable task completion and reduced manual follow-up)
+  - Target PR: [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383) (`codex/teleology-goal-outcome-workflow`)
+  - Status: Open non-draft; synchronized with main after PR #2378 merged; post-open findings are being closed before material freeze. Not merged.
+  - Area: orchestration / startup instructions / existing review templates
+  - Reason (EN): The existing rail selector names Teleology full/compact but does not carry the accepted goal criteria into ordinary QA and criterion-to-evidence closeout.
+  - Links:
+    - `docs/orchestration/workflow.md#goal-to-outcome-review`
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr-evidence-sidecar-v1`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-task-normative-envelope-v1-shadow`
+  - DoD:
+    - validated full/compact treatments render static instructions; grouping preserves all original requirements and DoD items
+    - one accepted criterion reference/version passes from Task Analysis/runbook to ordinary QA Work Review and final DoD
+    - every original requirement and DoD item is explicitly covered by an individually achieved criterion with observed evidence before overall completion; no materiality filter excludes required scope
+    - achieved, partial, unknown and not_achieved classifications require observed evidence or an explicit gap; CI, merge, hashes and template presence do not prove the outcome
+    - untrusted GitHub/Drive evidence cannot change accepted goals, role order, status or authority; existing dynamic fields remain escaped
+    - existing packet, role, N1 and sidecar interfaces remain unchanged; no new parser, schema, store, provider, scheduler or CI blocker
+    - focused regressions, narrow local gates and applicable current-head PR checks are reported distinctly
+  - Dependency / operator decision (EN): The operator explicitly authorized starting from #2378 before its merge and shared-main stabilization. After #2378 merged, the same branch synchronized main without rewriting history; the follow-up PR targets main. A later explicit operator instruction authorizes merging this owned PR only after all required checks and review gates pass, followed by main synchronization, sanity, gitignored evidence retention and a Google Drive documentation update. No authority over #2378 is granted.
+  - Deferred / follow-up (EN): After merge, coordinator/QA observe the first three newly eligible product-priority PRs through existing Work Reviews: criterion/evidence completeness, corrections attributable to the reminder as reviewer observations, and known operator minutes (missing values stay unknown). Target: first three post-merge eligible PRs; no new telemetry tool or causal claim. N1 p1-05 and its GO/DEFER/STOP decision remain separate.
+  - Rollback (EN): Revert the instruction, procedure and template change together; preserve the parent selector and existing receipts/artifacts.
 
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
@@ -12811,8 +12893,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 target branch `codex/euler-l2-eval-v1`; L3 requires a separate reviewed target PR
-  - Status: L1 and bounded L2 are merged; L2-EVAL v1 is the next prospective descriptive evidence stage; collection begins only after its implementation PR merges; L3 remains closed and is not authorized by L1, L2, or L2-EVAL
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 [PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291) (`codex/euler-l2-eval-v1`); lifecycle supervision is tracked in [EULER-OPS-1](#ledger-p1-euler-ops-1-lifecycle-supervision); L3 requires a separate reviewed target PR
+  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. See the [EULER-OPS-1 core implementation/closure record](#ledger-p1-euler-ops-1-lifecycle-supervision) and [open renderer follow-up](#ledger-p1-euler-supervision-renderer-handoff); no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
@@ -12830,8 +12912,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
     - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
     - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
-    - No synthetic primary episode or empirical 5/10 cohort exists at implementation time; real qualifying PRs accrue only after L2-EVAL merges, and its interim/target-count labels are not effectiveness or L3 decisions
+    - Synthetic fixtures are test evidence only; real prospective counts require validated local current-store reports, and interim/target-count labels are not effectiveness or L3 decisions
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
+
+<a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
+- [x] P1: EULER-OPS-1 explicit local episode lifecycle supervision
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (retain joint-pass evidence and recover interrupted local reporting)
+  - Target PR: [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) (`codex/euler-lifecycle-supervision`)
+  - Status: Implemented in PR #2382: optional checkpoint, read-only status and resumable complete, with deterministic stdlib lifecycle coverage and preserved v1 compatibility. This checked entry proposes closure of the bounded core item and becomes authoritative only when PR #2382 merges; it does not assert that merge or pending required checks have completed.
+  - Reason (EN): A non-persisted validate acknowledgement can be lost before terminal reporting; explicit immutable checkpoint, read-only status and resumable completion preserve the existing local evidence contract without inferring enrollment, J or terminal facts.
+  - Dependencies: [Euler umbrella](#ledger-p1-invariant-family-relations-shadow) and merged [L2-EVAL v1 PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291). Renderer/sidecar work is outside this core PR and tracked in the [renderer handoff follow-up](#ledger-p1-euler-supervision-renderer-handoff).
+  - Links:
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+    - [Owning CLI](../../scripts/orchestration/invariant_family_review_episode.py)
+    - [Focused lifecycle and v1 compatibility tests](../../tests/test_invariant_family_review_episode.py)
+    - [Publisher and consumer guards](../../tests/guards/test_security_devtooling_regression_guards.py)
+  - DoD:
+    - checkpoint retains accepted-enrollment-bound normalized J and recomputed validate acknowledgement through the existing create-only publisher; original v1 policy, bytes, limits, recurrence and denominator semantics remain unchanged
+    - status is read-only and distinguishes absent, stale and current full-store reporting; complete prevalidates and safely resumes terminal/report publication with exact replay, bounded resources and no retrospective repair
+    - 25 deterministic stdlib sequences execute 20 operations each, assert independent state after every step, and prove the finite required transition census; separate corruption, replay, fault, production-boundary and barrier tests remain unconditional without new dependencies or CI workflow changes
+    - focused tests, narrow local gates, actual-diff premortem, oracle-only Runner, required role passes, current-head CI, dispositions, mapping/seal and strict merge-readiness checks pass before merge execution
+  - Rollback: Revert supervision code and guidance while preserving immutable local bundles; retain v1 receipts and optional checkpoint data, without rewriting or reconstructing evidence.
+  - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
+
+<a id="ledger-p1-euler-supervision-renderer-handoff"></a>
+- [ ] P1: Euler supervision renderer and sidecar command handoff
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
+  - Target PR: TBD, after authenticated merge of [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) and [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382)
+  - Status: Deferred by explicit operator scope decision; independent follow-up after both prerequisites merge, not a completion condition for the core PR.
+  - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
+  - Scope:
+    - `scripts/orchestration/render_codex_start_prompt.py`
+    - `tests/test_render_codex_start_prompt.py`
+    - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
+    - `tests/guards/test_security_devtooling_regression_guards.py` (companion consumer/publisher guard responsibility)
+  - Links:
+    - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
+    - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
+  - DoD:
+    - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
+    - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
+    - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
+    - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
+  - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
+  - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)

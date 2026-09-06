@@ -29,8 +29,8 @@ import re
 import sys
 from datetime import datetime, timezone
 from importlib import import_module
-from pathlib import Path
-from typing import Any, cast, Dict, Iterable, List, Optional, Tuple
+from pathlib import Path, PurePosixPath
+from typing import Any, cast, Dict, Iterable, List, Mapping, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -70,6 +70,18 @@ from scripts.orchestration.context_pack import (
     compute_task_packet_id,
     repo_relative_paths,
     resolve_domain,
+)
+from scripts.orchestration.context_bundle import (
+    ContextBundleError,
+    ContextIOMetrics,
+    OUTPUT_SCHEMA_VERSION,
+    SourceSnapshot,
+    capture_sources,
+    materialize_context_bundle,
+    read_repo_source,
+    repo_relative_input,
+    validate_instruction_file,
+    validate_static_source_path,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.routing_graph_loader import (
@@ -137,6 +149,8 @@ _L1_IDEMPOTENCY_RE = re.compile(r"^review-invariant-family-relations\.v1:[a-f0-9
 CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
 MANIFEST_SCHEMA_VERSION = "2.0"
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
+CONTEXT_MAP_SOURCE_PATH = "docs/orchestration/AGENT_CONTEXT_MAP.md"
+ROUTING_GRAPH_SOURCE_PATH = "docs/orchestration/AGENT_ROUTING_GRAPH.md"
 
 # ---------------------------------------------------------------------------
 # Optional imports with graceful fallback
@@ -144,6 +158,7 @@ MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 
 _routing_graph: Optional[Dict[str, Any]] = None
 _routing_loader_available = False
+_routing_validation_source: Optional[Path] = None
 
 try:
     from scripts.orchestration.routing_graph_loader import load_routing_graph
@@ -151,6 +166,29 @@ try:
     _routing_loader_available = True
 except Exception:  # pragma: no cover – optional dependency
     _routing_loader_available = False
+
+
+class _PinnedRoutingGraphSource:
+    """Path-shaped adapter that feeds safely captured text to the canonical parser."""
+
+    def __init__(self, source_text: str) -> None:
+        self._source_text = source_text
+
+    def is_file(self) -> bool:
+        return True
+
+    def read_text(self, encoding: str = "utf-8") -> str:
+        if encoding.casefold().replace("-", "") != "utf8":
+            raise ValueError("canonical routing parser requested an unexpected encoding")
+        return self._source_text
+
+
+def _load_routing_graph_for_validation() -> Dict[str, Any]:
+    """Use the canonical parser with an invocation-pinned source when present."""
+
+    if _routing_validation_source is None:
+        return cast(Dict[str, Any], load_routing_graph())
+    return cast(Dict[str, Any], load_routing_graph(_routing_validation_source))
 
 
 def _ensure_routing_graph() -> Dict[str, Any]:
@@ -365,13 +403,19 @@ def _parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
 # ---------------------------------------------------------------------------
 
 
-def _load_agent_definition(slug: str) -> Optional[Dict[str, Any]]:
+def _load_agent_definition(
+    slug: str,
+    *,
+    source_text: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """Load and parse a single agent definition from ``.cursor/agents/<slug>.md``."""
     agent_path = REPO_ROOT / ".cursor" / "agents" / f"{slug}.md"
-    if not agent_path.is_file():
-        return None
-
-    text = agent_path.read_text(encoding="utf-8")
+    if source_text is None:
+        if not agent_path.is_file():
+            return None
+        text = agent_path.read_text(encoding="utf-8")
+    else:
+        text = source_text
     meta, body = _parse_frontmatter(text)
 
     return {
@@ -397,13 +441,14 @@ _CONTEXT_AGENT_HEADER_RE = re.compile(
 )
 
 
-def _parse_context_map() -> Dict[str, List[str]]:
+def _parse_context_map(source_text: Optional[str] = None) -> Dict[str, List[str]]:
     """Parse ``docs/orchestration/AGENT_CONTEXT_MAP.md`` for per-agent context paths."""
     context_map_path = REPO_ROOT / "docs" / "orchestration" / "AGENT_CONTEXT_MAP.md"
-    if not context_map_path.is_file():
-        return {}
-
-    lines = context_map_path.read_text(encoding="utf-8").splitlines()
+    if source_text is None:
+        if not context_map_path.is_file():
+            return {}
+        source_text = context_map_path.read_text(encoding="utf-8")
+    lines = source_text.splitlines()
     result: Dict[str, List[str]] = {}
     current_slug: Optional[str] = None
 
@@ -728,7 +773,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         candidate_paths=canonical_candidate_paths,
         goal=cast(str, required_strings["goal"]),
     )
-    domain_route = load_routing_graph().get(canonical_domain)
+    domain_route = _load_routing_graph_for_validation().get(canonical_domain)
     if required_strings["domain"] != canonical_domain or domain_route is None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if requested_agents != list(dict.fromkeys(requested_agents)) or any(
@@ -1165,7 +1210,7 @@ def _validate_single_coordinator_synthesis_task_packet_id(
             task_class=task_class,
             candidate_paths=candidate_paths,
         )
-        canonical_route = load_routing_graph().get(canonical_domain)
+        canonical_route = _load_routing_graph_for_validation().get(canonical_domain)
         if (
             domain != canonical_domain
             or canonical_route is None
@@ -1896,10 +1941,19 @@ def _load_packet_payload(
     resolved_packet_path: Path,
     *,
     json_designated: bool,
+    source_text: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Load a packet once using the caller-designated format."""
 
     if json_designated:
+        if source_text is not None:
+            try:
+                payload = load_creative_pilot_json_strict(source_text)
+            except CreativePilotContractError as exc:
+                raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
+            if not isinstance(payload, dict):
+                raise ValueError("invalid strict JSON task packet: expected object")
+            return payload
         return _load_strict_json_packet(resolved_packet_path)
     return _load_json_packet(resolved_packet_path)
 
@@ -1990,6 +2044,22 @@ def _packet_required_context_for_manifest(
             ),
         )
     )
+
+
+def _packet_required_context_for_exact_delivery(
+    payload: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Validate ordinary packet context shape without authenticating packet identity."""
+
+    if not isinstance(payload, dict) or "required_context" not in payload:
+        raise ValueError("packet-backed exact context requires required_context")
+    values = _validate_string_list(
+        payload.get("required_context"),
+        field="required_context",
+    )
+    if any(not value or value != value.strip() for value in values):
+        raise ValueError("required_context must contain non-empty exact strings")
+    return list(values)
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -2245,6 +2315,9 @@ def build_dispatch_manifest(
     implementation_owners: Optional[Iterable[str]] = None,
     creative_pilot_context: Optional[Dict[str, Any]] = None,
     packet_required_context: Optional[List[str]] = None,
+    agent_definition_texts: Optional[Mapping[str, str]] = None,
+    context_map_text: Optional[str] = None,
+    routing_override: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     if creative_pilot_context is not None:
@@ -2252,7 +2325,9 @@ def build_dispatch_manifest(
             creative_pilot_context = validate_task_pilot_context(creative_pilot_context)
         except CreativePilotContractError as exc:
             raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
-    context_map = _parse_context_map()
+    context_map = (
+        _parse_context_map() if context_map_text is None else _parse_context_map(context_map_text)
+    )
     normalized_packet_required_context = (
         []
         if packet_required_context is None
@@ -2261,7 +2336,7 @@ def build_dispatch_manifest(
             field="packet_required_context",
         )
     )
-    routing = _ensure_routing_graph()
+    routing = routing_override if routing_override is not None else _ensure_routing_graph()
     primary_slugs = _primary_slugs_from_routing(routing)
     reviewer_slugs = _reviewer_slugs_from_routing(routing)
 
@@ -2272,7 +2347,14 @@ def build_dispatch_manifest(
         role_slugs = _enforce_mandatory_post_open_order(role_slugs)
 
     for slug in role_slugs:
-        agent_def = _load_agent_definition(slug)
+        definition_text = (
+            agent_definition_texts.get(slug) if agent_definition_texts is not None else None
+        )
+        agent_def = (
+            _load_agent_definition(slug)
+            if definition_text is None
+            else _load_agent_definition(slug, source_text=definition_text)
+        )
         if agent_def is None:
             missing_agents.append(slug)
             continue
@@ -2451,7 +2533,10 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         "--packet",
         type=str,
         default=None,
-        help="Path to governance packet markdown file.",
+        help=(
+            "Path to a JSON or Markdown governance packet. "
+            "Exact --role-context-order delivery requires JSON."
+        ),
     )
     source.add_argument(
         "--roles",
@@ -2499,13 +2584,51 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
             "Browser/Coding in runtime mode."
         ),
     )
+    parser.add_argument(
+        "--role-context-order",
+        type=int,
+        default=None,
+        metavar="N",
+        help=("Opt in to full exact context for one existing one-based dispatch occurrence."),
+    )
+    parser.add_argument(
+        "--instruction-file",
+        action="append",
+        default=[],
+        metavar="REPO_PATH",
+        help=("Explicit repo Markdown instruction path for exact context. Repeat as needed."),
+    )
 
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI entrypoint."""
+    global _routing_graph, _routing_validation_source
     args = _parse_args(argv)
+    exact_context_requested = args.role_context_order is not None
+    if exact_context_requested and args.role_context_order < 1:
+        print(
+            "FAIL: --role-context-order must be a positive one-based occurrence.", file=sys.stderr
+        )
+        return 1
+    if exact_context_requested and not args.packet:
+        print(
+            "FAIL: --role-context-order requires a packet-backed dispatch.",
+            file=sys.stderr,
+        )
+        return 1
+    if not exact_context_requested and args.instruction_file:
+        print(
+            "FAIL: --instruction-file requires --role-context-order.",
+            file=sys.stderr,
+        )
+        return 1
+    context_metrics = ContextIOMetrics()
+    exact_initial_snapshots: Dict[str, SourceSnapshot] = {}
+    exact_selection_paths: List[str] = []
+    packet_text: Optional[str] = None
+    packet_relative_path: Optional[str] = None
 
     # Resolve role slugs
     packet_source: Optional[str] = None
@@ -2519,15 +2642,51 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not packet_input_path.is_absolute():
             packet_input_path = REPO_ROOT / packet_input_path
         json_designated = _is_json_designated_packet(packet_input_path)
+        if exact_context_requested and not json_designated:
+            print(
+                "FAIL: --role-context-order requires a JSON task packet.",
+                file=sys.stderr,
+            )
+            return 1
         try:
-            packet_path = _resolve_packet_path(packet_input_path)
+            if exact_context_requested:
+                packet_relative_path = repo_relative_input(REPO_ROOT, str(packet_input_path))
+                packet_snapshot = read_repo_source(
+                    REPO_ROOT,
+                    packet_relative_path,
+                    metrics=context_metrics,
+                )
+                exact_initial_snapshots[packet_relative_path] = packet_snapshot
+                exact_selection_paths.append(packet_relative_path)
+                packet_path = REPO_ROOT.joinpath(*PurePosixPath(packet_relative_path).parts)
+                packet_text = packet_snapshot.text
+                routing_snapshot = read_repo_source(
+                    REPO_ROOT,
+                    ROUTING_GRAPH_SOURCE_PATH,
+                    metrics=context_metrics,
+                )
+                exact_initial_snapshots[ROUTING_GRAPH_SOURCE_PATH] = routing_snapshot
+                exact_selection_paths.append(ROUTING_GRAPH_SOURCE_PATH)
+            else:
+                packet_path = _resolve_packet_path(packet_input_path)
             packet_json_payload = _load_packet_payload(
                 packet_path,
                 json_designated=json_designated,
+                source_text=packet_text,
             )
-            role_slugs = _parse_loaded_packet_roles(packet_path, packet_json_payload)
+            if exact_context_requested:
+                _routing_validation_source = cast(
+                    Path,
+                    _PinnedRoutingGraphSource(routing_snapshot.text),
+                )
+            try:
+                role_slugs = _parse_loaded_packet_roles(packet_path, packet_json_payload)
+            finally:
+                _routing_validation_source = None
             packet_required_context = _packet_required_context_for_manifest(packet_json_payload)
-        except ValueError as exc:
+            if exact_context_requested:
+                context_metrics.parses += 1
+        except (ContextBundleError, ValueError) as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
         enforce_mandatory_post_open_tail = not (
@@ -2535,7 +2694,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             and _json_payload_requested_order_preserves_mandatory_tail(packet_json_payload)
         )
         # Extract bracket-notation parallelizable groups from packet
-        packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
+        packet_lines = (
+            packet_text.splitlines()
+            if packet_text is not None
+            else packet_path.read_text(encoding="utf-8").splitlines()
+        )
         packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
         packet_chained_successors = _extract_chain_successors(packet_lines) or None
         if packet_json_payload is not None and _json_payload_has_dispatch_role_order(
@@ -2543,10 +2706,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         ):
             packet_chained_successors = set(role_slugs[1:])
             enforce_mandatory_post_open_tail = False
-        try:
-            packet_source = str(packet_path.relative_to(REPO_ROOT))
-        except ValueError:
-            packet_source = str(packet_path)
+        if packet_relative_path is not None:
+            packet_source = packet_relative_path
+        else:
+            try:
+                packet_source = str(packet_path.relative_to(REPO_ROOT))
+            except ValueError:
+                packet_source = str(packet_path)
         if not role_slugs:
             print(
                 f"FAIL: No agent role slugs found in packet: {packet_path}",
@@ -2621,6 +2787,51 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             return 1
 
+    exact_agent_definition_texts: Optional[Dict[str, str]] = None
+    exact_context_map_text: Optional[str] = None
+    exact_routing: Optional[Dict[str, Any]] = None
+    selected_context_output: Optional[Dict[str, Any]] = None
+    if exact_context_requested:
+        context_map_path = CONTEXT_MAP_SOURCE_PATH
+        routing_path = ROUTING_GRAPH_SOURCE_PATH
+        definition_paths = [f".cursor/agents/{slug}.md" for slug in role_slugs]
+        exact_selection_paths.extend([context_map_path, routing_path, *definition_paths])
+        try:
+            exact_selection_paths, exact_initial_snapshots = capture_sources(
+                REPO_ROOT,
+                exact_selection_paths,
+                metrics=context_metrics,
+                existing=exact_initial_snapshots,
+            )
+        except ContextBundleError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
+        exact_context_map_text = exact_initial_snapshots[context_map_path].text
+        _routing_graph = None
+        try:
+            exact_routing = {
+                domain: {
+                    "cluster": route.cluster,
+                    "primary": route.primary,
+                    "secondary": route.secondary,
+                    "reviewer": route.reviewer,
+                }
+                for domain, route in load_routing_graph(
+                    cast(
+                        Path,
+                        _PinnedRoutingGraphSource(exact_initial_snapshots[routing_path].text),
+                    )
+                ).items()
+            }
+        except (OSError, ValueError) as exc:
+            print(f"FAIL: canonical routing graph unavailable: {exc}", file=sys.stderr)
+            return 1
+        _routing_graph = None
+        exact_agent_definition_texts = {
+            slug: exact_initial_snapshots[f".cursor/agents/{slug}.md"].text for slug in role_slugs
+        }
+        context_metrics.parses += 2 + len(set(role_slugs))
+
     # Build manifest
     manifest = build_dispatch_manifest(
         role_slugs=role_slugs,
@@ -2632,6 +2843,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         implementation_owners=implementation_owner_slugs,
         creative_pilot_context=creative_pilot_context,
         packet_required_context=packet_required_context,
+        agent_definition_texts=exact_agent_definition_texts,
+        context_map_text=exact_context_map_text,
+        routing_override=exact_routing,
     )
     if manifest.get("missing_agents"):
         print(
@@ -2641,9 +2855,66 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         return 1
 
+    if exact_context_requested:
+        occurrence = cast(int, args.role_context_order)
+        dispatch_sequence = cast(List[Dict[str, Any]], manifest["dispatch_sequence"])
+        if occurrence > len(dispatch_sequence):
+            print(
+                "FAIL: --role-context-order does not select an existing dispatch occurrence.",
+                file=sys.stderr,
+            )
+            return 1
+        selected = dispatch_sequence[occurrence - 1]
+        selected_context = cast(List[str], selected["required_context_paths"])
+        try:
+            ordinary_packet_context = _packet_required_context_for_exact_delivery(
+                packet_json_payload
+            )
+            base_selected_paths = [
+                cast(str, selected["agent_definition_path"]),
+                *selected_context,
+                *ordinary_packet_context,
+            ]
+            if packet_relative_path is not None and packet_relative_path in base_selected_paths:
+                raise ContextBundleError(
+                    "DYNAMIC_PACKET_SELECTED_AS_STATIC",
+                    packet_relative_path,
+                )
+            normalized_instructions: List[str] = []
+            for raw_path in args.instruction_file:
+                if Path(raw_path).is_absolute():
+                    raise ContextBundleError("INSTRUCTION_FILE_MUST_BE_REPO_RELATIVE")
+                normalized_instructions.append(
+                    validate_instruction_file(raw_path, base_selected_paths)
+                )
+            static_paths = [
+                validate_static_source_path(path)
+                for path in [*base_selected_paths, *normalized_instructions]
+            ]
+            role_context = materialize_context_bundle(
+                REPO_ROOT,
+                occurrence=occurrence,
+                ordered_source_paths=static_paths,
+                bracket_paths=exact_selection_paths,
+                initial_snapshots=exact_initial_snapshots,
+                dynamic_packet_path=packet_relative_path,
+                metrics=context_metrics,
+            )
+        except (ContextBundleError, ValueError) as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
+        selected_context_output = {
+            "schema_version": OUTPUT_SCHEMA_VERSION,
+            "manifest": manifest,
+            "selected_dispatch": selected,
+            "role_context": role_context,
+            "context_io_metrics": context_metrics.as_dict(),
+        }
+
     # Output
     indent = 2 if args.pretty else None
-    json_output = json.dumps(manifest, ensure_ascii=False, indent=indent, sort_keys=False)
+    output_payload = selected_context_output if selected_context_output is not None else manifest
+    json_output = json.dumps(output_payload, ensure_ascii=False, indent=indent, sort_keys=False)
 
     if args.output:
         out_path = Path(args.output)
@@ -2651,7 +2922,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             out_path = (REPO_ROOT / out_path).resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(json_output + "\n", encoding="utf-8")
-        print(f"Manifest written to: {out_path}", file=sys.stderr)
+        output_label = "Role context output" if selected_context_output is not None else "Manifest"
+        print(f"{output_label} written to: {out_path}", file=sys.stderr)
     else:
         print(json_output)
 
