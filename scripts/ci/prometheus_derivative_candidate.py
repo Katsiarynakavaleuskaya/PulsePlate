@@ -40,7 +40,7 @@ OFFICIAL_RUNTIME_REF = (
     "84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"  # pragma: allowlist secret
 )
 EXPECTED_CONTAINERFILE_SHA256 = (
-    "b5f6caa104fcf1c4767ef3a13a62a4cf7b58b064beb3dcdf410f08c189e3fe97"  # pragma: allowlist secret
+    "85bf616f51bb77a9d30d487af2d51fcb10d41192f578ce14fba8f047ad8d148d"  # pragma: allowlist secret
 )
 EXPECTED_SELECTOR_SHA256 = (
     "06e312ed9efe5ec96a582e7a1ee1291dc02c451f773fb6756fb411ef18ece457"  # pragma: allowlist secret
@@ -653,7 +653,7 @@ def _normalize_trivy_report(value: object) -> tuple[list[dict[str, object]], lis
             ("Vulnerabilities", "VulnerabilityID"),
             ("Secrets", "RuleID"),
         ):
-            raw_findings = row.get(collection) or []
+            raw_findings = row.get(collection, [])
             if not isinstance(raw_findings, list):
                 raise _hold("trivy_report_invalid")
             for finding in raw_findings:

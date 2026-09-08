@@ -223,6 +223,11 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   original asset against its gzip at consumption, retains the sole Go replace,
   selects gRPC `v1.83.1`, and overlays only the two verified binaries on the
   unchanged official linux/amd64 base.
+- Both binaries retain their ELF symbol table for the pinned scanner's
+  version-metadata path: the shared linker flags keep `-w` but not `-s`.
+  Preserve `-trimpath`, `-buildvcs=false` and all exact `-X` version metadata;
+  missing package names or versions remain a scan HOLD, never an exception or
+  fabricated scanner value.
 - The canonical cloud-build/local-publication procedure, executor/profile
   binding, one-push receipts, safe OCI import, and module ceilings live only in
   [scripts/AGENTS.md](../scripts/AGENTS.md#prometheus-derivative-candidate).

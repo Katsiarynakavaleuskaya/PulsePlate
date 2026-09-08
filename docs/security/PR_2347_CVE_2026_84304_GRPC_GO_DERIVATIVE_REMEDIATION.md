@@ -14,10 +14,12 @@ Candidate evidence and a final receipt would not change that selector.
 
 ## Current truth
 
-- Run `34047493123` on head `cfe313c3a7413b201000d953a4dcd9716df5c4fd`
-  completed both build calls and their input/parser/identity checks, then
-  stopped at `HOLD:path_independent_build_mismatch` before scanning. This is
-  two completed builds, not a reproducible, scanned or admitted candidate.
+- Run `34051839413` on head `19a629904cfa17e9527fc0d8ca5a499aec61660d`
+  completed both builds and passed complete build-evidence equality, then
+  stopped at `HOLD:trivy_package_coverage_incomplete` at 18:46:25Z on
+  2026-09-06. Equality was observed for that material, but the scanner
+  postcondition and candidate admission failed. Only receipt 00 exists;
+  the raw Trivy report was cleaned, so the exact incomplete package is unknown.
 - The official selected Prometheus linux/amd64 image embeds gRPC `v1.83.0`;
   CVE-2026-84304 is fixed in `v1.83.1`.
 - Caddy's exact module graph and binary metadata now select `v1.83.1` at
@@ -124,6 +126,9 @@ outstanding cloud build, scan, publication or selector evidence.
 
 ## Reproducibility export and bounded failure evidence
 
+Earlier run `34047493123` on head
+`cfe313c3a7413b201000d953a4dcd9716df5c4fd` completed both build calls, then
+stopped at `HOLD:path_independent_build_mismatch` before scanning.
 The failed equality run did not retain differing field values before its
 normal temporary-archive cleanup. It cannot establish whether binary, UI or
 OCI metadata differed; its receipt 00 remains failed and is not reused.
@@ -152,6 +157,46 @@ The missing exporter normalization is a supported contract correction, not
 proof that timestamps were the sole cause of the observed mismatch. Only a
 fresh exact-head run can establish equality and then the unchanged scanner
 postcondition. Expected content hashes are not rewritten to accept drift.
+
+## Scanner-compatible binary metadata
+
+The later scan HOLD does not prove which package lacked metadata. Independently,
+the pinned Trivy 0.74.0 Go-binary parser documents the Go trimpath/ldflags
+limitation and uses ELF symbols to read version strings. The previous shared
+`-s -w` linker flags removed the symbol table needed by that fallback while
+the recipe retained `-trimpath`. This source-grounded compatibility correction
+removes only `-s` from `deploy/prometheus/Containerfile:186`; it is not a claim
+that stripping was the proven cause of the observed report failure.
+[Pinned Trivy Go parser](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/dependency/parser/golang/binary/parse.go),
+[pinned ELF symbol reader](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/dependency/parser/golang/binary/elf.go).
+
+Both binary builds still use one shared flag value with `-w`, the same
+`-trimpath`/`-buildvcs=false`, exact version/revision/branch/user/date `-X`
+fields, source, locks, toolchain and resource controls. The recipe's actual
+SHA-256 is now
+`85bf616f51bb77a9d30d487af2d51fcb10d41192f578ce14fba8f047ad8d148d`,
+and the controller binds those exact bytes. Binary and image digests are
+expected to change; their values and size are not predicted.
+
+The scanner predicate is unchanged: every reported package requires a
+non-empty string name and version. Regression fixtures include the main
+`github.com/prometheus/prometheus` package beside gRPC in both binaries;
+empty main versions still fail even when every other package is valid.
+Positive `3.14.0` fixtures prove normalization only, not ELF extraction.
+Scan HOLD must not emit success artifacts or advance receipts. A fresh
+two-build equality run and actual Trivy report must establish both binaries'
+main version `3.14.0`, gRPC `v1.83.1`, complete package coverage and zero
+HIGH/CRITICAL findings before admission; publication remains separately gated.
+
+Findings collections retain the pinned Trivy type contract for every existing
+target. Trivy 0.74.0 declares `Vulnerabilities` and `Secrets` as typed slices
+with `omitempty`: omission and `[]` normalize equivalently. The reader now
+defaults only an absent key, rather than replacing every false-valued input
+with `[]`. Explicit `null` and every present non-list fail the existing
+`trivy_report_invalid` gate; populated findings still preserve their identity
+and severity and fail nonzero-count admission. This changes no target,
+severity policy, package predicate, suppression or publication authority.
+[Pinned report types](https://github.com/aquasecurity/trivy/blob/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994/pkg/types/report.go).
 
 ## Closed pre-build identity
 

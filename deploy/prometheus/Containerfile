@@ -183,7 +183,7 @@ printf 'PULSEPLATE_MODULE_GRAPH_COUNT=%s\n' \
   "$(wc -l < /tmp/prometheus-module-graph | tr -d '[:space:]')"
 
 install -d -m 0755 /out
-version_ldflags="-s -w \
+version_ldflags="-w \
   -X github.com/prometheus/common/version.Version=3.14.0 \
   -X github.com/prometheus/common/version.Revision=09fdfcd2659dd9c816e9e23c992fc161c0091757 \
   -X github.com/prometheus/common/version.Branch=main \

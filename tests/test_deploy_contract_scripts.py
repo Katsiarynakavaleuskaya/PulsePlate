@@ -546,14 +546,20 @@ def _candidate_trivy_report() -> dict[str, object]:
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Vulnerabilities": [],
-                "Packages": [{"Name": "google.golang.org/grpc", "Version": "v1.83.1"}],
+                "Packages": [
+                    {"Name": "github.com/prometheus/prometheus", "Version": "3.14.0"},
+                    {"Name": "google.golang.org/grpc", "Version": "v1.83.1"},
+                ],
             },
             {
                 "Target": "/bin/promtool",
                 "Class": "lang-pkgs",
                 "Type": "gobinary",
                 "Vulnerabilities": [],
-                "Packages": [{"Name": "google.golang.org/grpc", "Version": "v1.83.1"}],
+                "Packages": [
+                    {"Name": "github.com/prometheus/prometheus", "Version": "3.14.0"},
+                    {"Name": "google.golang.org/grpc", "Version": "v1.83.1"},
+                ],
             },
         ]
     }
@@ -667,6 +673,50 @@ def test_prometheus_candidate_recipe_keeps_exact_patched_toolchain(
             "size": recipe.stat().st_size,
             "sha256": "sha256:" + hashlib.sha256(recipe.read_bytes()).hexdigest(),
         }
+
+
+def test_prometheus_candidate_retains_scannable_symbols_and_exact_shared_build_flags() -> None:
+    recipe = PROMETHEUS_CONTAINERFILE_PATH.read_text(encoding="utf-8")
+    shared_flags = re.search(r'^version_ldflags="([^"]+)"$', recipe, re.MULTILINE)
+    assert shared_flags is not None
+    assert recipe.count("version_ldflags=") == 1
+    flags = shared_flags.group(1).replace("\\\n", " ").split()
+    assert flags == [
+        "-w",
+        "-X",
+        "github.com/prometheus/common/version.Version=3.14.0",
+        "-X",
+        "github.com/prometheus/common/version.Revision=09fdfcd2659dd9c816e9e23c992fc161c0091757",
+        "-X",
+        "github.com/prometheus/common/version.Branch=main",
+        "-X",
+        "github.com/prometheus/common/version.BuildUser=pulseplate@pr-2347",
+        "-X",
+        "github.com/prometheus/common/version.BuildDate=20260830-08:50:47",
+    ]
+    assert "-s" not in flags
+    assert recipe.count("go build \\\n") == 2
+    assert recipe.count('-ldflags "$version_ldflags"') == 2
+    for binary in ("prometheus", "promtool"):
+        command = (
+            "go build \\\n"
+            "  -p=1 \\\n"
+            "  -mod=readonly \\\n"
+            "  -trimpath \\\n"
+            "  -buildvcs=false \\\n"
+            "  -tags=netgo,builtinassets \\\n"
+            '  -ldflags "$version_ldflags" \\\n'
+            f"  -o /out/{binary} \\\n"
+            f"  ./cmd/{binary}\n"
+        )
+        assert recipe.count(command) == 1
+    for setting in (
+        "export NODE_OPTIONS=--max-old-space-size=2048",
+        "export GOMAXPROCS=2",
+        "export GOMEMLIMIT=3GiB",
+        "    GOTOOLCHAIN=local \\",
+    ):
+        assert recipe.count(setting) == 1
 
 
 @pytest.mark.parametrize("seed", ("missing", "existing", "partial"))
@@ -2110,6 +2160,48 @@ def test_prometheus_trivy_coverage_is_path_neutral_and_requires_all_targets() ->
             {"UpdatedAt": "2026-08-01T00:00:00Z"},
             now=datetime.fromisoformat("2026-09-04T00:00:00+00:00"),
         )
+
+
+@pytest.mark.parametrize("target_index", (0, 1, 2))
+@pytest.mark.parametrize("field", ("Name", "Version"))
+@pytest.mark.parametrize("invalid", ("missing", "empty", "nonstring"))
+def test_prometheus_trivy_requires_metadata_for_every_reported_package(
+    target_index: int, field: str, invalid: str
+) -> None:
+    report = _candidate_trivy_report()
+    package = report["Results"][target_index]["Packages"][0]
+    if target_index:
+        assert package == {"Name": "github.com/prometheus/prometheus", "Version": "3.14.0"}
+    if invalid == "missing":
+        del package[field]
+    else:
+        package[field] = "" if invalid == "empty" else 42
+    assert all(
+        isinstance(other.get("Name"), str)
+        and other["Name"]
+        and isinstance(other.get("Version"), str)
+        and other["Version"]
+        for row in report["Results"]
+        for other in row["Packages"]
+        if other is not package
+    )
+    with pytest.raises(
+        prometheus_candidate.CandidateHold, match="trivy_package_coverage_incomplete"
+    ):
+        prometheus_candidate._normalize_trivy_report(report)
+
+
+def test_prometheus_trivy_main_version_fixture_proves_normalization_only() -> None:
+    report = _candidate_trivy_report()
+    for row in report["Results"][1:]:
+        assert row["Packages"] == [
+            {"Name": "github.com/prometheus/prometheus", "Version": "3.14.0"},
+            {"Name": "google.golang.org/grpc", "Version": "v1.83.1"},
+        ]
+    normalized, targets = prometheus_candidate._normalize_trivy_report(report)
+    assert targets == list(prometheus_candidate.REQUIRED_TRIVY_TARGETS)
+    assert len(normalized) == 3
+    assert all(row["findings"] == [] for row in normalized)
 
 
 def test_prometheus_transport_successful_registry_observation_binds_oci_shape(
@@ -10321,7 +10413,19 @@ def test_prometheus_cloud_tool_setup_is_pinned_and_observes_actual_programs(
 
 
 @pytest.mark.parametrize(
-    "mutation", (None, "host", "head", "repository", "job", "attempt", "digest", "build_mismatch")
+    "mutation",
+    (
+        None,
+        "host",
+        "head",
+        "repository",
+        "job",
+        "attempt",
+        "digest",
+        "build_mismatch",
+        "scan_prometheus_version",
+        "scan_promtool_version",
+    ),
 )
 def test_prometheus_cloud_entry_has_no_local_executor_or_receipt_authority(
     tmp_path: Path,
@@ -10391,17 +10495,33 @@ def test_prometheus_cloud_entry_has_no_local_executor_or_receipt_authority(
 
     def scan(_adapter: object, archive: Path) -> object:
         scans.append(archive)
+        report = _candidate_trivy_report()
+        if mutation in {"scan_prometheus_version", "scan_promtool_version"}:
+            target_index = 1 if mutation == "scan_prometheus_version" else 2
+            report["Results"][target_index]["Packages"][0]["Version"] = ""
+        prometheus_candidate._normalize_trivy_report(report)
         return _candidate_scan()
 
     monkeypatch.setattr(prometheus_candidate.ExactAdapters, "_scan", scan)
     if mutation:
-        with pytest.raises(prometheus_candidate.CandidateHold):
+        failure = (
+            "trivy_package_coverage_incomplete"
+            if mutation in {"scan_prometheus_version", "scan_promtool_version"}
+            else None
+        )
+        with pytest.raises(prometheus_candidate.CandidateHold, match=failure):
             prometheus_candidate.execute_cloud(repo)
-        assert scans == []
-        if mutation != "build_mismatch":
+        if mutation in {"scan_prometheus_version", "scan_promtool_version"}:
+            assert builds == [1, 2]
+            assert len(scans) == 1
+            assert capsys.readouterr().err == ""
+            assert list((repo / "artifacts/security_lab/prometheus_cloud_result").iterdir()) == []
+        elif mutation != "build_mismatch":
+            assert scans == []
             assert builds == []
             assert capsys.readouterr().err == ""
         else:
+            assert scans == []
             assert builds == [1, 2]
             assert "Build mismatch manifest_digest:" in capsys.readouterr().err
             assert list((repo / "artifacts/security_lab/prometheus_cloud_result").iterdir()) == []
@@ -10632,3 +10752,94 @@ def test_prometheus_local_identity_requires_gh_but_no_builder_or_local_trivy(
     assert identity["gh_version"] == "gh version 2.88.0"
     assert identity["gh_path"] == "/usr/bin/gh"
     assert all("trivy" not in key and "builder" not in key for key in identity)
+
+
+@pytest.mark.parametrize("collection", ("Vulnerabilities", "Secrets"))
+@pytest.mark.parametrize("target_index", (0, 1, 2))
+def test_prometheus_trivy_findings_collection_omission_equals_empty_list(
+    collection: str, target_index: int
+) -> None:
+    omitted = _candidate_trivy_report()
+    explicit_empty = _candidate_trivy_report()
+    omitted["Results"][target_index].pop(collection, None)
+    explicit_empty["Results"][target_index][collection] = []
+    assert prometheus_candidate._normalize_trivy_report(omitted) == (
+        prometheus_candidate._normalize_trivy_report(explicit_empty)
+    )
+
+
+@pytest.mark.parametrize("collection", ("Vulnerabilities", "Secrets"))
+@pytest.mark.parametrize("target_index", (0, 1, 2))
+@pytest.mark.parametrize(
+    "present_value",
+    (
+        pytest.param(None, id="null"),
+        pytest.param({}, id="empty-object"),
+        pytest.param({"unexpected": "object"}, id="object"),
+        pytest.param(False, id="false"),
+        pytest.param(True, id="true"),
+        pytest.param(0, id="integer-zero"),
+        pytest.param(0.0, id="float-zero"),
+        pytest.param(7, id="integer-nonzero"),
+        pytest.param(-1.25, id="float-nonzero"),
+        pytest.param("", id="empty-string"),
+        pytest.param("not-a-list", id="string"),
+    ),
+)
+def test_prometheus_trivy_findings_collection_rejects_every_present_nonlist_type(
+    collection: str, target_index: int, present_value: object
+) -> None:
+    report = _candidate_trivy_report()
+    report["Results"][target_index][collection] = present_value
+    with pytest.raises(prometheus_candidate.CandidateHold, match="trivy_report_invalid"):
+        prometheus_candidate._normalize_trivy_report(report)
+
+
+@pytest.mark.parametrize("collection", ("Vulnerabilities", "Secrets"))
+@pytest.mark.parametrize("target_index", (0, 1, 2))
+@pytest.mark.parametrize("severity", ("HIGH", "CRITICAL"))
+def test_prometheus_trivy_findings_collection_preserves_findings_before_admission_rejects(
+    collection: str, target_index: int, severity: str
+) -> None:
+    report = _candidate_trivy_report()
+    package = report["Results"][target_index]["Packages"][0]
+    identity_field = "VulnerabilityID" if collection == "Vulnerabilities" else "RuleID"
+    report["Results"][target_index][collection] = [
+        {
+            identity_field: "synthetic-finding",
+            "Severity": severity,
+            "PkgName": package["Name"],
+            "InstalledVersion": package["Version"],
+            "FixedVersion": "next",
+        }
+    ]
+    normalized, targets = prometheus_candidate._normalize_trivy_report(report)
+    findings = [finding for row in normalized for finding in row["findings"]]
+    assert findings == [
+        {
+            "kind": collection,
+            "id": "synthetic-finding",
+            "package": package["Name"],
+            "installed": package["Version"],
+            "fixed": "next",
+            "severity": severity,
+        }
+    ]
+    assert targets == list(prometheus_candidate.REQUIRED_TRIVY_TARGETS)
+    scan = _candidate_scan()
+    scan["high_count"] = sum(finding["severity"] == "HIGH" for finding in findings)
+    scan["critical_count"] = sum(finding["severity"] == "CRITICAL" for finding in findings)
+    with pytest.raises(prometheus_candidate.CandidateHold, match="scan_findings_present"):
+        prometheus_candidate._scan_evidence(scan)
+
+
+@pytest.mark.parametrize("collection", ("Vulnerabilities", "Secrets"))
+@pytest.mark.parametrize("target_index", (0, 1, 2))
+@pytest.mark.parametrize("member", (None, "not-a-finding", {}, {"Severity": "HIGH"}))
+def test_prometheus_trivy_findings_collection_rejects_malformed_list_members(
+    collection: str, target_index: int, member: object
+) -> None:
+    report = _candidate_trivy_report()
+    report["Results"][target_index][collection] = [member]
+    with pytest.raises(prometheus_candidate.CandidateHold, match="trivy_report_invalid"):
+        prometheus_candidate._normalize_trivy_report(report)
