@@ -111,7 +111,9 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     """Run a gate script and capture its output without mutating its behavior."""
 
     argv = [sys.executable, str(script_path), *extra_args]
-    timeout_seconds = MERGE_GATE_TIMEOUT_SEC if script_path == MERGE_GATE else RUN_TIMEOUT_SEC
+    timeout_seconds = (
+        MERGE_GATE_TIMEOUT_SEC if script_path in (MERGE_GATE, DISPOSITION_GATE) else RUN_TIMEOUT_SEC
+    )
     try:
         result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,
