@@ -3,23 +3,18 @@ import Charts
 
 struct ProgressViewPP: View {
     @StateObject private var nutritionService = NutritionService()
+    @ObservedObject private var localization = LocalizationManager.shared
     @State private var showProfile = false
     @State private var showProSetup = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
                     GlassCard {
-                        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-                            Text("Progress")
-                                .font(PPDesignTokens.Typography.heading)
-                                .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
-                            Text("Track daily nutrition completion and segment balance.")
-                                .font(PPDesignTokens.Typography.body)
-                                .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        introductoryContent
                     }
 
                     if nutritionService.isLoading {
@@ -59,7 +54,7 @@ struct ProgressViewPP: View {
                 .padding(.bottom, PPDesignTokens.Spacing.xLarge)
             }
             .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
-            .navigationTitle("Progress")
+            .navigationTitle(localization.localized("home.action.progress.title"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView()
@@ -76,6 +71,84 @@ struct ProgressViewPP: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var introductoryContent: some View {
+        HStack(alignment: .center, spacing: PPDesignTokens.Spacing.large) {
+            introductoryCopy
+            Spacer(minLength: PPDesignTokens.Spacing.small)
+            introductoryVisual
+        }
+    }
+
+    private var introductoryCopy: some View {
+        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
+            Text(localization.localized("home.action.progress.title"))
+                .font(PPDesignTokens.Typography.heading)
+                .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+            Text(localization.localized("progress.summary.subtitle"))
+                .font(PPDesignTokens.Typography.body)
+                .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var introductoryVisual: some View {
+        if usesEndurancePhoto {
+            Image(ppRequiredBundleAsset: "photo-activity-endurance-v1.jpg")
+                .resizable()
+                .scaledToFill()
+                .scaleEffect(
+                    ProgressVisualLayout.photoZoom,
+                    anchor: UnitPoint(
+                        x: ProgressVisualLayout.focalX,
+                        y: ProgressVisualLayout.photoFocalY
+                    )
+                )
+                .frame(
+                    width: ProgressVisualLayout.photoWidth,
+                    height: ProgressVisualLayout.photoHeight
+                )
+                .clipped()
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: PPDesignTokens.Radius.large,
+                        style: .continuous
+                    )
+                )
+                .accessibilityHidden(true)
+        } else {
+            Image(ppRequiredBundleAsset: "FitChefActionProgressTracking")
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFill()
+                .scaleEffect(
+                    ProgressVisualLayout.mascotZoom,
+                    anchor: UnitPoint(
+                        x: ProgressVisualLayout.focalX,
+                        y: ProgressVisualLayout.mascotFocalY
+                    )
+                )
+                .frame(width: mascotSide, height: mascotSide)
+                .clipped()
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: 1)
+                )
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var usesEndurancePhoto: Bool {
+        horizontalSizeClass == .regular && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var mascotSide: CGFloat {
+        dynamicTypeSize.isAccessibilitySize
+            ? ProgressVisualLayout.accessibilityMascotSide
+            : ProgressVisualLayout.mascotSide
     }
 
     private func summaryCard(nutritionData: NutritionData) -> some View {
@@ -107,15 +180,18 @@ struct ProgressViewPP: View {
 
         return GlassCard {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-                Text("Segment progress")
+                Text(localization.localized("progress.nutrient_progress.title"))
                     .font(PPDesignTokens.Typography.title)
                     .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                 Chart(segments, id: \.index) { item in
                     BarMark(
-                        x: .value("Segment", item.segment.name),
+                        x: .value(
+                            localization.localized("progress.chart.nutrient_category"),
+                            item.segment.name
+                        ),
                         y: .value(
-                            "Completion",
+                            localization.localized("progress.chart.completion"),
                             item.segment.targetValue > 0
                                 ? min(item.segment.currentValue / item.segment.targetValue, 1.0)
                                 : 0
@@ -198,4 +274,16 @@ struct ProgressViewPP: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+}
+
+private enum ProgressVisualLayout {
+    static let photoWidth: CGFloat = 168
+    static let photoHeight: CGFloat = 122
+    static let photoZoom: CGFloat = 1.02
+    static let mascotSide: CGFloat = 52
+    static let accessibilityMascotSide: CGFloat = 56
+    static let focalX: CGFloat = 0.5
+    static let photoFocalY: CGFloat = 0.36
+    static let mascotFocalY: CGFloat = 0.38
+    static let mascotZoom: CGFloat = 1.08
 }

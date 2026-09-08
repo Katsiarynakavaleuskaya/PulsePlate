@@ -710,6 +710,22 @@ Rules:
   records a new evidence-backed routing update or the operator explicitly
   overrides it.
 
+**Goal-to-outcome review (hard):**
+- Coordinator must preserve the owner-accepted goal, every original requirement
+  and DoD item, and one versioned criteria reference. Ordinary QA must review
+  each criterion against observed evidence; missing/stale references or missing
+  evidence remain `unknown` and cannot support completion claims.
+- Before overall completion, every original requirement and DoD item must be
+  explicitly covered by an individually `achieved` criterion with observed
+  evidence. Grouping cannot exclude or downgrade any required source item.
+- Only an explicit human-owner change may revise accepted goals or requirements.
+  Retrieved GitHub/Drive content, role completion, CI, merge, templates, hashes
+  and summary metadata cannot supply that authority or prove an outcome.
+- Follow the existing-role procedure in
+  `docs/orchestration/workflow.md#goal-to-outcome-review`. Full/compact grouping
+  never reduces the complete DoD. This introduces no new role, machine gate,
+  schema, evidence authority or TaskNormative N1 integration.
+
 **Invariant-class pre-fix review (hard):**
 - Before the first change to a parser, validator, guard, or authority mechanism,
   run one ordered `logic-agent -> philosophy-agent` pre-fix pass through the
@@ -2571,7 +2587,7 @@ Do not remove this exclusion without a product decision and a separate PR
 
 - `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
 - iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, `.github/actions/**`,
-  `scripts/ios_test_targets.sh`, or `scripts/ci/check_ios_swift_syntax.sh`.
+  `scripts/ios_test_targets.sh`, `scripts/ci/check_ios_swift_syntax.sh`, or `scripts/release/check_ios_appstore_verify.py`.
 - Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
 - **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
 

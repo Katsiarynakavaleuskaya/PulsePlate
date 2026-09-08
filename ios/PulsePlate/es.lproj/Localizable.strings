@@ -42,14 +42,14 @@
 "profile_terms_of_use" = "Términos de Uso";
 "profile_screen_accessibility_label" = "Pantalla de perfil";
 
-"pro.profile.header" = "Perfil nutricional PRO";
+"pro.profile.header" = "Perfil nutricional";
 "pro.profile.sex" = "Sexo";
 "pro.profile.age_years" = "Edad (años)";
 "pro.profile.height_cm" = "Altura (cm)";
 "pro.profile.weight_kg" = "Peso (kg)";
 "pro.profile.activity" = "Actividad";
 "pro.profile.goal" = "Objetivo";
-"pro.profile.footer" = "Usado por Plate (PRO) para solicitar /api/v1/pro/nutrition/daily.";
+"pro.profile.footer" = "Estos datos personalizan tu vista diaria de nutrición.";
 
 "common.not_set" = "No establecido";
 "sex.female" = "Femenino";
@@ -139,8 +139,14 @@
 "home.action.retry.title" = "Intentar de nuevo";
 "bmi.calculate.cta" = "Calcular";
 "bmi.calculate.loading" = "Calculando...";
-"plate.preview.title" = "Mi Plate";
-"plate.preview.subtitle" = "Toca los segmentos para ajustar tu nutrición";
+"plate.preview.title" = "Plato de hoy";
+"plate.preview.subtitle" = "Visualiza tu plato. Registra una comida. Consulta la composición.";
+"progress.summary.subtitle" = "Sigue tu alimentación diaria y el equilibrio de nutrientes.";
+"progress.nutrient_progress.title" = "Progreso de nutrientes";
+"progress.complete" = "del objetivo diario";
+"progress.label" = "Progreso de alimentación diario";
+"progress.chart.nutrient_category" = "Categoría de nutrientes";
+"progress.chart.completion" = "Progreso";
 "plate.preview.add_meal" = "Añadir comida";
 "plate.preview.view_details" = "Ver detalles";
 "plate.segment.vegetables" = "Verduras";

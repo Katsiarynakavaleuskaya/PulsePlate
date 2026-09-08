@@ -46,11 +46,12 @@ implemented feature
 
 ## Canonical Gate Source
 
-Root `AGENTS.md` section `App Store release readiness gates` is the hard-gate
-source of truth for release readiness checks. This epic, the feature matrix, and
-the orchestration packet are planning mirrors that explain how the train will
-close each gate. When a readiness gate changes, update root `AGENTS.md` first,
-then update this epic, the matrix, and the lane packet in the same PR.
+Root `AGENTS.md` owns global App Store prerequisites and shared hard gates;
+`ios/AGENTS.md` owns the scoped iOS CI operating contract. The executable workflow
+truth is `.github/workflows/ci.yml`. This epic and the feature matrix are
+planning/history mirrors. When a gate changes, update its owning instruction
+surface and the affected mirrors in the same PR; do not duplicate scoped CI
+mechanics in root instructions.
 
 ## Current Repo Truth
 
@@ -68,8 +69,22 @@ then update this epic, the matrix, and the lane packet in the same PR.
   only `core_value` is `SUBMIT_READY`; unreleased feature assets are preserved
   but remain `IMPLEMENTATION_REQUIRED`.
 - HealthKit remains read-only and Swift 6 readiness cleanup has landed.
-- AppIcon marketing asset validation and the unified repo-local
-  `make ios-appstore-verify` gate have landed.
+- The approved `AppIcon-1024.png` is a valid, byte-locked 1024x1024 PNG. For the
+  current Xcode/actool contract, its `ios-marketing` entry is exactly the four
+  keys `filename`, `idiom`, `scale`, and `size`; `platform` is absent from this
+  entry. CAB-03 adds that exact assignment contract and a separate unsigned
+  Release simulator compilation after the complete unit run.
+- The `platform` absence rule applies only to this `ios-marketing` entry. It
+  changes no other asset entry and implies no iOS/visionOS support, Xcode
+  project-setting, target-membership, or PNG-content change.
+- The validator-owned SHA-256 pin applies to the current CAB-03 admitted baseline, not
+  to every future visual revision. A dedicated asset-focused visual/provenance
+  PR may atomically replace the PNG and rotate that single approved hash pin.
+- The unified repo-local `make ios-appstore-verify` gate remains the canonical
+  local release validator; CAB-03 strengthens its existing AppIcon check rather
+  than creating another validator family.
+- The existing blocking `ios-tests` job invokes that canonical validator script
+  exactly once before the complete unit step, then runs the separate Release build.
 - Protected App Store Connect upload and final submission evidence remain
   operator-owned release-ops tasks outside repo branches.
 
@@ -112,11 +127,16 @@ then update this epic, the matrix, and the lane packet in the same PR.
    - Execution branch: `release/appstore-readiness-pr8-appicon-marketing-asset`
    - Repair asset catalog assignment, PNG validity, and actool warning.
    - Do not mix broader App Store asset changes.
-   - **Status (PR-8):** `AppIcon-1024.png` validated — 1024x1024 PNG,
-     valid signature, correct ios-marketing declaration.
-     Deterministic guard added in
-     `tests/ios/test_appicon_marketing_asset.py`. No asset changes needed.
-     App Store Connect upload remains operator-owned.
+   - **Historical status (PR-8):** `AppIcon-1024.png` was confirmed as a valid
+     1024x1024 PNG and no pixel change was needed, but the current-Xcode/actool
+     assignment remained incomplete: `scale=1x` was absent while `platform`
+     was present on the `ios-marketing` entry.
+   - **CAB-03 correction:** bind the exact four-field marketing slot with
+     `platform` absent and retain the approved PNG bytes in the existing
+     validators, then run one blocking unsigned Release simulator build after
+     the complete unit test target.
+     This performs no archive, distribution signing, upload, submission, or
+     App Store Connect mutation.
 
 7. **PR-6: HealthKit Swift 6 readiness**
    - Branch: `release/appstore-readiness-pr9-healthkit-swift6`
@@ -224,15 +244,35 @@ Every PR in this train starts with:
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
-python3 scripts/orchestration/task_bootstrap.py --goal "<slice goal>" --task-class Orchestration --pr-phase pre_open
+# CAB-03 example; other slices use the class selected by their coordinator packet.
+python3 scripts/orchestration/task_bootstrap.py --goal "<slice goal>" --task-class Release --pr-phase pre_open
 ```
 
-Before push, run the normal local bundle unless the operator explicitly approves
-a machine-heavy exception:
+The task class must follow the current packet and slice rather than a universal
+epic default. CAB-03 uses `--task-class Release`; another slice uses the class
+selected by its own coordinator packet.
+
+Before push, run focused tests for the touched surface and the normal narrow
+local bundle:
 
 ```bash
+# CAB-03 example; a different slice uses the focused tests selected by its packet.
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" -m pytest -q \
+  tests/ios/test_appicon_marketing_asset.py::test_appicon_marketing_entry_is_declared_once \
+  tests/ios/test_appicon_marketing_asset.py::test_appicon_marketing_validator_reports_exact_canonical_success \
+  tests/test_ci_workflow_pr_size_governance_contract.py::test_ios_release_simulator_build_stays_blocking_after_complete_unit_run \
+  tests/test_ci_workflow_pr_size_governance_contract.py::test_ios_release_build_run_digest_rejects_appended_command
+"$VENV_PYTHON" -m pytest -q tests/ios/test_ios_appstore_verify.py -k appicon
+make validate-changed
 pre-commit run --all-files
-make verify
+```
+
+Full local verification is outside the default machine budget. Run it only
+after an explicit human override authorizes one invocation:
+
+```bash
+make verify  # explicit one-invocation human override required
 ```
 
 iOS/App Store slices add the relevant focused checks:
@@ -246,6 +286,27 @@ bundle exec fastlane verify_appstore_metadata
 Protected upload completion remains outside implementation PRs and requires
 operator-owned App Store Connect evidence per
 `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`.
+
+### CAB-03 owner-approved acceptance clarification
+
+For PR #2381 only, the owner explicitly accepted these three clarifications on
+2026-09-06 after the criterion-by-criterion QA review:
+
+- The outer iOS job fallback is 60 minutes; the separate Release step remains
+  bounded at 600 seconds. Nominal setup headroom is not guaranteed.
+- `icon-silhouette-check` is inapplicable to this unchanged-PNG metadata-only
+  carrier: its separate pre-lock icon-core master inputs are absent. Preserve
+  that command's failure as evidence, not PASS; do not create or substitute
+  bitmap inputs. Exact AppIcon hash/dimensions and `design-guard` remain required.
+- The canonical GitHub diff-coverage job's no-coverable-lines result remains
+  N/A because this diff's Python changes are in scripts/tests. CAB-03 also
+  requires fresh exact-material supplemental local changed-line coverage at
+  least 97%. Never present the local percentage as a GitHub measurement.
+
+All other current-head CI, security, review, mapping/seal and wait-window gates
+remain required. These clarifications authorize neither merge nor release and
+do not alter acceptance for another carrier. The reserved subsequent carriers
+remain open in the [CLIENT-ARCH-1 continuation ledger](../roadmap/BACKLOG_LEDGER.md#ledger-client-arch-1-continuation).
 
 ## Security Notes
 
@@ -295,7 +356,11 @@ review until the metadata validator covers them directly.
 3. Social features remain explicitly out of scope.
 4. The first technical blocker is privacy manifest plus App Privacy truth.
 5. The second technical blocker is Release backend fail-fast.
-6. The third technical blocker is AppIcon marketing asset validation.
+6. The AppIcon PNG bytes were valid, but the current-Xcode/actool marketing-slot
+   assignment was incomplete. CAB-03 closes the exact four-field entry and
+   Release-compilation seam without changing other asset entries, platform
+   support, project settings, targets, or PNG content, and without claiming
+   archive, signing, upload, submission, or App Store acceptance.
 7. AI/CBT release requires consent, disclosure, and wellness-only posture.
 8. Production API host selection is deferred to PR-3 and must be resolved before
    changing `Info-Release.plist`.

@@ -46,6 +46,8 @@ Owned by repo-tracked scripts:
 - `scripts/orchestration/start_pr_lane.sh`
 - `scripts/orchestration/task_bootstrap.py`
 - `scripts/orchestration/skill_router.py`
+- `scripts/orchestration/design_lane_contract.py`
+- `scripts/orchestration/evidence_rail_applicability.py`
 - `scripts/orchestration/native_subagent_bridge.py`
 - related deterministic tests
 
@@ -95,6 +97,7 @@ unconditionally guaranteed by Markdown alone.
 | PR lane worktree + bootstrap start | Yes | Yes | No for manual invocation; yes for raw-session auto-start | Low | Repo wrapper-enforced once `start_pr_lane.sh` is invoked; Codex prompt is copy-paste guidance, not host auto-start |
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
+| Packet-bound evidence-rail treatment selection | Yes | Yes | No | Low | Deterministic after validated bootstrap; selection-only and non-authoritative |
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
 | Creative research lane | Yes | Yes | Likely yes for raw-session auto-start | Medium | Deterministic once invoked via explicit report/research triggers; not generic wellness wording |
 | Figma execution lane | Partial | Yes (packet gating only) | Likely yes for raw-session auto-start | High | Packet-gated and blocker-aware; `read_only` by default until valid metadata or explicit creation mode exists |
@@ -126,6 +129,10 @@ Current approved wording:
   the active session; it does not execute by itself.
 - Bootstrap packet generation is **deterministic once invoked**.
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
+- Evidence-rail treatment selection is **deterministic after validated
+  bootstrap**. It selects planning depth and the applicable legacy sidecar rail
+  set; it does not execute a rail or create review, CI, routing, enrollment,
+  merge, release, promotion, asset-mutation, or outcome authority.
 - Bug-hunter post-open pass is **deterministic once invoked** via
   `pr_phase=post_open_review`, not yet globally event-triggered.
 - Creative research is **deterministic once invoked** only for explicit
@@ -244,6 +251,57 @@ Out:
 
 - broad PR governance refactors,
 - new merge-readiness semantics.
+
+### ORCH-RAIL-1: packet-bound evidence-rail applicability
+
+In:
+
+- strict snapshot validation for canonical schema-3.1 task packets,
+- the closed precedence `invariant/security -> ready design -> docs-only ->
+  conservative`,
+- treatments for Teleology, Euler, Experiment Runner, and Creative,
+- additive-only legacy rail upgrades,
+- exact sidecar-mask derivation and packet-fingerprint cross-binding before
+  prompt rendering,
+- one frozen exact design-packet recognizer whose `execution_ready` result is
+  packet-local contract readiness only,
+- typed design-field forwarding through the existing starter into the existing
+  bootstrap contract.
+
+Out:
+
+- raw-prose reclassification or task-packet schema changes,
+- automatic role execution, Euler enrollment, Creative asset mutation, manual
+  downshift, sidecar schema/storage changes, new persistent artifacts, CI or
+  merge authority,
+- semantic cache, Evidence Graph, product runtime, OpenAPI, DB, frontend, or
+  iOS behavior.
+
+The repo wrapper enforces this slice only after an operator invokes
+`start_pr_lane.sh`. Dry-run reports applicability as pending and prints the
+future helper command; it does not create a packet, projection, sidecar, or
+worktree. A valid design packet may produce `Creative: recommend`, but a later
+human-approved packet/routing change is required before `creative-designer`
+can become a mandatory role pass.
+
+Raw packet-fingerprint continuity starts at the descriptor-safe applicability
+read. It is not historical authentication of bytes already changed by the same
+local UID, and filename/id equality is not producer-semantic identity
+recomputation. A shared v1/v2 producer-owned verifier is explicitly deferred to
+[the canonical task-packet identity follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier).
+The current projection remains selection-only with every authority field
+literal `false`.
+
+ORCH-RAIL-1 also keeps three intentional fail-closed compatibility boundaries.
+A schema-valid producer packet with more than 256 canonical candidate paths is
+outside the bounded v1 consumer and fails before sidecar or prompt output; it
+does not become a conservative result. An enabled design packet that still
+carries `missing_design_trigger` is contradictory and fails even if an older
+producer accepted that caller-supplied blocker. Finally, a selected historical
+base that predates the applicability helper cannot execute this new startup
+path. When any of these post-bootstrap conditions is discovered, the starter
+preserves the created worktree and packet for diagnosis as required; it does not roll
+back or reinterpret the lane.
 
 ### Local rollout (outside repo PR chain)
 

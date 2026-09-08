@@ -15,6 +15,21 @@ from typing import Dict, List, Optional
 _logger = logging.getLogger(__name__)
 
 
+def _normalize_region_lookup(region: str) -> str:
+    """Return the canonical case-insensitive key used by regional catalogs."""
+
+    return region.strip().lower()
+
+
+def _normalize_optional_category(category: Optional[str]) -> Optional[str]:
+    """Normalize an optional search filter; blank input means no filter."""
+
+    if category is None:
+        return None
+    normalized = category.strip()
+    return normalized or None
+
+
 @dataclass
 class RegionalProduct:
     """Продукт в региональном каталоге"""
@@ -54,8 +69,14 @@ class RegionCatalog:
         if not self.data_dir.exists():
             return
 
-        for csv_file in self.data_dir.glob("*.csv"):
-            region_code = csv_file.stem.replace("_products", "")
+        csv_files = sorted(
+            self.data_dir.glob("*.csv"),
+            key=lambda path: (path.name.casefold(), path.name),
+        )
+        for csv_file in csv_files:
+            region_code = _normalize_region_lookup(csv_file.stem).removesuffix("_products")
+            if region_code in self.regions:
+                raise ValueError(f"Duplicate normalized region catalog key: {region_code}")
             self.regions[region_code] = self._load_region_data(csv_file)
 
     def _load_region_data(self, csv_file: Path) -> List[RegionalProduct]:
@@ -103,11 +124,13 @@ class RegionCatalog:
         Returns:
             SearchResult с найденными продуктами
         """
-        if region not in self.regions:
+        region_lookup = _normalize_region_lookup(region)
+        if region_lookup not in self.regions:
             return SearchResult(products=[], total_count=0, region=region, search_query=query)
 
-        products = self.regions[region]
+        products = self.regions[region_lookup]
         query_lower = query.lower()
+        category_filter = _normalize_optional_category(category)
 
         # Фильтруем продукты по запросу и категории
         filtered_products = []
@@ -120,7 +143,9 @@ class RegionCatalog:
             )
 
             # Проверяем соответствие категории
-            matches_category = category is None or category.lower() == product.category.lower()
+            matches_category = (
+                category_filter is None or category_filter.lower() == product.category.lower()
+            )
 
             if matches_query and matches_category:
                 filtered_products.append(product)
@@ -137,10 +162,11 @@ class RegionCatalog:
 
     def get_product_by_id(self, product_id: str, region: str) -> Optional[RegionalProduct]:
         """Получает продукт по ID в указанном регионе"""
-        if region not in self.regions:
+        region_lookup = _normalize_region_lookup(region)
+        if region_lookup not in self.regions:
             return None
 
-        for product in self.regions[region]:
+        for product in self.regions[region_lookup]:
             if product.product_id == product_id:
                 return product
 
@@ -148,22 +174,25 @@ class RegionCatalog:
 
     def get_products_by_category(self, category: str, region: str) -> List[RegionalProduct]:
         """Получает все продукты указанной категории в регионе"""
-        if region not in self.regions:
+        region_lookup = _normalize_region_lookup(region)
+        if region_lookup not in self.regions:
             return []
 
+        category_lookup = category.strip().lower()
         return [
             product
-            for product in self.regions[region]
-            if product.category.lower() == category.lower()
+            for product in self.regions[region_lookup]
+            if product.category.lower() == category_lookup
         ]
 
     def get_store_chains(self, region: str) -> List[str]:
         """Получает список торговых сетей в регионе"""
-        if region not in self.regions:
+        region_lookup = _normalize_region_lookup(region)
+        if region_lookup not in self.regions:
             return []
 
         chains = set()
-        for product in self.regions[region]:
+        for product in self.regions[region_lookup]:
             if product.store_chain:
                 chains.add(product.store_chain)
 
@@ -171,11 +200,12 @@ class RegionCatalog:
 
     def get_categories(self, region: str) -> List[str]:
         """Получает список категорий продуктов в регионе"""
-        if region not in self.regions:
+        region_lookup = _normalize_region_lookup(region)
+        if region_lookup not in self.regions:
             return []
 
         categories = set()
-        for product in self.regions[region]:
+        for product in self.regions[region_lookup]:
             if product.category:
                 categories.add(product.category)
 
@@ -216,15 +246,17 @@ class RegionCatalog:
         comparison = {}
 
         for region in regions:
-            if region not in self.regions:
+            requested_region = region.strip()
+            region_lookup = _normalize_region_lookup(requested_region)
+            if region_lookup not in self.regions:
                 continue
 
             # Ищем продукт в регионе
-            search_result = self.search_products(product_name, region, max_results=1)
+            search_result = self.search_products(product_name, region_lookup, max_results=1)
 
             if search_result.products:
                 product = search_result.products[0]
-                comparison[region] = {
+                comparison[requested_region] = {
                     "product": product,
                     "price_eur": product.price_eur,
                     "price_usd": product.price_usd,
@@ -232,7 +264,7 @@ class RegionCatalog:
                     "region": product.region,
                 }
             else:
-                comparison[region] = {
+                comparison[requested_region] = {
                     "product": None,
                     "price_eur": None,
                     "price_usd": None,

@@ -18,6 +18,27 @@
 
 **Expected Outcome:** [What success looks like - specific, measurable]
 
+**Goal Owner:** [Human owner of the accepted goal]
+
+**Accepted Criteria Reference / Version:** [Stable anchor in this analysis or lane runbook]
+
+**Original Requirements / Complete DoD Reference:** [Existing source and version]
+
+**Before → After:** [Observed baseline → intended observable result]
+
+**Review Depth:** [Validated Teleology full/compact, or not supplied]
+
+Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review), including
+its grouping and untrusted-evidence procedure.
+
+| Criterion reference | Original requirement / DoD references | Observable acceptance criterion | Planned evidence |
+| --- | --- | --- | --- |
+| [Stable criterion ID] | [Explicit source items covered] | [Expected result] | [Test, observation or reviewed artifact] |
+
+**Rollback / Recovery:** [Existing reversal or compensation plan]
+
+**Goal Change Record:** [Explicit owner change and previous reference, or none]
+
 **Invariants Affected:**
 - [ ] One BMI Engine
 - [ ] Thin HTTP Adapter Policy

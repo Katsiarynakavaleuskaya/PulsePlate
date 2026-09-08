@@ -15,6 +15,19 @@
 - [ ] Scope respected (dev-only, no runtime impact if applicable)
 - [ ] No scope creep (P1/P2 items postponed → `BACKLOG_LEDGER.md`)
 
+### Goal Outcome
+
+Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review).
+
+**Accepted Criteria Reference / Version:** [Same reference used by ordinary QA]
+
+**Work Review Reference / Reviewed Material:** [Criterion evidence and outcome assessment]
+
+- [ ] Every original requirement and DoD item is represented in the review
+- [ ] Every criterion has observed evidence or an explicit evidence gap and outcome
+- [ ] Every original requirement and DoD item is explicitly covered by an individually achieved criterion with evidence before claiming overall completion
+- [ ] Any partial, unknown or not_achieved criterion prevents an overall completion claim
+
 ### Code Quality
 
 See canonical Quality Gates: `RUNBOOK_AGENT.md` (Quality Gates section)

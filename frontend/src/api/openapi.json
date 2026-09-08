@@ -6698,6 +6698,772 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VipAccessErrorResponse": {
+        "additionalProperties": false,
+        "description": "Canonical FastAPI access-denial payload for VIP routes.",
+        "properties": {
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "VipAccessErrorResponse",
+        "type": "object"
+      },
+      "VipEmptyEchoResponse": {
+        "additionalProperties": false,
+        "description": "Closed empty echo object returned by the VIP regions endpoint.",
+        "properties": {},
+        "title": "VipEmptyEchoResponse",
+        "type": "object"
+      },
+      "VipPriceComparisonEntryResponse": {
+        "additionalProperties": false,
+        "description": "Exact price-comparison entry, including required nullable fields.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En"
+          },
+          "name_es": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Es"
+          },
+          "price_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Eur"
+          },
+          "price_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Usd"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "store_chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Chain"
+          },
+          "typical_package_size": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical Package Size"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "product_id",
+          "name_es",
+          "name_en",
+          "category",
+          "unit",
+          "typical_package_size",
+          "price_eur",
+          "price_usd",
+          "store_chain",
+          "region"
+        ],
+        "title": "VipPriceComparisonEntryResponse",
+        "type": "object"
+      },
+      "VipPriceComparisonErrorResponse": {
+        "additionalProperties": false,
+        "description": "Handled regional price-comparison failure response.",
+        "properties": {
+          "code": {
+            "enum": [
+              "price_comparison_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "comparison": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VipPriceComparisonEntryResponse"
+            },
+            "title": "Comparison",
+            "type": "object"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "enum": [
+              "price_comparison_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error",
+          "product_name",
+          "regions",
+          "comparison"
+        ],
+        "title": "VipPriceComparisonErrorResponse",
+        "type": "object"
+      },
+      "VipPriceComparisonSuccessResponse": {
+        "additionalProperties": false,
+        "description": "Successful regional price-comparison response.",
+        "properties": {
+          "comparison": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VipPriceComparisonEntryResponse"
+            },
+            "title": "Comparison",
+            "type": "object"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "status": {
+            "const": "success",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "product_name",
+          "regions",
+          "comparison",
+          "message"
+        ],
+        "title": "VipPriceComparisonSuccessResponse",
+        "type": "object"
+      },
+      "VipRegionCategoriesErrorResponse": {
+        "additionalProperties": false,
+        "description": "Handled regional categories failure response.",
+        "properties": {
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "code": {
+            "enum": [
+              "categories_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "enum": [
+              "categories_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error",
+          "region",
+          "categories"
+        ],
+        "title": "VipRegionCategoriesErrorResponse",
+        "type": "object"
+      },
+      "VipRegionCategoriesSuccessResponse": {
+        "additionalProperties": false,
+        "description": "Successful regional categories response.",
+        "properties": {
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "status": {
+            "const": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "total_categories": {
+            "minimum": 0.0,
+            "title": "Total Categories",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "region",
+          "categories",
+          "total_categories",
+          "message"
+        ],
+        "title": "VipRegionCategoriesSuccessResponse",
+        "type": "object"
+      },
+      "VipRegionProductResponse": {
+        "additionalProperties": false,
+        "description": "Exact regional-catalog product wire shape.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_es": {
+            "title": "Name Es",
+            "type": "string"
+          },
+          "price_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Eur"
+          },
+          "price_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Usd"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "store_chain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Chain"
+          },
+          "typical_package_size": {
+            "title": "Typical Package Size",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "name_es",
+          "name_en",
+          "category",
+          "unit",
+          "typical_package_size",
+          "price_eur",
+          "price_usd",
+          "store_chain",
+          "region"
+        ],
+        "title": "VipRegionProductResponse",
+        "type": "object"
+      },
+      "VipRegionSearchErrorResponse": {
+        "additionalProperties": false,
+        "description": "Handled regional product-search failure response.",
+        "properties": {
+          "code": {
+            "enum": [
+              "search_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "enum": [
+              "search_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/VipRegionProductResponse"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error",
+          "region",
+          "query",
+          "products"
+        ],
+        "title": "VipRegionSearchErrorResponse",
+        "type": "object"
+      },
+      "VipRegionSearchSuccessResponse": {
+        "additionalProperties": false,
+        "description": "Successful regional product-search response.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/VipRegionProductResponse"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "returned_count": {
+            "minimum": 0.0,
+            "title": "Returned Count",
+            "type": "integer"
+          },
+          "status": {
+            "const": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "total_count": {
+            "minimum": 0.0,
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "region",
+          "query",
+          "category",
+          "products",
+          "total_count",
+          "returned_count",
+          "message"
+        ],
+        "title": "VipRegionSearchSuccessResponse",
+        "type": "object"
+      },
+      "VipRegionStoresErrorResponse": {
+        "additionalProperties": false,
+        "description": "Handled regional stores failure response.",
+        "properties": {
+          "code": {
+            "enum": [
+              "stores_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "enum": [
+              "stores_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          },
+          "stores": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stores",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error",
+          "region",
+          "stores"
+        ],
+        "title": "VipRegionStoresErrorResponse",
+        "type": "object"
+      },
+      "VipRegionStoresSuccessResponse": {
+        "additionalProperties": false,
+        "description": "Successful regional stores response.",
+        "properties": {
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "status": {
+            "const": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "stores": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stores",
+            "type": "array"
+          },
+          "total_stores": {
+            "minimum": 0.0,
+            "title": "Total Stores",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "region",
+          "stores",
+          "total_stores",
+          "message"
+        ],
+        "title": "VipRegionStoresSuccessResponse",
+        "type": "object"
+      },
+      "VipRegionsErrorResponse": {
+        "additionalProperties": false,
+        "description": "Handled available-regions failure response.",
+        "properties": {
+          "code": {
+            "enum": [
+              "region_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "error": {
+            "enum": [
+              "region_provider_unavailable",
+              "internal_error"
+            ],
+            "title": "Error",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "status": {
+            "const": "error",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "message",
+          "detail",
+          "error",
+          "regions"
+        ],
+        "title": "VipRegionsErrorResponse",
+        "type": "object"
+      },
+      "VipRegionsSuccessResponse": {
+        "additionalProperties": false,
+        "description": "Successful available-regions response.",
+        "properties": {
+          "echo": {
+            "$ref": "#/components/schemas/VipEmptyEchoResponse"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "status": {
+            "const": "success",
+            "title": "Status",
+            "type": "string"
+          },
+          "total_regions": {
+            "minimum": 0.0,
+            "title": "Total Regions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "regions",
+          "total_regions",
+          "message",
+          "echo"
+        ],
+        "title": "VipRegionsSuccessResponse",
+        "type": "object"
+      },
       "VisualShape": {
         "description": "RU: Примитив для фронтенда. EN: Primitive for frontend visualization.",
         "properties": {
@@ -11906,13 +12672,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Regions Api V1 Vip Regions Get",
-                  "type": "object"
+                  "discriminator": {
+                    "mapping": {
+                      "error": "#/components/schemas/VipRegionsErrorResponse",
+                      "success": "#/components/schemas/VipRegionsSuccessResponse"
+                    },
+                    "propertyName": "status"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/VipRegionsSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VipRegionsErrorResponse"
+                    }
+                  ],
+                  "title": "Response Get Regions Api V1 Vip Regions Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VipAccessErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
           }
         },
         "security": [
@@ -11956,13 +12745,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Compare Product Prices Api V1 Vip Regions Compare  Product Name  Get",
-                  "type": "object"
+                  "discriminator": {
+                    "mapping": {
+                      "error": "#/components/schemas/VipPriceComparisonErrorResponse",
+                      "success": "#/components/schemas/VipPriceComparisonSuccessResponse"
+                    },
+                    "propertyName": "status"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/VipPriceComparisonSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VipPriceComparisonErrorResponse"
+                    }
+                  ],
+                  "title": "Response Compare Product Prices Api V1 Vip Regions Compare  Product Name  Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VipAccessErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
           },
           "422": {
             "content": {
@@ -12006,13 +12818,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Region Categories Api V1 Vip Regions  Region  Categories Get",
-                  "type": "object"
+                  "discriminator": {
+                    "mapping": {
+                      "error": "#/components/schemas/VipRegionCategoriesErrorResponse",
+                      "success": "#/components/schemas/VipRegionCategoriesSuccessResponse"
+                    },
+                    "propertyName": "status"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/VipRegionCategoriesSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VipRegionCategoriesErrorResponse"
+                    }
+                  ],
+                  "title": "Response Get Region Categories Api V1 Vip Regions  Region  Categories Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VipAccessErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
           },
           "422": {
             "content": {
@@ -12075,6 +12910,8 @@
             "required": false,
             "schema": {
               "default": 20,
+              "maximum": 50,
+              "minimum": 1,
               "title": "Max Results",
               "type": "integer"
             }
@@ -12085,13 +12922,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Search Region Products Api V1 Vip Regions  Region  Search Get",
-                  "type": "object"
+                  "discriminator": {
+                    "mapping": {
+                      "error": "#/components/schemas/VipRegionSearchErrorResponse",
+                      "success": "#/components/schemas/VipRegionSearchSuccessResponse"
+                    },
+                    "propertyName": "status"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/VipRegionSearchSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VipRegionSearchErrorResponse"
+                    }
+                  ],
+                  "title": "Response Search Region Products Api V1 Vip Regions  Region  Search Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VipAccessErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
           },
           "422": {
             "content": {
@@ -12135,13 +12995,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Region Stores Api V1 Vip Regions  Region  Stores Get",
-                  "type": "object"
+                  "discriminator": {
+                    "mapping": {
+                      "error": "#/components/schemas/VipRegionStoresErrorResponse",
+                      "success": "#/components/schemas/VipRegionStoresSuccessResponse"
+                    },
+                    "propertyName": "status"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/VipRegionStoresSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VipRegionStoresErrorResponse"
+                    }
+                  ],
+                  "title": "Response Get Region Stores Api V1 Vip Regions  Region  Stores Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VipAccessErrorResponse"
+                }
+              }
+            },
+            "description": "VIP tier required"
           },
           "422": {
             "content": {

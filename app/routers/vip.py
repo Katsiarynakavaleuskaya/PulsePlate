@@ -18,6 +18,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     Body,
     Depends,
     HTTPException,
+    Query,
     Request,
     status,
 )
@@ -28,6 +29,22 @@ from app.schemas.fitchef import FitChefWeeklyPlanInput, FitChefWeeklyPlanTaskEnv
 from app.schemas.vip import (
     AutoRepairWeeklyRequest,
     ErrorResponse,
+    VipAccessErrorResponse,
+    VipPriceComparisonErrorResponse,
+    VipPriceComparisonResponse,
+    VipPriceComparisonSuccessResponse,
+    VipRegionCategoriesErrorResponse,
+    VipRegionCategoriesResponse,
+    VipRegionCategoriesSuccessResponse,
+    VipRegionSearchErrorResponse,
+    VipRegionSearchResponse,
+    VipRegionSearchSuccessResponse,
+    VipRegionsErrorResponse,
+    VipRegionsResponse,
+    VipRegionsSuccessResponse,
+    VipRegionStoresErrorResponse,
+    VipRegionStoresResponse,
+    VipRegionStoresSuccessResponse,
     WeeklyRecipesRequest,
     WeeklyPlanRequest,
     WeeklyPlanResponse,
@@ -97,10 +114,6 @@ try:
         synthesize_recipe_from_ingredients as _synthesize_recipe_from_ingredients,
     )
     from core.recipe_synth import synthesize_recipes_for_week as _synthesize_recipes_for_week
-    from core.region_catalog import get_available_regions as _get_available_regions
-    from core.region_catalog import get_price_comparison as _get_price_comparison
-    from core.region_catalog import get_region_catalog as _get_region_catalog
-    from core.region_catalog import search_products as _search_products
 except ImportError:
     # Core modules are optional in some environments; keep graceful fallback to echo-mode.
     pass
@@ -118,6 +131,17 @@ else:
     synthesize_recipe_from_ingredients = _synthesize_recipe_from_ingredients
     synthesize_recipes_for_week = _synthesize_recipes_for_week
 
+
+try:
+    from core.region_catalog import (
+        get_available_regions as _get_available_regions,
+        get_price_comparison as _get_price_comparison,
+        get_region_catalog as _get_region_catalog,
+        search_products as _search_products,
+    )
+except ImportError:
+    pass
+else:
     get_region_catalog = _get_region_catalog
     search_products = _search_products
     get_available_regions = _get_available_regions
@@ -1094,8 +1118,35 @@ def available_export_formats() -> Dict[str, Any]:
     }
 
 
-@router.get("/regions", dependencies=[Depends(require_vip_tier)])
-def get_regions() -> Dict[str, Any]:
+def _dedupe_comparison_region_labels(regions: str) -> list[str]:
+    """Deduplicate one finite comma list by canonical catalog identity."""
+
+    unique_labels: list[str] = []
+    seen_identities: set[str] = set()
+    for raw_label in regions.split(","):
+        label = raw_label.strip()
+        if not label:
+            continue
+        identity = label.lower()
+        if identity in seen_identities:
+            continue
+        seen_identities.add(identity)
+        unique_labels.append(label)
+    return unique_labels
+
+
+@router.get(
+    "/regions",
+    response_model=VipRegionsResponse,
+    responses={
+        403: {
+            "description": "VIP tier required",
+            "model": VipAccessErrorResponse,
+        }
+    },
+    dependencies=[Depends(require_vip_tier)],
+)
+def get_regions() -> VipRegionsResponse:
     """
     RU: Получить список доступных регионов
     EN: Get list of available regions
@@ -1104,202 +1155,55 @@ def get_regions() -> Dict[str, Any]:
         Список доступных регионов
     """
     if get_available_regions is None:
-        result_959: dict[str, Any] = vip_error(
-            code="region_provider_unavailable",
-            message="Region provider is not available",
-            regions=[],
+        result_959: VipRegionsErrorResponse = VipRegionsErrorResponse.model_validate(
+            vip_error(
+                code="region_provider_unavailable",
+                message="Region provider is not available",
+                regions=[],
+            )
         )
         return result_959
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
-        # Empty list is a valid outcome for a valid query
-        result_968: dict[str, Any] = vip_success(
+    except Exception:
+        logging.exception("Error retrieving regions")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving regions"
+        result_979: VipRegionsErrorResponse = VipRegionsErrorResponse.model_validate(
+            vip_error(
+                code="internal_error",
+                message=msg,
+                regions=[],
+            )
+        )
+        return result_979
+
+    # Empty list is a valid outcome for a valid query. Validation errors are
+    # contract defects and must not be downgraded to provider failures.
+    result_968: VipRegionsSuccessResponse = VipRegionsSuccessResponse.model_validate(
+        vip_success(
             regions=regions,
             total_regions=len(regions),
             message="Available regions retrieved successfully",
             echo={},
         )
-        return result_968
-    except Exception:
-        logging.exception("Error retrieving regions")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error retrieving regions"
-        result_979: dict[str, Any] = vip_error(
-            code="internal_error",
-            message=msg,
-            regions=[],
-        )
-        return result_979
+    )
+    return result_968
 
 
-@router.get("/regions/{region}/search", dependencies=[Depends(require_vip_tier)])
-def search_region_products(
-    region: str, query: str, category: str = "", max_results: int = 20
-) -> Dict[str, Any]:
-    """
-    RU: Поиск продуктов в региональном каталоге
-    EN: Search products in regional catalog
-
-    Args:
-        region: Код региона (es, us)
-        query: Поисковый запрос
-        category: Фильтр по категории (опционально)
-        max_results: Максимальное количество результатов
-
-    Returns:
-        Результаты поиска
-    """
-    if search_products is None:
-        result_1004: dict[str, Any] = vip_error(
-            code="search_provider_unavailable",
-            message="Search provider is not available",
-            region=region,
-            query=query,
-            products=[],
-        )
-        return result_1004
-
-    try:
-        search_products_fn = cast(Callable[[str, str, str, int], Any], search_products)
-        search_result = search_products_fn(query, region, category, max_results)
-
-        # Конвертируем продукты в словари для JSON
-        products_data = [
-            {
-                "product_id": product.product_id,
-                "name_es": product.name_es,
-                "name_en": product.name_en,
-                "category": product.category,
-                "unit": product.unit,
-                "typical_package_size": product.typical_package_size,
-                "price_eur": product.price_eur,
-                "price_usd": product.price_usd,
-                "store_chain": product.store_chain,
-                "region": product.region,
-            }
-            for product in search_result.products
-        ]
-
-        # Empty list is a valid outcome for a valid query
-        result_1034: dict[str, Any] = vip_success(
-            region=region,
-            query=query,
-            category=category,
-            products=products_data,
-            total_count=search_result.total_count,
-            returned_count=len(products_data),
-            message=f"Found {search_result.total_count} products in {region}",
-        )
-        return result_1034
-    except Exception:
-        logging.exception("Error searching products")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error searching products"
-        result_1048: dict[str, Any] = vip_error(
-            code="internal_error",
-            message=msg,
-            region=region,
-            query=query,
-            products=[],
-        )
-        return result_1048
-
-
-@router.get("/regions/{region}/categories", dependencies=[Depends(require_vip_tier)])
-def get_region_categories(region: str) -> Dict[str, Any]:
-    """
-    RU: Получить категории продуктов в регионе
-    EN: Get product categories in region
-
-    Args:
-        region: Код региона (es, us)
-
-    Returns:
-        Список категорий
-    """
-    if get_region_catalog is None:
-        result_1070: dict[str, Any] = vip_error(
-            code="categories_provider_unavailable",
-            message="Categories provider is not available",
-            region=region,
-            categories=[],
-        )
-        return result_1070
-
-    try:
-        catalog = get_region_catalog()
-        categories = catalog.get_categories(region)
-
-        # Empty list is a valid outcome for a valid query
-        result_1082: dict[str, Any] = vip_success(
-            region=region,
-            categories=categories,
-            total_categories=len(categories),
-            message=f"Retrieved {len(categories)} categories for {region}",
-        )
-        return result_1082
-    except Exception:
-        logging.exception("Error retrieving categories")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error retrieving categories"
-        result_1093: dict[str, Any] = vip_error(
-            code="internal_error",
-            message=msg,
-            region=region,
-            categories=[],
-        )
-        return result_1093
-
-
-@router.get("/regions/{region}/stores", dependencies=[Depends(require_vip_tier)])
-def get_region_stores(region: str) -> Dict[str, Any]:
-    """
-    RU: Получить торговые сети в регионе
-    EN: Get store chains in region
-
-    Args:
-        region: Код региона (es, us)
-
-    Returns:
-        Список торговых сетей
-    """
-    if get_region_catalog is None:
-        result_1114: dict[str, Any] = vip_error(
-            code="stores_provider_unavailable",
-            message="Stores provider is not available",
-            region=region,
-            stores=[],
-        )
-        return result_1114
-
-    try:
-        catalog = get_region_catalog()
-        stores = catalog.get_store_chains(region)
-
-        # Empty list is a valid outcome for a valid query
-        result_1126: dict[str, Any] = vip_success(
-            region=region,
-            stores=stores,
-            total_stores=len(stores),
-            message=f"Retrieved {len(stores)} store chains for {region}",
-        )
-        return result_1126
-    except Exception:
-        logging.exception("Error retrieving stores")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error retrieving stores"
-        result_1137: dict[str, Any] = vip_error(
-            code="internal_error",
-            message=msg,
-            region=region,
-            stores=[],
-        )
-        return result_1137
-
-
-@router.get("/regions/compare/{product_name}", dependencies=[Depends(require_vip_tier)])
-def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[str, Any]:
+@router.get(
+    "/regions/compare/{product_name}",
+    response_model=VipPriceComparisonResponse,
+    responses={
+        403: {
+            "description": "VIP tier required",
+            "model": VipAccessErrorResponse,
+        }
+    },
+    dependencies=[Depends(require_vip_tier)],
+)
+def compare_product_prices(product_name: str, regions: str = "es,us") -> VipPriceComparisonResponse:
     """
     RU: Сравнить цены продукта в разных регионах
     EN: Compare product prices across regions
@@ -1311,20 +1215,22 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
     Returns:
         Сравнение цен по регионам
     """
+    region_list = _dedupe_comparison_region_labels(regions)
+
     if get_price_comparison is None:
-        result_1159: dict[str, Any] = vip_error(
-            code="price_comparison_provider_unavailable",
-            message="Price comparison provider is not available",
-            product_name=product_name,
-            regions=regions.split(","),
-            comparison={},
+        result_1159: VipPriceComparisonErrorResponse
+        result_1159 = VipPriceComparisonErrorResponse.model_validate(
+            vip_error(
+                code="price_comparison_provider_unavailable",
+                message="Price comparison provider is not available",
+                product_name=product_name,
+                regions=region_list,
+                comparison={},
+            )
         )
         return result_1159
 
-    region_list: list[str] = []
-
     try:
-        region_list = [r.strip() for r in regions.split(",")]
         comparison = get_price_comparison(product_name, region_list)
 
         # Форматируем результаты для JSON
@@ -1346,26 +1252,265 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
             for region, data in comparison.items()
         }
 
-        # Empty dict is a valid outcome for a valid query
-        result_1193: dict[str, Any] = vip_success(
+    except Exception:
+        logging.exception("Error comparing product prices")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error comparing prices"
+        result_1204: VipPriceComparisonErrorResponse
+        result_1204 = VipPriceComparisonErrorResponse.model_validate(
+            vip_error(
+                code="internal_error",
+                message=msg,
+                product_name=product_name,
+                regions=region_list,
+                comparison={},
+            )
+        )
+        return result_1204
+
+    # Empty dict is a valid outcome for a valid query. Validation errors are
+    # contract defects and must not be downgraded to provider failures.
+    result_1193: VipPriceComparisonSuccessResponse
+    result_1193 = VipPriceComparisonSuccessResponse.model_validate(
+        vip_success(
             product_name=product_name,
             regions=region_list,
             comparison=formatted_comparison,
             message=f"Price comparison for '{product_name}' across {len(region_list)} regions",
         )
-        return result_1193
-    except Exception:
-        logging.exception("Error comparing product prices")
-        # Do not include exception details in responses (CodeQL: info exposure).
-        msg = "Error comparing prices"
-        result_1204: dict[str, Any] = vip_error(
-            code="internal_error",
-            message=msg,
-            product_name=product_name,
-            regions=region_list,
-            comparison={},
+    )
+    return result_1193
+
+
+@router.get(
+    "/regions/{region}/search",
+    response_model=VipRegionSearchResponse,
+    responses={
+        403: {
+            "description": "VIP tier required",
+            "model": VipAccessErrorResponse,
+        }
+    },
+    dependencies=[Depends(require_vip_tier)],
+)
+def search_region_products(
+    region: str,
+    query: str,
+    category: str = "",
+    max_results: int = Query(20, ge=1, le=50),
+) -> VipRegionSearchResponse:
+    """
+    RU: Поиск продуктов в региональном каталоге
+    EN: Search products in regional catalog
+
+    Args:
+        region: Код региона (es, us)
+        query: Поисковый запрос
+        category: Фильтр по категории (опционально)
+        max_results: Максимальное количество результатов
+
+    Returns:
+        Результаты поиска
+    """
+    if search_products is None:
+        result_1004: VipRegionSearchErrorResponse
+        result_1004 = VipRegionSearchErrorResponse.model_validate(
+            vip_error(
+                code="search_provider_unavailable",
+                message="Search provider is not available",
+                region=region,
+                query=query,
+                products=[],
+            )
         )
-        return result_1204
+        return result_1004
+
+    try:
+        search_products_fn = cast(Callable[[str, str, Optional[str], int], Any], search_products)
+        search_result = search_products_fn(query, region, category, max_results)
+
+        # Конвертируем продукты в словари для JSON
+        products_data = [
+            {
+                "product_id": product.product_id,
+                "name_es": product.name_es,
+                "name_en": product.name_en,
+                "category": product.category,
+                "unit": product.unit,
+                "typical_package_size": product.typical_package_size,
+                "price_eur": product.price_eur,
+                "price_usd": product.price_usd,
+                "store_chain": product.store_chain,
+                "region": product.region,
+            }
+            for product in search_result.products
+        ]
+
+    except Exception:
+        logging.exception("Error searching products")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error searching products"
+        result_1048: VipRegionSearchErrorResponse
+        result_1048 = VipRegionSearchErrorResponse.model_validate(
+            vip_error(
+                code="internal_error",
+                message=msg,
+                region=region,
+                query=query,
+                products=[],
+            )
+        )
+        return result_1048
+
+    # Empty list is a valid outcome for a valid query. Validation errors are
+    # contract defects and must not be downgraded to provider failures.
+    result_1034: VipRegionSearchSuccessResponse
+    result_1034 = VipRegionSearchSuccessResponse.model_validate(
+        vip_success(
+            region=region,
+            query=query,
+            category=category,
+            products=products_data,
+            total_count=search_result.total_count,
+            returned_count=len(products_data),
+            message=f"Found {search_result.total_count} products in {region}",
+        )
+    )
+    return result_1034
+
+
+@router.get(
+    "/regions/{region}/categories",
+    response_model=VipRegionCategoriesResponse,
+    responses={
+        403: {
+            "description": "VIP tier required",
+            "model": VipAccessErrorResponse,
+        }
+    },
+    dependencies=[Depends(require_vip_tier)],
+)
+def get_region_categories(region: str) -> VipRegionCategoriesResponse:
+    """
+    RU: Получить категории продуктов в регионе
+    EN: Get product categories in region
+
+    Args:
+        region: Код региона (es, us)
+
+    Returns:
+        Список категорий
+    """
+    if get_region_catalog is None:
+        result_1070: VipRegionCategoriesErrorResponse
+        result_1070 = VipRegionCategoriesErrorResponse.model_validate(
+            vip_error(
+                code="categories_provider_unavailable",
+                message="Categories provider is not available",
+                region=region,
+                categories=[],
+            )
+        )
+        return result_1070
+
+    try:
+        catalog = get_region_catalog()
+        categories = catalog.get_categories(region)
+
+    except Exception:
+        logging.exception("Error retrieving categories")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving categories"
+        result_1093: VipRegionCategoriesErrorResponse
+        result_1093 = VipRegionCategoriesErrorResponse.model_validate(
+            vip_error(
+                code="internal_error",
+                message=msg,
+                region=region,
+                categories=[],
+            )
+        )
+        return result_1093
+
+    # Empty list is a valid outcome for a valid query. Validation errors are
+    # contract defects and must not be downgraded to provider failures.
+    result_1082: VipRegionCategoriesSuccessResponse
+    result_1082 = VipRegionCategoriesSuccessResponse.model_validate(
+        vip_success(
+            region=region,
+            categories=categories,
+            total_categories=len(categories),
+            message=f"Retrieved {len(categories)} categories for {region}",
+        )
+    )
+    return result_1082
+
+
+@router.get(
+    "/regions/{region}/stores",
+    response_model=VipRegionStoresResponse,
+    responses={
+        403: {
+            "description": "VIP tier required",
+            "model": VipAccessErrorResponse,
+        }
+    },
+    dependencies=[Depends(require_vip_tier)],
+)
+def get_region_stores(region: str) -> VipRegionStoresResponse:
+    """
+    RU: Получить торговые сети в регионе
+    EN: Get store chains in region
+
+    Args:
+        region: Код региона (es, us)
+
+    Returns:
+        Список торговых сетей
+    """
+    if get_region_catalog is None:
+        result_1114: VipRegionStoresErrorResponse
+        result_1114 = VipRegionStoresErrorResponse.model_validate(
+            vip_error(
+                code="stores_provider_unavailable",
+                message="Stores provider is not available",
+                region=region,
+                stores=[],
+            )
+        )
+        return result_1114
+
+    try:
+        catalog = get_region_catalog()
+        stores = catalog.get_store_chains(region)
+
+    except Exception:
+        logging.exception("Error retrieving stores")
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving stores"
+        result_1137: VipRegionStoresErrorResponse
+        result_1137 = VipRegionStoresErrorResponse.model_validate(
+            vip_error(
+                code="internal_error",
+                message=msg,
+                region=region,
+                stores=[],
+            )
+        )
+        return result_1137
+
+    # Empty list is a valid outcome for a valid query. Validation errors are
+    # contract defects and must not be downgraded to provider failures.
+    result_1126: VipRegionStoresSuccessResponse
+    result_1126 = VipRegionStoresSuccessResponse.model_validate(
+        vip_success(
+            region=region,
+            stores=stores,
+            total_stores=len(stores),
+            message=f"Retrieved {len(stores)} store chains for {region}",
+        )
+    )
+    return result_1126
 
 
 @router.post("/recipes/synthesize", dependencies=[Depends(require_vip_tier)])

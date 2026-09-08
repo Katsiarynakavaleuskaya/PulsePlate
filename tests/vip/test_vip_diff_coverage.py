@@ -43,6 +43,7 @@ from app.schemas.vip import (
     AutoRepairProfile,
     AutoRepairTargetRanges,
     AutoRepairWeeklyRequest,
+    VipRegionsErrorResponse,
     WeeklyPlanRequest,
     WeeklyRecipeIngredient,
     WeeklyRecipesRequest,
@@ -82,6 +83,7 @@ from core.menu_engine import (
     has_complete_nutrition_evidence,
 )
 from core.menu_engine import repair_week_plan as repair_canonical_week_plan
+from core.region_catalog import RegionCatalog, RegionalProduct
 from core.targets import (
     ActivityTargets,
     MacroTargets,
@@ -531,6 +533,95 @@ class TestWeeklyProfileDiffCoverage:
 
 class TestTC209VIPDiffCoverage:
     """Canonical CI carrier for the bounded TC2-09 VIP repair surface."""
+
+    def test_region_error_alias_validator_enforces_frozen_aliases(self) -> None:
+        payload = {
+            "status": "error",
+            "code": "internal_error",
+            "message": "Regional catalog request failed",
+            "detail": "Regional catalog request failed",
+            "error": "internal_error",
+            "regions": [],
+        }
+
+        assert VipRegionsErrorResponse.model_validate(payload).regions == []
+
+        with pytest.raises(ValidationError, match="VIP detail alias must equal message"):
+            VipRegionsErrorResponse.model_validate({**payload, "detail": "Different detail"})
+
+        with pytest.raises(ValidationError, match="VIP error alias must equal code"):
+            VipRegionsErrorResponse.model_validate(
+                {**payload, "error": "region_provider_unavailable"}
+            )
+
+    def test_region_catalog_changed_branches_are_behaviorally_witnessed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        catalog = RegionCatalog(str(tmp_path))
+        milk = RegionalProduct(
+            product_id="5",
+            name_es="Leche",
+            name_en="Milk",
+            category="Dairy",
+            unit="l",
+            typical_package_size=1.0,
+            price_eur=1.25,
+            store_chain="Mercadona",
+            region="ES",
+        )
+        uncategorized = RegionalProduct(
+            product_id="6",
+            name_es="Producto",
+            name_en="Product",
+            category="",
+            unit="g",
+            typical_package_size=100.0,
+        )
+        catalog.regions = {"es": [milk, uncategorized]}
+
+        assert catalog.search_products("milk", " ES ", category=None).products == [milk]
+        assert catalog.search_products("milk", " ES ", category="   ").products == [milk]
+        assert catalog.get_product_by_id("5", " ES ") is milk
+        assert catalog.get_product_by_id("missing", " ES ") is None
+        assert catalog.get_product_by_id("5", "missing") is None
+        assert catalog.get_products_by_category(" dairy ", " ES ") == [milk]
+        assert catalog.get_products_by_category("dairy", "missing") == []
+        assert catalog.get_store_chains(" ES ") == ["Mercadona"]
+        assert catalog.get_store_chains("missing") == []
+        assert catalog.get_categories(" ES ") == ["Dairy"]
+        assert catalog.get_categories("missing") == []
+        assert catalog.get_price_comparison("absent", [" ES ", "missing"]) == {
+            "ES": {
+                "product": None,
+                "price_eur": None,
+                "price_usd": None,
+                "store_chain": None,
+                "region": None,
+            }
+        }
+
+        csv_header = (
+            "product_id,name_es,name_en,category,unit,typical_package_size,"
+            "price_eur,price_usd,store_chain,region\n"
+        )
+        lowercase_path = tmp_path / "es_products.csv"
+        uppercase_path = tmp_path / "ES_PRODUCTS.csv"
+        lowercase_path.write_text(csv_header, encoding="utf-8")
+        uppercase_path.write_text(csv_header, encoding="utf-8")
+        original_glob = Path.glob
+
+        def duplicate_case_glob(path: Path, pattern: str) -> object:
+            if path == tmp_path and pattern == "*.csv":
+                return iter((lowercase_path, uppercase_path))
+            return original_glob(path, pattern)
+
+        monkeypatch.setattr(Path, "glob", duplicate_case_glob)
+
+        with pytest.raises(ValueError) as exc_info:
+            RegionCatalog(str(tmp_path))
+
+        assert str(exc_info.value) == "Duplicate normalized region catalog key: es"
+        assert str(tmp_path) not in str(exc_info.value)
 
     def test_request_schemas_reject_ambiguous_values_and_normalize_day_ids(self) -> None:
         valid_request = _auto_repair_request()
