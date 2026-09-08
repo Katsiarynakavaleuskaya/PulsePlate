@@ -384,7 +384,7 @@ def _committed_reseal_preparation(repository: str, pr_number: int) -> dict[str, 
     if not _git("ls-tree", "--name-only", head, "--", f":(literal){mapping_path}"):
         return None
     try:
-        preparation = parse_reseal_preparation(
+        preparation: dict[str, Any] | None = parse_reseal_preparation(
             _stale_seal_mapping_blob(REPO_ROOT, commit_sha=head, pr_number=pr_number)
         )
     except ReviewEvidenceError as exc:
