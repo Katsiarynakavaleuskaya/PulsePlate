@@ -14,7 +14,7 @@ struct ProgressViewPP: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
-                    GlassCard {
+                    ProgressGlassCard {
                         introductoryContent
                     }
 
@@ -28,7 +28,7 @@ struct ProgressViewPP: View {
                     .buttonStyle(.plain)
 
                     if nutritionService.isLoading {
-                        GlassCard {
+                        ProgressGlassCard {
                             HStack(spacing: PPDesignTokens.Spacing.medium) {
                                 ProgressView()
                                     .tint(PPDesignTokens.ColorToken.primary)
@@ -44,7 +44,7 @@ struct ProgressViewPP: View {
                         segmentChartCard(nutritionData: nutritionData)
                         segmentListCard(nutritionData: nutritionData)
                     } else {
-                        GlassCard {
+                        ProgressGlassCard {
                             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                                 Text(localization.localized("progress.empty.title"))
                                     .font(PPDesignTokens.Typography.title)
@@ -162,7 +162,7 @@ struct ProgressViewPP: View {
     private func summaryCard(nutritionData: NutritionData) -> some View {
         let clampedProgress = min(max(nutritionData.totalProgress, 0), 1)
 
-        return GlassCard {
+        return ProgressGlassCard {
             HStack {
                 VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
                     Text(localization.localized("progress.label"))
@@ -186,7 +186,7 @@ struct ProgressViewPP: View {
     private func segmentChartCard(nutritionData: NutritionData) -> some View {
         let segments = indexedSegments(nutritionData.segments)
 
-        return GlassCard {
+        return ProgressGlassCard {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text(localization.localized("progress.nutrient_progress.title"))
                     .font(PPDesignTokens.Typography.title)
@@ -207,6 +207,26 @@ struct ProgressViewPP: View {
                     )
                     .foregroundStyle(Color.segmentSemanticColor(from: item.segment.color))
                 }
+                .chartXAxis {
+                    AxisMarks { _ in
+                        AxisGridLine()
+                            .foregroundStyle(PPDesignTokens.ColorToken.strokeSubtle)
+                        AxisTick()
+                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                        AxisValueLabel()
+                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisGridLine()
+                            .foregroundStyle(PPDesignTokens.ColorToken.strokeSubtle)
+                        AxisTick()
+                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                        AxisValueLabel()
+                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                    }
+                }
                 .chartYScale(domain: 0 ... 1)
                 .frame(height: 220)
             }
@@ -216,7 +236,7 @@ struct ProgressViewPP: View {
     private func segmentListCard(nutritionData: NutritionData) -> some View {
         let segments = indexedSegments(nutritionData.segments)
 
-        return GlassCard {
+        return ProgressGlassCard {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                 Text(localization.localized("navigation.tab.today"))
                     .font(PPDesignTokens.Typography.title)
@@ -253,7 +273,7 @@ struct ProgressViewPP: View {
     }
 
     private func issueCard(issue: PlateLoadIssue) -> some View {
-        GlassCard {
+        ProgressGlassCard {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                 Text(issue.title)
                     .font(PPDesignTokens.Typography.title)
@@ -286,6 +306,7 @@ struct ProgressViewPP: View {
 
 struct WeeklyProgressNavigationLabel: View {
     let title: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @ScaledMetric(relativeTo: .headline) private var titleSize =
         PPDesignTokens.Typography.sizeLG
@@ -295,31 +316,70 @@ struct WeeklyProgressNavigationLabel: View {
     }
 
     var body: some View {
-        GlassCard {
-            HStack(spacing: PPDesignTokens.Spacing.medium) {
-                Image(systemName: "calendar")
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
-                    .accessibilityHidden(true)
-
-                Text(title)
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-
-                Spacer(minLength: PPDesignTokens.Spacing.small)
-
-                Image(systemName: "chevron.forward")
-                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
-                    .accessibilityHidden(true)
+        ProgressGlassCard {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
+                        HStack {
+                            calendar
+                            Spacer(minLength: PPDesignTokens.Spacing.small)
+                            chevron
+                        }
+                        titleLabel
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    HStack(spacing: PPDesignTokens.Spacing.medium) {
+                        calendar
+                        titleLabel
+                        Spacer(minLength: PPDesignTokens.Spacing.small)
+                        chevron
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
+    }
+
+    private var calendar: some View {
+        Image(systemName: "calendar")
+            .font(.system(size: titleSize, weight: .semibold))
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+            .accessibilityHidden(true)
+    }
+
+    private var titleLabel: some View {
+        Text(title)
+            .font(.system(size: titleSize, weight: .semibold))
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+            .lineLimit(nil)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.forward")
+            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct ProgressGlassCard<Content: View>: View {
+    @Environment(\.colorScheme) private var contentColorScheme
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        GlassCard {
+            content.environment(\.colorScheme, contentColorScheme)
+        }
+        .environment(\.colorScheme, .dark)
     }
 }
 

@@ -32,6 +32,14 @@
 - Progress loading, empty, completion and action copy uses the app-selected
   EN/RU/ES localization manager; existing query and issue-envelope behavior stays
   unchanged.
+- Progress locally resolves card material in Dark appearance while restoring the
+  caller's appearance for content. Its Weekly link uses a full-width title row
+  at accessibility sizes; chart data and scale stay unchanged with explicit
+  readable axis styling.
+- The same-PR owner-approved accessibility amendment uses existing Navy for
+  primary PPButton labels and loading indicators over the unchanged blue fill.
+  Secondary/ghost variants, tokens, assets, sizing and actions stay unchanged;
+  final native V1 acceptance remains pending.
 - `DebugToolsScreen` is available only inside the compile-gated DEBUG Profile
   section; it is never part of the production tab inventory.
 - Active Debug/Release plists explicitly select the packaged LaunchScreen,
@@ -47,6 +55,9 @@ Evidence:
 - `ios/PulsePlate/Views/PlateView.swift:203-204`
 - `ios/PulsePlate/Views/ProgressView.swift:4`
 - `ios/PulsePlate/Views/ProgressView.swift:285`
+- `ios/PulsePlate/DesignSystem/PPButton.swift:98`
+- `ios/PulsePlate/DesignSystem/PPButton.swift:138`
+- `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift:220`
 - `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
 - `ios/PulsePlate/Views/ProfileView.swift:5`
 - `ios/PulsePlate/Views/ProfileView.swift:101`

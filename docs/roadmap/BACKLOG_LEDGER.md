@@ -2837,6 +2837,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     Progress localization while preserving Candidate A and merged V5 visuals.
     Native launch/orientation and plist-resource metadata are corrected in the
     same carrier after the Release probe exposed their missing effective values.
+    Native accessibility findings are also addressed in this carrier: readable
+    Progress cards/axes and whole-word Weekly titles at Accessibility 5, plus the
+    owner-authorized primary-button contrast correction on 8 September 2026.
     Human V1 `GO`, current-head CI, canonical closeout, and merge remain pending;
     the operator delegated merge after those gates.
   - Dependency: PR `#2368` merged at
@@ -2864,6 +2867,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Make the existing launch storyboard, accepted orientations, single-scene
       lifecycle and Health read-purpose fallback explicit in both active plists;
       exclude the inactive fourth Info plist through the existing target exception
+    - Keep Progress card material readable in Light and Reduce Transparency;
+      give the Weekly title the full row width at accessibility sizes and retain
+      the existing chart data/scale with explicitly readable axis styling
+    - Owner-authorized scope amendment: primary PPButton labels and loading
+      indicators use the existing Navy foreground over unchanged primary blue.
+      This fixes the observed Today CTA contrast in this PR without a new
+      prerequisite, token, variant, asset, action or sizing change
     - This item absorbs only the `RootTabs` / top-level-navigation portion of
       the older
       `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
@@ -2878,6 +2888,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ios/PulsePlate/Views/PlateView.swift:203-204`
     - `ios/PulsePlate/Views/ProgressView.swift:4`
     - `ios/PulsePlate/Views/ProgressView.swift:285`
+    - `ios/PulsePlate/DesignSystem/PPButton.swift:98`
+    - `ios/PulsePlate/DesignSystem/PPButton.swift:138`
+    - `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift:220`
     - `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
     - `ios/PulsePlate/Views/ProfileView.swift:5`
     - `ios/PulsePlate/Views/ProfileView.swift:101`
@@ -2902,6 +2915,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       pop/re-entry prove retention for the bounded parent session
     - DEBUG diagnostics are absent from the production section count and
       compile-gated inside Profile
+    - Actual primary-button rasters meet the 4.5:1 contrast floor in Light/Dark
+      idle/loading states, preserve Large/AX5 bounds, and include isolated native
+      loading-indicator evidence; conservative pressed-color evidence is bound
+      to the unchanged primary fill/opacity implementation
     - Fresh Debug/Release bundles contain the exact effective launch, orientation,
       scene and read-purpose metadata, preserve URL/ATS differences, package the
       existing storyboard, and contain no extra source Info plist resource;
