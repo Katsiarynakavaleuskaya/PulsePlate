@@ -2919,6 +2919,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       idle/loading states, preserve Large/AX5 bounds, and include isolated native
       loading-indicator evidence; conservative pressed-color evidence is bound
       to the unchanged primary fill/opacity implementation
+      - The CI spinner regression inspects the actual hosted public UIKit
+        indicator and its explicit color/state; it does not depend on headless
+        rasterization or skip when the native hierarchy is unavailable
     - Fresh Debug/Release bundles contain the exact effective launch, orientation,
       scene and read-purpose metadata, preserve URL/ATS differences, package the
       existing storyboard, and contain no extra source Info plist resource;

@@ -263,22 +263,13 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         for scheme in [ColorScheme.light, .dark] {
             let foreground = try primaryButtonRGB(named: GeneratedDesignTokens.BrandAsset.navy, scheme: scheme)
             let fill = try primaryButtonRGB(named: GeneratedDesignTokens.BrandAsset.blue, scheme: scheme)
-            var image = try primaryButtonImage(
-                title: "", scheme: scheme, typeSize: .large, loading: true
-            )
-            if try buttonPixelCount(image, matching: foreground, centerOnly: true, compositedOver: fill) < 10 {
-                // ImageRenderer can omit a UIView-backed system progress indicator.
-                image = try await hostedLoadingButtonImage(scheme: scheme)
+            let actual = try await hostedLoadingSpinnerRGB(scheme: scheme)
+            for channel in 0..<3 {
+                XCTAssertEqual(actual[channel], foreground[channel], accuracy: 1.0 / 255,
+                               "Native spinner must receive Navy in \(scheme)")
             }
-            XCTContext.runActivity(named: "isolated-spinner/\(scheme)") { activity in
-                let attachment = XCTAttachment(image: image)
-                attachment.lifetime = .keepAlways
-                activity.add(attachment)
-            }
-            XCTAssertGreaterThanOrEqual(
-                try buttonPixelCount(image, matching: foreground, centerOnly: true, compositedOver: fill), 10,
-                "The isolated loading spinner must render accessible foreground in \(scheme)"
-            )
+            XCTAssertGreaterThanOrEqual(buttonContrast(actual, fill), 4.5,
+                                        "Native spinner color must meet AA in \(scheme)")
         }
     }
 
@@ -297,7 +288,7 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
     }
 
     @MainActor
-    private func hostedLoadingButtonImage(scheme: ColorScheme) async throws -> UIImage {
+    private func hostedLoadingSpinnerRGB(scheme: ColorScheme) async throws -> [Double] {
         let scene = try XCTUnwrap(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         )
@@ -319,12 +310,22 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
             previousKeyWindow?.makeKey()
         }
         await Task.yield()
-        controller.view.layoutIfNeeded()
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 3
-        return UIGraphicsImageRenderer(bounds: controller.view.bounds, format: format).image { _ in
-            XCTAssertTrue(controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true))
+        let hostedView = try XCTUnwrap(controller.view)
+        hostedView.layoutIfNeeded()
+        var remaining = [hostedView]
+        var indicators: [UIActivityIndicatorView] = []
+        while let view = remaining.popLast() {
+            if let indicator = view as? UIActivityIndicatorView {
+                indicators.append(indicator)
+            }
+            remaining.append(contentsOf: view.subviews)
         }
+        XCTAssertEqual(indicators.count, 1, "The actual loading PPButton must host one native spinner")
+        let indicator = try XCTUnwrap(indicators.first)
+        XCTAssertTrue(indicator.isAnimating)
+        let color = try XCTUnwrap(indicator.color, "The configured spinner tint must be explicit")
+        let traits = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
+        return buttonRGB(color.resolvedColor(with: traits))
     }
 
     @MainActor
@@ -332,6 +333,11 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         let traits = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
         let resolved = try XCTUnwrap(UIColor(named: assetName, in: .main, compatibleWith: traits))
             .resolvedColor(with: traits)
+        return buttonRGB(resolved)
+    }
+
+    @MainActor
+    private func buttonRGB(_ resolved: UIColor) -> [Double] {
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0
@@ -350,10 +356,7 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         return (values[1] + 0.05) / (values[0] + 0.05)
     }
 
-    private func buttonPixelCount(
-        _ image: UIImage, matching rgb: [Double], centerOnly: Bool = false,
-        compositedOver fill: [Double]? = nil
-    ) throws -> Int {
+    private func buttonPixelCount(_ image: UIImage, matching rgb: [Double]) throws -> Int {
         let cgImage = try XCTUnwrap(image.cgImage)
         let width = cgImage.width
         let height = cgImage.height
@@ -369,31 +372,12 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
             context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
         }
         let expected = rgb.map { Int(($0 * 255).rounded()) }
-        let palette: [[Int]]
-        if let fill {
-            let background = fill.map { Int(($0 * 255).rounded()) }
-            // System spinner segments animate coverage; match the finite sRGB blends.
-            palette = (0...255).map { alpha in
-                (0..<3).map { channel in
-                    Int((Double(alpha * expected[channel] + (255 - alpha) * background[channel]) / 255).rounded())
-                }
-            }
-        } else {
-            palette = [expected]
-        }
         var count = 0
         for y in 0..<height {
             for x in 0..<width {
-                if centerOnly && (abs(x - width / 2) > 60 || abs(y - height / 2) > 60) {
-                    continue
-                }
                 let offset = (y * width + x) * 4
-                if let fill {
-                    let actual = (0..<3).map { Double(pixels[offset + $0]) / 255 }
-                    if buttonContrast(actual, fill) < 4.5 { continue }
-                }
-                if pixels[offset + 3] >= 250 && palette.contains(where: { candidate in
-                    (0..<3).allSatisfy { abs(Int(pixels[offset + $0]) - candidate[$0]) <= 3 }
+                if pixels[offset + 3] >= 250 && (0..<3).allSatisfy({
+                    abs(Int(pixels[offset + $0]) - expected[$0]) <= 3
                 }) {
                     count += 1
                 }
