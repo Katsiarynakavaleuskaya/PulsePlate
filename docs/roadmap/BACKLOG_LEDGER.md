@@ -24,6 +24,23 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-actual-reseal-recovery"></a>
+- [ ] P1: Restore actual mapping-only reseal recovery without premature FIXED proof
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1
+  - Target PR: `codex/closeout-retirement-reseal` (PR number assigned when opened)
+  - Status: Bounded implementation in progress; local validation, independent review,
+    current-head CI, ordinary closeout, and merge remain required. No target PR recovery
+    or readiness is claimed by this prerequisite.
+  - Reason (EN): A stale-seal root may precede further authorized material work; the
+    actual correcting mapping-only R does not exist at pre-closeout. Retirement or
+    mapping an uncorrecting SHA would not prove the requested restored binding.
+  - Links: `AGENTS.md` rule 10; `RUNBOOK_AGENT.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD: One exact human-admitted preparation, preserved old proof and bounded real-Git
+    history, distinct prospective coverage, actual immutable-R FIXED proof, unchanged
+    ordinary gates, terminal evidence rechecks, deterministic negatives, reviewed
+    promotion, and no candidate self-authorization for this prerequisite.
+
 <a id="ledger-client-arch-1-cab-01"></a>
 - [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator

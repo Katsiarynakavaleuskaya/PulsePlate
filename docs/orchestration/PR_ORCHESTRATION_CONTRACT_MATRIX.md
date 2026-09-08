@@ -492,6 +492,62 @@ records `FIXED`, not `NOT-A-BUG`: the defect was real at
 PASS, merge authority, or bypass of current CI, security, other findings,
 unresolved threads, bot actionables, ancestry, or the wait window.
 
+#### Prepared actual-R alternative within the historical FIXED class
+
+The disjoint prepared form is `M -> C -> ... -> S -> ... -> H -> R`, where
+`S != H`; it does not change the direct historical forms. The old seal must
+recompute at authenticated historical `M`/base through unique regular
+mapping-only closeout `C`. Every first-parent vertex through `H` preserves the
+old mapping. Only non-empty one-parent material edges and genuine advancing
+two-parent base synchronizations are admitted; carry the effective base through
+each sync and fail unsupported or ambiguous forms without fallback.
+
+One canonical JSON `reseal_preparation` object in the existing closeout draft is
+projected once under `## Actual Reseal Preparation`, outside ordinary mappings
+and the active v1 seal. The exact key set is `schema_version`, `repository`,
+`pr_number`, `root_url`, `root_body_sha256`, `root_created_at`,
+`original_head_sha`, `final_material_head_sha`, `base_sha`, `merge_base_sha`,
+`material_digest`, `material_policy_version`, `prior_mapping_blob_oid`, and
+`owner_admission_reference`. Duplicate keys, extra fields, malformed or aliased
+references, and missing/null preparation fail closed. The schema discriminator
+is `pulseplate.actual-reseal-preparation/v1`; material policy remains the
+existing v1 material-classification contract. No future correcting SHA is a
+preparation field.
+
+The reference selects one separate same-PR unedited issue comment by an
+authenticated real User with OWNER association and no App origin. Its exact
+RUNBOOK_AGENT.md statement binds every intent field except its own reference,
+attests whole-root inspection and the sole stale-binding actionable, and admits
+one prospective publication. It is not FIXED/resolution/approval/readiness.
+The trusted unedited root must remain first and unresolved before publication;
+ordinary prose heuristics do not decide the human's attested classification.
+
+Pre-closeout independently validates the new local no-claim seal and self-review
+at exact live `H`/base/merge-base/digest, all preserved ordinary proof, only the
+mapping dirty, and the separate prospective selected-root coverage. The ordinary
+and prospective sets never collapse. Empty ordinary dispositions use a neutral
+structural line only with a valid preparation; that line is not retained proof
+and may not assert "No actionable review comments". Every other actionable
+retains its ordinary requirement. Global eligible-root cardinality includes
+both legacy and prepared forms before caller filtering.
+
+Actual FIXED requires real reachable non-empty non-trigger sole `H -> R`
+mapping-only publication, unchanged material, the matching preparation in
+immutable `R`, `root < admission < R push <= OWNER reply`, the exact existing
+OWNER FIXED reply selecting `S`/`R`, and thread resolution. Current live seal
+validation remains independent. Later ordinary reseals preserve the event as
+historical evidence, not permanent pending permission. Missing selected evidence
+still blocks normal readiness when the ordinary actionable set is empty. Both
+the selected root and separate human admission are re-fetched at the terminal
+boundary; the bot-only inventory cannot stand in for the human comment.
+
+The normal no-preparation path, no-claim semantics and every other readiness
+gate remain unchanged. The prerequisite's own closeout cannot use its candidate
+recovery mechanism to grant itself authority. Evidence:
+`scripts/orchestration/pr_review_evidence.py:491`,
+`scripts/ci/check_pr_merge_readiness.py:1565`, and
+`tests/test_pr_review_material_seal.py:7050`.
+
 A root actually covered by a canonical reply-only validator is the narrow
 exception to ordinary artifact mapping: its exact reply plus resolved thread is
 the disposition evidence, and no second mapping entry or docs commit is created.

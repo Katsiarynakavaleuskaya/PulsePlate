@@ -875,8 +875,9 @@ Classify the new review item before choosing the recovery path:
    inventory, author dispositions, and publish exactly one direct mapping-only
    successor.
 6. If a mapping-only successor already exists, no real material correction may
-   be appended on top of it. A historical stale-seal finding is the narrow
-   exception only when `S` matches one form in the closed disjoint union
+   be appended on top of it.
+   The direct historical stale-seal exception requires `S` to match one form
+   in the closed disjoint union
    `LINEAR_MATERIAL ∪ BASE_SYNC` and the sole direct mapping-only reseal `R` was
    pushed after the finding but no later than the OWNER reply and already
    corrected it. `LINEAR_MATERIAL` requires one parent `P`, unchanged inherited
@@ -889,6 +890,11 @@ Classify the new review item before choosing the recovery path:
    counts fail closed. Preserve that ancestry, validate the inherited prior
    seal, the reseal at `R`, and the current live seal, and use the exact
    owner-only `FIXED` reply instead of manufacturing material or replacing the PR.
+   If that direct form does not apply, first consider only the bounded
+   prepared actual-R path in rule 10 and RUNBOOK_AGENT.md: exact human-admitted
+   intent, preserved mapping through `S != H`, distinct prospective coverage,
+   and actual correcting `H -> R` proof. Preparation is never FIXED, and the
+   same-digest reseal rejection remains unchanged even after material cycling.
    Otherwise keep the finding unresolved and supersede the PR from a clean
    current base through the normal coordinator-owned replacement flow, where a
    real correction advances material before that PR's sole mapping-only
@@ -955,7 +961,9 @@ Classify the new review item before choosing the recovery path:
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,
 and be followed by exactly one mapping-only successor. A prior mapping-only
-live head must never host the correction. This preserves the one-successor
+live head must never host the correction. Rule 10 recognizes pre-existing
+genuine history and admits exact `H -> R` mapping publication only; it grants
+no new-material authority. This preserves the one-successor
 invariant without freezing an obsolete head or turning every new reviewer ref
 into another parser variant.
 
@@ -1088,6 +1096,29 @@ remediated by that same batch. A suppression addition, broadening, replacement,
 or unrelated deletion is never closure and remains forbidden.
 
 ---
+
+## Closeout recovery: publication admission is not correcting evidence
+
+A stale claim can be withdrawn without correcting the promised current binding.
+Do not use withdrawal, a preparation, or a synthetic successor as `FIXED` proof.
+The actual correction must be a real reachable mapping-only commit with its
+material identity recomputed. Keep prospective publication admission separate
+from observed correction, resolution, current readiness, and human merge power.
+
+When ordinary pre-closeout would otherwise require mapping a future correcting
+commit, use only the bounded rule-10 prepared recovery contract. The OWNER
+inspects the complete root and admits the exact intent through separate
+authenticated unedited evidence. Machine hashing binds that intent but does not
+make the human decision. Do not add a prose or badge parser to infer that no
+independent actionable exists. Preserve ordinary proof, retain the preparation
+as a historical event, and read actual correction evidence from immutable `R`.
+An empty ordinary-actionable heuristic inventory cannot erase that selected root.
+
+Deterministic tests must separate preparation from actual coverage, exercise
+real Git material/base-sync edges, and reject changed/deleted human evidence at
+the terminal boundary. Existing ordinary behavior must remain unchanged when no
+preparation exists. See `AGENTS.md` rule 10, RUNBOOK_AGENT.md's prepared actual-R
+procedure, and `scripts/orchestration/pr_review_evidence.py:491`.
 
 ## Repo Commands Reference
 

@@ -835,8 +835,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    ```
 
    The canonical mapping artifact must be the only dirty path. This pass must
-   cover every live actionable bot issue comment, bot inline comment, and
-   top-level bot review explicitly; a child-comment mapping does not cover its
+   cover every ordinary live actionable bot issue comment, bot inline comment,
+   and top-level bot review explicitly; the prepared recovery below separately
+   covers its selected root prospectively, never as FIXED. A child mapping does not cover its
    actionable top-level review. The validator re-reads the live body,
    content-bound actionable inventory, and local dirty-path set before PASS and
    fails closed if any changes during validation. It intentionally does not require resolved
@@ -856,6 +857,69 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    synthetic closeout commit.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
+
+### Prepared actual-R stale-binding recovery
+
+Use only the admitted rule-10 interval `M -> C -> ... -> S -> ... -> H -> R`;
+do not retire a stale seal or call `S` a fix. Finish the authorized material
+work and freeze exact clean, pushed/live `H` first. The selected connector root
+must still be the unedited first comment on the canonical mapping and remain
+unresolved. The human OWNER, not a badge or prose classifier, decides whether
+the complete root has only the stale-current-binding actionable.
+
+1. Obtain an explicitly non-admitted, zero-write intent preview:
+
+   ```bash
+   python scripts/orchestration/pr_review_closeout.py preview-reseal-intent \
+     --repo <owner/name> --pr-number <N> --root-url <canonical-root-url>
+   ```
+
+2. The human independently inspects the whole root and the complete previewed
+   intent. Only if accurate, the human posts one separate same-PR issue comment
+   whose entire body is exactly the following line, substituting the canonical
+   compact sorted JSON `intent` object from the preview. It excludes only
+   `owner_admission_reference`; that reference is not known until after posting.
+   Automation does not post or manufacture the statement:
+
+   ```text
+   OWNER RESEAL ADMISSION: I inspected the complete referenced root and confirm that its only actionable is stale current material binding; I admit exactly one mapping-only correction publication for intent <canonical-intent-json>; this is not FIXED, thread resolution, review approval, or merge authorization.
+   ```
+
+3. Consume the authenticated, unedited real-User OWNER issue-comment reference:
+
+   ```bash
+   python scripts/orchestration/pr_review_closeout.py prepare-reseal \
+     --repo <owner/name> --pr-number <N> --root-url <canonical-root-url> \
+     --owner-admission-reference <same-PR-issuecomment-url>
+   ```
+
+   `RESEAL_PUBLICATION_PREPARED` is not a disposition or readiness result. The
+   existing draft owns the preparation. Restore every ordinary disposition,
+   run the exact-material self-review, and seal normally. The generated
+   `## Actual Reseal Preparation` event stays outside the active v1 seal and
+   `## Fixed in Commit Mapping`. Its neutral empty ordinary-set line is not
+   proof and cannot claim that the selected root is already fixed or resolved.
+4. Run the normal authenticated pre-closeout pass with only the mapping dirty.
+   It separately checks prospective coverage of the selected root, ordinary
+   coverage of all other actionables, exact `H`/base/material identity, preserved
+   proof, global singleton, and a terminal re-fetch of the human admission.
+   Any material, base, root, or admission change fails; hashes are not consent.
+   The prior same-digest rejection remains unchanged. A material interval that
+   cycles back to the old digest is unsupported even if its head SHA differs;
+   do not manufacture another carrier or weaken that guard.
+5. Publish the sole mapping-only correcting `R` only after that pass. Then the
+   human's exact existing `OWNER FIXED` reply selects `S` and real pushed `R`;
+   require `root < admission < R push <= OWNER reply` and explicit resolution.
+   Post-push proof reads the event from immutable `R`. Later ordinary reseals
+   preserve the historical event without reusing its publication admission.
+   Normal current-head seal, CI, security, other findings, ancestry, and quiet
+   window remain independent requirements. A missing selected root is a failure
+   even if ordinary bot heuristics report no actionables.
+
+Implementation: `scripts/orchestration/pr_review_evidence.py:491` and
+`scripts/orchestration/pr_review_closeout.py:516`. This prerequisite must use
+the already-effective ordinary closeout path for its own PR; its candidate
+recovery code cannot authorize itself before normal promotion.
 
 ## Stacked PR replacement flow (mandatory when parent merge closes the child PR)
 

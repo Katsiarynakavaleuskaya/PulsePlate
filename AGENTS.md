@@ -376,6 +376,45 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     approval, scan, PASS, merge authority, or a bypass of current CI, security,
     mapping, unresolved
     threads, bot actionables, ancestry, or the wait window.
+    The same historical `FIXED` class also admits one prepared, disjoint
+    interval `M -> C -> ... -> S -> ... -> H -> R`, with `S != H`. `M` and its
+    unique mapping-only closeout `C` must authenticate and recompute the old
+    seal. Every first-parent vertex from `C` through `H` preserves that old
+    regular mapping blob; edges are non-empty one-parent material changes or
+    genuine two-parent advancing base synchronizations. Effective historical
+    base follows each synchronization; failed forms never fall through.
+    Before publication, one closed canonical preparation in the existing draft
+    and outside the mapping section and active v1 seal binds repository/PR,
+    root URL/body hash/timestamp, `S`, exact current `H`, base/merge-base,
+    material digest/policy, prior mapping blob, and an authenticated OWNER
+    issue-comment reference. No future `R` is invented. The separate unedited
+    real-User OWNER comment must attest whole-root inspection, no independent
+    actionable beyond stale current material binding, and exactly one
+    correction publication for that complete intent. A local flag, agent text,
+    bot badge, or content hash cannot supply this human decision. The CLI may
+    preview data read-only, but never authors or posts the human statement.
+    Pre-closeout requires the exact live `H`, its valid local provider-neutral
+    seal and self-review, preserved ordinary proof, only mapping dirty, and
+    separate prospective coverage for the unresolved selected root. Ordinary
+    dispositions and this prospective root are different sets: preparation is
+    not `FIXED`, resolution, approval, or readiness, and an empty ordinary set
+    must not claim "No actionable review comments". All other actionables retain
+    their ordinary obligations. Global singleton counting includes both direct
+    historical and prepared eligible roots before URL filtering.
+    Only after a real reachable non-empty, non-trigger sole mapping-only `H -> R`
+    child is pushed may the exact existing OWNER FIXED reply select `S` and `R`.
+    Its preparation is read from immutable `R`, not a later seal. Require
+    `root < admission < R push <= OWNER reply` and a resolved thread; the current
+    live seal independently satisfies normal gates. Retain the preparation as a
+    historical event on later ordinary reseals, never as another pending
+    approval. Missing/deleted selected evidence fails closed even when ordinary
+    bot heuristics return an empty inventory. Re-fetch the separate human
+    admission at the terminal validation boundary. This contract takes effect
+    through ordinary reviewed promotion; its candidate cannot self-authorize
+    its own closeout. The existing same-digest reseal rejection remains hard:
+    material cycling back to the prior sealed digest is unsupported even when
+    the final head differs; preparation does not authorize a no-op or synthetic
+    carrier. Commands and exact intent grammar live in RUNBOOK_AGENT.md.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
@@ -385,7 +424,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
     with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
     every live actionable bot issue comment, bot inline comment, and top-level
-    bot review in the local artifact and require exactly one real same-repository
+    bot review through ordinary dispositions, except the separately validated
+    prospective root under rule 10, and require exactly one real same-repository
     Markdown link through
     `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
     PR body. The ref path must exactly match the PR's authenticated `head.ref`;
