@@ -59,6 +59,13 @@ existing manager; the retained request-completion state is not proof of per-type
 HealthKit read permission and does not survive a destroyed parent or app relaunch.
 Progress state labels and actions also use the app-selected localization manager.
 
+The manually managed Debug and Release plists explicitly select the existing
+`LaunchScreen` storyboard, declare iPhone/iPad orientation arrays and the existing
+single-scene lifecycle, and provide the existing Health read-purpose fallback.
+All four source `Info*.plist` files are excluded from synchronized app resources;
+the built application uses its processed canonical `Info.plist`. Source settings
+alone do not establish the effective bundle metadata or native viewport behavior.
+
 This remains a thin presentation shell. It owns no backend, OpenAPI, DTO,
 entitlement, billing, calculation, or persistence authority.
 
@@ -74,6 +81,11 @@ Evidence:
 - `ios/PulsePlate/Views/ProfileView.swift:5`
 - `ios/PulsePlate/Views/ProfileView.swift:101`
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
+- `ios/PulsePlate/Info-Debug.plist:19`
+- `ios/PulsePlate/Info-Release.plist:25`
+- `ios/PulsePlate.xcodeproj/project.pbxproj:54`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:580`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:642`
 
 ## FitChef support handoff (PR #2320 landed)
 

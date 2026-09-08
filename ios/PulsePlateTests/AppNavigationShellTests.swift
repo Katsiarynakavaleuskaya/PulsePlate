@@ -577,6 +577,120 @@ final class AppNavigationShellTests: XCTestCase {
         }
     }
 
+    func testActivePlistsDeclareNativeViewportsAndExistingHealthReadPurpose() throws {
+        let phoneOrientations = [
+            "UIInterfaceOrientationPortrait",
+            "UIInterfaceOrientationLandscapeLeft",
+            "UIInterfaceOrientationLandscapeRight",
+        ]
+        let tabletOrientations = [
+            "UIInterfaceOrientationPortrait",
+            "UIInterfaceOrientationPortraitUpsideDown",
+            "UIInterfaceOrientationLandscapeLeft",
+            "UIInterfaceOrientationLandscapeRight",
+        ]
+        let localizedInfo = try propertyListDictionary(
+            at: "ios/PulsePlate/en.lproj/InfoPlist.strings"
+        )
+        let purpose = try XCTUnwrap(localizedInfo["NSHealthShareUsageDescription"] as? String)
+        XCTAssertFalse(purpose.isEmpty)
+
+        for (configuration, baseURL, permitsLocalHTTP) in [
+            ("Debug", "http://127.0.0.1:8000", true),
+            ("Release", "https://pulseplate.app", false),
+        ] {
+            let info = try propertyListDictionary(
+                at: "ios/PulsePlate/Info-\(configuration).plist"
+            )
+            XCTAssertEqual(info["UILaunchStoryboardName"] as? String, "LaunchScreen")
+            XCTAssertEqual(info["UISupportedInterfaceOrientations"] as? [String], phoneOrientations)
+            XCTAssertEqual(
+                info["UISupportedInterfaceOrientations~ipad"] as? [String], tabletOrientations
+            )
+            XCTAssertEqual(
+                info["UIApplicationSceneManifest"] as? [String: Bool],
+                ["UIApplicationSupportsMultipleScenes": false]
+            )
+            XCTAssertEqual(info["NSHealthShareUsageDescription"] as? String, purpose)
+            XCTAssertEqual(info["BASE_URL"] as? String, baseURL)
+            XCTAssertEqual(
+                info["NSAppTransportSecurity"] as? [String: Bool],
+                ["NSAllowsArbitraryLoads": permitsLocalHTTP, "NSAllowsLocalNetworking": permitsLocalHTTP]
+            )
+            XCTAssertEqual(info["CFBundleExecutable"] as? String, "$(EXECUTABLE_NAME)")
+            XCTAssertEqual(info["CFBundleIdentifier"] as? String, "$(PRODUCT_BUNDLE_IDENTIFIER)")
+            for forbiddenKey in [
+                "NSHealthUpdateUsageDescription", "UILaunchScreen", "UILaunchScreens",
+                "UIApplicationSupportsIndirectInputEvents", "UIStatusBarStyle",
+                "LSApplicationCategoryType", "CFBundleURLTypes", "UISceneConfigurations",
+                "UISceneDelegateClassName", "UIRequiresFullScreen",
+            ] {
+                XCTAssertNil(info[forbiddenKey], "\(configuration): \(forbiddenKey)")
+            }
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: try repositoryRoot()
+                    .appendingPathComponent("ios/PulsePlate/LaunchScreen.storyboard").path
+            )
+        )
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "UILaunchStoryboardName") as? String,
+                       "LaunchScreen")
+        XCTAssertNotNil(Bundle.main.url(forResource: "LaunchScreen", withExtension: "storyboardc"))
+    }
+
+    func testAppTargetBindsActivePlistsAndExcludesThemFromSynchronizedResources() throws {
+        let project = try propertyListDictionary(at: "ios/PulsePlate.xcodeproj/project.pbxproj")
+        let objects = try XCTUnwrap(project["objects"] as? [String: [String: Any]])
+        let projectID = try XCTUnwrap(project["rootObject"] as? String)
+        let targetIDs = try XCTUnwrap(objects[projectID]?["targets"] as? [String])
+        let appTargets = targetIDs.filter {
+            objects[$0]?["isa"] as? String == "PBXNativeTarget"
+                && objects[$0]?["name"] as? String == "PulsePlate"
+        }
+        XCTAssertEqual(appTargets.count, 1)
+        let targetID = try XCTUnwrap(appTargets.first)
+        let target = try XCTUnwrap(objects[targetID])
+        let listID = try XCTUnwrap(target["buildConfigurationList"] as? String)
+        let configurationIDs = try XCTUnwrap(objects[listID]?["buildConfigurations"] as? [String])
+
+        for name in ["Debug", "Release"] {
+            let matches = configurationIDs.filter { objects[$0]?["name"] as? String == name }
+            XCTAssertEqual(matches.count, 1)
+            let configurationID = try XCTUnwrap(matches.first)
+            let settings = try XCTUnwrap(objects[configurationID]?["buildSettings"] as? [String: Any])
+            XCTAssertEqual(settings["INFOPLIST_FILE"] as? String, "PulsePlate/Info-\(name).plist")
+            XCTAssertEqual(settings["GENERATE_INFOPLIST_FILE"] as? String, "NO")
+        }
+
+        let groupIDs = try XCTUnwrap(target["fileSystemSynchronizedGroups"] as? [String])
+        var exclusions: Set<String> = []
+        for groupID in groupIDs {
+            let exceptionIDs = try XCTUnwrap(objects[groupID]?["exceptions"] as? [String])
+            for exceptionID in exceptionIDs {
+                let exception = try XCTUnwrap(objects[exceptionID])
+                guard exception["target"] as? String == targetID else { continue }
+                exclusions.formUnion(try XCTUnwrap(exception["membershipExceptions"] as? [String]))
+            }
+        }
+        let infoExclusions = exclusions.filter {
+            URL(fileURLWithPath: $0).lastPathComponent.hasPrefix("Info") && $0.hasSuffix(".plist")
+        }
+        XCTAssertEqual(
+            infoExclusions,
+            Set(["Info-Debug.plist", "Info-Release.plist", "Info.plist", "Views/Info-Debug.plist"])
+        )
+    }
+
+    private func propertyListDictionary(at relativePath: String) throws -> [String: Any] {
+        let url = try repositoryRoot().appendingPathComponent(relativePath)
+        let data = try Data(contentsOf: url)
+        return try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+                as? [String: Any]
+        )
+    }
+
     private func navigationLocalization(locale: String) throws -> [String: String] {
         let url = try repositoryRoot()
             .appendingPathComponent("ios/PulsePlate")

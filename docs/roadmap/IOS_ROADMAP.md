@@ -34,6 +34,11 @@
   unchanged.
 - `DebugToolsScreen` is available only inside the compile-gated DEBUG Profile
   section; it is never part of the production tab inventory.
+- Active Debug/Release plists explicitly select the packaged LaunchScreen,
+  declare the accepted phone/tablet orientations and single-scene lifecycle,
+  and retain the localized read-only HealthKit purpose fallback. All four source
+  Info plists remain outside Copy Bundle Resources. Built-bundle and native
+  viewport/interaction evidence are required in addition to source assertions.
 
 Evidence:
 
@@ -51,7 +56,12 @@ Evidence:
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:252`
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:413`
-- `ios/PulsePlate.xcodeproj/project.pbxproj:496`
+- `ios/PulsePlate/Info-Debug.plist:19`
+- `ios/PulsePlate/Info-Release.plist:25`
+- `ios/PulsePlate.xcodeproj/project.pbxproj:54`
+- `ios/PulsePlate.xcodeproj/project.pbxproj:497`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:580`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:642`
 
 ### Networking SoT (thin client)
 
@@ -85,8 +95,12 @@ Evidence:
   and Release/AppIcon prerequisite
   [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381).
   It preserves V5 presentation while correcting Weekly manager lifetime and
-  Progress state localization. Real SwiftUI V1 review and human `GO`, terminal
-  current-head CI, closeout, and merge remain pending.
+  Progress state localization, and repairs the effective launch/orientation and
+  plist-resource metadata exposed by the real Release probe. RubyZip
+  CVE-2026-85396 remains a current security prerequisite owned by
+  [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347).
+  Real SwiftUI V1 review and human `GO`, terminal current-head CI, closeout,
+  and merge remain pending.
 
 ---
 

@@ -2835,6 +2835,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     (`codex/ios-adaptive-navigation-shell`)
   - Status: Same-PR recovery implements Weekly session-manager retention and
     Progress localization while preserving Candidate A and merged V5 visuals.
+    Native launch/orientation and plist-resource metadata are corrected in the
+    same carrier after the Release probe exposed their missing effective values.
     Human V1 `GO`, current-head CI, canonical closeout, and merge remain pending;
     the operator delegated merge after those gates.
   - Dependency: PR `#2368` merged at
@@ -2843,6 +2845,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       merged at `5adbb917e54261e999c076e77bbff92d3c53fcdd`
     - Release/AppIcon prerequisite [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
       merged at `d9883bc9c0a6eb69691c5b2cda3795c387758c9f`
+    - Current RubyZip CVE-2026-85396 prerequisite remains owned by
+      [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347);
+      merge readiness cannot ignore the observed current security failure.
   - Area: ios / navigation / localization / accessibility / tests / docs
   - Finding Type: consumer-first top-level navigation release slice
   - Scope / Reason:
@@ -2856,6 +2861,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Retain the same Progress-owned HealthKit manager across Weekly pop/re-entry
       within one parent lifetime, without authorization/query changes or a new
       permission-state carrier; localize the touched Progress states and actions
+    - Make the existing launch storyboard, accepted orientations, single-scene
+      lifecycle and Health read-purpose fallback explicit in both active plists;
+      exclude the inactive fourth Info plist through the existing target exception
     - This item absorbs only the `RootTabs` / top-level-navigation portion of
       the older
       `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
@@ -2875,7 +2883,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ios/PulsePlate/Views/ProfileView.swift:101`
     - `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
     - `ios/PulsePlateTests/AppNavigationShellTests.swift:413`
-    - `ios/PulsePlate.xcodeproj/project.pbxproj:496`
+    - `ios/PulsePlate/Info-Debug.plist:19`
+    - `ios/PulsePlate/Info-Release.plist:25`
+    - `ios/PulsePlate.xcodeproj/project.pbxproj:54`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:580`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:642`
   - Links:
     - `docs/roadmap/IOS_ROADMAP.md#app-entry--navigation`
     - `docs/architecture/system_overview.md#ios-adaptive-navigation-shell`
@@ -2890,6 +2902,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       pop/re-entry prove retention for the bounded parent session
     - DEBUG diagnostics are absent from the production section count and
       compile-gated inside Profile
+    - Fresh Debug/Release bundles contain the exact effective launch, orientation,
+      scene and read-purpose metadata, preserve URL/ATS differences, package the
+      existing storyboard, and contain no extra source Info plist resource;
+      native full-viewport launch and correct tap alignment are observed
     - Focused navigation/localization/accessibility tests, full `make ios-test`,
       required narrow local gates, and terminal current-head CI pass
     - Product Owner reviews the real SwiftUI V1 matrix and records `GO` before
