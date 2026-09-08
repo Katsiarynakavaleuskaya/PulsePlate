@@ -1,419 +1,158 @@
-# PR #2347 CVE-2026-84304 Go gRPC derivative remediation
+# PR #2347 CVE-2026-84304 gRPC image remediation
 
 ## Summary
 
-This document is the single security owner for the bounded
-`google.golang.org/grpc` remediation in PR #2347. Caddy and the candidate-only
-Prometheus derivative select `v1.83.1`; CVE-2026-16742 remains outside this
-PR. The source change does not itself claim a successfully built, scanned,
-published, selected, deployed, or activated candidate image.
-
-Stage-1 postcondition remains **`P=false`**. The selected Prometheus runtime is
-still the exact official record at `deploy/prometheus/image-manifest.json:1`.
-Candidate evidence and a final receipt would not change that selector.
-
-## Current truth
-
-- Run `34051839413` on head `19a629904cfa17e9527fc0d8ca5a499aec61660d`
-  completed both builds and passed complete build-evidence equality, then
-  stopped at `HOLD:trivy_package_coverage_incomplete` at 18:46:25Z on
-  2026-09-06. Equality was observed for that material, but the scanner
-  postcondition and candidate admission failed. Only receipt 00 exists;
-  the raw Trivy report was cleaned, so the exact incomplete package is unknown.
-- The official selected Prometheus linux/amd64 image embeds gRPC `v1.83.0`;
-  CVE-2026-84304 is fixed in `v1.83.1`.
-- Caddy's exact module graph and binary metadata now select `v1.83.1` at
-  `frontend/Dockerfile.caddy-spa:21`.
-- The subordinate derivative recipe is
-  `deploy/prometheus/Containerfile:1`.
-- The sole policy and state-machine owner is
-  `scripts/ci/prometheus_derivative_candidate.py:1`.
-- Private mechanics are isolated in
-  `scripts/ci/_prometheus_derivative_transport.py:1`.
-- The rejected CD `workflow_dispatch` publisher is not an authority or
-  compatibility surface.
-
-## Operator-authorized execution transfer
-
-The operator explicitly approved moving only candidate build and verification
-to GitHub Actions in the existing PR, after the local Apple builder exhausted
-disk space during image unpack. That approval did not authorize publication,
-Droplet execution, deployment, runtime selection, or `T0`. The separate exact
-publication line remains mandatory. A subsequent direct approval permits the
-existing controller to contain at most 2400 normally Black-formatted physical
-lines; the private transport remains below 1400 and there are still exactly
-two Python modules, one already-existing workflow, and no new publication
-backend.
-
-The first real cloud attempt for head
-`80fb75e29d87aabe7552380077831ae7999ad203`, run `34039556026` / job
-`101503713637`, stopped before compilation with `tool_observation_invalid`.
-Pinned Buildx 0.37 has no `inspect --format` flag. The collector now bootstraps
-with supported `inspect`, then asks `ls --format` for the single exact named
-Builder JSON and checks the real node `Version` field, before the unchanged
-Docker image/config/resource checks. No text parser, version widening or
-profile change is used. [Pinned inspect flags](https://github.com/docker/buildx/blob/v0.37.0/commands/inspect.go#L182),
-[canonical JSON formatter](https://github.com/docker/buildx/blob/v0.37.0/commands/ls.go#L206),
-[node JSON fields](https://github.com/docker/buildx/blob/v0.37.0/builder/node.go#L197).
-The failed run and receipt 00 remain retained, not reset or counted as image
-evidence; the corrected material requires a fresh head-bound candidate.
-
-The second cloud attempt, head
-`5cf70a19a880082e6baf0bc2f060e31d5a417e6c`, run `34042515054` / job
-`101511716740`, passed that observation and failed at
-`deploy/prometheus/Containerfile:3`: the pinned official builder manifest
-`sha256:cdcb06bf0bc5401d4fbf8a71706bb8f74d69276427a1b368a065af53a254bc7f`
-returned `404 MANIFEST_UNKNOWN`. Its receipt 00 is also preserved as failed.
-
-On 2026-09-06, independent registry reads of the official `1.27-base` tag and
-the exact replacement digest returned byte-identical manifests:
-
-- Manifest: `sha256:7eeded2a35a4ce199f4e108cf81f1b89b5a0df1366233da673a36f12b436f95b`.
-- Config: `sha256:fd24ead1d7b2b586c49bf15d11fcaba118f0f16f9cbe8f182da9c104abbe9a5a`.
-- Platform: `linux/amd64`; upstream creation: 2026-09-03.
-- Go archive checksum agrees with the official Go download inventory for
-  `go1.27.1.linux-amd64.tar.gz`:
-  `63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445`.
-- The hash-verified system layer records Node `22.23.2-1nodesource1` as
-  installed. The hash-verified pnpm layer's actual executable retains
-  `e5e29eb103e73729ed4115f0e939fb376386dd0d76db56b12459524041f922a0`.
-
-The bounded repair refreshes only the immutable builder pin, the exact Go
-assertion to `1.27.1`, and the controller's recipe hash. Node, pnpm, source,
-UI/Go locks, runtime base and all verification/publication gates are unchanged.
-Registry metadata and extracted package/executable bytes are input evidence,
-not a successful execution or reproducibility result. The real build must
-still pass every executable assertion and compare two freshly measured binary
-and image identities. [Official builder](https://github.com/prometheus/golang-builder),
-[Go 1.27.1 patch release](https://go.dev/doc/devel/release#go1.27.1).
-
-The implementation below is not evidence that a new cloud candidate has been
-successfully built or published. Stage-1 `P=false` remains unchanged.
-
-## First-use and subprocess review corrections
-
-Two review findings exposed defects in the existing mechanics, not authority
-to expand the candidate lane. First freeze now creates the missing fixed
-`artifacts/` root before validating it, at
-`scripts/ci/prometheus_derivative_candidate.py:256`. The test fixture no longer
-pre-creates that root. Clean/partial/replayed state, every fixed path component,
-creation races and unsafe existing modes are exercised without a permission
-repair or alternate output root.
-
-The private process primitive at
-`scripts/ci/_prometheus_derivative_transport.py:223` now checks its existing
-per-stream byte limit during simultaneous output collection and stdin delivery,
-instead of buffering an entire command before checking. Real subprocess tests
-exercise live stdout/stderr/mixed floods, exact limits, input/output pipe
-pressure, EOF, nonzero exits, timeout and isolated-group termination/reaping.
-The public plan/result and stable error contracts remain unchanged; no spill
-file, provider, generic executor or extra module is introduced. Operational
-rules remain in `scripts/AGENTS.md:40`.
-
-The separate dispatch-option finding is **NOT-A-BUG** for the selected API.
-The existing request explicitly sends `X-GitHub-Api-Version: 2026-03-10` at
-`scripts/ci/prometheus_derivative_candidate.py:1074`. That version returns
-HTTP 200 with run identity by default; `return_run_details` belongs to the
-older version's opt-in contract. The cited CLI implementation itself notes
-the new-version distinction. Exact-header and empty-response/no-retry tests
-retain the current request rather than adding an unnecessary compatibility
-option. [Current versioned REST contract](https://docs.github.com/en/rest/actions/workflows?apiVersion=2026-03-10#create-a-workflow-dispatch-event),
-[older opt-in contract](https://docs.github.com/en/rest/actions/workflows?apiVersion=2022-11-28#create-a-workflow-dispatch-event),
-[CLI version distinction](https://github.com/cli/cli/blob/v2.96.0/pkg/cmd/workflow/run/run.go#L306).
-
-These corrections and the request-contract disposition do not supply the
-outstanding cloud build, scan, publication or selector evidence.
-
-## Reproducibility export and bounded failure evidence
-
-Earlier run `34047493123` on head
-`cfe313c3a7413b201000d953a4dcd9716df5c4fd` completed both build calls, then
-stopped at `HOLD:path_independent_build_mismatch` before scanning.
-The failed equality run did not retain differing field values before its
-normal temporary-archive cleanup. It cannot establish whether binary, UI or
-OCI metadata differed; its receipt 00 remains failed and is not reused.
-
-The pinned upstream compression script uses gzip `-n`, so no gzip-option
-change is justified. Pinned BuildKit 0.33.0 separately requires
-`rewrite-timestamp=true` to apply `SOURCE_DATE_EPOCH` to image-layer file
-timestamps. The existing OCI exporter omitted that option; touching only the
-two binaries did not prove normalization of every emitted entry. The common
-build path now supplies the documented option for both builds and subsequent
-fresh pre-publication verification, while preserving the recipe, sources,
-locks, base, resources and full equality predicate.
-[Pinned gzip implementation](https://github.com/prometheus/prometheus/blob/09fdfcd2659dd9c816e9e23c992fc161c0091757/scripts/compress_assets.sh#L16),
-[pinned BuildKit timestamp contract](https://github.com/moby/buildkit/blob/v0.33.0/docs/build-repro.md#source_date_epoch),
-[exporter option](https://github.com/moby/buildkit/blob/v0.33.0/exporter/containerimage/opts.go#L57).
-
-Before the unchanged mismatch HOLD, the controller reports only differing
-validated evidence fields, digest values and bounded counts. Layer lists are
-represented by count and canonical digest, not dumped; oversized numeric
-diagnostics are explicitly marked. Invalid or unknown evidence is rejected
-before logging. No scan or success artifact follows a mismatch. This is
-stderr diagnostics, not a new receipt or authority surface. The relevant
-implementation remains `scripts/ci/prometheus_derivative_candidate.py:567`.
-
-The missing exporter normalization is a supported contract correction, not
-proof that timestamps were the sole cause of the observed mismatch. Only a
-fresh exact-head run can establish equality and then the unchanged scanner
-postcondition. Expected content hashes are not rewritten to accept drift.
-
-## Scanner-compatible binary metadata
-
-The later scan HOLD does not prove which package lacked metadata. Independently,
-the pinned Trivy 0.74.0 Go-binary parser documents the Go trimpath/ldflags
-limitation and uses ELF symbols to read version strings. The previous shared
-`-s -w` linker flags removed the symbol table needed by that fallback while
-the recipe retained `-trimpath`. This source-grounded compatibility correction
-removes only `-s` from `deploy/prometheus/Containerfile:186`; it is not a claim
-that stripping was the proven cause of the observed report failure.
-[Pinned Trivy Go parser](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/dependency/parser/golang/binary/parse.go),
-[pinned ELF symbol reader](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/dependency/parser/golang/binary/elf.go).
-
-Both binary builds still use one shared flag value with `-w`, the same
-`-trimpath`/`-buildvcs=false`, exact version/revision/branch/user/date `-X`
-fields, source, locks, toolchain and resource controls. The recipe's actual
-SHA-256 is now
-`85bf616f51bb77a9d30d487af2d51fcb10d41192f578ce14fba8f047ad8d148d`,
-and the controller binds those exact bytes. Binary and image digests are
-expected to change; their values and size are not predicted.
-
-The scanner predicate is unchanged: every reported package requires a
-non-empty string name and version. Regression fixtures include the main
-`github.com/prometheus/prometheus` package beside gRPC in both binaries;
-empty main versions still fail even when every other package is valid.
-Positive `3.14.0` fixtures prove normalization only, not ELF extraction.
-Scan HOLD must not emit success artifacts or advance receipts. A fresh
-two-build equality run and actual Trivy report must establish both binaries'
-main version `3.14.0`, gRPC `v1.83.1`, complete package coverage and zero
-HIGH/CRITICAL findings before admission; publication remains separately gated.
-
-Findings collections retain the pinned Trivy type contract for every existing
-target. Trivy 0.74.0 declares `Vulnerabilities` and `Secrets` as typed slices
-with `omitempty`: omission and `[]` normalize equivalently. The reader now
-defaults only an absent key, rather than replacing every false-valued input
-with `[]`. Explicit `null` and every present non-list fail the existing
-`trivy_report_invalid` gate; populated findings still preserve their identity
-and severity and fail nonzero-count admission. This changes no target,
-severity policy, package predicate, suppression or publication authority.
-[Pinned report types](https://github.com/aquasecurity/trivy/blob/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994/pkg/types/report.go).
-
-## Closed pre-build identity
-
-### Successful cloud proof and artifact-transport correction
-
-Run [34191782705](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34191782705)
-at `ce11151491766f633a641a656ca5b06549e25d39` completed both builds with identical
-evidence and Trivy 0.74.0 coverage of OS, Prometheus and promtool. The report
-records `high_count=0`, `critical_count=0`, and database update
-`2026-09-08T01:14:11.072075Z`. Authenticated artifact `10042887733` is
-173115018 bytes with archive SHA-256
-`235b5b9d5326e31db52a7812b14e1bf91ec8066b9fe96459d02358da93369828`.
-
-Local canonical admission still stopped before receipt 30 because the direct
-artifact request omitted the mandatory GitHub `User-Agent`. A bounded live
-comparison returned 403 without the header and 302 to the allowed Azure blob
-host with it; the diagnostic download then matched the authenticated archive
-size and digest. The controller's artifact request now supplies the application
-header at `scripts/ci/prometheus_derivative_candidate.py:1289`; redirected
-requests still receive no authentication headers. The pinned source/recipe and
-all identity, byte-limit, digest, archive and scanner predicates are unchanged.
-[GitHub API header requirement](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#user-agent-required).
-
-This retained run and diagnostic artifact prove that recorded cloud result,
-not current-head canonical admission or publication. Its candidate still has
-only receipt 00. The transport correction requires a fresh normal head-bound
-verification cycle; no test adapter, fabricated receipt or old-run substitution
-is an authorized shortcut.
-
-Before receipt `00-spec`, the controller binds exact repository/head/tree,
-controller and private transport bytes, the exact local Python and Git
-executables, resolved GitHub CLI, Apple image-publication CLI/system identity,
-Containerfile, selector, all three Compose consumers, source/locks, destination,
-and the single-write limit. Apple compilation and local Trivy are no longer
-requirements of that publication executor. `CONTAINER_HOST` remains forbidden.
-
-The same spec freezes `.github/workflows/build.yml` bytes and one cloud
-profile: Ubuntu 24.04, Python 3.13.14, the existing pinned checkout/Python/upload
-actions, Buildx 0.37.0, immutable linux/amd64 BuildKit 0.33.0, Trivy 0.74.0,
-two isolated no-cache builds, and explicit
-`SOURCE_DATE_EPOCH=1788079847`. Expected public binary/archive checksums and
-the BuildKit manifest/config digests live in the controller's `CLOUD_PROFILE`.
-Remote executable observations are collected during execution, not invented
-during freeze.
-
-Primary pinned inputs:
-
-- [Buildx 0.37.0 release](https://github.com/docker/buildx/releases/tag/v0.37.0)
-- [BuildKit 0.33.0 release](https://github.com/moby/buildkit/releases/tag/v0.33.0)
-- [Trivy 0.74.0 checksums](https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_checksums.txt)
-
-The candidate ID hashes this pre-build spec; it is not the publication tuple.
-
-## Cloud verification and authenticated admission
-
-The existing `build.yml` has one independent read-only
-`prometheus-candidate` job. Candidate mode skips the complete ordinary
-build/security-scan/publish topology. Manual dispatch defaults to `disabled`;
-ordinary manual runs now require explicit `normal` mode and empty candidate
-inputs. Push, PR and tag semantics remain unchanged. The rejected CD publisher
-stays absent; the existing CD-Test listener still admits only successful
-push-to-main builds.
-
-Candidate checkout takes `github.sha` directly; the dispatch head is only an
-equality assertion against the run and checked-out Git identity, never the
-authority selecting code to execute. This removes the input-driven checkout
-reported by CodeQL without changing candidate admission or publication gates.
-
-Python dependencies use the existing canonical
-`scripts/ci/install_locked_python_requirements.py:1` installer with the locked
-`ci-lite` profile and direct-proxy mode. Only the credential-free repository
-variable `PULSEPLATE_PYTHON_INDEX_URL` enters its sanitized `env -i` environment
-alongside the private `HOME`, `PATH`, and disabled ambient pip configuration.
-URL/floor validation and startup-hook inspection remain owned by that
-installer. Proxy failure stops the job; this transfer grants no public-index
-fallback, direct package-install bypass, `.netrc`, or private-index secret.
-
-The new `cloud-execute` subcommand does not instantiate the Mac publication
-executor or local receipt store. It downloads only checksum-verified public
-Buildx/Trivy tools, constructs two isolated builders with no shared build cache,
-and verifies their exact BuildKit identity and four-CPU/6-GiB limits before and
-after each build. The unchanged recipe retains its source/archive, pnpm, locked
-module graph, UI/gzip/EmbedFS and binary checks, Node 2048-MiB heap cap and Go
-`GOMAXPROCS=2`/`GOMEMLIMIT=3GiB`/`-p=1` controls. These are not a total-host
-memory guarantee. Provenance/SBOM attestations are disabled to retain the
-existing single-image OCI recognizer, not to claim signed provenance.
-
-Both OCI archives are parsed and compared in cloud before one candidate
-archive is exported alongside two complete build observations, bounded
-material/tool/run observations, and the full Trivy report. Trivy scans the
-validated extracted OCI layout with a fresh private cache, explicit empty
-ignore input, `--config /dev/null`, positive package coverage for OS,
-Prometheus and promtool, and zero HIGH/CRITICAL findings. GitHub platform
-checkout/artifact authentication exists, but no operator/project/registry/
-private-index/deploy secrets enter candidate build/scan plans.
-
-Local `verify-local` retains its name but dispatches this cloud execution once
-through the resolved authenticated GitHub CLI. The direct REST dispatch run ID
-is required; an uncertain response is `HOLD`, never a blind POST retry.
-Admission requires exact repository/head/workflow/run/attempt bindings, the
-complete attempt-scoped four-job census, candidate success and ordinary-job
-skips, and one non-expired artifact with exact ID/name/digest. Artifact API
-metadata does not contain a producer job ID: producer binding is derived from
-the frozen sole-uploader workflow, complete job census, name containing
-run/attempt/job, and artifact creation within the successful job interval.
-This is not cryptographic producer attestation. The echoed spec digest is
-correlation only and cannot authenticate its own producer.
-
-The ZIP is streamed to adjacent private local support storage with a bounded
-byte count and exact API digest, never buffered as a multi-GiB subprocess
-result. Duplicate, extra, traversal, link, encrypted, oversized and truncated
-members fail closed. The existing OCI parser remains the only admitted shape
-recognizer. Local admission independently compares material, pinned tools,
-both build observations, OCI digests and the complete normalized scan report.
-
-Database identity remains SHA-256 of the complete regular, single-link private
-`db/trivy.db` consumed by the scanner, capped at 2 GiB. `UpdatedAt` owns
-freshness. `DownloadedAt` is local operational metadata, not database identity.
-Changed/stale/missing DB evidence is `HOLD`, with no automatic refresh or
-reseal. [Trivy DB implementation](https://github.com/aquasecurity/trivy/blob/v0.74.0/pkg/db/db.go).
-
-Receipt `30-local-verification` binds initial authenticated cloud provenance
-into the exact publication tuple alongside all stable material/build/scan and
-local executor identity. Its SHA-256 derives the candidate tag/idempotency key.
-`show-publication-tuple` reports, but cannot authorize, the required line:
-
-`AUTHORIZE_PROMETHEUS_CANDIDATE_PUSH <64-lowercase-hex-tuple-sha256> <derived-candidate-ref>`
-
-## Append-only state machine
-
-The fixed private root is:
-
-`artifacts/security_lab/prometheus_derivative_candidate/v1/<candidate-id>`
-
-Directories are mode `0700`; receipts are mode `0600`, single-link,
-canonical JSON, published through kernel atomic no-replace rename, hash-linked,
-and valid only as this complete prefix. Staging lives outside the inventoried
-candidate directory, so interruption yields either the old prefix or the new
-receipt rather than a two-hardlink intermediate:
-
-1. `00-spec`
-2. `10-build-one`
-3. `20-build-two`
-4. `30-local-verification`
-5. `40-publication-authorization`
-6. `50-write-intent`
-7. `60-push-result`
-8. `70-remote-verification`
-9. `80-final-receipt`
-
-Exact replay performs no receipt rewrite. Divergence, gaps, unknown files,
-duplicate JSON keys, unsafe modes, symlinks, hardlinks, changed bindings, or
-unsupported observations return `HOLD`.
-
-`authorize` reads exactly one newline-terminated UTF-8 line from stdin and
-atomically records receipt 40 only when it equals the tuple-derived line.
-`publish-or-reconcile` accepts no confirmation input and requires valid 40.
-
-## Publication boundary
-
-After valid 40 and before 50, the controller initiates and admits a new cloud
-two-build/scan proof. It compares stable content, tools and DB-byte identity
-with 30; ephemeral run/job/artifact provenance must be fresh rather than equal.
-An old run or a rescan alone is insufficient. Receipt 50 records that fresh
-provenance. No local compilation fallback exists.
-
-The verified OCI is then loaded locally only after exact source/candidate tag
-absence. Its outer descriptor must bind the expected fully qualified
-containerd image name with no Apple name override. JSON image inventory uses
-`configuration.name`, not denormalized quiet display strings. The controller
-tags the loaded image, saves/reparses exactly linux/amd64, and compares
-manifest/config/layers before anonymous destination census and final material
-checks. Owned names are cleaned even on post-load failure. A tag present before
-intent is `HOLD`, even when its bytes appear to match.
-
-Only the invocation that atomically creates `50-write-intent` may read the
-fixed opaque runtime token and make the controller's one direct call to the
-private login/push/logout primitive. The token is stdin-only for login and is
-never argv, receipt, log, or error data. Logout runs on every post-login
-success, failure, or interruption path. There is no push retry.
-
-An invocation observing an existing 50 performs anonymous reconciliation only:
-zero cloud build, zero local compilation, zero token read, zero login, and zero
-push. A push process result at 60 is not
-remote truth. Receipt 70 requires anonymous remote
-manifest/config/platform/layer equality with receipt 30.
-
-Immediately before receipts 50 and 80, the controller recomputes the complete
-execution identity, selector, and three Compose bindings. Receipt 80 derives:
-
-- `candidate_selected=false`;
-- `runtime_selector_updated=false`;
-- `deployment_performed=false`;
-- `t0_activated=false`.
-
-## Validation and evidence limits
-
-Behavioral tests live in existing files:
-
-- `tests/test_deploy_contract_scripts.py:365` covers canonical identity,
-  immutable receipts, stage semantics, creator dominance, reconciliation,
-  credential containment, OCI structure, registry status, and module
-  boundaries.
-- `tests/test_cd_workflow_production_deploy_gate.py:310` proves the rejected
-  CD publisher is absent.
-- `tests/test_caddy_deploy_provenance.py:384` keeps the Caddy and subordinate
-  Containerfile surface bounded.
-
-Adapter tests are mocked and non-network. Source implementation does not itself
-prove a successful cloud build, Trivy scan, anonymous GHCR observation,
-registry login, push, or receipt 70. Those claims require their separate
-operator-authorized execution and canonical local receipt evidence.
-
-## Rollback
-
-Rollback is a normal revert of the Caddy gRPC selection, subordinate
-Containerfile, the existing workflow's candidate-only additions, two Python
-modules, bounded tests, and these instruction/docs
-updates. The selected Prometheus selector and all Compose/deploy consumers are
-unchanged, so no runtime rollback action exists for this Stage-1 source change.
+This remains the single security evidence owner for PR #2347's bounded
+`google.golang.org/grpc` remediation. Caddy selects `v1.83.1`;
+Prometheus now selects the immutable official `main-distroless` image whose
+two binaries contain `v1.83.2`. No suppression or scanner exception is added.
+
+The operator explicitly revised C3 on 2026-09-08: use the verified official
+image through the existing v2 selector and remove the unused, unmerged
+derivative implementation. C3-v1 (owned derivative publication) is
+**superseded, not achieved**. C3-v2 still requires the current-head gates,
+merge and exact-main proof; this document does not claim those later results.
+
+The original pgvector compatibility classifier, terminal main/tag reuse
+recheck, staging app/worker/local PostgreSQL DSN binding, Caddy, RubyZip,
+review, post-merge and continuity requirements remain unchanged.
+
+## Exact selected subject
+
+Canonical source: `deploy/prometheus/image-manifest.json:1`.
+
+| Field | Observed value |
+| --- | --- |
+| Repository | `prom/prometheus` |
+| Source revision reported by both binaries | `53144df54e01b689bf6c45e811c6230631b132e7` |
+| Index digest | `sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1` |
+| Platform | `linux/amd64` |
+| Platform manifest digest | `sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d` |
+| Dynamically verified config digest | `sha256:2868ff918dc719b3dbcabb8585a7c2aa330499df5620a6892ffb146a2fbc727e` |
+
+The runtime reference is the repository plus the platform manifest digest,
+not a floating tag or the index digest. The record retains exactly seven v2
+fields; config identity remains verified by the existing consumer rather than
+adding a schema field. Both registry objects retain the existing Docker
+manifest-list/image media types.
+
+The config declares user `65532`, entrypoint `/bin/prometheus`, working
+directory `/prometheus`, and the existing configuration/storage arguments.
+All three Compose consumers use the same new immutable reference.
+Existing index/platform/config, RepoDigest, version, promtool, security and
+synthetic-runtime checks remain in `.github/workflows/cd.yml:49`.
+The staging and production readers remain fail-closed in
+`scripts/deploy.sh:147` and `scripts/deploy_production.sh:441`.
+
+Official means the artifact was observed in the canonical upstream registry
+namespace with these immutable bindings. It is not a PulsePlate-owned build,
+signed provenance, or independent source-to-binary reproducibility claim.
+The embedded revision was also authenticated as a repository-addressable
+[upstream commit](https://github.com/prometheus/prometheus/commit/53144df54e01b689bf6c45e811c6230631b132e7);
+that addressability does not independently prove the embedded string.
+
+## Applicable finding and scan snapshot
+
+The previous selected platform manifest `sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22`
+contained gRPC `v1.83.0` in both Prometheus binaries.
+[CD run 34224689387](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34224689387/job/102055884345)
+reported CVE-2026-84304 as HIGH in both, with fixed version `1.83.1`.
+The selected replacement contains `v1.83.2` in both governed occurrences.
+Caddy's existing exact module/binary selection remains `v1.83.1` at
+`frontend/Dockerfile.caddy-spa:21`.
+
+A fresh Trivy 0.74.0 scan of the replacement completed at
+`2026-09-08T13:23:53.580426Z`, exit 0. It used remote-only image access,
+a fresh private database, vulnerability and secret scanners, OS/library
+package coverage, empty config/ignore inputs, and no Rego suppression.
+
+| Target | Packages with non-empty names and versions | HIGH | CRITICAL | Secrets |
+| --- | ---: | ---: | ---: | ---: |
+| Debian 13.6 | 6 | 0 | 0 | 0 |
+| `usr/bin/prometheus` | 241 | 0 | 0 | 0 |
+| `usr/bin/promtool` | 198 | 0 | 0 | 0 |
+
+Both Go targets report main module `3.14.0`, gRPC `v1.83.2`, and
+stdlib `v1.27.1`. Package coverage and non-empty name/version fields were
+checked across every reported package. Missing coverage is not zero findings.
+
+- Report SHA-256: `e3550cae9a80beaab3737c4b35e0fafa8509521c576585bb2434b0f14d9b8dc7`.
+- Database update: `2026-09-08T07:08:01.235696926Z`.
+- Database bytes SHA-256: `852bdc39628443d9415c2df73424d36800e7a11421a826cde575c9b464dc9f88`.
+- Observed Trivy executable SHA-256: `5fd45afccbd5efd7a88e6da92a7b3a52c2e3ffd30d5b954f324123d6d1d24469`.
+
+These are scoped scanner observations for one immutable subject and database
+epoch, not a universal or permanent safety claim. Current-head and exact-main
+security gates must scan the selected subject again at their own epochs.
+
+## Bounded executable observations
+
+Network-zero Apple Container probes ran the exact linux/amd64 digest using
+Rosetta, UID/GID 65532, read-only root, one CPU and 512 MiB per probe.
+Both `/bin/prometheus --version` and `/bin/promtool --version` exited 0:
+
+```text
+version 3.14.0 (branch: main, revision: 53144df54e01b689bf6c45e811c6230631b132e7)
+go version: go1.27.1
+platform: linux/amd64
+```
+
+The directory-mounted, byte-identical public configuration passed
+`promtool check config --syntax-only`, exit 0:
+
+```text
+Checking /etc/prometheus/prometheus.yml
+ SUCCESS: /etc/prometheus/prometheus.yml is valid prometheus config file syntax
+```
+
+The earlier direct-file mount failed because Apple Container required a
+directory mount; its log is retained separately and is not counted as a
+successful probe. No real scrape secret, host deployment, production TSDB,
+migration or long-running scrape was exercised. Probe containers were removed.
+
+Raw registry objects, the full report/database/checksums and probe outputs
+remain sanitized, gitignored local evidence under
+`artifacts/security_lab/pr2347-official-prometheus.KlH9mH/` and
+`artifacts/security_lab/pr2347-official-version.OBT0Dt/`, with private
+receipt files mode 0600. They are not committed or uploaded as raw evidence.
+
+## Retired derivative and preserved authority
+
+The bounded caller census found no surviving shared implementation caller.
+This revision deletes only the unmerged derivative Containerfile, controller,
+private transport, candidate-only job/inputs, and their exclusive test/doc
+consumers. Historical source remains in
+[pre-retirement commit e5dc45e](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/e5dc45e39be37bd0656df3462cbe1ccc3cf2bf94).
+Do not restore its executable publisher as dead shipping code.
+
+[Cloud run 34226292747](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34226292747)
+completed historical two-build equality, scan and local admission through
+receipt 30. Its candidate was
+`sha256:a7bb3eb7ff0f3dcc27a4ca58cee42dc84d1cc1a3501ab54c111e70773385f2e6`.
+Receipts 00-30 and earlier failures remain unchanged. Receipts 40-80 and owned
+publication never occurred; no publication credential is needed for C3-v2.
+
+`.github/workflows/build.yml:9` preserves the ordinary build/security/publish
+chain, disabled manual default, explicit normal-mode admission, PR publication
+denial, permissions and same-SHA serialization. The native expression
+`inputs.mode == 'normal'` retains GitHub's case-insensitive string comparison;
+bounded test fixtures do not implement a general expression evaluator.
+[GitHub expression semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions).
+
+No runtime selector update authorizes deployment, public exposure, credential
+changes, volume deletion, `T0`, merge, or review-thread disposition.
+Unrelated CVE-2026-16742 remains on its existing separate tracked boundary.
+
+## Validation and rollback
+
+Preserve all surviving pgvector, DSN, Caddy, selected-image, CD admission and
+failure-propagation tests. New negative topology tests prove that disabled,
+missing, empty, retired-candidate and other non-normal manual modes cannot
+reach ordinary publication. Full focused, dependency/security, changed-surface
+and all-files hooks, fresh Runner/self-review, current-head CI and strict
+closeout remain required.
+
+Rollback is an ordinary reviewed revert, never history rewriting or an
+automatic host operation. Reverting the image selection would restore the
+previous vulnerable subject and cannot be called security recovery. Reassess
+the exact image and current findings before any later operational rollback.

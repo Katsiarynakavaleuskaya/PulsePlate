@@ -219,29 +219,14 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.
 
-### Candidate-only Prometheus derivative
+### Official Prometheus image updates
 
-- `deploy/prometheus/image-manifest.json` remains the sole selected runtime
-  record. Candidate verification/publication preserves its exact bytes and
-  every Compose Prometheus image reference; neither step authorizes deploy,
-  release or `T0`.
-- The subordinate Containerfile uses one `/src/prometheus` source/UI root,
-  verifies the installed pnpm executable, freezes both locks, validates every
-  original asset against its gzip at consumption, retains the sole Go replace,
-  selects gRPC `v1.83.1`, and overlays only the two verified binaries on the
-  unchanged official linux/amd64 base.
-- Both binaries retain their ELF symbol table for the pinned scanner's
-  version-metadata path: the shared linker flags keep `-w` but not `-s`.
-  Preserve `-trimpath`, `-buildvcs=false` and all exact `-X` version metadata;
-  missing package names or versions remain a scan HOLD, never an exception or
-  fabricated scanner value.
-- The canonical cloud-build/local-publication procedure, executor/profile
-  binding, one-push receipts, safe OCI import, and module ceilings live only in
-  [scripts/AGENTS.md](../scripts/AGENTS.md#prometheus-derivative-candidate).
-  Do not restore heavy local compilation or the rejected CD publisher.
-- Runtime selection remains a separately governed change after candidate
-  evidence and separately authorized publication; it is not inferred from a
-  successful cloud job or an artifact.
+- Keep the selected image in the existing seven-field v2 record; update the
+  exact official index, linux/amd64 manifest and source revision together.
+- The selected-image verification and ordinary workflow rules live in
+  [scripts/AGENTS.md](../scripts/AGENTS.md#official-prometheus-image-selection).
+  Image selection does not deploy or migrate a host, change volume ownership,
+  enable staging attestation flags, or start the production observation clock.
 
 
 ## Production tag gate

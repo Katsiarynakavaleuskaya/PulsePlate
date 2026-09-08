@@ -9,7 +9,6 @@ import pytest
 import yaml
 
 from scripts import verify_premium_alias_telemetry as verifier
-from scripts.ci import prometheus_derivative_candidate
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -21,140 +20,78 @@ WEB_IOS_RELEASE_READY_ENV_FETCH = (
 )
 
 
-def test_prometheus_candidate_workflow_has_one_read_only_producer_and_closed_topology() -> None:
+def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())
     jobs = workflow["jobs"]
-    assert set(jobs) == {"prometheus-candidate", "build", "security-scan", "publish"}
+    assert set(jobs) == {"build", "security-scan", "publish"}
     inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
-    assert set(inputs) == {"mode", "candidate_head_sha", "candidate_spec_digest"}
-    assert inputs["mode"]["default"] == "disabled"
-    assert inputs["mode"]["options"] == ["disabled", "normal", "prometheus-candidate"]
-    assert inputs["mode"]["required"] is True
-    assert (
-        inputs["candidate_head_sha"]["default"] == inputs["candidate_spec_digest"]["default"] == ""
-    )
-    candidate = jobs["prometheus-candidate"]
-    assert candidate["permissions"] == {"contents": "read"}
-    assert candidate["runs-on"] == prometheus_derivative_candidate.CLOUD_PROFILE["runner"]
-    assert (
-        candidate["timeout-minutes"]
-        == "${{ fromJSON(vars.PROMETHEUS_CANDIDATE_TIMEOUT_MINUTES || '120') }}"
-    )
-    assert "environment" not in candidate and "needs" not in candidate
-    assert "secrets." not in str(candidate)
-    assert "continue-on-error" not in str(candidate)
-    assert "always()" not in str(candidate)
-    assert "ghcr-build-push' }}-${{ github.sha }}" in workflow["concurrency"]["group"]
-    assert "inputs.mode == 'prometheus-candidate'" in workflow["concurrency"]["group"]
-    steps = candidate["steps"]
-    assert len(steps) == 5
-    assert (
-        steps[0]["uses"]
-        == "actions/checkout@" + prometheus_derivative_candidate.CLOUD_PROFILE["checkout"]
-    )
-    assert steps[0]["with"] == {
-        "ref": "${{ github.sha }}",
-        "persist-credentials": False,
+    assert inputs == {
+        "mode": {
+            "description": "Explicit manual execution mode; disabled never publishes",
+            "type": "choice",
+            "required": True,
+            "default": "disabled",
+            "options": ["disabled", "normal"],
+        }
     }
-    assert (
-        steps[1]["uses"]
-        == "actions/setup-python@" + prometheus_derivative_candidate.CLOUD_PROFILE["setup_python"]
-    )
-    assert steps[1]["with"] == {
-        "python-version": prometheus_derivative_candidate.CLOUD_PROFILE["python"]
+    assert workflow["concurrency"] == {
+        "group": "ghcr-build-push-${{ github.sha }}",
+        "cancel-in-progress": False,
     }
-    assert "env -i" in steps[2]["run"]
-    assert "PIP_CONFIG_FILE=/dev/null" in steps[2]["run"]
-    assert steps[2]["env"] == {
-        "PULSEPLATE_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
-    }
-    assert 'PULSEPLATE_PYTHON_INDEX_URL="$PULSEPLATE_PYTHON_INDEX_URL"' in steps[2]["run"]
-    assert "python scripts/ci/install_locked_python_requirements.py" in steps[2]["run"]
-    assert "--requirements-profile ci-lite --install-mode direct-proxy" in steps[2]["run"]
-    for forbidden in (
-        "pip install",
-        "pypi.org",
-        "--index-url",
-        "--trusted-host",
-        ".netrc",
-        "DEVPI_CI_",
-    ):
-        assert forbidden not in steps[2]["run"]
-    assert steps[3]["env"] == {
-        "PROMETHEUS_CANDIDATE_HEAD_SHA": "${{ inputs.candidate_head_sha }}",
-        "PROMETHEUS_CANDIDATE_SPEC_DIGEST": "${{ inputs.candidate_spec_digest }}",
-    }
-    assert "python scripts/ci/prometheus_derivative_candidate.py cloud-execute" in steps[3]["run"]
-    assert (
-        steps[4]["uses"]
-        == "actions/upload-artifact@"
-        + prometheus_derivative_candidate.CLOUD_PROFILE["upload_artifact"]
-    )
-    assert steps[4]["with"] == {
-        "name": "prometheus-candidate-${{ github.run_id }}-${{ github.run_attempt }}-prometheus-candidate",
-        "path": "artifacts/security_lab/prometheus_cloud_result/*",
-        "if-no-files-found": "error",
-        "compression-level": 0,
-        "retention-days": 2,
-    }
-    assert sum("actions/upload-artifact@" in step.get("uses", "") for step in steps) == 1
     assert jobs["security-scan"]["needs"] == "build"
     assert jobs["publish"]["needs"] == ["build", "security-scan"]
+    assert jobs["build"]["permissions"] == {"actions": "read", "contents": "read"}
+    for retired in (
+        "prometheus-candidate",
+        "candidate_head_sha",
+        "candidate_spec_digest",
+        "prometheus_derivative_candidate.py",
+        "PROMETHEUS_CANDIDATE_",
+    ):
+        assert retired not in str(workflow)
+    for retired_path in (
+        "deploy/prometheus/Containerfile",
+        "scripts/ci/prometheus_derivative_candidate.py",
+        "scripts/ci/_prometheus_derivative_transport.py",
+    ):
+        assert not (REPO_ROOT / retired_path).exists()
     listener = (REPO_ROOT / ".github/workflows/cd-test.yml").read_text()
     assert "github.event.workflow_run.event == 'push'" in listener
 
 
 @pytest.mark.parametrize(
-    "event,mode,head,digest,ordinary,candidate",
+    "event,mode,ordinary,publish",
     (
-        ("push", "", "", "", True, False),
-        ("pull_request", "", "", "", True, False),
-        ("workflow_dispatch", "", "", "", False, False),
-        ("workflow_dispatch", "disabled", "", "", False, False),
-        ("workflow_dispatch", "invented", "", "", False, False),
-        ("workflow_dispatch", "normal", "", "", True, False),
-        ("workflow_dispatch", "normal", "head", "", False, False),
-        ("workflow_dispatch", "normal", "", "spec", False, False),
-        ("workflow_dispatch", "prometheus-candidate", "", "", False, False),
-        ("workflow_dispatch", "prometheus-candidate", "head", "", False, False),
-        ("workflow_dispatch", "prometheus-candidate", "head", "spec", False, True),
-        ("workflow_dispatch", "prometheus-candidate", "other", "spec", False, False),
+        ("push", None, True, True),
+        ("pull_request", None, True, False),
+        ("pull_request", "normal", True, False),
+        ("workflow_dispatch", None, False, False),
+        ("workflow_dispatch", "", False, False),
+        ("workflow_dispatch", "disabled", False, False),
+        ("workflow_dispatch", "prometheus-candidate", False, False),
+        ("workflow_dispatch", "invented", False, False),
+        ("workflow_dispatch", "normal-extra", False, False),
+        ("workflow_dispatch", "normal", True, True),
+        ("workflow_dispatch", "NORMAL", True, True),
+        ("workflow_dispatch", "Normal", True, True),
+        ("workflow_dispatch", "nOrMaL", True, True),
     ),
 )
-def test_prometheus_manual_mode_cannot_fall_through_to_ordinary_publication(
-    event: str,
-    mode: str,
-    head: str,
-    digest: str,
-    ordinary: bool,
-    candidate: bool,
+def test_build_manual_mode_cannot_fall_through_to_ordinary_publication(
+    event: str, mode: str | None, ordinary: bool, publish: bool
 ) -> None:
     jobs = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())["jobs"]
-    ordinary_expression = (
-        "github.event_name != 'workflow_dispatch' || "
-        "(inputs.mode == 'normal' && inputs.candidate_head_sha == '' && inputs.candidate_spec_digest == '')"
-    )
-    # Exact expressions plus the finite manual-input truth table, not a workflow interpreter.
+    ordinary_expression = "github.event_name != 'workflow_dispatch' || inputs.mode == 'normal'"
     assert " ".join(jobs["build"]["if"].split()) == ordinary_expression
     assert " ".join(jobs["security-scan"]["if"].split()) == ordinary_expression
     assert " ".join(jobs["publish"]["if"].split()) == (
         "github.event_name != 'pull_request' && (" + ordinary_expression + ")"
     )
-    assert " ".join(jobs["prometheus-candidate"]["if"].split()) == (
-        "github.event_name == 'workflow_dispatch' && inputs.mode == 'prometheus-candidate' && "
-        "inputs.candidate_head_sha == github.sha && inputs.candidate_spec_digest != ''"
-    )
-    ordinary_result = event != "workflow_dispatch" or (
-        mode == "normal" and head == "" and digest == ""
-    )
-    candidate_result = (
-        event == "workflow_dispatch"
-        and mode == "prometheus-candidate"
-        and head == "head"
-        and digest != ""
-    )
-    assert ordinary_result is ordinary and candidate_result is candidate
-    assert not (ordinary_result and candidate_result)
+    # Bounded choice-string projection, not a GitHub Actions expression interpreter.
+    # GitHub compares strings case-insensitively; missing inputs project to "".
+    ordinary_result = event != "workflow_dispatch" or (mode or "").casefold() == "normal"
+    assert ordinary_result is ordinary
+    assert (event != "pull_request" and ordinary_result) is publish
 
 
 PRODUCTION_ENV_READY_ENV_FETCH = (

@@ -20,7 +20,6 @@ CVE_SECURITY_OWNER = (
 STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_IMAGE_MANIFEST = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
-PROMETHEUS_CONTAINERFILE = REPO_ROOT / "deploy" / "prometheus" / "Containerfile"
 CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
@@ -379,38 +378,6 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
 
 def test_caddy_dockerfile_keeps_closed_fixed_builder_stage_recipe() -> None:
     _assert_caddy_builder_stage_contract(DOCKERFILE.read_text(encoding="utf-8"))
-
-
-def test_prometheus_candidate_containerfile_is_one_bounded_subordinate_recipe() -> None:
-    containerfile = PROMETHEUS_CONTAINERFILE.read_text(encoding="utf-8")
-    assert not (PROMETHEUS_CONTAINERFILE.parent / "build-inputs.json").exists()
-    assert containerfile.count("\nFROM ") == 2
-    assert containerfile.count("/src/prometheus") >= 2
-    assert "--directory=/tmp/prometheus-ui" not in containerfile
-    assert "ui_root=/tmp/prometheus-ui" not in containerfile
-    assert "verify_pnpm_archive.go" not in containerfile
-    assert "ADD --checksum=sha256:6eb506b5" not in containerfile
-    assert "PULSEPLATE_PNPM_BINARY_SHA256" in containerfile
-    assert "go mod edit -require=google.golang.org/grpc@v1.83.1" in containerfile
-    assert "go mod tidy -go=1.26.0 -compat=1.26" in containerfile
-    assert "replace cloud.google.com/go => cloud.google.com/go v0.123.0" in containerfile
-    assert "SKIP_UI_BUILD=1 make DOCKER_IMAGE_TAG=3.14.0 assets-compress" in containerfile
-    assert "gzip --decompress --stdout" in containerfile
-    assert "PULSEPLATE_GZIP_TREE_SHA256" in containerfile
-    assert "PULSEPLATE_EMBED_GO_SHA256" in containerfile
-    assert "export NODE_OPTIONS=--max-old-space-size=2048" in containerfile
-    assert "export GOMAXPROCS=2" in containerfile
-    assert "export GOMEMLIMIT=3GiB" in containerfile
-    assert containerfile.count("  -p=1 \\\n") == 2
-    final = containerfile.split(
-        "FROM docker.io/prom/prometheus@sha256:"
-        "84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",  # pragma: allowlist secret
-        maxsplit=1,
-    )[1]
-    assert final == (
-        "\n\nCOPY --from=builder --chmod=0755 /out/prometheus /bin/prometheus\n"
-        "COPY --from=builder --chmod=0755 /out/promtool /bin/promtool\n"
-    )
 
 
 def test_caddy_cve_owner_and_ledger_remain_one_bounded_contract() -> None:

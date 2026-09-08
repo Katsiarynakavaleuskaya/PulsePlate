@@ -68,7 +68,7 @@ services:
       disable: true
 
   prometheus:
-    image: prom/prometheus@sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22
+    image: prom/prometheus@sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d
     platform: linux/amd64
     user: "65532:65532"
     restart: unless-stopped

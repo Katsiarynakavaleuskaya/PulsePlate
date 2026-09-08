@@ -2951,7 +2951,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             },
             "github.event_name != 'pull_request' && "
             "(github.event_name != 'workflow_dispatch' || "
-            "(inputs.mode == 'normal' && inputs.candidate_head_sha == '' && inputs.candidate_spec_digest == ''))",
+            "inputs.mode == 'normal')",
             None,
             None,
             None,
@@ -3145,7 +3145,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 5,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -3192,22 +3192,6 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
             )
 
     assert observed_contracts == [
-        (
-            ".github/workflows/build.yml",
-            "prometheus-candidate",
-            "Upload the sole candidate evidence artifact",
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
-            {
-                "name": "prometheus-candidate-${{ github.run_id }}-${{ github.run_attempt }}-prometheus-candidate",
-                "path": "artifacts/security_lab/prometheus_cloud_result/*",
-                "if-no-files-found": "error",
-                "compression-level": 0,
-                "retention-days": 2,
-            },
-            None,
-            None,
-            None,
-        ),
         (
             ".github/workflows/build.yml",
             "build",
