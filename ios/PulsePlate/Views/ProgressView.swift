@@ -66,6 +66,8 @@ struct ProgressViewPP: View {
             .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
             .navigationTitle(localization.localized("home.action.progress.title"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView()
             }

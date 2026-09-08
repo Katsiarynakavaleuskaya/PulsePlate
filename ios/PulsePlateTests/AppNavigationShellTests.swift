@@ -160,7 +160,7 @@ final class AppNavigationShellTests: XCTestCase {
         let normalized = normalizedWhitespace(source)
 
         for ownershipFragment in [
-            "case .home: NavigationStack { HomeView() }",
+            "case .home: NavigationStack { HomeView()",
             "case .bmi: NavigationStack { BMICalculatorScreen() }",
             "case .today: PlateViewPP()",
             "case .progress: ProgressViewPP()",

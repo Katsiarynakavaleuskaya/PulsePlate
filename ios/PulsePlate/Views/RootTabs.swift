@@ -19,6 +19,8 @@ struct RootTabs: View {
     TabView(selection: $selection) {
       ForEach(AppSection.productionSections) { section in
         destination(for: section)
+          .toolbarBackground(.visible, for: .tabBar)
+          .tint(PPDesignTokens.ColorToken.primary)
           .tabItem {
             Label(
               section.localizedTitle(using: localization),
@@ -38,6 +40,8 @@ struct RootTabs: View {
     case .home:
       NavigationStack {
         HomeView()
+          .toolbarBackground(.visible, for: .navigationBar)
+          .toolbarColorScheme(.dark, for: .navigationBar)
       }
     case .bmi:
       NavigationStack {
