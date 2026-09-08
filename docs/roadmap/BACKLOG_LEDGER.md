@@ -28,8 +28,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Restore actual mapping-only reseal recovery without premature FIXED proof
   - Owner: agent-coordinator / security-auditor
   - Priority: P1
-  - Target PR: `codex/closeout-retirement-reseal` (PR number assigned when opened)
-  - Status: Bounded implementation in progress; local validation, independent review,
+  - Target PR: [PR #2386](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2386)
+  - Status: Bounded implementation and pre-open local gates complete; post-open review,
     current-head CI, ordinary closeout, and merge remain required. No target PR recovery
     or readiness is claimed by this prerequisite.
   - Reason (EN): A stale-seal root may precede further authorized material work; the

@@ -41,6 +41,7 @@ from scripts.orchestration.review_mapping_artifact import (
     read_mapping_artifact,
     review_seal_version,
     validate_fixed_mapping_section,
+    validate_mapping_artifact_text,
 )
 from scripts.orchestration.pr_commit_identity import (
     CommitIdentityError,
@@ -59,6 +60,7 @@ from scripts.orchestration.pr_review_evidence import (
     TRIGGER_ONLY_COMMIT_SUBJECT_RE,
     ReviewEvidenceError,
     parse_embedded_review_seal,
+    parse_reseal_preparation,
     review_thread_inventory,
     validated_duplicate_reply_urls,
 )
@@ -1190,7 +1192,16 @@ def main() -> None:
     is_v1 = review_seal_version(artifact_text) == "v1"
     v1_mapping_entries: dict[str, str] = {}
     if is_v1:
-        semantic_mapping_errors = validate_fixed_mapping_section(section, require_full_shas=True)
+        try:
+            if parse_reseal_preparation(artifact_text) is not None:
+                semantic_mapping_errors = validate_mapping_artifact_text(artifact_text)
+            else:
+                semantic_mapping_errors = validate_fixed_mapping_section(
+                    section, require_full_shas=True
+                )
+        except (ReviewEvidenceError, ValueError) as exc:
+            print(f"ERROR: invalid prepared mapping: {exc}")
+            sys.exit(1)
         if semantic_mapping_errors:
             for error in semantic_mapping_errors:
                 print(f"ERROR: {error}")

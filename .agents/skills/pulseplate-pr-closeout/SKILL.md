@@ -207,19 +207,6 @@ closeout CLI.
 
 ## Seal and publish the sole mapping commit
 
-For an admitted rule-10 actual-R recovery, follow RUNBOOK_AGENT.md's
-"Prepared actual-R stale-binding recovery" procedure before sealing. A
-`preview-reseal-intent` is zero-write data, not consent. `prepare-reseal`
-consumes one separate authenticated unedited real-User OWNER issue comment;
-never author or post that human statement. Keep its selected root out of
-ordinary dispositions until actual `R` supplies correcting proof. The prepared
-root's classification comes from whole-root human inspection, not bot-prose
-heuristics. Pre-closeout covers it prospectively at exact live `H` only; an
-empty ordinary set is not "No actionable review comments". Retain the event
-historically, re-fetch human evidence, and require real pushed `R` plus the
-exact OWNER FIXED reply and resolved thread afterward. No candidate recovery
-may authorize its own prerequisite PR, and all ordinary gates remain hard.
-
 In `PREPARE_CLOSEOUT`, run `pr_review_closeout.py seal` with the exact-material
 self-review JSON. Allow only `seal` to write
 `docs/review/PR_<N>_FIXED_MAPPING.md`. The lifecycle delegation covers this bounded

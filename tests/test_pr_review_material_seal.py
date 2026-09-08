@@ -6402,6 +6402,7 @@ def _stale_seal_reply_coverage(
     prospective: bool = False,
     current_preparation_present: bool = True,
     preserve_prior_proof: bool = True,
+    ordinary_proof_present: bool = True,
     root_body_override: str | None = None,
     legacy_seed: bool = False,
 ) -> tuple[set[str], dict[str, Any]]:
@@ -6470,7 +6471,7 @@ def _stale_seal_reply_coverage(
             "- https://github.com/owner/repo/pull/42#discussion_r699",
         ]
     )
-    if prepared:
+    if prepared and ordinary_proof_present:
         old_mapping = old_mapping.replace(NO_ACTIONABLE_LINE, proof)
     mapping.write_text(old_mapping, encoding="utf-8")
     prior_closeout = _commit(repo, "docs(review): prior seal")
@@ -6577,7 +6578,9 @@ def _stale_seal_reply_coverage(
             _git(repo, "checkout", "-q", "feature")
             final_material = _merge(repo, "main", "second genuine main synchronization")
         else:
-            if prepared_shape != "empty":
+            if prepared_shape == "material-cycle":
+                source.write_text("ENFORCED = True\n", encoding="utf-8")
+            elif prepared_shape != "empty":
                 source.write_text("ENFORCED = True\nFINAL = True\n", encoding="utf-8")
             if prepared_shape == "mapping-change":
                 mapping.write_text(old_mapping + "\nchanged proof\n", encoding="utf-8")
@@ -6623,7 +6626,7 @@ def _stale_seal_reply_coverage(
         reseal_mapping = _mapping_artifact_with_seal(reseal_seal)
     if preparation is not None:
         reseal_mapping = _prepared_mapping(reseal_seal, preparation)
-        if preserve_prior_proof:
+        if preserve_prior_proof and ordinary_proof_present:
             reseal_mapping = reseal_mapping.replace(
                 evidence_module.RESEAL_EMPTY_ORDINARY_LINE, proof
             )
@@ -6671,9 +6674,11 @@ def _stale_seal_reply_coverage(
             and current_preparation_present
             and current_seal_shape == "provider-neutral"
         ):
-            current_mapping = _prepared_mapping(current_seal, preparation).replace(
-                evidence_module.RESEAL_EMPTY_ORDINARY_LINE, proof
-            )
+            current_mapping = _prepared_mapping(current_seal, preparation)
+            if ordinary_proof_present:
+                current_mapping = current_mapping.replace(
+                    evidence_module.RESEAL_EMPTY_ORDINARY_LINE, proof
+                )
         mapping.write_text(current_mapping, encoding="utf-8")
         live_head = _commit(repo, current_reseal_subject)
         later_commits = (current_material, live_head)
@@ -7102,6 +7107,27 @@ def test_prepared_actual_r_wrapper_validates_selected_root_without_heuristic_act
     assert actual == ({graph["url"]} if state == "valid" else set())
 
 
+@pytest.mark.parametrize("prospective", (False, True))
+def test_prepared_reseal_rejects_return_to_historical_material_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prospective: bool
+) -> None:
+    arguments: dict[str, Any] = {
+        "prepared": True,
+        "stale_shape": "linear-material",
+        "prepared_shape": "material-cycle",
+        "prospective": prospective,
+        "root_resolved": not prospective,
+        "reply_count": 0 if prospective else 1,
+    }
+    if prospective:
+        with pytest.raises(ReviewEvidenceError, match="already sealed material"):
+            _stale_seal_reply_coverage(tmp_path, monkeypatch, **arguments)
+    else:
+        covered, graph = _stale_seal_reply_coverage(tmp_path, monkeypatch, **arguments)
+        assert graph["old_material"] != graph["preparation"]["final_material_head_sha"]
+        assert covered == set()
+
+
 def test_prepared_wrapper_keeps_prospective_coverage_out_of_actual_dispositions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -7133,6 +7159,79 @@ def test_prepared_wrapper_keeps_prospective_coverage_out_of_actual_dispositions(
         )
         == set()
     )
+
+
+@pytest.mark.parametrize(
+    "state", ("valid", "no-owner", "malformed-preparation", "missing-preparation", "unmapped-root")
+)
+def test_disposition_cli_validates_prepared_empty_mapping_with_real_actual_r(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    state: str,
+) -> None:
+    import sys
+
+    from scripts.orchestration import check_review_threads_disposition as disposition_gate
+
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        ordinary_proof_present=False,
+        reply_count=0 if state == "no-owner" else 1,
+        independent_invalid_root=state == "unmapped-root",
+    )
+    assert covered == (set() if state == "no-owner" else {graph["url"]})
+    repo = Path(graph["repo"])
+    markdown = (repo / "docs/review/PR_42_FIXED_MAPPING.md").read_text(encoding="utf-8")
+    assert evidence_module.RESEAL_EMPTY_ORDINARY_LINE in markdown
+    if state == "malformed-preparation":
+        markdown = markdown.replace('"root_url":', '"root_url":"duplicate","root_url":')
+    elif state == "missing-preparation":
+        markdown = markdown.replace(
+            evidence_module.render_reseal_preparation(graph["preparation"]), ""
+        )
+    monkeypatch.setattr(sys, "argv", ["disposition", "--pr-number", "42", "--require-auth"])
+    monkeypatch.setattr(disposition_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(disposition_gate, "_require_gh_token_preflight", lambda *_a: None)
+    monkeypatch.setattr(disposition_gate, "_github_api_token", lambda: "opaque")
+    monkeypatch.setattr(disposition_gate, "_get_owner_repo", lambda: ("owner", "repo"))
+    monkeypatch.setattr(disposition_gate, "read_mapping_artifact", lambda _number: markdown)
+    monkeypatch.setattr(disposition_gate, "fetch_pr_snapshot", lambda *_a, **_k: graph["snapshot"])
+    monkeypatch.setattr(
+        disposition_gate, "fetch_review_threads", lambda *_a, **_k: graph["threads"]
+    )
+
+    def snapshot_request(url: str, **_kwargs: Any) -> dict[str, Any]:
+        assert url == "https://api.github.com/graphql"
+        snapshot = graph["snapshot"]
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "baseRefOid": snapshot.base_sha,
+                        "headRefOid": snapshot.head_sha,
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(
+        disposition_gate,
+        "assert_snapshot_unchanged",
+        lambda snapshot, *, token: identity_module.assert_snapshot_unchanged(
+            snapshot, token=token, request_json=snapshot_request
+        ),
+    )
+    with pytest.raises(SystemExit) as exc:
+        disposition_gate.main()
+    assert exc.value.code == (0 if state == "valid" else 1)
+    output = capsys.readouterr().out
+    if state == "valid":
+        assert "All 1 resolved review threads" in output
+    else:
+        assert "ERROR:" in output
 
 
 def test_prepared_reseal_reads_immutable_r_not_later_current_mapping(
@@ -7209,9 +7308,19 @@ def test_later_ordinary_pre_closeout_validates_local_seal_and_historical_actual_
     manifest = compute_material_manifest(
         repo, base_ref_oid=snapshot.base_sha, head_ref_oid=h, pr_number=42
     )
-    local_mapping = _prepared_mapping(
-        _provider_no_claim_seal_for_manifest(manifest), graph["preparation"]
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "fresh-state")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    args = Namespace(repo="owner/repo", pr_number=42, packet=None, experiment_result=None)
+    closeout_module._cmd_init(args)
+    assert closeout_module._load_state(42)["reseal_preparation"] == graph["preparation"]
+    closeout_module._cmd_freeze(args)
+    local_mapping = closeout_module._render_mapping(
+        closeout_module._load_state(42), _provider_no_claim_seal_for_manifest(manifest)
     )
+    assert evidence_module.parse_reseal_preparation(local_mapping) == graph["preparation"]
     original_request = identity_module.github_api_request
 
     def request(url: str, **kwargs: Any) -> Any:
@@ -7551,7 +7660,9 @@ def test_preparation_cli_preview_admission_and_terminal_owner_race(
     )
     repo = Path(graph["repo"])
     mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
-    mapping.write_text(_git(repo, "show", "HEAD:docs/review/PR_42_FIXED_MAPPING.md") + "\n")
+    mapping.write_text(
+        _git(repo, "show", "HEAD:docs/review/PR_42_FIXED_MAPPING.md") + "\n", encoding="utf-8"
+    )
     monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
     monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
     monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: graph["snapshot"])
@@ -11095,6 +11206,73 @@ def test_closeout_init_is_atomic_and_idempotent(
         experiment_result="artifacts/orchestration/experiments/results/result.json",
     )
     closeout_module._cmd_init(args)
+    first = closeout_module._state_path(42).read_bytes()
+    closeout_module._cmd_init(args)
+    assert closeout_module._state_path(42).read_bytes() == first
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "committed",
+        "untracked",
+        "no-preparation",
+        "modified-worktree",
+        "wrong-repository",
+        "wrong-pr",
+        "malformed-json",
+        "symlink",
+        "executable",
+    ),
+)
+def test_closeout_init_restores_only_committed_same_pr_preparation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(repo, "base")
+    mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    preparation = _reseal_preparation()
+    markdown = _prepared_mapping(_provider_no_claim_seal(), preparation)
+    if variant == "wrong-repository":
+        markdown = markdown.replace("owner/repo", "other/repo")
+    elif variant == "wrong-pr":
+        markdown = markdown.replace('"pr_number":42', '"pr_number":43').replace(
+            "/pull/42#", "/pull/43#"
+        )
+    elif variant == "malformed-json":
+        markdown = markdown.replace('"root_url":', '"root_url":"duplicate","root_url":')
+    elif variant == "no-preparation":
+        markdown = _mapping_artifact_with_seal(_provider_no_claim_seal())
+    if variant == "symlink":
+        mapping.symlink_to("../../README.md")
+    else:
+        mapping.write_text(markdown, encoding="utf-8")
+        if variant == "executable":
+            mapping.chmod(0o755)
+    if variant != "untracked":
+        _commit(repo, "canonical mapping")
+    if variant == "modified-worktree":
+        mapping.write_text("uncommitted replacement\n", encoding="utf-8")
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
+    args = Namespace(repo="owner/repo", pr_number=42, packet=None, experiment_result=None)
+    if variant in {"wrong-repository", "wrong-pr", "malformed-json", "symlink", "executable"}:
+        with pytest.raises(closeout_module.CloseoutError):
+            closeout_module._cmd_init(args)
+        assert not closeout_module._state_path(42).exists()
+        return
+    closeout_module._cmd_init(args)
+    state = closeout_module._load_state(42)
+    if variant in {"untracked", "no-preparation"}:
+        assert "reseal_preparation" not in state
+    else:
+        assert state["reseal_preparation"] == preparation
+    assert state["freeze"] is None
+    assert state["dispositions"] == []
     first = closeout_module._state_path(42).read_bytes()
     closeout_module._cmd_init(args)
     assert closeout_module._state_path(42).read_bytes() == first

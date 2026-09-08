@@ -50,6 +50,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     _canonical_json,
     _load_json_bytes,
     _require_pending_reseal_root,
+    _stale_seal_mapping_blob,
     parse_reseal_preparation,
     render_reseal_preparation,
     validate_reseal_preparation,
@@ -376,11 +377,31 @@ def _proof_real_fix(
     return snapshot, resolution
 
 
+def _committed_reseal_preparation(repository: str, pr_number: int) -> dict[str, Any] | None:
+    """Restore representation from Git; later gates still authenticate its authority."""
+    head = _git("rev-parse", "HEAD")
+    mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if not _git("ls-tree", "--name-only", head, "--", f":(literal){mapping_path}"):
+        return None
+    try:
+        preparation = parse_reseal_preparation(
+            _stale_seal_mapping_blob(REPO_ROOT, commit_sha=head, pr_number=pr_number)
+        )
+    except ReviewEvidenceError as exc:
+        raise CloseoutError(f"committed reseal preparation is invalid: {exc}") from exc
+    if preparation is not None and (
+        preparation["repository"].casefold() != repository.casefold()
+        or preparation["pr_number"] != pr_number
+    ):
+        raise CloseoutError("committed reseal preparation identity does not match this PR")
+    return preparation
+
+
 def _cmd_init(args: argparse.Namespace) -> None:
     repository = args.repo.strip()
     if not _REPOSITORY_RE.fullmatch(repository):
         raise CloseoutError("--repo must be owner/name")
-    state = {
+    state: dict[str, Any] = {
         "dispositions": [],
         "experiment_result": _local_artifact_reference(
             args.experiment_result,
@@ -395,6 +416,9 @@ def _cmd_init(args: argparse.Namespace) -> None:
         "schema_version": DRAFT_SCHEMA_VERSION,
     }
     path = _state_path(args.pr_number)
+    preparation = _committed_reseal_preparation(repository, args.pr_number)
+    if preparation is not None:
+        state["reseal_preparation"] = preparation
     if path.exists():
         if _load_state(args.pr_number) != state:
             raise CloseoutError("existing draft differs; resume it instead of overwriting")

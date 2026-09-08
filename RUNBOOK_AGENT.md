@@ -870,7 +870,8 @@ the complete root has only the stale-current-binding actionable.
 1. Obtain an explicitly non-admitted, zero-write intent preview:
 
    ```bash
-   python scripts/orchestration/pr_review_closeout.py preview-reseal-intent \
+   VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+   "$VENV_PYTHON" scripts/orchestration/pr_review_closeout.py preview-reseal-intent \
      --repo <owner/name> --pr-number <N> --root-url <canonical-root-url>
    ```
 
@@ -888,7 +889,7 @@ the complete root has only the stale-current-binding actionable.
 3. Consume the authenticated, unedited real-User OWNER issue-comment reference:
 
    ```bash
-   python scripts/orchestration/pr_review_closeout.py prepare-reseal \
+   "$VENV_PYTHON" scripts/orchestration/pr_review_closeout.py prepare-reseal \
      --repo <owner/name> --pr-number <N> --root-url <canonical-root-url> \
      --owner-admission-reference <same-PR-issuecomment-url>
    ```
@@ -899,6 +900,9 @@ the complete root has only the stale-current-binding actionable.
    `## Actual Reseal Preparation` event stays outside the active v1 seal and
    `## Fixed in Commit Mapping`. Its neutral empty ordinary-set line is not
    proof and cannot claim that the selected root is already fixed or resolved.
+   In a fresh checkout, `init` restores this event from the committed canonical
+   mapping for the same repository and PR. It does not renew human admission;
+   ordinary later reseals still revalidate the historical event and actual `R`.
 4. Run the normal authenticated pre-closeout pass with only the mapping dirty.
    It separately checks prospective coverage of the selected root, ordinary
    coverage of all other actionables, exact `H`/base/material identity, preserved

@@ -819,6 +819,8 @@ def _validate_prepared_reseal_history(
     manifest = _stale_seal_material_manifest(
         repo_root, base_ref_oid=base, head_ref_oid=h, pr_number=p["pr_number"]
     )
+    if manifest.digest == historical.digest:
+        raise ReviewEvidenceError("prepared history returns to already sealed material")
     if manifest.merge_base_sha != p["merge_base_sha"] or manifest.digest != p["material_digest"]:
         raise ReviewEvidenceError("prepared final material does not recompute")
 
@@ -1932,16 +1934,13 @@ def validated_duplicate_reply_urls(
                         or preparation["original_head_sha"] != stale_head
                     ):
                         continue
-                    admission = validate_prepared_reseal(
+                    validate_prepared_reseal(
                         preparation,
                         repo_root=repo_root,
                         snapshot=snapshot,
                         threads=threads,
                         token=token,
                         reseal_sha=reseal,
-                    )
-                    reseal_times = (
-                        _parse_timestamp(admission["created_at"], label="reseal admission"),
                     )
                     stale_seal_eligible_urls.append(url)
                     continue
