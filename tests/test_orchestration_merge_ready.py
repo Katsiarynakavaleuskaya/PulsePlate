@@ -561,8 +561,19 @@ def test_wrapper_rejects_mixed_event_and_local_modes() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("script_path", "expected_timeout"),
+    (
+        (merge_ready.MERGE_GATE, 480),
+        (merge_ready.DISPOSITION_GATE, 480),
+        (merge_ready.PHASE2_GATE, 120),
+        (merge_ready.CURRENT_HEAD_CHECKS_GATE, 120),
+    ),
+)
 def test_run_gate_returns_failure_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
+    script_path: Path,
+    expected_timeout: int,
 ) -> None:
     observed_timeout: list[int] = []
 
@@ -578,12 +589,12 @@ def test_run_gate_returns_failure_on_timeout(
 
     result = merge_ready._run_gate(
         "merge-readiness-gate",
-        merge_ready.MERGE_GATE,
+        script_path,
         ["--pr-number", "1007", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
     )
 
     assert result.returncode == 1
     assert result.stdout == "partial output"
-    assert observed_timeout == [merge_ready.MERGE_GATE_TIMEOUT_SEC]
-    assert f"Timed out after {merge_ready.MERGE_GATE_TIMEOUT_SEC}s" in result.stderr
-    assert merge_ready.MERGE_GATE.name in result.stderr
+    assert observed_timeout == [expected_timeout]
+    assert f"Timed out after {expected_timeout}s" in result.stderr
+    assert script_path.name in result.stderr
