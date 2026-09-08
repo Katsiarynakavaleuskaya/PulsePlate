@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import stat
@@ -2604,7 +2605,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     ci_admission_run = ci_admission_step["run"]
     for required in (
         'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
-        "test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop",
+        "python -m pytest -q",
     ):
         assert required in ci_admission_run
     ci_admission_text = json.dumps(ci_admission, sort_keys=True)
@@ -7570,9 +7571,13 @@ esac
     "destination_helper_variant",
     ("absent", "stale-executable", "stale-nonexec"),
 )
+@pytest.mark.parametrize(
+    "env_file_input", ("absolute", ".env", "./.env", "runtime config/selected.env", "missing.env")
+)
 def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_contour(
     tmp_path: Path,
     destination_helper_variant: str,
+    env_file_input: str,
 ) -> None:
     project_dir = tmp_path / "production"
     shell_bundle_dir = tmp_path / "shell-bundle"
@@ -7596,7 +7601,8 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
     source_backup_helper.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        'printf "reviewed-bundle-backup project=%s compose=%s\\n" "$PROJECT_DIR" "$COMPOSE_FILE" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'test "$ENV_FILE" = "$STUB_EXPECTED_ENV_FILE"\n'
+        'printf "reviewed-bundle-backup project=%s compose=%s env=%s\\n" "$PROJECT_DIR" "$COMPOSE_FILE" "$ENV_FILE" >> "$STUB_DEPLOY_LOG_FILE"\n'
         'receipt="${BACKUP_DIR}/pulseplate_reviewed.dump"\n'
         "printf 'synthetic-custom-dump' > \"$receipt\"\n"
         "printf 'Backup created: %s\\n' \"$receipt\"\n",
@@ -7622,7 +7628,11 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
         destination_backup_helper.chmod(
             0o755 if destination_helper_variant == "stale-executable" else 0o644
         )
-    (project_dir / ".env").write_text(
+    selected_env = project_dir / (
+        env_file_input if env_file_input == "runtime config/selected.env" else ".env"
+    )
+    selected_env.parent.mkdir(parents=True, exist_ok=True)
+    selected_env.write_text(
         "\n".join(
             (
                 "DATABASE_URL=postgresql+psycopg://stale:managed@db.example.com/db",  # pragma: allowlist secret
@@ -7634,8 +7644,16 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
         + "\n",
         encoding="utf-8",
     )
+    if env_file_input == "missing.env":
+        (project_dir / "deploy" / ".env").write_text(
+            selected_env.read_text(encoding="utf-8"), encoding="utf-8"
+        )
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
+if [ "$1" = "compose" ]; then
+  test "$2" = "--env-file"
+  test "$3" = "$STUB_EXPECTED_ENV_FILE"
+fi
 printf 'docker %s\n' "$*" >> "{log_file}"
 case "$*" in
   *"config --services"*) printf 'app\ncaddy\npostgres\nprometheus\nworker\n' ;;
@@ -7659,7 +7677,7 @@ esac
             "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
-            "ENV_FILE": str(project_dir / ".env"),
+            "ENV_FILE": str(selected_env) if env_file_input == "absolute" else env_file_input,
             "COMPOSE_FILE": CANONICAL_SELF_HOSTED_COMPOSE,
             "PRODUCTION_DOMAIN": "pulseplate.test",
             "HEALTH_MAX_ATTEMPTS": "1",
@@ -7667,6 +7685,7 @@ esac
             "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
             "TAG": "prod-vtest",
             "STUB_DEPLOY_LOG_FILE": str(log_file),
+            "STUB_EXPECTED_ENV_FILE": str(selected_env),
             "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
         }
     )
@@ -7678,6 +7697,11 @@ esac
         capture_output=True,
         check=False,
     )
+    if env_file_input == "missing.env":
+        assert completed.returncode == 1
+        assert "Missing production env file" in completed.stderr
+        assert not log_file.exists()
+        return
     assert completed.returncode == 0, completed.stderr
     assert "Production deploy preflight passed" in completed.stdout
     if destination_helper_variant == "absent":
@@ -7717,6 +7741,7 @@ esac
     assert quiesce_index < backup_index < old_stop_index < candidate_index < migration_index
     assert "stale-host-backup" not in log_lines
     assert f"project={project_dir / 'deploy'}" in log_lines[backup_index]
+    assert f"env={selected_env}" in log_lines[backup_index]
     assert (
         f"compose={project_dir / 'deploy' / 'docker-compose.production.selfhosted.yaml'}"
         in log_lines[backup_index]
@@ -9990,7 +10015,11 @@ def _cloud_admission_fixture(
             url
             == f"https://api.github.com/repos/{prometheus_candidate.REPOSITORY}/actions/artifacts/8100/zip"
         )
-        assert kwargs["headers"]["Authorization"] == "Bearer fixture-gh-token"
+        assert kwargs["headers"] == {
+            "Authorization": "Bearer fixture-gh-token",
+            "X-GitHub-Api-Version": "2026-03-10",
+            "User-Agent": "PulsePlate-Prometheus-Candidate/1",
+        }
         target.write_bytes(zip_bytes)
         return len(zip_bytes), "sha256:" + hashlib.sha256(zip_bytes).hexdigest()
 
@@ -10843,3 +10872,52 @@ def test_prometheus_trivy_findings_collection_rejects_malformed_list_members(
     report["Results"][target_index][collection] = [member]
     with pytest.raises(prometheus_candidate.CandidateHold, match="trivy_report_invalid"):
         prometheus_candidate._normalize_trivy_report(report)
+
+
+@pytest.mark.parametrize("pytest_exit", (0, 23))
+def test_cd_pgvector_admission_executes_complete_canonical_suite_and_propagates_failure(
+    pytest_exit: int,
+) -> None:
+    ci = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    cd = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    canonical = next(
+        step["run"]
+        for step in ci["jobs"]["pgvector_compat"]["steps"]
+        if step["name"] == "Prove pgvector binding, extension, and RLS compatibility"
+    )
+    step = cd["jobs"]["postgres-pgvector-ci-admission"]["steps"][-1]
+    actual = step["run"]
+    marker = "python -m pytest -q"
+    assert canonical.count(marker) == actual.count(marker) == 1
+    targets = shlex.split(canonical.split(marker, maxsplit=1)[1].replace("\\\n", " "))
+    assert shlex.split(actual.split(marker, maxsplit=1)[1].replace("\\\n", " ")) == targets
+    assert all(target.startswith("tests/") and target.endswith(".py") for target in targets)
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    prefix = (
+        "set -euo pipefail\n"
+        'git() { test "$*" = "rev-parse HEAD"; printf "%s\\n" "$GITHUB_SHA"; }\n'
+        "python() {\n"
+        '  test "$CI:$GITHUB_ACTIONS:$APP_ENV:$ENVIRONMENT:$PGVECTOR_COMPAT_REQUIRED" '
+        '= "true:true:test:test:1"\n'
+        '  printf "%s\\n" "$@"\n'
+        '  return "$PYTEST_STUB_EXIT"\n'
+        "}\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", prefix + actual],
+        env={
+            "PATH": os.defpath,
+            **step["env"],
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "GITHUB_SHA": "a" * 40,
+            "PYTEST_STUB_EXIT": str(pytest_exit),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.stdout.splitlines() == ["-m", "pytest", "-q", *targets]
+    assert completed.returncode == pytest_exit, completed.stderr

@@ -200,6 +200,32 @@ severity policy, package predicate, suppression or publication authority.
 
 ## Closed pre-build identity
 
+### Successful cloud proof and artifact-transport correction
+
+Run [34191782705](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34191782705)
+at `ce11151491766f633a641a656ca5b06549e25d39` completed both builds with identical
+evidence and Trivy 0.74.0 coverage of OS, Prometheus and promtool. The report
+records `high_count=0`, `critical_count=0`, and database update
+`2026-09-08T01:14:11.072075Z`. Authenticated artifact `10042887733` is
+173115018 bytes with archive SHA-256
+`235b5b9d5326e31db52a7812b14e1bf91ec8066b9fe96459d02358da93369828`.
+
+Local canonical admission still stopped before receipt 30 because the direct
+artifact request omitted the mandatory GitHub `User-Agent`. A bounded live
+comparison returned 403 without the header and 302 to the allowed Azure blob
+host with it; the diagnostic download then matched the authenticated archive
+size and digest. The controller's artifact request now supplies the application
+header at `scripts/ci/prometheus_derivative_candidate.py:1289`; redirected
+requests still receive no authentication headers. The pinned source/recipe and
+all identity, byte-limit, digest, archive and scanner predicates are unchanged.
+[GitHub API header requirement](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#user-agent-required).
+
+This retained run and diagnostic artifact prove that recorded cloud result,
+not current-head canonical admission or publication. Its candidate still has
+only receipt 00. The transport correction requires a fresh normal head-bound
+verification cycle; no test adapter, fabricated receipt or old-run substitution
+is an authorized shortcut.
+
 Before receipt `00-spec`, the controller binds exact repository/head/tree,
 controller and private transport bytes, the exact local Python and Git
 executables, resolved GitHub CLI, Apple image-publication CLI/system identity,

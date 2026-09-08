@@ -859,7 +859,11 @@ jobs:
           APP_ENV=test \
           ENVIRONMENT=test \
             python -m pytest -q \
-              tests/test_pgvector_compat.py::test_resource_bounded_alembic_graph_upgrades_dedicated_postgres_then_is_noop
+              tests/test_alembic_autogenerate_completeness.py \
+              tests/test_pgvector_compat.py \
+              tests/test_pgvector_embedding_migration.py \
+              tests/test_vector_rag.py \
+              tests/test_db_rls.py
 
   postgres-pgvector-publish:
     if: >-

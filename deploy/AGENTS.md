@@ -203,11 +203,18 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   loop or tag rollback; stronger exclusion requires a separate ownership/lock
   lane.
 - The preceding `postgres-pgvector-ci-admission` compatibility job must remain
-  credential-free even on its trusted main-only path. It may consume only the
+  credential-free even on its trusted main-only path. It must run the complete
+  canonical CI `pgvector-compat` pytest file list; a single migration node is
+  not binding, vector-query, RLS or autogenerate compatibility proof.
+  It may consume only the
   single-line, credential-free repository proxy variables; it must not receive
   `DEVPI_CI_*`, publication credentials, an environment-secret grant, or any
   other `secrets.*` expression. The protected `pgvector-publish` environment
   begins only at the publisher job after compatibility admission succeeds.
+- Normalize a relative production `ENV_FILE` against the parent-selected
+  absolute `DEPLOY_DIR` before reading it. Parent Compose and the backup helper
+  must receive that same absolute path even when the helper's `PROJECT_DIR`
+  is the separate Compose directory; a missing selection has no sibling fallback.
 - Repository/image admission is not activation. Volume census, backup,
   deployment, restore, production release, volume deletion, and the Prometheus
   `T₀` remain separate human-authorized actions.

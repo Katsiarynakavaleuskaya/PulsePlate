@@ -263,6 +263,10 @@ if [ -z "$ENV_FILE" ]; then
   fi
 fi
 
+if [[ "$ENV_FILE" != /* ]]; then
+  ENV_FILE="$DEPLOY_DIR/${ENV_FILE#./}"
+fi
+
 if [ ! -f "$ENV_FILE" ]; then
   echo "❌ Missing production env file: $ENV_FILE" >&2
   echo "Create this server-local runtime file before deploy; GitHub Actions does not provision it." >&2

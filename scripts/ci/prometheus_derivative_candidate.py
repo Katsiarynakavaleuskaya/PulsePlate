@@ -1286,6 +1286,7 @@ class ExactAdapters:
             headers={
                 "Authorization": f"Bearer {self._github_env()['GH_TOKEN']}",
                 "X-GitHub-Api-Version": "2026-03-10",
+                "User-Agent": "PulsePlate-Prometheus-Candidate/1",
             },
             redirect_domains=("blob.core.windows.net",),
             max_bytes=MAX_CLOUD_ZIP_BYTES,
