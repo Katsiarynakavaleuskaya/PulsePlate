@@ -6,6 +6,8 @@ EN: Ensure frontend security overrides are pinned to safe npm releases.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -13,6 +15,8 @@ import posixpath
 import re
 import shutil
 import subprocess
+import tempfile
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlparse
@@ -20,12 +24,22 @@ from urllib.parse import unquote, urlparse
 import pytest
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
+from tests.test_root_npm_dependency_guards import (
+    _assert_lock_surface_canonical_provenance,
+    _find_lock_occurrences,
+    _find_manifest_occurrences,
+    _find_opaque_npm_dependency_source_occurrences,
+    _lock_path_package_identity,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 FRONTEND_LOCK_JSON = REPO_ROOT / "frontend" / "package-lock.json"
 BRACE_EXPANSION_EVIDENCE_PATH = (
     REPO_ROOT / "docs" / "security" / "FRONTEND_BRACE_EXPANSION_REMEDIATION_CLASS.md"
+)
+BROWSERSLIST_EVIDENCE_PATH = (
+    REPO_ROOT / "docs" / "security" / "FRONTEND_BROWSERSLIST_REMEDIATION_CLASS.md"
 )
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 NPM_SEMVER_MAX_LENGTH = 256
@@ -98,6 +112,132 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
 )
 BRACE_EXPANSION_CURRENT_ADVISORIES = frozenset(BRACE_EXPANSION_CURRENT_ADVISORY_RANGES)
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
+BROWSERSLIST_ADVISORY_RANGE_TEXT = {
+    "GHSA-73wf-gq98-2v4g": ("<=4.28.6",),
+    "GHSA-c83g-rgw3-j3cx": ("<=4.28.6",),
+    "GHSA-w8qv-6jwh-64r5": (">=4.0.0,<4.16.5",),
+}
+BROWSERSLIST_EXPECTED_ADVISORIES = frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT)
+BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES = frozenset(
+    {"GHSA-73wf-gq98-2v4g", "GHSA-c83g-rgw3-j3cx"}
+)
+BROWSERSLIST_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(value) for value in ranges)
+    for advisory, ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+}
+BROWSERSLIST_FIRST_PATCHED_VERSIONS = {
+    "GHSA-73wf-gq98-2v4g": "4.28.7",
+    "GHSA-c83g-rgw3-j3cx": "4.28.7",
+    "GHSA-w8qv-6jwh-64r5": "4.16.5",
+}
+BROWSERSLIST_ADVISORY_BOUNDARY_CASES = (
+    ("GHSA-73wf-gq98-2v4g", "<=4.28.6", "4.28.6", "4.28.7"),
+    ("GHSA-c83g-rgw3-j3cx", "<=4.28.6", "4.28.6", "4.28.7"),
+    ("GHSA-w8qv-6jwh-64r5", ">=4.0.0,<4.16.5", "4.16.4", "4.16.5"),
+)
+BROWSERSLIST_BASE_VERSION = Version("4.28.2")
+TRANSITIVE_NPM_GAD_CUTOFF = "2026-09-03T03:39:19Z"
+TRANSITIVE_NPM_GAD_QUERIES = {
+    "browserslist": "GET /advisories?ecosystem=npm&affects=browserslist&per_page=100",
+    "qs": "GET /advisories?ecosystem=npm&affects=qs&per_page=100",
+}
+TRANSITIVE_NPM_BATCH_RECEIPT_SCHEMA = "pulseplate.frontend-npm-security-batch-gad-receipt/v1"
+TRANSITIVE_NPM_BATCH_RECEIPT_SHA256 = (
+    "ad87c0e16f1cf4cc3ab847175fc3d5d6865b941b9b7540816b4dec0711367d8f"  # pragma: allowlist secret
+)
+TRANSITIVE_NPM_SCANNER_SNAPSHOT_SHA256 = (
+    "c3aec6d46c57b693d2a9860838921fd51a16644dd76f32507a2aa3d8852419d4"  # pragma: allowlist secret
+)
+TRANSITIVE_NPM_BATCH_BASE_SHA = (
+    "2bfb7ff96dfcc98a806de9c113eff5242bfbe479"  # pragma: allowlist secret
+)
+QS_ADVISORY_ENTRIES = {
+    "GHSA-4mjr-xmp4-gh2g": ((">=2.2.5,<6.16.0", "6.16.0"),),
+    "GHSA-6rw7-vpxm-498p": (("<6.14.1", "6.14.1"),),
+    "GHSA-crvj-3gj9-gm2p": (("<1.0.0", "1.0.0"),),
+    "GHSA-f9cm-p3w6-xvr3": (("<1.0.0", "1.0.0"),),
+    "GHSA-gqgv-6jq5-jjj9": (
+        ("<6.0.4", "6.0.4"),
+        (">=6.1.0,<6.1.2", "6.1.2"),
+        (">=6.2.0,<6.2.3", "6.2.3"),
+        (">=6.3.0,<6.3.2", "6.3.2"),
+    ),
+    "GHSA-hrpp-h998-j3pp": (
+        (">=6.10.0,<6.10.3", "6.10.3"),
+        (">=6.9.0,<6.9.7", "6.9.7"),
+        (">=6.8.0,<6.8.3", "6.8.3"),
+        (">=6.7.0,<6.7.3", "6.7.3"),
+        (">=6.6.0,<6.6.1", "6.6.1"),
+        (">=6.5.0,<6.5.3", "6.5.3"),
+        (">=6.4.0,<6.4.1", "6.4.1"),
+        (">=6.3.0,<6.3.3", "6.3.3"),
+        ("<6.2.4", "6.2.4"),
+    ),
+    "GHSA-jjv7-qpx3-h62q": (("<1.0.0", "1.0.0"),),
+    "GHSA-q8mj-m7cp-5q26": ((">=6.11.1,<=6.15.1", "6.15.2"),),
+    "GHSA-w7fw-mjwx-w883": ((">=6.7.0,<=6.14.1", "6.14.2"),),
+    "GHSA-x5fp-wj9c-mxmx": ((">=6.14.2,<=6.15.3", "6.16.0"),),
+}
+QS_ADVISORY_RANGE_TEXT = {
+    advisory: tuple(raw_range for raw_range, _ in entries)
+    for advisory, entries in QS_ADVISORY_ENTRIES.items()
+}
+QS_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(raw_range) for raw_range in ranges)
+    for advisory, ranges in QS_ADVISORY_RANGE_TEXT.items()
+}
+QS_EXPECTED_ADVISORIES = frozenset(QS_ADVISORY_ENTRIES)
+QS_EXPECTED_APPLICABLE_ADVISORIES = frozenset({"GHSA-x5fp-wj9c-mxmx", "GHSA-4mjr-xmp4-gh2g"})
+QS_EXPECTED_WITHDRAWN = {"GHSA-crvj-3gj9-gm2p": "2020-06-16T21:32:53Z"}
+QS_ADVISORY_BOUNDARY_CASES = (
+    ("GHSA-4mjr-xmp4-gh2g", ">=2.2.5,<6.16.0", "6.15.2", "6.16.0"),
+    ("GHSA-6rw7-vpxm-498p", "<6.14.1", "6.14.0", "6.14.1"),
+    ("GHSA-crvj-3gj9-gm2p", "<1.0.0", "0.9.9", "1.0.0"),
+    ("GHSA-f9cm-p3w6-xvr3", "<1.0.0", "0.9.9", "1.0.0"),
+    ("GHSA-gqgv-6jq5-jjj9", "<6.0.4", "6.0.3", "6.0.4"),
+    ("GHSA-gqgv-6jq5-jjj9", ">=6.1.0,<6.1.2", "6.1.1", "6.1.2"),
+    ("GHSA-gqgv-6jq5-jjj9", ">=6.2.0,<6.2.3", "6.2.2", "6.2.3"),
+    ("GHSA-gqgv-6jq5-jjj9", ">=6.3.0,<6.3.2", "6.3.1", "6.3.2"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.10.0,<6.10.3", "6.10.2", "6.10.3"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.9.0,<6.9.7", "6.9.6", "6.9.7"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.8.0,<6.8.3", "6.8.2", "6.8.3"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.7.0,<6.7.3", "6.7.2", "6.7.3"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.6.0,<6.6.1", "6.6.0", "6.6.1"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.5.0,<6.5.3", "6.5.2", "6.5.3"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.4.0,<6.4.1", "6.4.0", "6.4.1"),
+    ("GHSA-hrpp-h998-j3pp", ">=6.3.0,<6.3.3", "6.3.2", "6.3.3"),
+    ("GHSA-hrpp-h998-j3pp", "<6.2.4", "6.2.3", "6.2.4"),
+    ("GHSA-jjv7-qpx3-h62q", "<1.0.0", "0.9.9", "1.0.0"),
+    ("GHSA-q8mj-m7cp-5q26", ">=6.11.1,<=6.15.1", "6.15.1", "6.15.2"),
+    ("GHSA-w7fw-mjwx-w883", ">=6.7.0,<=6.14.1", "6.14.1", "6.14.2"),
+    ("GHSA-x5fp-wj9c-mxmx", ">=6.14.2,<=6.15.3", "6.15.3", "6.16.0"),
+)
+AUTHORIZED_TRANSITIVE_NPM_BATCH = frozenset({"browserslist", "qs"})
+TRANSITIVE_NPM_HEAD_POLICIES = {
+    "browserslist": BROWSERSLIST_ADVISORY_RANGES,
+    "qs": QS_ADVISORY_RANGES,
+}
+TRANSITIVE_NPM_EVIDENCE_EXPECTATIONS = {
+    "browserslist": {
+        "base_version": BROWSERSLIST_BASE_VERSION,
+        "applicable_advisories": BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES,
+    },
+    "qs": {
+        "base_version": Version("6.15.2"),
+        "applicable_advisories": QS_EXPECTED_APPLICABLE_ADVISORIES,
+    },
+}
+NPM_VIRTUAL_GRAPH_POLICY_ARGS = (
+    "--global=false",
+    "--workspaces=false",
+    "--link=false",
+    "--include=prod",
+    "--include=dev",
+    "--include=optional",
+    "--include=peer",
+    "--legacy-peer-deps=false",
+    "--strict-peer-deps=true",
+)
 BRACE_EXPANSION_RENDERED_PROJECTIONS = {
     "GHSA-3jxr-9vmj-r5cp": (
         "**Applicable**: both `2.0.3` and `5.0.6` are affected",
@@ -1265,6 +1405,365 @@ def _assert_frontend_security_target_version(*, target: str, raw_version: object
     return version
 
 
+def _assert_transitive_npm_head_postcondition(
+    *, target: str, raw_version: object, source: str
+) -> Version:
+    """Require one stable target occurrence outside its frozen advisory inventory."""
+
+    assert target in AUTHORIZED_TRANSITIVE_NPM_BATCH
+    version = _parse_version(value=raw_version, source=source)
+    for advisory, affected_ranges in TRANSITIVE_NPM_HEAD_POLICIES[target].items():
+        assert all(
+            version not in affected_range for affected_range in affected_ranges
+        ), f"{target}/{advisory}: governed occurrence remains affected"
+    return version
+
+
+def _assert_sha512_integrity(*, value: object, source: str) -> None:
+    """Require one syntactically valid 64-byte sha512 SRI digest."""
+
+    assert isinstance(value, str) and value.startswith(
+        "sha512-"
+    ), f"{source}: integrity must use sha512 SRI"
+    encoded = value.removeprefix("sha512-")
+    try:
+        digest = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise AssertionError(f"{source}: integrity must contain valid base64") from exc
+    assert len(digest) == 64, f"{source}: integrity sha512 digest must be 64 bytes"
+
+
+def _assert_manifest_dependency_container_shapes(*, document: dict, surface: str) -> None:
+    """Keep JSON structure local while npm owns dependency-source semantics."""
+
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "overrides",
+    ):
+        if field in document:
+            assert isinstance(document[field], dict), f"{surface}:{field} must be an object"
+    for field in ("bundleDependencies", "bundledDependencies"):
+        if field not in document:
+            continue
+        bundled = document[field]
+        if type(bundled) is bool:
+            continue
+        assert isinstance(bundled, list), f"{surface}:{field} must be an array"
+        assert all(
+            isinstance(value, str) and value for value in bundled
+        ), f"{surface}:{field} entries must be non-empty package names"
+    peer_metadata = document.get("peerDependenciesMeta", {})
+    assert isinstance(peer_metadata, dict), f"{surface}: peerDependenciesMeta must be an object"
+    for peer, metadata in peer_metadata.items():
+        assert isinstance(peer, str) and peer, f"{surface}: peer metadata name must be text"
+        assert isinstance(metadata, dict), f"{surface}:{peer}: peer metadata must be an object"
+        assert set(metadata) <= {"optional"}, f"{surface}:{peer}: unknown peer metadata field"
+        assert (
+            type(metadata.get("optional", False)) is bool
+        ), f"{surface}:{peer}: peer optional must be an exact boolean"
+
+
+def _load_transitive_npm_surface(path: Path) -> dict:
+    """Load raw npm JSON without allowing duplicate members to erase evidence."""
+
+    document = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+    )
+    assert isinstance(document, dict), f"{path}: npm surface must be a JSON object"
+    return document
+
+
+def _npm_virtual_graph_environment() -> dict[str, str]:
+    """Remove ambient Node/npm graph controls before the delegated invocation."""
+
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_")
+        and key not in {"NODE_ENV", "NODE_OPTIONS", "NODE_PATH"}
+        and not key.casefold().startswith("npm_config_")
+    }
+
+
+def _assert_npm_virtual_lock_graphs(*, surfaces: dict[str, dict]) -> None:
+    """Delegate admitted snapshots without reopening the original project directory."""
+
+    wrapper = REPO_ROOT / "scripts" / "frontend_npm.sh"
+    assert wrapper.is_file() and os.access(
+        wrapper, os.X_OK
+    ), "repository npm wrapper must be an executable file"
+    lock_roots: dict[PurePosixPath, str] = {}
+    dependency_roots: set[PurePosixPath] = set()
+    for relative, document in surfaces.items():
+        path = PurePosixPath(relative)
+        if path.name == "package.json":
+            if any(
+                isinstance(document.get(field), dict) and bool(document[field])
+                for field in (
+                    "dependencies",
+                    "devDependencies",
+                    "optionalDependencies",
+                    "peerDependencies",
+                    "overrides",
+                )
+            ):
+                dependency_roots.add(path.parent)
+            continue
+        if path.name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        project_relative = path.parent
+        assert (
+            project_relative not in lock_roots
+        ), f"{relative}: multiple npm lock authorities share one project root"
+        manifest_relative = (project_relative / "package.json").as_posix()
+        assert (
+            manifest_relative in surfaces
+        ), f"{relative}: lock-bearing project must have a tracked package.json"
+        lock_roots[project_relative] = relative
+
+    missing_lock_roots = dependency_roots - set(lock_roots)
+    assert not missing_lock_roots, (
+        "dependency-bearing manifest must have one same-root lock authority; "
+        f"missing {sorted(path.as_posix() for path in missing_lock_roots)!r}"
+    )
+
+    for project_relative, lock_surface in lock_roots.items():
+        manifest_surface = (project_relative / "package.json").as_posix()
+        manifest = surfaces[manifest_surface]
+        lock = surfaces[lock_surface]
+        packages = lock.get("packages")
+        assert isinstance(packages, dict), f"{lock_surface}: packages must be an object"
+        root_package = packages.get("")
+        assert isinstance(
+            root_package, dict
+        ), f"{lock_surface}: packages must contain an object root entry"
+        for field in (
+            "dependencies",
+            "devDependencies",
+            "optionalDependencies",
+            "peerDependencies",
+            "peerDependenciesMeta",
+        ):
+            manifest_dependencies = manifest.get(field, {})
+            lock_dependencies = root_package.get(field, {})
+            assert isinstance(
+                lock_dependencies, dict
+            ), f"{lock_surface}: root {field} must be an object"
+            assert manifest_dependencies == lock_dependencies, (
+                f"{lock_surface}: root {field} must exactly match " f"{manifest_surface}"
+            )
+
+    npm_env = _npm_virtual_graph_environment()
+    with tempfile.TemporaryDirectory(prefix="pulseplate-npm-config-") as config_directory:
+        config_root = Path(config_directory)
+        user_config = config_root / "user.npmrc"
+        global_config = config_root / "global.npmrc"
+        user_config.write_text("", encoding="utf-8")
+        global_config.write_text("", encoding="utf-8")
+        for index, (project_relative, lock_surface) in enumerate(
+            sorted(lock_roots.items(), key=lambda item: item[0].as_posix())
+        ):
+            project_root = config_root / f"project-{index}"
+            project_root.mkdir()
+            manifest_surface = (project_relative / "package.json").as_posix()
+            for surface in (manifest_surface, lock_surface):
+                (project_root / PurePosixPath(surface).name).write_text(
+                    json.dumps(surfaces[surface]), encoding="utf-8"
+                )
+            try:
+                result = subprocess.run(
+                    [
+                        str(wrapper),
+                        "--prefix",
+                        str(project_root),
+                        "ls",
+                        "--all",
+                        "--package-lock-only",
+                        "--json",
+                        "--userconfig",
+                        str(user_config),
+                        "--globalconfig",
+                        str(global_config),
+                        *NPM_VIRTUAL_GRAPH_POLICY_ARGS,
+                    ],
+                    check=False,
+                    capture_output=True,
+                    cwd=project_root,
+                    env=npm_env,
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise AssertionError(f"{lock_surface}: npm virtual graph execution failed") from exc
+            assert result.returncode == 0, f"{lock_surface}: npm virtual graph rejected"
+            try:
+                graph = json.loads(result.stdout.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise AssertionError(
+                    f"{lock_surface}: npm virtual graph returned invalid JSON"
+                ) from exc
+            assert isinstance(graph, dict), f"{lock_surface}: npm virtual graph must be an object"
+            assert (
+                graph.get("error") is None
+            ), f"{lock_surface}: npm virtual graph returned an error"
+            assert (
+                graph.get("problems", []) == []
+            ), f"{lock_surface}: npm virtual graph has problems"
+
+
+def _assert_transitive_npm_occurrence(
+    *, target: str, surface: str, path: str, package: dict
+) -> None:
+    """Apply only target identity, advisory, provenance, and SRI policy."""
+
+    source = f"{surface}:{path}"
+    assert (
+        _lock_path_package_identity(path) == target
+    ), f"{source}: {target} alias/noncanonical installed path"
+    assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
+    in_bundle = package.get("inBundle", False)
+    assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
+    assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
+    raw_version = package.get("version")
+    _assert_transitive_npm_head_postcondition(
+        target=target,
+        raw_version=raw_version,
+        source=source,
+    )
+    assert isinstance(raw_version, str)
+    expected_resolved = f"https://registry.npmjs.org/{target}/-/{target}-{raw_version}.tgz"
+    assert (
+        package.get("resolved") == expected_resolved
+    ), f"{source}: {target} canonical provenance mismatch"
+    _assert_sha512_integrity(value=package.get("integrity"), source=source)
+
+
+def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str, frozenset[str]]:
+    """Enforce the exact authorized target batch after shared npm admission."""
+
+    assert frozenset(TRANSITIVE_NPM_HEAD_POLICIES) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    assert frozenset(TRANSITIVE_NPM_EVIDENCE_EXPECTATIONS) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    surfaces = {
+        relative: _load_transitive_npm_surface(root / relative)
+        for relative in _enumerate_repo_npm_surfaces(root=root)
+    }
+    lock_occurrences: dict[str, dict[tuple[str, str], dict]] = {
+        target: {} for target in AUTHORIZED_TRANSITIVE_NPM_BATCH
+    }
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            _assert_manifest_dependency_container_shapes(document=document, surface=relative)
+            for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
+                target_occurrences = _find_manifest_occurrences(document, target=target)
+                assert not target_occurrences, (
+                    f"{relative}: direct {target} manifest authority is forbidden; "
+                    f"found {target_occurrences!r}"
+                )
+            opaque_occurrences = _find_opaque_npm_dependency_source_occurrences(document)
+            assert not opaque_occurrences, (
+                f"{relative}: opaque dependency source blocks batch absence; "
+                f"found {opaque_occurrences!r}"
+            )
+            continue
+
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
+        assert (
+            document.get("lockfileVersion") == 3
+        ), f"{relative}: transitive batch supports only npm lockfileVersion 3"
+        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        packages = document.get("packages")
+        assert isinstance(packages, dict), f"{relative}: packages must be an object"
+        for package_path, package in packages.items():
+            assert isinstance(package_path, str), f"{relative}: package path must be text"
+            assert isinstance(
+                package, dict
+            ), f"{relative}:{package_path}: package must be an object"
+            _assert_manifest_dependency_container_shapes(
+                document=package, surface=f"{relative}:{package_path}"
+            )
+            has_shrinkwrap = package.get("hasShrinkwrap", False)
+            assert (
+                type(has_shrinkwrap) is bool
+            ), f"{relative}:{package_path}: hasShrinkwrap must be an exact boolean"
+            assert (
+                not has_shrinkwrap
+            ), f"{relative}:{package_path}: published nested shrinkwrap blocks batch admission"
+            for field in ("bundleDependencies", "bundledDependencies"):
+                assert not package.get(field, []), (
+                    f"{relative}:{package_path}: published bundled dependencies "
+                    "block batch admission"
+                )
+            in_bundle = package.get("inBundle", False)
+            assert (
+                type(in_bundle) is bool
+            ), f"{relative}:{package_path}: inBundle must be boolean when present"
+            assert not in_bundle, f"{relative}:{package_path}: bundled lock occurrence is forbidden"
+        for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
+            for path, package in _find_lock_occurrences(
+                document,
+                target=target,
+            ).items():
+                _assert_transitive_npm_occurrence(
+                    target=target,
+                    surface=relative,
+                    path=path,
+                    package=package,
+                )
+                lock_occurrences[target][(relative, path)] = package
+
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    return {
+        target: frozenset(relative for relative, _ in target_occurrences)
+        for target, target_occurrences in lock_occurrences.items()
+    }
+
+
+def _assert_browserslist_head_postcondition(*, raw_version: object, source: str) -> Version:
+    """Compatibility wrapper for existing Browserslist boundary controls."""
+
+    return _assert_transitive_npm_head_postcondition(
+        target="browserslist",
+        raw_version=raw_version,
+        source=source,
+    )
+
+
+def _assert_browserslist_occurrence(*, surface: str, path: str, package: dict) -> None:
+    """Compatibility wrapper for existing Browserslist occurrence controls."""
+
+    _assert_transitive_npm_occurrence(
+        target="browserslist",
+        surface=surface,
+        path=path,
+        package=package,
+    )
+
+
+def _assert_browserslist_security_class(*, root: Path = REPO_ROOT) -> frozenset[str]:
+    """Compatibility wrapper returning the Browserslist batch projection."""
+
+    return _assert_transitive_npm_security_batch(root=root)["browserslist"]
+
+
+def _extract_transitive_npm_batch_receipt(document: str) -> dict[str, object]:
+    """Parse the retained batch receipt without accepting ambiguous JSON objects."""
+
+    marker = "The retained normalized batch receipt is:\n\n```json\n"
+    assert document.count(marker) == 1, "batch owner must retain exactly one GAD receipt"
+    start = document.index(marker) + len(marker)
+    end = document.index("\n```", start)
+    receipt = json.loads(
+        document[start:end],
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+    )
+    assert isinstance(receipt, dict), "batch GAD receipt must be a JSON object"
+    return receipt
+
+
 def _assert_frontend_security_targets() -> None:
     """Validate the five non-brace targets across every tracked npm surface."""
 
@@ -2223,6 +2722,1424 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
             package_json=package_json,
             package_lock=package_lock,
         )
+
+
+def _transitive_npm_entry(*, target: str, version: str) -> dict[str, str]:
+    return {
+        "version": version,
+        "resolved": f"https://registry.npmjs.org/{target}/-/{target}-{version}.tgz",
+        "integrity": (
+            "sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA=="  # pragma: allowlist secret
+        ),
+    }
+
+
+def _browserslist_entry(version: str) -> dict[str, str]:
+    return _transitive_npm_entry(target="browserslist", version=version)
+
+
+def _write_browserslist_repo(
+    root: Path,
+    *,
+    project_directory: str = "frontend",
+    package_json: dict[str, object] | None = None,
+    package_lock: dict[str, object] | None = None,
+    write_lock: bool = True,
+) -> None:
+    """Create one tracked, lock-bearing npm project for delegated guard tests."""
+
+    _git_stdout("init", repo_root=root)
+    project = root / project_directory
+    project.mkdir(parents=True)
+    manifest = package_json or {"name": "fixture", "version": "1.0.0"}
+    lock = package_lock or {
+        "name": "fixture",
+        "version": "1.0.0",
+        "lockfileVersion": 3,
+        "requires": True,
+        "packages": {"": {"name": "fixture", "version": "1.0.0"}},
+    }
+    (project / "package.json").write_text(json.dumps(manifest), encoding="utf-8")
+    tracked = [f"{project_directory}/package.json"]
+    if write_lock:
+        (project / "package-lock.json").write_text(json.dumps(lock), encoding="utf-8")
+        tracked.append(f"{project_directory}/package-lock.json")
+    _git_stdout("add", "--", *tracked, repo_root=root)
+
+
+def test_browserslist_class_covers_every_current_tracked_surface(root: Path = REPO_ROOT) -> None:
+    """The current repository graph satisfies the delegated universal postcondition."""
+
+    _assert_browserslist_security_class(root=root)
+
+
+def test_transitive_npm_batch_covers_exact_authorized_targets(root: Path = REPO_ROOT) -> None:
+    """The current graph satisfies both and only the two authorized target policies."""
+
+    assert frozenset(TRANSITIVE_NPM_HEAD_POLICIES) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    assert frozenset(TRANSITIVE_NPM_EVIDENCE_EXPECTATIONS) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    assert (
+        frozenset(_assert_transitive_npm_security_batch(root=root))
+        == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    )
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    (
+        test_browserslist_class_covers_every_current_tracked_surface,
+        test_transitive_npm_batch_covers_exact_authorized_targets,
+    ),
+    ids=("browserslist-entrypoint", "batch-entrypoint"),
+)
+@pytest.mark.parametrize(
+    ("project_directory", "target_versions", "affected_target"),
+    (
+        ("frontend", {}, None),
+        ("frontend", {"browserslist": "4.28.8"}, None),
+        ("frontend", {"qs": "6.16.0"}, None),
+        ("frontend", {"browserslist": "4.28.8", "qs": "6.16.0"}, None),
+        ("tooling/browser-targets", {"browserslist": "4.28.7", "qs": "6.16.0"}, None),
+        ("frontend", {"browserslist": "4.28.2", "qs": "6.16.0"}, "browserslist"),
+        ("frontend", {"browserslist": "4.28.8", "qs": "6.15.2"}, "qs"),
+    ),
+    ids=(
+        "both-absent",
+        "browserslist-only",
+        "qs-only",
+        "both-safe",
+        "relocated-safe",
+        "affected-browserslist",
+        "affected-qs",
+    ),
+)
+def test_transitive_npm_repository_entrypoints_preserve_universal_postcondition(
+    tmp_path: Path,
+    entrypoint: Callable[[Path], None],
+    project_directory: str,
+    target_versions: dict[str, str],
+    affected_target: str | None,
+) -> None:
+    """Exercise real repository tests, not just their absence-capable helpers."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": root_dependencies}
+    _write_browserslist_repo(
+        tmp_path,
+        project_directory=project_directory,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": manifest,
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": target_versions,
+                },
+                **{
+                    f"node_modules/{target}": _transitive_npm_entry(target=target, version=version)
+                    for target, version in target_versions.items()
+                },
+            },
+        },
+    )
+    if affected_target is None:
+        entrypoint(tmp_path)
+    else:
+        with pytest.raises(
+            AssertionError,
+            match=rf"{affected_target}/GHSA-.*: governed occurrence remains affected",
+        ):
+            entrypoint(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("present_target", "safe_version", "absent_target"),
+    (("browserslist", "4.28.8", "qs"), ("qs", "6.16.0", "browserslist")),
+)
+def test_transitive_npm_batch_allows_per_identity_executable_absence(
+    tmp_path: Path,
+    present_target: str,
+    safe_version: str,
+    absent_target: str,
+) -> None:
+    """Each conjunct may prove absence while the other target remains installed."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    carrier_dependencies = {present_target: safe_version}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": root_dependencies,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": root_dependencies,
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                    "hasShrinkwrap": False,
+                },
+                f"node_modules/{present_target}": _transitive_npm_entry(
+                    target=present_target,
+                    version=safe_version,
+                ),
+            },
+        },
+    )
+    assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+        present_target: frozenset({"frontend/package-lock.json"}),
+        absent_target: frozenset(),
+    }
+    lock_path = tmp_path / "frontend/package-lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    carrier = lock["packages"]["node_modules/carrier"]
+    assert isinstance(carrier, dict)
+    for value, message in (
+        (True, "published nested shrinkwrap blocks batch admission"),
+        ("false", "hasShrinkwrap must be an exact boolean"),
+    ):
+        carrier["hasShrinkwrap"] = value
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match=message):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    carrier["hasShrinkwrap"] = False
+    for field in ("bundleDependencies", "bundledDependencies"):
+        for value in ([], False):
+            carrier[field] = value
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            assert (
+                _assert_transitive_npm_security_batch(root=tmp_path)[absent_target] == frozenset()
+            )
+        for value, message in (
+            ([absent_target], "published bundled dependencies block batch admission"),
+            (True, "published bundled dependencies block batch admission"),
+            ("false", f"{field} must be an array"),
+            ({}, f"{field} must be an array"),
+            (None, f"{field} must be an array"),
+            ([1], f"{field} entries must be non-empty package names"),
+        ):
+            carrier[field] = value
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+            with pytest.raises(AssertionError, match=message):
+                _assert_transitive_npm_security_batch(root=tmp_path)
+        del carrier[field]
+    for value, message in (
+        (True, "bundled lock occurrence is forbidden"),
+        ("false", "inBundle must be boolean when present"),
+        (1, "inBundle must be boolean when present"),
+    ):
+        carrier["inBundle"] = value
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match=message):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    carrier["inBundle"] = False
+    carrier["peerDependencies"] = {absent_target: "*"}
+    carrier["peerDependenciesMeta"] = {absent_target: {"optional": True}}
+    lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    assert _assert_transitive_npm_security_batch(root=tmp_path)[absent_target] == frozenset()
+    for metadata in ({}, {"optional": False}):
+        carrier["peerDependenciesMeta"] = {absent_target: metadata}
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    for optional in ("true", 1, {}, None, [], 0):
+        carrier["peerDependenciesMeta"] = {absent_target: {"optional": optional}}
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        with pytest.raises(AssertionError, match="peer optional must be an exact boolean"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+def test_browserslist_class_allows_delegated_executable_absence(tmp_path: Path) -> None:
+    """Absence is valid only after opaque-source and npm virtual-graph admission."""
+
+    _write_browserslist_repo(tmp_path)
+    assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+        "browserslist": frozenset(),
+        "qs": frozenset(),
+    }
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+def test_browserslist_class_rejects_missing_virtual_dependency(tmp_path: Path) -> None:
+    """npm, not handwritten ancestor logic, owns missing-edge rejection."""
+
+    dependency = {"carrier": "^1.0.0"}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", "dependencies": dependency},
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": dependency,
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_dependency_manifest_without_lock(tmp_path: Path) -> None:
+    """A registry-only manifest does not prove an absent executable graph by itself."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"carrier": "^1.0.0"},
+        },
+        write_lock=False,
+    )
+    with pytest.raises(AssertionError, match="same-root lock authority"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_root_lock_manifest_drift(tmp_path: Path) -> None:
+    """A root lock demand cannot invent dependency authority absent from its manifest."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": {"browserslist": "^4.28.7"},
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="must exactly match"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_lockfile_v2_compatibility_tree(tmp_path: Path) -> None:
+    """The class stops at v3 instead of partially parsing the v2 compatibility tree."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 2,
+            "requires": True,
+            "packages": {"": {"name": "fixture", "version": "1.0.0"}},
+            "dependencies": {
+                "browserslist": {
+                    "version": "4.28.6",
+                    "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.28.6.tgz",
+                }
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match="supports only npm lockfileVersion 3"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("dependency_kind", "manifest_field"),
+    (
+        ("prod", "dependencies"),
+        ("dev", "devDependencies"),
+        ("peer", "peerDependencies"),
+    ),
+)
+def test_browserslist_virtual_graph_ignores_ambient_npm_omit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    dependency_kind: str,
+    manifest_field: str,
+) -> None:
+    """Ambient omission cannot hide a required carrier of any dependency kind."""
+
+    dependency = {"carrier": "^1.0.0"}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            manifest_field: dependency,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    manifest_field: dependency,
+                }
+            },
+        },
+    )
+    monkeypatch.setenv("npm_config_omit", dependency_kind)
+    (tmp_path / "frontend/.npmrc").write_text(
+        f"omit={dependency_kind}\nglobal=true\nlink=true\nlegacy-peer-deps=true\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize("target_present", (False, True))
+def test_browserslist_production_edge_is_not_hidden_by_project_omit(
+    tmp_path: Path,
+    target_present: bool,
+) -> None:
+    """Production inclusion distinguishes a missing required edge from a safe graph."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "^1.0.0"}}
+    packages: dict[str, object] = {
+        "": manifest,
+        "node_modules/carrier": {
+            **_transitive_npm_entry(target="carrier", version="1.0.0"),
+            "dependencies": {"browserslist": "^4.28.2"},
+        },
+    }
+    if target_present:
+        packages["node_modules/browserslist"] = _browserslist_entry("4.28.8")
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": packages,
+        },
+    )
+    (tmp_path / "frontend/.npmrc").write_text("omit=prod\n", encoding="utf-8")
+    if target_present:
+        assert _assert_browserslist_security_class(root=tmp_path) == frozenset(
+            {"frontend/package-lock.json"}
+        )
+    else:
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_virtual_graph_preserves_optional_child_absence(tmp_path: Path) -> None:
+    """Including optional edges does not make an absent optional child required."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "^1.0.0"}}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": manifest,
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "optionalDependencies": {"browserslist": "^4.28.2"},
+                },
+            },
+        },
+    )
+    (tmp_path / "frontend/.npmrc").write_text("omit=optional\n", encoding="utf-8")
+    assert _assert_browserslist_security_class(root=tmp_path) == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("target", "affected_version", "safe_version"),
+    (("browserslist", "4.28.2", "4.28.8"), ("qs", "6.15.2", "6.16.0")),
+)
+@pytest.mark.parametrize(
+    ("graph_state", "depth", "lock_basename"),
+    [
+        (state, depth, "package-lock.json")
+        for state in ("missing", "incompatible", "safe", "optional")
+        for depth in (None, "0")
+    ]
+    + [
+        ("safe", "0", "npm-shrinkwrap.json"),
+        ("missing", "0", "npm-shrinkwrap.json"),
+    ],
+)
+def test_transitive_npm_graph_is_independent_of_source_depth(
+    tmp_path: Path,
+    target: str,
+    affected_version: str,
+    safe_version: str,
+    graph_state: str,
+    depth: str | None,
+    lock_basename: str,
+) -> None:
+    """Source config cannot hide missing/incompatible edges or forbid valid absence."""
+
+    manifest = {"name": "fixture", "version": "1.0.0", "dependencies": {"carrier": "1.0.0"}}
+    edge_field = "optionalDependencies" if graph_state == "optional" else "dependencies"
+    edge_version = safe_version if graph_state == "safe" else affected_version
+    packages: dict[str, object] = {
+        "": manifest,
+        "node_modules/carrier": {
+            **_transitive_npm_entry(target="carrier", version="1.0.0"),
+            edge_field: {target: edge_version},
+        },
+    }
+    if graph_state in {"safe", "incompatible"}:
+        packages[f"node_modules/{target}"] = _transitive_npm_entry(
+            target=target, version=safe_version
+        )
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": packages,
+        },
+    )
+    project = tmp_path / "frontend"
+    if lock_basename != "package-lock.json":
+        (project / "package-lock.json").rename(project / lock_basename)
+    if depth is not None:
+        (project / ".npmrc").write_text(f"depth={depth}\n", encoding="utf-8")
+    _git_stdout("add", "--all", "--", "frontend", repo_root=tmp_path)
+    if graph_state in {"missing", "incompatible"}:
+        with pytest.raises(AssertionError, match="npm virtual graph rejected"):
+            _assert_transitive_npm_security_batch(root=tmp_path)
+    else:
+        assert _assert_transitive_npm_security_batch(root=tmp_path) == {
+            identity: (
+                frozenset({f"frontend/{lock_basename}"})
+                if identity == target and graph_state == "safe"
+                else frozenset()
+            )
+            for identity in AUTHORIZED_TRANSITIVE_NPM_BATCH
+        }
+
+
+@pytest.mark.parametrize("execution_fails", (False, True))
+def test_transitive_npm_graph_transports_only_admitted_snapshots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    execution_fails: bool,
+) -> None:
+    """Transport/cleanup oracle only; real npm tests separately prove graph validity."""
+
+    surfaces: dict[str, dict] = {}
+    expected: dict[str, tuple[str, str]] = {}
+    source_projects = []
+    for index, (project, basename) in enumerate(
+        (("outer", "package-lock.json"), ("outer/inner", "npm-shrinkwrap.json"))
+    ):
+        manifest = {
+            "name": f"snapshot-{index}",
+            "version": "1.0.0",
+            "keywords": ["second", "first"],
+            "config": {"nested": [{"optional": True}, "é"]},
+        }
+        lock = {"lockfileVersion": 3, "packages": {"": deepcopy(manifest)}}
+        project_root = tmp_path / project
+        project_root.mkdir(parents=True)
+        source_projects.append(project_root)
+        (project_root / ".npmrc").write_text("depth=0\n", encoding="utf-8")
+        (project_root / "node_modules").mkdir()
+        for filename, document in (("package.json", manifest), (basename, lock)):
+            source_path = project_root / filename
+            source_path.write_text(json.dumps(document), encoding="utf-8")
+            surfaces[f"{project}/{filename}"] = _load_transitive_npm_surface(source_path)
+            source_path.write_text("{}", encoding="utf-8")
+        expected[manifest["name"]] = (f"{project}/package.json", f"{project}/{basename}")
+    before = deepcopy(surfaces)
+    visited: list[Path] = []
+
+    def inspect_transport(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: int,
+    ) -> subprocess.CompletedProcess[bytes]:
+        assert command[0] == str(REPO_ROOT / "scripts/frontend_npm.sh")
+        assert cwd == Path(command[command.index("--prefix") + 1])
+        assert cwd not in source_projects and cwd not in visited
+        visited.append(cwd)
+        manifest = json.loads((cwd / "package.json").read_text(encoding="utf-8"))
+        manifest_surface, lock_surface = expected[manifest["name"]]
+        basename = PurePosixPath(lock_surface).name
+        assert {path.name for path in cwd.iterdir()} == {"package.json", basename}
+        assert manifest == before[manifest_surface]
+        assert json.loads((cwd / basename).read_text(encoding="utf-8")) == before[lock_surface]
+        for flag in ("--userconfig", "--globalconfig"):
+            assert Path(command[command.index(flag) + 1]).read_bytes() == b""
+        assert not check and capture_output and timeout == 60
+        assert env == _npm_virtual_graph_environment()
+        if execution_fails and len(visited) == len(expected):
+            raise OSError("controlled npm execution failure")
+        return subprocess.CompletedProcess(command, 0, stdout=b"{}", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", inspect_transport)
+    if execution_fails:
+        with pytest.raises(AssertionError, match="npm virtual graph execution failed"):
+            _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    else:
+        _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    assert len(visited) == len(expected)
+    assert len({path.parent for path in visited}) == 1
+    assert all(not path.parent.exists() for path in visited)
+    assert surfaces == before
+
+
+def test_browserslist_virtual_graph_configuration_is_hermetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One boundary strips ambient graph controls and fixes the complete-graph policy."""
+
+    blocked = {
+        "NODE_ENV": "production",
+        "NODE_OPTIONS": "--invalid-option",
+        "NODE_PATH": "/tmp/untrusted-node-path",
+        "npm_config_omit": "dev",
+        "NpM_CoNfIg_Link": "true",
+    }
+    for key, value in blocked.items():
+        monkeypatch.setenv(key, value)
+    delegated_env = _npm_virtual_graph_environment()
+    assert not set(blocked).intersection(delegated_env)
+    assert NPM_VIRTUAL_GRAPH_POLICY_ARGS == (
+        "--global=false",
+        "--workspaces=false",
+        "--link=false",
+        "--include=prod",
+        "--include=dev",
+        "--include=optional",
+        "--include=peer",
+        "--legacy-peer-deps=false",
+        "--strict-peer-deps=true",
+    )
+
+
+@pytest.mark.parametrize(
+    ("target", "safe_version"),
+    (("browserslist", "4.28.8"), ("qs", "6.16.0")),
+)
+@pytest.mark.parametrize("carrier", ("direct", "alias", "override", "bundle"))
+def test_transitive_npm_batch_rejects_direct_manifest_authority(
+    tmp_path: Path,
+    target: str,
+    safe_version: str,
+    carrier: str,
+) -> None:
+    """The lock-only class never acquires a direct target owner."""
+
+    if carrier == "direct":
+        manifest: dict[str, object] = {"dependencies": {target: safe_version}}
+    elif carrier == "alias":
+        manifest = {"devDependencies": {"renamed": f"npm:{target}@{safe_version}"}}
+    elif carrier == "override":
+        manifest = {"overrides": {"carrier": {target: safe_version}}}
+    elif carrier == "bundle":
+        manifest = {"bundleDependencies": [target]}
+    else:
+        raise AssertionError(f"unhandled target carrier: {carrier}")
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", **manifest},
+    )
+    with pytest.raises(AssertionError, match=rf"direct {target} manifest authority"):
+        _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "opaque_source",
+    (
+        "github:browserslist/browserslist",
+        "git+https://github.com/browserslist/browserslist.git#v4.28.8",
+        "git+file:///vendor/browserslist.git",
+        "file:../vendor/browserslist",
+        "../vendor/browserslist",
+        "vendor/pkg/browserslist",
+        "https://example.invalid/browserslist.tgz",
+        "latest",
+    ),
+)
+def test_browserslist_class_rejects_opaque_manifest_sources(
+    tmp_path: Path,
+    opaque_source: str,
+) -> None:
+    """One delegated classifier closes every opaque source family."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"renamed": opaque_source},
+        },
+    )
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_workspace_source(tmp_path: Path) -> None:
+    """Workspace topology is opaque rather than another package-specific grammar."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", "workspaces": ["packages/*"]},
+    )
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("dependencies", ["browserslist"], "dependencies must be an object"),
+        ("overrides", ["browserslist"], "overrides must be an object"),
+        ("bundleDependencies", "browserslist", "bundleDependencies must be an array"),
+        ("peerDependenciesMeta", [], "peerDependenciesMeta must be an object"),
+        ("peerDependenciesMeta", {"carrier": True}, "peer metadata must be an object"),
+        (
+            "peerDependenciesMeta",
+            {"carrier": {"optionl": True}},
+            "unknown peer metadata field",
+        ),
+    ),
+)
+def test_browserslist_class_rejects_malformed_manifest_containers(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    """Malformed JSON containers cannot create an absence claim."""
+
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={"name": "fixture", "version": "1.0.0", field: value},
+    )
+    with pytest.raises(AssertionError, match=message):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_class_rejects_duplicate_npm_surface_keys(tmp_path: Path) -> None:
+    """A later duplicate JSON member cannot erase an earlier vulnerable record."""
+
+    _write_browserslist_repo(tmp_path)
+    (tmp_path / "frontend/package-lock.json").write_text(
+        """{
+  "name": "fixture",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {"node_modules/browserslist": {"version": "4.28.6"}},
+  "packages": {"": {"name": "fixture", "version": "1.0.0"}}
+}
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="duplicate JSON key: packages"):
+        _assert_browserslist_security_class(root=tmp_path)
+
+
+def test_browserslist_lock_discovery_includes_every_nested_occurrence() -> None:
+    """A safe root record cannot hide a vulnerable nested raw lock record."""
+
+    document = {
+        "lockfileVersion": 3,
+        "packages": {
+            "": {"name": "fixture", "version": "1.0.0"},
+            "node_modules/browserslist": _browserslist_entry("4.28.8"),
+            "node_modules/carrier/node_modules/browserslist": _browserslist_entry("4.28.6"),
+        },
+    }
+    occurrences = _find_lock_occurrences(document, target="browserslist")
+    assert set(occurrences) == {
+        "node_modules/browserslist",
+        "node_modules/carrier/node_modules/browserslist",
+    }
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        for path, package in occurrences.items():
+            _assert_browserslist_occurrence(
+                surface="fixture/package-lock.json",
+                path=path,
+                package=package,
+            )
+
+
+@pytest.mark.parametrize(
+    ("target", "safe_version", "affected_version"),
+    (("browserslist", "4.28.8", "4.28.6"), ("qs", "6.16.0", "6.15.3")),
+)
+def test_transitive_npm_batch_rejects_every_nested_affected_occurrence(
+    tmp_path: Path,
+    target: str,
+    safe_version: str,
+    affected_version: str,
+) -> None:
+    """A safe root occurrence cannot hide an affected nested target from the executor."""
+
+    carrier_dependencies = {target: affected_version}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": {"carrier": "1.0.0"},
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": {"carrier": "1.0.0"},
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                },
+                f"node_modules/{target}": _transitive_npm_entry(
+                    target=target,
+                    version=safe_version,
+                ),
+                f"node_modules/carrier/node_modules/{target}": _transitive_npm_entry(
+                    target=target,
+                    version=affected_version,
+                ),
+            },
+        },
+    )
+    with pytest.raises(AssertionError, match=rf"{target}/.+governed occurrence remains affected"):
+        _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("affected_target", "affected_version", "safe_target", "safe_version"),
+    (
+        ("browserslist", "4.28.6", "qs", "6.16.0"),
+        ("qs", "6.15.3", "browserslist", "4.28.8"),
+    ),
+)
+def test_transitive_npm_batch_is_conjunctive_for_mixed_safe_and_affected_targets(
+    tmp_path: Path,
+    affected_target: str,
+    affected_version: str,
+    safe_target: str,
+    safe_version: str,
+) -> None:
+    """One safe target never masks the other target's affected occurrence."""
+
+    root_dependencies = {"carrier": "1.0.0"}
+    carrier_dependencies = {
+        affected_target: affected_version,
+        safe_target: safe_version,
+    }
+    _write_browserslist_repo(
+        tmp_path,
+        package_json={
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": root_dependencies,
+        },
+        package_lock={
+            "name": "fixture",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": "fixture",
+                    "version": "1.0.0",
+                    "dependencies": root_dependencies,
+                },
+                "node_modules/carrier": {
+                    **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                    "dependencies": carrier_dependencies,
+                },
+                f"node_modules/{affected_target}": _transitive_npm_entry(
+                    target=affected_target,
+                    version=affected_version,
+                ),
+                f"node_modules/{safe_target}": _transitive_npm_entry(
+                    target=safe_target,
+                    version=safe_version,
+                ),
+            },
+        },
+    )
+    with pytest.raises(
+        AssertionError,
+        match=rf"{affected_target}/.+governed occurrence remains affected",
+    ):
+        _assert_transitive_npm_security_batch(root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("prerelease", "prerelease output is not approved"),
+        ("foreign-registry", "canonical provenance mismatch"),
+        ("alias-path", "alias/noncanonical installed path"),
+        ("missing-integrity", "integrity must use sha512 SRI"),
+        ("malformed-integrity", "integrity must contain valid base64"),
+        ("short-integrity", "integrity sha512 digest must be 64 bytes"),
+        ("symbolic-link", "symbolic link lock occurrence is forbidden"),
+        ("bundled-record", "bundled lock occurrence is forbidden"),
+        ("malformed-bundle-flag", "inBundle must be boolean when present"),
+    ),
+)
+@pytest.mark.parametrize(
+    ("target", "safe_version"),
+    (("browserslist", "4.28.8"), ("qs", "6.16.0")),
+)
+def test_transitive_npm_occurrence_policy_fails_closed(
+    case: str,
+    message: str,
+    target: str,
+    safe_version: str,
+) -> None:
+    """Target policy owns only version, path, provenance, link, and SRI checks."""
+
+    path = f"node_modules/{target}"
+    package: dict[str, object] = _transitive_npm_entry(
+        target=target,
+        version=safe_version,
+    )
+    if case == "prerelease":
+        package = _transitive_npm_entry(target=target, version=f"{safe_version}-rc.1")
+    elif case == "foreign-registry":
+        package["resolved"] = f"https://example.invalid/{target}-{safe_version}.tgz"
+    elif case == "alias-path":
+        path = "node_modules/renamed"
+        package["name"] = target
+    elif case == "missing-integrity":
+        package.pop("integrity")
+    elif case == "malformed-integrity":
+        package["integrity"] = "sha512-***"
+    elif case == "short-integrity":
+        package["integrity"] = "sha512-Zml4dHVyZQ=="
+    elif case == "symbolic-link":
+        package["link"] = True
+    elif case == "bundled-record":
+        package["inBundle"] = True
+    elif case == "malformed-bundle-flag":
+        package["inBundle"] = "false"
+    else:
+        raise AssertionError(f"unhandled transitive npm occurrence case: {case}")
+
+    with pytest.raises(AssertionError, match=message):
+        _assert_transitive_npm_occurrence(
+            target=target,
+            surface="fixture/package-lock.json",
+            path=path,
+            package=package,
+        )
+
+
+def test_browserslist_advisory_inventory_is_exact_and_complete() -> None:
+    """Equal ranges cannot let one advisory identity disappear silently."""
+
+    assert BROWSERSLIST_EXPECTED_ADVISORIES == frozenset(BROWSERSLIST_ADVISORY_RANGE_TEXT)
+    derived_applicable = frozenset(
+        advisory
+        for advisory, affected_ranges in BROWSERSLIST_ADVISORY_RANGES.items()
+        if any(BROWSERSLIST_BASE_VERSION in affected for affected in affected_ranges)
+    )
+    assert derived_applicable == BROWSERSLIST_EXPECTED_APPLICABLE_ADVISORIES
+    assert derived_applicable < BROWSERSLIST_EXPECTED_ADVISORIES
+    boundary_rows = {
+        (advisory, raw_range, patched)
+        for advisory, raw_range, _affected, patched in BROWSERSLIST_ADVISORY_BOUNDARY_CASES
+    }
+    assert len(boundary_rows) == len(BROWSERSLIST_ADVISORY_BOUNDARY_CASES) == 3
+    assert boundary_rows == {
+        (advisory, raw_range, BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory])
+        for advisory, raw_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+        for raw_range in raw_ranges
+    }
+
+
+@pytest.mark.parametrize(
+    ("advisory", "raw_range", "affected", "patched"),
+    BROWSERSLIST_ADVISORY_BOUNDARY_CASES,
+)
+def test_browserslist_every_advisory_retains_affected_and_patched_boundary(
+    advisory: str,
+    raw_range: str,
+    affected: str,
+    patched: str,
+) -> None:
+    """Each historical or current Browserslist range retains its own boundary proof."""
+
+    assert raw_range in BROWSERSLIST_ADVISORY_RANGE_TEXT[advisory]
+    assert BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory] == patched
+    affected_range = SpecifierSet(raw_range)
+    assert Version(affected) in affected_range
+    assert Version(patched) not in affected_range
+
+
+@pytest.mark.parametrize(
+    ("version", "allowed"),
+    (
+        ("4.16.4", False),
+        ("4.16.5", False),
+        ("4.28.2", False),
+        ("4.28.6", False),
+        ("4.28.7", True),
+        ("4.28.8", True),
+    ),
+)
+def test_browserslist_advisory_boundaries(version: str, allowed: bool) -> None:
+    """All three frozen advisory ranges retain explicit boundary controls."""
+
+    if allowed:
+        assert _assert_browserslist_head_postcondition(
+            raw_version=version,
+            source="fixture",
+        ) == Version(version)
+        return
+    with pytest.raises(AssertionError, match="governed occurrence remains affected"):
+        _assert_browserslist_head_postcondition(raw_version=version, source="fixture")
+
+
+def test_qs_advisory_inventory_is_exact_complete_and_base_derived() -> None:
+    """The ten-record, twenty-one-row qs inventory retains exact applicability."""
+
+    assert len(QS_EXPECTED_ADVISORIES) == 10
+    assert sum(len(entries) for entries in QS_ADVISORY_ENTRIES.values()) == 21
+    assert frozenset(QS_ADVISORY_RANGES) == QS_EXPECTED_ADVISORIES
+    base_version = TRANSITIVE_NPM_EVIDENCE_EXPECTATIONS["qs"]["base_version"]
+    assert isinstance(base_version, Version)
+    derived_applicable = frozenset(
+        advisory
+        for advisory, affected_ranges in QS_ADVISORY_RANGES.items()
+        if any(base_version in affected for affected in affected_ranges)
+    )
+    assert derived_applicable == QS_EXPECTED_APPLICABLE_ADVISORIES
+    assert derived_applicable < QS_EXPECTED_ADVISORIES
+    assert QS_EXPECTED_WITHDRAWN == {"GHSA-crvj-3gj9-gm2p": "2020-06-16T21:32:53Z"}
+    assert len(QS_ADVISORY_BOUNDARY_CASES) == 21
+    boundary_rows = {
+        (advisory, raw_range, patched)
+        for advisory, raw_range, _affected, patched in QS_ADVISORY_BOUNDARY_CASES
+    }
+    assert len(boundary_rows) == len(QS_ADVISORY_BOUNDARY_CASES)
+    assert boundary_rows == {
+        (advisory, raw_range, patched)
+        for advisory, entries in QS_ADVISORY_ENTRIES.items()
+        for raw_range, patched in entries
+    }
+
+
+@pytest.mark.parametrize(
+    ("advisory", "raw_range", "affected", "patched"),
+    QS_ADVISORY_BOUNDARY_CASES,
+)
+def test_qs_every_advisory_row_retains_affected_and_patched_boundary(
+    advisory: str,
+    raw_range: str,
+    affected: str,
+    patched: str,
+) -> None:
+    """Every retained range row remains independently comparable and lossless."""
+
+    assert (raw_range, patched) in QS_ADVISORY_ENTRIES[advisory]
+    affected_range = SpecifierSet(raw_range)
+    assert Version(affected) in affected_range
+    assert Version(patched) not in affected_range
+
+
+@pytest.mark.parametrize(
+    ("version", "allowed"),
+    (
+        ("6.15.1", False),
+        ("6.15.2", False),
+        ("6.15.3", False),
+        ("6.15.4", False),
+        ("6.16.0", True),
+        ("6.16.1", True),
+    ),
+)
+def test_qs_conjunctive_advisory_boundaries(version: str, allowed: bool) -> None:
+    """Current and future stable qs versions satisfy all ten advisory records."""
+
+    if allowed:
+        assert _assert_transitive_npm_head_postcondition(
+            target="qs",
+            raw_version=version,
+            source="fixture",
+        ) == Version(version)
+        return
+    with pytest.raises(AssertionError, match="qs/.+: governed occurrence remains affected"):
+        _assert_transitive_npm_head_postcondition(
+            target="qs",
+            raw_version=version,
+            source="fixture",
+        )
+
+
+def test_transitive_npm_batch_receipt_digest_and_projection_are_bound() -> None:
+    """One receipt binds exact authorization, scanner set, and both GAD inventories."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    receipt = _extract_transitive_npm_batch_receipt(document)
+    canonical = json.dumps(
+        receipt,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    digest = hashlib.sha256(canonical).hexdigest()
+    assert digest == TRANSITIVE_NPM_BATCH_RECEIPT_SHA256
+    assert f"Canonical batch receipt SHA-256:\n\n```text\n{digest}\n```" in document
+    assert set(receipt) == {
+        "authorized_dependency_identities",
+        "gad_cutoff",
+        "operator_authorization",
+        "scanner_snapshot",
+        "scanner_snapshot_sha256",
+        "schema",
+        "targets",
+    }
+    assert receipt["schema"] == TRANSITIVE_NPM_BATCH_RECEIPT_SCHEMA
+    assert receipt["authorized_dependency_identities"] == ["npm:browserslist", "npm:qs"]
+    assert receipt["operator_authorization"] == "exact_finite_batch_confirmed_2026-09-03"
+    assert receipt["gad_cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
+    scanner = _require_exact_object(
+        receipt["scanner_snapshot"],
+        keys=frozenset(
+            {"base_sha", "observed_at", "roots", "terminal", "vulnerable_dependency_identities"}
+        ),
+        label="batch scanner snapshot",
+    )
+    scanner_canonical = json.dumps(
+        scanner,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    scanner_digest = hashlib.sha256(scanner_canonical).hexdigest()
+    assert scanner_digest == TRANSITIVE_NPM_SCANNER_SNAPSHOT_SHA256
+    assert receipt["scanner_snapshot_sha256"] == scanner_digest
+    assert scanner["base_sha"] == TRANSITIVE_NPM_BATCH_BASE_SHA
+    assert scanner["terminal"] is True
+    assert scanner["vulnerable_dependency_identities"] == [
+        "npm:browserslist",
+        "npm:qs",
+    ]
+    assert scanner["observed_at"] == TRANSITIVE_NPM_GAD_CUTOFF
+    assert scanner["roots"] == [
+        {
+            "command": "npm audit --package-lock-only --json",
+            "exit_code": 0,
+            "lock": "package-lock.json",
+            "project": ".",
+            "severity_counts": {
+                "critical": 0,
+                "high": 0,
+                "info": 0,
+                "low": 0,
+                "moderate": 0,
+                "total": 0,
+            },
+            "vulnerability_keys": [],
+        },
+        {
+            "command": "npm audit --package-lock-only --json",
+            "exit_code": 1,
+            "lock": "frontend/package-lock.json",
+            "project": "frontend",
+            "severity_counts": {
+                "critical": 0,
+                "high": 1,
+                "info": 0,
+                "low": 0,
+                "moderate": 1,
+                "total": 2,
+            },
+            "vulnerability_keys": ["browserslist", "qs"],
+        },
+    ]
+
+    targets = receipt["targets"]
+    assert isinstance(targets, dict)
+    assert frozenset(targets) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    expected_entries = {
+        "browserslist": {
+            advisory: tuple(
+                (raw_range, BROWSERSLIST_FIRST_PATCHED_VERSIONS[advisory])
+                for raw_range in raw_ranges
+            )
+            for advisory, raw_ranges in BROWSERSLIST_ADVISORY_RANGE_TEXT.items()
+        },
+        "qs": QS_ADVISORY_ENTRIES,
+    }
+    expected_metadata = {
+        "browserslist": {
+            "GHSA-73wf-gq98-2v4g": (
+                "CVE-2026-73088",
+                "high",
+                "2026-09-01T16:41:54Z",
+                "2026-09-01T16:41:55Z",
+                None,
+            ),
+            "GHSA-c83g-rgw3-j3cx": (
+                "CVE-2026-73089",
+                "high",
+                "2026-09-01T16:42:13Z",
+                "2026-09-01T16:42:15Z",
+                None,
+            ),
+            "GHSA-w8qv-6jwh-64r5": (
+                "CVE-2021-23364",
+                "medium",
+                "2021-05-24T19:52:40Z",
+                "2023-08-17T05:02:30Z",
+                None,
+            ),
+        },
+        "qs": {
+            "GHSA-4mjr-xmp4-gh2g": (
+                "CVE-2026-82417",
+                "medium",
+                "2026-09-02T14:45:13Z",
+                "2026-09-02T14:45:15Z",
+                None,
+            ),
+            "GHSA-6rw7-vpxm-498p": (
+                "CVE-2025-15284",
+                "medium",
+                "2025-12-30T21:02:54Z",
+                "2026-03-02T22:05:33Z",
+                None,
+            ),
+            "GHSA-crvj-3gj9-gm2p": (
+                None,
+                "high",
+                "2018-10-09T00:44:29Z",
+                "2023-01-09T05:02:51Z",
+                "2020-06-16T21:32:53Z",
+            ),
+            "GHSA-f9cm-p3w6-xvr3": (
+                "CVE-2014-10064",
+                "high",
+                "2018-10-09T00:38:48Z",
+                "2023-01-09T05:02:52Z",
+                None,
+            ),
+            "GHSA-gqgv-6jq5-jjj9": (
+                "CVE-2017-1000048",
+                "high",
+                "2020-04-30T17:16:47Z",
+                "2023-01-09T05:02:30Z",
+                None,
+            ),
+            "GHSA-hrpp-h998-j3pp": (
+                "CVE-2022-24999",
+                "high",
+                "2022-11-27T00:30:50Z",
+                "2025-04-29T15:41:45Z",
+                None,
+            ),
+            "GHSA-jjv7-qpx3-h62q": (
+                "CVE-2014-7191",
+                "high",
+                "2017-10-24T18:33:36Z",
+                "2023-04-11T00:27:35Z",
+                None,
+            ),
+            "GHSA-q8mj-m7cp-5q26": (
+                "CVE-2026-8723",
+                "medium",
+                "2026-05-22T17:27:19Z",
+                "2026-05-22T17:27:20Z",
+                None,
+            ),
+            "GHSA-w7fw-mjwx-w883": (
+                "CVE-2026-2391",
+                "low",
+                "2026-02-12T17:04:39Z",
+                "2026-02-12T20:08:00Z",
+                None,
+            ),
+            "GHSA-x5fp-wj9c-mxmx": (
+                "CVE-2026-82562",
+                "medium",
+                "2026-09-02T14:46:57Z",
+                "2026-09-02T14:46:58Z",
+                None,
+            ),
+        },
+    }
+    from datetime import datetime
+
+    assert frozenset(expected_metadata) == AUTHORIZED_TRANSITIVE_NPM_BATCH
+    timestamp_format = "%Y-%m-%dT%H:%M:%SZ"
+    cutoff_timestamp = datetime.strptime(TRANSITIVE_NPM_GAD_CUTOFF, timestamp_format)
+    expected_counts = {"browserslist": (3, 3), "qs": (10, 21)}
+    total_records = 0
+    total_ranges = 0
+    for target, target_receipt in targets.items():
+        target_receipt = _require_exact_object(
+            target_receipt,
+            keys=frozenset(
+                {
+                    "cutoff",
+                    "next_page",
+                    "observed_at",
+                    "page_count",
+                    "query",
+                    "range_count",
+                    "record_count",
+                    "records",
+                }
+            ),
+            label=f"{target} batch target receipt",
+        )
+        assert target_receipt["cutoff"] == TRANSITIVE_NPM_GAD_CUTOFF
+        assert target_receipt["observed_at"] == TRANSITIVE_NPM_GAD_CUTOFF
+        assert target_receipt["query"] == TRANSITIVE_NPM_GAD_QUERIES[target]
+        records = target_receipt["records"]
+        assert isinstance(records, list)
+        record_count, range_count = expected_counts[target]
+        assert type(target_receipt["record_count"]) is int
+        assert type(target_receipt["range_count"]) is int
+        assert target_receipt["record_count"] == len(records) == record_count
+        assert type(target_receipt["page_count"]) is int
+        assert target_receipt["page_count"] == 1
+        assert target_receipt["next_page"] is None
+        records_by_advisory = {record["ghsa_id"]: record for record in records}
+        assert len(records_by_advisory) == len(records)
+        assert set(records_by_advisory) == set(expected_entries[target])
+        assert set(records_by_advisory) == set(expected_metadata[target])
+        retained_entries: dict[str, tuple[tuple[str, str], ...]] = {}
+        for advisory, record in records_by_advisory.items():
+            assert set(record) == {
+                "cve_id",
+                "ghsa_id",
+                "published_at",
+                "severity",
+                "updated_at",
+                "vulnerabilities",
+                "withdrawn_at",
+            }
+            cve_id = record["cve_id"]
+            severity = record["severity"]
+            published_text = record["published_at"]
+            updated_text = record["updated_at"]
+            withdrawn_text = record["withdrawn_at"]
+            assert cve_id is None or (
+                isinstance(cve_id, str) and re.fullmatch(r"CVE-\d{4}-\d{4,}", cve_id)
+            )
+            assert isinstance(severity, str)
+            assert severity in {"low", "medium", "high", "critical"}
+            assert isinstance(published_text, str)
+            assert isinstance(updated_text, str)
+            published_at = datetime.strptime(published_text, timestamp_format)
+            updated_at = datetime.strptime(updated_text, timestamp_format)
+            assert published_at <= updated_at <= cutoff_timestamp
+            if withdrawn_text is not None:
+                assert isinstance(withdrawn_text, str)
+                withdrawn_at = datetime.strptime(withdrawn_text, timestamp_format)
+                assert published_at <= withdrawn_at <= updated_at
+            assert (
+                cve_id,
+                severity,
+                published_text,
+                updated_text,
+                withdrawn_text,
+            ) == expected_metadata[target][advisory]
+            vulnerabilities = record["vulnerabilities"]
+            assert isinstance(vulnerabilities, list) and vulnerabilities
+            retained_rows: list[tuple[str, str]] = []
+            for vulnerability in vulnerabilities:
+                assert isinstance(vulnerability, dict)
+                assert set(vulnerability) == {
+                    "ecosystem",
+                    "first_patched_version",
+                    "package",
+                    "vulnerable_version_range",
+                }
+                assert vulnerability["ecosystem"] == "npm"
+                assert vulnerability["package"] == target
+                raw_range = vulnerability["vulnerable_version_range"]
+                patched = vulnerability["first_patched_version"]
+                assert isinstance(raw_range, str) and raw_range
+                assert isinstance(patched, str) and patched
+                _parse_version(
+                    value=patched,
+                    source=f"{target}/{advisory} first patched version",
+                )
+                retained_rows.append((re.sub(r"\s+", "", raw_range), patched))
+            retained_entries[advisory] = tuple(sorted(retained_rows))
+        assert retained_entries == {
+            advisory: tuple(sorted(entries))
+            for advisory, entries in expected_entries[target].items()
+        }
+        actual_range_count = sum(len(entries) for entries in retained_entries.values())
+        assert target_receipt["range_count"] == actual_range_count == range_count
+        total_records += record_count
+        total_ranges += range_count
+
+    assert total_records == 13
+    assert total_ranges == 24
+    withdrawn = targets["qs"]["records"]
+    assert {
+        record["ghsa_id"]: record["withdrawn_at"]
+        for record in withdrawn
+        if record["withdrawn_at"] is not None
+    } == QS_EXPECTED_WITHDRAWN
+    for root in scanner["roots"]:
+        assert isinstance(root, dict)
+        assert type(root["exit_code"]) is int
+        severity_counts = root["severity_counts"]
+        assert isinstance(severity_counts, dict)
+        assert all(type(value) is int and value >= 0 for value in severity_counts.values())
+
+
+def test_transitive_npm_batch_receipt_rejects_duplicate_json_keys() -> None:
+    """Canonicalization cannot erase an ambiguous duplicate receipt key."""
+
+    document = BROWSERSLIST_EVIDENCE_PATH.read_text(encoding="utf-8")
+    original = '      "record_count": 10,'
+    assert document.count(original) == 1
+    ambiguous = document.replace(
+        original,
+        '      "record_count": 999,\n      "record_count": 10,',
+    )
+    with pytest.raises(AssertionError, match="duplicate JSON key: record_count"):
+        _extract_transitive_npm_batch_receipt(ambiguous)
 
 
 def test_frontend_security_targets_cover_all_current_tracked_surfaces() -> None:

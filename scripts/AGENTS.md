@@ -11,6 +11,13 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+## Merge-check execution budgets
+
+- In `check_merge_ready.py`, merge-governance and review-disposition proof
+  subprocesses share the existing 480-second bounded execution budget. Other
+  gates and authentication/body-fetch operations retain 120 seconds. A timeout
+  remains a blocking failure; the budget does not replace proof or authorize merge.
+
 ## Governed Experimentation Runner
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.
