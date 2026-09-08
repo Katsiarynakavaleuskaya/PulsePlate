@@ -85,7 +85,9 @@ from scripts.orchestration.pr_review_evidence import (
 from scripts.orchestration.review_mapping_artifact import (
     CanonicalFingerprintRecord,
     NO_ACTIONABLE_LINE,
+    mapping_proof_blocks,
     parse_canonical_fingerprint_records,
+    validate_fixed_mapping_section,
     validate_mapping_artifact_text,
 )
 
@@ -4188,6 +4190,31 @@ def _mapping_artifact_with_seal(seal: dict[str, Any]) -> str:
     )
 
 
+def _prepared_mapping(seal: dict[str, Any], preparation: dict[str, Any]) -> str:
+    return closeout_module._render_mapping(
+        {"pr_number": 42, "dispositions": [], "reseal_preparation": preparation}, seal
+    )
+
+
+def _reseal_preparation() -> dict[str, Any]:
+    return {
+        "schema_version": evidence_module.RESEAL_PREPARATION_SCHEMA,
+        "repository": "owner/repo",
+        "pr_number": 42,
+        "root_url": "https://github.com/owner/repo/pull/42#discussion_r700",
+        "root_body_sha256": DIGEST,
+        "root_created_at": "2026-08-12T10:00:00Z",
+        "original_head_sha": FIX_SHA,
+        "final_material_head_sha": HEAD_SHA,
+        "base_sha": BASE_SHA,
+        "merge_base_sha": BASE_SHA,
+        "material_digest": DIGEST,
+        "material_policy_version": MATERIAL_POLICY_VERSION,
+        "prior_mapping_blob_oid": OUTSIDE_SHA,
+        "owner_admission_reference": "https://github.com/owner/repo/pull/42#issuecomment-900",
+    }
+
+
 @pytest.mark.parametrize("token", (None, "opaque"), ids=("tokenless", "authenticated"))
 def test_live_mapping_rejects_rehashed_wrong_report_paths(
     tmp_path: Path,
@@ -6367,7 +6394,17 @@ def _stale_seal_reply_coverage(
     mapping_entries: dict[str, str] | None = None,
     activity_api_unknown: bool = False,
     remote_reseal_ancestry: str = "reachable",
-) -> tuple[set[str], dict[str, str]]:
+    prepared: bool = False,
+    prepared_shape: str = "material",
+    preparation_mutation: tuple[str, Any] | None = None,
+    admission_mutation: tuple[str, Any] | None = None,
+    admission_user_mutation: tuple[str, Any] | None = None,
+    prospective: bool = False,
+    current_preparation_present: bool = True,
+    preserve_prior_proof: bool = True,
+    root_body_override: str | None = None,
+    legacy_seed: bool = False,
+) -> tuple[set[str], dict[str, Any]]:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -6383,6 +6420,13 @@ def _stale_seal_reply_coverage(
     source.parent.mkdir(parents=True)
     source.write_text("ENFORCED = True\n", encoding="utf-8")
     old_material = _commit(repo, "material")
+    root_urls = tuple(
+        f"https://github.com/owner/repo/pull/42#discussion_r{700 + index}"
+        for index in range(root_count)
+    )
+    root_body = "P1: Historical seal finding; human owner inspects the complete prose."
+    if root_body_override is not None:
+        root_body = root_body_override
     monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     old_manifest = compute_material_manifest(
         repo,
@@ -6418,6 +6462,16 @@ def _stale_seal_reply_coverage(
         old_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
     else:
         old_mapping = _mapping_artifact_with_seal(old_seal)
+    proof = "\n".join(
+        [
+            "Disposition: NOT-A-BUG",
+            "Evidence: src/policy.py:1",
+            "Reason: Existing enforced policy remains intact.",
+            "- https://github.com/owner/repo/pull/42#discussion_r699",
+        ]
+    )
+    if prepared:
+        old_mapping = old_mapping.replace(NO_ACTIONABLE_LINE, proof)
     mapping.write_text(old_mapping, encoding="utf-8")
     prior_closeout = _commit(repo, "docs(review): prior seal")
 
@@ -6500,12 +6554,62 @@ def _stale_seal_reply_coverage(
             raise ValueError("unsupported stale_shape")
         stale_head = _merge(repo, "main", "merge main into feature")
         selected_synchronized_base = synchronized_base
+    legacy_commits: tuple[str, ...] = ()
+    if legacy_seed:
+        legacy_stale = stale_head
+        legacy_manifest = compute_material_manifest(
+            repo, base_ref_oid=selected_synchronized_base, head_ref_oid=legacy_stale, pr_number=42
+        )
+        old_mapping = _mapping_artifact_with_seal(
+            _provider_no_claim_seal_for_manifest(legacy_manifest)
+        ).replace(NO_ACTIONABLE_LINE, proof)
+        mapping.write_text(old_mapping, encoding="utf-8")
+        legacy_reseal = _commit(repo, "earlier actual reseal")
+        source.write_text("ENFORCED = True\nINTERMEDIATE = True\n", encoding="utf-8")
+        stale_head = _commit(repo, "new material after earlier recovery")
+        legacy_commits = (legacy_stale, legacy_reseal)
+    final_material = stale_head
+    if prepared and prepared_shape != "same-head":
+        if prepared_shape == "base-sync":
+            _git(repo, "checkout", "-q", "main")
+            (repo / "intermediate-base.txt").write_text("advance\n", encoding="utf-8")
+            selected_synchronized_base = _commit(repo, "intermediate main advance")
+            _git(repo, "checkout", "-q", "feature")
+            final_material = _merge(repo, "main", "second genuine main synchronization")
+        else:
+            if prepared_shape != "empty":
+                source.write_text("ENFORCED = True\nFINAL = True\n", encoding="utf-8")
+            if prepared_shape == "mapping-change":
+                mapping.write_text(old_mapping + "\nchanged proof\n", encoding="utf-8")
+            final_material = _commit(repo, "final material", allow_empty=prepared_shape == "empty")
     reseal_manifest = compute_material_manifest(
         repo,
         base_ref_oid=selected_synchronized_base,
-        head_ref_oid=stale_head,
+        head_ref_oid=final_material,
         pr_number=42,
     )
+    preparation = None
+    if prepared:
+        preparation = {
+            "schema_version": evidence_module.RESEAL_PREPARATION_SCHEMA,
+            "repository": "owner/repo",
+            "pr_number": 42,
+            "root_url": root_urls[0],
+            "root_body_sha256": "sha256:" + hashlib.sha256(root_body.encode()).hexdigest(),
+            "root_created_at": "2026-08-12T10:00:00Z",
+            "original_head_sha": stale_head,
+            "final_material_head_sha": final_material,
+            "base_sha": selected_synchronized_base,
+            "merge_base_sha": reseal_manifest.merge_base_sha,
+            "material_digest": reseal_manifest.digest,
+            "material_policy_version": MATERIAL_POLICY_VERSION,
+            "prior_mapping_blob_oid": _git(
+                repo, "rev-parse", f"{stale_head}:docs/review/PR_42_FIXED_MAPPING.md"
+            ),
+            "owner_admission_reference": "https://github.com/owner/repo/pull/42#issuecomment-900",
+        }
+        if preparation_mutation is not None:
+            preparation[preparation_mutation[0]] = preparation_mutation[1]
     reseal_seal = _provider_no_claim_seal_for_manifest(reseal_manifest)
     if reseal_shape == "wrong-seal":
         reseal_seal = json.loads(json.dumps(reseal_seal))
@@ -6517,6 +6621,12 @@ def _stale_seal_reply_coverage(
         reseal_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
     else:
         reseal_mapping = _mapping_artifact_with_seal(reseal_seal)
+    if preparation is not None:
+        reseal_mapping = _prepared_mapping(reseal_seal, preparation)
+        if preserve_prior_proof:
+            reseal_mapping = reseal_mapping.replace(
+                evidence_module.RESEAL_EMPTY_ORDINARY_LINE, proof
+            )
     if reseal_shape == "non-direct":
         extra_commits.append(_commit(repo, "intermediate non-reseal", allow_empty=True))
     if reseal_shape != "empty":
@@ -6525,13 +6635,13 @@ def _stale_seal_reply_coverage(
         source.write_text("ENFORCED = False\n", encoding="utf-8")
     reseal = _commit(repo, reseal_subject, allow_empty=reseal_shape == "empty")
     if reseal_shape == "multiple-child":
-        _git(repo, "checkout", "-q", "-b", "reseal-sibling", stale_head)
+        _git(repo, "checkout", "-q", "-b", "reseal-sibling", final_material)
         extra_commits.append(_commit(repo, "second child of stale head", allow_empty=True))
         _git(repo, "checkout", "-q", "feature")
 
     if fingerprint_mode == "same":
         current_base = selected_synchronized_base
-        current_material = stale_head
+        current_material = final_material
         current_manifest = reseal_manifest
         live_head = reseal
         later_commits: tuple[str, ...] = ()
@@ -6556,6 +6666,14 @@ def _stale_seal_reply_coverage(
             current_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
         else:
             current_mapping = _mapping_artifact_with_seal(current_seal)
+        if (
+            preparation is not None
+            and current_preparation_present
+            and current_seal_shape == "provider-neutral"
+        ):
+            current_mapping = _prepared_mapping(current_seal, preparation).replace(
+                evidence_module.RESEAL_EMPTY_ORDINARY_LINE, proof
+            )
         mapping.write_text(current_mapping, encoding="utf-8")
         live_head = _commit(repo, current_reseal_subject)
         later_commits = (current_material, live_head)
@@ -6563,7 +6681,9 @@ def _stale_seal_reply_coverage(
     commits = (
         *((old_material,) if include_old_material_in_snapshot else ()),
         prior_closeout,
+        *legacy_commits,
         stale_head,
+        *((final_material,) if final_material != stale_head else ()),
         reseal,
         *later_commits,
         *extra_commits,
@@ -6577,11 +6697,6 @@ def _stale_seal_reply_coverage(
             PrCommitEvidence(sha, reseal_pushed_at if sha == reseal else None) for sha in commits
         ),
     )
-    root_urls = tuple(
-        f"https://github.com/owner/repo/pull/42#discussion_r{700 + index}"
-        for index in range(root_count)
-    )
-    root_body = "Historical seal finding; human owner inspects the complete prose."
     fingerprint_body = (
         f"Commit graph finding cites verified fix {reseal} and unavailable reviewer "
         f"ref {UNAVAILABLE_SHA}."
@@ -6620,6 +6735,31 @@ def _stale_seal_reply_coverage(
         )
         for index, url in enumerate(root_urls)
     ]
+    if legacy_commits:
+        threads.append(
+            ReviewThreadEvidence(
+                "earlier-legacy-seed",
+                True,
+                (
+                    ReviewCommentEvidence(
+                        url="https://github.com/owner/repo/pull/42#discussion_r798",
+                        body=root_body,
+                        created_at="2026-08-12T08:00:00Z",
+                        author_login="chatgpt-codex-connector",
+                        author_association="NONE",
+                        original_commit_sha=legacy_commits[0],
+                    ),
+                    ReviewCommentEvidence(
+                        url="https://github.com/owner/repo/pull/42#discussion_r798-reply",
+                        body=_owner_stale_seal_reply(*legacy_commits),
+                        created_at="2026-08-12T09:30:00Z",
+                        author_login="owner",
+                        author_association="OWNER",
+                        original_commit_sha=legacy_commits[1],
+                    ),
+                ),
+            )
+        )
     invalid_url = "https://github.com/owner/repo/pull/42#discussion_r799"
     if independent_invalid_root:
         threads.append(
@@ -6691,6 +6831,24 @@ def _stale_seal_reply_coverage(
         raise CommitIdentityError(f"fixture Git ancestry is API_UNKNOWN (exit {result.returncode})")
 
     def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/900"):
+            assert preparation is not None
+            response = {
+                "id": 900,
+                "html_url": preparation["owner_admission_reference"],
+                "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+                "body": evidence_module.reseal_admission_body(preparation),
+                "created_at": "2026-08-12T10:30:00Z",
+                "updated_at": "2026-08-12T10:30:00Z",
+                "author_association": "OWNER",
+                "user": {"id": 123, "login": "owner", "type": "User"},
+                "performed_via_github_app": None,
+            }
+            if admission_mutation is not None:
+                response[admission_mutation[0]] = admission_mutation[1]
+            if admission_user_mutation is not None:
+                response["user"][admission_user_mutation[0]] = admission_user_mutation[1]
+            return response
         if url.endswith("/pulls/42"):
             return {
                 "base": {"sha": current_base},
@@ -6706,7 +6864,11 @@ def _stale_seal_reply_coverage(
             response = {
                 "body": root_body,
                 "created_at": "2026-08-12T10:00:00Z",
-                "html_url": root_urls[index],
+                "html_url": (
+                    "https://github.com/owner/repo/pull/42#discussion_r798"
+                    if legacy_commits and comment_id == 798
+                    else root_urls[index]
+                ),
                 "id": comment_id,
                 "original_commit_id": stale_head,
                 "path": "docs/review/PR_42_FIXED_MAPPING.md",
@@ -6718,6 +6880,12 @@ def _stale_seal_reply_coverage(
                     "type": "Bot",
                 },
             }
+            if legacy_commits and comment_id == 798:
+                response.update(
+                    created_at="2026-08-12T08:00:00Z",
+                    updated_at="2026-08-12T08:00:00Z",
+                    original_commit_id=legacy_commits[0],
+                )
             if rest_mutation is not None:
                 response[rest_mutation[0]] = rest_mutation[1]
             if rest_user_mutation is not None:
@@ -6736,7 +6904,7 @@ def _stale_seal_reply_coverage(
                 return ([],)
             if activity_source != "activity":
                 raise ValueError("unsupported activity_source")
-            before = stale_head if activity_edge_matches else old_material
+            before = final_material if activity_edge_matches else old_material
             activities: list[Any] = []
             selected_activity_times = (
                 activity_times
@@ -6755,11 +6923,21 @@ def _stale_seal_reply_coverage(
                 if activity_pushed_at is not None:
                     activity["pushed_at"] = activity_pushed_at
                 activities.append(activity)
+            if legacy_commits:
+                activities.append(
+                    {
+                        "activity_type": "push",
+                        "before": legacy_commits[0],
+                        "after": legacy_commits[1],
+                        "ref": "refs/heads/feature",
+                        "timestamp": "2026-08-12T09:00:00Z",
+                    }
+                )
             return (activities,)
         if "/events?" in url:
             if activity_source != "events" or activity_time is None:
                 return ([],)
-            before = stale_head if activity_edge_matches else old_material
+            before = final_material if activity_edge_matches else old_material
             return (
                 [
                     {
@@ -6814,6 +6992,31 @@ def _stale_seal_reply_coverage(
             verified_fix=reseal,
             urls=(fingerprint_url,),
         )
+    if prospective:
+        assert preparation is not None
+        current_base, current_material, live_head = (
+            selected_synchronized_base,
+            final_material,
+            final_material,
+        )
+        current_manifest = reseal_manifest
+        snapshot = PrSnapshot(
+            repository="owner/repo",
+            pr_number=42,
+            base_sha=current_base,
+            head_sha=live_head,
+            commits=tuple(PrCommitEvidence(sha, None) for sha in commits[: commits.index(reseal)]),
+        )
+        _git(repo, "checkout", "-q", "--detach", final_material)
+        mapping.write_text(reseal_mapping, encoding="utf-8")
+        evidence_module.validate_prepared_reseal(
+            preparation,
+            repo_root=repo,
+            snapshot=snapshot,
+            threads=tuple(threads),
+            token="opaque",
+            corrected_mapping=reseal_mapping,
+        )
     covered = validated_duplicate_reply_urls(
         candidate_urls={*root_urls, *((invalid_url,) if independent_invalid_root else ())},
         threads=tuple(threads),
@@ -6825,6 +7028,7 @@ def _stale_seal_reply_coverage(
         snapshot=snapshot,
         repository="owner/repo",
         token="opaque",
+        prospective_preparation=preparation if prospective else None,
     )
     return covered, {
         "current_material": current_material,
@@ -6836,7 +7040,564 @@ def _stale_seal_reply_coverage(
         "old_material": old_material,
         "prior_closeout": prior_closeout,
         "repo": str(repo),
+        "snapshot": snapshot,
+        "threads": tuple(threads),
+        "preparation": preparation,
+        "reseal_mapping": reseal_mapping,
     }
+
+
+@pytest.mark.parametrize("stale_shape", ("base-sync", "linear-material"))
+@pytest.mark.parametrize("prepared_shape", ("material", "base-sync"))
+def test_prepared_reseal_accepts_actual_r_across_material_and_base_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stale_shape: str, prepared_shape: str
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        stale_shape=stale_shape,
+        prepared_shape=prepared_shape,
+    )
+    assert covered == {graph["url"]}
+    assert graph["preparation"]["final_material_head_sha"] != graph["stale_head"]
+    assert graph["live_head"] != graph["reseal"]
+
+
+@pytest.mark.parametrize("state", ("valid", "missing-root", "invalid-reply", "unresolved"))
+def test_prepared_actual_r_wrapper_validates_selected_root_without_heuristic_actionables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    from dataclasses import replace
+    from scripts.ci import check_pr_merge_readiness as merge_gate
+
+    body = "![P1 Badge](https://img.shields.io/badge/P1-orange) Reseal the current material head"
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path, monkeypatch, prepared=True, root_body_override=body
+    )
+    assert covered == {graph["url"]}
+    assert not merge_gate._is_actionable(body)
+    repo = Path(graph["repo"])
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    mapping = (repo / "docs/review/PR_42_FIXED_MAPPING.md").read_text(encoding="utf-8")
+    threads = graph["threads"]
+    if state == "missing-root":
+        threads = ()
+    elif state == "invalid-reply":
+        root, reply = threads[0].comments
+        threads = (replace(threads[0], comments=(root, replace(reply, body=reply.body + "\n"))),)
+    elif state == "unresolved":
+        threads = (replace(threads[0], is_resolved=False),)
+    actual = merge_gate._duplicate_reply_coverage(
+        actionable_items=[],
+        mapped_urls=set(),
+        threads=threads,
+        artifact_text=mapping,
+        seal=parse_embedded_review_seal(mapping),
+        snapshot=graph["snapshot"],
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+    assert actual == ({graph["url"]} if state == "valid" else set())
+
+
+def test_prepared_wrapper_keeps_prospective_coverage_out_of_actual_dispositions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.ci import check_pr_merge_readiness as merge_gate
+
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        prospective=True,
+        root_resolved=False,
+        reply_count=0,
+    )
+    assert covered == set()
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", Path(graph["repo"]))
+    assert (
+        merge_gate._duplicate_reply_coverage(
+            actionable_items=[],
+            mapped_urls=set(),
+            threads=graph["threads"],
+            artifact_text=graph["reseal_mapping"],
+            seal=parse_embedded_review_seal(graph["reseal_mapping"]),
+            snapshot=graph["snapshot"],
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            prospective_preparation=graph["preparation"],
+            local_pre_closeout_mapping=graph["reseal_mapping"],
+        )
+        == set()
+    )
+
+
+def test_prepared_reseal_reads_immutable_r_not_later_current_mapping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        current_preparation_present=False,
+    )
+    assert covered == {graph["url"]}
+    assert (
+        evidence_module.parse_reseal_preparation(
+            (Path(graph["repo"]) / "docs/review/PR_42_FIXED_MAPPING.md").read_text()
+        )
+        is None
+    )
+
+
+def test_prepared_reseal_push_may_share_owner_reply_second(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        activity_time="2026-08-12T12:00:00Z",
+    )
+    assert covered == {graph["url"]}
+
+
+@pytest.mark.parametrize("prospective", (False, True))
+def test_prepared_and_legacy_roots_share_global_singleton_before_filtering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prospective: bool
+) -> None:
+    if prospective:
+        with pytest.raises(ReviewEvidenceError, match="globally singleton"):
+            _stale_seal_reply_coverage(
+                tmp_path,
+                monkeypatch,
+                prepared=True,
+                legacy_seed=True,
+                prospective=True,
+                root_resolved=False,
+                reply_count=0,
+            )
+    else:
+        covered, _graph = _stale_seal_reply_coverage(
+            tmp_path,
+            monkeypatch,
+            prepared=True,
+            legacy_seed=True,
+        )
+        assert covered == set()
+
+
+def test_later_ordinary_pre_closeout_validates_local_seal_and_historical_actual_r(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(tmp_path, monkeypatch, prepared=True)
+    assert covered == {graph["url"]}
+    repo = Path(graph["repo"])
+    (repo / "README.md").write_text("later approved material\n", encoding="utf-8")
+    h = _commit(repo, "later approved material")
+    snapshot = graph["snapshot"]
+    snapshot = PrSnapshot(
+        snapshot.repository,
+        snapshot.pr_number,
+        snapshot.base_sha,
+        h,
+        (*snapshot.commits, PrCommitEvidence(h, None)),
+    )
+    manifest = compute_material_manifest(
+        repo, base_ref_oid=snapshot.base_sha, head_ref_oid=h, pr_number=42
+    )
+    local_mapping = _prepared_mapping(
+        _provider_no_claim_seal_for_manifest(manifest), graph["preparation"]
+    )
+    original_request = identity_module.github_api_request
+
+    def request(url: str, **kwargs: Any) -> Any:
+        response = original_request(url, **kwargs)
+        if url.endswith("/pulls/42"):
+            response["head"]["sha"] = h
+        return response
+
+    monkeypatch.setattr(identity_module, "github_api_request", request)
+    assert validated_duplicate_reply_urls(
+        candidate_urls={graph["url"]},
+        threads=graph["threads"],
+        fingerprint_records={},
+        mapping_entries={},
+        material_digest=manifest.digest,
+        material_head_sha=h,
+        repo_root=repo,
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+        local_pre_closeout_mapping=local_mapping,
+    ) == {graph["url"]}
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"prepared_shape": "empty"},
+        {"prepared_shape": "mapping-change"},
+        {"stale_shape": "linear-empty"},
+        {"stale_shape": "linear-mapping-only"},
+        {"stale_shape": "linear-mapping-mutation"},
+        {"stale_shape": "three-parent"},
+        {"reseal_shape": "redundant-base-sync"},
+        {"include_old_material_in_snapshot": False},
+        {"prior_material_second_child": True},
+        {"root_resolved": False},
+        {"reply_association": "MEMBER"},
+        {"reply_count": 2},
+        {"rest_mutation": ("path", "src/policy.py")},
+        {"rest_mutation": ("updated_at", "2026-08-12T10:01:00Z")},
+        {"rest_user_mutation": ("id", 123)},
+        {"reseal_subject": "rerun checks"},
+        {"reseal_changes_material": True},
+        {"reseal_shape": "non-direct"},
+        {"reseal_shape": "multiple-child"},
+        {"remote_reseal_ancestry": "unreachable"},
+        {"current_seal_shape": "wrong-digest"},
+        {"preserve_prior_proof": False},
+        {"admission_mutation": ("author_association", "MEMBER")},
+        {"admission_mutation": ("body", "approved")},
+        {"admission_mutation": ("updated_at", "2026-08-12T10:31:00Z")},
+        {"admission_mutation": ("performed_via_github_app", {"id": 1})},
+        {"admission_mutation": ("issue_url", "https://api.github.com/repos/other/repo/issues/42")},
+        {"admission_user_mutation": ("type", "Bot")},
+        {"admission_user_mutation": ("id", 0)},
+        {"activity_time": "2026-08-12T10:30:00Z"},
+        {"activity_time": "2026-08-12T12:00:01Z"},
+        {"preparation_mutation": ("root_body_sha256", DIGEST)},
+        {"preparation_mutation": ("prior_mapping_blob_oid", FIX_SHA)},
+        {"preparation_mutation": ("material_digest", DIGEST)},
+        {"preparation_mutation": ("merge_base_sha", BASE_SHA)},
+    ],
+)
+def test_prepared_reseal_rejects_unproven_actual_correction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options: dict[str, Any]
+) -> None:
+    covered, _graph = _stale_seal_reply_coverage(tmp_path, monkeypatch, prepared=True, **options)
+    assert covered == set()
+
+
+def test_prepared_reseal_prospective_root_is_not_actual_coverage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        prospective=True,
+        root_resolved=False,
+        reply_count=0,
+    )
+    assert covered == set()
+    assert graph["snapshot"].head_sha == graph["preparation"]["final_material_head_sha"]
+    assert NO_ACTIONABLE_LINE not in graph["reseal_mapping"]
+    assert validate_mapping_artifact_text(graph["reseal_mapping"]) == []
+
+
+def test_prepared_reseal_human_admission_not_badge_parser_selects_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    covered, _graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        prospective=True,
+        root_resolved=False,
+        reply_count=0,
+        root_body_override="![P1 Badge](https://img.shields.io/badge/P1-orange) Reseal the current material head",
+    )
+    assert covered == set()
+
+
+@pytest.mark.parametrize("mutation", ("live-head", "base", "missing-root", "resolved"))
+def test_prepared_reseal_prospective_binding_is_exact_not_ancestor_compatible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    from dataclasses import replace
+
+    _covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        prospective=True,
+        root_resolved=False,
+        reply_count=0,
+    )
+    snapshot, threads = graph["snapshot"], graph["threads"]
+    if mutation == "live-head":
+        snapshot = replace(snapshot, head_sha=graph["stale_head"])
+    elif mutation == "base":
+        snapshot = replace(snapshot, base_sha=graph["old_material"])
+    elif mutation == "missing-root":
+        threads = ()
+    else:
+        threads = (replace(threads[0], is_resolved=True),)
+    with pytest.raises(ReviewEvidenceError):
+        evidence_module.validate_prepared_reseal(
+            graph["preparation"],
+            repo_root=Path(graph["repo"]),
+            snapshot=snapshot,
+            threads=threads,
+            token="opaque",
+            corrected_mapping=graph["reseal_mapping"],
+        )
+
+
+def test_prepared_reseal_rejects_same_s_h_and_uncertain_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="disjoint"):
+        _stale_seal_reply_coverage(tmp_path, monkeypatch, prepared=True, prepared_shape="same-head")
+
+
+def test_prepared_reseal_api_unknown_is_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _stale_seal_reply_coverage(
+            tmp_path, monkeypatch, prepared=True, remote_reseal_ancestry="api-unknown"
+        )
+
+
+def _unprepared_mapping_structure_fixture() -> str:
+    return """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+"""
+
+
+def test_prepared_empty_ordinary_line_requires_explicit_validated_context() -> None:
+    line = evidence_module.RESEAL_EMPTY_ORDINARY_LINE
+    assert validate_fixed_mapping_section(line)
+    assert validate_fixed_mapping_section(line, allow_prepared_empty=True) == []
+    assert validate_fixed_mapping_section(line + "\nDisposition: FIXED", allow_prepared_empty=True)
+
+
+def test_unprepared_neutral_text_cannot_erase_real_mapping_proof() -> None:
+    text = (
+        _unprepared_mapping_structure_fixture() + "\n" + evidence_module.RESEAL_EMPTY_ORDINARY_LINE
+    )
+    blocks = mapping_proof_blocks(text)
+    assert any("Commit: abc1234" in block for block in blocks)
+    assert evidence_module.RESEAL_EMPTY_ORDINARY_LINE in blocks
+    assert validate_mapping_artifact_text(text)
+
+
+def test_duplicate_preparation_markers_do_not_grant_structural_allowance() -> None:
+    text = _unprepared_mapping_structure_fixture().replace(
+        "Disposition: FIXED", evidence_module.RESEAL_EMPTY_ORDINARY_LINE
+    )
+    text += (
+        "\n"
+        + evidence_module.RESEAL_PREPARATION_BEGIN
+        + "\n"
+        + evidence_module.RESEAL_PREPARATION_BEGIN
+    )
+    assert any("markers" in error for error in validate_mapping_artifact_text(text))
+    with pytest.raises(evidence_module.ReviewEvidenceError, match="markers"):
+        mapping_proof_blocks(text)
+
+
+def test_reseal_preparation_empty_ordinary_set_is_neutral_not_proof() -> None:
+    preparation = _reseal_preparation()
+    text = _prepared_mapping(_provider_no_claim_seal(), preparation)
+    assert validate_mapping_artifact_text(text) == []
+    assert NO_ACTIONABLE_LINE not in text
+    assert evidence_module.parse_reseal_preparation(text) == preparation
+    assert closeout_module._mapping_proof_blocks(text) == set()
+    assert evidence_module.RESEAL_DISCUSSION_SCOPE in text
+
+
+def test_preparation_does_not_bypass_same_digest_reseal_rejection() -> None:
+    old = _mapping_artifact_with_seal(
+        _provider_no_claim_seal_for_manifest(_material_manifest(OUTSIDE_SHA))
+    )
+    current_seal = _provider_no_claim_seal()
+    replacement = _prepared_mapping(current_seal, _reseal_preparation())
+    with pytest.raises(closeout_module.CloseoutError, match="already seals this material"):
+        closeout_module._validate_reseal_transition(
+            old,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=current_seal["material"],
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "duplicate-json",
+        "duplicate-block",
+        "unknown-key",
+        "missing-key",
+        "alias-url",
+        "fence",
+        "seal",
+        "null",
+        "boolean-pr",
+    ),
+)
+def test_reseal_preparation_closed_canonical_grammar(mutation: str) -> None:
+    preparation = _reseal_preparation()
+    text = evidence_module.render_reseal_preparation(preparation)
+    if mutation == "duplicate-json":
+        text = text.replace('"pr_number":42', '"pr_number":42,"pr_number":42')
+    elif mutation == "duplicate-block":
+        text += text
+    elif mutation == "unknown-key":
+        text = text.replace('"pr_number":42', '"pr_number":42,"approved":true')
+    elif mutation == "missing-key":
+        text = text.replace('"pr_number":42,', "")
+    elif mutation == "alias-url":
+        text = text.replace("/pull/42#discussion_r700", "/pull/042#discussion_r700")
+    elif mutation == "fence":
+        text = "```markdown\n" + text + "```\n"
+    elif mutation == "seal":
+        text = SEAL_BEGIN + "\n" + text + SEAL_END
+    elif mutation == "null":
+        text = text.replace('"repository":"owner/repo"', '"repository":null')
+    else:
+        text = text.replace('"pr_number":42', '"pr_number":true')
+    with pytest.raises(ReviewEvidenceError):
+        evidence_module.parse_reseal_preparation(text)
+
+
+@pytest.mark.parametrize(
+    "mutation", ("no-actionables", "missing-scope", "missing-preparation", "missing-seal")
+)
+def test_prepared_mapping_cannot_turn_pending_root_into_empty_ordinary_claim(mutation: str) -> None:
+    text = _prepared_mapping(_provider_no_claim_seal(), _reseal_preparation())
+    if mutation == "no-actionables":
+        text = text.replace(evidence_module.RESEAL_EMPTY_ORDINARY_LINE, NO_ACTIONABLE_LINE)
+    elif mutation == "missing-scope":
+        text = text.replace(evidence_module.RESEAL_DISCUSSION_SCOPE, "")
+    elif mutation == "missing-preparation":
+        text = text.replace(evidence_module.render_reseal_preparation(_reseal_preparation()), "")
+    else:
+        text = text.split("## Review Material Seal")[0]
+    assert validate_mapping_artifact_text(text)
+    if mutation != "missing-preparation":
+        with pytest.raises(closeout_module.CloseoutError):
+            closeout_module._mapping_proof_blocks(text)
+
+
+def test_closeout_draft_duplicate_preparation_keys_are_not_silently_erased(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
+    args = Namespace(repo="owner/repo", pr_number=42, packet=None, experiment_result=None)
+    closeout_module._cmd_init(args)
+    state = closeout_module._load_state(42)
+    state["reseal_preparation"] = _reseal_preparation()
+    raw = evidence_module._canonical_json(state)
+    raw = raw.replace('"root_url":', '"root_url":"duplicate","root_url":')
+    closeout_module._state_path(42).write_text(raw, encoding="utf-8")
+    with pytest.raises(closeout_module.CloseoutError, match="malformed"):
+        closeout_module._load_state(42)
+
+
+@pytest.mark.parametrize("command", ("preview-reseal-intent", "prepare-reseal"))
+def test_preparation_cli_has_no_boolean_authorization(command: str) -> None:
+    args = [
+        command,
+        "--repo",
+        "owner/repo",
+        "--pr-number",
+        "42",
+        "--root-url",
+        _reseal_preparation()["root_url"],
+    ]
+    parser = closeout_module._parser()
+    if command == "prepare-reseal":
+        with pytest.raises(SystemExit):
+            parser.parse_args(args)
+        args.extend(
+            ["--owner-admission-reference", _reseal_preparation()["owner_admission_reference"]]
+        )
+    assert parser.parse_args(args).handler is closeout_module._cmd_prepare_reseal
+    with pytest.raises(SystemExit):
+        parser.parse_args([*args, "--approved"])
+
+
+@pytest.mark.parametrize("command", ("preview-reseal-intent", "prepare-reseal", "owner-race"))
+def test_preparation_cli_preview_admission_and_terminal_owner_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+) -> None:
+    _covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prepared=True,
+        prospective=True,
+        root_resolved=False,
+        reply_count=0,
+    )
+    repo = Path(graph["repo"])
+    mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_git(repo, "show", "HEAD:docs/review/PR_42_FIXED_MAPPING.md") + "\n")
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: graph["snapshot"])
+    monkeypatch.setattr(closeout_module, "fetch_review_threads", lambda *_a, **_k: graph["threads"])
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    preparation = graph["preparation"]
+    state = {
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+        "repository": "owner/repo",
+        "pr_number": 42,
+        "packet": None,
+        "experiment_result": None,
+        "dispositions": [],
+        "freeze": parse_embedded_review_seal(graph["reseal_mapping"])["material"],
+    }
+    closeout_module._write_state(state)
+    before = closeout_module._state_path(42).read_bytes()
+    mapping_before = mapping.read_bytes()
+    args = Namespace(
+        command="prepare-reseal" if command == "owner-race" else command,
+        repo="owner/repo",
+        pr_number=42,
+        root_url=preparation["root_url"],
+        owner_admission_reference=preparation["owner_admission_reference"],
+    )
+    if command == "owner-race":
+        replies = iter(({"id": 900}, {"id": 901}))
+        monkeypatch.setattr(
+            evidence_module, "verify_reseal_owner_admission", lambda *_a, **_k: next(replies)
+        )
+        with pytest.raises(closeout_module.CloseoutError, match="OWNER admission changed"):
+            closeout_module._cmd_prepare_reseal(args)
+        assert closeout_module._state_path(42).read_bytes() == before
+    else:
+        closeout_module._cmd_prepare_reseal(args)
+        output = capsys.readouterr().out
+        if command == "preview-reseal-intent":
+            assert "NON_ADMITTED_READ_ONLY_INTENT" in output
+            assert "OWNER RESEAL ADMISSION" not in output
+            assert "owner_admission_reference" not in output
+            assert closeout_module._state_path(42).read_bytes() == before
+        else:
+            assert "RESEAL_PUBLICATION_PREPARED: not FIXED" in output
+            assert closeout_module._load_state(42)["reseal_preparation"] == preparation
+    assert mapping.read_bytes() == mapping_before
 
 
 def test_owner_stale_seal_fixed_accepts_real_git_later_sync_and_current_reseal(

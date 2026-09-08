@@ -409,6 +409,113 @@ def _configure_pre_closeout_main(
     )
 
 
+def _configure_prepared_gate(
+    monkeypatch: pytest.MonkeyPatch, *, ordinary_items: list[merge_gate.ActionableItem]
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    text = _pre_closeout_artifact("https://github.com/owner/repo/pull/42#issuecomment-999")
+    _configure_pre_closeout_main(monkeypatch, artifact=text, actionable_items=ordinary_items)
+    preparation = {
+        "root_url": "https://github.com/owner/repo/pull/42#discussion_r700",
+        "final_material_head_sha": "a" * 40,
+    }
+    monkeypatch.setattr(merge_gate, "parse_reseal_preparation", lambda _text: preparation)
+    monkeypatch.setattr(merge_gate, "review_seal_version", lambda _text: "v1")
+    monkeypatch.setattr(
+        merge_gate, "_validate_v1_seal", lambda **_k: {"material": {"digest": "sha256:" + "0" * 64}}
+    )
+    monkeypatch.setattr(merge_gate, "_prove_v1_fixed_commits", lambda **_k: None)
+    monkeypatch.setattr(
+        merge_gate, "validate_reseal_preparation_admission", lambda *_a, **_k: {"id": 900}
+    )
+    monkeypatch.setattr(merge_gate, "validate_prepared_reseal", lambda *_a, **_k: {"id": 900})
+    coverage_calls: list[dict[str, Any]] = []
+
+    def actual_coverage(**kwargs: Any) -> set[str]:
+        coverage_calls.append(kwargs)
+        return set()
+
+    monkeypatch.setattr(merge_gate, "_duplicate_reply_coverage", actual_coverage)
+    return preparation, coverage_calls
+
+
+def test_prepared_gate_selected_root_is_distinct_from_ordinary_heuristic_inventory(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    preparation, calls = _configure_prepared_gate(monkeypatch, ordinary_items=[])
+    assert merge_gate.main() == 0
+    output = capsys.readouterr().out
+    assert "prospectively covered" in output
+    assert "all live actionable" not in output
+    assert "not merge-readiness evidence" in output
+    assert calls[0]["prospective_preparation"] == preparation
+    assert calls[0]["local_pre_closeout_mapping"] is not None
+
+
+def test_prepared_gate_keeps_other_top_level_actionable_blocking(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    review = merge_gate.ActionableItem(
+        "bot[bot]",
+        "https://github.com/owner/repo/pull/42#pullrequestreview-701",
+        "2026-08-12T10:00:00Z",
+        "review",
+        701,
+    )
+    _configure_prepared_gate(monkeypatch, ordinary_items=[review])
+    assert merge_gate.main() == 1
+    assert review.url in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("missing", (False, True))
+def test_prepared_normal_gate_cannot_erase_selected_root_when_ordinary_inventory_empty(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], missing: bool
+) -> None:
+    _configure_prepared_gate(monkeypatch, ordinary_items=[])
+    monkeypatch.setattr(
+        sys, "argv", ["check_pr_merge_readiness.py", "--pr-number", "42", "--repo", "owner/repo"]
+    )
+    if missing:
+
+        def missing_root(*_a: Any, **_k: Any) -> dict[str, Any]:
+            raise ReviewEvidenceError("prepared selected root is missing")
+
+        monkeypatch.setattr(merge_gate, "validate_reseal_preparation_admission", missing_root)
+    assert merge_gate.main() == 1
+    output = capsys.readouterr().out
+    assert "requires actual R" in output
+    if missing:
+        assert "selected root is missing" in output
+
+
+def test_prepared_gate_refetches_owner_admission_outside_bot_inventory(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_prepared_gate(monkeypatch, ordinary_items=[])
+    admissions = iter(({"id": 900}, {"id": 901}))
+    monkeypatch.setattr(
+        merge_gate, "validate_reseal_preparation_admission", lambda *_a, **_k: next(admissions)
+    )
+    assert merge_gate.main() == 1
+    assert "reseal OWNER admission changed" in capsys.readouterr().out
+
+
+def test_later_pre_closeout_preserves_preparation_as_actual_historical_event(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    preparation, _calls = _configure_prepared_gate(monkeypatch, ordinary_items=[])
+    preparation["final_material_head_sha"] = "c" * 40
+    monkeypatch.setattr(
+        merge_gate,
+        "validate_prepared_reseal",
+        lambda *_a, **_k: pytest.fail("a historical event must not become pending again"),
+    )
+    monkeypatch.setattr(
+        merge_gate, "_duplicate_reply_coverage", lambda **_k: {preparation["root_url"]}
+    )
+    assert merge_gate.main() == 0
+    assert "prospectively covered" not in capsys.readouterr().out
+
+
 def test_direct_pre_closeout_requires_gh_token(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

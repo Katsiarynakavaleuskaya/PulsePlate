@@ -40,6 +40,34 @@ if TYPE_CHECKING:
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
+RESEAL_PREPARATION_SCHEMA = "pulseplate.actual-reseal-preparation/v1"
+RESEAL_PREPARATION_BEGIN = "<!-- actual-reseal-preparation:start -->"
+RESEAL_PREPARATION_END = "<!-- actual-reseal-preparation:end -->"
+RESEAL_EMPTY_ORDINARY_LINE = (
+    "- No ordinary mapped dispositions; the separate reseal preparation records the selected root."
+)
+RESEAL_DISCUSSION_SCOPE = (
+    "The checkboxes cover the ordinary disposition set only; the separate reseal preparation "
+    "does not declare its selected root FIXED or resolved."
+)
+RESEAL_PREPARATION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "repository",
+        "pr_number",
+        "root_url",
+        "root_body_sha256",
+        "root_created_at",
+        "original_head_sha",
+        "final_material_head_sha",
+        "base_sha",
+        "merge_base_sha",
+        "material_digest",
+        "material_policy_version",
+        "prior_mapping_blob_oid",
+        "owner_admission_reference",
+    }
+)
 REVIEW_FINGERPRINT_DOMAIN = b"pulseplate-review-finding/v1\0"
 UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
 _OWNER_PROVIDER_EVIDENCE_UNAVAILABLE_REPLY = (
@@ -460,6 +488,455 @@ def _canonical_json(value: Any) -> str:
         raise ReviewEvidenceError("value cannot be rendered as canonical JSON") from exc
 
 
+def validate_reseal_preparation(value: Any) -> dict[str, Any]:
+    """Validate representation only, never human admission or disposition."""
+    from scripts.orchestration.pr_commit_identity import _require_repository
+
+    if not isinstance(value, dict):
+        raise ReviewEvidenceError("reseal preparation must be an object")
+    _require_exact_keys(value, set(RESEAL_PREPARATION_FIELDS), label="reseal preparation")
+    if (
+        value["schema_version"] != RESEAL_PREPARATION_SCHEMA
+        or value["material_policy_version"] != MATERIAL_POLICY_VERSION
+        or type(value["pr_number"]) is not int
+        or value["pr_number"] <= 0
+    ):
+        raise ReviewEvidenceError("reseal preparation identity is malformed")
+    if (
+        not isinstance(value["repository"], str)
+        or re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value["repository"]) is None
+    ):
+        raise ReviewEvidenceError("reseal preparation repository is malformed")
+    owner, name = _require_repository(value["repository"])
+    for field in (
+        "original_head_sha",
+        "final_material_head_sha",
+        "base_sha",
+        "merge_base_sha",
+        "prior_mapping_blob_oid",
+    ):
+        _require_sha(value[field], label=field)
+    for field in ("root_body_sha256", "material_digest"):
+        _require_digest(value[field], label=field)
+    _parse_timestamp(value["root_created_at"], label="reseal root timestamp")
+    prefix = rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/{value['pr_number']}#"
+    for field, suffix in (
+        ("root_url", r"discussion_r[1-9][0-9]*"),
+        ("owner_admission_reference", r"issuecomment-[1-9][0-9]*"),
+    ):
+        if not isinstance(value[field], str) or re.fullmatch(prefix + suffix, value[field]) is None:
+            raise ReviewEvidenceError("reseal preparation reference is not exact same-PR evidence")
+    if value["original_head_sha"] == value["final_material_head_sha"]:
+        raise ReviewEvidenceError(
+            "prepared interval must be disjoint from direct stale-head reseals"
+        )
+    return dict(value)
+
+
+def parse_reseal_preparation(markdown: str) -> dict[str, Any] | None:
+    """Read the one closed event outside the active seal and ordinary mapping."""
+    if RESEAL_PREPARATION_BEGIN not in markdown and RESEAL_PREPARATION_END not in markdown:
+        return None
+    if markdown.count(RESEAL_PREPARATION_BEGIN) != 1 or markdown.count(RESEAL_PREPARATION_END) != 1:
+        raise ReviewEvidenceError("reseal preparation markers are missing or duplicated")
+    pattern = (
+        r"(?m)^## Actual Reseal Preparation\n\n"
+        + re.escape(RESEAL_PREPARATION_BEGIN)
+        + r"\n```json\n([^\n]+)\n```\n"
+        + re.escape(RESEAL_PREPARATION_END)
+        + r"\n"
+    )
+    match = re.search(pattern, markdown)
+    if match is None:
+        raise ReviewEvidenceError("reseal preparation placement or representation is invalid")
+    prefix = markdown[: match.start()]
+    if SEAL_BEGIN in prefix or re.search(r"(?m)^ {0,3}(?:`{3,}|~{3,})", prefix):
+        raise ReviewEvidenceError("reseal preparation must be outside seal and code fences")
+    raw = match.group(1)
+    if len(raw.encode("utf-8")) > 16_384:
+        raise ReviewEvidenceError("reseal preparation is oversized")
+    value = validate_reseal_preparation(
+        _load_json_bytes(raw.encode("utf-8"), label="reseal preparation")
+    )
+    if raw != _canonical_json(value):
+        raise ReviewEvidenceError("reseal preparation is not canonical JSON")
+    return value
+
+
+def render_reseal_preparation(value: Mapping[str, Any]) -> str:
+    preparation = validate_reseal_preparation(dict(value))
+    return "\n".join(
+        (
+            "## Actual Reseal Preparation",
+            "",
+            RESEAL_PREPARATION_BEGIN,
+            "```json",
+            _canonical_json(preparation),
+            "```",
+            RESEAL_PREPARATION_END,
+            "",
+        )
+    )
+
+
+def reseal_admission_body(preparation: Mapping[str, Any]) -> str:
+    """Expected human statement for comparison only; never an authoring operation."""
+    intent = {
+        key: value for key, value in preparation.items() if key != "owner_admission_reference"
+    }
+    return (
+        "OWNER RESEAL ADMISSION: I inspected the complete referenced root and confirm that "
+        "its only actionable is stale current material binding; I admit exactly one "
+        "mapping-only correction publication for intent "
+        + _canonical_json(intent)
+        + "; this is not FIXED, thread resolution, review approval, or merge authorization."
+    )
+
+
+def verify_reseal_owner_admission(preparation: Mapping[str, Any], *, token: str) -> dict[str, Any]:
+    from scripts.orchestration.pr_commit_identity import github_api_request
+
+    p = validate_reseal_preparation(dict(preparation))
+    comment_id = int(p["owner_admission_reference"].rsplit("-", 1)[1])
+    response = github_api_request(
+        f"https://api.github.com/repos/{p['repository']}/issues/comments/{comment_id}", token=token
+    )
+    if not isinstance(response, dict):
+        raise ReviewEvidenceError("reseal OWNER admission is API_UNKNOWN")
+    user = response.get("user")
+    if (
+        type(response.get("id")) is not int
+        or response["id"] != comment_id
+        or response.get("html_url") != p["owner_admission_reference"]
+        or response.get("issue_url")
+        != f"https://api.github.com/repos/{p['repository']}/issues/{p['pr_number']}"
+        or response.get("author_association") != "OWNER"
+        or not isinstance(user, dict)
+        or user.get("type") != "User"
+        or type(user.get("id")) is not int
+        or user["id"] <= 0
+        or not isinstance(user.get("login"), str)
+        or not user["login"]
+        or "performed_via_github_app" not in response
+        or response["performed_via_github_app"] is not None
+        or response.get("body") != reseal_admission_body(p)
+        or response.get("created_at") != response.get("updated_at")
+    ):
+        raise ReviewEvidenceError("reseal OWNER admission is not exact unedited human evidence")
+    created = _parse_timestamp(response.get("created_at"), label="reseal admission created_at")
+    if created <= _parse_timestamp(p["root_created_at"], label="reseal root created_at"):
+        raise ReviewEvidenceError("reseal admission must follow the selected root")
+    return {
+        key: response[key]
+        for key in (
+            "id",
+            "html_url",
+            "body",
+            "created_at",
+            "updated_at",
+            "user",
+            "author_association",
+            "performed_via_github_app",
+        )
+    }
+
+
+def _prepared_reseal_root(
+    preparation: Mapping[str, Any], threads: tuple[Any, ...], *, token: str
+) -> Any:
+    from scripts.orchestration.pr_commit_identity import github_api_request
+
+    matches = [
+        (thread, index, comment)
+        for thread in threads
+        for index, comment in enumerate(thread.comments)
+        if comment.url == preparation["root_url"]
+    ]
+    if len(matches) != 1 or matches[0][1] != 0:
+        raise ReviewEvidenceError("prepared selected root is missing or ambiguous in live evidence")
+    thread, _index, root = matches[0]
+    if (
+        root.author_login != "chatgpt-codex-connector"
+        or root.original_commit_sha != preparation["original_head_sha"]
+        or root.created_at != preparation["root_created_at"]
+        or "sha256:" + hashlib.sha256(root.body.encode("utf-8")).hexdigest()
+        != preparation["root_body_sha256"]
+    ):
+        raise ReviewEvidenceError("prepared selected root changed")
+    owner, name = preparation["repository"].split("/", 1)
+    if not _validate_stale_seal_root_identity(
+        url=root.url,
+        finding=root,
+        stale_head_sha=preparation["original_head_sha"],
+        owner=owner,
+        name=name,
+        pr_number=preparation["pr_number"],
+        token=token,
+        request_json=github_api_request,
+    ):
+        raise ReviewEvidenceError("prepared root lacks authenticated unedited connector identity")
+    return thread
+
+
+def _validate_prepared_reseal_history(
+    preparation: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    token: str,
+) -> None:
+    p = validate_reseal_preparation(dict(preparation))
+    if (
+        p["repository"].casefold() != snapshot.repository.casefold()
+        or p["pr_number"] != snapshot.pr_number
+    ):
+        raise ReviewEvidenceError("prepared reseal repository/PR differs from live snapshot")
+    s, h, base = p["original_head_sha"], p["final_material_head_sha"], p["base_sha"]
+    refs = {
+        sha: _stale_seal_repository_commit(
+            sha, snapshot=snapshot, token=token, require_pr_commit=sha in {s, h}
+        )
+        for sha in {s, h, base, snapshot.base_sha}
+    }
+    _stale_seal_remote_ancestor(
+        refs[base], refs[snapshot.base_sha], repository=p["repository"], token=token
+    )
+    inherited = _stale_seal_mapping_blob(repo_root, commit_sha=s, pr_number=p["pr_number"])
+    blob = (
+        _run_git(repo_root, ["rev-parse", f"{s}:docs/review/PR_{p['pr_number']}_FIXED_MAPPING.md"])
+        .decode()
+        .strip()
+    )
+    if blob != p["prior_mapping_blob_oid"]:
+        raise ReviewEvidenceError("prepared prior mapping identity changed")
+    old = parse_embedded_review_seal(inherited)["material"]
+    m, effective_base = old["material_head_sha"], old["base_ref_oid"]
+    parent_cache: dict[str, tuple[str, ...]] = {}
+    children = _stale_seal_snapshot_children(
+        repo_root, snapshot=snapshot, parent_sha=m, parent_cache=parent_cache
+    )
+    if len(children) != 1:
+        raise ReviewEvidenceError("prepared historical material has no unique closeout")
+    c = children[0]
+    for sha in (m, c, effective_base):
+        _stale_seal_repository_commit(
+            sha, snapshot=snapshot, token=token, require_pr_commit=sha in {m, c}
+        )
+    _validate_stale_seal_mapping_only_edge(
+        repo_root,
+        parent_sha=m,
+        child_sha=c,
+        pr_number=p["pr_number"],
+        allow_mapping_add=True,
+        ban_trigger_only=False,
+    )
+    historical = _stale_seal_material_manifest(
+        repo_root, base_ref_oid=effective_base, head_ref_oid=m, pr_number=p["pr_number"]
+    )
+    _validate_stale_seal_projection(
+        inherited,
+        manifest=historical,
+        repository=p["repository"],
+        pr_number=p["pr_number"],
+        require_provider_no_claim=False,
+    )
+    path: list[tuple[str, tuple[str, ...]]] = []
+    current = h
+    while current != c and len(path) <= len(snapshot.commit_shas):
+        if current not in snapshot.commit_shas:
+            raise ReviewEvidenceError("prepared interval leaves the authenticated PR graph")
+        parents = _stale_seal_cached_commit_parents(repo_root, current, parent_cache)
+        if len(parents) not in {1, 2}:
+            raise ReviewEvidenceError("prepared interval has unsupported parent topology")
+        path.append((current, parents))
+        current = parents[0]
+    if current != c or s not in {vertex for vertex, _parents in path}:
+        raise ReviewEvidenceError(
+            "prepared stale head is not inside the historical first-parent interval"
+        )
+    for vertex, parents in reversed(path):
+        if len(parents) == 1:
+            _validate_stale_seal_linear_material_edge(
+                repo_root, parent_sha=parents[0], child_sha=vertex, pr_number=p["pr_number"]
+            )
+        else:
+            sync = parents[1]
+            if sync == effective_base:
+                raise ReviewEvidenceError("prepared base synchronization does not advance")
+            for ancestor, descendant in ((effective_base, sync), (sync, base)):
+                _stale_seal_local_ancestor(
+                    repo_root, ancestor_sha=ancestor, descendant_sha=descendant
+                )
+                left = _stale_seal_repository_commit(
+                    ancestor, snapshot=snapshot, token=token, require_pr_commit=False
+                )
+                right = _stale_seal_repository_commit(
+                    descendant, snapshot=snapshot, token=token, require_pr_commit=False
+                )
+                _stale_seal_remote_ancestor(left, right, repository=p["repository"], token=token)
+            _stale_seal_local_non_ancestor(repo_root, ancestor_sha=sync, descendant_sha=parents[0])
+            _stale_seal_remote_non_ancestor(
+                _stale_seal_repository_commit(
+                    sync, snapshot=snapshot, token=token, require_pr_commit=False
+                ),
+                _stale_seal_repository_commit(
+                    parents[0], snapshot=snapshot, token=token, require_pr_commit=True
+                ),
+                repository=p["repository"],
+                token=token,
+            )
+            effective_base = sync
+        if (
+            _stale_seal_mapping_blob(repo_root, commit_sha=vertex, pr_number=p["pr_number"])
+            != inherited
+        ):
+            raise ReviewEvidenceError("prepared interval changes inherited mapping proof")
+        if vertex == s:
+            stale = _stale_seal_material_manifest(
+                repo_root, base_ref_oid=effective_base, head_ref_oid=s, pr_number=p["pr_number"]
+            )
+            if old == {
+                "base_ref_oid": stale.base_ref_oid,
+                "digest": stale.digest,
+                "material_head_sha": stale.head_ref_oid,
+                "merge_base_sha": stale.merge_base_sha,
+                "policy_version": MATERIAL_POLICY_VERSION,
+            }:
+                raise ReviewEvidenceError("prepared inherited seal is not stale at S")
+    if _stale_seal_mapping_blob(repo_root, commit_sha=c, pr_number=p["pr_number"]) != inherited:
+        raise ReviewEvidenceError("prepared historical closeout differs from inherited mapping")
+    _stale_seal_local_ancestor(repo_root, ancestor_sha=effective_base, descendant_sha=base)
+    _stale_seal_remote_ancestor(
+        _stale_seal_repository_commit(
+            effective_base, snapshot=snapshot, token=token, require_pr_commit=False
+        ),
+        refs[base],
+        repository=p["repository"],
+        token=token,
+    )
+    _stale_seal_local_ancestor(repo_root, ancestor_sha=s, descendant_sha=h)
+    _stale_seal_remote_ancestor(refs[s], refs[h], repository=p["repository"], token=token)
+    manifest = _stale_seal_material_manifest(
+        repo_root, base_ref_oid=base, head_ref_oid=h, pr_number=p["pr_number"]
+    )
+    if manifest.merge_base_sha != p["merge_base_sha"] or manifest.digest != p["material_digest"]:
+        raise ReviewEvidenceError("prepared final material does not recompute")
+
+
+def _require_pending_reseal_root(thread: Any) -> None:
+    if thread.is_resolved:
+        raise ReviewEvidenceError("prospective selected root must remain unresolved")
+
+
+def validate_prepared_reseal(
+    preparation: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    threads: tuple[Any, ...],
+    token: str,
+    corrected_mapping: str | None = None,
+    reseal_sha: str | None = None,
+) -> dict[str, Any]:
+    """One shared exact history/admission recognizer, with separate prospective and actual proof."""
+    p = validate_reseal_preparation(dict(preparation))
+    if (corrected_mapping is None) == (reseal_sha is None):
+        raise ReviewEvidenceError("prepared reseal requires exactly one execution phase")
+    thread = _prepared_reseal_root(p, threads, token=token)
+    admission = verify_reseal_owner_admission(p, token=token)
+    _validate_prepared_reseal_history(p, repo_root=repo_root, snapshot=snapshot, token=token)
+    h = p["final_material_head_sha"]
+    if corrected_mapping is not None:
+        _require_pending_reseal_root(thread)
+        if snapshot.head_sha != h or snapshot.base_sha != p["base_sha"]:
+            raise ReviewEvidenceError("prospective reseal must bind exact live H/base")
+        mapping = corrected_mapping
+    else:
+        from scripts.orchestration.pr_commit_identity import github_api_request
+
+        r = _require_sha(reseal_sha, label="actual correcting reseal")
+        r_ref = _stale_seal_repository_commit(
+            r, snapshot=snapshot, token=token, require_pr_commit=True
+        )
+        _stale_seal_local_ancestor(repo_root, ancestor_sha=r, descendant_sha=snapshot.head_sha)
+        _stale_seal_remote_ancestor(
+            r_ref,
+            _stale_seal_repository_commit(
+                snapshot.head_sha, snapshot=snapshot, token=token, require_pr_commit=True
+            ),
+            repository=p["repository"],
+            token=token,
+        )
+        _validate_stale_seal_mapping_only_edge(
+            repo_root, parent_sha=h, child_sha=r, pr_number=p["pr_number"], allow_mapping_add=False
+        )
+        if _stale_seal_snapshot_children(
+            repo_root, snapshot=snapshot, parent_sha=h, parent_cache={}
+        ) != (r,):
+            raise ReviewEvidenceError("actual reseal is not the sole direct H child")
+        mapping = _stale_seal_mapping_blob(repo_root, commit_sha=r, pr_number=p["pr_number"])
+        replies = [
+            comment for comment in thread.comments[1:] if comment.author_association == "OWNER"
+        ]
+        if (
+            not thread.is_resolved
+            or len(replies) != 1
+            or parse_owner_stale_seal_fixed_reply(replies[0].body) != (p["original_head_sha"], r)
+        ):
+            raise ReviewEvidenceError(
+                "actual reseal lacks the exact sole resolved OWNER disposition"
+            )
+        times = _fetch_stale_seal_reseal_push_times(
+            repo_root=repo_root,
+            snapshot=snapshot,
+            repository=p["repository"],
+            stale_head_sha=h,
+            reseal_sha=r,
+            token=token,
+            request_json=github_api_request,
+        )
+        admitted = _parse_timestamp(admission["created_at"], label="reseal admission")
+        replied = _parse_timestamp(replies[0].created_at, label="reseal OWNER reply")
+        if not any(admitted < pushed <= replied for pushed in times):
+            raise ReviewEvidenceError(
+                "actual reseal push must follow admission and precede OWNER reply"
+            )
+    if parse_reseal_preparation(mapping) != p:
+        raise ReviewEvidenceError("correcting mapping does not preserve the exact preparation")
+    manifest = _stale_seal_material_manifest(
+        repo_root, base_ref_oid=p["base_sha"], head_ref_oid=h, pr_number=p["pr_number"]
+    )
+    _validate_stale_seal_projection(
+        mapping,
+        manifest=manifest,
+        repository=p["repository"],
+        pr_number=p["pr_number"],
+        require_provider_no_claim=True,
+    )
+    from scripts.orchestration.review_mapping_artifact import mapping_proof_blocks
+
+    inherited = _stale_seal_mapping_blob(repo_root, commit_sha=h, pr_number=p["pr_number"])
+    if mapping_proof_blocks(inherited) - mapping_proof_blocks(mapping):
+        raise ReviewEvidenceError("correcting mapping would drop existing disposition proof")
+    return admission
+
+
+def validate_reseal_preparation_admission(
+    preparation: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    threads: tuple[Any, ...],
+    token: str,
+) -> dict[str, Any]:
+    p = validate_reseal_preparation(dict(preparation))
+    thread = _prepared_reseal_root(p, threads, token=token)
+    if p["final_material_head_sha"] == snapshot.head_sha:
+        _require_pending_reseal_root(thread)
+    _validate_prepared_reseal_history(p, repo_root=repo_root, snapshot=snapshot, token=token)
+    return verify_reseal_owner_admission(p, token=token)
+
+
 def review_thread_inventory(
     threads: tuple[ReviewThreadEvidence, ...],
 ) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
@@ -796,6 +1273,8 @@ def validated_duplicate_reply_urls(
     snapshot: Any,
     repository: str,
     token: str,
+    prospective_preparation: Mapping[str, Any] | None = None,
+    local_pre_closeout_mapping: str | None = None,
 ) -> set[str]:
     """Return candidate URLs covered by the closed v1 duplicate-reply contract."""
 
@@ -1349,10 +1828,32 @@ def validated_duplicate_reply_urls(
         covered.add(owner_eligible_urls[0])
 
     stale_seal_eligible_urls: list[str] = []
+    if prospective_preparation is not None:
+        selected_url = prospective_preparation["root_url"]
+        if selected_url in mapping_entries or selected_url in validated_fingerprint_urls:
+            raise ReviewEvidenceError("prepared root already has ordinary disposition evidence")
+        stale_seal_eligible_urls.append(selected_url)
     current_stale_seal_closeout_validated = False
+    if local_pre_closeout_mapping is not None:
+        local_manifest = _stale_seal_material_manifest(
+            repo_root,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=snapshot.head_sha,
+            pr_number=snapshot.pr_number,
+        )
+        _validate_stale_seal_projection(
+            local_pre_closeout_mapping,
+            manifest=local_manifest,
+            repository=repository,
+            pr_number=snapshot.pr_number,
+            require_provider_no_claim=True,
+        )
+        current_stale_seal_closeout_validated = True
     historical_reseal_times: dict[tuple[str, str], tuple[datetime, ...]] = {}
     stale_seal_parent_cache: dict[str, tuple[str, ...]] = {}
     for url, thread in live_roots:
+        if prospective_preparation is not None and url == prospective_preparation["root_url"]:
+            continue
         location = comment_locations.get(url)
         root_identity = canonical_review_root_identity(url)
         if (
@@ -1405,7 +1906,7 @@ def validated_duplicate_reply_urls(
                 request_json=github_api_request,
             ):
                 continue
-            if not current_stale_seal_closeout_validated:
+            if not current_stale_seal_closeout_validated and prospective_preparation is None:
                 _validate_current_stale_seal_closeout(
                     repo_root=repo_root,
                     snapshot=snapshot,
@@ -1418,6 +1919,32 @@ def validated_duplicate_reply_urls(
                 current_stale_seal_closeout_validated = True
             reseal_times = historical_reseal_times.get((stale_head, reseal))
             if reseal_times is None:
+                _stale_seal_repository_commit(
+                    reseal, snapshot=snapshot, token=token, require_pr_commit=True
+                )
+                historical_mapping = _stale_seal_mapping_blob(
+                    repo_root, commit_sha=reseal, pr_number=snapshot.pr_number
+                )
+                preparation = parse_reseal_preparation(historical_mapping)
+                if preparation is not None:
+                    if (
+                        preparation["root_url"] != url
+                        or preparation["original_head_sha"] != stale_head
+                    ):
+                        continue
+                    admission = validate_prepared_reseal(
+                        preparation,
+                        repo_root=repo_root,
+                        snapshot=snapshot,
+                        threads=threads,
+                        token=token,
+                        reseal_sha=reseal,
+                    )
+                    reseal_times = (
+                        _parse_timestamp(admission["created_at"], label="reseal admission"),
+                    )
+                    stale_seal_eligible_urls.append(url)
+                    continue
                 reseal_times = _validate_historical_stale_seal_reseal(
                     repo_root=repo_root,
                     snapshot=snapshot,
@@ -1438,8 +1965,16 @@ def validated_duplicate_reply_urls(
         except (OSError, TimeoutError, http.client.HTTPException) as exc:
             raise _StaleSealEvidenceUnknown("owner stale-seal evidence is API_UNKNOWN") from exc
         stale_seal_eligible_urls.append(url)
-    if len(stale_seal_eligible_urls) == 1 and stale_seal_eligible_urls[0] in candidate_urls:
+    if (
+        prospective_preparation is None
+        and len(stale_seal_eligible_urls) == 1
+        and stale_seal_eligible_urls[0] in candidate_urls
+    ):
         covered.add(stale_seal_eligible_urls[0])
+    if prospective_preparation is not None and stale_seal_eligible_urls != [
+        prospective_preparation["root_url"]
+    ]:
+        raise ReviewEvidenceError("prepared and legacy stale-seal roots are not globally singleton")
     return covered
 
 

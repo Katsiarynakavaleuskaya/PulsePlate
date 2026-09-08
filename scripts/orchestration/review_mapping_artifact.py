@@ -11,7 +11,10 @@ from pathlib import Path
 from scripts.orchestration.pr_review_evidence import (
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    RESEAL_DISCUSSION_SCOPE,
+    RESEAL_EMPTY_ORDINARY_LINE,
     parse_embedded_review_seal,
+    parse_reseal_preparation,
     unavailable_review_ref_fingerprint,
 )
 
@@ -431,7 +434,12 @@ def validate_discussion_thread_pass_section(section: str) -> list[str]:
     return errors
 
 
-def validate_fixed_mapping_section(section: str, *, require_full_shas: bool = False) -> list[str]:
+def validate_fixed_mapping_section(
+    section: str,
+    *,
+    require_full_shas: bool = False,
+    allow_prepared_empty: bool = False,
+) -> list[str]:
     """Validate Fixed in Commit Mapping section; return list of errors."""
     errors: list[str] = []
 
@@ -443,6 +451,8 @@ def validate_fixed_mapping_section(section: str, *, require_full_shas: bool = Fa
     non_empty_lines = [line for line in raw_lines if line]
     if not non_empty_lines:
         errors.append("'## Fixed in Commit Mapping' section is empty.")
+        return errors
+    if allow_prepared_empty and non_empty_lines == [RESEAL_EMPTY_ORDINARY_LINE]:
         return errors
 
     if NO_ACTIONABLE_LINE in non_empty_lines:
@@ -499,6 +509,16 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
 
     discussion_section = extract_discussion_thread_pass_section(markdown_text)
     fixed_mapping_section = extract_fixed_mapping_section(markdown_text)
+    preparation = None
+    try:
+        preparation = parse_reseal_preparation(markdown_text)
+    except ReviewEvidenceError as exc:
+        errors.append(str(exc))
+    if preparation is not None:
+        if RESEAL_DISCUSSION_SCOPE not in discussion_section:
+            errors.append("prepared mapping must scope its checklist to ordinary dispositions")
+        if NO_ACTIONABLE_LINE in fixed_mapping_section:
+            errors.append("a prepared selected root forbids a no-actionables claim")
 
     version_matches = REVIEW_SEAL_VERSION_RE.findall(markdown_text)
     if len(version_matches) > 1:
@@ -512,11 +532,17 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
         validate_fixed_mapping_section(
             fixed_mapping_section,
             require_full_shas=version == "v1",
+            allow_prepared_empty=preparation is not None,
         )
     )
     if version == "v1":
         try:
             seal = parse_embedded_review_seal(markdown_text)
+            if preparation is not None and (
+                preparation["repository"] != seal["repository"]
+                or preparation["pr_number"] != seal["pr_number"]
+            ):
+                raise ReviewEvidenceError("prepared mapping repository/PR does not match seal")
             records = parse_canonical_fingerprint_records(
                 markdown_text,
                 pr_number=seal["pr_number"],
@@ -529,6 +555,8 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
                 raise ValueError("canonical fingerprint record does not match sealed material")
         except (ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Invalid v1 review seal: {exc}")
+    elif preparation is not None:
+        errors.append("reseal preparation requires a structurally valid v1 seal")
 
     return errors
 
@@ -540,6 +568,20 @@ def review_seal_version(markdown_text: str) -> str | None:
     if len(matches) > 1:
         raise ValueError("Review-Seal-Version must appear at most once")
     return matches[0] if matches else None
+
+
+def mapping_proof_blocks(markdown: str) -> set[str]:
+    """Preserve real proof; the prepared empty-set line is structural only."""
+    if parse_reseal_preparation(markdown) is not None:
+        errors = validate_mapping_artifact_text(markdown)
+        if errors:
+            raise ReviewEvidenceError("prepared mapping is invalid: " + "; ".join(errors))
+        markdown = markdown.replace(RESEAL_EMPTY_ORDINARY_LINE, "")
+    return {
+        block.strip()
+        for block in extract_fixed_mapping_section(markdown).split("\n\n")
+        if block.strip() and block.strip() != NO_ACTIONABLE_LINE
+    }
 
 
 def parse_canonical_fingerprint_records(

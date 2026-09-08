@@ -62,6 +62,9 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     validate_mapping_only_closeout_successor,
     validate_review_seal,
     validated_duplicate_reply_urls,
+    parse_reseal_preparation,
+    validate_prepared_reseal,
+    validate_reseal_preparation_admission,
 )
 from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     DOCKER_SURFACE_PREFIXES,
@@ -1322,6 +1325,8 @@ def _duplicate_reply_coverage(
     repository: str,
     pr_number: int,
     token: str,
+    prospective_preparation: Mapping[str, Any] | None = None,
+    local_pre_closeout_mapping: str | None = None,
 ) -> set[str]:
     records = parse_canonical_fingerprint_records(artifact_text, pr_number=pr_number)
     candidate_urls = {
@@ -1329,6 +1334,16 @@ def _duplicate_reply_coverage(
         for item in actionable_items
         if item.url not in mapped_urls and item.kind == "review_comment"
     }
+    preparation = parse_reseal_preparation(artifact_text)
+    if preparation is not None:
+        candidate_urls.add(preparation["root_url"])
+    optional: dict[str, Any] = (
+        {"prospective_preparation": prospective_preparation}
+        if prospective_preparation is not None
+        else {}
+    )
+    if local_pre_closeout_mapping is not None:
+        optional["local_pre_closeout_mapping"] = local_pre_closeout_mapping
     raw_covered_urls = validated_duplicate_reply_urls(
         candidate_urls=candidate_urls,
         threads=threads,
@@ -1340,6 +1355,7 @@ def _duplicate_reply_coverage(
         snapshot=snapshot,
         repository=repository,
         token=token,
+        **optional,
     )
     if not isinstance(raw_covered_urls, set):
         raise ReviewEvidenceError("duplicate-reply coverage must be a set of URLs")
@@ -1550,6 +1566,30 @@ def main() -> int:
         )
 
     duplicate_covered_urls: set[str] = set()
+    prospective_covered_urls: set[str] = set()
+    preparation = parse_reseal_preparation(artifact_text)
+    preparation_admission: dict[str, Any] | None = None
+    if preparation is not None:
+        try:
+            preparation_admission = validate_reseal_preparation_admission(
+                preparation,
+                repo_root=REPO_ROOT,
+                snapshot=snapshot,
+                threads=review_threads,
+                token=token,
+            )
+            if args.pre_closeout and preparation["final_material_head_sha"] == snapshot.head_sha:
+                validate_prepared_reseal(
+                    preparation,
+                    repo_root=REPO_ROOT,
+                    snapshot=snapshot,
+                    threads=review_threads,
+                    token=token,
+                    corrected_mapping=artifact_text,
+                )
+                prospective_covered_urls.add(preparation["root_url"])
+        except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
+            errors.append(f"Prepared reseal validation failed: {exc}")
     if seal is not None:
         try:
             duplicate_covered_urls = _duplicate_reply_coverage(
@@ -1562,9 +1602,24 @@ def main() -> int:
                 repository=repo,
                 pr_number=pr_number,
                 token=token,
+                prospective_preparation=(
+                    preparation if args.pre_closeout and prospective_covered_urls else None
+                ),
+                local_pre_closeout_mapping=(
+                    artifact_text if args.pre_closeout and preparation else None
+                ),
             )
         except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Duplicate reply validation failed: {exc}")
+
+    if (
+        preparation is not None
+        and not prospective_covered_urls
+        and preparation["root_url"] not in duplicate_covered_urls
+    ):
+        errors.append(
+            "Prepared selected root requires actual R and a validated resolved OWNER FIXED reply."
+        )
 
     disposition_covered_urls = mapped_urls | duplicate_covered_urls
 
@@ -1578,7 +1633,9 @@ def main() -> int:
         unmapped = [
             item
             for item in actionable_items
-            if item.url not in mapped_urls and item.url not in duplicate_covered_urls
+            if item.url not in mapped_urls
+            and item.url not in duplicate_covered_urls
+            and item.url not in prospective_covered_urls
         ]
         if unmapped:
             errors.append(
@@ -1630,6 +1687,18 @@ def main() -> int:
             repo=repo, pr_number=pr_number, token=token
         )
         final_review_threads = fetch_review_threads(repo, pr_number, token=token)
+        if preparation is not None:
+            final_admission = validate_reseal_preparation_admission(
+                preparation,
+                repo_root=REPO_ROOT,
+                snapshot=snapshot,
+                threads=final_review_threads,
+                token=token,
+            )
+            if final_admission != preparation_admission:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: reseal OWNER admission changed during validation"
+                )
         if final_pr_context != (pr_number, repo, is_draft, pr_body, head_ref):
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: live PR body or draft state changed during validation"
@@ -1659,7 +1728,13 @@ def main() -> int:
                     "pre-closeout validation"
                 )
         assert_snapshot_unchanged(snapshot, token=token)
-    except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
+    except (
+        CommitIdentityError,
+        ReviewEvidenceError,
+        OSError,
+        ValueError,
+        urllib.error.HTTPError,
+    ) as exc:
         errors.append(str(exc))
 
     if errors:
@@ -1674,10 +1749,16 @@ def main() -> int:
         return 1
 
     if args.pre_closeout:
-        print(
-            "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
-            "bot inline comments, and top-level bot reviews are explicitly mapped."
-        )
+        if prospective_covered_urls:
+            print(
+                "pre-closeout-review-governance: passed; ordinary actionable coverage verified; "
+                "one owner-admitted stale-binding root prospectively covered for this mapping publication only."
+            )
+        else:
+            print(
+                "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
+                "bot inline comments, and top-level bot reviews are explicitly mapped."
+            )
         print("pre-closeout-review-governance: not merge-readiness evidence.")
         return 0
 

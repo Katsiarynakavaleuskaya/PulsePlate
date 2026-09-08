@@ -9,7 +9,7 @@ and the content-bound security receipt can be published in one closeout commit.
 from __future__ import annotations
 
 import argparse
-import json
+import hashlib
 import os
 import re
 import shutil
@@ -31,6 +31,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
+    fetch_review_threads,
     is_ancestor,
     verify_codex_review_reference,
     verify_codex_review_source_unavailability_reference,
@@ -43,6 +44,18 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    RESEAL_PREPARATION_SCHEMA,
+    RESEAL_EMPTY_ORDINARY_LINE,
+    RESEAL_DISCUSSION_SCOPE,
+    _canonical_json,
+    _load_json_bytes,
+    _require_pending_reseal_root,
+    parse_reseal_preparation,
+    render_reseal_preparation,
+    validate_reseal_preparation,
+    validate_reseal_preparation_admission,
+    validate_prepared_reseal,
+    parse_owner_stale_seal_fixed_reply,
     build_provider_no_claim_pair,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
@@ -67,7 +80,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
 )
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
-    extract_fixed_mapping_section,
+    mapping_proof_blocks,
     mapping_artifact_path,
     validate_mapping_artifact_text,
 )
@@ -107,10 +120,6 @@ def _state_path(pr_number: int) -> Path:
     return _state_dir(pr_number) / "draft.json"
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-
-
 def _atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_name: str | None = None
@@ -144,10 +153,10 @@ def _load_state(pr_number: int) -> dict[str, Any]:
     path = _state_path(pr_number)
     try:
         raw = path.read_text(encoding="utf-8")
-        state = json.loads(raw)
+        state = _load_json_bytes(raw.encode("utf-8"), label="closeout draft")
     except FileNotFoundError as exc:
         raise CloseoutError(f"missing local draft; run init first: {path}") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, ReviewEvidenceError) as exc:
         raise CloseoutError(f"local draft is malformed: {path}") from exc
     if not isinstance(state, dict):
         raise CloseoutError("local draft must be a JSON object")
@@ -160,6 +169,9 @@ def _load_state(pr_number: int) -> dict[str, Any]:
         "repository",
         "schema_version",
     }
+    if "reseal_preparation" in state:
+        validate_reseal_preparation(state["reseal_preparation"])
+        expected.add("reseal_preparation")
     if set(state) != expected:
         raise CloseoutError("local draft has unknown or missing fields")
     if state["schema_version"] != DRAFT_SCHEMA_VERSION or state["pr_number"] != pr_number:
@@ -426,6 +438,8 @@ def _cmd_add_disposition(args: argparse.Namespace) -> None:
         raise CloseoutError("run freeze before adding dispositions")
     repository = str(state["repository"])
     url = _thread_url(repository, args.pr_number, args.url)
+    if state.get("reseal_preparation", {}).get("root_url") == url:
+        raise CloseoutError("prepared root requires actual R and the later human OWNER disposition")
     if any(item.get("url") == url for item in state["dispositions"] if isinstance(item, dict)):
         raise CloseoutError("this thread URL already has a disposition")
     disposition = args.disposition
@@ -499,6 +513,85 @@ def _cmd_add_disposition(args: argparse.Namespace) -> None:
     print(f"closeout-disposition: recorded {disposition} for {url}")
 
 
+def _cmd_prepare_reseal(args: argparse.Namespace) -> None:
+    """Preview data without writes, or consume one authenticated human admission."""
+    state = _load_state(args.pr_number)
+    if state["repository"] != args.repo:
+        raise CloseoutError("--repo does not match local draft")
+    token = _token()
+    snapshot = fetch_pr_snapshot(args.repo, args.pr_number, token=token)
+    _require_clean_live_head(snapshot.head_sha)
+    threads = fetch_review_threads(args.repo, args.pr_number, token=token)
+    roots = [
+        thread.comments[0]
+        for thread in threads
+        if thread.comments and thread.comments[0].url == args.root_url
+    ]
+    if len(roots) != 1 or roots[0].author_login != "chatgpt-codex-connector":
+        raise CloseoutError("preparation requires one authenticated connector root")
+    root = roots[0]
+    _require_pending_reseal_root(
+        next(thread for thread in threads if thread.comments and thread.comments[0] is root)
+    )
+    manifest = compute_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=snapshot.head_sha,
+        pr_number=args.pr_number,
+    )
+    freeze = {
+        "base_ref_oid": snapshot.base_sha,
+        "digest": manifest.digest,
+        "material_head_sha": snapshot.head_sha,
+        "merge_base_sha": manifest.merge_base_sha,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    if state["freeze"] != freeze:
+        raise CloseoutError("freeze exact current material before preparing a reseal")
+    preparation = {
+        "schema_version": RESEAL_PREPARATION_SCHEMA,
+        "repository": args.repo,
+        "pr_number": args.pr_number,
+        "root_url": root.url,
+        "root_body_sha256": "sha256:" + hashlib.sha256(root.body.encode("utf-8")).hexdigest(),
+        "root_created_at": root.created_at,
+        "original_head_sha": root.original_commit_sha,
+        "final_material_head_sha": snapshot.head_sha,
+        "base_sha": snapshot.base_sha,
+        "merge_base_sha": manifest.merge_base_sha,
+        "material_digest": manifest.digest,
+        "material_policy_version": MATERIAL_POLICY_VERSION,
+        "prior_mapping_blob_oid": _git(
+            "rev-parse", f"HEAD:docs/review/PR_{args.pr_number}_FIXED_MAPPING.md"
+        ),
+    }
+    if args.command == "preview-reseal-intent":
+        assert_snapshot_unchanged(snapshot, token=token)
+        print(_canonical_json({"status": "NON_ADMITTED_READ_ONLY_INTENT", "intent": preparation}))
+        return
+    preparation["owner_admission_reference"] = args.owner_admission_reference
+    if any(item["url"] == root.url for item in state["dispositions"]):
+        raise CloseoutError("prepared root already has an ordinary disposition")
+    admission = validate_reseal_preparation_admission(
+        preparation, repo_root=REPO_ROOT, snapshot=snapshot, threads=threads, token=token
+    )
+    if (
+        validate_reseal_preparation_admission(
+            preparation,
+            repo_root=REPO_ROOT,
+            snapshot=snapshot,
+            threads=fetch_review_threads(args.repo, args.pr_number, token=token),
+            token=token,
+        )
+        != admission
+    ):
+        raise CloseoutError("reseal OWNER admission changed")
+    assert_snapshot_unchanged(snapshot, token=token)
+    state["reseal_preparation"] = preparation
+    _write_state(state)
+    print("RESEAL_PUBLICATION_PREPARED: not FIXED, resolution, or merge readiness")
+
+
 def _render_mapping(
     state: Mapping[str, Any],
     seal: Mapping[str, Any],
@@ -532,8 +625,12 @@ def _render_mapping(
         "## Fixed in Commit Mapping",
     ]
     dispositions = state["dispositions"]
+    preparation = state.get("reseal_preparation")
+    if preparation is not None:
+        validate_reseal_preparation(preparation)
+        lines.insert(lines.index("## Fixed in Commit Mapping") - 1, RESEAL_DISCUSSION_SCOPE)
     if not dispositions:
-        lines.append(NO_ACTIONABLE_LINE)
+        lines.append(RESEAL_EMPTY_ORDINARY_LINE if preparation is not None else NO_ACTIONABLE_LINE)
     for item in dispositions:
         lines.extend(["", f"Disposition: {item['disposition']}"])
         for field, label in (
@@ -552,17 +649,18 @@ def _render_mapping(
             lines.append(f"- {item['url']} -> {item['commit']}")
         else:
             lines.append(f"- {item['url']}")
+    if preparation is not None:
+        lines.extend(["", render_reseal_preparation(preparation)])
     lines.extend(["", "## Review Material Seal", render_embedded_review_seal(seal), ""])
     return "\n".join(lines)
 
 
 def _mapping_proof_blocks(markdown: str) -> set[str]:
-    section = extract_fixed_mapping_section(markdown)
-    return {
-        block.strip()
-        for block in section.split("\n\n")
-        if block.strip() and block.strip() != NO_ACTIONABLE_LINE
-    }
+    try:
+        blocks: set[str] = mapping_proof_blocks(markdown)
+        return blocks
+    except ReviewEvidenceError as exc:
+        raise CloseoutError(str(exc)) from exc
 
 
 def _validate_reseal_transition(
@@ -577,6 +675,12 @@ def _validate_reseal_transition(
     if errors:
         raise CloseoutError("existing canonical mapping is invalid: " + "; ".join(errors))
     existing_seal = parse_embedded_review_seal(existing_markdown)
+    prior_preparation = parse_reseal_preparation(existing_markdown)
+    if (
+        prior_preparation is not None
+        and parse_reseal_preparation(replacement_markdown) != prior_preparation
+    ):
+        raise CloseoutError("replacement mapping would drop historical reseal preparation")
     if existing_seal["repository"] != repository or existing_seal["pr_number"] != pr_number:
         raise CloseoutError("existing canonical mapping identity does not match this PR")
     existing_material = existing_seal["material"]
@@ -676,6 +780,33 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         "self_review": self_review_receipt,
     }
     markdown = _render_mapping(state, seal)
+    preparation = state.get("reseal_preparation")
+    admission = None
+    if preparation is not None:
+        threads = fetch_review_threads(args.repo, args.pr_number, token=token)
+        phase: dict[str, Any] = {"corrected_mapping": markdown}
+        if preparation["final_material_head_sha"] != snapshot.head_sha:
+            replies = [
+                comment
+                for thread in threads
+                if thread.comments and thread.comments[0].url == preparation["root_url"]
+                for comment in thread.comments[1:]
+                if comment.author_association == "OWNER"
+            ]
+            if len(replies) != 1:
+                raise CloseoutError(
+                    "historical preparation requires its actual OWNER reseal disposition"
+                )
+            _stale, reseal = parse_owner_stale_seal_fixed_reply(replies[0].body)
+            phase = {"reseal_sha": reseal}
+        admission = validate_prepared_reseal(
+            preparation,
+            repo_root=REPO_ROOT,
+            snapshot=snapshot,
+            threads=threads,
+            token=token,
+            **phase,
+        )
     errors = validate_mapping_artifact_text(markdown)
     if errors:
         raise CloseoutError("generated mapping is invalid: " + "; ".join(errors))
@@ -712,6 +843,18 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             raise CloseoutError(
                 "existing canonical mapping material head is not reachable from live PR head"
             )
+    if (
+        preparation is not None
+        and validate_reseal_preparation_admission(
+            preparation,
+            repo_root=REPO_ROOT,
+            snapshot=snapshot,
+            threads=fetch_review_threads(args.repo, args.pr_number, token=token),
+            token=token,
+        )
+        != admission
+    ):
+        raise CloseoutError("reseal OWNER admission changed before seal publication")
     _atomic_write(target, markdown)
     assert_snapshot_unchanged(snapshot, token=token)
     print(f"CONTENT_BOUND_RECEIPT_VALID {manifest.digest}")
@@ -1026,6 +1169,15 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--pr-number", required=True, type=int)
     seal.add_argument("--self-review-report", required=True)
     seal.set_defaults(handler=_cmd_seal)
+
+    for name in ("preview-reseal-intent", "prepare-reseal"):
+        preparation = subparsers.add_parser(name)
+        preparation.add_argument("--repo", required=True)
+        preparation.add_argument("--pr-number", required=True, type=int)
+        preparation.add_argument("--root-url", required=True)
+        if name == "prepare-reseal":
+            preparation.add_argument("--owner-admission-reference", required=True)
+        preparation.set_defaults(handler=_cmd_prepare_reseal)
 
     validate = subparsers.add_parser("validate")
     validate.add_argument("--repo", required=True)
