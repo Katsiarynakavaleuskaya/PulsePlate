@@ -185,6 +185,7 @@ MAIN_CI_DIAGNOSTIC_EXACT: tuple[str, ...] = (
     "tests/test_ci_risk_profile.py",
     "tests/test_ci_workflow_pr_size_governance_contract.py",
     "tests/test_main_test_shards.py",
+    "tests/test_repo_policy_guards.py",
 )
 GIT_DIFF_TIMEOUT_SECONDS = 60
 RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {

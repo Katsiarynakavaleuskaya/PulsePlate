@@ -271,27 +271,7 @@ struct HomeExperienceScreen<Destination: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xLarge) {
                 PPCard {
-                    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-                        Text(localized(state.titleLocalizationKey))
-                            .font(.system(size: headingFontSize, weight: .bold))
-                            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
-
-                        Text(localized(state.detailLocalizationKey))
-                            .font(.system(size: bodyFontSize, weight: .regular))
-                            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if state == .loading {
-                            ProgressView()
-                                .tint(PPDesignTokens.ColorToken.primary)
-                                .frame(minHeight: PPAccessibility.minimumTouchTarget)
-                                .accessibilityLabel(
-                                    Text(localized(state.detailLocalizationKey))
-                                )
-                        }
-                    }
+                    heroCardContent
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(PPDesignTokens.Spacing.xLarge)
                 }
@@ -314,6 +294,111 @@ struct HomeExperienceScreen<Destination: View>: View {
         dynamicTypeSize.isAccessibilitySize
             ? PPDesignTokens.Spacing.medium
             : PPDesignTokens.Spacing.xLarge
+    }
+
+    @ViewBuilder
+    private var heroCardContent: some View {
+        if let heroAssetName {
+            if usesStackedHeroLayout {
+                VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
+                    heroCopy
+                    HStack {
+                        Spacer(minLength: 0)
+                        heroImage(
+                            heroAssetName,
+                            width: heroSize.width,
+                            height: heroSize.height
+                        )
+                        Spacer(minLength: 0)
+                    }
+                }
+            } else {
+                HStack(alignment: .center, spacing: PPDesignTokens.Spacing.xLarge) {
+                    heroCopy
+                    Spacer(minLength: PPDesignTokens.Spacing.medium)
+                    heroImage(
+                        heroAssetName,
+                        width: heroSize.width,
+                        height: heroSize.height
+                    )
+                }
+            }
+        } else {
+            heroCopy
+        }
+    }
+
+    private var heroCopy: some View {
+        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
+            Text(localized(state.titleLocalizationKey))
+                .font(.system(size: headingFontSize, weight: .bold))
+                .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+
+            Text(localized(state.detailLocalizationKey))
+                .font(.system(size: bodyFontSize, weight: .regular))
+                .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if state == .loading {
+                ProgressView()
+                    .tint(PPDesignTokens.ColorToken.primary)
+                    .frame(minHeight: PPAccessibility.minimumTouchTarget)
+                    .accessibilityLabel(
+                        Text(localized(state.detailLocalizationKey))
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var heroAssetName: String? {
+        switch state {
+        case .freeReady:
+            return horizontalSizeClass == .regular
+                ? "FitChefPortraitHappy"
+                : "FitChefOnboardingWelcome"
+        case .paidReady:
+            return "FitChefPortraitEncouraging"
+        case .loading, .paidNeedsProfile, .unavailable:
+            return nil
+        }
+    }
+
+    private var heroSize: CGSize {
+        HomeHeroLayout.size(
+            isRegular: horizontalSizeClass == .regular,
+            isAccessibility: dynamicTypeSize.isAccessibilitySize
+        )
+    }
+
+    private var usesStackedHeroLayout: Bool {
+        horizontalSizeClass != .regular || dynamicTypeSize.isAccessibilitySize
+    }
+
+    private func heroImage(
+        _ assetName: String,
+        width: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        Image(ppRequiredBundleAsset: assetName)
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFill()
+            .scaleEffect(
+                HomeHeroLayout.zoom,
+                anchor: UnitPoint(x: HomeHeroLayout.focalX, y: HomeHeroLayout.focalY)
+            )
+            .frame(width: width, height: height)
+            .clipped()
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: PPDesignTokens.Radius.large,
+                    style: .continuous
+                )
+            )
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -473,6 +558,37 @@ struct HomeExperienceScreen<Destination: View>: View {
 private enum HomeActionProminence {
     case primary
     case secondary
+}
+
+/// Presentation-only geometry shared by both hero arrangements.
+enum HomeHeroLayout {
+    static let compactWidth: CGFloat = 112
+    static let compactHeight: CGFloat = 148
+    static let accessibilityWidth: CGFloat = 148
+    static let accessibilityHeight: CGFloat = 148
+    static let regularSide: CGFloat = 220
+    static let focalX: CGFloat = 0.5
+    static let focalY: CGFloat = 0.44
+    static let zoom: CGFloat = 1.02
+
+    static func size(isRegular: Bool, isAccessibility: Bool) -> CGSize {
+        if isAccessibility {
+            return CGSize(width: accessibilityWidth, height: accessibilityHeight)
+        }
+        if isRegular {
+            return CGSize(width: regularSide, height: regularSide)
+        }
+        return CGSize(width: compactWidth, height: compactHeight)
+    }
+}
+
+extension Image {
+    init(ppRequiredBundleAsset filename: String, bundle: Bundle = .main) {
+        guard let image = UIImage(named: filename, in: bundle, compatibleWith: nil) else {
+            preconditionFailure("Missing required PulsePlate bundle image: \(filename)")
+        }
+        self.init(uiImage: image)
+    }
 }
 
 private struct HomeLazyDestination<Destination: View>: View {
