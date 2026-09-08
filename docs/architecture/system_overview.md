@@ -52,6 +52,13 @@ navigation-neutral and reachable exactly once beneath Progress. Technical
 Profile destinations are compile-gated under `#if DEBUG` and never become a
 top-level tab.
 
+Progress owns the `HealthKitManager` used by its Weekly child as a session-scoped
+`StateObject`. Recreated Weekly destinations observe the same injected reference
+while that Progress container remains alive. Request/query behavior stays in the
+existing manager; the retained request-completion state is not proof of per-type
+HealthKit read permission and does not survive a destroyed parent or app relaunch.
+Progress state labels and actions also use the app-selected localization manager.
+
 This remains a thin presentation shell. It owns no backend, OpenAPI, DTO,
 entitlement, billing, calculation, or persistence authority.
 
@@ -60,11 +67,13 @@ Evidence:
 - `ios/PulsePlate/Models/AppSection.swift:3-52`
 - `ios/PulsePlate/Views/RootTabs.swift:4-58`
 - `ios/PulsePlate/Views/PlateView.swift:203-204`
-- `ios/PulsePlate/Views/ProgressView.swift:10-33`
-- `ios/PulsePlate/Views/ProgressView.swift:209-245`
-- `ios/PulsePlate/Views/WeeklyProgressView.swift:24-94`
-- `ios/PulsePlate/Views/ProfileView.swift:25-26`
-- `ios/PulsePlate/Views/ProfileView.swift:68-104`
+- `ios/PulsePlate/Views/ProgressView.swift:4`
+- `ios/PulsePlate/Views/ProgressView.swift:285`
+- `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
+- `ios/PulsePlate/Models/HealthKitManager.swift:37`
+- `ios/PulsePlate/Views/ProfileView.swift:5`
+- `ios/PulsePlate/Views/ProfileView.swift:101`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
 
 ## FitChef support handoff (PR #2320 landed)
 

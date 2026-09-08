@@ -153,6 +153,10 @@
 "progress.nutrient_progress.title" = "Прогресс по питательным веществам";
 "progress.complete" = "дневной цели";
 "progress.label" = "Прогресс питания за день";
+"progress.loading" = "Загрузка данных прогресса...";
+"progress.empty.title" = "Нет данных о прогрессе";
+"progress.empty.detail" = "Настройте профиль и ключ доступа, затем обновите данные за сегодня.";
+"progress.action.refresh" = "Обновить";
 "progress.chart.nutrient_category" = "Категория питательных веществ";
 "progress.chart.completion" = "Выполнение";
 "plate.preview.add_meal" = "Добавить приём пищи";

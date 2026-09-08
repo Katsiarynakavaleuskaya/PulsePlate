@@ -137,6 +137,10 @@
 "progress.nutrient_progress.title" = "Nutrient progress";
 "progress.complete" = "of daily goal";
 "progress.label" = "Daily nutrition progress";
+"progress.loading" = "Loading progress data...";
+"progress.empty.title" = "No progress data";
+"progress.empty.detail" = "Configure profile + key, then refresh to load your current day.";
+"progress.action.refresh" = "Refresh";
 "progress.chart.nutrient_category" = "Nutrient category";
 "progress.chart.completion" = "Completion";
 "plate.preview.add_meal" = "Add Meal";

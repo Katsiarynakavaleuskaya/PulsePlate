@@ -1,6 +1,6 @@
 # iOS Roadmap (Repo-Truth)
 
-**Last Updated**: 3 September 2026
+**Last Updated**: 8 September 2026
 **Owner**: @katsiaryna_kavaleuskaya
 **Cadence**: Update only when reality changes (PRs that change entrypoints, networking, guards, or localization).
 
@@ -25,7 +25,13 @@
   changes remains a required real SwiftUI V1 acceptance check; it is not yet
   claimed as proven.
 - Weekly Progress is not a top-level tab. It is a navigation-neutral child
-  reachable exactly once from Progress.
+  reachable exactly once from Progress. Progress owns its session HealthKit
+  manager; recreated Weekly children observe that same reference. This retains
+  request-completion state during the parent's lifetime, not per-type read
+  permission or state across relaunch.
+- Progress loading, empty, completion and action copy uses the app-selected
+  EN/RU/ES localization manager; existing query and issue-envelope behavior stays
+  unchanged.
 - `DebugToolsScreen` is available only inside the compile-gated DEBUG Profile
   section; it is never part of the production tab inventory.
 
@@ -34,15 +40,17 @@ Evidence:
 - `ios/PulsePlate/Models/AppSection.swift:3-52`
 - `ios/PulsePlate/Views/RootTabs.swift:4-58`
 - `ios/PulsePlate/Views/PlateView.swift:203-204`
-- `ios/PulsePlate/Views/ProgressView.swift:10-33`
-- `ios/PulsePlate/Views/ProgressView.swift:209-245`
-- `ios/PulsePlate/Views/WeeklyProgressView.swift:24-94`
-- `ios/PulsePlate/Views/ProfileView.swift:25-26`
-- `ios/PulsePlate/Views/ProfileView.swift:68-104`
+- `ios/PulsePlate/Views/ProgressView.swift:4`
+- `ios/PulsePlate/Views/ProgressView.swift:285`
+- `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
+- `ios/PulsePlate/Views/ProfileView.swift:5`
+- `ios/PulsePlate/Views/ProfileView.swift:101`
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:25-49`
 - `ios/PulsePlateTests/AppNavigationShellTests.swift:121-156`
-- `ios/PulsePlateTests/AppNavigationShellTests.swift:173-294`
-- `ios/PulsePlateTests/AppNavigationShellTests.swift:310-465`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:173`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:252`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:413`
 - `ios/PulsePlate.xcodeproj/project.pbxproj:496`
 
 ### Networking SoT (thin client)
@@ -71,9 +79,14 @@ Evidence:
   carries the consumer-first adaptive navigation shell on
   `codex/ios-adaptive-navigation-shell`; tracking:
   [`ledger-p1-ios-release-design-train-navigation-shell`](BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-navigation-shell).
-  Product Owner approved Candidate A. Real SwiftUI V1 review and human `GO`,
-  terminal current-head CI, closeout, merge authorization, and merge remain
-  pending.
+  Product Owner approved Candidate A and delegated same-PR recovery and merge
+  after the required gates. The branch now inherits the merged V5 asset
+  prerequisite [#2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+  and Release/AppIcon prerequisite
+  [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381).
+  It preserves V5 presentation while correcting Weekly manager lifetime and
+  Progress state localization. Real SwiftUI V1 review and human `GO`, terminal
+  current-head CI, closeout, and merge remain pending.
 
 ---
 

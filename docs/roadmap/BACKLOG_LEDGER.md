@@ -24,6 +24,27 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-ios-xctest-isolated-deinit-runtime-matrix"></a>
+- [ ] P1: Validate XCTest isolated-deinit execution across supported iOS runtimes
+  - Owner: qa-engineer-agent / iOS lane owner
+  - Priority: P1 (test/toolchain reliability)
+  - Target PR: TBD dedicated iOS test-infrastructure or scoped-instructions PR
+  - Status: Follow-up identified by PR #2376; its manager-identity regression now
+    executes as a main-actor async XCTest with all identity/state assertions retained.
+  - Reason for deferral: The synchronous test aborted in Swift task-local deinit
+    bookkeeping on iOS 26.2 with Xcode 26.6. The matched upstream reproduction and
+    successful async rerun do not establish a repository-wide or cross-runtime rule.
+    A broader concurrency change is outside the navigation-shell recovery.
+  - Evidence: `ios/PulsePlateTests/AppNavigationShellTests.swift:233`;
+    [Swift #85663](https://github.com/swiftlang/swift/issues/85663) and
+    [Swift #88036](https://github.com/swiftlang/swift/issues/88036).
+  - DoD: Preserve a minimal non-product reproduction and sanitized stack; compare
+    synchronous and main-actor async XCTest on exact supported iOS 17.5 and current
+    iOS 26 runtimes with recorded Xcode/Swift versions; classify test-only,
+    runtime-visible, version-specific, or unresolved results; promote a scoped
+    instruction only if supported by observed evidence. No leaked objects, empty
+    product deinit workarounds, test skips, HealthKit changes, or broad concurrency migration.
+
 <a id="ledger-client-arch-1-cab-01"></a>
 - [x] P1: CLIENT-ARCH-1 / CAB-01 complete iOS unit signal and honest Swift syntax gate
   - Owner: frontend-engineer / agent-coordinator
@@ -2812,10 +2833,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (iOS release design train)
   - Target PR: [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
     (`codex/ios-adaptive-navigation-shell`)
-  - Status: Open non-draft in PR #2376; Human V1 `GO`, current-head CI,
-    canonical closeout, merge authorization, and merge remain pending
+  - Status: Same-PR recovery implements Weekly session-manager retention and
+    Progress localization while preserving Candidate A and merged V5 visuals.
+    Human V1 `GO`, current-head CI, canonical closeout, and merge remain pending;
+    the operator delegated merge after those gates.
   - Dependency: PR `#2368` merged at
     `6327960917e2a04e5fec0d89b358b51781b12f67`
+    - V5 asset prerequisite [#2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+      merged at `5adbb917e54261e999c076e77bbff92d3c53fcdd`
+    - Release/AppIcon prerequisite [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
+      merged at `d9883bc9c0a6eb69691c5b2cda3795c387758c9f`
   - Area: ios / navigation / localization / accessibility / tests / docs
   - Finding Type: consumer-first top-level navigation release slice
   - Scope / Reason:
@@ -2826,6 +2853,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Keep Weekly Progress reachable exactly once under Progress, resolve all
       shell labels through app-selected `LocalizationManager.currentLanguage`
       in EN/RU/ES, and exclude technical Profile UI from Release builds
+    - Retain the same Progress-owned HealthKit manager across Weekly pop/re-entry
+      within one parent lifetime, without authorization/query changes or a new
+      permission-state carrier; localize the touched Progress states and actions
     - This item absorbs only the `RootTabs` / top-level-navigation portion of
       the older
       `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
@@ -2838,12 +2868,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `ios/PulsePlate/Models/AppSection.swift:3-52`
     - `ios/PulsePlate/Views/RootTabs.swift:4-58`
     - `ios/PulsePlate/Views/PlateView.swift:203-204`
-    - `ios/PulsePlate/Views/ProgressView.swift:10-33`
-    - `ios/PulsePlate/Views/ProgressView.swift:209-245`
-    - `ios/PulsePlate/Views/WeeklyProgressView.swift:24-94`
-    - `ios/PulsePlate/Views/ProfileView.swift:25-26`
-    - `ios/PulsePlate/Views/ProfileView.swift:68-104`
-    - `ios/PulsePlateTests/AppNavigationShellTests.swift:25-465`
+    - `ios/PulsePlate/Views/ProgressView.swift:4`
+    - `ios/PulsePlate/Views/ProgressView.swift:285`
+    - `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
+    - `ios/PulsePlate/Views/ProfileView.swift:5`
+    - `ios/PulsePlate/Views/ProfileView.swift:101`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:413`
     - `ios/PulsePlate.xcodeproj/project.pbxproj:496`
   - Links:
     - `docs/roadmap/IOS_ROADMAP.md#app-entry--navigation`
@@ -2855,13 +2886,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Home and BMI retain their external stack owners; Today, Progress, and
       Profile retain their existing self-owned stacks
     - Weekly Progress is navigation-neutral and has exactly one localized,
-      Dynamic-Type-safe link under Progress
+      Dynamic-Type-safe link under Progress; injected manager identity and native
+      pop/re-entry prove retention for the bounded parent session
     - DEBUG diagnostics are absent from the production section count and
       compile-gated inside Profile
     - Focused navigation/localization/accessibility tests, full `make ios-test`,
       required narrow local gates, and terminal current-head CI pass
     - Product Owner reviews the real SwiftUI V1 matrix and records `GO` before
-      exact-head closeout and separate merge authorization
+      exact-head closeout and the delegated, gate-conditioned merge
     - No image binary, token, backend, OpenAPI, DTO, entitlement, billing, or
       user-data migration is introduced
   - Rollback: Revert the whole PR; no database, backend, billing, entitlement,
@@ -5681,8 +5713,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (native visual parity / consumer copy / canonical asset packaging)
   - Target PR: [PR #2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
     (`codex/ios-v5-asset-parity-prerequisite`)
-  - Status: Implementation and native verification in the existing PR; final
-    current-head review, CI, mapping/seal, and merge remain pending.
+  - Status: Asset implementation merged in PR #2380 on 2026-09-04 at
+    `5adbb917e54261e999c076e77bbff92d3c53fcdd`. The existing PR #2376 now inherits
+    those assets; combined native-shell V1 acceptance and its final kit remain
+    owned by #2376.
   - Reason (EN): The approved V5 navigation direction needs its selected
     photography, semantic FitChef assets, and consumer-facing copy in the real
     iOS screens before the combined adaptive-shell acceptance.

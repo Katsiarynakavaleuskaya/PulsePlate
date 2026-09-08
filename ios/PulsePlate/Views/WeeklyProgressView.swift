@@ -2,10 +2,14 @@ import SwiftUI
 import Charts
 
 struct WeeklyProgressView: View {
-    @StateObject private var hk = HealthKitManager()
+    @ObservedObject private(set) var hk: HealthKitManager
     @State private var week: [DailyNutritionTotals] = []
     @State private var latestWeightKg: Double?
     @State private var showAlert = false
+
+    init(hk: HealthKitManager) {
+        _hk = ObservedObject(wrappedValue: hk)
+    }
 
     // Статический форматтер для осей и подписей
     static let axisFormatter: DateFormatter = {

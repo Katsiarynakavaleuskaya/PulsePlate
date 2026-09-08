@@ -3,6 +3,7 @@ import Charts
 
 struct ProgressViewPP: View {
     @StateObject private var nutritionService = NutritionService()
+    @StateObject private var weeklyHealthKit = HealthKitManager()
     @ObservedObject private var localization = LocalizationManager.shared
     @State private var showProfile = false
     @State private var showProSetup = false
@@ -18,7 +19,7 @@ struct ProgressViewPP: View {
                     }
 
                     NavigationLink {
-                        WeeklyProgressView()
+                        WeeklyProgressView(hk: weeklyHealthKit)
                     } label: {
                         WeeklyProgressNavigationLabel(
                             title: localization.localized("navigation.progress.weekly")
@@ -31,7 +32,7 @@ struct ProgressViewPP: View {
                             HStack(spacing: PPDesignTokens.Spacing.medium) {
                                 ProgressView()
                                     .tint(PPDesignTokens.ColorToken.primary)
-                                Text("Loading progress data...")
+                                Text(localization.localized("progress.loading"))
                                     .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                                     .font(PPDesignTokens.Typography.body)
                             }
@@ -45,13 +46,13 @@ struct ProgressViewPP: View {
                     } else {
                         GlassCard {
                             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
-                                Text("No progress data")
+                                Text(localization.localized("progress.empty.title"))
                                     .font(PPDesignTokens.Typography.title)
                                     .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
-                                Text("Configure profile + key, then refresh to load your current day.")
+                                Text(localization.localized("progress.empty.detail"))
                                     .font(PPDesignTokens.Typography.caption)
                                     .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
-                                PPButton("Refresh", variant: .primary) {
+                                PPButton(localization.localized("progress.action.refresh"), variant: .primary) {
                                     Task { await nutritionService.fetchNutritionData(for: Date()) }
                                 }
                             }
@@ -162,7 +163,7 @@ struct ProgressViewPP: View {
         return GlassCard {
             HStack {
                 VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
-                    Text("Overall completion")
+                    Text(localization.localized("progress.label"))
                         .font(PPDesignTokens.Typography.caption)
                         .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                     Text("\(Int((clampedProgress * 100).rounded()))%")
@@ -215,7 +216,7 @@ struct ProgressViewPP: View {
 
         return GlassCard {
             VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
-                Text("Today")
+                Text(localization.localized("navigation.tab.today"))
                     .font(PPDesignTokens.Typography.title)
                     .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
@@ -263,15 +264,15 @@ struct ProgressViewPP: View {
                 case .none:
                     EmptyView()
                 case .retry:
-                    PPButton("Retry", variant: .primary) {
+                    PPButton(localization.localized("plate.action.retry"), variant: .primary) {
                         Task { await nutritionService.fetchNutritionData(for: Date()) }
                     }
                 case .openProfile:
-                    PPButton("Open profile", variant: .secondary) {
+                    PPButton(localization.localized("plate.action.open_profile"), variant: .secondary) {
                         showProfile = true
                     }
                 case .openProSetup:
-                    PPButton("Open PRO setup", variant: .secondary) {
+                    PPButton(localization.localized("plate.action.pro_settings"), variant: .secondary) {
                         showProSetup = true
                     }
                 }

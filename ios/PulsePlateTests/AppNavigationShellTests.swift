@@ -178,7 +178,7 @@ final class AppNavigationShellTests: XCTestCase {
             under: root.appendingPathComponent("ios/PulsePlate")
         ).compactMap { url -> String? in
             let candidate = try String(contentsOf: url, encoding: .utf8)
-            return candidate.contains("WeeklyProgressView()") ? url.path : nil
+            return candidate.contains("WeeklyProgressView(") ? url.path : nil
         }
 
         XCTAssertEqual(
@@ -187,7 +187,7 @@ final class AppNavigationShellTests: XCTestCase {
         )
         XCTAssertEqual(
             try regexMatchCount(
-                #"NavigationLink\s*\{\s*WeeklyProgressView\(\)\s*\}\s*label:"#,
+                #"NavigationLink\s*\{\s*WeeklyProgressView\(hk:\s*weeklyHealthKit\)\s*\}\s*label:"#,
                 in: progressSource
             ),
             1
@@ -195,7 +195,7 @@ final class AppNavigationShellTests: XCTestCase {
         XCTAssertTrue(progressSource.contains("navigation.progress.weekly"))
 
         let introOffset = try XCTUnwrap(progressSource.range(of: "GlassCard {")?.lowerBound)
-        let weeklyOffset = try XCTUnwrap(progressSource.range(of: "WeeklyProgressView()")?.lowerBound)
+        let weeklyOffset = try XCTUnwrap(progressSource.range(of: "WeeklyProgressView(")?.lowerBound)
         let loadingOffset = try XCTUnwrap(
             progressSource.range(of: "if nutritionService.isLoading")?.lowerBound
         )
@@ -204,9 +204,18 @@ final class AppNavigationShellTests: XCTestCase {
 
         XCTAssertFalse(weeklySource.contains("NavigationView"))
         XCTAssertFalse(weeklySource.contains("NavigationStack"))
+        XCTAssertTrue(
+            normalizedWhitespace(progressSource).contains(
+                "@StateObject private var weeklyHealthKit = HealthKitManager()"
+            )
+        )
+        XCTAssertEqual(try regexMatchCount(#"\bHealthKitManager\s*\("#, in: progressSource), 1)
+        XCTAssertFalse(weeklySource.contains("@StateObject"))
+        XCTAssertEqual(try regexMatchCount(#"\bHealthKitManager\s*\("#, in: weeklySource), 0)
         let normalizedWeeklySource = normalizedWhitespace(weeklySource)
         for healthKitContract in [
-            "@StateObject private var hk = HealthKitManager()",
+            "@ObservedObject private(set) var hk: HealthKitManager",
+            "init(hk: HealthKitManager) { _hk = ObservedObject(wrappedValue: hk) }",
             "hk.requestAuthorization()",
             "hk.fetchWeekTotals(weekOf: Date())",
             "hk.fetchLatestBodyMass()",
@@ -219,6 +228,25 @@ final class AppNavigationShellTests: XCTestCase {
                 healthKitContract
             )
         }
+    }
+
+    func testRecreatedWeeklyDestinationsShareTheProgressSessionManager() async {
+        // Keep isolated deinitialization in a Swift task on older runtimes:
+        // https://github.com/swiftlang/swift/issues/85663
+        let manager = HealthKitManager()
+        let first = WeeklyProgressView(hk: manager)
+        XCTAssertFalse(first.hk.isAuthorized)
+
+        // Simulate the existing request-completion state, without requesting access.
+        // This boolean is not evidence of any HealthKit type's read permission.
+        manager.isAuthorized = true
+        await Task.yield()
+        let second = WeeklyProgressView(hk: manager)
+
+        XCTAssertTrue(first.hk === manager)
+        XCTAssertTrue(second.hk === manager)
+        XCTAssertTrue(first.hk === second.hk)
+        XCTAssertTrue(second.hk.isAuthorized)
     }
 
     func testTechnicalProfileUIIsCompileTimeDebugOnlyAndNeverATab() throws {
@@ -251,6 +279,19 @@ final class AppNavigationShellTests: XCTestCase {
         ] {
             XCTAssertTrue(profileSource.contains(debugOnlyFragment), debugOnlyFragment)
             XCTAssertFalse(releaseSource.contains(debugOnlyFragment), debugOnlyFragment)
+        }
+
+        for releaseFragment in [
+            "FitChefOnboardingProfileSetup",
+            "@Environment(\\.horizontalSizeClass)",
+            "@Environment(\\.dynamicTypeSize)",
+            "ProfileVisualLayout",
+            "home.action.profile.title",
+            "profile_language_section",
+            "profile_legal_section",
+            "profile_screen_accessibility_label",
+        ] {
+            XCTAssertTrue(releaseSource.contains(releaseFragment), releaseFragment)
         }
     }
 
@@ -367,6 +408,77 @@ final class AppNavigationShellTests: XCTestCase {
                 try XCTUnwrap(expectedTitles[locale])
             )
         }
+    }
+
+    func testProgressStateCopyUsesTheAppSelectedLocale() throws {
+        let localization = LocalizationManager.shared
+        let originalLanguage = localization.currentLanguage
+        defer { localization.currentLanguage = originalLanguage }
+
+        let keys = [
+            "progress.loading",
+            "progress.empty.title",
+            "progress.empty.detail",
+            "progress.action.refresh",
+            "progress.label",
+            "navigation.tab.today",
+            "plate.action.retry",
+            "plate.action.open_profile",
+            "plate.action.pro_settings",
+        ]
+        let expected: [String: [String]] = [
+            "en": [
+                "Loading progress data...",
+                "No progress data",
+                "Configure profile + key, then refresh to load your current day.",
+                "Refresh",
+                "Daily nutrition progress",
+                "Today",
+                "Retry",
+                "Open Profile",
+                "PRO Settings",
+            ],
+            "ru": [
+                "Загрузка данных прогресса...",
+                "Нет данных о прогрессе",
+                "Настройте профиль и ключ доступа, затем обновите данные за сегодня.",
+                "Обновить",
+                "Прогресс питания за день",
+                "Сегодня",
+                "Повторить",
+                "Открыть профиль",
+                "Настройки PRO",
+            ],
+            "es": [
+                "Cargando datos de progreso...",
+                "Sin datos de progreso",
+                "Configura tu perfil y la clave de acceso, y actualiza los datos de hoy.",
+                "Actualizar",
+                "Progreso de alimentación diario",
+                "Hoy",
+                "Reintentar",
+                "Abrir perfil",
+                "Ajustes PRO",
+            ],
+        ]
+        let progressSource = try source(at: "ios/PulsePlate/Views/ProgressView.swift")
+
+        for locale in ["en", "ru", "es"] {
+            localization.currentLanguage = locale
+            XCTAssertEqual(keys.map { localization.localized($0) }, try XCTUnwrap(expected[locale]))
+        }
+        for key in keys {
+            XCTAssertTrue(progressSource.contains("localization.localized(\"\(key)\")"), key)
+        }
+        for oldLiteral in [
+            "Loading progress data...", "No progress data",
+            "Configure profile + key, then refresh to load your current day.",
+            "Refresh", "Overall completion", "Today", "Retry", "Open profile", "Open PRO setup",
+        ] {
+            XCTAssertFalse(progressSource.contains("\"\(oldLiteral)\""), oldLiteral)
+        }
+        XCTAssertTrue(progressSource.contains("Text(issue.title)"))
+        XCTAssertTrue(progressSource.contains("Text(issue.message)"))
     }
 
     func testCompactRussianAndSpanishCopyIsExactAndBoundedForV1Review() throws {
