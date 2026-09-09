@@ -1,6 +1,10 @@
 source "https://rubygems.org"
-
-# Ruby 3.4 compatibility: keep xcodeproj's CFPropertyList < 4 graph on 3.0.8.
+# Ruby 3.4 compatibility: retain the governed CFPropertyList and public_suffix constraints.
 gem "CFPropertyList", "= 3.0.8"
-gem "fastlane", "= 2.237.0"
+# Temporary owner-maintained RubyZip API compatibility fork; return-to-official is tracked in PR #2347.
+gem "fastlane", "= 2.237.0",
+    git: "https://github.com/Katsiarynakavaleuskaya/fastlane.git",
+    ref: "1ac01395d37bf7e6b88b3d0bcba5f84af841fcbc"
 gem "public_suffix", "< 7"
+# CVE-2026-85396: use the native-regression-tested patched RubyZip release.
+gem "rubyzip", "= 3.4.0"

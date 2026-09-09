@@ -1,6 +1,10 @@
+import base64
+import gzip
 import io
+import hashlib
 import json
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -20,20 +24,41 @@ SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.sel
 STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
-PROMETHEUS_SOURCE_REVISION = "09fdfcd2659dd9c816e9e23c992fc161c0091757"
-PROMETHEUS_INDEX_DIGEST = "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab"
+POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
+PROMETHEUS_SOURCE_REVISION = "53144df54e01b689bf6c45e811c6230631b132e7"
+PROMETHEUS_INDEX_DIGEST = "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1"
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"
+    "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
 )
 PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
+POSTGRES_RUNTIME_REF = (
+    "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
+    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
+)
+POSTGRES_PLATFORM_MANIFEST_DIGEST = (
+    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
+)
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
             "prometheus": {
                 "image": PROMETHEUS_RUNTIME_REF,
                 "platform": "linux/amd64",
-            }
-        }
+            },
+            "postgres": {
+                "image": POSTGRES_RUNTIME_REF,
+                "platform": "linux/amd64",
+                "environment": {"PGDATA": "/var/lib/postgresql/data"},
+                "volumes": [
+                    {
+                        "type": "volume",
+                        "source": "pulseplate_postgres_data",
+                        "target": "/var/lib/postgresql/data",
+                    }
+                ],
+            },
+        },
+        "volumes": {"postgres_data": {"name": "pulseplate_postgres_data"}},
     },
     separators=(",", ":"),
 )
@@ -47,9 +72,66 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
     ],
     separators=(",", ":"),
 )
+FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
+    [
+        {
+            "Os": "linux",
+            "Architecture": "amd64",
+            "RepoDigests": [
+                f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
+            ],
+            "Config": {
+                "User": "70",
+                "Entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
+                "Env": [
+                    "PGDATA=/var/lib/postgresql/15/data",
+                    "PG_MAJOR=15",
+                    "PG_MINOR=19",
+                ],
+                "Labels": {
+                    "com.pulseplate.pgvector.version": "0.8.6",
+                    "com.pulseplate.pgvector.source-commit": (
+                        "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
+                    ),
+                    "com.pulseplate.postgres.base-manifest": (
+                        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+                    ),
+                },
+            },
+        }
+    ],
+    separators=(",", ":"),
+)
+FAKE_POSTGRES_CONTAINER_INSPECT_JSON = json.dumps(
+    [
+        {
+            "Id": "a" * 64,
+            "Image": "sha256:aad6289ca337b3ce76896f2e7e61480490152886c7828120371fb28e6b779e1d",
+            "Config": {
+                "Image": "postgres:15-alpine",
+                "Env": ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15"],
+            },
+            "State": {"Running": True, "Health": {"Status": "healthy"}},
+            "Mounts": [
+                {
+                    "Type": "volume",
+                    "Name": "pulseplate_postgres_data",
+                    "Destination": "/var/lib/postgresql/data",
+                    "RW": True,
+                }
+            ],
+        }
+    ],
+    separators=(",", ":"),
+)
 CANONICAL_MANAGED_COMPOSE = "deploy/docker-compose.production.yaml"
 CANONICAL_SELF_HOSTED_COMPOSE = "deploy/docker-compose.production.selfhosted.yaml"
 METRICS_SECRET_SENTINEL = "obs1b-test-metrics-token-12345678"  # pragma: allowlist secret
+MOUNTPOINT_LAYER_GZIP = base64.b64decode(
+    "H4sIAAAAAAAA/+zSQQrCMBCF4TmKN/BNMknPM6KIUFCT6PmlYhaCG2unIMy3mV1p+N9dy5aMAcAA"  # pragma: allowlist secret
+    "PC8jv90X4hRiEIksmcCACG2S9Y9NbrVpIeDX7/SH9Psnpv7jaWe6gRn9Mwfvv4be/3Ku7VgO9To"  # pragma: allowlist secret
+    "uP4Xv+0dw8v5r+NB/r00XHcGM/kPI3t855yw9AgAA//+DTG3aAAwAAA=="  # pragma: allowlist secret
+)
 
 
 def _write_production_host_contract(
@@ -60,9 +142,16 @@ def _write_production_host_contract(
 ) -> Path:
     deploy_dir = project_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     secret_dir = deploy_dir / "secrets"
+    backup_dir = project_dir / "backups"
+    backup_helper_dir = project_dir / "scripts" / "ops"
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.mkdir(parents=True, exist_ok=True)
+    if self_hosted:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_helper_dir.mkdir(parents=True, exist_ok=True)
     secret_dir.chmod(0o700)
     secret_file = secret_dir / "pulseplate_metrics_scrape_key"
     secret_file.write_text(METRICS_SECRET_SENTINEL, encoding="ascii")
@@ -73,6 +162,9 @@ def _write_production_host_contract(
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
+    (postgres_manifest_dir / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     compose_name = (
         "docker-compose.production.selfhosted.yaml"
         if self_hosted
@@ -80,6 +172,19 @@ def _write_production_host_contract(
     )
     compose_path = deploy_dir / compose_name
     compose_path.write_text(compose_text, encoding="utf-8")
+    if self_hosted:
+        backup_helper = backup_helper_dir / "postgres_backup.sh"
+        backup_helper.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'receipt="${BACKUP_DIR}/pulseplate_test.dump"\n'
+            'if [ -n "${STUB_DEPLOY_LOG_FILE:-}" ]; then printf "backup\\n" >> "$STUB_DEPLOY_LOG_FILE"; fi\n'
+            "printf 'synthetic-custom-dump' > \"$receipt\"\n"
+            'chmod 0600 "$receipt"\n'
+            "printf 'Backup created: %s\\n' \"$receipt\"\n",
+            encoding="utf-8",
+        )
+        backup_helper.chmod(0o755)
     return compose_path
 
 
@@ -87,26 +192,43 @@ def _write_shell_bundle_contract(
     shell_bundle_dir: Path,
     *,
     compose_text: str = PRODUCTION_COMPOSE_TEXT,
+    compose_name: str = "docker-compose.production.yaml",
     include_frontend: bool = True,
     include_redeploy: bool = True,
+    include_backup_helper: bool = True,
 ) -> None:
     deploy_dir = shell_bundle_dir / "deploy"
     prometheus_dir = deploy_dir / "prometheus"
+    postgres_manifest_dir = deploy_dir / "postgres-pgvector"
     scripts_dir = shell_bundle_dir / "scripts"
+    ops_dir = scripts_dir / "ops"
     deploy_dir.mkdir(parents=True, exist_ok=True)
     prometheus_dir.mkdir(parents=True, exist_ok=True)
+    postgres_manifest_dir.mkdir(parents=True, exist_ok=True)
     scripts_dir.mkdir(parents=True, exist_ok=True)
+    ops_dir.mkdir(parents=True, exist_ok=True)
     if include_frontend:
         (shell_bundle_dir / "frontend").mkdir(parents=True, exist_ok=True)
     (deploy_dir / "Caddyfile.production").write_text(
         'pulseplate.test {\n    respond "ok"\n}\n', encoding="utf-8"
     )
-    (deploy_dir / "docker-compose.production.yaml").write_text(compose_text, encoding="utf-8")
+    (deploy_dir / compose_name).write_text(compose_text, encoding="utf-8")
+    sibling_compose = (
+        SELF_HOSTED_COMPOSE_PATH
+        if compose_name == "docker-compose.production.yaml"
+        else PRODUCTION_COMPOSE_PATH
+    )
+    (deploy_dir / sibling_compose.name).write_text(
+        sibling_compose.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (postgres_manifest_dir / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (scripts_dir / "diagnose_web.sh").write_text(
         "#!/usr/bin/env bash\nprintf 'bundle-diagnose\\n'\n", encoding="utf-8"
@@ -115,6 +237,13 @@ def _write_shell_bundle_contract(
         (scripts_dir / "redeploy_caddy.sh").write_text(
             "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n", encoding="utf-8"
         )
+    if include_backup_helper:
+        backup_helper = ops_dir / "postgres_backup.sh"
+        backup_helper.write_text(
+            (REPO_ROOT / "scripts" / "ops" / "postgres_backup.sh").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        backup_helper.chmod(0o755)
 
 
 def _canonical_test_archive_path(suffix: int) -> Path:
@@ -131,9 +260,12 @@ def _write_shell_bundle_archive(
         "frontend",
         "deploy/Caddyfile.production",
         "deploy/docker-compose.production.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+        "deploy/postgres-pgvector/image-manifest.json",
         "deploy/prometheus/prometheus.yml",
         "deploy/prometheus/image-manifest.json",
         "scripts/diagnose_web.sh",
+        "scripts/ops/postgres_backup.sh",
         "scripts/redeploy_caddy.sh",
     ]
     if archive_path.exists():
@@ -146,6 +278,10 @@ def _write_shell_bundle_archive(
     with tarfile.open(archive_path, "w:gz") as archive:
         for relative_path in required_paths:
             if variant == "missing_manifest" and relative_path.endswith("image-manifest.json"):
+                continue
+            if variant.startswith("backup_helper_") and relative_path == (
+                "scripts/ops/postgres_backup.sh"
+            ):
                 continue
             archive.add(source_dir / relative_path, arcname=relative_path, recursive=True)
 
@@ -176,6 +312,21 @@ def _write_shell_bundle_archive(
             else:
                 member.type = tarfile.FIFOTYPE
             archive.addfile(member)
+        elif variant in {"backup_helper_symlink", "backup_helper_hardlink"}:
+            member = tarfile.TarInfo("scripts/ops/postgres_backup.sh")
+            if variant == "backup_helper_symlink":
+                member.type = tarfile.SYMTYPE
+                member.linkname = "../../deploy/Caddyfile.production"
+            else:
+                member.type = tarfile.LNKTYPE
+                member.linkname = "scripts/redeploy_caddy.sh"
+            archive.addfile(member)
+        elif variant == "backup_helper_wrong_mode":
+            payload = b"#!/usr/bin/env bash\nexit 0\n"
+            member = tarfile.TarInfo("scripts/ops/postgres_backup.sh")
+            member.mode = 0o775
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
 
 
 def test_production_compose_source_of_truth_matches_split_contract() -> None:
@@ -208,7 +359,11 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
 
 
 def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
-    manifest = json.loads(PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    manifest_bytes = PROMETHEUS_MANIFEST_PATH.read_bytes()
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        "4ed16abd263dabd23f4df04aa60401324efd34dd5d93a9fdbb58c60e2081dc75"  # pragma: allowlist secret
+    )
+    manifest = json.loads(manifest_bytes)
     assert manifest == {
         "schema": "pulseplate.prometheus_image_manifest.v2",
         "repository": "prom/prometheus",
@@ -218,6 +373,2146 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
         "platform_manifest_digest": PROMETHEUS_PLATFORM_MANIFEST_DIGEST,
         "runtime_ref": PROMETHEUS_RUNTIME_REF,
     }
+
+
+def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
+    manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
+    assert hashlib.sha256(manifest_bytes).hexdigest() == (
+        "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"  # pragma: allowlist secret
+    )
+    manifest = json.loads(manifest_bytes)
+    assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
+    assert manifest["repository"] == "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    assert manifest["tag"] == "postgres-15.19-pgvector0.8.6-alpine3.23"
+    assert manifest["platform"] == "linux/amd64"
+    assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
+    assert manifest["config_digest"] == (
+        "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738"
+    )
+    assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
+    assert manifest["source_date_epoch"] == "1785349734"
+    assert manifest["postgres_version"] == "15.19"
+    assert manifest["pgvector_version"] == "0.8.6"
+    assert manifest["runtime_user"] == "70"
+    assert manifest["runtime_entrypoint"] == "/usr/local/bin/docker-entrypoint.sh"
+    assert manifest["runtime_default_pgdata"] == "/var/lib/postgresql/15/data"
+    assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
+    assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
+    assert manifest["runtime_base_platform_manifest_digest"] == (
+        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+    )
+    assert manifest["builder_base_platform_manifest_digest"] == (
+        "sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a"
+    )
+    assert manifest["legacy_platform_manifest_digest"] == (
+        "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
+    )
+    assert manifest["builder_packages"] == "build-base=0.5-r3,postgresql15-dev=15.19-r0"
+    assert manifest["builder_apk_closure_count"] == "94"
+    assert manifest["runtime_artifact_count"] == "64"
+    assert manifest["runtime_artifact_inventory_sha256"] == (
+        "sha256:a51a19ba4c626d476611205144c79c89ccdfc136acdddb9e9eb2ef5921e8ea57"
+    )
+    assert manifest["mountpoint_layer_schema"] == "pulseplate.pgvector_mountpoint_layer.v1"
+    assert manifest["mountpoint_layer_digest"] == (
+        "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124"
+    )
+    assert manifest["mountpoint_layer_size"] == "154"
+    assert manifest["mountpoint_layer_diff_id"] == (
+        "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+    )
+    assert manifest["mountpoint_layer_entry_count"] == "4"
+    assert manifest["mountpoint_uid"] == "70"
+    assert manifest["mountpoint_gid"] == "70"
+    assert manifest["mountpoint_mode"] == "0700"
+    assert manifest["mountpoint_path"] == "/var/lib/postgresql/data"
+    assert manifest["mountpoint_leaf_empty"] == "true"
+    assert manifest["mountpoint_base_parent_metadata_equal"] == "true"
+    assert manifest["trivy_version"] == "0.74.0"
+    assert manifest["trivy_scan_contract"] == (
+        "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none"
+    )
+    containerfile = REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile"
+    assert (
+        "sha256:" + hashlib.sha256(containerfile.read_bytes()).hexdigest()
+        == manifest["containerfile_sha256"]
+    )
+    assert POSTGRES_RUNTIME_REF == (
+        f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
+    )
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert f'if [ "$image_id" != "{manifest["config_digest"]}" ]; then' in script
+
+
+@pytest.mark.parametrize("compose_path", (STAGING_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH))
+def test_local_postgres_contours_use_one_immutable_pgvector_volume_contract(
+    compose_path: Path,
+) -> None:
+    compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    postgres = compose["services"]["postgres"]
+    assert postgres["image"] == POSTGRES_RUNTIME_REF
+    assert postgres["platform"] == "linux/amd64"
+    assert "PGDATA=/var/lib/postgresql/data" in postgres["environment"]
+    assert postgres["volumes"] == ["postgres_data:/var/lib/postgresql/data"]
+    assert "ports" not in postgres
+    assert postgres["networks"] == ["web"]
+
+
+def test_managed_production_compose_remains_postgres_service_free() -> None:
+    compose = yaml.safe_load(PRODUCTION_COMPOSE_TEXT)
+    assert "postgres" not in compose["services"]
+    assert POSTGRES_RUNTIME_REF not in PRODUCTION_COMPOSE_TEXT
+
+
+def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
+    containerfile = (REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile").read_text(
+        encoding="utf-8"
+    )
+    assert containerfile.startswith("ARG SOURCE_DATE_EPOCH=1785349734\n")
+    assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
+    assert (
+        "FROM dhi.io/postgres@sha256:"
+        "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a AS builder"
+        in containerfile
+    )
+    assert (
+        "FROM dhi.io/postgres@sha256:"
+        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee" in containerfile
+    )
+    assert "apk add --no-cache build-base=0.5-r3 postgresql15-dev=15.19-r0" in containerfile
+    assert "PG_CONFIG=/usr/libexec/postgresql15/pg_config" in containerfile
+    assert "make -j1" in containerfile
+    assert 'OPTFLAGS=""' in containerfile
+    assert (
+        "install -D -o 0 -g 0 -m 0644 LICENSE "
+        "/out/usr/share/licenses/pgvector/LICENSE" in containerfile
+    )
+    assert 'touch -d "@${SOURCE_DATE_EPOCH}" /out/usr/share/licenses/pgvector/LICENSE' in (
+        containerfile
+    )
+    assert (
+        'test "$(stat -c %Y /out/usr/share/licenses/pgvector/LICENSE)" = '
+        '"$SOURCE_DATE_EPOCH"' in containerfile
+    )
+    assert "/out/usr/share/licenses/pgvector -type f" in containerfile
+    assert (
+        "COPY --from=builder --chown=0:0 /out/usr/share/licenses/pgvector/LICENSE "
+        "/usr/share/licenses/pgvector/LICENSE" in containerfile
+    )
+    assert "install -d -o 70 -g 70 -m 0700 /out/var/lib/postgresql/data" in containerfile
+    assert (
+        "COPY --from=builder --chown=70:70 --chmod=0700 "
+        "/out/var/lib/postgresql/data/ /var/lib/postgresql/data/" in containerfile
+    )
+    final_stage = containerfile.split(
+        "FROM dhi.io/postgres@sha256:"
+        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+        maxsplit=1,
+    )[1]
+    for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
+        assert forbidden not in final_stage
+    assert "COPY --from=builder /out/var" not in containerfile
+    assert "COPY --from=builder --chown=70:70 --chmod=0700 /out/var/ /var/" not in containerfile
+    assert "curl " not in containerfile
+    assert "git clone" not in containerfile
+    assert "postgres:15-alpine" not in containerfile
+
+
+def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "cd.yml").read_text(encoding="utf-8")
+    contract = workflow.split("\n  postgres-pgvector-contract:\n", maxsplit=1)[1].split(
+        "\n  main-push-admission:\n", maxsplit=1
+    )[0]
+    publish = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
+        "\n  build:\n", maxsplit=1
+    )[0]
+    assert "${{ secrets." not in contract
+    assert "docker" + " login" not in contract
+    assert hashlib.sha256(POSTGRES_MANIFEST_PATH.read_bytes()).hexdigest() in contract
+    workflow_triggers = workflow.split("\npermissions:\n", maxsplit=1)[0]
+    assert "pull_request" + "_target:" not in workflow_triggers
+    assert "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in publish
+    assert "DHI_USERNAME" in publish
+    assert "DHI_ACCESS_TOKEN" in publish
+    assert publish.count("--no-cache") == 1
+    assert "for build_number in 1 2" in publish
+    assert "diff -qr" in publish
+    assert "--output type=registry,rewrite-timestamp=true" in publish
+    assert "--scanners vuln,secret" in publish
+    assert "--severity CRITICAL,HIGH" in publish
+    assert "--exit-code 1" in publish
+    assert "--ignorefile" in publish
+    assert "ignore-policy" not in publish
+    assert "ignore-unfixed" not in publish
+    assert "0.74.0" in workflow
+    assert POSTGRES_PLATFORM_MANIFEST_DIGEST in workflow
+    assert "sha256:f5a1938bd1dfbe02232ddc8fad542445d8369541f3ebcacd5892c4e52abab124" in workflow
+    assert "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc" in workflow
+    assert 'stat -c "%u:%g:%a" /var/lib/postgresql/data' in publish
+    assert "test -z" in publish
+    assert (
+        "postgres:15-alpine@sha256:"
+        "a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181" in publish
+    )
+    assert "82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in workflow
+
+
+def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() -> None:
+    workflow_text = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    jobs = workflow["jobs"]
+    classifier = jobs["postgres-pgvector-material-change"]
+    classifier_run = classifier["steps"][1]["run"]
+    for classifier_pattern in (
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci.yml",
+        "deploy/postgres-pgvector/*",
+        "alembic/versions/*",
+    ):
+        assert classifier_pattern in classifier_run
+    assert "--diff-filter=ACDMRTUXB" in classifier_run
+    assert 'git merge-base --is-ancestor "$BEFORE_SHA" "$AFTER_SHA"' in classifier_run
+
+    publish = jobs["postgres-pgvector-publish"]
+    publish_text = json.dumps(publish, sort_keys=True)
+    assert "needs.postgres-pgvector-material-change.outputs.changed == 'true'" in publish["if"]
+    assert "needs.postgres-pgvector-ci-admission.result == 'success'" in publish["if"]
+    assert publish["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-contract",
+        "postgres-pgvector-material-change",
+        "postgres-pgvector-ci-admission",
+    ]
+    assert "DHI_USERNAME" in publish_text
+    assert "DHI_ACCESS_TOKEN" in publish_text
+    assert publish["permissions"]["packages"] == "write"
+    assert publish["environment"] == {"name": "pgvector-publish"}
+    assert publish["concurrency"] == {
+        "group": "postgres-pgvector-canonical-tag-promotion",
+        "cancel-in-progress": False,
+    }
+    assert "python -m pytest" not in publish_text
+    assert "DEVPI_CI_USER" not in publish_text
+    assert "DEVPI_CI_PASSWORD" not in publish_text
+
+    ci_admission = jobs["postgres-pgvector-ci-admission"]
+    assert ci_admission["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-material-change",
+    ]
+    assert ci_admission["permissions"] == {"contents": "read"}
+    assert ci_admission["timeout-minutes"] == 30
+    assert ci_admission["env"] == {
+        "PULSEPLATE_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
+    }
+    assert "environment" not in ci_admission
+    assert workflow.get("concurrency") is None
+    postgres_service = ci_admission["services"]["postgres"]
+    assert postgres_service["image"] == (
+        "pgvector/pgvector:0.8.6-pg15-trixie@"
+        "sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f"
+    )
+    assert postgres_service["ports"] == ["5432:5432"]
+    assert len(ci_admission["steps"]) == 4
+    assert ci_admission["steps"][0]["name"] == "Checkout exact main compatibility source"
+    proxy_step = ci_admission["steps"][1]
+    assert proxy_step["name"] == "Validate credential-free compatibility package proxy"
+    proxy_run = proxy_step["run"]
+    assert "PULSEPLATE_PYTHON_INDEX_URL:?" in proxy_run
+    assert "*://*@*" in proxy_run
+    assert "must be credential-free" in proxy_run
+    assert "must be single-line values" in proxy_run
+    setup_step = ci_admission["steps"][2]
+    assert setup_step["uses"] == "./.github/actions/python-setup"
+    assert "env" not in setup_step
+    assert setup_step["with"] == {
+        "python-version": "3.13.14",
+        "requirements-profile": "ci-test",
+        "install-mode": "direct-proxy",
+    }
+    ci_admission_step = ci_admission["steps"][3]
+    assert ci_admission_step["env"] == {
+        "PGVECTOR_COMPAT_DATABASE_URL": (
+            "postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@"  # pragma: allowlist secret
+            "127.0.0.1:5432/pgvector_compat"
+        ),
+        "PGVECTOR_COMPAT_REQUIRED": "1",
+    }
+    ci_admission_run = ci_admission_step["run"]
+    for required in (
+        'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+        "python -m pytest -q",
+    ):
+        assert required in ci_admission_run
+    ci_admission_text = json.dumps(ci_admission, sort_keys=True)
+    assert "${{ secrets." not in ci_admission_text
+    assert "DEVPI_CI_USER" not in ci_admission_text
+    assert "DEVPI_CI_PASSWORD" not in ci_admission_text
+    assert "actions/workflows/ci.yml/runs" not in ci_admission_text
+    assert "DHI_ACCESS_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
+    assert "GHCR_TOKEN" not in json.dumps(ci_admission, sort_keys=True)
+
+    reuse = jobs["postgres-pgvector-reuse"]
+    reuse_text = json.dumps(reuse, sort_keys=True)
+    assert "github.event_name == 'schedule'" in reuse["if"]
+    assert "startsWith(github.ref, 'refs/tags/v')" in reuse["if"]
+    assert "needs.postgres-pgvector-material-change.outputs.changed == 'false'" in reuse["if"]
+    assert reuse["permissions"] == {
+        "attestations": "read",
+        "contents": "read",
+        "packages": "read",
+    }
+    assert "concurrency" not in reuse
+    assert reuse["timeout-minutes"] == 90
+    assert reuse["env"] == {
+        "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "30",
+        "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "3600",
+    }
+    for forbidden in ("DHI_USERNAME", "DHI_ACCESS_TOKEN", '"packages": "write"', "id-token"):
+        assert forbidden not in reuse_text
+    reuse_run = reuse["steps"][1]["run"]
+    for forbidden_command in ("docker buildx build", "imagetools create", "actions/attest"):
+        assert forbidden_command not in reuse_run
+    assert "--scanners vuln,secret" in reuse_run
+    assert "--severity CRITICAL,HIGH" in reuse_run
+    assert "visibility" in reuse_run and "public" in reuse_run
+    assert 'docker manifest inspect "$RUNTIME_REF"' in reuse_run
+    assert 'canonical_tag_ref="${RUNTIME_REF%@*}"' in reuse_run
+    assert 'docker buildx imagetools inspect --raw "$canonical_tag_ref"' in reuse_run
+    assert "Canonical PostgreSQL tag does not select the frozen digest" in reuse_run
+    assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready"' in reuse_run
+    assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') >= 4
+    assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
+    assert "--format spdx-json" in reuse_run
+    assert "postgres-pgvector-reuse-current.spdx.json" in reuse_run
+    assert 'normalized.pop("name", None)' in reuse_run
+    assert 'normalized.pop("documentNamespace", None)' in reuse_run
+    assert 'creation_info.pop("created", None)' in reuse_run
+    assert "normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx)" in reuse_run
+    assert "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM" in (
+        reuse_run
+    )
+    owner_package_endpoint = (
+        'gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate"'
+    )
+    assert workflow_text.count(owner_package_endpoint) == 4
+    assert "gh api /user/packages/container/pulseplate" not in workflow_text
+
+    admission = jobs["postgres-pgvector-admission"]
+    admission_run = admission["steps"][0]["run"]
+    assert "true:success:skipped | false:skipped:success" in admission_run
+    prometheus_gate = jobs["prometheus-image-security"]
+    assert prometheus_gate["needs"] == [
+        "postgres-pgvector-contract",
+        "postgres-pgvector-admission",
+        "postgres-pgvector-reuse",
+    ]
+    assert "needs.postgres-pgvector-contract.result == 'success'" in prometheus_gate["if"]
+    assert "needs.postgres-pgvector-admission.result == 'success'" in prometheus_gate["if"]
+    assert "needs.postgres-pgvector-reuse.result == 'success'" in prometheus_gate["if"]
+    assert jobs["build"]["needs"] == [
+        "prometheus-image-security",
+        "main-push-admission",
+    ]
+    assert jobs["production-gates"]["needs"] == "prometheus-image-security"
+
+
+@pytest.mark.parametrize(
+    ("ready_after", "expected_returncode"),
+    (("2", 0), ("0", 1)),
+)
+def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
+    tmp_path: Path,
+    ready_after: str,
+    expected_returncode: int,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    reuse_run = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]["run"]
+    start = reuse_run.index('if [[ ! "$PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS"')
+    end = reuse_run.index('\ndocker pull --platform linux/amd64 "$RUNTIME_REF"', start)
+    wait_program = reuse_run[start:end]
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    program = (
+        "set -euo pipefail\n"
+        "ATTEMPT=0\n"
+        "docker() {\n"
+        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
+        "    ATTEMPT=$((ATTEMPT + 1))\n"
+        '    [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
+        "    return\n"
+        "  fi\n"
+        '  if [ "$1 $2 $3" = "buildx imagetools inspect" ]; then\n'
+        '    expected_digest="${RUNTIME_REF##*@}"\n'
+        "    printf "
+        '\'{"mediaType":"application/vnd.oci.image.index.v1+json",'
+        '"manifests":[{"digest":"%s","platform":{'
+        '"architecture":"amd64","os":"linux"}}]}\\n\' '
+        '"$expected_digest"\n'
+        "    return\n"
+        "  fi\n"
+        "  return 0\n"
+        "}\n"
+        "gh() {\n"
+        '  [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
+        "}\n"
+        "sleep() { SECONDS=$((SECONDS + $1)); }\n"
+        + wait_program
+        + '\nprintf "ATTEMPTS=%s\\n" "$ATTEMPT"\n'
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "1",
+            "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "2",
+            "RUNNER_TEMP": str(tmp_path),
+            "RUNTIME_REF": POSTGRES_RUNTIME_REF,
+            "STUB_READY_AFTER": ready_after,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_returncode
+    if expected_returncode == 0:
+        assert completed.stdout.strip() == "ATTEMPTS=2"
+    else:
+        assert "did not become complete before timeout" in completed.stderr
+
+
+def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    reuse_steps = workflow["jobs"]["postgres-pgvector-reuse"]["steps"]
+    assert reuse_steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    reuse_run = reuse_steps[1]["run"]
+    marker = "# Final read-only transaction boundary."
+    terminal_program = reuse_run[reuse_run.index(marker) :]
+    assert reuse_run.index(marker) > reuse_run.index(
+        'index .Config.Labels "com.pulseplate.pgvector.version"'
+    )
+    ci_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
+    filter_step = next(
+        step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
+    )
+    compatibility_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
+    expected_paths = {".github/workflows/cd.yml"}
+    for compatibility_path in compatibility_paths:
+        if compatibility_path.startswith("alembic/versions/"):
+            expected_paths.add("alembic/versions")
+        else:
+            expected_paths.add(compatibility_path.removesuffix("/**"))
+    terminal_paths = set(
+        terminal_program.split("pgvector_relevant_paths=(", maxsplit=1)[1]
+        .split(")", maxsplit=1)[0]
+        .split()
+    )
+    assert terminal_paths == expected_paths
+
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    runner = tmp_path / "runner"
+
+    def git(cwd: Path, *arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=cwd,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    remote.mkdir()
+    git(remote, "init", "--bare", "-q")
+    source.mkdir()
+    git(source, "init", "-q")
+    git(source, "config", "user.name", "PulsePlate Test")
+    git(source, "config", "user.email", "pulseplate-test@example.invalid")
+    git(source, "checkout", "-qb", "main")
+    required_files = (
+        ".github/workflows/cd.yml",
+        ".github/workflows/ci.yml",
+        "constraints.txt",
+        "requirements-ci-lite.txt",
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+        "requirements-test.in",
+        "requirements-test.txt",
+        "scripts/ci/emergency_python_wheels.json",
+        "scripts/ci/install_locked_python_requirements.py",
+        "scripts/deploy.sh",
+        "scripts/deploy_production.sh",
+        "deploy/docker-compose.staging.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+        "deploy/postgres-pgvector/Containerfile",
+        "scripts/ci/check_alembic_autogenerate_completeness.py",
+        "core/db.py",
+        "core/db_alembic_comparison.py",
+        "core/rag/vector_rag.py",
+        "core/db_rls.py",
+        "core/models.py",
+        "app/models/nested/probe.py",
+        "alembic.ini",
+        "alembic/env.py",
+        "alembic/versions/base.py",
+        "tests/test_deploy_contract_scripts.py",
+        "tests/test_alembic_autogenerate_completeness.py",
+        "tests/test_pgvector_compat.py",
+        "tests/test_pgvector_embedding_migration.py",
+        "tests/test_vector_rag.py",
+        "tests/test_db_rls.py",
+        "docs/note.md",
+    )
+    for relative_path in required_files:
+        path = source / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("base\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "base")
+    base_sha = git(source, "rev-parse", "HEAD")
+    git(source, "remote", "add", "origin", str(remote))
+    git(source, "push", "-q", "-u", "origin", "main")
+    git(tmp_path, "clone", "-q", str(remote), str(runner))
+    git(runner, "checkout", "-q", "--detach", base_sha)
+
+    program = (
+        "set -euo pipefail\n"
+        "docker() {\n"
+        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
+        '    [ "$STUB_TAG_READY" = "1" ]\n'
+        "    return\n"
+        "  fi\n"
+        "  return 0\n"
+        "}\n"
+        'canonical_tag_selects_expected_digest() { [ "$STUB_TAG_READY" = "1" ]; }\n'
+        + terminal_program
+    )
+
+    def terminal_recheck(tag_ready: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [bash_bin, "-c", program],
+            cwd=runner,
+            env={
+                **git_environment,
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_REF": "refs/heads/main",
+                "GITHUB_SHA": base_sha,
+                "RUNTIME_REF": POSTGRES_RUNTIME_REF,
+                "STUB_TAG_READY": tag_ready,
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    (source / "docs" / "note.md").write_text("unrelated\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "unrelated main advance")
+    git(source, "push", "-q", "origin", "main")
+    unrelated = terminal_recheck("1")
+    assert unrelated.returncode == 0, unrelated.stderr
+
+    tag_drift = terminal_recheck("0")
+    assert tag_drift.returncode != 0
+    assert "tag or immutable digest drifted" in tag_drift.stderr
+
+    (source / "requirements-test.txt").write_text("superseding\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "superseding compatibility material")
+    git(source, "push", "-q", "origin", "main")
+    superseded = terminal_recheck("1")
+    assert superseded.returncode != 0
+    assert "compatibility surface superseded" in superseded.stderr
+
+
+def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    ci_workflow = yaml.safe_load(
+        (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    )
+    jobs = workflow["jobs"]
+    classifier_program = jobs["postgres-pgvector-material-change"]["steps"][1]["run"]
+    admission_program = jobs["postgres-pgvector-admission"]["steps"][0]["run"]
+    filter_step = next(
+        step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
+    )
+    pgvector_compat_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
+    for compatibility_path in pgvector_compat_paths:
+        classifier_pattern = compatibility_path
+        if compatibility_path.endswith("/**"):
+            classifier_pattern = compatibility_path[:-1]
+        elif compatibility_path.startswith("alembic/versions/"):
+            classifier_pattern = "alembic/versions/*"
+        assert classifier_pattern in classifier_program
+    assert ".github/workflows/cd.yml" in classifier_program
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    fixture_root = tmp_path / "git-fixture"
+    (fixture_root / ".github" / "workflows").mkdir(parents=True)
+    (fixture_root / "deploy" / "postgres-pgvector").mkdir(parents=True)
+    (fixture_root / "docs").mkdir()
+    (fixture_root / ".github" / "workflows" / "cd.yml").write_text("v1\n", encoding="utf-8")
+    (fixture_root / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
+        "FROM scratch\n", encoding="utf-8"
+    )
+    (fixture_root / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    (fixture_root / "docs" / "note.md").write_text("base\n", encoding="utf-8")
+
+    def git(*arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=fixture_root,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "PulsePlate Test")
+    git("config", "user.email", "pulseplate-test@example.invalid")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD")
+
+    def classify(before: str, after: str) -> tuple[subprocess.CompletedProcess[str], str]:
+        output_path = tmp_path / f"classifier-{len(list(tmp_path.glob('classifier-*')))}.txt"
+        environment = {
+            **git_environment,
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF": "refs/heads/main",
+            "BEFORE_SHA": before,
+            "AFTER_SHA": after,
+            "GITHUB_OUTPUT": str(output_path),
+        }
+        completed = subprocess.run(
+            [bash_bin, "-c", classifier_program],
+            cwd=fixture_root,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        classifier_output = output_path.read_text(encoding="utf-8") if output_path.exists() else ""
+        return completed, classifier_output
+
+    (fixture_root / ".github" / "workflows" / "cd.yml").write_text("v2\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "policy-only")
+    policy_head = git("rev-parse", "HEAD")
+    policy_result, policy_output = classify(base, policy_head)
+    assert policy_result.returncode == 0, policy_result.stderr
+    assert policy_output == "changed=true\n"
+
+    containerfile = fixture_root / "deploy" / "postgres-pgvector" / "Containerfile"
+    containerfile.write_text("FROM scratch\nLABEL test=1\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "image-bytes")
+    material_head = git("rev-parse", "HEAD")
+    material_result, material_output = classify(policy_head, material_head)
+    assert material_result.returncode == 0, material_result.stderr
+    assert material_output == "changed=true\n"
+
+    migration_path = fixture_root / "alembic" / "versions" / "compatibility_probe.py"
+    migration_path.parent.mkdir(parents=True)
+    migration_path.write_text("revision = 'compatibility-probe'\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "pgvector compatibility surface")
+    compatibility_head = git("rev-parse", "HEAD")
+    compatibility_result, compatibility_output = classify(material_head, compatibility_head)
+    assert compatibility_result.returncode == 0, compatibility_result.stderr
+    assert compatibility_output == "changed=true\n"
+
+    (fixture_root / "docs" / "note.md").write_text("unrelated\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-qm", "unrelated docs")
+    unrelated_head = git("rev-parse", "HEAD")
+    unrelated_result, unrelated_output = classify(compatibility_head, unrelated_head)
+    assert unrelated_result.returncode == 0, unrelated_result.stderr
+    assert unrelated_output == "changed=false\n"
+
+    zero_result, zero_output = classify("0" * 40, unrelated_head)
+    assert zero_result.returncode == 0
+    assert zero_output == "changed=true\n"
+    malformed_result, _ = classify("not-a-sha", material_head)
+    assert malformed_result.returncode != 0
+
+    previous_head = unrelated_head
+    for compatibility_path in pgvector_compat_paths:
+        probe_path = compatibility_path.replace("**", "nested/compatibility_probe.py")
+        target = fixture_root / probe_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"compatibility input: {probe_path}\n", encoding="utf-8")
+        git("add", probe_path)
+        git("commit", "-qm", f"compatibility member {probe_path}")
+        member_head = git("rev-parse", "HEAD")
+        member_result, member_output = classify(previous_head, member_head)
+        assert member_result.returncode == 0, (probe_path, member_result.stderr)
+        assert member_output == "changed=true\n", probe_path
+        previous_head = member_head
+
+    statuses = ("success", "failure", "cancelled", "skipped", "")
+    for changed in ("true", "false"):
+        for publish in statuses:
+            for reuse in statuses:
+                completed = subprocess.run(
+                    [bash_bin, "-c", admission_program],
+                    env={
+                        **os.environ,
+                        "MATERIAL_CHANGED": changed,
+                        "PUBLISH_RESULT": publish,
+                        "REUSE_RESULT": reuse,
+                    },
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                admitted = (changed, publish, reuse) in {
+                    ("true", "success", "skipped"),
+                    ("false", "skipped", "success"),
+                }
+                assert (completed.returncode == 0) is admitted
+
+
+@pytest.mark.parametrize(
+    ("event_name", "git_ref", "material_changed", "expected_success"),
+    (
+        ("push", "refs/heads/main", "false", True),
+        ("schedule", "refs/heads/main", "", True),
+        ("push", "refs/tags/v1.2.3", "", True),
+        ("push", "refs/tags/not-semver", "", False),
+        ("push", "refs/heads/feature", "false", False),
+        ("pull_request", "refs/pull/1/merge", "", False),
+    ),
+)
+def test_cd_postgres_reuse_event_admission_executes_exact_prefix(
+    event_name: str,
+    git_ref: str,
+    material_changed: str,
+    expected_success: bool,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    run = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]["run"]
+    admission_prefix = run.split('credential_dir="$(mktemp', maxsplit=1)[0]
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    completed = subprocess.run(
+        [bash_bin, "-c", admission_prefix],
+        env={
+            **os.environ,
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "GITHUB_EVENT_NAME": event_name,
+            "GITHUB_REF": git_ref,
+            "MATERIAL_CHANGED": material_changed,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+def _postgres_attestation_inventory_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name") == "Classify existing exact-digest PostgreSQL attestations"
+    )
+    marker = "python3 - \"$response_path\" <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 1
+    return run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+
+
+def _postgres_candidate_provenance_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name")
+        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
+    )
+    marker = "python3 - <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 2
+    return run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+
+
+def _postgres_candidate_spdx_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name")
+        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
+    )
+    marker = "python3 - <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 2
+    return run.split(marker, maxsplit=2)[2].split("\nPY\n", maxsplit=1)[0]
+
+
+def _postgres_reuse_spdx_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    step = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]
+    marker = "python3 - <<'PY'\n"
+    run = step["run"]
+    assert run.count(marker) == 2
+    return run.rsplit(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success"),
+    (
+        ("valid", True),
+        ("reuse-historical", True),
+        ("duplicate", False),
+        ("wrong", False),
+    ),
+)
+def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
+    tmp_path: Path,
+    variant: str,
+    expected_success: bool,
+) -> None:
+    expected = {
+        "buildDefinition": {
+            "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
+            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
+        },
+        "runDetails": {
+            "builder": {"id": "builder"},
+            "metadata": {"invocationId": "current"},
+        },
+    }
+    observed = json.loads(json.dumps(expected))
+    observed["runDetails"]["metadata"]["invocationId"] = "historical"
+    if variant in {"reuse-historical", "wrong"}:
+        observed["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
+    if variant == "wrong":
+        observed["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
+    item = {"verificationResult": {"statement": {"predicate": observed}}}
+    verified = [item, item] if variant == "duplicate" else [item]
+    (tmp_path / "postgres-pgvector-provenance.json").write_text(
+        json.dumps(expected), encoding="utf-8"
+    )
+    (tmp_path / "postgres-pgvector-provenance-verified.json").write_text(
+        json.dumps(verified), encoding="utf-8"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_candidate_provenance_verifier_program()],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PROVENANCE_MODE": "reuse" if variant == "reuse-historical" else "create",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success"),
+    (("matching", True), ("mismatching", False), ("duplicate", False)),
+)
+def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
+    tmp_path: Path,
+    variant: str,
+    expected_success: bool,
+) -> None:
+    expected = {"SPDXID": "SPDXRef-DOCUMENT", "name": "pulseplate-pgvector"}
+    observed = json.loads(json.dumps(expected))
+    if variant == "mismatching":
+        observed["name"] = "historical-incomplete"
+    item = {
+        "verificationResult": {
+            "statement": {
+                "predicateType": "https://spdx.dev/Document/v2.3",
+                "predicate": observed,
+            }
+        }
+    }
+    verified = [item, item] if variant == "duplicate" else [item]
+    (tmp_path / "postgres-pgvector-image-sbom.spdx.json").write_text(
+        json.dumps(expected), encoding="utf-8"
+    )
+    (tmp_path / "postgres-pgvector-spdx-verified.json").write_text(
+        json.dumps(verified), encoding="utf-8"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_candidate_spdx_verifier_program()],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success"),
+    (
+        ("matching", True),
+        ("volatile-metadata", True),
+        ("tag-derived-name", True),
+        ("mismatching", False),
+        ("relationship-mismatch", False),
+        ("duplicate", False),
+    ),
+)
+def test_cd_postgres_reuse_spdx_verifier_executes_exact_program(
+    tmp_path: Path,
+    variant: str,
+    expected_success: bool,
+) -> None:
+    expected = {
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": "pulseplate-pgvector",
+        "documentNamespace": "https://spdx.org/spdxdocs/pulseplate-current",
+        "creationInfo": {
+            "created": "2026-08-29T00:00:00Z",
+            "creators": ["Tool: trivy-0.74.0"],
+        },
+        "packages": [{"SPDXID": "SPDXRef-Package-postgres", "name": "postgresql"}],
+        "relationships": [
+            {
+                "spdxElementId": "SPDXRef-DOCUMENT",
+                "relationshipType": "DESCRIBES",
+                "relatedSpdxElement": "SPDXRef-Package-postgres",
+            }
+        ],
+    }
+    observed = json.loads(json.dumps(expected))
+    if variant == "volatile-metadata":
+        observed["documentNamespace"] = "https://spdx.org/spdxdocs/pulseplate-historical"
+        observed["creationInfo"]["created"] = "2026-08-28T00:00:00Z"
+    elif variant == "tag-derived-name":
+        observed["name"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-pgvector"
+    elif variant == "mismatching":
+        observed["packages"][0]["name"] = "historical-incomplete"
+    elif variant == "relationship-mismatch":
+        observed["relationships"][0]["relatedSpdxElement"] = "SPDXRef-Package-other"
+    item = {
+        "verificationResult": {
+            "statement": {
+                "predicateType": "https://spdx.dev/Document/v2.3",
+                "predicate": observed,
+            }
+        }
+    }
+    verified = [item, item] if variant == "duplicate" else [item]
+    (tmp_path / "postgres-pgvector-reuse-current.spdx.json").write_text(
+        json.dumps(expected), encoding="utf-8"
+    )
+    (tmp_path / "postgres-pgvector-reuse-spdx.json").write_text(
+        json.dumps(verified), encoding="utf-8"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_reuse_spdx_verifier_program()],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_modes", "expected_success"),
+    (
+        ("empty", ("create", "create"), True),
+        ("one-each", ("reuse", "reuse"), True),
+        ("provenance-only", ("reuse", "create"), True),
+        ("spdx-only", ("create", "reuse"), True),
+        ("historical-source", ("reuse", "reuse"), True),
+        ("duplicate-provenance", None, False),
+        ("duplicate-spdx", None, False),
+        ("conflicting-provenance", None, False),
+    ),
+)
+def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinality(
+    tmp_path: Path,
+    variant: str,
+    expected_modes: tuple[str, str] | None,
+    expected_success: bool,
+) -> None:
+    platform_digest = "sha256:" + "6" * 64
+    repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    expected_predicate = {
+        "buildDefinition": {
+            "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
+            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
+            "resolvedDependencies": [],
+        },
+        "runDetails": {
+            "builder": {"id": "builder"},
+            "metadata": {"invocationId": "current"},
+        },
+    }
+    (tmp_path / "postgres-pgvector-provenance.json").write_text(
+        json.dumps(expected_predicate), encoding="utf-8"
+    )
+
+    def record(predicate_type: str, predicate: dict[str, object]) -> dict[str, object]:
+        statement = {
+            "_type": "https://in-toto.io/Statement/v1",
+            "subject": [
+                {
+                    "name": repository,
+                    "digest": {"sha256": platform_digest.removeprefix("sha256:")},
+                }
+            ],
+            "predicateType": predicate_type,
+            "predicate": predicate,
+        }
+        encoded = base64.b64encode(json.dumps(statement).encode()).decode()
+        return {"bundle": {"dsseEnvelope": {"payload": encoded}}}
+
+    records: list[dict[str, object]] = []
+    provenance_variants = {
+        "one-each",
+        "provenance-only",
+        "duplicate-provenance",
+        "conflicting-provenance",
+        "historical-source",
+    }
+    spdx_variants = {
+        "one-each",
+        "spdx-only",
+        "duplicate-provenance",
+        "duplicate-spdx",
+        "conflicting-provenance",
+        "historical-source",
+    }
+    if variant in provenance_variants:
+        historical = json.loads(json.dumps(expected_predicate))
+        historical["runDetails"]["metadata"]["invocationId"] = "historical"
+        if variant == "historical-source":
+            historical["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
+        records.append(record("https://slsa.dev/provenance/v1", historical))
+    if variant in spdx_variants:
+        records.append(record("https://spdx.dev/Document/v2.3", {"name": "sbom"}))
+    if variant == "duplicate-provenance":
+        records.append(record("https://slsa.dev/provenance/v1", expected_predicate))
+    if variant == "duplicate-spdx":
+        records.append(record("https://spdx.dev/Document/v2.3", {"name": "duplicate"}))
+    if variant == "conflicting-provenance":
+        conflict = json.loads(json.dumps(expected_predicate))
+        conflict["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
+        records.append(record("https://slsa.dev/provenance/v1", conflict))
+    response_path = tmp_path / "attestations.json"
+    response_path.write_text(json.dumps({"attestations": records}), encoding="utf-8")
+    output_path = tmp_path / "output.txt"
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_attestation_inventory_program(), str(response_path)],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "GITHUB_OUTPUT": str(output_path),
+            "PLATFORM_DIGEST": platform_digest,
+            "REPOSITORY": repository,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (completed.returncode == 0) is expected_success, completed.stderr
+    if expected_modes is not None:
+        assert output_path.read_text(encoding="utf-8").splitlines() == [
+            f"provenance_mode={expected_modes[0]}",
+            f"spdx_mode={expected_modes[1]}",
+        ]
+
+
+def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    names = [step.get("name") for step in steps]
+
+    def position(name: str) -> int:
+        return names.index(name)
+
+    initial_auth = position("Authenticate DHI read and GHCR publication rails")
+    scan = position("Scan exact bases, post-APK builder, and final image without suppressions")
+    runtime_oracle = position("Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity")
+    package_identity = position(
+        "Verify existing public GHCR package identity before candidate write"
+    )
+    candidate = position("Publish reproduced manifest under one unadmitted candidate tag")
+    provenance = position("Attest PostgreSQL pgvector material-bound provenance")
+    spdx = position("Attest PostgreSQL pgvector SPDX SBOM")
+    verify = position("Verify candidate pullback, material provenance, SBOM, and runtime identity")
+    visibility = position("Recheck public GHCR package identity after candidate admission")
+    promote = position("Promote verified candidate digest to canonical tag without rebuild")
+    canonical = position("Verify canonical pullback and unchanged public package visibility")
+    assert (
+        initial_auth
+        < scan
+        < runtime_oracle
+        < package_identity
+        < candidate
+        < provenance
+        < spdx
+        < verify
+        < visibility
+        < promote
+        < canonical
+    )
+
+    initial_auth_step = steps[initial_auth]
+    assert set(initial_auth_step["env"]) == {
+        "DHI_USER",
+        "DHI_TOKEN",
+        "GHCR_USER",
+        "GHCR_TOKEN_VALUE",
+    }
+    assert "docker login dhi.io" in initial_auth_step["run"]
+    assert "docker login ghcr.io" in initial_auth_step["run"]
+
+    candidate_run = steps[candidate]["run"]
+    assert "candidate-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" in candidate_run
+    assert '--tag "$candidate_tag_ref"' in candidate_run
+    assert '--tag "$canonical_tag_ref"' not in candidate_run
+    promote_run = steps[promote]["run"]
+    promote_env = steps[promote]["env"]
+    assert promote_env["EXPECTED_RUNTIME_REF"] == (
+        "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}"
+    )
+    assert 'test "$canonical_runtime_ref" = "$EXPECTED_RUNTIME_REF"' in promote_run
+    assert "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}" not in promote_run
+    material_check = 'git diff --quiet "$GITHUB_SHA" "$current_main_sha"'
+    assert material_check in promote_run
+    assert promote_run.index(material_check) < promote_run.index("docker buildx imagetools create")
+    post_promotion_check = 'git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha"'
+    assert post_promotion_check in promote_run
+    assert promote_run.index("docker buildx imagetools create") < promote_run.index(
+        post_promotion_check
+    )
+    assert promote_run.index(post_promotion_check) < promote_run.index(
+        "docker buildx imagetools inspect"
+    )
+    assert "replacement publisher must repair it; HOLD" in promote_run
+    assert ".github/workflows/cd.yml" in promote_run
+    assert "deploy/postgres-pgvector/Containerfile" in promote_run
+    assert "deploy/postgres-pgvector/image-manifest.json" in promote_run
+    assert "docker buildx imagetools create" in promote_run
+    assert '"$CANDIDATE_RUNTIME_REF"' in promote_run
+    assert "docker buildx build" not in promote_run
+    job_text = json.dumps(workflow["jobs"]["postgres-pgvector-publish"], sort_keys=True)
+    assert job_text.count("actions/attest@") == 2
+    assert "actions/attest-build-provenance@" not in job_text
+    assert "python -m pytest" not in job_text
+    assert "DEVPI_CI_USER" not in job_text
+    assert "DEVPI_CI_PASSWORD" not in job_text
+    verify_step = steps[verify]
+    assert verify_step["env"]["PROVENANCE_MODE"] == (
+        "${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}"
+    )
+    assert verify_step["env"]["SPDX_MODE"] == (
+        "${{ steps.pgvector-attestation-inventory.outputs.spdx_mode }}"
+    )
+    verify_run = verify_step["run"]
+    assert 'case "$PROVENANCE_MODE" in' in verify_run
+    assert 'create) provenance_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
+    assert "reuse) ;;" in verify_run
+    assert verify_run.count('provenance_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
+    assert 'case "$SPDX_MODE" in' in verify_run
+    assert 'create) spdx_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
+    assert verify_run.count('spdx_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
+    assert 'Path("postgres-pgvector-image-sbom.spdx.json")' in verify_run
+    assert "observed_spdx != expected_spdx" in verify_run
+    assert "Verified PostgreSQL SPDX predicate does not equal the exact generated SBOM" in (
+        verify_run
+    )
+
+    runtime_step = next(
+        step
+        for step in steps
+        if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+    )["run"]
+    assert "pytest" not in runtime_step
+    assert "--publish 127.0.0.1:5432:5432" in runtime_step
+    for forbidden_host in ("@localhost:5432/pgvector_compat", "0.0.0.0:5432", "::1:5432"):
+        assert forbidden_host not in runtime_step
+    reproduce_step = next(
+        step for step in steps if step.get("name") == "Reproduce the exact platform manifest twice"
+    )["run"]
+    assert "{{.Id}}" in reproduce_step
+    assert '"$EXPECTED_CONFIG_DIGEST"' in reproduce_step
+    assert "{{json .RootFS.Layers}}" in reproduce_step
+    assert "EXPECTED_MOUNTPOINT_LAYER_DIFF_ID" in reproduce_step
+    assert position("Reproduce the exact platform manifest twice") < position(
+        "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+    )
+    assert position("Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity") < candidate
+
+
+def test_cd_postgres_canonical_promotion_executes_current_main_material_freshness(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    promote = next(
+        step
+        for step in steps
+        if step.get("name") == "Promote verified candidate digest to canonical tag without rebuild"
+    )
+    freshness_program = promote["run"].split("docker buildx imagetools create", maxsplit=1)[0]
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    runner = tmp_path / "runner"
+
+    def git(cwd: Path, *arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=cwd,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    remote.mkdir()
+    git(remote, "init", "--bare", "-q")
+    source.mkdir()
+    git(source, "init", "-q")
+    git(source, "config", "user.name", "PulsePlate Test")
+    git(source, "config", "user.email", "pulseplate-test@example.invalid")
+    git(source, "checkout", "-qb", "main")
+    (source / ".github" / "workflows").mkdir(parents=True)
+    (source / "deploy" / "postgres-pgvector").mkdir(parents=True)
+    (source / "docs").mkdir()
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: base\n", encoding="utf-8")
+    (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
+        "FROM scratch\n", encoding="utf-8"
+    )
+    (source / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    (source / "docs" / "note.md").write_text("base\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "base")
+    base_sha = git(source, "rev-parse", "HEAD")
+    git(source, "remote", "add", "origin", str(remote))
+    git(source, "push", "-q", "-u", "origin", "main")
+    git(tmp_path, "clone", "-q", str(remote), str(runner))
+    git(runner, "checkout", "-q", "--detach", base_sha)
+
+    (source / "docs" / "note.md").write_text("unrelated\n", encoding="utf-8")
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "unrelated")
+    git(source, "push", "-q", "origin", "main")
+    environment = {**git_environment, "GITHUB_SHA": base_sha}
+    same_material = subprocess.run(
+        [bash_bin, "-c", freshness_program],
+        cwd=runner,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert same_material.returncode == 0, same_material.stderr
+
+    (source / ".github" / "workflows" / "cd.yml").write_text(
+        "name: superseding-policy\n", encoding="utf-8"
+    )
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "supersede publication policy")
+    git(source, "push", "-q", "origin", "main")
+    superseded_policy = subprocess.run(
+        [bash_bin, "-c", freshness_program],
+        cwd=runner,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert superseded_policy.returncode != 0
+    assert "publication policy superseded" in superseded_policy.stderr
+
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: base\n", encoding="utf-8")
+    (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
+        "FROM scratch\nLABEL newer=1\n", encoding="utf-8"
+    )
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "new image material")
+    git(source, "push", "-q", "origin", "main")
+    superseded = subprocess.run(
+        [bash_bin, "-c", freshness_program],
+        cwd=runner,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert superseded.returncode != 0
+    assert "image material or publication policy superseded" in superseded.stderr
+
+
+def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    publish = workflow["jobs"]["postgres-pgvector-publish"]
+    assert publish["concurrency"] == {
+        "group": "postgres-pgvector-canonical-tag-promotion",
+        "cancel-in-progress": False,
+    }
+    promote_program = next(
+        step["run"]
+        for step in steps
+        if step.get("name") == "Promote verified candidate digest to canonical tag without rebuild"
+    )
+    git_bin = shutil.which("git", path=os.defpath)
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+    git_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+    }
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    runner = tmp_path / "runner"
+    bin_dir = tmp_path / "bin"
+    docker_log = tmp_path / "docker.log"
+    output_path = tmp_path / "github-output.txt"
+
+    def git(cwd: Path, *arguments: str) -> str:
+        completed = subprocess.run(
+            [git_bin, *arguments],
+            cwd=cwd,
+            env=git_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stdout.strip()
+
+    remote.mkdir()
+    git(remote, "init", "--bare", "-q")
+    source.mkdir()
+    git(source, "init", "-q")
+    git(source, "config", "user.name", "PulsePlate Test")
+    git(source, "config", "user.email", "pulseplate-test@example.invalid")
+    git(source, "checkout", "-qb", "main")
+    (source / ".github" / "workflows").mkdir(parents=True)
+    (source / "deploy" / "postgres-pgvector").mkdir(parents=True)
+    (source / ".github" / "workflows" / "cd.yml").write_text("name: admitted\n", encoding="utf-8")
+    (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
+        "FROM scratch\n", encoding="utf-8"
+    )
+    (source / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    git(source, "add", ".")
+    git(source, "commit", "-qm", "admitted material")
+    admitted_sha = git(source, "rev-parse", "HEAD")
+    git(source, "remote", "add", "origin", str(remote))
+    git(source, "push", "-q", "-u", "origin", "main")
+    git(tmp_path, "clone", "-q", str(remote), str(runner))
+    git(runner, "checkout", "-q", "--detach", admitted_sha)
+
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "docker %s\\n" "$*" >> "$DOCKER_LOG"\n'
+        'if [[ "$*" == buildx\\ imagetools\\ create\\ * ]]; then\n'
+        '  printf "name: superseding-after-promotion\\n" > '
+        '"$SOURCE_REPO/.github/workflows/cd.yml"\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" add .github/workflows/cd.yml\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" commit -qm "supersede after promotion"\n'
+        '  "$GIT_BIN" -C "$SOURCE_REPO" push -q origin main\n'
+        "  exit 0\n"
+        "fi\n"
+        'if [[ "$*" == buildx\\ imagetools\\ inspect\\ * ]]; then exit 91; fi\n'
+        "exit 92\n",
+        encoding="utf-8",
+    )
+    docker_stub.chmod(0o755)
+    platform_digest = "sha256:" + "a" * 64
+    canonical_tag = "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-pgvector"
+    completed = subprocess.run(
+        [bash_bin, "-c", promote_program],
+        cwd=runner,
+        env={
+            **git_environment,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "GITHUB_SHA": admitted_sha,
+            "GITHUB_OUTPUT": str(output_path),
+            "RUNNER_TEMP": str(tmp_path),
+            "CANDIDATE_RUNTIME_REF": (
+                "ghcr.io/katsiarynakavaleuskaya/pulseplate:" f"candidate@{platform_digest}"
+            ),
+            "CANONICAL_TAG_REF": canonical_tag,
+            "EXPECTED_PLATFORM_DIGEST": platform_digest,
+            "EXPECTED_RUNTIME_REF": f"{canonical_tag}@{platform_digest}",
+            "DOCKER_LOG": str(docker_log),
+            "GIT_BIN": git_bin,
+            "SOURCE_REPO": str(source),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "superseded during promotion" in completed.stderr
+    log_lines = docker_log.read_text(encoding="utf-8").splitlines()
+    assert sum("buildx imagetools create" in line for line in log_lines) == 1
+    assert all("buildx imagetools inspect" not in line for line in log_lines)
+    assert not output_path.exists() or "runtime_ref=" not in output_path.read_text(encoding="utf-8")
+    assert git(source, "rev-parse", "HEAD") != admitted_sha
+
+
+def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    install = next(
+        step for step in steps if step.get("name") == "Install exact Docker Scout 1.24.0 CLI"
+    )
+    assert install["env"] == {
+        "SCOUT_VERSION": "1.24.0",
+        "SCOUT_ARCHIVE_SHA256": (
+            "f4e2814bd61040365153d5b964b144cb2dc6ee536a68b5bac4cadf00fc0ec34b"  # pragma: allowlist secret
+        ),
+        "SCOUT_BUILD_COMMIT": "b1c9331b2166aef7ec690aa16fd655b8798ea4c6",  # pragma: allowlist secret
+    }
+    install_run = install["run"]
+    assert "github.com/docker/scout-cli/releases/download/v${SCOUT_VERSION}" in install_run
+    assert "sha256sum --check -" in install_run
+    assert "version: v${SCOUT_VERSION} (go1.26.3 - linux/amd64)" in install_run
+    assert "git commit: ${SCOUT_BUILD_COMMIT}" in install_run
+
+    verify = next(
+        step
+        for step in steps
+        if step.get("name") == "Verify exact DHI source provenance separately"
+    )
+    assert verify["env"] == {"SCOUT_BIN": "${{ steps.docker-scout.outputs.path }}"}
+    verify_run = verify["run"]
+    assert "docker scout" not in verify_run
+    assert '"$SCOUT_BIN" attestation get' in verify_run
+    assert "--verify" in verify_run and "--skip-tlog" in verify_run
+    for exact_subject in (
+        "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
+        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",  # pragma: allowlist secret
+        "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
+        "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",  # pragma: allowlist secret
+        "https://slsa.dev/provenance/v1",
+    ):
+        assert exact_subject in verify_run
+
+    cleanup = next(
+        step
+        for step in steps
+        if step.get("name") == "Remove synthetic resources and temporary registry credentials"
+    )
+    assert cleanup["env"] == {"PRIMARY_JOB_STATUS": "${{ job.status }}"}
+    assert "PGVECTOR_SCOUT_DIR" in cleanup["run"]
+    assert "preserving primary ${PRIMARY_JOB_STATUS} result" in cleanup["run"]
+    docs = (REPO_ROOT / "docs/deploy/OPERATIONAL_SIGNALS.md").read_text(encoding="utf-8")
+    assert "verification without transparency-log proof" in docs
+    assert "not a Trivy suppression" in docs
+
+
+def _postgres_publish_cleanup_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item
+        for item in steps
+        if item.get("name") == "Remove synthetic resources and temporary registry credentials"
+    )
+    return step["run"]
+
+
+@pytest.mark.parametrize(
+    ("primary_status", "cleanup_status", "expected_status"),
+    (
+        ("success", "0", 0),
+        ("success", "71", 1),
+        ("failure", "0", 0),
+        ("failure", "71", 0),
+        ("cancelled", "71", 0),
+    ),
+)
+def test_cd_postgres_publish_cleanup_executes_primary_secondary_state_machine(
+    tmp_path: Path,
+    primary_status: str,
+    cleanup_status: str,
+    expected_status: int,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [ "${1:-}" = logout ]; then exit "${STUB_LOGOUT_STATUS:-0}"; fi\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    docker_stub.chmod(0o700)
+    completed = subprocess.run(
+        [bash_bin, "-c", _postgres_publish_cleanup_program()],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "PRIMARY_JOB_STATUS": primary_status,
+            "STUB_LOGOUT_STATUS": cleanup_status,
+            "RUNNER_TEMP": str(tmp_path),
+            "PGVECTOR_RESOURCE_PREFIX": "",
+            "PGVECTOR_BUILDX_BUILDER": "",
+            "PGVECTOR_CONTEXT_DIR": "",
+            "PGVECTOR_OCI_OUTPUT_DIR": "",
+            "PGVECTOR_TRIVY_DIR": "",
+            "PGVECTOR_SCOUT_DIR": "",
+            "PGVECTOR_DOCKER_CONFIG": "",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == expected_status
+    if primary_status != "success" and cleanup_status != "0":
+        assert f"preserving primary {primary_status} result" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("primary_status", "expected_status"),
+    (("success", 1), ("failure", 0), ("cancelled", 0)),
+)
+def test_cd_postgres_publish_cleanup_accounts_for_bounded_rm_failure(
+    tmp_path: Path,
+    primary_status: str,
+    expected_status: int,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    docker_stub.chmod(0o700)
+    rm_stub = bin_dir / "rm"
+    rm_stub.write_text(
+        "#!/usr/bin/env bash\necho 'synthetic rm failure' >&2\nexit 72\n",
+        encoding="utf-8",
+    )
+    rm_stub.chmod(0o700)
+    credential_dir = tmp_path / "pulseplate-pgvector-docker-config.test"
+    credential_dir.mkdir()
+    completed = subprocess.run(
+        [bash_bin, "-c", _postgres_publish_cleanup_program()],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "PRIMARY_JOB_STATUS": primary_status,
+            "RUNNER_TEMP": str(tmp_path),
+            "PGVECTOR_RESOURCE_PREFIX": "",
+            "PGVECTOR_BUILDX_BUILDER": "",
+            "PGVECTOR_CONTEXT_DIR": "",
+            "PGVECTOR_OCI_OUTPUT_DIR": "",
+            "PGVECTOR_TRIVY_DIR": "",
+            "PGVECTOR_SCOUT_DIR": "",
+            "PGVECTOR_DOCKER_CONFIG": str(credential_dir),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == expected_status
+    assert credential_dir.is_dir()
+    if primary_status != "success":
+        assert f"preserving primary {primary_status} result" in completed.stderr
+
+
+def _workflow_trap_prefix(step_name: str, *, suffix: str) -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    step = next(
+        step
+        for job in jobs.values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict) and step.get("name") == step_name
+    )
+    prefix = step["run"].split("trap cleanup EXIT", maxsplit=1)[0]
+    return prefix + "trap cleanup EXIT\n" + suffix
+
+
+def _staging_cleanup_program() -> str:
+    script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    start = script.index("cleanup() {\n")
+    end = script.index("\n}\ntrap cleanup EXIT", start) + len("\n}\n")
+    return script[start:end] + 'trap cleanup EXIT\nexit "$TEST_PRIMARY_STATUS"\n'
+
+
+@pytest.mark.parametrize(
+    ("surface", "primary_status", "rm_status", "expected_status"),
+    (
+        ("prometheus", "0", "0", 0),
+        ("prometheus", "0", "72", 1),
+        ("prometheus", "33", "72", 33),
+        ("prometheus-oci", "0", "0", 0),
+        ("prometheus-oci", "0", "72", 1),
+        ("prometheus-oci", "33", "72", 33),
+        ("reuse", "0", "0", 0),
+        ("reuse", "0", "72", 1),
+        ("reuse", "33", "72", 33),
+        ("staging", "0", "0", 0),
+        ("staging", "0", "72", 1),
+        ("staging", "33", "72", 33),
+    ),
+)
+def test_other_bounded_cleanup_traps_preserve_primary_and_account_for_rm(
+    tmp_path: Path,
+    surface: str,
+    primary_status: str,
+    rm_status: str,
+    expected_status: int,
+) -> None:
+    bash_bin = shutil.which("bash")
+    real_rm = shutil.which("rm")
+    assert bash_bin is not None and real_rm is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [ "${1:-}" = logout ]; then exit 0; fi\n'
+        'if [ "${1:-}" = container ] || [ "${1:-}" = volume ]; then exit 1; fi\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    docker_stub.chmod(0o700)
+    rm_stub = bin_dir / "rm"
+    rm_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [ "${STUB_RM_STATUS:-0}" -ne 0 ]; then exit "$STUB_RM_STATUS"; fi\n'
+        'exec "$REAL_RM" "$@"\n',
+        encoding="utf-8",
+    )
+    rm_stub.chmod(0o700)
+    environment = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "REAL_RM": real_rm,
+        "STUB_RM_STATUS": rm_status,
+        "RUNNER_TEMP": str(tmp_path),
+        "TMPDIR": str(tmp_path),
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REF": "refs/heads/main",
+        "MATERIAL_CHANGED": "false",
+        "TEST_PRIMARY_STATUS": primary_status,
+    }
+    if surface == "prometheus":
+        program = _workflow_trap_prefix(
+            "Prove synthetic non-root header and named-volume runtime",
+            suffix='exit "$TEST_PRIMARY_STATUS"\n',
+        )
+        expected_dir_prefix = "pulseplate-obs1b-ci-123-1."
+    elif surface == "prometheus-oci":
+        program = _workflow_trap_prefix(
+            "Cross-bind immutable index, linux amd64 manifest, and local image config",
+            suffix='exit "$TEST_PRIMARY_STATUS"\n',
+        )
+        expected_dir_prefix = "pulseplate-obs1b-oci."
+    elif surface == "reuse":
+        program = _workflow_trap_prefix(
+            "Read-only admit the existing exact PostgreSQL digest",
+            suffix='exit "$TEST_PRIMARY_STATUS"\n',
+        )
+        expected_dir_prefix = "pulseplate-pgvector-reuse-docker."
+    else:
+        credential_dir = tmp_path / "pulseplate-docker-config.test"
+        credential_dir.mkdir()
+        environment["DOCKER_CONFIG"] = str(credential_dir)
+        program = _staging_cleanup_program()
+        expected_dir_prefix = credential_dir.name
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == expected_status, completed.stderr
+    matching_dirs = [
+        path for path in tmp_path.iterdir() if path.name.startswith(expected_dir_prefix)
+    ]
+    if rm_status == "0":
+        assert matching_dirs == []
+    else:
+        assert matching_dirs
+        if primary_status != "0":
+            assert "preserving primary exit 33" in completed.stderr
+
+
+@pytest.mark.parametrize("failure_target", ("config", "directory"))
+def test_production_credential_cleanup_rejects_rm_failure_without_false_success(
+    tmp_path: Path,
+    failure_target: str,
+) -> None:
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    start = script.index("cleanup_ghcr_credentials() {\n")
+    end = script.index("\n}\n\nvalidate_regular_non_symlink_file", start) + len("\n}\n")
+    function_source = script[start:end]
+    bash_bin = shutil.which("bash")
+    real_rm = shutil.which("rm")
+    assert bash_bin is not None and real_rm is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker_stub = bin_dir / "docker"
+    docker_stub.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    docker_stub.chmod(0o700)
+    rm_stub = bin_dir / "rm"
+    rm_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        'target="${*: -1}"\n'
+        'if [ "${STUB_FAIL_TARGET:-}" = config ] && [[ "$target" = */config.json ]]; then exit 72; fi\n'
+        'if [ "${STUB_FAIL_TARGET:-}" = directory ] && [[ "$target" = /tmp/pulseplate-production-docker-config.* ]]; then exit 72; fi\n'
+        'exec "$REAL_RM" "$@"\n',
+        encoding="utf-8",
+    )
+    rm_stub.chmod(0o700)
+    credential_dir = (
+        Path("/tmp") / f"pulseplate-production-docker-config.test-{os.getpid()}-{failure_target}"
+    )
+    credential_dir.mkdir(exist_ok=False)
+    (credential_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    try:
+        program = (
+            function_source
+            + "\nif cleanup_ghcr_credentials; then echo FALSE_SUCCESS; exit 0; "
+            + 'else status=$?; printf "RETAINED=%s\\n" "$GHCR_DOCKER_CONFIG"; exit "$status"; fi\n'
+        )
+        completed = subprocess.run(
+            [bash_bin, "-c", program],
+            env={
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "REAL_RM": real_rm,
+                "STUB_FAIL_TARGET": failure_target,
+                "DOCKER_BIN": str(docker_stub),
+                "DOCKER_CONFIG": str(credential_dir),
+                "GHCR_DOCKER_CONFIG": str(credential_dir),
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert completed.returncode != 0
+        assert "FALSE_SUCCESS" not in completed.stdout
+        assert f"RETAINED={credential_dir}" in completed.stdout
+    finally:
+        config_path = credential_dir / "config.json"
+        if config_path.exists():
+            config_path.unlink()
+        if credential_dir.exists():
+            credential_dir.rmdir()
+
+
+@pytest.mark.parametrize(
+    ("validation_status", "rm_status", "expected_status"),
+    (("0", "0", 0), ("0", "72", 1), ("33", "72", 33)),
+)
+def test_production_shell_bundle_validation_cleanup_preserves_primary_status(
+    tmp_path: Path,
+    validation_status: str,
+    rm_status: str,
+    expected_status: int,
+) -> None:
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    start = script.index("validate_shell_bundle_archive() {\n")
+    end = script.index("\n}\n\nextract_shell_bundle_archive", start) + len("\n}\n")
+    function_source = script[start:end]
+    bash_bin = shutil.which("bash")
+    real_rm = shutil.which("rm")
+    assert bash_bin is not None and real_rm is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    rm_stub = bin_dir / "rm"
+    rm_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf \'%s\\n\' "${*: -1}" > "$STUB_RM_LOG"\n'
+        'if [ "${STUB_RM_STATUS:-0}" -ne 0 ]; then exit "$STUB_RM_STATUS"; fi\n'
+        'exec "$REAL_RM" "$@"\n',
+        encoding="utf-8",
+    )
+    rm_stub.chmod(0o700)
+    rm_log = tmp_path / "rm-target.txt"
+    program = (
+        "set -euo pipefail\n"
+        'process_shell_bundle_archive() { return "$STUB_VALIDATION_STATUS"; }\n'
+        "validate_shell_bundle_contract() { return 0; }\n"
+        + function_source
+        + '\nif validate_shell_bundle_archive; then exit 0; else exit "$?"; fi\n'
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "REAL_RM": real_rm,
+            "STUB_RM_LOG": str(rm_log),
+            "STUB_RM_STATUS": rm_status,
+            "STUB_VALIDATION_STATUS": validation_status,
+            "SHELL_BUNDLE_ARCHIVE": "/tmp/pulseplate-shell-bundle-1-1.tgz",
+            "SHELL_BUNDLE_DIR": "",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == expected_status
+    validation_root = Path(rm_log.read_text(encoding="utf-8").strip())
+    if rm_status == "0":
+        assert not validation_root.exists()
+    else:
+        assert validation_root.is_dir()
+        validation_root.rmdir()
+    if validation_status != "0" and rm_status != "0":
+        assert "preserving primary exit 33" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_returncode"),
+    (("exact", 0), ("content-drift", 1), ("hardlink", 1), ("writable", 1)),
+)
+def test_published_backup_helper_binding_rejects_post_publication_drift(
+    tmp_path: Path,
+    variant: str,
+    expected_returncode: int,
+) -> None:
+    script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    start = script.index("validate_published_backup_helper_binding() {\n")
+    end = script.index("\n}\n\nvalidate_production_database_contract", start) + len("\n}\n")
+    function_source = script[start:end]
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+
+    shell_bundle_dir = tmp_path / "shell-bundle"
+    source_ops_dir = shell_bundle_dir / "scripts" / "ops"
+    destination_ops_dir = tmp_path / "production" / "scripts" / "ops"
+    source_ops_dir.mkdir(parents=True)
+    destination_ops_dir.mkdir(parents=True)
+    source_helper = source_ops_dir / "postgres_backup.sh"
+    destination_helper = destination_ops_dir / "postgres_backup.sh"
+    reviewed_bytes = b"#!/usr/bin/env bash\nprintf 'reviewed-helper\\n'\n"
+    source_helper.write_bytes(reviewed_bytes)
+    source_helper.chmod(0o755)
+    destination_helper.write_bytes(reviewed_bytes)
+    destination_helper.chmod(0o755)
+
+    if variant == "content-drift":
+        destination_helper.write_bytes(b"#!/usr/bin/env bash\nprintf 'drifted-helper\\n'\n")
+        destination_helper.chmod(0o755)
+    elif variant == "hardlink":
+        destination_helper.unlink()
+        external = tmp_path / "hardlinked-helper"
+        external.write_bytes(reviewed_bytes)
+        external.chmod(0o755)
+        os.link(external, destination_helper)
+    elif variant == "writable":
+        destination_helper.chmod(0o775)
+
+    program = (
+        "set -euo pipefail\n"
+        "validate_contract_destinations_safely() { :; }\n"
+        + function_source
+        + "\nvalidate_published_backup_helper_binding\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "PYTHON_BIN": sys.executable,
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
+            "BACKUP_HELPER": str(destination_helper),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_returncode, completed.stderr
+    if expected_returncode != 0:
+        assert "backup-helper" in completed.stderr or "backup helper" in completed.stderr
+
+
+def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    generator = next(
+        step
+        for step in steps
+        if step.get("name") == "Generate material-bound PostgreSQL pgvector provenance predicate"
+    )["run"]
+    for material_field in (
+        "runtime_base_index_digest",
+        "runtime_base_platform_manifest_digest",
+        "runtime_base_config_digest",
+        "builder_base_index_digest",
+        "builder_base_platform_manifest_digest",
+        "builder_base_config_digest",
+        "pgvector_source_sha256",
+        "pgvector_source_commit",
+        "containerfile_sha256",
+        "builder_apk_closure_sha256",
+        "runtime_artifact_inventory_sha256",
+        "mountpoint_layer_digest",
+        "mountpoint_layer_diff_id",
+        "platform_manifest_digest",
+        "config_digest",
+    ):
+        assert material_field in generator
+    assert "https://slsa.dev/provenance/v1" in json.dumps(steps, sort_keys=True)
+
+
+def _postgres_oci_verifier_program() -> str:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    step = next(
+        item for item in steps if item.get("name") == "Reproduce the exact platform manifest twice"
+    )
+    run = step["run"]
+    marker = "python3 - \"$output_dir/oci-1\" <<'PY'\n"
+    assert run.count(marker) == 1
+    program, remainder = run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)
+    assert "docker buildx build" in remainder
+    return program
+
+
+def _generated_mountpoint_layer(
+    *,
+    uid: int = 70,
+    mode: int = 0o700,
+    mtime: int = 1_785_349_734,
+    extra_file: bool = False,
+) -> tuple[bytes, str]:
+    payload = io.BytesIO()
+    with tarfile.open(fileobj=payload, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+        for path in ("var", "var/lib", "var/lib/postgresql", "var/lib/postgresql/data"):
+            member = tarfile.TarInfo(path)
+            member.type = tarfile.DIRTYPE
+            member.uid = uid
+            member.gid = 70
+            member.mode = mode
+            member.mtime = mtime
+            archive.addfile(member)
+        if extra_file:
+            member = tarfile.TarInfo("var/lib/postgresql/data/unexpected")
+            member.type = tarfile.REGTYPE
+            member.uid = 70
+            member.gid = 70
+            member.mode = 0o600
+            member.mtime = mtime
+            member.size = 1
+            archive.addfile(member, io.BytesIO(b"x"))
+    tar_bytes = payload.getvalue()
+    return gzip.compress(tar_bytes, compresslevel=9, mtime=mtime), (
+        "sha256:" + hashlib.sha256(tar_bytes).hexdigest()
+    )
+
+
+def _write_postgres_oci_verifier_fixture(
+    tmp_path: Path, variant: str
+) -> tuple[Path, dict[str, str]]:
+    fixture_root = tmp_path / variant
+    blobs = fixture_root / "blobs" / "sha256"
+    blobs.mkdir(parents=True)
+    if variant in {"valid", "arm64", "manifest-bytes"}:
+        layer_bytes = MOUNTPOINT_LAYER_GZIP
+        layer_diff_id = "sha256:830c8272961c65f32876a884f52d80ad05cc4534a37bd0ecd4dafcf155f656fc"
+    else:
+        layer_bytes, layer_diff_id = _generated_mountpoint_layer(
+            uid=0 if variant == "uid" else 70,
+            mode=0o755 if variant == "mode" else 0o700,
+            mtime=1_785_349_735 if variant == "mtime" else 1_785_349_734,
+            extra_file=variant == "extra",
+        )
+    layer_digest = "sha256:" + hashlib.sha256(layer_bytes).hexdigest()
+    (blobs / layer_digest.removeprefix("sha256:")).write_bytes(layer_bytes)
+    config = {
+        "architecture": "amd64",
+        "os": "linux",
+        "config": {
+            "User": "70",
+            "Entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "PGDATA=/var/lib/postgresql/15/data",
+                "PG_MAJOR=15",
+                "PG_MINOR=19",
+            ],
+        },
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": ["sha256:" + "0" * 64] * 12
+            + ["sha256:" + "f" * 64 if variant == "diff-id" else layer_diff_id],
+        },
+    }
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    config_digest = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
+    (blobs / config_digest.removeprefix("sha256:")).write_bytes(config_bytes)
+    dummy_layer = {
+        "digest": "sha256:" + "0" * 64,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "size": 0,
+    }
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "digest": config_digest,
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "size": len(config_bytes),
+        },
+        "layers": [dummy_layer] * 12
+        + [
+            {
+                "annotations": {"buildkit/rewritten-timestamp": "1785349734"},
+                "digest": layer_digest,
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size": len(layer_bytes),
+            }
+        ],
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_bytes).hexdigest()
+    (blobs / manifest_digest.removeprefix("sha256:")).write_bytes(
+        manifest_bytes + (b" " if variant == "manifest-bytes" else b"")
+    )
+    index = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [
+            {
+                "digest": manifest_digest,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": len(manifest_bytes),
+                "platform": {
+                    "architecture": "arm64" if variant == "arm64" else "amd64",
+                    "os": "linux",
+                },
+            }
+        ],
+    }
+    (fixture_root / "index.json").write_text(
+        json.dumps(index, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+    )
+    environment = {
+        **os.environ,
+        "EXPECTED_PLATFORM_DIGEST": manifest_digest,
+        "EXPECTED_CONFIG_DIGEST": config_digest,
+        "EXPECTED_MOUNTPOINT_LAYER_DIGEST": layer_digest,
+        "EXPECTED_MOUNTPOINT_LAYER_SIZE": str(len(layer_bytes)),
+        "EXPECTED_MOUNTPOINT_LAYER_DIFF_ID": layer_diff_id,
+        "EXPECTED_MOUNTPOINT_LAYER_ENTRY_COUNT": "4",
+        "EXPECTED_MOUNTPOINT_UID": "70",
+        "EXPECTED_MOUNTPOINT_GID": "70",
+        "EXPECTED_MOUNTPOINT_MODE": "0700",
+        "EXPECTED_MOUNTPOINT_PATH": "/var/lib/postgresql/data",
+        "SOURCE_DATE_EPOCH": "1785349734",
+    }
+    return fixture_root, environment
+
+
+def test_cd_postgres_oci_verifier_executes_the_exact_valid_workflow_program(
+    tmp_path: Path,
+) -> None:
+    fixture_root, environment = _write_postgres_oci_verifier_fixture(tmp_path, "valid")
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_oci_verifier_program(), str(fixture_root)],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("variant", "message"),
+    (
+        ("arm64", "platform descriptor"),
+        ("manifest-bytes", "manifest bytes"),
+        ("extra", "path inventory"),
+        ("uid", "metadata"),
+        ("mode", "metadata"),
+        ("mtime", "metadata"),
+        ("diff-id", "diff ID"),
+    ),
+)
+def test_cd_postgres_oci_verifier_rejects_exact_invalid_fixtures(
+    tmp_path: Path,
+    variant: str,
+    message: str,
+) -> None:
+    fixture_root, environment = _write_postgres_oci_verifier_fixture(tmp_path, variant)
+    completed = subprocess.run(
+        [sys.executable, "-c", _postgres_oci_verifier_program(), str(fixture_root)],
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert message in completed.stderr
 
 
 def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None:
@@ -465,6 +2760,30 @@ set -euo pipefail
     assert not log_file.exists()
 
 
+def test_deploy_production_rejects_shell_bundle_without_reviewed_backup_helper(
+    tmp_path: Path,
+) -> None:
+    env, _project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    (shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh").unlink()
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "Incoming PostgreSQL backup helper" in completed.stderr
+    assert not log_file.exists()
+
+
 def test_deploy_production_preflight_rejects_shell_bundle_without_frontend(
     tmp_path: Path,
 ) -> None:
@@ -518,6 +2837,26 @@ set -euo pipefail
     assert not log_file.exists()
 
 
+def _staging_compose_fixture_json() -> str:
+    payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
+    payload["services"]["postgres"]["environment"].update(
+        {
+            "POSTGRES_DB": "pulseplate",
+            "POSTGRES_USER": "pulseplate",
+            "POSTGRES_PASSWORD": "test-only",  # pragma: allowlist secret
+        }
+    )
+    local_database_url = (
+        "postgresql+psycopg://pulseplate:test-only@postgres/pulseplate"  # pragma: allowlist secret
+    )
+    payload["services"]["app"] = {"environment": {"DATABASE_URL": local_database_url}}
+    payload["services"]["worker"] = {"environment": {"DATABASE_URL": local_database_url}}
+    return json.dumps(payload, separators=(",", ":"))
+
+
+FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
+
+
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
         contract_responses = f"""case \"$*\" in
@@ -528,7 +2867,76 @@ def _write_executable(path: Path, content: str) -> None:
     if [ -n \"${{STUB_PROMETHEUS_COMPOSE_JSON+x}}\" ]; then
       printf '%s\\n' \"$STUB_PROMETHEUS_COMPOSE_JSON\"
     else
-      printf '%s\\n' '{FAKE_PROMETHEUS_COMPOSE_JSON}'
+      printf '%s\\n' '{FAKE_STAGING_COMPOSE_JSON}'
+    fi
+    ;;
+  run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
+    if [ "${{STUB_POSTGRES_MOUNTPOINT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_MOUNTPOINT_STATUS}}"
+    fi
+    ;;
+  inspect\\ --format\\ *State.Running*)
+    printf '%s\\n' "${{STUB_CONTAINER_RUNNING:-true}}"
+    exit 0
+    ;;
+  inspect\\ aaaaaaaaaaaa*)
+    if [ "${{STUB_POSTGRES_CONTAINER_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_CONTAINER_INSPECT_STATUS}}"
+    fi
+    if [ -n "${{STUB_POSTGRES_INSPECT_DRIFT_FILE:-}}" ] && \
+       [ -f "$STUB_POSTGRES_INSPECT_DRIFT_FILE" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_CONTAINER_INSPECT_JSON_AFTER_FIRST"
+    elif [ -n "${{STUB_POSTGRES_CONTAINER_INSPECT_JSON+x}}" ]; then
+      if [ -n "${{STUB_POSTGRES_INSPECT_DRIFT_FILE:-}}" ]; then
+        : > "$STUB_POSTGRES_INSPECT_DRIFT_FILE"
+      fi
+      printf '%s\\n' "$STUB_POSTGRES_CONTAINER_INSPECT_JSON"
+    else
+      printf '%s\\n' '{FAKE_POSTGRES_CONTAINER_INSPECT_JSON}'
+    fi
+    ;;
+  exec\\ aaaaaaaaaaaa*\\ sh\\ -ec*)
+    if [ "${{STUB_POSTGRES_RUNTIME_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_RUNTIME_STATUS}}"
+    fi
+    printf '70\\t150019\\t/var/lib/postgresql/data\\n'
+    exit 0
+    ;;
+  exec\\ -i\\ aaaaaaaaaaaa*\\ pg_restore\\ --list*)
+    cat >/dev/null
+    exit "${{STUB_PG_RESTORE_LIST_STATUS:-0}}"
+    ;;
+  volume\\ ls\\ --quiet)
+    volume_list_status="${{STUB_POSTGRES_VOLUME_LIST_STATUS:-0}}"
+    volume_list_output="${{STUB_POSTGRES_VOLUME_LIST_OUTPUT:-}}"
+    if [ -n "${{STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE:-}}" ]; then
+      volume_list_count=0
+      if [ -f "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE" ]; then
+        IFS= read -r volume_list_count < "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE"
+      fi
+      case "$volume_list_count" in
+        ''|*[!0-9]*) exit 98 ;;
+      esac
+      volume_list_count=$((volume_list_count + 1))
+      printf '%s\\n' "$volume_list_count" > "$STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE"
+      if [ "$volume_list_count" -gt 1 ]; then
+        volume_list_status="${{STUB_POSTGRES_VOLUME_LIST_STATUS_AFTER_FIRST:-$volume_list_status}}"
+        volume_list_output="${{STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST:-$volume_list_output}}"
+      fi
+    fi
+    if [ "$volume_list_status" -ne 0 ]; then
+      exit "$volume_list_status"
+    fi
+    printf '%s' "$volume_list_output"
+    ;;
+  image\\ inspect\\ *postgres-15.19-pgvector0.8.6-alpine3.23*)
+    if [ "${{STUB_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_IMAGE_INSPECT_STATUS}}"
+    fi
+    if [ -n "${{STUB_POSTGRES_IMAGE_INSPECT_JSON+x}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_IMAGE_INSPECT_JSON"
+    else
+      printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
     fi
     ;;
   image\\ inspect\\ *)
@@ -593,6 +3001,33 @@ def _write_prometheus_manifest_variant(path: Path, variant: str) -> None:
         canonical["source_revision"] = 314
     else:
         raise AssertionError(f"unsupported manifest variant: {variant}")
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+
+
+def _write_postgres_manifest_variant(path: Path, variant: str) -> None:
+    canonical = json.loads(POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"))
+    if variant == "malformed":
+        path.write_text("{", encoding="utf-8")
+        return
+    if variant == "duplicate":
+        canonical_text = json.dumps(canonical, separators=(",", ":"))
+        path.write_text(
+            '{"schema":"pulseplate.postgres_pgvector_image_manifest.v1",' + canonical_text[1:],
+            encoding="utf-8",
+        )
+        return
+    if variant == "missing":
+        canonical.pop("runtime_base_platform_manifest_digest")
+    elif variant == "extra":
+        canonical["unexpected"] = "forbidden"
+    elif variant == "wrong-platform-digest":
+        canonical["platform_manifest_digest"] = "sha256:" + "b" * 64
+    elif variant == "wrong-runtime-ref":
+        canonical["runtime_ref"] = canonical["runtime_ref"].replace("ca0968c5", "ba0968c5")
+    elif variant == "wrong-type":
+        canonical["postgres_major"] = 15
+    else:
+        raise AssertionError(f"unsupported PostgreSQL manifest variant: {variant}")
     path.write_text(json.dumps(canonical), encoding="utf-8")
 
 
@@ -697,9 +3132,48 @@ def test_staging_deploy_rejects_noncanonical_prometheus_manifest_before_docker(
         "missing",
         "extra",
         "wrong-platform-digest",
-        "wrong-source-revision",
         "wrong-runtime-ref",
-        "index-digest-runtime-ref",
+        "wrong-type",
+    ),
+)
+def test_staging_deploy_rejects_noncanonical_postgres_manifest_before_docker(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    manifest_path = Path(env["PROJECT_DIR"]) / "postgres-pgvector" / "image-manifest.json"
+    _write_postgres_manifest_variant(manifest_path, variant)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL image manifest" in completed.stderr
+    assert not log_file.exists()
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "malformed",
+        "duplicate",
+        "missing",
+        "extra",
+        "wrong-platform-digest",
+        "wrong-runtime-ref",
         "wrong-type",
     ),
 )
@@ -781,6 +3255,81 @@ def test_staging_deploy_rejects_rendered_prometheus_identity_drift_before_pull(
     )
 
     assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any("config --format json" in line for line in log_lines)
+    assert all(
+        " login " not in line and " pull " not in line and " up " not in line for line in log_lines
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "missing",
+        "wrong-image",
+        "wrong-platform",
+        "wrong-pgdata",
+        "wrong-volume",
+        "ports",
+        "missing-app",
+        "missing-worker",
+        "app-external-dsn",
+        "worker-dsn-drift",
+    ),
+)
+def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    rendered = json.loads(FAKE_STAGING_COMPOSE_JSON)
+    postgres = rendered["services"]["postgres"]
+    if variant == "missing":
+        del rendered["services"]["postgres"]
+    elif variant == "wrong-image":
+        postgres["image"] = "postgres:15-alpine"
+    elif variant == "wrong-platform":
+        postgres["platform"] = "linux/arm64"
+    elif variant == "wrong-pgdata":
+        postgres["environment"]["PGDATA"] = "/var/lib/postgresql/15/data"
+    elif variant == "wrong-volume":
+        postgres["volumes"][0]["target"] = "/var/lib/postgresql/15/data"
+    elif variant == "ports":
+        postgres["ports"] = [{"target": 5432, "published": "5432"}]
+    elif variant == "missing-app":
+        del rendered["services"]["app"]
+    elif variant == "missing-worker":
+        del rendered["services"]["worker"]
+    elif variant == "app-external-dsn":
+        rendered["services"]["app"]["environment"][
+            "DATABASE_URL"
+        ] = "postgresql+psycopg://pulseplate:test-only@db.example.com/pulseplate"  # pragma: allowlist secret
+    elif variant == "worker-dsn-drift":
+        rendered["services"]["worker"]["environment"][
+            "DATABASE_URL"
+        ] = "postgresql+psycopg://pulseplate:test-only@postgres/other"  # pragma: allowlist secret
+    else:
+        raise AssertionError(f"unsupported rendered PostgreSQL variant: {variant}")
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(rendered)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("config --format json" in line for line in log_lines)
     assert all(
@@ -901,6 +3450,44 @@ IMAGE_INSPECT_REJECTIONS = (
 )
 
 
+def _postgres_image_inspect_variant(variant: str) -> str:
+    payload = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
+    record = payload[0]
+    config = record["Config"]
+    if variant == "wrong-platform":
+        record["Architecture"] = "arm64"
+    elif variant == "wrong-user":
+        config["User"] = "0"
+    elif variant == "wrong-entrypoint":
+        config["Entrypoint"] = ["/bin/sh"]
+    elif variant == "wrong-environment":
+        config["Env"] = ["PGDATA=/var/lib/postgresql/data", "PG_MAJOR=15", "PG_MINOR=19"]
+    elif variant == "wrong-label":
+        config["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
+    elif variant == "wrong-repository-digest":
+        record["RepoDigests"] = [f"example.invalid/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"]
+    else:
+        raise AssertionError(f"unsupported pulled PostgreSQL variant: {variant}")
+    return json.dumps(payload)
+
+
+POSTGRES_IMAGE_INSPECT_REJECTIONS = (
+    "{",
+    "[]",
+    *(
+        _postgres_image_inspect_variant(variant)
+        for variant in (
+            "wrong-platform",
+            "wrong-user",
+            "wrong-entrypoint",
+            "wrong-environment",
+            "wrong-label",
+            "wrong-repository-digest",
+        )
+    ),
+)
+
+
 @pytest.mark.parametrize("inspect_payload", IMAGE_INSPECT_REJECTIONS)
 def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutation(
     tmp_path: Path,
@@ -922,8 +3509,62 @@ def test_staging_deploy_rejects_pulled_prometheus_identity_before_product_mutati
 
     assert completed.returncode != 0
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert any(" pull app caddy prometheus" in line for line in log_lines)
+    assert any(" pull app caddy postgres prometheus" in line for line in log_lines)
     assert any("image inspect" in line for line in log_lines)
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+@pytest.mark.parametrize("inspect_payload", POSTGRES_IMAGE_INSPECT_REJECTIONS)
+def test_staging_deploy_rejects_pulled_postgres_identity_before_product_mutation(
+    tmp_path: Path,
+    inspect_payload: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_IMAGE_INSPECT_JSON"] = inspect_payload
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "PostgreSQL image" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" pull app caddy postgres prometheus" in line for line in log_lines)
+    assert sum("image inspect" in line for line in log_lines) >= 2
+    assert all("promtool" not in line for line in log_lines)
+    assert all("assert_production_runtime_invariants" not in line for line in log_lines)
+    assert all(" stop " not in line and " up " not in line for line in log_lines)
+
+
+def test_staging_deploy_rejects_postgres_mountpoint_drift_before_product_mutation(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_MOUNTPOINT_STATUS"] = "17"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 17
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert sum("image inspect" in line for line in log_lines) >= 2
     assert all("promtool" not in line for line in log_lines)
     assert all("assert_production_runtime_invariants" not in line for line in log_lines)
     assert all(" stop " not in line and " up " not in line for line in log_lines)
@@ -1014,6 +3655,9 @@ def test_production_env_cannot_override_manifest_derived_prometheus_digest(
         "caddy-leaf-symlink",
         "scripts-directory-symlink",
         "redeploy-leaf-symlink",
+        "ops-directory-symlink",
+        "backup-helper-leaf-symlink",
+        "backup-helper-leaf-hardlink",
     ),
 )
 def test_production_full_bundle_rejects_hostile_destination_before_docker(
@@ -1042,12 +3686,30 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         hostile = project_dir / "scripts"
         hostile.symlink_to(external, target_is_directory=True)
         expected = (external / "sentinel").read_bytes()
-    else:
+    elif destination_variant == "redeploy-leaf-symlink":
         scripts_dir = project_dir / "scripts"
         scripts_dir.mkdir()
         external.write_text("external-helper\n", encoding="utf-8")
         hostile = scripts_dir / "redeploy_caddy.sh"
         hostile.symlink_to(external)
+        expected = external.read_bytes()
+    elif destination_variant == "ops-directory-symlink":
+        scripts_dir = project_dir / "scripts"
+        scripts_dir.mkdir()
+        external.mkdir()
+        (external / "sentinel").write_text("external-ops\n", encoding="utf-8")
+        hostile = scripts_dir / "ops"
+        hostile.symlink_to(external, target_is_directory=True)
+        expected = (external / "sentinel").read_bytes()
+    else:
+        ops_dir = project_dir / "scripts" / "ops"
+        ops_dir.mkdir(parents=True)
+        external.write_text("external-backup-helper\n", encoding="utf-8")
+        hostile = ops_dir / "postgres_backup.sh"
+        if destination_variant == "backup-helper-leaf-symlink":
+            hostile.symlink_to(external)
+        else:
+            os.link(external, hostile)
         expected = external.read_bytes()
 
     completed = subprocess.run(
@@ -1060,7 +3722,11 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
     )
 
     assert completed.returncode != 0
-    assert hostile.is_symlink()
+    if destination_variant == "backup-helper-leaf-hardlink":
+        assert not hostile.is_symlink()
+        assert hostile.stat().st_nlink == 2
+    else:
+        assert hostile.is_symlink()
     assert not log_file.exists()
     if external.is_dir():
         assert (external / "sentinel").read_bytes() == expected
@@ -1078,6 +3744,10 @@ def test_production_full_bundle_rejects_hostile_destination_before_docker(
         "frontend-nested-hardlink",
         "caddy-source-symlink",
         "redeploy-source-symlink",
+        "backup-source-symlink",
+        "backup-source-hardlink",
+        "backup-source-nonexec",
+        "backup-source-writable",
     ),
 )
 def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
@@ -1108,11 +3778,25 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         caddy.rename(external)
         caddy.symlink_to(external)
         expected_path = external
-    else:
+    elif source_variant == "redeploy-source-symlink":
         redeploy = shell_bundle_dir / "scripts" / "redeploy_caddy.sh"
         redeploy.rename(external)
         redeploy.symlink_to(external)
         expected_path = external
+    else:
+        backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+        if source_variant == "backup-source-symlink":
+            backup_helper.rename(external)
+            backup_helper.symlink_to(external)
+            expected_path = external
+        elif source_variant == "backup-source-hardlink":
+            backup_helper.unlink()
+            external.write_text("hardlinked-backup-helper\n", encoding="utf-8")
+            os.link(external, backup_helper)
+            expected_path = external
+        else:
+            backup_helper.chmod(0o644 if source_variant == "backup-source-nonexec" else 0o775)
+            expected_path = backup_helper
     expected = expected_path.read_bytes()
 
     completed = subprocess.run(
@@ -1143,6 +3827,7 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
     ("variant", "suffix", "expected_returncode"),
     (
         ("valid", 1, 0),
+        ("valid-selfhosted", 17, 0),
         ("traversal", 2, 1),
         ("absolute", 3, 1),
         ("non_normalized", 4, 1),
@@ -1153,6 +3838,10 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         ("unexpected", 9, 1),
         ("missing_manifest", 10, 1),
         ("oversized_archive", 11, 1),
+        ("backup_helper_missing", 13, 1),
+        ("backup_helper_symlink", 14, 1),
+        ("backup_helper_hardlink", 15, 1),
+        ("backup_helper_wrong_mode", 16, 1),
     ),
 )
 def test_production_archive_preflight_is_bounded_and_extracts_nothing(
@@ -1168,8 +3857,27 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
     project_dir.mkdir()
     shell_bundle_dir.mkdir()
     bin_dir.mkdir()
-    _write_production_host_contract(project_dir)
-    _write_shell_bundle_contract(shell_bundle_dir)
+    self_hosted = variant == "valid-selfhosted"
+    selected_compose_text = (
+        SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
+        if self_hosted
+        else PRODUCTION_COMPOSE_TEXT
+    )
+    selected_compose_name = (
+        "docker-compose.production.selfhosted.yaml"
+        if self_hosted
+        else "docker-compose.production.yaml"
+    )
+    _write_production_host_contract(
+        project_dir,
+        compose_text=selected_compose_text,
+        self_hosted=self_hosted,
+    )
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text=selected_compose_text,
+        compose_name=selected_compose_name,
+    )
     (project_dir / ".env").write_text(
         "DATABASE_URL=postgresql+psycopg://pulseplate:secret@db.example.com:25060/pulseplate\n",  # pragma: allowlist secret
         encoding="utf-8",
@@ -1177,9 +3885,20 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
 
     archive_path = _canonical_test_archive_path(suffix)
     _write_shell_bundle_archive(archive_path, shell_bundle_dir, variant=variant)
+    service_list = (
+        "app\\ncaddy\\npostgres\\nprometheus\\nworker\\n"
+        if self_hosted
+        else "app\\ncaddy\\nprometheus\\nworker\\n"
+    )
     _write_executable(
         bin_dir / "docker",
-        f'#!/usr/bin/env bash\nset -euo pipefail\nprintf \'docker %s\\n\' "$*" >> "{log_file}"\n',
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"config --services"*) printf '{service_list}' ;;
+esac
+""",
     )
     _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
 
@@ -1191,11 +3910,22 @@ def test_production_archive_preflight_is_bounded_and_extracts_nothing(
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
             "ENV_FILE": str(project_dir / ".env"),
-            "COMPOSE_FILE": CANONICAL_MANAGED_COMPOSE,
+            "COMPOSE_FILE": (
+                CANONICAL_SELF_HOSTED_COMPOSE if self_hosted else CANONICAL_MANAGED_COMPOSE
+            ),
             "PRODUCTION_DOMAIN": "pulseplate.test",
             "SHELL_BUNDLE_ARCHIVE": str(archive_path),
         }
     )
+    if self_hosted:
+        env.update(
+            {
+                "PROD_DEPLOY_MODE": "self-hosted",
+                "POSTGRES_DB": "pulseplate",
+                "POSTGRES_USER": "pulseplate",
+                "POSTGRES_PASSWORD": "test-only",  # pragma: allowlist secret
+            }
+        )
     try:
         completed = subprocess.run(
             [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
@@ -1401,6 +4131,12 @@ printf 'curl %s\n' "$*" >> "{log_file}"
     assert (project_dir / "frontend" / "bundle-marker.txt").read_text(
         encoding="utf-8"
     ) == "archive-shell\n"
+    published_backup_helper = project_dir / "scripts" / "ops" / "postgres_backup.sh"
+    assert (
+        published_backup_helper.read_bytes()
+        == (shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh").read_bytes()
+    )
+    assert stat.S_IMODE(published_backup_helper.stat().st_mode) == 0o755
 
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert all(METRICS_SECRET_SENTINEL not in line for line in log_lines)
@@ -1535,6 +4271,9 @@ def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Pa
     project_dir.mkdir()
     bin_dir.mkdir()
     backup_dir.mkdir()
+    env_file = project_dir / "config" / "selected.env"
+    env_file.parent.mkdir()
+    env_file.write_text("POSTGRES_DB=pulseplate\n", encoding="utf-8")
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -1550,6 +4289,7 @@ EOF
     env["PROJECT_DIR"] = str(project_dir)
     env["BACKUP_DIR"] = str(backup_dir)
     env["COMPOSE_FILE"] = "docker-compose.staging.yaml"
+    env["ENV_FILE"] = str(env_file)
     env["POSTGRES_USER"] = "pulseplate"
     env["POSTGRES_DB"] = "pulseplate"
 
@@ -1564,7 +4304,7 @@ EOF
 
     assert "Backup created:" in completed.stdout
     docker_call = log_file.read_text(encoding="utf-8")
-    assert f"compose --project-directory {project_dir}" in docker_call
+    assert f"compose --env-file {env_file} --project-directory {project_dir}" in docker_call
     assert f"-f {project_dir / 'docker-compose.staging.yaml'}" in docker_call
     assert "exec -T postgres pg_dump -U pulseplate -d pulseplate -Fc" in docker_call
     backup_files = list(backup_dir.glob("pulseplate_*.dump"))
@@ -1974,6 +4714,16 @@ def test_deploy_production_syncs_shell_bundle_and_prunes_stale_shell_files(tmp_p
     (project_dir / "scripts").mkdir()
     (project_dir / "scripts" / "diagnose_web.sh").write_text("stale-diagnose\n", encoding="utf-8")
     (project_dir / "scripts" / "redeploy_caddy.sh").write_text("stale-redeploy\n", encoding="utf-8")
+    destination_ops_dir = project_dir / "scripts" / "ops"
+    destination_ops_dir.mkdir()
+    stale_backup_helper = destination_ops_dir / "postgres_backup.sh"
+    stale_backup_helper.write_text(
+        "#!/usr/bin/env bash\nprintf 'stale-backup-helper\\n'\n",
+        encoding="utf-8",
+    )
+    stale_backup_helper.chmod(0o755)
+    source_backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+    reviewed_backup_helper = source_backup_helper.read_bytes()
 
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -2037,16 +4787,23 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     ) == PRODUCTION_COMPOSE_TEXT
     published_config = project_dir / "deploy" / "prometheus" / "prometheus.yml"
     published_manifest = project_dir / "deploy" / "prometheus" / "image-manifest.json"
+    published_postgres_manifest = (
+        project_dir / "deploy" / "postgres-pgvector" / "image-manifest.json"
+    )
     assert published_config.read_text(encoding="utf-8") == PROMETHEUS_CONFIG_PATH.read_text(
         encoding="utf-8"
     )
     assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
         encoding="utf-8"
     )
+    assert published_postgres_manifest.read_text(
+        encoding="utf-8"
+    ) == POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8")
     for published_path in (
         project_dir / "deploy" / "docker-compose.production.yaml",
         published_config,
         published_manifest,
+        published_postgres_manifest,
         project_dir / "deploy" / "Caddyfile.production",
         project_dir / "frontend" / "bundle-marker.txt",
     ):
@@ -2054,6 +4811,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     for helper_path in (
         project_dir / "scripts" / "diagnose_web.sh",
         project_dir / "scripts" / "redeploy_caddy.sh",
+        stale_backup_helper,
     ):
         assert stat.S_IMODE(helper_path.stat().st_mode) == 0o755
     assert list(project_dir.rglob(".pulseplate-*.tmp-*")) == []
@@ -2065,6 +4823,75 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     assert (project_dir / "scripts" / "redeploy_caddy.sh").read_text(
         encoding="utf-8"
     ) == "#!/usr/bin/env bash\nprintf 'bundle-redeploy\\n'\n"
+    assert stale_backup_helper.read_bytes() == reviewed_backup_helper
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all("pg_dump" not in line for line in log_lines)
+
+
+def test_production_contract_publication_failure_preserves_previous_backup_helper(
+    tmp_path: Path,
+) -> None:
+    env, project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path,
+        with_bundle=True,
+    )
+    assert shell_bundle_dir is not None
+    destination_ops_dir = project_dir / "scripts" / "ops"
+    destination_ops_dir.mkdir(parents=True)
+    destination_backup_helper = destination_ops_dir / "postgres_backup.sh"
+    previous_helper = b"#!/usr/bin/env bash\nprintf 'previous-helper\\n'\n"
+    destination_backup_helper.write_bytes(previous_helper)
+    destination_backup_helper.chmod(0o755)
+
+    source_config = shell_bundle_dir / "deploy" / "prometheus" / "prometheus.yml"
+    oversized_config = tmp_path / "oversized-prometheus.yml"
+    oversized_config.write_bytes(b"x" * (4 * 1024 * 1024 + 1))
+    move_bin = shutil.which("mv")
+    assert move_bin is not None
+    docker_bin = Path(env["DOCKER_BIN"])
+    _write_executable(
+        docker_bin,
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+case "$*" in
+  *"login ghcr.io"*)
+    "$STUB_MV_BIN" "$STUB_OVERSIZED_CONFIG" "$STUB_SOURCE_CONFIG"
+    ;;
+  *"config --services"*) printf 'app\nworker\ncaddy\nprometheus\n' ;;
+esac
+""",
+    )
+    env.update(
+        {
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "GHCR_USER": "bundle-test",
+            "GHCR_TOKEN": "test-only-token",  # pragma: allowlist secret
+            "STUB_MV_BIN": move_bin,
+            "STUB_OVERSIZED_CONFIG": str(oversized_config),
+            "STUB_SOURCE_CONFIG": str(source_config),
+        }
+    )
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "source must be one bounded regular file" in completed.stderr
+    assert destination_backup_helper.read_bytes() == previous_helper
+    assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
+    assert list(project_dir.rglob(".pulseplate-postgres_backup.sh.tmp-*")) == []
+    if log_file.exists():
+        assert all(
+            " stop " not in line and " up " not in line
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        )
 
 
 def test_production_full_sync_cannot_republish_contracts_changed_after_validation(
@@ -2778,20 +5605,72 @@ esac
     )
 
 
+@pytest.mark.parametrize(
+    "destination_helper_variant",
+    ("absent", "stale-executable", "stale-nonexec"),
+)
+@pytest.mark.parametrize(
+    "env_file_input", ("absolute", ".env", "./.env", "runtime config/selected.env", "missing.env")
+)
 def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_contour(
     tmp_path: Path,
+    destination_helper_variant: str,
+    env_file_input: str,
 ) -> None:
     project_dir = tmp_path / "production"
+    shell_bundle_dir = tmp_path / "shell-bundle"
     bin_dir = tmp_path / "bin"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
+    shell_bundle_dir.mkdir()
     bin_dir.mkdir()
+    self_hosted_compose = SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8")
     _write_production_host_contract(
         project_dir,
-        compose_text=SELF_HOSTED_COMPOSE_PATH.read_text(encoding="utf-8"),
+        compose_text=self_hosted_compose,
         self_hosted=True,
     )
-    (project_dir / ".env").write_text(
+    _write_shell_bundle_contract(
+        shell_bundle_dir,
+        compose_text=self_hosted_compose,
+        compose_name="docker-compose.production.selfhosted.yaml",
+    )
+    source_backup_helper = shell_bundle_dir / "scripts" / "ops" / "postgres_backup.sh"
+    source_backup_helper.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'test "$ENV_FILE" = "$STUB_EXPECTED_ENV_FILE"\n'
+        'printf "reviewed-bundle-backup project=%s compose=%s env=%s\\n" "$PROJECT_DIR" "$COMPOSE_FILE" "$ENV_FILE" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'receipt="${BACKUP_DIR}/pulseplate_reviewed.dump"\n'
+        "printf 'synthetic-custom-dump' > \"$receipt\"\n"
+        "printf 'Backup created: %s\\n' \"$receipt\"\n",
+        encoding="utf-8",
+    )
+    source_backup_helper.chmod(0o755)
+    destination_backup_helper = project_dir / "scripts" / "ops" / "postgres_backup.sh"
+    stale_helper_bytes = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "stale-host-backup\\n" >> "$STUB_DEPLOY_LOG_FILE"\n'
+        'receipt="${BACKUP_DIR}/pulseplate_stale.dump"\n'
+        "printf 'synthetic-custom-dump' > \"$receipt\"\n"
+        'chmod 0600 "$receipt"\n'
+        "printf 'Backup created: %s\\n' \"$receipt\"\n"
+    ).encode()
+    if destination_helper_variant == "absent":
+        destination_backup_helper.unlink()
+        destination_backup_helper.parent.rmdir()
+        destination_backup_helper.parent.parent.rmdir()
+    else:
+        destination_backup_helper.write_bytes(stale_helper_bytes)
+        destination_backup_helper.chmod(
+            0o755 if destination_helper_variant == "stale-executable" else 0o644
+        )
+    selected_env = project_dir / (
+        env_file_input if env_file_input == "runtime config/selected.env" else ".env"
+    )
+    selected_env.parent.mkdir(parents=True, exist_ok=True)
+    selected_env.write_text(
         "\n".join(
             (
                 "DATABASE_URL=postgresql+psycopg://stale:managed@db.example.com/db",  # pragma: allowlist secret
@@ -2803,25 +5682,49 @@ def test_deploy_production_accepts_only_explicit_exact_self_hosted_database_cont
         + "\n",
         encoding="utf-8",
     )
+    if env_file_input == "missing.env":
+        (project_dir / "deploy" / ".env").write_text(
+            selected_env.read_text(encoding="utf-8"), encoding="utf-8"
+        )
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
+if [ "$1" = "compose" ]; then
+  test "$2" = "--env-file"
+  test "$3" = "$STUB_EXPECTED_ENV_FILE"
+fi
 printf 'docker %s\n' "$*" >> "{log_file}"
 case "$*" in
   *"config --services"*) printf 'app\ncaddy\npostgres\nprometheus\nworker\n' ;;
+  *"ps -q postgres"*) printf 'aaaaaaaaaaaa\n' ;;
+  *"ps -q app"*) printf 'bbbbbbbbbbbb\n' ;;
+  *"ps -q caddy"*) printf 'cccccccccccc\n' ;;
+  *"ps -q worker"*) printf 'dddddddddddd\n' ;;
+  *"inspect --format"*) printf 'healthy\n' ;;
+  *"ps --last 20"*) printf 'CONTAINER ID\n' ;;
 esac
 """
     _write_executable(bin_dir / "docker", docker_stub)
     _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\nset -euo pipefail\n")
 
     env = os.environ.copy()
+    env.pop("GHCR_TOKEN", None)
+    env.pop("GHCR_USER", None)
     env.update(
         {
             "DOCKER_BIN": str(bin_dir / "docker"),
+            "PYTHON_BIN": sys.executable,
             "CURL_BIN": str(bin_dir / "curl"),
             "DEPLOY_DIR": str(project_dir),
-            "ENV_FILE": str(project_dir / ".env"),
+            "ENV_FILE": str(selected_env) if env_file_input == "absolute" else env_file_input,
             "COMPOSE_FILE": CANONICAL_SELF_HOSTED_COMPOSE,
             "PRODUCTION_DOMAIN": "pulseplate.test",
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+            "IMAGE_REF": "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:test",
+            "TAG": "prod-vtest",
+            "STUB_DEPLOY_LOG_FILE": str(log_file),
+            "STUB_EXPECTED_ENV_FILE": str(selected_env),
+            "SHELL_BUNDLE_DIR": str(shell_bundle_dir),
         }
     )
     completed = subprocess.run(
@@ -2832,8 +5735,75 @@ esac
         capture_output=True,
         check=False,
     )
+    if env_file_input == "missing.env":
+        assert completed.returncode == 1
+        assert "Missing production env file" in completed.stderr
+        assert not log_file.exists()
+        return
     assert completed.returncode == 0, completed.stderr
     assert "Production deploy preflight passed" in completed.stdout
+    if destination_helper_variant == "absent":
+        assert not destination_backup_helper.exists()
+        assert not destination_backup_helper.parent.exists()
+    else:
+        assert destination_backup_helper.read_bytes() == stale_helper_bytes
+        assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == (
+            0o755 if destination_helper_variant == "stale-executable" else 0o644
+        )
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    quiesce_index = next(
+        index for index, line in enumerate(log_lines) if " stop worker caddy app" in line
+    )
+    backup_index = next(
+        index for index, line in enumerate(log_lines) if line.startswith("reviewed-bundle-backup ")
+    )
+    old_stop_index = log_lines.index(f"docker stop {'a' * 64}")
+    candidate_index = next(
+        index for index, line in enumerate(log_lines) if " up -d --pull never postgres" in line
+    )
+    migration_index = next(
+        index
+        for index, line in enumerate(log_lines)
+        if " run --rm --no-deps app alembic upgrade head" in line
+    )
+    assert quiesce_index < backup_index < old_stop_index < candidate_index < migration_index
+    assert "stale-host-backup" not in log_lines
+    assert f"project={project_dir / 'deploy'}" in log_lines[backup_index]
+    assert f"env={selected_env}" in log_lines[backup_index]
+    assert (
+        f"compose={project_dir / 'deploy' / 'docker-compose.production.selfhosted.yaml'}"
+        in log_lines[backup_index]
+    )
+    assert destination_backup_helper.read_bytes() == source_backup_helper.read_bytes()
+    assert stat.S_IMODE(destination_backup_helper.stat().st_mode) == 0o755
+    backup_receipt = project_dir / "backups" / "pulseplate_reviewed.dump"
+    assert stat.S_IMODE(backup_receipt.stat().st_mode) == 0o600
+
+    alternate_backup_helper = project_dir / "scripts" / "ops" / "alternate_backup.sh"
+    alternate_backup_helper.write_bytes(source_backup_helper.read_bytes())
+    alternate_backup_helper.chmod(0o755)
+    env["BACKUP_HELPER"] = str(alternate_backup_helper)
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    assert "backup helper must use the canonical deployed path" in completed.stderr
+    env.pop("BACKUP_HELPER")
 
     env.pop("COMPOSE_FILE")
     env["PROD_DEPLOY_MODE"] = "self-hosted"
@@ -3640,6 +6610,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     bin_dir.mkdir()
     (project_dir / "scripts" / "ops").mkdir(parents=True)
     (project_dir / "prometheus").mkdir()
+    (project_dir / "postgres-pgvector").mkdir()
     (project_dir / "secrets").mkdir()
     (project_dir / "secrets").chmod(0o700)
     (project_dir / "backups").mkdir()
@@ -3652,6 +6623,9 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     )
     (project_dir / "prometheus" / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (project_dir / "postgres-pgvector" / "image-manifest.json").write_text(
+        POSTGRES_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
     (project_dir / "secrets" / "pulseplate_metrics_scrape_key").write_text(
         METRICS_SECRET_SENTINEL, encoding="ascii"
@@ -3681,7 +6655,16 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     _write_executable(
         project_dir / "scripts" / "ops" / "postgres_backup.sh",
         f"""#!/usr/bin/env bash
-printf 'backup docker=%s args=%s\\n' "${{DOCKER_BIN:-}}" "$*" >> "{log_file}"
+set -euo pipefail
+printf 'backup docker=%s env_file=%s args=%s\\n' \
+  "${{DOCKER_BIN:-}}" "${{ENV_FILE:-}}" "$*" >> "{log_file}"
+if [ "${{STUB_BACKUP_FAILURE:-0}}" -ne 0 ]; then
+  exit "${{STUB_BACKUP_FAILURE}}"
+fi
+receipt="${{BACKUP_DIR}}/pulseplate_test.dump"
+printf 'synthetic-custom-dump' > "$receipt"
+chmod 0600 "$receipt"
+printf 'Backup created: %s\\n' "$receipt"
 """,
     )
     _write_executable(
@@ -3691,11 +6674,37 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
 printf 'env backend=%s caddy=%s config=%s\n' "${{STAGING_IMAGE_REF:-}}" "${{STAGING_CADDY_IMAGE_REF:-}}" "${{DOCKER_CONFIG:-}}" >> "{log_file}"
 case "$*" in
+  start\\ *)
+    if [ -n "${{STUB_RESTART_FAILURE_ID:-}}" ] && \
+       [ "$*" = "start $STUB_RESTART_FAILURE_ID" ]; then
+      exit "${{STUB_RESTART_FAILURE_STATUS:-77}}"
+    fi
+    ;;
+  stop\\ *)
+    if [ -n "${{STUB_POSTGRES_STOP_FAILURE_ID:-}}" ] && \
+       [ "$*" = "stop $STUB_POSTGRES_STOP_FAILURE_ID" ]; then
+      exit "${{STUB_POSTGRES_STOP_FAILURE_STATUS:-47}}"
+    fi
+    ;;
   *"login ghcr.io"*"--password-stdin"*) cat >/dev/null ;;
   *"info --format"*"Architecture"*) printf 'amd64\n' ;;
-  *"ps -q postgres"*) printf 'postgres-id\n' ;;
+  *"inspect --format"*"State.Running"*) printf 'true\n' ;;
+  *"ps -q postgres"*)
+    if [[ "${{STUB_POSTGRES_CONTAINER_ABSENT:-0}}" != "1" ]] || \
+       [[ -f "${{STUB_POSTGRES_STARTED_FILE:-/nonexistent}}" ]]; then
+      printf 'aaaaaaaaaaaa\n'
+    fi
+    ;;
   *"inspect --format"*) printf 'healthy\n' ;;
-  *"ps -q app"*) printf 'app-id\n' ;;
+  *"ps -q app"*) printf 'bbbbbbbbbbbb\n' ;;
+  *"ps -q caddy"*) printf 'cccccccccccc\n' ;;
+  *"ps -q worker"*) printf 'dddddddddddd\n' ;;
+  *"up -d --pull never postgres"*)
+    if [[ "${{STUB_POSTGRES_UP_FAILURE:-0}}" != "0" ]]; then
+      exit "${{STUB_POSTGRES_UP_FAILURE}}"
+    fi
+    : > "$STUB_POSTGRES_STARTED_FILE"
+    ;;
   *"run --rm --no-deps app alembic upgrade head"*)
     if [[ "${{STUB_MIGRATION_FAILURE:-0}}" == "1" ]]; then
       exit 42
@@ -3712,6 +6721,7 @@ case "${*: -1}" in
   *.attested-digest-deploy-v1) printf '0:0:644\\n' ;;
   *.env) printf '%s\\n' "${STUB_ENV_MODE:-600}" ;;
   *postgres_backup.sh) printf '%s\\n' "${STUB_HELPER_MODE:-755}" ;;
+  *pulseplate_test.dump) printf '600\\n' ;;
   */secrets) printf '%s\\n' "${STUB_SECRET_DIR_METADATA:-$EUID:700}" ;;
   *pulseplate_metrics_scrape_key) printf '%s\\n' "${STUB_SECRET_FILE_METADATA:-$EUID:444}" ;;
   *) exit 1 ;;
@@ -3743,6 +6753,7 @@ esac
             "GHCR_TOKEN": "test-only-token",  # pragma: allowlist secret
             "HEALTH_MAX_ATTEMPTS": "1",
             "HEALTH_SLEEP_S": "0",
+            "STUB_POSTGRES_STARTED_FILE": str(tmp_path / "postgres-started"),
         }
     )
     return env, log_file
@@ -3868,6 +6879,12 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     tmp_path: Path,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
+    project_dir = Path(env["PROJECT_DIR"])
+    selected_env_file = project_dir / "config" / "selected.env"
+    selected_env_file.parent.mkdir()
+    selected_env_file.write_bytes((project_dir / ".env").read_bytes())
+    selected_env_file.chmod(0o600)
+    env["ENV_FILE"] = str(selected_env_file)
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
 
@@ -3887,8 +6904,8 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     pull_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " pull app caddy prometheus" in line,
-        message="missing exact app, Caddy, and Prometheus pull",
+        predicate=lambda line: "compose " in line and " pull app caddy postgres prometheus" in line,
+        message="missing exact app, Caddy, PostgreSQL, and Prometheus pull",
     )
     image_inspect_index = _assert_log_index(
         log_lines,
@@ -3900,13 +6917,13 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     postgres_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " up -d postgres" in line,
+        predicate=lambda line: "compose " in line and " up -d --pull never postgres" in line,
         message="missing Postgres bootstrap",
     )
     quiesce_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " stop caddy app" in line,
-        message="missing app/Caddy quiesce",
+        predicate=lambda line: "compose " in line and " stop worker caddy app" in line,
+        message="missing worker/app/Caddy quiesce",
     )
     migration_index = _assert_log_index(
         log_lines,
@@ -3928,15 +6945,16 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         login_index
         < pull_index
         < image_inspect_index
-        < postgres_index
-        < backup_index
         < quiesce_index
+        < backup_index
+        < postgres_index
         < migration_index
         < app_index
         < caddy_index
     )
-    assert all("up -d --pull never postgres" not in line for line in log_lines)
+    assert all(" up -d postgres" not in line for line in log_lines)
     assert f"backup docker={env['DOCKER_BIN']}" in log_lines[backup_index]
+    assert f"env_file={selected_env_file}" in log_lines[backup_index]
 
     env_lines = [line for line in log_lines if line.startswith("env backend=")]
     assert env_lines
@@ -3945,6 +6963,516 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     docker_config = env_lines[-1].split(" config=", 1)[1]
     assert docker_config
     assert not Path(docker_config).exists()
+
+
+def test_staging_backup_failure_preserves_primary_exit_and_never_switches_postgres(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_BACKUP_FAILURE"] = "33"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 33
+    assert "backup execution failed ambiguously" in completed.stderr
+    assert "captured product writers remain quiesced" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    quiesce = next(
+        index for index, line in enumerate(log_lines) if " stop worker caddy app" in line
+    )
+    backup = next(index for index, line in enumerate(log_lines) if line.startswith("backup "))
+    assert quiesce < backup
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(line != f"docker stop {'a' * 64}" for line in log_lines)
+    assert all(not line.startswith("docker start ") for line in log_lines)
+
+
+def test_old_postgres_stop_failure_keeps_product_writers_quiesced(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env.update(
+        {
+            "STUB_POSTGRES_STOP_FAILURE_ID": "a" * 64,
+            "STUB_POSTGRES_STOP_FAILURE_STATUS": "47",
+        }
+    )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 47
+    assert "captured product writers remain quiesced" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert f"docker stop {'a' * 64}" in log_lines
+    assert all(not line.startswith("docker start ") for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(" alembic upgrade head" not in line for line in log_lines)
+
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        marker = 'if "$DOCKER_BIN" stop "$postgres_container" >/dev/null; then'
+        start = script.index(marker)
+        line_start = script.rfind("\n", 0, start) + 1
+        indentation = script[line_start:start]
+        closing = f"\n{indentation}fi"
+        end = script.index(closing, start) + len(closing)
+        stop_failure_branch = script[start:end]
+        assert "captured product writers remain quiesced" in stop_failure_branch
+        assert "restart_captured_product_containers_after_failure" not in stop_failure_branch
+
+        branch_log = tmp_path / f"{Path(relative_path).stem}-ambiguous-stop.log"
+        docker_stub = tmp_path / f"{Path(relative_path).stem}-docker"
+        _write_executable(
+            docker_stub,
+            f'#!/usr/bin/env bash\nprintf \'docker %s\\n\' "$*" > "{branch_log}"\nexit 47\n',
+        )
+        branch_program = (
+            "set -euo pipefail\n"
+            f'DOCKER_BIN="{docker_stub}"\n'
+            f'postgres_container="{"a" * 64}"\n'
+            f"{stop_failure_branch}\n"
+        )
+        branch_result = subprocess.run(
+            [bash_bin, "-c", branch_program],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert branch_result.returncode == 47
+        assert "captured product writers remain quiesced" in branch_result.stderr
+        assert branch_log.read_text(encoding="utf-8") == f"docker stop {'a' * 64}\n"
+
+
+def test_postgres_identity_revalidation_failure_keeps_product_writers_quiesced(
+    tmp_path: Path,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    marker = (
+        'if assert_existing_postgres_unchanged "$postgres_state_receipt" '
+        '"$postgres_runtime_receipt"; then'
+    )
+
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert script.count(marker) == 2
+        search_from = 0
+        for occurrence in range(2):
+            start = script.index(marker, search_from)
+            line_start = script.rfind("\n", 0, start) + 1
+            indentation = script[line_start:start]
+            closing = f"\n{indentation}fi"
+            end = script.index(closing, start) + len(closing)
+            branch = script[start:end]
+            search_from = end
+            assert "PostgreSQL identity revalidation failed" in branch
+            assert "captured product writers remain quiesced" in branch
+            assert "restart_captured_product_containers_after_failure" not in branch
+
+            restart_log = tmp_path / f"{Path(relative_path).stem}-{occurrence}-restart.log"
+            branch_program = (
+                "set -euo pipefail\n"
+                'postgres_state_receipt="state"\n'
+                'postgres_runtime_receipt="runtime"\n'
+                "assert_existing_postgres_unchanged() { return 42; }\n"
+                "restart_captured_product_containers_after_failure() {\n"
+                f"  printf 'restarted\\n' > \"{restart_log}\"\n"
+                "}\n"
+                f"{branch}\n"
+            )
+            completed = subprocess.run(
+                [bash_bin, "-c", branch_program],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert completed.returncode == 42
+            assert "captured product writers remain quiesced" in completed.stderr
+            assert not restart_log.exists()
+
+
+@pytest.mark.parametrize("relative_path", ("scripts/deploy.sh", "scripts/deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("inspect_status", "inspect_output", "expected_message"),
+    (
+        (66, "", "Unable to inspect app container running state"),
+        (0, "unknown\n", "Invalid app container running state"),
+        (0, "true\nfalse\n", "Invalid app container running state"),
+    ),
+)
+def test_product_service_census_fails_closed_on_untrusted_inspect_state(
+    tmp_path: Path,
+    relative_path: str,
+    inspect_status: int,
+    inspect_output: str,
+    expected_message: str,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    start = script.index("capture_running_service_container() {\n")
+    end = script.index("\n}\n\nrestart_captured_product_containers()", start) + len("\n}\n")
+    function = script[start:end]
+    docker_stub = tmp_path / f"docker-{Path(relative_path).stem}-{inspect_status}"
+    _write_executable(
+        docker_stub,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case "$*" in\n'
+        "  *\"ps -q app\"*) printf 'bbbbbbbbbbbb\\n' ;;\n"
+        '  *"inspect --format"*)\n'
+        '    if [ "$STUB_INSPECT_STATUS" -ne 0 ]; then exit "$STUB_INSPECT_STATUS"; fi\n'
+        "    printf '%b' \"$STUB_INSPECT_OUTPUT\"\n"
+        "    ;;\n"
+        "  *) exit 70 ;;\n"
+        "esac\n",
+    )
+    program = (
+        "set -euo pipefail\n"
+        f'DOCKER_BIN="{docker_stub}"\n'
+        f'COMPOSE=("{docker_stub}" compose)\n'
+        'dc() { "$DOCKER_BIN" compose "$@"; }\n'
+        f"{function}\n"
+        "capture_running_service_container app\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        env={
+            **os.environ,
+            "STUB_INSPECT_STATUS": str(inspect_status),
+            "STUB_INSPECT_OUTPUT": inspect_output,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert expected_message in completed.stderr
+
+
+def test_deploy_backup_helpers_receive_selected_compose_env_file() -> None:
+    staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    production_script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    helper_script = (REPO_ROOT / "scripts/ops/postgres_backup.sh").read_text(encoding="utf-8")
+
+    assert "export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE ENV_FILE" in staging_script
+    assert "export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB ENV_FILE" in production_script
+    assert 'ENV_FILE="${ENV_FILE:-}"' in helper_script
+    assert 'compose_cmd+=(--env-file "${ENV_FILE}")' in helper_script
+
+
+def test_postgres_backup_and_receipt_failures_keep_product_writers_quiesced() -> None:
+    markers = (
+        ('if backup_output="$(', "PostgreSQL backup execution failed ambiguously"),
+        (
+            'if backup_receipt="$(validate_backup_receipt "$backup_output" '
+            '"$postgres_container")"; then',
+            "PostgreSQL backup receipt validation failed",
+        ),
+    )
+    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
+        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        for marker, expected_message in markers:
+            assert script.count(marker) == 1
+            start = script.index(marker)
+            line_start = script.rfind("\n", 0, start) + 1
+            indentation = script[line_start:start]
+            closing = f"\n{indentation}fi"
+            end = script.index(closing, start) + len(closing)
+            failure_branch = script[start:end]
+            assert expected_message in failure_branch
+            assert "captured product writers remain quiesced" in failure_branch
+            assert "restart_captured_product_containers_after_failure" not in failure_branch
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ("unknown-image", "wrong-image-id", "wrong-pgdata", "runtime-failure", "identity-drift"),
+)
+def test_staging_existing_postgres_requires_closed_image_and_pgdata_identity(
+    tmp_path: Path,
+    variant: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    inspect_payload = json.loads(FAKE_POSTGRES_CONTAINER_INSPECT_JSON)
+    if variant == "unknown-image":
+        inspect_payload[0]["Config"]["Image"] = "attacker.invalid/not-postgres:latest"
+    elif variant == "wrong-image-id":
+        inspect_payload[0]["Image"] = "sha256:" + "e" * 64
+    elif variant == "wrong-pgdata":
+        inspect_payload[0]["Config"]["Env"] = ["PGDATA=/wrong", "PG_MAJOR=15"]
+    elif variant == "runtime-failure":
+        env["STUB_POSTGRES_RUNTIME_STATUS"] = "65"
+    else:
+        drift_payload = json.loads(json.dumps(inspect_payload))
+        drift_payload[0]["Id"] = "f" * 64
+        env["STUB_POSTGRES_INSPECT_DRIFT_FILE"] = str(tmp_path / "inspect-drift")
+        env["STUB_POSTGRES_CONTAINER_INSPECT_JSON_AFTER_FIRST"] = json.dumps(drift_payload)
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(inspect_payload)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    if variant != "identity-drift":
+        assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+
+
+def test_staging_rejects_unlistable_backup_before_postgres_switch(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_PG_RESTORE_LIST_STATUS"] = "67"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "not a listable custom-format dump" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(not line.startswith("docker stop a") for line in log_lines)
+
+
+@pytest.mark.parametrize("relative_path", ("scripts/deploy.sh", "scripts/deploy_production.sh"))
+@pytest.mark.parametrize(
+    ("listing_status", "listing", "expected_status", "expected_message"),
+    (
+        (0, "", 0, None),
+        (
+            0,
+            "unrelated_volume\npulseplate_postgres_data\n",
+            1,
+            "volume exists without one trustworthy running container",
+        ),
+        (0, "invalid volume\n", 1, "volume listing is malformed"),
+        (47, "", 47, "Unable to establish PostgreSQL volume absence"),
+    ),
+)
+def test_fresh_postgres_volume_probe_requires_definitive_absence(
+    tmp_path: Path,
+    relative_path: str,
+    listing_status: int,
+    listing: str,
+    expected_status: int,
+    expected_message: str | None,
+) -> None:
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    marker = "require_absent_postgres_volume() {\n"
+    start = script.index(marker)
+    end = script.index("\n}\n", start) + len("\n}\n")
+    function_definition = script[start:end]
+    assert script.count("require_absent_postgres_volume") == 3
+
+    docker_stub = tmp_path / f"{Path(relative_path).stem}-docker"
+    response = (
+        f"exit {listing_status}" if listing_status != 0 else f"printf '%b' {json.dumps(listing)}"
+    )
+    _write_executable(
+        docker_stub,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [ "$*" != "volume ls --quiet" ]; then exit 99; fi\n'
+        f"{response}\n",
+    )
+    program = (
+        "set -euo pipefail\n"
+        f'DOCKER_BIN="{docker_stub}"\n'
+        'POSTGRES_VOLUME_NAME="pulseplate_postgres_data"\n'
+        f"{function_definition}\n"
+        "require_absent_postgres_volume\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", program],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_status
+    if expected_message is None:
+        assert completed.stderr == ""
+    else:
+        assert expected_message in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "fresh_marker", "start_marker"),
+    (
+        (
+            "scripts/deploy.sh",
+            "Fresh PostgreSQL path admitted: rendered named volume is absent",
+            "Starting the already pulled exact PostgreSQL candidate without registry access",
+        ),
+        (
+            "scripts/deploy_production.sh",
+            "Fresh self-hosted PostgreSQL path admitted: rendered named volume is absent",
+            "Starting exact self-hosted PostgreSQL image without a registry pull",
+        ),
+    ),
+)
+def test_fresh_postgres_volume_recheck_is_the_last_gate_before_candidate_start(
+    relative_path: str,
+    fresh_marker: str,
+    start_marker: str,
+) -> None:
+    script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    fresh_index = script.index(fresh_marker)
+    start_index = script.index(start_marker, fresh_index)
+    handoff_block = script[fresh_index:start_index]
+
+    assert handoff_block.count("require_absent_postgres_volume") == 1
+    assert "captured product writers remain quiesced" in handoff_block
+    assert "restart_captured_product_containers_after_failure" not in handoff_block
+
+
+def test_staging_orphan_postgres_volume_holds_before_quiesce_or_switch(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    env["STUB_POSTGRES_VOLUME_LIST_OUTPUT"] = "pulseplate_postgres_data\n"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "volume exists without one trustworthy running container" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+
+
+def test_staging_absent_volume_uses_fresh_path_without_backup(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" stop worker caddy app" in line for line in log_lines)
+    assert any(" up -d --pull never postgres" in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+
+
+def test_staging_fresh_volume_appearance_after_quiesce_holds_before_candidate_start(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    volume_counter = tmp_path / "postgres-volume-list-count"
+    env.update(
+        {
+            "STUB_POSTGRES_CONTAINER_ABSENT": "1",
+            "STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE": str(volume_counter),
+            "STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST": "pulseplate_postgres_data\n",
+        }
+    )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert "volume exists without one trustworthy running container" in completed.stderr
+    assert "volume revalidation failed; captured product writers remain quiesced" in (
+        completed.stderr
+    )
+    assert volume_counter.read_text(encoding="utf-8") == "2\n"
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" stop worker caddy app" in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+
+
+def test_staging_ambiguous_volume_listing_holds_before_quiesce_or_switch(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    env["STUB_POSTGRES_VOLUME_LIST_STATUS"] = "47"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 47
+    assert "Unable to establish PostgreSQL volume absence; HOLD" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
 
 
 def test_staging_deploy_migration_failure_keeps_app_and_caddy_stopped(tmp_path: Path) -> None:
@@ -3965,7 +7493,7 @@ def test_staging_deploy_migration_failure_keeps_app_and_caddy_stopped(tmp_path: 
     assert completed.returncode == 42
     assert "Caddy and app remain stopped" in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert any(" stop caddy app" in line for line in log_lines)
+    assert any(" stop worker caddy app" in line for line in log_lines)
     assert any(" run --rm --no-deps app alembic upgrade head" in line for line in log_lines)
     assert not any(" up -d --pull never app" in line for line in log_lines)
     assert not any(" up -d --pull never caddy" in line for line in log_lines)
@@ -4133,3 +7661,52 @@ def test_obs1b_deploy_scripts_keep_canonical_guard_product_first_and_non_destruc
     assert production_script.index("up -d --remove-orphans caddy") < production_script.index(
         "up -d --pull never prometheus"
     )
+
+
+@pytest.mark.parametrize("pytest_exit", (0, 23))
+def test_cd_pgvector_admission_executes_complete_canonical_suite_and_propagates_failure(
+    pytest_exit: int,
+) -> None:
+    ci = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    cd = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    canonical = next(
+        step["run"]
+        for step in ci["jobs"]["pgvector_compat"]["steps"]
+        if step["name"] == "Prove pgvector binding, extension, and RLS compatibility"
+    )
+    step = cd["jobs"]["postgres-pgvector-ci-admission"]["steps"][-1]
+    actual = step["run"]
+    marker = "python -m pytest -q"
+    assert canonical.count(marker) == actual.count(marker) == 1
+    targets = shlex.split(canonical.split(marker, maxsplit=1)[1].replace("\\\n", " "))
+    assert shlex.split(actual.split(marker, maxsplit=1)[1].replace("\\\n", " ")) == targets
+    assert all(target.startswith("tests/") and target.endswith(".py") for target in targets)
+    bash_bin = shutil.which("bash")
+    assert bash_bin is not None
+    prefix = (
+        "set -euo pipefail\n"
+        'git() { test "$*" = "rev-parse HEAD"; printf "%s\\n" "$GITHUB_SHA"; }\n'
+        "python() {\n"
+        '  test "$CI:$GITHUB_ACTIONS:$APP_ENV:$ENVIRONMENT:$PGVECTOR_COMPAT_REQUIRED" '
+        '= "true:true:test:test:1"\n'
+        '  printf "%s\\n" "$@"\n'
+        '  return "$PYTEST_STUB_EXIT"\n'
+        "}\n"
+    )
+    completed = subprocess.run(
+        [bash_bin, "-c", prefix + actual],
+        env={
+            "PATH": os.defpath,
+            **step["env"],
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+            "GITHUB_SHA": "a" * 40,
+            "PYTEST_STUB_EXIT": str(pytest_exit),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.stdout.splitlines() == ["-m", "pytest", "-q", *targets]
+    assert completed.returncode == pytest_exit, completed.stderr
