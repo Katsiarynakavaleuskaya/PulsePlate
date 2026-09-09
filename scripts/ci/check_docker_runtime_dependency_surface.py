@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import shutil
+import stat
 import subprocess  # nosec B404: subprocess is required for bounded local Docker inspection (remove-by: 2026-09-30, ref: PR-docker-runtime-slimming)
 import sys
 
@@ -208,11 +209,62 @@ def build_result(
     )
 
 
+def validate_trivy_image_report(image: str, report_path: Path) -> None:
+    """Bind the native Trivy v2 image report to this local Docker image.
+
+    This checks the finite image/report projection, not the entire Trivy schema
+    or vulnerability semantics. Trivy owns scanning and JSON-to-SARIF conversion.
+    """
+    if report_path.is_symlink():
+        raise ValueError("Trivy image report must not be a symlink.")
+    metadata = report_path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size == 0:
+        raise ValueError("Trivy image report must be a nonempty regular file.")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(report, dict)
+        or type(report.get("SchemaVersion")) is not int
+        or report["SchemaVersion"] != 2
+    ):
+        raise ValueError("Expected a native Trivy schema version 2 report.")
+    if report.get("ArtifactType") != "container_image" or report.get("ArtifactName") != image:
+        raise ValueError("Trivy report does not describe the selected container image.")
+    image_metadata = report.get("Metadata")
+    if not isinstance(image_metadata, dict):
+        raise ValueError("Trivy image metadata is missing.")
+    image_id = _run_docker(["image", "inspect", "--format", "{{.Id}}", image]).stdout.strip()
+    if not image_id.startswith("sha256:") or image_metadata.get("ImageID") != image_id:
+        raise ValueError("Trivy report image ID differs from the inspected Docker image.")
+    results = report.get("Results")
+    if not isinstance(results, list) or not results:
+        raise ValueError("Trivy image report has no package scan results.")
+    has_os_result = False
+    for result in results:
+        if not isinstance(result, dict):
+            raise ValueError("Trivy scan result must be an object.")
+        if not all(
+            isinstance(result.get(key), str) and result[key] for key in ("Target", "Class", "Type")
+        ):
+            raise ValueError("Trivy scan result identity is missing.")
+        has_os_result = has_os_result or result["Class"] == "os-pkgs"
+        if "Vulnerabilities" in result:
+            findings = result["Vulnerabilities"]
+            if not isinstance(findings, list) or not all(isinstance(v, dict) for v in findings):
+                raise ValueError("Trivy vulnerability results must be an array of objects.")
+    if not has_os_result:
+        raise ValueError("Trivy production image report is missing its OS package scan.")
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments."""
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True, help="Docker image reference to inspect.")
+    parser.add_argument(
+        "--trivy-report",
+        type=Path,
+        help="Optional native Trivy JSON image report to bind before reporting runtime inventory.",
+    )
     parser.add_argument(
         "--blocked-prefix",
         action="append",
@@ -246,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
 
     args = parse_args(argv)
+    if args.trivy_report is not None:
+        validate_trivy_image_report(args.image, args.trivy_report)
     extra_blocked_prefixes = tuple(args.blocked_prefixes or ())
     blocked_prefixes = DEFAULT_BLOCKED_PREFIXES + extra_blocked_prefixes
     blocked_debian_packages = tuple(args.blocked_debian_packages or ())
