@@ -7,6 +7,13 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Explicit manual execution mode; disabled never publishes
+        type: choice
+        required: true
+        default: disabled
+        options: [disabled, normal]
 
 concurrency:
   # Serialize runs that can publish the same commit artifacts across refs (branch + tag)
@@ -20,6 +27,9 @@ env:
 jobs:
   # Build and test Docker image
   build:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.mode == 'normal'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -330,6 +340,9 @@ jobs:
 
   # Security scan
   security-scan:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.mode == 'normal'
     runs-on: ubuntu-latest
     needs: build
     env:
@@ -383,7 +396,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '1'
           trivyignores: .trivyignore
-          version: v0.72.0
+          version: v0.74.0
 
       - name: Check Trivy filesystem SARIF output
         id: trivy_fs_sarif
@@ -410,7 +423,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs: [build, security-scan]
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_dispatch' ||
+      inputs.mode == 'normal')
     permissions:
       actions: write
       attestations: write
@@ -589,7 +605,7 @@ jobs:
           limit-severities-for-sarif: true
           trivyignores: .trivyignore
           exit-code: '1'
-          version: v0.72.0
+          version: v0.74.0
 
       - name: Fail when Trivy image SARIF is missing
         if: ${{ always() }}

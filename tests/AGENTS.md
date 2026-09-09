@@ -18,6 +18,13 @@
 - Never mock `builtins.__import__` or `builtins.float`.
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
+- Main-test shard processes share one checkout and Git common directory. A
+  helper that needs PR ancestry must use the already available full local graph
+  before any depth-limited fetch; canonical full-history CI must never add a
+  shallow boundary while another shard evaluates Git evidence. If a future
+  shallow fallback must run in parallel, isolate it in a temporary repository
+  or assign it to a serialized owner instead of mutating shared refs,
+  replacement objects, grafts, or `.git/shallow`.
 - **Prefer `monkeypatch.setattr()` over `@patch` decorator** — `@patch` on `@contextmanager` targets
   fails silently under Python 3.12 + xdist (see `docs/ENGINEERING_LESSONS.md` lesson 11).
   Use autouse `monkeypatch.setenv()` fixtures instead of `os.environ` mutation in `setup_method()`.

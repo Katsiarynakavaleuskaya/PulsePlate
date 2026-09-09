@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -177,3 +178,82 @@ def test_runbook_reference_is_present_in_workflow_preflight_errors() -> None:
     assert "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md" in workflow_text
     assert "Missing protected App Store upload secret(s):" in workflow_text
     assert "Missing protected App Privacy secret(s):" in workflow_text
+
+
+@pytest.mark.parametrize("job_name", ("validate-assets", "upload-assets", "upload-app-privacy"))
+def test_fastlane_bundle_and_configuration_stay_outside_snapshot_search_tree(job_name: str) -> None:
+    job = _job(job_name)
+    bundle_root = "${RUNNER_TEMP}/pulseplate-ios-bundle-" + job_name
+    assert job["env"] == {"BUNDLE_GEMFILE": "${{ github.workspace }}/ios/Gemfile"}
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    prepare = _step_by_name(job_name, "Prepare external Bundler root")
+    assert prepare["run"] == (
+        "set -euo pipefail\numask 077\n"
+        f'bundle_root="{bundle_root}"\n'
+        'mkdir -p "$bundle_root"\n'
+        "printf 'PULSEPLATE_BUNDLE_ROOT=%s\\nBUNDLE_APP_CONFIG=%s/.bundle\\n' \\\n"
+        '  "$bundle_root" "$bundle_root" >> "$GITHUB_ENV"\n'
+    )
+    setup_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict) and str(step.get("uses", "")).startswith("ruby/setup-ruby@")
+    ]
+    assert len(setup_steps) == 1
+    setup = setup_steps[0]
+    assert setup["uses"] == "ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9"
+    assert setup["with"] == {
+        "ruby-version": "3.4.10",
+        "bundler-cache": "true",
+        "working-directory": "${{ env.PULSEPLATE_BUNDLE_ROOT }}",
+    }
+    assert steps.index(prepare) < steps.index(setup)
+    assert "env" not in prepare and "env" not in setup
+    bundle_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict) and str(step.get("run", "")).startswith("bundle ")
+    ]
+    assert bundle_steps
+    assert bundle_steps[0] == {
+        "name": "Install gems",
+        "working-directory": "ios",
+        "run": "bundle install",
+    }
+    for step in steps:
+        assert isinstance(step, dict)
+        overrides = step.get("env", {})
+        assert isinstance(overrides, dict)
+        assert not set(overrides).intersection(
+            {"BUNDLE_GEMFILE", "PULSEPLATE_BUNDLE_ROOT", "BUNDLE_APP_CONFIG"}
+        )
+    for step in bundle_steps:
+        assert steps.index(setup) < steps.index(step)
+        assert step["working-directory"] == "ios"
+    # The pinned action derives vendor/bundle and its cache key from its own cwd.
+    # Moving that cwd excludes the old ios/vendor/bundle cache without disabling caching.
+    assert "github.workspace" not in bundle_root
+    assert "BUNDLE_PATH" not in _workflow_text()
+    assert "bundle-path:" not in _workflow_text()
+    assert "skip_helper_version_check" not in _workflow_text()
+    assert "snapshot update" not in _workflow_text()
+
+
+def test_fastlane_bundle_roots_are_exactly_one_per_literal_job() -> None:
+    jobs = _load_workflow()["jobs"]
+    assert isinstance(jobs, dict)
+    assert set(jobs) == {"validate-assets", "upload-assets", "upload-app-privacy"}
+    initializers = [
+        _step_by_name(job_name, "Prepare external Bundler root")["run"] for job_name in jobs
+    ]
+    assert len(initializers) == len(set(initializers)) == 3
+    for job_name in jobs:
+        steps = _job(job_name)["steps"]
+        assert isinstance(steps, list)
+        writers = [
+            step
+            for step in steps
+            if isinstance(step, dict) and "PULSEPLATE_BUNDLE_ROOT=" in str(step.get("run", ""))
+        ]
+        assert writers == [_step_by_name(job_name, "Prepare external Bundler root")]

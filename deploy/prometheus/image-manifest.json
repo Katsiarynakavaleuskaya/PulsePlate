@@ -1,9 +1,9 @@
 {
   "schema": "pulseplate.prometheus_image_manifest.v2",
   "repository": "prom/prometheus",
-  "source_revision": "09fdfcd2659dd9c816e9e23c992fc161c0091757",
-  "index_digest": "sha256:1b88c17bf5f023ee6daf6bb1ee5605e1f69fd2df9e87fca3658949c44b0588ab",
+  "source_revision": "53144df54e01b689bf6c45e811c6230631b132e7",
+  "index_digest": "sha256:62464aea89547566d3e26b33566a40d8a9d2ddef947fde9d37454040c9c636b1",
   "platform": "linux/amd64",
-  "platform_manifest_digest": "sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22",
-  "runtime_ref": "prom/prometheus@sha256:84f0d46e960e86b6965d2e4d99a06f92f176dd75a31ead99126a009891e00f22"
+  "platform_manifest_digest": "sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d",
+  "runtime_ref": "prom/prometheus@sha256:76f21be0a8e8c825cccb0e2021699dcbfb02037cc594c1f48d44993f8a415f2d"
 }

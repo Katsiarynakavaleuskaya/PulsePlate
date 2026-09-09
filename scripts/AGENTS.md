@@ -10,6 +10,50 @@
 - Treat scripts as production automation: avoid breaking flags or outputs.
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
+- Before mocking a pinned external CLI or workflow adapter, verify its real
+  flags, serialization fields and permitted Actions contexts through native
+  help, pinned primary source and actionlint. A fixture accepting an invented
+  flag, output field or expression context is not execution evidence.
+
+## Native RubyZip/Fastlane guard
+
+- `ruby scripts/ci/check_rubyzip_fastlane.rb` is the read-only source, lock and
+  advisory guard in the existing Ruby-enabled JWT/Fastlane CI job; that job
+  uses Ruby 3.4.10 and Bundler 2.4.22 and retains the independent JWT guard.
+  Its stdlib behavioral fixtures run as `ruby tests/test_rubyzip_fastlane.rb`
+  in that same job; Python CI/pre-commit tests retain static contracts only and
+  must not install or require a Ruby toolchain.
+- The tracked Ruby dependency inventory is exactly `ios/Gemfile` and its lock.
+  New/aliased surfaces, nonliteral Gemfile code, duplicate declarations or lock
+  rows, and unreconciled sources fail closed. Native Ripper recognizes only
+  literal `source`/`gem` calls; never evaluate the Gemfile or introduce a Python
+  Ruby/version parser. Bundler's lock parser and Gem version/requirement types
+  own dependency semantics.
+- The guard binds the approved immutable maintained Fastlane fork and genuine
+  version, checks compatible dependencies and retained floors, and requires
+  every selected RubyZip occurrence to satisfy all frozen advisory records.
+  It must permit future authorized compatible RubyZip versions, not freeze an
+  entire historical dependency graph. It performs no resolution, installation,
+  network request, lock write or release action; native solver replay and IPA
+  compatibility evidence remain separate requirements.
+
+## Official Prometheus image selection
+
+- `deploy/prometheus/image-manifest.json` is the sole selected-image record.
+  Keep its existing closed v2 shape and cross-bind the official Docker Hub
+  index, linux/amd64 manifest, inspected config, repository digest, and binary
+  revision through the existing CD/deploy readers.
+- An image update must change all three Compose consumers together and retain
+  suppression-free OS and both-binary scan evidence plus exact-image promtool
+  and synthetic runtime checks. Registry metadata or a local syntax probe is
+  not current-head CI or production activation evidence.
+- `build.yml` contains only the ordinary build/security/publish chain.
+  Manual execution defaults to `disabled`; explicit `normal` uses native
+  GitHub Actions equality. Keep PR publication denial, existing dependencies,
+  permissions, private-index handling, and same-SHA serialization.
+- Do not restore the retired Prometheus candidate publisher or heavy local
+  compiler. Historical private receipts remain evidence only; do not rewrite
+  them, fabricate publication, or treat selector updates as deployment.
 
 ## Merge-check execution budgets
 

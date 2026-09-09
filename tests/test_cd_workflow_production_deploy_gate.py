@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 from scripts import verify_premium_alias_telemetry as verifier
@@ -17,6 +18,82 @@ PROD_DEPLOY_MODE_ENV_FETCH = (
 WEB_IOS_RELEASE_READY_ENV_FETCH = (
     'get_actions_variable "environments/production/variables" "WEB_IOS_RELEASE_READY"'
 )
+
+
+def test_build_workflow_keeps_only_ordinary_fail_closed_topology() -> None:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())
+    jobs = workflow["jobs"]
+    assert set(jobs) == {"build", "security-scan", "publish"}
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs == {
+        "mode": {
+            "description": "Explicit manual execution mode; disabled never publishes",
+            "type": "choice",
+            "required": True,
+            "default": "disabled",
+            "options": ["disabled", "normal"],
+        }
+    }
+    assert workflow["concurrency"] == {
+        "group": "ghcr-build-push-${{ github.sha }}",
+        "cancel-in-progress": False,
+    }
+    assert jobs["security-scan"]["needs"] == "build"
+    assert jobs["publish"]["needs"] == ["build", "security-scan"]
+    assert jobs["build"]["permissions"] == {"actions": "read", "contents": "read"}
+    for retired in (
+        "prometheus-candidate",
+        "candidate_head_sha",
+        "candidate_spec_digest",
+        "prometheus_derivative_candidate.py",
+        "PROMETHEUS_CANDIDATE_",
+    ):
+        assert retired not in str(workflow)
+    for retired_path in (
+        "deploy/prometheus/Containerfile",
+        "scripts/ci/prometheus_derivative_candidate.py",
+        "scripts/ci/_prometheus_derivative_transport.py",
+    ):
+        assert not (REPO_ROOT / retired_path).exists()
+    listener = (REPO_ROOT / ".github/workflows/cd-test.yml").read_text()
+    assert "github.event.workflow_run.event == 'push'" in listener
+
+
+@pytest.mark.parametrize(
+    "event,mode,ordinary,publish",
+    (
+        ("push", None, True, True),
+        ("pull_request", None, True, False),
+        ("pull_request", "normal", True, False),
+        ("workflow_dispatch", None, False, False),
+        ("workflow_dispatch", "", False, False),
+        ("workflow_dispatch", "disabled", False, False),
+        ("workflow_dispatch", "prometheus-candidate", False, False),
+        ("workflow_dispatch", "invented", False, False),
+        ("workflow_dispatch", "normal-extra", False, False),
+        ("workflow_dispatch", "normal", True, True),
+        ("workflow_dispatch", "NORMAL", True, True),
+        ("workflow_dispatch", "Normal", True, True),
+        ("workflow_dispatch", "nOrMaL", True, True),
+    ),
+)
+def test_build_manual_mode_cannot_fall_through_to_ordinary_publication(
+    event: str, mode: str | None, ordinary: bool, publish: bool
+) -> None:
+    jobs = yaml.safe_load((REPO_ROOT / ".github/workflows/build.yml").read_text())["jobs"]
+    ordinary_expression = "github.event_name != 'workflow_dispatch' || inputs.mode == 'normal'"
+    assert " ".join(jobs["build"]["if"].split()) == ordinary_expression
+    assert " ".join(jobs["security-scan"]["if"].split()) == ordinary_expression
+    assert " ".join(jobs["publish"]["if"].split()) == (
+        "github.event_name != 'pull_request' && (" + ordinary_expression + ")"
+    )
+    # Bounded choice-string projection, not a GitHub Actions expression interpreter.
+    # GitHub compares strings case-insensitively; missing inputs project to "".
+    ordinary_result = event != "workflow_dispatch" or (mode or "").casefold() == "normal"
+    assert ordinary_result is ordinary
+    assert (event != "pull_request" and ordinary_result) is publish
+
+
 PRODUCTION_ENV_READY_ENV_FETCH = (
     'get_actions_variable "environments/production/variables" "PRODUCTION_ENV_READY"'
 )
@@ -74,10 +151,13 @@ def test_production_deploy_syncs_shell_bundle_for_caddy_rebuild() -> None:
         r"\s+frontend \\\n"
         r"\s+deploy/Caddyfile\.production \\\n"
         r"\s+deploy/docker-compose\.production\.yaml \\\n"
+        r"\s+deploy/docker-compose\.production\.selfhosted\.yaml \\\n"
         r"\s+deploy/prometheus/prometheus\.yml \\\n"
         r"\s+deploy/prometheus/image-manifest\.json \\\n"
         r"\s+scripts/diagnose_web\.sh \\\n"
-        r"\s+scripts/redeploy_caddy\.sh",
+        r"\s+scripts/redeploy_caddy\.sh \\\n"
+        r"\s+scripts/ops/postgres_backup\.sh \\\n"
+        r"\s+deploy/postgres-pgvector/image-manifest\.json",
         re.MULTILINE,
     )
 
@@ -225,9 +305,9 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert install_step["id"] == "prometheus_trivy"
     install_env = install_step.get("env")
     assert install_env == {
-        "TRIVY_VERSION": "0.72.0",
+        "TRIVY_VERSION": "0.74.0",
         "TRIVY_ARCHIVE_SHA256": (
-            "bbb64b9695866ce4a7a8f5c9592002c5961cab378577fa3f8a040df362b9b2ea"  # pragma: allowlist secret
+            "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"  # pragma: allowlist secret
         ),
     }
     install_script = install_step["run"]
@@ -302,6 +382,32 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
     assert "GITHUB_EVENT_NAME" in str(admission)
     assert "GITHUB_REF" in str(admission)
     assert jobs["production-gates"]["needs"] == "prometheus-image-security"
+
+
+def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    assert isinstance(workflow, dict)
+    triggers = workflow.get("on", workflow.get(True))
+    jobs = workflow.get("jobs")
+    assert isinstance(triggers, dict)
+    assert isinstance(jobs, dict)
+
+    assert "workflow_dispatch" not in triggers
+    assert "prometheus-grpc-candidate-publish" not in jobs
+    assert workflow["permissions"] == {
+        "actions": "read",
+        "contents": "read",
+        "id-token": "write",
+        "packages": "write",
+    }
+    for rejected_carrier in (
+        "expected_head_sha",
+        "publish-prometheus-grpc-v1.83.1-ae54350536bd",
+        "PULSEPLATE_PROMETHEUS_GHCR_TOKEN",
+        "scripts/ci/prometheus_derivative_candidate.py",
+    ):
+        assert rejected_carrier not in workflow_text
 
 
 def test_prometheus_security_smoke_reuses_canonical_native_parser() -> None:

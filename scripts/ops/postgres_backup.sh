@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Backup Postgres database for PulsePlate production/staging.
 # Usage: [DOCKER_BIN=/absolute/path/to/docker] [POSTGRES_USER=... POSTGRES_DB=...]
-#        [PROJECT_DIR=...] [BACKUP_DIR=...] [COMPOSE_FILE=...] scripts/ops/postgres_backup.sh
+#        [PROJECT_DIR=...] [BACKUP_DIR=...] [COMPOSE_FILE=...] [ENV_FILE=...]
+#        scripts/ops/postgres_backup.sh
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-production}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/pulseplate-production/backups}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
+ENV_FILE="${ENV_FILE:-}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 DOCKER_BIN="${DOCKER_BIN:-}"
@@ -23,9 +25,16 @@ mkdir -p "${BACKUP_DIR}"
 if [ -n "${COMPOSE_FILE}" ] && [ "${COMPOSE_FILE#/}" = "${COMPOSE_FILE}" ]; then
   COMPOSE_FILE="${PROJECT_DIR}/${COMPOSE_FILE}"
 fi
+if [ -n "${ENV_FILE}" ] && [ "${ENV_FILE#/}" = "${ENV_FILE}" ]; then
+  ENV_FILE="${PROJECT_DIR}/${ENV_FILE}"
+fi
 
 compose_exec() {
-  local compose_cmd=("$DOCKER_BIN" compose --project-directory "${PROJECT_DIR}")
+  local compose_cmd=("$DOCKER_BIN" compose)
+  if [ -n "${ENV_FILE}" ]; then
+    compose_cmd+=(--env-file "${ENV_FILE}")
+  fi
+  compose_cmd+=(--project-directory "${PROJECT_DIR}")
   if [ -n "${COMPOSE_FILE}" ]; then
     compose_cmd+=(-f "${COMPOSE_FILE}")
   fi
