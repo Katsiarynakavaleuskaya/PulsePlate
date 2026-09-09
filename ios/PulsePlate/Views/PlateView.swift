@@ -212,9 +212,6 @@ struct PlateViewPP: View {
         VStack(spacing: PPDesignTokens.Spacing.xLarge) {
           // Header
           VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-            Text(localized("plate.preview.title"))
-              .font(PPDesignTokens.Typography.largeTitle)
-              .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
             Text(localized("plate.preview.subtitle"))
               .font(PPDesignTokens.Typography.body)
               .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
@@ -263,6 +260,8 @@ struct PlateViewPP: View {
         .padding(.bottom, PPDesignTokens.Spacing.medium)
       }
       .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
+      .navigationTitle(localized("plate.preview.title"))
+      .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(isPresented: $showMealEntry) {
         MealEntryView()
       }

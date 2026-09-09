@@ -1,6 +1,6 @@
 # iOS Roadmap (Repo-Truth)
 
-**Last Updated**: 8 September 2026
+**Last Updated**: 9 September 2026
 **Owner**: @katsiaryna_kavaleuskaya
 **Cadence**: Update only when reality changes (PRs that change entrypoints, networking, guards, or localization).
 
@@ -21,9 +21,14 @@
 - Home and BMI keep `RootTabs` as their external `NavigationStack` owner.
   Today, Progress, and Profile remain direct tab children and keep their own
   existing stacks.
-- Tab-away/tab-return retention across adaptive presentation and window-size
-  changes remains a required real SwiftUI V1 acceptance check; it is not yet
-  claimed as proven.
+- Retained native sequences observe tab-away/tab-return and Weekly pop/re-entry
+  on compact iPhone 26, iPad 26 sidebar, and iOS 17. Separate iPad half-width
+  Today, one-third-width Russian AX5 Profile, and compact Home frames are also
+  captured. The Today title/window-control finding requires fresh afterframes;
+  Human V1 acceptance remains pending.
+- Today presents its existing localized title through the self-owned stack's
+  inline navigation bar. The subtitle, hero, and footer actions stay in their
+  existing content and inset positions.
 - Weekly Progress is not a top-level tab. It is a navigation-neutral child
   reachable exactly once from Progress. Progress owns its session HealthKit
   manager; recreated Weekly children observe that same reference. This retains
@@ -40,8 +45,9 @@
   primary PPButton labels and loading indicators over the unchanged blue fill.
   Secondary/ghost variants, tokens, assets, sizing and actions stay unchanged;
   final native V1 acceptance remains pending.
-- `DebugToolsScreen` is available only inside the compile-gated DEBUG Profile
-  section; it is never part of the production tab inventory.
+- Existing `DebugToolsScreen` entry points in Profile and Today are compile-gated
+  with `#if DEBUG`; the Today Release branch routes to Profile. Diagnostics are
+  never part of the production tab inventory.
 - Active Debug/Release plists explicitly select the packaged LaunchScreen,
   declare the accepted phone/tablet orientations and single-scene lifecycle,
   and retain the localized read-only HealthKit purpose fallback. All four source
@@ -107,9 +113,11 @@ Evidence:
   [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381).
   It preserves V5 presentation while correcting Weekly manager lifetime and
   Progress state localization, and repairs the effective launch/orientation and
-  plist-resource metadata exposed by the real Release probe. RubyZip
-  CVE-2026-85396 remains a current security prerequisite owned by
-  [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347).
+  plist-resource metadata exposed by the real Release probe. The RubyZip
+  prerequisite [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347)
+  is merged at `e5d162168a866b64f1750f396e6034643f210cca` and inherited by this
+  branch. Current-head security checks remain separate required evidence;
+  another owner handles Trivy policy maintenance and general main health.
   Real SwiftUI V1 review and human `GO`, terminal current-head CI, closeout,
   and merge remain pending.
 

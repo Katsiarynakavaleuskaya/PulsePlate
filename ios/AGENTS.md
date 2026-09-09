@@ -510,16 +510,6 @@ final class MockShoppingListService: ShoppingListService, @unchecked Sendable {
 
 ## XCTest helpers: avoid cross-file symbol collisions (hard rule)
 
-For UIKit-backed SwiftUI controls, verify native state through the actual hosted
-component and public UIKit types/properties. `ImageRenderer` can omit embedded
-UIKit views in headless CI, so a successful local raster capture is not sufficient
-for the native-state test contract. Require the expected native control and its
-configured state; missing hierarchy, nil required properties, or failed color
-conversion must fail the test. Do not substitute private class-name matching or
-skip the assertion when rendering or native inspection is unavailable. Retain
-native raster captures as supporting visual evidence, and keep rendered SwiftUI
-text/layout checks where the renderer supports that surface.
-
 ### Test helper scoping
 
 **Rule:** Any test helper type that may be repeated across multiple files (`FailingURLProtocol` and similar) **must be `private`/`fileprivate`** to avoid redeclaration errors when using FileSystemSynchronized build files.

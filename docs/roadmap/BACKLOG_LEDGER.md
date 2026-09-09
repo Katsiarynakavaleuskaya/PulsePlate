@@ -24,6 +24,26 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p2-ios-hosted-uikit-test-guidance"></a>
+- [ ] P2: Promote observed UIKit-backed SwiftUI test guidance into scoped instructions
+  - Owner: qa-engineer-agent / iOS lane owner
+  - Priority: P2 (engineering instructions)
+  - Target PR: PR-TBD-IOS-HOSTED-UIKIT-TEST-GUIDANCE
+  - Status: Instruction promotion deferred from PR #2376; the executable hosted
+    spinner regression and native visual evidence remain in that implementation PR.
+  - Reason for deferral: Keep the navigation work package within its standard
+    20-path limit, including the required closeout artifact. The process-only
+    instruction addition is separate from the retained correctness fix.
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift:290`;
+    local retained proposal
+    `artifacts/orchestration/ios_rel2/recovery_20260908/spinner-ci-learning-record.json`
+    and the verified PR #2376 recovery checkpoint.
+  - DoD: Review the retained CI and native evidence; promote one bounded rule to
+    `ios/AGENTS.md` explaining when to inspect public UIKit state because
+    `ImageRenderer` does not render the embedded native view. Require real
+    hierarchy/color/state assertions, retain raster evidence where supported,
+    and add no skips, private-class heuristics, or product changes.
+
 <a id="ledger-p1-ios-xctest-isolated-deinit-runtime-matrix"></a>
 - [ ] P1: Validate XCTest isolated-deinit execution across supported iOS runtimes
   - Owner: qa-engineer-agent / iOS lane owner
@@ -2877,9 +2897,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       merged at `5adbb917e54261e999c076e77bbff92d3c53fcdd`
     - Release/AppIcon prerequisite [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
       merged at `d9883bc9c0a6eb69691c5b2cda3795c387758c9f`
-    - Current RubyZip CVE-2026-85396 prerequisite remains owned by
-      [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347);
-      merge readiness cannot ignore the observed current security failure.
+    - RubyZip prerequisite
+      [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347)
+      merged at `e5d162168a866b64f1750f396e6034643f210cca` and is inherited by
+      this branch. Current-head security checks remain independently required;
+      Trivy policy maintenance and general main health have a separate owner.
   - Area: ios / navigation / localization / accessibility / tests / docs
   - Finding Type: consumer-first top-level navigation release slice
   - Scope / Reason:
@@ -2903,6 +2925,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       indicators use the existing Navy foreground over unchanged primary blue.
       This fixes the observed Today CTA contrast in this PR without a new
       prerequisite, token, variant, asset, action or sizing change
+    - The Today screen uses its existing stack's localized inline navigation
+      title to give system iPad window controls their own navigation space;
+      its subtitle, hero, footer actions, and data behavior remain unchanged
     - This item absorbs only the `RootTabs` / top-level-navigation portion of
       the older
       `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
@@ -2943,7 +2968,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       Dynamic-Type-safe link under Progress; injected manager identity and native
       pop/re-entry prove retention for the bounded parent session
     - DEBUG diagnostics are absent from the production section count and
-      compile-gated inside Profile
+      compile-gated at both existing Profile and Today entry points
     - Actual primary-button rasters meet the 4.5:1 contrast floor in Light/Dark
       idle/loading states, preserve Large/AX5 bounds, and include isolated native
       loading-indicator evidence; conservative pressed-color evidence is bound

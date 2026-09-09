@@ -47,10 +47,12 @@ system tab presentation on iOS 17. Labels resolve through the app-selected
 
 Home and BMI retain their external stacks in `RootTabs`. Today, Progress, and
 Profile remain direct children with their existing self-owned stacks, so the
-shell does not add redundant navigation containers. Weekly Progress is
+shell does not add redundant navigation containers. Today uses its existing
+stack's localized inline navigation title, keeping its subtitle and footer in
+their existing content positions. Weekly Progress is
 navigation-neutral and reachable exactly once beneath Progress. Technical
-Profile destinations are compile-gated under `#if DEBUG` and never become a
-top-level tab.
+destinations in Profile and Today are compile-gated under `#if DEBUG`; Today's
+Release fallback opens Profile. Diagnostics never become a top-level tab.
 
 Progress owns the `HealthKitManager` used by its Weekly child as a session-scoped
 `StateObject`. Recreated Weekly destinations observe the same injected reference
