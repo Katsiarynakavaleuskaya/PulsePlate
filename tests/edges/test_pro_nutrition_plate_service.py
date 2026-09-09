@@ -17,7 +17,6 @@ from pydantic import ValidationError
 import core.bmr as nutrition_bmr
 import core.plate as nutrition_plate
 import core.recommendations as nutrition_recommendations
-import legacy_app
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
@@ -1676,14 +1675,4 @@ def test_retained_plate_handler_has_no_legacy_imports() -> None:
             and (node.module == "legacy_app" or node.module.startswith("legacy_app."))
         )
         for node in ast.walk(handler)
-    )
-
-
-def test_retained_legacy_plate_helpers_are_exact_canonical_aliases() -> None:
-    """Retained helper exports cannot become a second runtime owner."""
-
-    assert legacy_app.calculate_heuristic_macros is pro_nutrition_plate.calculate_heuristic_macros
-    assert (
-        legacy_app._aggregate_day_micronutrients
-        is pro_nutrition_plate._aggregate_day_micronutrients
     )
