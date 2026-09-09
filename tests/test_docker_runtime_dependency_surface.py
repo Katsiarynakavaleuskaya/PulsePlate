@@ -9,6 +9,98 @@ import pytest
 from scripts.ci import check_docker_runtime_dependency_surface as runtime_surface
 
 
+def _native_image_report() -> dict[str, object]:
+    return {
+        "SchemaVersion": 2,
+        "ArtifactName": "pulseplate:test",
+        "ArtifactType": "container_image",
+        "Metadata": {"ImageID": "sha256:" + "a" * 64},
+        "Results": [
+            {"Target": "pulseplate:test (debian 12)", "Class": "os-pkgs", "Type": "debian"}
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("SchemaVersion", 2.0, "schema version"),
+        ("SchemaVersion", 1, "schema version"),
+        ("ArtifactName", "another:image", "selected container"),
+        ("ArtifactType", "filesystem", "selected container"),
+        ("Metadata", None, "metadata"),
+        ("Metadata", {"ImageID": "sha256:" + "b" * 64}, "image ID"),
+        ("Results", [], "no package"),
+        ("Results", {}, "no package"),
+        ("Results", [None], "must be an object"),
+        ("Results", [{}], "identity is missing"),
+        ("Results", [{"Target": "x", "Class": "lang-pkgs", "Type": "python-pkg"}], "OS package"),
+        (
+            "Results",
+            [{"Target": "x", "Class": "os-pkgs", "Type": "debian", "Vulnerabilities": None}],
+            "array",
+        ),
+    ),
+)
+def test_native_trivy_report_rejects_missing_or_wrong_image_projection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object, message: str
+) -> None:
+    report = _native_image_report()
+    report[field] = value
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setattr(
+        runtime_surface,
+        "_run_docker",
+        lambda args: subprocess.CompletedProcess(
+            args, 0, stdout="sha256:" + "a" * 64 + "\n", stderr=""
+        ),
+    )
+    with pytest.raises(ValueError, match=message):
+        runtime_surface.validate_trivy_image_report("pulseplate:test", path)
+
+
+@pytest.mark.parametrize("raw", ("", "{", "[]", "null"))
+def test_native_trivy_report_rejects_empty_or_invalid_documents(tmp_path: Path, raw: str) -> None:
+    path = tmp_path / "report.json"
+    path.write_text(raw, encoding="utf-8")
+    with pytest.raises(ValueError):
+        runtime_surface.validate_trivy_image_report("pulseplate:test", path)
+
+
+def test_native_trivy_report_preserves_valid_findings_and_binds_live_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = _native_image_report()
+    report["Results"] = [
+        {
+            "Target": "image",
+            "Type": "debian",
+            "Class": "os-pkgs",
+            "Vulnerabilities": [{"VulnerabilityID": "CVE-test", "Severity": "HIGH"}],
+        }
+    ]
+    path = tmp_path / "report.json"
+    original = json.dumps(report)
+    path.write_text(original, encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def inspect(args: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="sha256:" + "a" * 64 + "\n", stderr="")
+
+    monkeypatch.setattr(runtime_surface, "_run_docker", inspect)
+    runtime_surface.validate_trivy_image_report("pulseplate:test", path)
+    assert calls == [["image", "inspect", "--format", "{{.Id}}", "pulseplate:test"]]
+    assert path.read_text() == original, "valid finding evidence must not be rewritten as clean"
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(path)
+    with pytest.raises(ValueError, match="symlink"):
+        runtime_surface.validate_trivy_image_report("pulseplate:test", alias)
+    with pytest.raises(ValueError, match="regular"):
+        runtime_surface.validate_trivy_image_report("pulseplate:test", tmp_path)
+
+
 def test_run_docker_uses_timeout_and_absolute_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
@@ -320,8 +412,12 @@ def test_main_accepts_blocked_debian_packages(monkeypatch: pytest.MonkeyPatch) -
     assert captured["blocked_debian_prefixes"] == ("perl-modules-",)
 
 
+@pytest.mark.parametrize("with_report", [False, True])
 def test_main_returns_success_for_clean_runtime(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    with_report: bool,
 ) -> None:
     def _fake_build_result(
         _image: str,
@@ -342,7 +438,29 @@ def test_main_returns_success_for_clean_runtime(
         _fake_build_result,
     )
 
-    exit_code = runtime_surface.main(["--image", "pulseplate:test"])
+    argv = ["--image", "pulseplate:test"]
+    if with_report:
+        path = tmp_path / "report.json"
+        path.write_text(json.dumps(_native_image_report()))
+        monkeypatch.setattr(
+            runtime_surface,
+            "_run_docker",
+            lambda args: subprocess.CompletedProcess(
+                args, 0, stdout="sha256:" + "a" * 64 + "\n", stderr=""
+            ),
+        )
+        argv.extend(["--trivy-report", str(path)])
+    exit_code = runtime_surface.main(argv)
 
     assert exit_code == 0
     assert '"passed": true' in capsys.readouterr().out
+
+
+def test_main_invalid_report_cannot_emit_clean_inventory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "report.json"
+    path.write_text("{}")
+    with pytest.raises(ValueError, match="schema version"):
+        runtime_surface.main(["--image", "pulseplate:test", "--trivy-report", str(path)])
+    assert capsys.readouterr().out == ""

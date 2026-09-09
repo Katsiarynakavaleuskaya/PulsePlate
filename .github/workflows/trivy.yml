@@ -81,6 +81,16 @@ jobs:
             --blocked-debian-package libgnutls30 \
             --blocked-debian-package libsqlite3-0 \
             --blocked-debian-package perl-base \
+            --blocked-debian-package bsdutils \
+            --blocked-debian-package libblkid1 \
+            --blocked-debian-package libmount1 \
+            --blocked-debian-package libsmartcols1 \
+            --blocked-debian-package libuuid1 \
+            --blocked-debian-package mount \
+            --blocked-debian-package util-linux \
+            --blocked-debian-package util-linux-extra \
+            --blocked-debian-package libsystemd0 \
+            --blocked-debian-package libudev1 \
             --blocked-debian-prefix perl-modules- \
             --output-json docker-runtime-dependency-surface.json
 

@@ -55,6 +55,20 @@
   compiler. Historical private receipts remain evidence only; do not rewrite
   them, fabricate publication, or treat selector updates as deployment.
 
+## Native Docker image evidence
+
+- `check_docker_runtime_dependency_surface.py --trivy-report` binds the finite
+  native Trivy v2 image-report projection to the selected local Docker image.
+  Trivy owns vulnerability decisions and JSON-to-SARIF conversion; report
+  retention or structural validation never cancels the scanner exit status.
+- The Docker source-artifact fetcher rejects symlink/nonregular cache objects
+  and non-real output-directory chains before reads or mutation. Keep source
+  identity, archive filename, reviewed hash and literal Docker COPY aligned.
+- For workflow shell adapters, exercise current-step and next-step environments
+  in separate processes: exporting in the current shell and writing GITHUB_ENV
+  are distinct operations. Cleanup must retain the same owned context and use
+  successful native inventory rather than classifying arbitrary errors as absence.
+
 ## Merge-check execution budgets
 
 - In `check_merge_ready.py`, merge-governance and review-disposition proof

@@ -377,6 +377,7 @@ jobs:
       - name: Scan hardened Caddy shell image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
         with:
+          version: v0.74.0
           image-ref: pulseplate-caddy:contract
           format: table
           vuln-type: os,library

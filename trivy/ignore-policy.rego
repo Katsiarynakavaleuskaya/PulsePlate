@@ -12,11 +12,11 @@ default ignore := false
 # Suppression expires: 2026-10-07 (manual removal)
 # Last reviewed: 2026-08-20
 # CVE-2026-14456 was added with an exact two-tuple OpenSSL 3.0 scanner-disposition scope and a 2026-09-19 Review-by date; the earlier rule bodies are unchanged, and the shared file expiry remains 2026-10-07.
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md, docs/security/CVE-2026-53613-util-linux.md, docs/security/CVE-2026-14456-openssl.md
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md, docs/security/CVE-2026-53613-util-linux.md, docs/security/CVE-2026-14456-openssl.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-09-08 (manual removal)
-# Rationale: Debian bookworm still lists zlib 1:1.2.13.dfsg-1 as vulnerable/no-dsa at the 2026-08-09 review; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
+# Review-by: 2026-09-19 (manual removal)
+# Rationale: Debian bookworm still lists zlib 1:1.2.13.dfsg-1 as vulnerable/no-dsa at the 2026-09-09 review; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md
@@ -37,13 +37,7 @@ ignore if {
 	cve_2026_27171_pkgid_match
 }
 
-# CVE-2026-3184 (util-linux family) - Debian bookworm not applicable to login in this release context at review time
-# Review-by: 2026-09-08 (manual removal)
-# Rationale: Debian still lists bookworm util-linux 2.38.1-5+deb12u3 as vulnerable but marks it ignored because login is not built from src:util-linux there at the 2026-08-09 review; keep exact package/version/PkgID scope while monitoring Debian/Trivy metadata.
-# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
-# Documented in: docs/security/CVE-2026-3184-util-linux.md
-# Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
-
+# Shared exact Bookworm package family for the remaining scoped util-linux rules.
 util_linux_bookworm_pkg_match if {
 	util_linux_pkgs := {
 		"bsdutils", "libblkid1", "libmount1", "libsmartcols1",
@@ -55,53 +49,6 @@ util_linux_bookworm_pkg_match if {
 util_linux_bookworm_version_match if {
 	affected_versions := {"2.38.1-5+deb12u3", "1:2.38.1-5+deb12u3"}
 	affected_versions[input.InstalledVersion]
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "bsdutils"
-	input.PkgID == "bsdutils@1:2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "libblkid1"
-	input.PkgID == "libblkid1@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "libmount1"
-	input.PkgID == "libmount1@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "libsmartcols1"
-	input.PkgID == "libsmartcols1@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "libuuid1"
-	input.PkgID == "libuuid1@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "mount"
-	input.PkgID == "mount@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "util-linux"
-	input.PkgID == "util-linux@2.38.1-5+deb12u3"
-}
-
-cve_2026_3184_pkgid_match if {
-	input.PkgName == "util-linux-extra"
-	input.PkgID == "util-linux-extra@2.38.1-5+deb12u3"
-}
-
-ignore if {
-	input.VulnerabilityID == "CVE-2026-3184"
-	util_linux_bookworm_pkg_match
-	util_linux_bookworm_version_match
-	cve_2026_3184_pkgid_match
 }
 
 # CVE-2026-53615 (util-linux family) - Debian bookworm no fixed release at review time
@@ -255,8 +202,8 @@ ignore if {
 
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-09-08 (manual removal)
-# Rationale: Debian bookworm still lists ncurses 6.4-4 as vulnerable/no-dsa at the 2026-08-09 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
+# Review-by: 2026-09-19 (manual removal)
+# Rationale: Debian bookworm still lists ncurses 6.4-4 as vulnerable/no-dsa at the 2026-09-09 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
 # Removal condition: Remove when Debian bookworm publishes a fixed ncurses package or Trivy metadata includes Fixed Version
