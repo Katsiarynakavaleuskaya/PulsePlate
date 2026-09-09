@@ -267,7 +267,7 @@ ORM/Alembic drift reconciliation at
 `bounded_exact_head_autogenerate_admission=PASS`, with physical PostgreSQL
 descriptor evidence and CI routing; it does not change runtime behavior,
 register or access a FoodData database, or retire a legacy surface. The next
-bounded child, `PR-TBD-LEGACY-PLATE-HELPER-EXPORTS`
+bounded child, [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2388)
 (`codex/retire-legacy-plate-helper-exports`), uses the fresh residual facade
 census to retire exactly the twelve Plate helper bindings above. It extends
 only the existing retired-name data from 39 to 51 and carries the merged #2365
