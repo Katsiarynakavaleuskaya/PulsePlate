@@ -71,6 +71,7 @@ RETIRED_PLATE_HELPER_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[39:51]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
+    """Keep the eight retired Insight names distinct from earlier cohorts."""
     assert RETIRED_INSIGHT_BINDINGS == (
         "INSIGHT_TEXT_MAX_LENGTH",
         "InsightRequest",
@@ -85,6 +86,7 @@ def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
 
 
 def test_retired_plate_helper_binding_tail_is_exact_and_disjoint() -> None:
+    """Require exactly twelve new Plate names without replacing earlier retirements."""
     assert RETIRED_PLATE_HELPER_BINDINGS == (
         "DB_TO_ALIAS_NUTRIENT_MAP",
         "PlateServiceDependencies",
@@ -148,6 +150,7 @@ def test_legacy_growth_guard_rejects_each_pro_nutrition_binding_carrier(
     binding_name: str,
     source_template: str,
 ) -> None:
+    """Reject each retired nutrition name through the existing recognized carriers."""
     source = source_template.format(name=binding_name)
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [

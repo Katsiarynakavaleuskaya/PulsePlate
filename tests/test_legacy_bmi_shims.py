@@ -189,6 +189,7 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
 
 
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
+    """Verify retired-name absence while preserving canonical objects and retained schemas."""
     import app as app_facade
     import app.schemas.bmi_compat as bmi_schemas
     import app.schemas.insight as insight_schemas
@@ -315,6 +316,7 @@ def test_retained_premium_schema_bindings_remain_importable_in_fresh_process() -
 
 
 def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None:
+    """Prove fresh-import retirement and canonical Plate availability without ambient state."""
     retired_bindings = tuple(sorted(RETIRED_LEGACY_PYTHON_BINDINGS))
     import_failure_checks = "\n".join(textwrap.dedent(f"""
             try:
