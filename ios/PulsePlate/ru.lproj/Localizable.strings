@@ -44,7 +44,7 @@
 
 /* Profile View */
 "profile_language_section" = "Язык";
-"profile_language_value" = "Русский / Английский / Испанский (скоро)";
+"profile_language_value" = "Русский / Английский / Испанский";
 "profile_legal_section" = "Правовая информация";
 "profile_privacy_policy" = "Политика конфиденциальности";
 "profile_terms_of_use" = "Условия использования";
