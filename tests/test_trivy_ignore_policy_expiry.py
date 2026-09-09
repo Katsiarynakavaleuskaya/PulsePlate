@@ -177,6 +177,27 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     return sorted(lockfiles)
 
 
+@pytest.mark.parametrize("today", [date(2026, 9, 9), date(2026, 9, 19), date(2026, 9, 20)])
+def test_current_policy_review_deadline_is_inclusive_and_distinct_from_expiry(today: date) -> None:
+    """The approved review boundary expires the records, not the whole October policy."""
+    review_lines = [
+        number
+        for number, line in enumerate(POLICY_PATH.read_text().splitlines(), start=1)
+        if line.startswith("# Review-by: 2026-09-19 ")
+    ]
+    assert review_lines, "the current reviewed records must be represented"
+    expected = (
+        [
+            f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
+            f"(review-by 2026-09-19, today {today})"
+            for number in review_lines
+        ]
+        if today == date(2026, 9, 20)
+        else []
+    )
+    assert evaluate_policy_file(POLICY_PATH, today=today) == expected
+
+
 def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
