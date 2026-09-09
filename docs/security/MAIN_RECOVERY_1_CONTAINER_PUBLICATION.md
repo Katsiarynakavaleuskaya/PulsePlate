@@ -152,6 +152,23 @@ Evidence anchors: `.github/workflows/build.yml:165`,
 
 ## Validation and remaining delivery proof
 
+The final-head Python 3.12 run `34376019383` exposed a cleanup-retry test that
+also depended on a real Python oracle completing within a five-second packet
+budget. Its hosted log reports `rejected` versus `accepted`; the exact hosted
+rejection subtype was not captured. JUnit records 0.371 seconds, which argues
+against the multi-second process-timeout hypothesis for that hosted failure.
+Twenty local Python 3.12.7 replays of the original test and three immediate
+predecessors passed; these are not the hosted Linux 3.12.14 shard. A controlled
+slow-oracle replay reproduced
+the same assertion with `failure_class: timeout` after both attempts. The test
+now supplies a deterministic successful oracle while retaining real temporary
+checkouts, the injected first cleanup error, and assertions for both cleanup
+calls and both oracle invocations. The 100-test Runner module passes, including
+its separate timeout cases. This closes the demonstrated fixture coupling;
+it does not assert that the historical hosted failure was proven to be a timeout.
+Runtime retry and timeout enforcement remain unchanged. Evidence anchor:
+`tests/test_experiment_runner.py:1626`.
+
 Observed baseline regressions failed for current-step Docker context, Scout
 directory naming, cached source symlinks, and the missing SHA-256 comparison.
 The actual Dockerfile verifier now independently rejects either mismatched

@@ -18,6 +18,10 @@
 - Never mock `builtins.__import__` or `builtins.float`.
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
+- Retry/cleanup unit tests must supply deterministic oracle results while
+  asserting real owned-resource cleanup and attempt counts. Keep actual process
+  execution and timeout enforcement in their owning sandbox/integration tests;
+  do not make cleanup correctness depend on host process-start latency.
 - Main-test shard processes share one checkout and Git common directory. A
   helper that needs PR ancestry must use the already available full local graph
   before any depth-limited fetch; canonical full-history CI must never add a
