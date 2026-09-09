@@ -468,9 +468,10 @@ pytest -q tests/test_agent_docs_registry_guard.py
     - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
     - Keep the agent table under the `## Available Agents` heading in `docs/agents/index.md`.
 
-- **CodeQL action pin guard**: `tests/test_ci_workflow_pr_size_governance_contract.py`
+- **Workflow action pin guards (Node 24 and CodeQL)**: `tests/test_ci_workflow_pr_size_governance_contract.py`
   - **What it enforces**:
     - Every active `github/codeql-action/{init,analyze,upload-sarif}` reference uses the verified full commit pin at the exact expected workflow location and version annotation.
+    - Trivy and upload-artifact steps retain exact reviewed option inventories, counts and runtime annotations. When adding or changing those steps, update the finite expected contracts and run this module alongside the behavioral Docker/Caddy tests; keep exact equality and pin checks intact.
   - **How to run**:
 
 ```bash
