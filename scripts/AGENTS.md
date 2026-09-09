@@ -64,6 +64,9 @@
 - The Docker source-artifact fetcher rejects symlink/nonregular cache objects
   and non-real output-directory chains before reads or mutation. Keep source
   identity, archive filename, reviewed hash and literal Docker COPY aligned.
+- When replacing a packaged native library, verify the actual extension call
+  and loaded replacement under the final runtime user after package pruning.
+  Package-record absence and a clean scanner report do not prove native linkage.
 - For workflow shell adapters, exercise current-step and next-step environments
   in separate processes: exporting in the current shell and writing GITHUB_ENV
   are distinct operations. Cleanup must retain the same owned context and use

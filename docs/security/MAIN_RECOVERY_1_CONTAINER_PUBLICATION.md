@@ -72,6 +72,15 @@ not copied from that builder. Both system and venv interpreters exercise native
 UUID generation and inspect the actual loaded library under the non-root user.
 The native coordination status is recorded, not forced to imply a uuidd service.
 
+The frozen Debian tracker snapshots identify util-linux 2.42.3-1 as fixed for
+[CVE-2026-76642](https://security-tracker.debian.org/tracker/CVE-2026-76642),
+[CVE-2026-78408](https://security-tracker.debian.org/tracker/CVE-2026-78408),
+[CVE-2026-78409](https://security-tracker.debian.org/tracker/CVE-2026-78409) and
+[CVE-2026-78410](https://security-tracker.debian.org/tracker/CVE-2026-78410).
+Their affected mount/nsenter utilities are removed, and only the pinned upstream
+2.42.3 shared UUID library is copied into production. This combines source-version
+evidence with removal of the affected utility paths and actual native linkage.
+
 Source: <https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.3.tar.gz>
 
 ```text

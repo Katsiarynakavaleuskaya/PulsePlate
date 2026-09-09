@@ -28,7 +28,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: `codex/main-ci-image-security-recovery` (MAIN-RECOVERY-1 v2)
+  - Target PR: #2387 (`codex/main-ci-image-security-recovery`) (MAIN-RECOVERY-1 v2)
   - Status: Implementation and local evidence in progress; PR/current-head review, authorized merge and merged-main pipeline proof remain pending.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`
@@ -55,7 +55,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Remediate CVE-2026-16742 in the canonical backend container image
   - Owner: @katsiaryna_kavaleuskaya (MAIN-RECOVERY-1)
   - Priority: P1 (current-main container security / release viability)
-  - Target PR: `codex/main-ci-image-security-recovery`
+  - Target PR: #2387 (`codex/main-ci-image-security-recovery`)
   - Status: Accepted into MAIN-RECOVERY-1 after exact-main image investigation; local candidate absence/scan evidence exists, while committed-head and merged-main closure remain pending. The earlier exclusion from PR #2347 remains historical scope evidence.
   - Reason (EN): Current-main Docker Build and Push run `33684829177` reported
     two open HIGH Trivy/code-scanning results for CVE-2026-16742 in the backend
