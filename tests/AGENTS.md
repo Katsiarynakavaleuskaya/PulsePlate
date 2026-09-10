@@ -29,6 +29,11 @@
   shallow fallback must run in parallel, isolate it in a temporary repository
   or assign it to a serialized owner instead of mutating shared refs,
   replacement objects, grafts, or `.git/shallow`.
+- Workflow tests for pinned external verifier output must exercise the successful
+  consumer path using an observed native output shape, as well as rejection
+  paths. Keep statement-schema and predicate-schema versions independent;
+  command-token assertions or a stubbed verifier do not prove native format
+  compatibility or cryptographic verification.
 - **Prefer `monkeypatch.setattr()` over `@patch` decorator** — `@patch` on `@contextmanager` targets
   fails silently under Python 3.12 + xdist (see `docs/ENGINEERING_LESSONS.md` lesson 11).
   Use autouse `monkeypatch.setenv()` fixtures instead of `os.environ` mutation in `setup_method()`.

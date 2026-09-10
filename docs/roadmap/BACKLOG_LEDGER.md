@@ -69,8 +69,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: #2387 (`codex/main-ci-image-security-recovery`) (MAIN-RECOVERY-1 v2)
-  - Status: Implementation and local evidence in progress; PR/current-head review, authorized merge and merged-main pipeline proof remain pending.
+  - Target PR: continuation `codex/main-recovery-scout-provenance-envelope` after merged #2387 (MAIN-RECOVERY-1 v2)
+  - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; backend publication, Frontend/Caddy, CD-Test and Trivy passed on that SHA. CD remains blocked by the DHI Statement/v0.1 consumer mismatch after successful Scout authentication/signature verification. Native-output replay reproduced the failure; the bounded continuation corrects the consumer and retains every original merged-main acceptance requirement.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`
   - DoD:
@@ -93,11 +93,11 @@ If it is not recorded here — it does not exist.
   - DoD: Refresh exact package/advisory/surface census; use the existing per-identity admission and native resolver contracts, fix applicable findings with regressions, diagnose updater failure without weakening external-code protections, and obtain exact-head review/merge/provider evidence.
 
 <a id="ledger-p1-cve-2026-16742-systemd-main-image"></a>
-- [ ] P1: Remediate CVE-2026-16742 in the canonical backend container image
+- [x] P1: Remediate CVE-2026-16742 in the canonical backend container image
   - Owner: @katsiaryna_kavaleuskaya (MAIN-RECOVERY-1)
   - Priority: P1 (current-main container security / release viability)
   - Target PR: #2387 (`codex/main-ci-image-security-recovery`)
-  - Status: Accepted into MAIN-RECOVERY-1 after exact-main image investigation; local candidate absence/scan evidence exists, while committed-head and merged-main closure remain pending. The earlier exclusion from PR #2347 remains historical scope evidence.
+  - Status: CLOSED by merged #2387 at `28f518b1e44715c28597f51d9ded78346abaa824`. Native publish-image-scan artifact `10124716347` from run `34403818939` records Trivy 0.74.0, zero blocking findings and absence of all ten blocked Debian packages including libsystemd0/libudev1; actual backend publication and CD-Test passed. This closes the backend image item only; the parent main recovery remains open for PostgreSQL CD. The earlier exclusion from #2347 remains historical scope evidence.
   - Reason (EN): Current-main Docker Build and Push run `33684829177` reported
     two open HIGH Trivy/code-scanning results for CVE-2026-16742 in the backend
     image. Mixing a systemd/base-image remediation or suppression into PR #2347
