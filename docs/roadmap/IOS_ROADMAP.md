@@ -24,8 +24,10 @@
 - Retained native sequences observe tab-away/tab-return and Weekly pop/re-entry
   on compact iPhone 26, iPad 26 sidebar, and iOS 17. Separate iPad half-width
   Today, one-third-width Russian AX5 Profile, and compact Home frames are also
-  captured. The Today title/window-control finding requires fresh afterframes;
-  Human V1 acceptance remains pending.
+  captured. The corrected Today afterframes are included in the bounded
+  14-frame V1 kit accepted by the Product Owner as `GO` on 9 September 2026 at
+  material head `f8f65b2bf5b42777681d4a3cce1cdbfe7f284088`. This acceptance
+  does not claim geometry beyond the captured window conditions.
 - Today presents its existing localized title through the self-owned stack's
   inline navigation bar. The subtitle, hero, and footer actions stay in their
   existing content and inset positions.
@@ -44,7 +46,8 @@
 - The same-PR owner-approved accessibility amendment uses existing Navy for
   primary PPButton labels and loading indicators over the unchanged blue fill.
   Secondary/ghost variants, tokens, assets, sizing and actions stay unchanged;
-  final native V1 acceptance remains pending.
+  the accepted 14-frame Human V1 kit covers this amendment. Current-head CI,
+  canonical closeout, and merge remain pending.
 - Existing `DebugToolsScreen` entry points in Profile and Today are compile-gated
   with `#if DEBUG`; the Today Release branch routes to Profile. Diagnostics are
   never part of the production tab inventory.
@@ -118,8 +121,9 @@ Evidence:
   is merged at `e5d162168a866b64f1750f396e6034643f210cca` and inherited by this
   branch. Current-head security checks remain separate required evidence;
   another owner handles Trivy policy maintenance and general main health.
-  Real SwiftUI V1 review and human `GO`, terminal current-head CI, closeout,
-  and merge remain pending.
+  The Product Owner accepted the bounded 14-frame SwiftUI V1 kit as `GO` on
+  9 September 2026 at material head `f8f65b2bf5b42777681d4a3cce1cdbfe7f284088`;
+  terminal current-head CI, canonical closeout, and merge remain pending.
 
 ---
 
@@ -137,7 +141,9 @@ All P0 items are shipped. Remaining work is P1 (see below and `BACKLOG_LEDGER.md
   inventory and routes it from `RootTabs`.
   Evidence: `ios/PulsePlate/Models/AppSection.swift:3-16` and
   `ios/PulsePlate/Views/RootTabs.swift:18-51`.
-- [ ] Complete IOS-REL-2 real SwiftUI V1 review, exact-head CI, closeout, and
+- [x] Complete IOS-REL-2 real SwiftUI V1 review and Product Owner `GO` for the
+  bounded 14-frame kit at `f8f65b2bf5b42777681d4a3cce1cdbfe7f284088`.
+- [ ] Complete IOS-REL-2 exact-head CI, canonical closeout, and
   human-authorized merge; see the
   [canonical ledger item](BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-navigation-shell).
 - [ ] Start IOS-REL-3 FREE BMI only after IOS-REL-2 merges, post-merge exact-main

@@ -2915,8 +2915,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     Native accessibility findings are also addressed in this carrier: readable
     Progress cards/axes and whole-word Weekly titles at Accessibility 5, plus the
     owner-authorized primary-button contrast correction on 8 September 2026.
-    Human V1 `GO`, current-head CI, canonical closeout, and merge remain pending;
-    the operator delegated merge after those gates.
+    The Product Owner accepted the bounded 14-frame Human V1 kit as `GO` on
+    9 September 2026 at material head
+    `f8f65b2bf5b42777681d4a3cce1cdbfe7f284088`. Current-head CI, canonical
+    closeout, and merge remain pending; the operator delegated merge after those
+    gates. The visual acceptance does not establish HealthKit read permission,
+    persistence across relaunch, or geometry beyond the captured window conditions.
   - Dependency: PR `#2368` merged at
     `6327960917e2a04e5fec0d89b358b51781b12f67`
     - V5 asset prerequisite [#2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
@@ -2985,6 +2989,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/IOS_ROADMAP.md#app-entry--navigation`
     - `docs/architecture/system_overview.md#ios-adaptive-navigation-shell`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ui-epic-post-bridge-series`
+    - [PulsePlate Design Train Index](https://docs.google.com/document/d/15PFCyUWvHzWQmZ-lx3hjdSbGJprdKUGQPf_zfeIehZ0/edit),
+      with the accepted reference-only 14-frame kit on Creative Production board
+      `3d02c9c6-e900-415e-948e-58d6b26640f3`
   - DoD:
     - `AppSection` owns the exact five-section identity, order, localization
       keys, and SF Symbols with no runtime A/B or entitlement-dependent tabs
