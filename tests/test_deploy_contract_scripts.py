@@ -1913,6 +1913,153 @@ def test_postgres_scout_authentication_fails_before_provenance_consumers(
     assert not list(tmp_path.glob("dhi-postgres-*-provenance.json"))
 
 
+@pytest.mark.parametrize("source", ["runtime", "builder"])
+@pytest.mark.parametrize(
+    ("fault", "diagnostic"),
+    [
+        ("valid", ""),
+        ("statement-v1", "not the pinned DHI in-toto v0.1 statement"),
+        ("statement-missing", "not the pinned DHI in-toto v0.1 statement"),
+        ("statement-scalar", "not the pinned DHI in-toto v0.1 statement"),
+        ("predicate-version", "predicate type drifted"),
+        ("subject-name", "exact DHI platform subject drifted"),
+        ("subject-digest", "exact DHI platform subject drifted"),
+        ("subject-extra", "exact DHI platform subject drifted"),
+        ("subject-missing", "exact DHI platform subject drifted"),
+        ("predicate-empty", "provenance predicate is malformed"),
+        ("predicate-list", "provenance predicate is malformed"),
+        ("predicate-null", "provenance predicate is malformed"),
+        ("root-list", "not the pinned DHI in-toto v0.1 statement"),
+        ("root-null", "not the pinned DHI in-toto v0.1 statement"),
+        ("malformed-json", "JSONDecodeError"),
+        ("missing-file", ""),
+        ("empty-file", ""),
+        ("symlink-file", ""),
+        ("scout-failure", "synthetic Scout verification failure"),
+    ],
+)
+def test_postgres_scout_source_statement_consumer(
+    tmp_path: Path, source: str, fault: str, diagnostic: str
+) -> None:
+    """Exercise the whole step; recorded Scout output is not signature verification.
+
+    The two source projections match native artifact 10124696818 from CD run
+    34403818948. Full original JSON and hashes are retained in the recovery archive.
+    Statement/v0.1 and SLSA predicate/v1 are independent schema identifiers.
+    """
+    identities = {
+        "runtime": (
+            "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
+            "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",  # pragma: allowlist secret
+        ),
+        "builder": (
+            "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
+            "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",  # pragma: allowlist secret
+        ),
+    }
+    fixtures = tmp_path / "fixtures"
+    fixtures.mkdir()
+    for key, (name, digest) in identities.items():
+        payload = {
+            "_type": "https://in-toto.io/Statement/v0.1",
+            "predicateType": "https://slsa.dev/provenance/v1",
+            "subject": [{"name": name, "digest": {"sha256": digest}}],
+            "predicate": {"buildDefinition": {}, "runDetails": {}},
+        }
+        if key == source:
+            if fault == "statement-v1":
+                payload["_type"] = "https://in-toto.io/Statement/v1"
+            elif fault == "statement-missing":
+                payload.pop("_type")
+            elif fault == "statement-scalar":
+                payload["_type"] = 1
+            elif fault == "predicate-version":
+                payload["predicateType"] = "https://slsa.dev/provenance/v0.2"
+            elif fault == "subject-name":
+                payload["subject"] = [{"name": "other-platform", "digest": {"sha256": digest}}]
+            elif fault == "subject-digest":
+                payload["subject"] = [{"name": name, "digest": {"sha256": "0" * 64}}]
+            elif fault == "subject-extra":
+                payload["subject"] *= 2
+            elif fault == "subject-missing":
+                payload["subject"] = []
+            elif fault.startswith("predicate-"):
+                payload["predicate"] = {
+                    "predicate-empty": {},
+                    "predicate-list": [],
+                    "predicate-null": None,
+                }[fault]
+        encoded = json.dumps(payload)
+        if key == source:
+            encoded = {"root-list": "[]", "root-null": "null", "malformed-json": "{"}.get(
+                fault, encoded
+            )
+        (fixtures / f"{key}.json").write_text(encoded, encoding="utf-8")
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python3").symlink_to(sys.executable)
+    scout = bin_dir / "scout"
+    calls = tmp_path / "calls"
+    _write_executable(
+        scout,
+        f"#!{sys.executable}\n"
+        "import json, os, sys\nfrom pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "assert args[:6] == ['attestation', 'get', '--predicate-type', "
+        "'https://slsa.dev/provenance/v1', '--verify', '--skip-tlog']\n"
+        "assert len(args) == 9 and args[6] == '--output'\n"
+        "key = {'dhi-postgres-runtime-provenance.json': 'runtime', "
+        "'dhi-postgres-builder-provenance.json': 'builder'}[args[7]]\n"
+        f"identities = {identities!r}\n"
+        "assert args[8] == 'registry://dhi.io/postgres@sha256:' + identities[key][1]\n"
+        "with open(os.environ['SCOUT_CALLS'], 'a') as stream: stream.write(key + '\\n')\n"
+        "fault = os.environ['SCOUT_FAULT'] if key == os.environ['SCOUT_SOURCE'] else 'valid'\n"
+        "output = Path(args[7]); fixture = Path(os.environ['SCOUT_FIXTURES']) / (key + '.json')\n"
+        "if fault == 'symlink-file': output.symlink_to(fixture)\n"
+        "elif fault != 'missing-file': output.write_bytes(b'' if fault == 'empty-file' "
+        "else fixture.read_bytes())\n"
+        "if fault == 'scout-failure':\n"
+        "    print('synthetic Scout verification failure', file=sys.stderr)\n"
+        "    sys.exit(43)\n",
+    )
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    program = next(
+        step["run"]
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Verify exact DHI source provenance separately"
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    secret = "synthetic-scout-consumer-credential"  # pragma: allowlist secret
+    result = subprocess.run(
+        [bash, "-c", program],
+        cwd=tmp_path,
+        env={
+            "PATH": str(bin_dir) + os.pathsep + os.defpath,
+            "SCOUT_BIN": str(scout),
+            "SCOUT_CALLS": str(calls),
+            "SCOUT_FIXTURES": str(fixtures),
+            "SCOUT_SOURCE": source,
+            "SCOUT_FAULT": fault,
+            "DOCKER_SCOUT_HUB_USER": "synthetic-user",
+            "DOCKER_SCOUT_HUB_PASSWORD": secret,
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault == "valid"), result.stderr
+    assert secret not in result.stdout + result.stderr
+    assert diagnostic in result.stderr
+    expected_calls = (
+        ["runtime"] if source == "runtime" and fault == "scout-failure" else ["runtime", "builder"]
+    )
+    assert calls.read_text().splitlines() == expected_calls
+    if fault == "scout-failure":
+        assert result.returncode == 43
+
+
 def _postgres_publish_cleanup_program() -> str:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
