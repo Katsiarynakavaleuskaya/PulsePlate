@@ -19,6 +19,59 @@ decisions, and pre-publication image-scan parity. Separate Dependabot updater
 failures and new npm/pip alerts are retained in the dependency queue and do not
 become hidden dependency changes in this carrier.
 
+## Post-merge Statement consumer recovery
+
+PR #2387 was squash-merged as `28f518b1e44715c28597f51d9ded78346abaa824`.
+On that SHA, canonical CI `34403818879` (including all three main Python
+versions and coverage-main), Frontend/Caddy, Docker Build and Push, CD-Test,
+Trivy, CodeQL, Actionlint and accessibility passed. CD was the sole failing
+pipeline in that nine-workflow push/workflow-run snapshot; the separately
+queued dependency updater is outside the accepted CI/CD recovery DoD.
+Backend publish-image-scan artifact `10124716347` from run `34403818939`
+reports Trivy 0.74.0, zero blocking findings and all ten blocked Debian packages
+absent. Its image config ID is
+`sha256:58a5add42b39572462426b9788cff5bc32c7ad9ff2abd905a9a609b12bc81150`.
+This supports backend image closure, independently of PostgreSQL CD below.
+[CD run 34403818948, job 102643305050](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34403818948/job/102643305050)
+authenticated both Scout calls, verified their signatures and wrote both source
+files. Owned builder cleanup succeeded. The subsequent Python consumer failed:
+`dhi-postgres-runtime-provenance.json is not one in-toto v1 statement`.
+
+Both native outputs use `https://in-toto.io/Statement/v0.1` with the independent
+`https://slsa.dev/provenance/v1` predicate type and the exact expected singleton
+platform subjects. The [historical in-toto Statement specification](https://github.com/in-toto/attestation/blob/2ec5785b36ec5e1ac12730356f8634bf889cc688/spec/README.md#statement)
+and [SLSA predicate schema](https://slsa.dev/spec/v1.0/provenance#schema) define
+these separate schema identifiers. SLSA v1 does not imply Statement v1.
+
+The retained GitHub artifact `10124696818` has archive SHA-256
+`3de673f7eaeba259c62a199b55163b7bedf1e6dccd77f3ed986702a5dc1f2074`.
+Runtime JSON SHA-256 is
+`5529e7493da37ca65008896f69a21ec65017d9aa658a6dc1e38fb24f7605236d`;
+builder JSON SHA-256 is
+`ebe248f585f0594558da328625fc30d2cb4de7ca33e10a08de5e6b60d72a04ed`.
+Executing the unchanged workflow consumer against those original files returned
+exit 1; the corrected consumer returned exit 0 for both unchanged files.
+
+The correction recognizes only this pinned Statement/v0.1 profile, explicitly
+requires an object root and nonempty object predicate, and retains exact subject
+equality and SLSA predicate v1. This establishes source binding and structural
+presence, not complete SLSA semantic validity. Other Statement versions are
+unsupported by this pinned consumer, not inherently invalid. Scout 1.24.0,
+`--verify`, `--skip-tlog`, source digests, credentials and trusted event admission
+are unchanged. Signature verification remains delegated to Scout; a test stub
+does not prove it. Evidence anchors: `.github/workflows/cd.yml:1014` and
+`tests/test_deploy_contract_scripts.py:1916`.
+
+The regression executes the actual complete step with independently varied
+runtime/builder outputs, checks both exact Scout invocations and rejects wrong
+schema/subject/digest, missing or extra subjects, malformed/empty predicates,
+non-object or invalid JSON, missing/empty/symlink files and either verifier
+failure even when valid-looking files were written. The original positive
+cases failed on the baseline. Their corrected suite and the original native
+file replay pass. Later build, publication, pullback, admission and Prometheus
+steps were not reached in this failed main run and remain required. This
+continuation is implementation recovery, not a standalone bookkeeping PR.
+
 ## Frozen baseline failures
 
 | Workflow / job | Primary evidence | Recovery owner |
