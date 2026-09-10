@@ -2663,6 +2663,28 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     assert observed_trivy_contracts == [
         (
             ".github/workflows/build.yml",
+            "build",
+            "Scan production image before publication eligibility",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
+                "scan-type": "image",
+                "image-ref": "pulseplate:test",
+                "cache-dir": "/tmp/trivy-cache",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "trivyignores": ".trivyignore",
+                "scanners": "vuln",
+                "severity": "CRITICAL,HIGH",
+                "exit-code": "1",
+                "format": "json",
+                "output": "trivy-build-image.json",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
             "security-scan",
             "Run Trivy vulnerability scanner (filesystem scan)",
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
@@ -2696,10 +2718,9 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "cache-dir": "/tmp/trivy-cache",
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "scanners": "vuln",
-                "format": "sarif",
-                "output": "trivy-image.sarif",
+                "format": "json",
+                "output": "trivy-image.json",
                 "severity": "CRITICAL,HIGH",
-                "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
                 "exit-code": "1",
                 "version": TRIVY_RUNTIME_VERSIONS_BY_WORKFLOW[BUILD_WORKFLOW_PATH],
@@ -2779,7 +2800,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             None,
         ),
     ]
-    assert len(observed_trivy_contracts) == 5
+    assert len(observed_trivy_contracts) == 6
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:
@@ -3145,7 +3166,7 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
 
     expected_action_lines = {
         BUILD_WORKFLOW_PATH: {
-            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 4,
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA} # v7.0.1 / Node 24": 6,
         },
         GREENLIGHT_IOS_WORKFLOW_PATH: {
             f"actions/setup-go@{SETUP_GO_NODE24_SHA} # v7.0.0 / Node 24": 1,
@@ -3195,6 +3216,24 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
         (
             ".github/workflows/build.yml",
             "build",
+            "Preserve production image scan evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "production-image-scan",
+                "path": (
+                    "trivy-build-image.json\ntrivy-build-image.sarif\n"
+                    "docker-runtime-dependency-surface.json\n"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "build",
             "Upload Docker telemetry artifact",
             f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
             {
@@ -3221,6 +3260,24 @@ def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() 
                 "path": "docker-image-budget-check.json\ndocker-image-budget-check.md\n",
                 "if-no-files-found": "warn",
                 "retention-days": 14,
+            },
+            "${{ always() }}",
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Preserve publish image scan evidence",
+            f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+            {
+                "name": "publish-image-scan",
+                "path": (
+                    "trivy-image.json\ntrivy-image.sarif\n"
+                    "docker-publish-runtime-dependency-surface.json\n"
+                ),
+                "if-no-files-found": "error",
+                "retention-days": 30,
             },
             "${{ always() }}",
             None,

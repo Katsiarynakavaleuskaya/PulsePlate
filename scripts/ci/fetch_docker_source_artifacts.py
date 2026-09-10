@@ -16,6 +16,7 @@ from hashlib import sha3_256
 import json
 from pathlib import Path
 import re
+import stat
 import sys
 import tempfile
 from urllib.parse import urlparse
@@ -24,7 +25,7 @@ from urllib.request import urlopen
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "scripts" / "ci" / "docker_source_artifacts.json"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "build" / "docker-sources"
-ALLOWED_SOURCE_HOSTS = frozenset({"sqlite.org", "www.sqlite.org"})
+ALLOWED_SOURCE_HOSTS = frozenset({"sqlite.org", "www.sqlite.org", "www.kernel.org"})
 _HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -67,6 +68,14 @@ def _validate_source_url(url: str, *, artifact_name: str) -> str:
         raise RuntimeError(f"{artifact_name} source URL must use https and host one of: {allowed}")
     if not parsed.path.endswith(".tar.gz"):
         raise RuntimeError(f"{artifact_name} source URL must point to a .tar.gz artifact.")
+    if parsed.username or parsed.password or parsed.port or parsed.query or parsed.fragment:
+        raise RuntimeError(f"{artifact_name} source URL must not contain credentials or overrides.")
+    artifact_hosts = {
+        "sqlite-autoconf": {"sqlite.org", "www.sqlite.org"},
+        "util-linux": {"www.kernel.org"},
+    }
+    if hostname not in artifact_hosts.get(artifact_name, set()):
+        raise RuntimeError(f"{artifact_name} source identity does not match its approved host.")
     return url
 
 
@@ -96,6 +105,7 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
         raise RuntimeError("Docker source artifact manifest requires a non-empty artifacts list.")
 
     artifacts: list[DockerSourceArtifact] = []
+    seen_names: set[str] = set()
     for index, raw_artifact in enumerate(raw_artifacts):
         if not isinstance(raw_artifact, dict):
             raise RuntimeError(f"Docker source artifact #{index} must be an object.")
@@ -115,6 +125,13 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
                 f"Docker source artifact filename is not a safe basename: {filename_text}"
             )
         artifact_name = str(name).strip()
+        if artifact_name in seen_names:
+            raise RuntimeError(f"Duplicate Docker source artifact: {artifact_name}")
+        seen_names.add(artifact_name)
+        if filename_text != f"{artifact_name}-{str(version).strip()}.tar.gz":
+            raise RuntimeError(f"{artifact_name} filename does not match source identity/version.")
+        if Path(urlparse(str(url).strip()).path).name != filename_text:
+            raise RuntimeError(f"{artifact_name} URL filename does not match the source artifact.")
         artifacts.append(
             DockerSourceArtifact(
                 name=artifact_name,
@@ -131,8 +148,22 @@ def load_manifest(path: Path, *, today: date | None = None) -> tuple[DockerSourc
 
 
 def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -> Path:
+    # A cooperative build cache is not an arbitrary filesystem repair target.
+    if ".." in output_dir.parts:
+        raise RuntimeError("Source output directory must not traverse parent directories.")
+    for directory in (output_dir.absolute(), *output_dir.absolute().parents):
+        if directory.is_symlink():
+            raise RuntimeError("Source output directory must not contain symlinks.")
+        if directory.exists() and not directory.is_dir():
+            raise RuntimeError("Source output directory must contain only real directories.")
+    output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / artifact.filename
+    if output_path.is_symlink():
+        raise RuntimeError("Source cache artifact must not be a symlink.")
     if output_path.exists():
+        metadata = output_path.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise RuntimeError("Source cache artifact must be a regular single-link file.")
         current_digest = sha3_256(output_path.read_bytes()).hexdigest()
         if current_digest == artifact.sha3_256:
             output_path.chmod(0o644)
@@ -140,7 +171,6 @@ def _write_verified_artifact(artifact: DockerSourceArtifact, output_dir: Path) -
             return output_path
         output_path.unlink()
 
-    output_dir.mkdir(parents=True, exist_ok=True)
     print(f"{artifact.name}: fetching {artifact.url}")
     payload = urlopen(  # nosec B310: URL is manifest-pinned to approved HTTPS hosts and SHA3-verified (remove-by: 2026-09-30, ref: PR-fix-main-trivy-container-cves)
         artifact.url,

@@ -1648,26 +1648,51 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
     validated_packet = _validate_packet(packet)
 
     real_create_temp_checkout = experiment_runner._create_temp_checkout
-    cleanup_failures = {"count": 0}
+    checkout_paths: list[Path] = []
+    cleaned_paths: list[Path] = []
+    oracle_roots: list[Path] = []
+
+    def _successful_oracle(
+        request: SandboxRequest,
+        *,
+        allowlist: set[tuple[str, str]] | None = None,
+    ) -> SandboxResult:
+        # This test owns cleanup retry; real process timing has separate coverage.
+        assert request.binary == "python3"
+        assert request.args == ("-c", "import sys; sys.exit(0)")
+        assert allowlist == {("sandbox.exec", "local://sandbox")}
+        oracle_roots.append(Path(os.environ[experiment_runner.sandbox.SANDBOX_ROOT_ENV]))
+        return SandboxResult(
+            argv=(request.binary, *request.args),
+            returncode=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=".",
+        )
 
     class _CleanupWrapper:
-        def __init__(self, inner: tempfile.TemporaryDirectory[str]) -> None:
+        def __init__(self, inner: tempfile.TemporaryDirectory[str], *, fail: bool) -> None:
             self._inner = inner
             self.name = inner.name
+            self._fail = fail
 
         def cleanup(self) -> None:
             self._inner.cleanup()
-            raise OSError("cleanup locked")
+            cleaned_paths.append(Path(self.name))
+            assert not Path(self.name).exists()
+            if self._fail:
+                raise OSError("cleanup locked")
 
     def _checkout_with_flaky_cleanup(
         root: Path,
     ) -> tuple[Any, Path]:
         temp_dir, checkout_root = real_create_temp_checkout(root)
-        if cleanup_failures["count"] == 0:
-            cleanup_failures["count"] += 1
-            return _CleanupWrapper(temp_dir), checkout_root
-        return temp_dir, checkout_root
+        checkout_paths.append(checkout_root)
+        return _CleanupWrapper(temp_dir, fail=len(checkout_paths) == 1), checkout_root
 
+    monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _successful_oracle)
     monkeypatch.setattr(
         experiment_runner,
         "_create_temp_checkout",
@@ -1676,10 +1701,13 @@ def test_evaluate_candidate_retries_cleanup_infra_flake(
 
     result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
 
-    assert result["status"] == "accepted"
+    assert result["status"] == "accepted", result
     assert result["failure_class"] is None
     assert result["budget_observations"]["attempts"] == 2
     assert result["budget_observations"]["retries_consumed"] == 1
+    assert len(set(checkout_paths)) == 2
+    assert oracle_roots == checkout_paths
+    assert cleaned_paths == [path.parent for path in checkout_paths]
 
 
 def test_evaluate_candidate_retries_temp_checkout_infra_flake(

@@ -149,8 +149,57 @@ jobs:
             --blocked-debian-package libgnutls30 \
             --blocked-debian-package libsqlite3-0 \
             --blocked-debian-package perl-base \
+            --blocked-debian-package bsdutils \
+            --blocked-debian-package libblkid1 \
+            --blocked-debian-package libmount1 \
+            --blocked-debian-package libsmartcols1 \
+            --blocked-debian-package libuuid1 \
+            --blocked-debian-package mount \
+            --blocked-debian-package util-linux \
+            --blocked-debian-package util-linux-extra \
+            --blocked-debian-package libsystemd0 \
+            --blocked-debian-package libudev1 \
             --blocked-debian-prefix perl-modules- \
             --output-json docker-runtime-dependency-surface.json
+
+      - name: Scan production image before publication eligibility
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        with:
+          version: v0.74.0
+          scan-type: image
+          image-ref: pulseplate:test
+          cache-dir: /tmp/trivy-cache
+          ignore-policy: .trivy-ignore-policy.rego
+          trivyignores: .trivyignore
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          format: json
+          output: trivy-build-image.json
+
+      - name: Validate production image report and render SARIF
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image pulseplate:test --trivy-report trivy-build-image.json
+          trivy convert --format sarif --ignorefile /dev/null \
+            --output trivy-build-image.sarif trivy-build-image.json
+          test -s trivy-build-image.sarif
+
+      - name: Preserve production image scan evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: production-image-scan
+          path: |
+            trivy-build-image.json
+            trivy-build-image.sarif
+            docker-runtime-dependency-surface.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Use checked-in Docker image telemetry baseline on pull requests
         if: github.event_name == 'pull_request'
@@ -583,6 +632,16 @@ jobs:
             --blocked-debian-package libgnutls30 \
             --blocked-debian-package libsqlite3-0 \
             --blocked-debian-package perl-base \
+            --blocked-debian-package bsdutils \
+            --blocked-debian-package libblkid1 \
+            --blocked-debian-package libmount1 \
+            --blocked-debian-package libsmartcols1 \
+            --blocked-debian-package libuuid1 \
+            --blocked-debian-package mount \
+            --blocked-debian-package util-linux \
+            --blocked-debian-package util-linux-extra \
+            --blocked-debian-package libsystemd0 \
+            --blocked-debian-package libudev1 \
             --blocked-debian-prefix perl-modules- \
             --output-json docker-publish-runtime-dependency-surface.json
 
@@ -599,22 +658,36 @@ jobs:
           cache-dir: /tmp/trivy-cache
           ignore-policy: .trivy-ignore-policy.rego
           scanners: vuln
-          format: sarif
-          output: trivy-image.sarif
+          format: json
+          output: trivy-image.json
           severity: CRITICAL,HIGH
-          limit-severities-for-sarif: true
           trivyignores: .trivyignore
           exit-code: '1'
           version: v0.74.0
 
       - name: Fail when Trivy image SARIF is missing
         if: ${{ always() }}
+        env:
+          IMAGE_REF: ${{ steps.image-ref.outputs.ref }}
         run: |
-          if [ ! -f trivy-image.sarif ]; then
-            echo "::error::Trivy image SARIF not produced; failing closed. Check scan logs (registry/auth/DB)."
-            exit 1
-          fi
-          ls -la trivy-image.sarif
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image "$IMAGE_REF" --trivy-report trivy-image.json
+          trivy convert --format sarif --ignorefile /dev/null \
+            --output trivy-image.sarif trivy-image.json
+          test -s trivy-image.sarif
+
+      - name: Preserve publish image scan evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: publish-image-scan
+          path: |
+            trivy-image.json
+            trivy-image.sarif
+            docker-publish-runtime-dependency-surface.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload Trivy image scan results
         if: ${{ always() && hashFiles('trivy-image.sarif') != '' }}

@@ -1834,7 +1834,11 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
         for step in steps
         if step.get("name") == "Verify exact DHI source provenance separately"
     )
-    assert verify["env"] == {"SCOUT_BIN": "${{ steps.docker-scout.outputs.path }}"}
+    assert verify["env"] == {
+        "SCOUT_BIN": "${{ steps.docker-scout.outputs.path }}",
+        "DOCKER_SCOUT_HUB_USER": "${{ secrets.DHI_USERNAME }}",
+        "DOCKER_SCOUT_HUB_PASSWORD": "${{ secrets.DHI_ACCESS_TOKEN }}",
+    }
     verify_run = verify["run"]
     assert "docker scout" not in verify_run
     assert '"$SCOUT_BIN" attestation get' in verify_run
@@ -1861,6 +1865,54 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
     assert "not a Trivy suppression" in docs
 
 
+@pytest.mark.parametrize("missing", ["user", "password", "neither"])
+def test_postgres_scout_authentication_fails_before_provenance_consumers(
+    tmp_path: Path, missing: str
+) -> None:
+    """Run the real step; a rejected first authentication cannot reach later consumers."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    program = next(
+        step["run"]
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Verify exact DHI source provenance separately"
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    scout = tmp_path / "scout"
+    calls = tmp_path / "calls"
+    _write_executable(
+        scout,
+        '#!/bin/sh\nprintf "called\\n" >> "$SCOUT_CALLS"\n'
+        'printf "Docker Scout authentication rejected\\n" >&2\nexit 43\n',
+    )
+    secret = "synthetic-scout-test-credential"  # pragma: allowlist secret
+    env = {
+        "PATH": os.defpath,
+        "SCOUT_BIN": str(scout),
+        "SCOUT_CALLS": str(calls),
+        "DOCKER_SCOUT_HUB_USER": "" if missing == "user" else "synthetic-user",
+        "DOCKER_SCOUT_HUB_PASSWORD": "" if missing == "password" else secret,
+    }
+    result = subprocess.run(
+        [bash, "-c", program],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert secret not in result.stdout + result.stderr
+    if missing == "neither":
+        assert result.returncode == 43
+        assert calls.read_text().splitlines() == ["called"]
+        assert "authentication rejected" in result.stderr
+    else:
+        assert not calls.exists()
+        assert "is required" in result.stderr
+    assert not list(tmp_path.glob("dhi-postgres-*-provenance.json"))
+
+
 def _postgres_publish_cleanup_program() -> str:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
@@ -1870,6 +1922,113 @@ def _postgres_publish_cleanup_program() -> str:
         if item.get("name") == "Remove synthetic resources and temporary registry credentials"
     )
     return step["run"]
+
+
+def _postgres_setup_program() -> str:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    return next(
+        step["run"]
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Authenticate DHI read and GHCR publication rails"
+    )
+
+
+@pytest.mark.parametrize(
+    "fail_command", ("", "login:dhi.io", "login:ghcr.io", "buildx:create", "buildx:inspect")
+)
+def test_postgres_setup_propagates_owned_context_between_processes(
+    tmp_path: Path, fail_command: str
+) -> None:
+    """GITHUB_ENV reaches the next process but must not mask first-step export."""
+    bash = shutil.which("bash")
+    assert bash is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    default_config = tmp_path / "default-docker"
+    default_config.mkdir()
+    sentinel = default_config / "config.json"
+    sentinel.write_text("unchanged default credentials", encoding="utf-8")
+    command_log = tmp_path / "docker.log"
+    docker = bin_dir / "docker"
+    _write_executable(
+        docker,
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'config="${DOCKER_CONFIG:-$DEFAULT_CONFIG}"\n'
+        'printf "%s|%s\\n" "$config" "$*" >> "$COMMAND_LOG"\n'
+        'if [ "$1" = login ]; then cat >/dev/null; printf synthetic > "$config/config.json"; fi\n'
+        'if [ "$1:${2:-}" = buildx:create ]; then touch "$config/builder"; fi\n'
+        'if [ "$FAIL_COMMAND" = "$1:${2:-}" ]; then exit 73; fi\n'
+        'if [ "$1:${2:-}" = buildx:ls ] && [ -f "$config/builder" ]; then echo pulseplate-pgvector-builder-1234-2; fi\n'
+        'if [ "$1:${2:-}" = buildx:rm ]; then rm "$config/builder"; fi\n',
+    )
+    env_file = tmp_path / "github-env"
+    env_file.touch()
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"DOCKER_CONFIG", "PGVECTOR_DOCKER_CONFIG", "PGVECTOR_BUILDX_BUILDER"}
+    }
+    environment.update(
+        PATH=f"{bin_dir}:{os.environ['PATH']}",
+        RUNNER_TEMP=str(tmp_path),
+        GITHUB_ENV=str(env_file),
+        GITHUB_RUN_ID="1234",
+        GITHUB_RUN_ATTEMPT="2",
+        DHI_USER="synthetic-dhi-user",
+        DHI_TOKEN="synthetic-dhi-token",
+        GHCR_USER="synthetic-ghcr-user",
+        GHCR_TOKEN_VALUE="synthetic-ghcr-token",
+        DEFAULT_CONFIG=str(default_config),
+        COMMAND_LOG=str(command_log),
+        FAIL_COMMAND=fail_command,
+    )
+    first = subprocess.run(
+        [bash, "-c", _postgres_setup_program()],
+        env=environment,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert first.returncode == (73 if fail_command else 0), first.stderr
+    emitted = dict(line.split("=", 1) for line in env_file.read_text().splitlines())
+    selected = emitted["DOCKER_CONFIG"]
+    assert stat.S_IMODE(Path(selected).stat().st_mode) == 0o700
+    second = subprocess.run(
+        [bash, "-c", _postgres_publish_cleanup_program()],
+        env={
+            **environment,
+            **emitted,
+            "FAIL_COMMAND": "",
+            "PRIMARY_JOB_STATUS": "failure" if fail_command else "success",
+        },
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert second.returncode == 0, second.stderr
+    assert emitted["PGVECTOR_DOCKER_CONFIG"] == selected
+    assert Path(selected).parent == tmp_path
+    assert Path(selected).name.startswith("pulseplate-pgvector-docker-config.")
+    assert all(line.split("|", 1)[0] == selected for line in command_log.read_text().splitlines())
+    assert sentinel.read_text() == "unchanged default credentials"
+    assert not Path(selected).exists()
+    for secret in (environment["DHI_TOKEN"], environment["GHCR_TOKEN_VALUE"]):
+        assert secret not in first.stdout + first.stderr + command_log.read_text()
+        assert secret not in env_file.read_text()
+
+
+def test_postgres_scout_directory_is_inside_its_cleanup_slot() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    install = next(
+        step
+        for step in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if step.get("name") == "Install exact Docker Scout 1.24.0 CLI"
+    )
+    assert "${RUNNER_TEMP}/pulseplate-pgvector-scout.XXXXXX" in install["run"]
 
 
 @pytest.mark.parametrize(
@@ -1901,6 +2060,8 @@ def test_cd_postgres_publish_cleanup_executes_primary_secondary_state_machine(
         encoding="utf-8",
     )
     docker_stub.chmod(0o700)
+    credential_dir = tmp_path / "pulseplate-pgvector-docker-config.test"
+    credential_dir.mkdir()
     completed = subprocess.run(
         [bash_bin, "-c", _postgres_publish_cleanup_program()],
         cwd=tmp_path,
@@ -1916,7 +2077,8 @@ def test_cd_postgres_publish_cleanup_executes_primary_secondary_state_machine(
             "PGVECTOR_OCI_OUTPUT_DIR": "",
             "PGVECTOR_TRIVY_DIR": "",
             "PGVECTOR_SCOUT_DIR": "",
-            "PGVECTOR_DOCKER_CONFIG": "",
+            "PGVECTOR_DOCKER_CONFIG": str(credential_dir),
+            "DOCKER_CONFIG": str(credential_dir),
         },
         text=True,
         capture_output=True,
@@ -1966,6 +2128,7 @@ def test_cd_postgres_publish_cleanup_accounts_for_bounded_rm_failure(
             "PGVECTOR_TRIVY_DIR": "",
             "PGVECTOR_SCOUT_DIR": "",
             "PGVECTOR_DOCKER_CONFIG": str(credential_dir),
+            "DOCKER_CONFIG": str(credential_dir),
         },
         text=True,
         capture_output=True,
@@ -1975,6 +2138,139 @@ def test_cd_postgres_publish_cleanup_accounts_for_bounded_rm_failure(
     assert credential_dir.is_dir()
     if primary_status != "success":
         assert f"preserving primary {primary_status} result" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("inventory_status", "present", "primary_status", "expected"),
+    (
+        (0, False, "success", 0),
+        (0, True, "success", 0),
+        (73, False, "success", 1),
+        (73, False, "failure", 0),
+    ),
+)
+def test_postgres_cleanup_distinguishes_inventory_failure_from_absence(
+    tmp_path: Path, inventory_status: int, present: bool, primary_status: str, expected: int
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "commands"
+    config = tmp_path / "pulseplate-pgvector-docker-config.test"
+    config.mkdir()
+    scout = tmp_path / "pulseplate-pgvector-scout.test"
+    scout.mkdir()
+    _write_executable(
+        bin_dir / "docker",
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'printf "%s|%s\\n" "$DOCKER_CONFIG" "$*" >> "$COMMAND_LOG"\n'
+        'if [ "${2:-}" = ls ]; then\n'
+        '  if [ "$INVENTORY_STATUS" != 0 ]; then exit "$INVENTORY_STATUS"; fi\n'
+        '  if [ "$PRESENT" = yes ]; then\n'
+        '    case "$1" in\n'
+        '      container) printf "%s\\n" pulseplate-pgvector-1234-2-postgres;;\n'
+        '      volume) printf "%s\\n" pulseplate-pgvector-1234-2-data;;\n'
+        '      image) printf "%s\\n" pulseplate-pgvector-1234-2-final:latest;;\n'
+        '      buildx) printf "%s\\n" pulseplate-pgvector-builder-1234-2;;\n'
+        "    esac\n  fi\nfi\n",
+    )
+    completed = subprocess.run(
+        [bash, "-c", _postgres_publish_cleanup_program()],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "COMMAND_LOG": str(log),
+            "INVENTORY_STATUS": str(inventory_status),
+            "PRESENT": "yes" if present else "no",
+            "DOCKER_CONFIG": str(config),
+            "PGVECTOR_DOCKER_CONFIG": str(config),
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_RUN_ID": "1234",
+            "GITHUB_RUN_ATTEMPT": "2",
+            "PGVECTOR_RESOURCE_PREFIX": "pulseplate-pgvector-1234-2",
+            "PGVECTOR_BUILDX_BUILDER": "pulseplate-pgvector-builder-1234-2",
+            "PGVECTOR_CONTEXT_DIR": "",
+            "PGVECTOR_OCI_OUTPUT_DIR": "",
+            "PGVECTOR_TRIVY_DIR": "",
+            "PGVECTOR_SCOUT_DIR": str(scout),
+            "PRIMARY_JOB_STATUS": primary_status,
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == expected, completed.stderr
+    commands = log.read_text().splitlines()
+    assert all(line.split("|", 1)[0] == str(config) for line in commands)
+    assert not config.exists() and not scout.exists()
+    removed = [line for line in commands if " rm " in line or "|rm " in line]
+    assert bool(removed) == present
+    if inventory_status:
+        assert "inventory query failed" in completed.stderr
+        if primary_status == "failure":
+            assert "preserving primary failure" in completed.stderr
+
+
+@pytest.mark.parametrize("unsafe_kind", ("foreign-slot", "nested", "traversal", "symlink"))
+def test_postgres_cleanup_refuses_foreign_directory_but_cleans_owned_scout(
+    tmp_path: Path, unsafe_kind: str
+) -> None:
+    bash = shutil.which("bash")
+    assert bash is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "commands"
+    _write_executable(bin_dir / "docker", f'#!/bin/sh\necho "$*" >> "{log}"\n')
+    outside = tmp_path / "keep"
+    outside.mkdir()
+    sentinel = outside / "sentinel"
+    sentinel.write_text("keep", encoding="utf-8")
+    if unsafe_kind == "foreign-slot":
+        unsafe = tmp_path / "pulseplate-pgvector-trivy.keep"
+        unsafe.mkdir()
+    elif unsafe_kind == "nested":
+        parent = tmp_path / "pulseplate-pgvector-context.test"
+        parent.mkdir()
+        unsafe = parent / "child"
+        unsafe.mkdir()
+    elif unsafe_kind == "traversal":
+        parent = tmp_path / "pulseplate-pgvector-context.test"
+        parent.mkdir()
+        unsafe = parent / ".." / "keep"
+    else:
+        unsafe = tmp_path / "pulseplate-pgvector-context.test"
+        unsafe.symlink_to(outside, target_is_directory=True)
+    scout = tmp_path / "pulseplate-pgvector-scout.test"
+    scout.mkdir()
+    completed = subprocess.run(
+        [bash, "-c", _postgres_publish_cleanup_program()],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "RUNNER_TEMP": str(tmp_path),
+            "PRIMARY_JOB_STATUS": "success",
+            "PGVECTOR_DOCKER_CONFIG": "",
+            "PGVECTOR_RESOURCE_PREFIX": "",
+            "PGVECTOR_BUILDX_BUILDER": "",
+            "PGVECTOR_CONTEXT_DIR": str(unsafe),
+            "PGVECTOR_OCI_OUTPUT_DIR": "",
+            "PGVECTOR_TRIVY_DIR": "",
+            "PGVECTOR_SCOUT_DIR": str(scout),
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 1
+    assert "Refusing cleanup" in completed.stderr
+    assert unsafe.exists() and sentinel.read_text() == "keep"
+    assert not scout.exists()
+    assert not log.exists(), "no setup means no Docker/logout calls into default context"
 
 
 def _workflow_trap_prefix(step_name: str, *, suffix: str) -> str:
@@ -5533,6 +5829,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
+    env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)
@@ -5581,6 +5878,7 @@ esac
     _write_executable(bin_dir / "docker", docker_stub)
 
     env = os.environ.copy()
+    env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
     env["DEPLOY_DIR"] = str(project_dir)

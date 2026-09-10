@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
-from hashlib import sha3_256
+from hashlib import sha256, sha3_256
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -230,7 +233,8 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     assert "'perl-modules-*'" in pruning_block
     assert (
         "for package in apt gzip gpgv libacl1 libattr1 libgnutls30 "
-        "libsqlite3-0 perl-base ${perl_module_packages}; do"
+        "libsqlite3-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 "
+        "libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do"
     ) in pruning_block
     for package in (
         "apt",
@@ -339,9 +343,9 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["generated_at"] == "2026-08-28"
-    assert manifest["review_by"] == "2026-09-11"
-    assert len(artifacts) == 1
+    assert manifest["generated_at"] == "2026-09-09"
+    assert manifest["review_by"] == "2026-09-19"
+    assert len(artifacts) == 2
 
     artifact = artifacts[0]
     parsed_url = urlparse(artifact["url"])
@@ -368,9 +372,123 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive() -> None:
     """The checked-in manifest remains valid through its exact review-by date."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
 
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 11))
-    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-11"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 12))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 19))
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-19"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 20))
+
+
+def test_libuuid_source_and_production_native_linkage_contract() -> None:
+    manifest = json.loads((REPO_ROOT / "scripts/ci/docker_source_artifacts.json").read_text())
+    record = next(row for row in manifest["artifacts"] if row["name"] == "util-linux")
+    assert record["version"] == "2.42.3"
+    assert "".join(record["sha3_256_parts"]) == (
+        "3edc35e7d261478bf9910ec87b70ae0c2be133e8ab523e2683ccfc0704d51652"  # pragma: allowlist secret
+    )
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text()
+    assert "FROM sqlite-builder AS uuid-builder" in dockerfile
+    assert "--disable-all-programs --enable-libuuid --disable-static" in dockerfile
+    assert "make -j2 libuuid.la" in dockerfile
+    production = dockerfile.split("FROM runtime-base AS production", 1)[1].split(
+        "FROM production AS staging", 1
+    )[0]
+    assert "COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0" in production
+    assert "import _uuid" in production and "_uuid.generate_time_safe()" in production
+    assert 'Path("/proc/self/maps")' in production and "loaded != {expected}" in production
+    assert "sha256sum --check" in production
+    assert "/opt/libuuid/COPYING" in production
+    assert "for interpreter in /usr/local/bin/python /opt/venv/bin/python" in production
+    assert production.index("USER pulseplate") < production.index("import _uuid")
+
+
+@pytest.mark.parametrize("corrupt_digest", [None, "sha256", "sha3"])
+def test_libuuid_build_executes_both_source_digest_checks(
+    tmp_path: Path, corrupt_digest: str | None
+) -> None:
+    """Execute the actual builder verifier with independently corrupted expected hashes."""
+    payload = b"bounded util-linux source fixture"
+    record = {
+        "name": "util-linux",
+        "version": "2.42.3",
+        "sha256_parts": [sha256(payload).hexdigest()],
+        "sha3_256_parts": [sha3_256(payload).hexdigest()],
+    }
+    if corrupt_digest == "sha256":
+        record["sha256_parts"] = ["0" * 64]
+    elif corrupt_digest == "sha3":
+        record["sha3_256_parts"] = ["0" * 64]
+    manifest_path = _write_docker_source_manifest(tmp_path, {"artifacts": [record]})
+    archive_path = tmp_path / "util-linux.tar.gz"
+    archive_path.write_bytes(payload)
+    builder = (
+        (REPO_ROOT / "Dockerfile").read_text().split("FROM sqlite-builder AS uuid-builder", 1)[1]
+    )
+    verifier = builder.split("RUN python - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    verifier = verifier.replace(
+        '"/opt/libuuid/docker_source_artifacts.json"', repr(str(manifest_path))
+    ).replace('"/tmp/util-linux.tar.gz"', repr(str(archive_path)))
+    result = subprocess.run(
+        [sys.executable, "-c", verifier], capture_output=True, text=True, check=False
+    )
+    if corrupt_digest is None:
+        assert result.returncode == 0, result.stderr
+    else:
+        assert result.returncode != 0
+        assert f"{corrupt_digest.upper()} mismatch" in result.stderr
+
+
+def test_pr_and_publish_share_strict_native_image_scan_predicates() -> None:
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    build = jobs["build"]
+    publish = jobs["publish"]
+    first = _step_by_name(build, "Scan production image before publication eligibility")
+    second = _step_by_name(publish, "Run Trivy vulnerability scanner (image scan, fail-closed)")
+    assert first.get("env", {}).get("TRIVY_DB_REPOSITORY") == second["env"]["TRIVY_DB_REPOSITORY"]
+    for key in (
+        "version",
+        "scan-type",
+        "scanners",
+        "severity",
+        "exit-code",
+        "format",
+        "trivyignores",
+        "ignore-policy",
+    ):
+        assert first["with"][key] == second["with"][key]
+    for step in (first, second):
+        assert step["with"]["version"] == "v0.74.0"
+        assert step["with"].get("ignore-unfixed", False) is False
+        assert "continue-on-error" not in step
+    assert first["with"]["image-ref"] == "pulseplate:test"
+    assert "if" not in first, "the production scan must not be a main-only step"
+    for job, name in (
+        (build, "Validate production image report and render SARIF"),
+        (publish, "Fail when Trivy image SARIF is missing"),
+    ):
+        validator = _step_by_name(job, name)
+        assert validator["if"] == "${{ always() }}"
+        assert "--trivy-report" in validator["run"]
+        assert "trivy convert --format sarif" in validator["run"]
+    assert "github.event_name != 'pull_request'" in publish["if"]
+    blocked = (
+        "bsdutils",
+        "libblkid1",
+        "libmount1",
+        "libsmartcols1",
+        "libuuid1",
+        "mount",
+        "util-linux",
+        "util-linux-extra",
+        "libsystemd0",
+        "libudev1",
+    )
+    for job, name in (
+        (build, "Check Docker runtime dependency surface"),
+        (publish, "Check Docker publish runtime dependency surface"),
+    ):
+        run = _step_by_name(job, name)["run"]
+        for package in blocked:
+            assert f"--blocked-debian-package {package} \\" in run
 
 
 def test_docker_source_artifact_loader_rejects_stale_review_dates(tmp_path: Path) -> None:
@@ -397,6 +515,43 @@ def test_docker_source_artifact_loader_rejects_unsafe_source_metadata(tmp_path: 
     )
     with pytest.raises(RuntimeError, match="safe basename"):
         docker_sources.load_manifest(bad_filename_manifest, today=date(2026, 6, 14))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("duplicate", "Duplicate"),
+        ("version", "identity/version"),
+        ("basename", "URL filename"),
+        ("query", "overrides"),
+        ("credentials", "overrides"),
+        ("port", "overrides"),
+        ("wrong-owner", "approved host"),
+    ],
+)
+def test_source_manifest_rejects_ambiguous_identity_and_url_overrides(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    manifest = _docker_source_manifest()
+    rows = manifest["artifacts"]
+    row = rows[0]
+    if mutation == "duplicate":
+        rows.append(dict(row))
+    elif mutation == "version":
+        row["version"] = "another"
+    elif mutation == "basename":
+        row["url"] = "https://sqlite.org/2026/different.tar.gz"
+    elif mutation == "query":
+        row["url"] += "?override=1"
+    elif mutation == "credentials":
+        row["url"] = row["url"].replace("https://", "https://user@")
+    elif mutation == "port":
+        row["url"] = row["url"].replace("sqlite.org/", "sqlite.org:443/")
+    else:
+        row["url"] = row["url"].replace("sqlite.org", "www.kernel.org")
+    path = _write_docker_source_manifest(tmp_path, manifest)
+    with pytest.raises(RuntimeError, match=message):
+        docker_sources.load_manifest(path, today=date(2026, 6, 14))
 
 
 def test_docker_source_artifact_fetcher_verifies_sha3_and_reuses_existing_file(
@@ -455,6 +610,60 @@ def test_docker_source_artifact_fetcher_rejects_digest_mismatches(
         docker_sources._write_verified_artifact(artifact, tmp_path / "docker-sources")
 
     assert not (tmp_path / "docker-sources" / "sqlite-autoconf-3530200.tar.gz").exists()
+
+
+@pytest.mark.parametrize("kind", ("symlink", "dangling", "directory", "fifo", "hardlink"))
+def test_source_cache_rejects_nonregular_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    payload = b"reviewed source"
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest(payload=payload))
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    output = tmp_path / "sources"
+    output.mkdir()
+    referent = tmp_path / "outside"
+    referent.write_bytes(payload)
+    referent.chmod(0o600)
+    cached = output / artifact.filename
+    if kind == "symlink":
+        cached.symlink_to(referent)
+    elif kind == "dangling":
+        cached.symlink_to(tmp_path / "missing")
+    elif kind == "directory":
+        cached.mkdir()
+    elif kind == "hardlink":
+        cached.hardlink_to(referent)
+    else:
+        os.mkfifo(cached)
+
+    def no_network(*args: object, **kwargs: object) -> None:
+        pytest.fail("unsafe cache entry must be rejected before network access")
+
+    monkeypatch.setattr(docker_sources, "urlopen", no_network)
+    with pytest.raises(RuntimeError, match="regular|symlink"):
+        docker_sources._write_verified_artifact(artifact, output)
+    assert referent.read_bytes() == payload
+    assert referent.stat().st_mode & 0o777 == 0o600
+
+
+def test_source_cache_rejects_symlinked_output_parent(tmp_path: Path) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="symlink"):
+        docker_sources._write_verified_artifact(artifact, alias / "sources")
+    assert list(actual.iterdir()) == []
+
+
+def test_source_cache_rejects_parent_traversal(tmp_path: Path) -> None:
+    manifest = _write_docker_source_manifest(tmp_path, _docker_source_manifest())
+    artifact = docker_sources.load_manifest(manifest, today=date(2026, 6, 14))[0]
+    with pytest.raises(RuntimeError, match="traverse parent"):
+        docker_sources._write_verified_artifact(artifact, tmp_path / "nested" / ".." / "sources")
+    assert not (tmp_path / "nested").exists()
 
 
 def test_docker_build_workflows_prefetch_source_artifacts_before_build() -> None:
@@ -712,7 +921,8 @@ def test_publish_image_scan_fails_closed() -> None:
     assert scan_step_with["image-ref"] == "${{ steps.image-ref.outputs.ref }}"
     assert scan_step_with["exit-code"] == "1"
     assert scan_step_with["severity"] == "CRITICAL,HIGH"
-    assert scan_step_with["limit-severities-for-sarif"] is True
+    assert scan_step_with["format"] == "json"
+    assert scan_step_with["output"] == "trivy-image.json"
     assert scan_step_with["trivyignores"] == ".trivyignore"
     assert scan_step_with["ignore-policy"] == ".trivy-ignore-policy.rego"
     assert "continue-on-error" not in scan_step

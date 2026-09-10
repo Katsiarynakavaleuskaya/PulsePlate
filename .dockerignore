@@ -32,6 +32,7 @@
 !build/
 !build/docker-sources/
 !build/docker-sources/sqlite-autoconf-*.tar.gz
+!build/docker-sources/util-linux-2.42.3.tar.gz
 
 # Runtime application directories copied by Dockerfile
 !app/
