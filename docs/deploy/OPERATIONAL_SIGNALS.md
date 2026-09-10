@@ -106,6 +106,14 @@ host `chown`, copy, restore, replacement, or deletion.
 
 Pull requests validate only repository contracts and the public pinned
 pgvector semantic oracle; they receive no DHI credentials and write no image.
+The setup exports its dedicated `DOCKER_CONFIG` before the first login/Buildx
+operation and carries that same path to later steps. Scout source-provenance
+verification uses step-local `DOCKER_SCOUT_HUB_USER` and
+`DOCKER_SCOUT_HUB_PASSWORD` from the existing DHI credential pair; a registry
+login is not proof of Scout backend authentication. Cleanup retains the owned
+configuration, exact current-run resource identities and per-slot direct-child
+temporary directories. Query failure remains distinct from confirmed absence.
+
 Only the exact trusted `push` to `refs/heads/main` job may use the repository
 `DHI_USERNAME` and `DHI_ACCESS_TOKEN`, reproduce the expected digest twice,
 scan exact runtime/dev/builder/final images, publish into the existing

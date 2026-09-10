@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-28",
-  "review_by": "2026-09-11",
-  "reason": "Emergency Docker source-artifact pin for SQLite runtime remediation. This makes the upstream fetch explicit in CI/local preparation instead of performing hidden live downloads inside Docker builds.",
+  "generated_at": "2026-09-09",
+  "review_by": "2026-09-19",
+  "reason": "Reviewed official SQLite and util-linux sources for the existing bounded native runtime-library build. Fetch and checksum verification precede Docker builds.",
   "artifacts": [
     {
       "name": "sqlite-autoconf",
@@ -18,6 +18,32 @@
         "bed2bd81",
         "d47e98ba",
         "1b72983b"
+      ]
+    },
+    {
+      "name": "util-linux",
+      "version": "2.42.3",
+      "filename": "util-linux-2.42.3.tar.gz",
+      "url": "https://www.kernel.org/pub/linux/utils/util-linux/v2.42/util-linux-2.42.3.tar.gz",
+      "sha3_256_parts": [
+        "3edc35e7",
+        "d261478b",
+        "f9910ec8",
+        "7b70ae0c",
+        "2be133e8",
+        "ab523e26",
+        "83ccfc07",
+        "04d51652"
+      ],
+      "sha256_parts": [
+        "2f4c3484",
+        "f67c7968",
+        "8a50974b",
+        "9e0ae52d",
+        "089fe07a",
+        "63d2dbb5",
+        "9b20e50e",
+        "d26fe89f"
       ]
     }
   ]

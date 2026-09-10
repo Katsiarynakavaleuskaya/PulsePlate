@@ -52,7 +52,7 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             '    cd "$build_dir"; \\',
             "    go mod init pulseplate.local/caddy-build; \\",
             "    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \\",
-            "    go get google.golang.org/grpc@v1.83.1; \\",
+            "    go get google.golang.org/grpc@v1.83.2; \\",
             "    go get golang.org/x/crypto@v0.55.0; \\",
             "    go mod download all; \\",
             "    go mod verify; \\",
@@ -81,14 +81,14 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "      'github.com/caddyserver/caddy/v2 v2.11.4' \\",
             "      'golang.org/x/crypto v0.55.0' \\",
             "      'golang.org/x/mod v0.38.0' \\",
-            "      'golang.org/x/net v0.57.0' \\",
+            "      'golang.org/x/net v0.58.0' \\",
             "      'golang.org/x/sync v0.22.0' \\",
             "      'golang.org/x/sys v0.47.0' \\",
             "      'golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959' \\",
             "      'golang.org/x/term v0.45.0' \\",
             "      'golang.org/x/text v0.41.0' \\",
             "      'golang.org/x/tools v0.48.0' \\",
-            "      'google.golang.org/grpc v1.83.1' \\",
+            "      'google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-graph; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-graph | ' "tr -d '[:space:]')\" = '11'; \\"),
             "    cmp /tmp/caddy-expected-graph /tmp/caddy-governed-graph; \\",
@@ -116,12 +116,12 @@ EXPECTED_CADDY_BUILDER_STAGE = (
             "    printf '%s\\n' \\",
             "      'mod github.com/caddyserver/caddy/v2 v2.11.4' \\",
             "      'dep golang.org/x/crypto v0.55.0' \\",
-            "      'dep golang.org/x/net v0.57.0' \\",
+            "      'dep golang.org/x/net v0.58.0' \\",
             "      'dep golang.org/x/sync v0.22.0' \\",
             "      'dep golang.org/x/sys v0.47.0' \\",
             "      'dep golang.org/x/term v0.45.0' \\",
             "      'dep golang.org/x/text v0.41.0' \\",
-            "      'dep google.golang.org/grpc v1.83.1' \\",
+            "      'dep google.golang.org/grpc v1.83.2' \\",
             "      | LC_ALL=C sort > /tmp/caddy-expected-binary; \\",
             ('    test "$(wc -l < /tmp/caddy-governed-binary | ' "tr -d '[:space:]')\" = '8'; \\"),
             "    cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary; \\",
@@ -288,7 +288,7 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert 'build_dir="$(mktemp -d)"' in text
     assert "go mod init pulseplate.local/caddy-build" in text
     caddy_get = "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4"
-    grpc_get = "go get google.golang.org/grpc@v1.83.1"
+    grpc_get = "go get google.golang.org/grpc@v1.83.2"
     crypto_get = "go get golang.org/x/crypto@v0.55.0"
     assert caddy_get in text
     assert grpc_get in text
@@ -299,10 +299,10 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "go mod verify" in text
     for exact_graph_identity in (
         "github.com/caddyserver/caddy/v2 v2.11.4",
-        "google.golang.org/grpc v1.83.1",
+        "google.golang.org/grpc v1.83.2",
         "golang.org/x/crypto v0.55.0",
         "golang.org/x/mod v0.38.0",
-        "golang.org/x/net v0.57.0",
+        "golang.org/x/net v0.58.0",
         "golang.org/x/sync v0.22.0",
         "golang.org/x/sys v0.47.0",
         "golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959",
@@ -319,9 +319,9 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "cmp /tmp/caddy-expected-binary /tmp/caddy-governed-binary" in text
     for exact_binary_identity in (
         "mod github.com/caddyserver/caddy/v2 v2.11.4",
-        "dep google.golang.org/grpc v1.83.1",
+        "dep google.golang.org/grpc v1.83.2",
         "dep golang.org/x/crypto v0.55.0",
-        "dep golang.org/x/net v0.57.0",
+        "dep golang.org/x/net v0.58.0",
         "dep golang.org/x/sync v0.22.0",
         "dep golang.org/x/sys v0.47.0",
         "dep golang.org/x/term v0.45.0",

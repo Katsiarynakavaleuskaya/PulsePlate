@@ -201,6 +201,35 @@ RUN tar -xzf /tmp/sqlite-autoconf.tar.gz -C /tmp \
     && /usr/local/bin/sqlite3 -version | grep '^3\.53\.2 ' \
     && rm -rf "/tmp/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}" /tmp/sqlite-autoconf.tar.gz
 
+# Build only the reviewed shared UUID library; reuse the existing Bookworm toolchain.
+FROM sqlite-builder AS uuid-builder
+COPY build/docker-sources/util-linux-2.42.3.tar.gz /tmp/util-linux.tar.gz
+COPY scripts/ci/docker_source_artifacts.json /opt/libuuid/docker_source_artifacts.json
+RUN python - <<'PY'
+from hashlib import sha256, sha3_256
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("/opt/libuuid/docker_source_artifacts.json").read_text())
+records = [record for record in manifest["artifacts"] if record["name"] == "util-linux"]
+if len(records) != 1 or records[0]["version"] != "2.42.3":
+    raise SystemExit("Expected one reviewed util-linux 2.42.3 source")
+payload = Path("/tmp/util-linux.tar.gz").read_bytes()
+if sha3_256(payload).hexdigest() != "".join(records[0]["sha3_256_parts"]):
+    raise SystemExit("util-linux source SHA3 mismatch")
+if sha256(payload).hexdigest() != "".join(records[0]["sha256_parts"]):
+    raise SystemExit("util-linux source SHA256 mismatch")
+print("util-linux source SHA256:", sha256(payload).hexdigest())
+PY
+RUN tar -xzf /tmp/util-linux.tar.gz -C /tmp \
+    && cd /tmp/util-linux-2.42.3 \
+    && ./configure --disable-all-programs --enable-libuuid --disable-static \
+        --enable-shared --disable-nls --without-systemd --without-udev --disable-asciidoc \
+    && make -j2 libuuid.la \
+    && install -m 0644 .libs/libuuid.so.1.3.0 /opt/libuuid/libuuid.so.1.3.0 \
+    && install -m 0644 libuuid/COPYING /opt/libuuid/COPYING \
+    && (cd /opt/libuuid && sha256sum libuuid.so.1.3.0 > SHA256SUMS)
+
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS runtime-base
@@ -356,6 +385,11 @@ FROM runtime-base AS production
 # EN: Temporarily switch back to root only for production-only slimming/hardening.
 USER root
 
+# Keep the Python _uuid ABI while retiring the vulnerable Debian package family.
+COPY --from=uuid-builder /opt/libuuid/libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1.3.0
+COPY --from=uuid-builder /opt/libuuid/COPYING /opt/libuuid/SHA256SUMS /opt/libuuid/docker_source_artifacts.json /usr/local/share/doc/pulseplate-libuuid/
+RUN ln -s libuuid.so.1.3.0 /usr/local/lib/libuuid.so.1 && ldconfig
+
 # RU: Убираем pip из production-stage, но не трогаем runtime-base/development.
 # EN: Remove pip from the production stage only so shared runtime/dev topology stays intact.
 RUN /opt/venv/bin/python -m pip uninstall -y pip \
@@ -388,6 +422,9 @@ PY
 # SECURITY: production-package-pruning-start
 RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/dev/null || true)" \
     && dpkg --purge --force-depends --force-remove-essential \
+        bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra \
+        libsystemd0 libudev1 \
+    && dpkg --purge --force-depends --force-remove-essential \
         apt \
         gzip \
         gpgv \
@@ -398,7 +435,7 @@ RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/
         perl-base \
         ${perl_module_packages} \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 perl-base ${perl_module_packages}; do \
+    && for package in apt gzip gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 perl-base ${perl_module_packages} bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 mount util-linux util-linux-extra libsystemd0 libudev1; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \
@@ -438,6 +475,33 @@ PY
 # RU: Финальный runtime остаётся non-root как и в runtime-base.
 # EN: Final runtime stays non-root, matching the runtime-base contract.
 USER pulseplate
+
+RUN <<'SH'
+set -eu
+(cd /usr/local/lib && sha256sum --check /usr/local/share/doc/pulseplate-libuuid/SHA256SUMS)
+for interpreter in /usr/local/bin/python /opt/venv/bin/python; do
+    "$interpreter" - <<'PY'
+import _uuid
+from pathlib import Path
+import uuid
+
+native_bytes, native_status = _uuid.generate_time_safe()
+if len(native_bytes) != 16 or uuid.UUID(bytes=native_bytes).version != 1:
+    raise SystemExit("Native UUID generation failed")
+expected = Path("/usr/local/lib/libuuid.so.1.3.0").resolve()
+loaded = {
+    Path(line.rsplit(maxsplit=1)[-1]).resolve()
+    for line in Path("/proc/self/maps").read_text().splitlines()
+    if "libuuid.so" in line
+}
+if loaded != {expected}:
+    raise SystemExit(f"Unexpected native UUID library: {loaded}")
+if uuid.UUID(str(uuid.uuid4())).version != 4:
+    raise SystemExit("UUID round-trip failed")
+print("Native UUID library:", expected, "coordination status:", native_status)
+PY
+done
+SH
 
 # ALEMBIC-FILESYSTEM-CARRIER-PRECHECK-START
 RUN /opt/venv/bin/python - <<'PY'
