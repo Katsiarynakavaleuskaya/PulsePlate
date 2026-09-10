@@ -24,6 +24,28 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-ios-iphone-duo-native-validation"></a>
+- [ ] P1: Validate iPhone Duo adaptive navigation with official simulator support
+  - Owner: iOS lane owner / qa-engineer-agent
+  - Priority: P1 (release compatibility)
+  - Target PR: dedicated iOS compatibility PR after official simulator availability
+  - Status: Follow-up recorded from the operator's 10 September 2026 device update;
+    no current PR #2376 implementation, acceptance, CI, or merge blocker.
+  - Reason for deferral: Local Xcode 26.6 exposes no Duo device type. Apple's
+    developer page lists Xcode 27.1 beta/tools as coming later in September 2026.
+  - Sources: [Apple announcement](https://www.apple.com/newsroom/2026/09/apple-unveils-iphone-duo/)
+    and [Apple developer availability](https://developer.apple.com/iphone-duo/),
+    checked on 10 September 2026.
+  - DoD: Use an official supported simulator and record its exact Xcode/runtime
+    identity; exercise opening, closing, and resizing; verify selected-section
+    continuity and the Progress-owned Weekly manager/request-completion state
+    within one app lifetime; inspect localization, accessibility, clipping and
+    action reachability; retain focused tests/native evidence and normal PR gates.
+  - Limits: Existing iPad window captures do not prove Duo behavior. Do not invent
+    display dimensions or hinge behavior, infer relaunch persistence or HealthKit
+    read grants, or adopt SDK/Xcode/CI/runtime changes through this reference item.
+    It does not authorize automatic future work or beta-tool adoption.
+
 <a id="ledger-p2-ios-hosted-uikit-test-guidance"></a>
 - [ ] P2: Promote observed UIKit-backed SwiftUI test guidance into scoped instructions
   - Owner: qa-engineer-agent / iOS lane owner
@@ -69,8 +91,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: #2387 (`codex/main-ci-image-security-recovery`) (MAIN-RECOVERY-1 v2)
-  - Status: Implementation and local evidence in progress; PR/current-head review, authorized merge and merged-main pipeline proof remain pending.
+  - Target PR: continuation `codex/main-recovery-scout-provenance-envelope` after merged #2387 (MAIN-RECOVERY-1 v2)
+  - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; backend publication, Frontend/Caddy, CD-Test and Trivy passed on that SHA. CD remains blocked by the DHI Statement/v0.1 consumer mismatch after successful Scout authentication/signature verification. Native-output replay reproduced the failure; the bounded continuation corrects the consumer and retains every original merged-main acceptance requirement.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`
   - DoD:
@@ -93,11 +115,11 @@ If it is not recorded here — it does not exist.
   - DoD: Refresh exact package/advisory/surface census; use the existing per-identity admission and native resolver contracts, fix applicable findings with regressions, diagnose updater failure without weakening external-code protections, and obtain exact-head review/merge/provider evidence.
 
 <a id="ledger-p1-cve-2026-16742-systemd-main-image"></a>
-- [ ] P1: Remediate CVE-2026-16742 in the canonical backend container image
+- [x] P1: Remediate CVE-2026-16742 in the canonical backend container image
   - Owner: @katsiaryna_kavaleuskaya (MAIN-RECOVERY-1)
   - Priority: P1 (current-main container security / release viability)
   - Target PR: #2387 (`codex/main-ci-image-security-recovery`)
-  - Status: Accepted into MAIN-RECOVERY-1 after exact-main image investigation; local candidate absence/scan evidence exists, while committed-head and merged-main closure remain pending. The earlier exclusion from PR #2347 remains historical scope evidence.
+  - Status: CLOSED by merged #2387 at `28f518b1e44715c28597f51d9ded78346abaa824`. Native publish-image-scan artifact `10124716347` from run `34403818939` records Trivy 0.74.0, zero blocking findings and absence of all ten blocked Debian packages including libsystemd0/libudev1; actual backend publication and CD-Test passed. This closes the backend image item only; the parent main recovery remains open for PostgreSQL CD. The earlier exclusion from #2347 remains historical scope evidence.
   - Reason (EN): Current-main Docker Build and Push run `33684829177` reported
     two open HIGH Trivy/code-scanning results for CVE-2026-16742 in the backend
     image. Mixing a systemd/base-image remediation or suppression into PR #2347
@@ -2921,6 +2943,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     closeout, and merge remain pending; the operator delegated merge after those
     gates. The visual acceptance does not establish HealthKit read permission,
     persistence across relaunch, or geometry beyond the captured window conditions.
+    Late review corrections give Today's native navigation bar an explicit visible
+    dark scheme and align the existing BMI title/Spanish entry-copy translations;
+    focused hosted tests and supplemental native probes cover these corrections.
+    The owner also requested localized consumer PRO-access messages on the same
+    screens. Their canonical title/message mapping now follows app-selected
+    language and omits developer setup instructions; service/auth/action behavior
+    is unchanged. The owner explicitly expanded this PR's existing-screen scope
+    on 10 September 2026 and rejected a separate prerequisite PR.
   - Dependency: PR `#2368` merged at
     `6327960917e2a04e5fec0d89b358b51781b12f67`
     - V5 asset prerequisite [#2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)

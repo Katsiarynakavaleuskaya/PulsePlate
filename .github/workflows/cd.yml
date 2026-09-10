@@ -1013,15 +1013,19 @@ jobs:
           )
           for path, expected_name, expected_digest in expected:
               payload = json.loads(path.read_text(encoding="utf-8"))
-              if payload.get("_type") != "https://in-toto.io/Statement/v1":
-                  raise SystemExit(f"{path} is not one in-toto v1 statement")
+              # The pinned DHI Statement schema is independent of its SLSA predicate version.
+              if (
+                  not isinstance(payload, dict)
+                  or payload.get("_type") != "https://in-toto.io/Statement/v0.1"
+              ):
+                  raise SystemExit(f"{path} is not the pinned DHI in-toto v0.1 statement")
               if payload.get("predicateType") != "https://slsa.dev/provenance/v1":
                   raise SystemExit(f"{path} predicate type drifted")
               if payload.get("subject") != [
                   {"name": expected_name, "digest": {"sha256": expected_digest}}
               ]:
                   raise SystemExit(f"{path} exact DHI platform subject drifted")
-              if not isinstance(payload.get("predicate"), dict):
+              if not isinstance(payload.get("predicate"), dict) or not payload["predicate"]:
                   raise SystemExit(f"{path} provenance predicate is malformed")
           PY
 

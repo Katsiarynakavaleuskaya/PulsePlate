@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import XCTest
 @testable import PulsePlate
 
@@ -410,6 +411,55 @@ final class AppNavigationShellTests: XCTestCase {
         }
     }
 
+    func testBMIDestinationAndSpanishEntryCopyShareLocalizedTerminology() throws {
+        for (locale, title) in [("en", "BMI"), ("ru", "ИМТ"), ("es", "IMC")] {
+            let values = try localizationTable(locale: locale)
+            XCTAssertEqual(values["BMI"], title)
+            XCTAssertEqual(values["BMI"], values["navigation.tab.bmi"])
+        }
+
+        let spanish = try localizationTable(locale: "es")
+        let expected = [
+            "onboarding.welcome.screen2.body":
+                "Empieza con IMC, luego ajusta con Plate y tu perfil PRO. Pocos datos → próximos pasos claros.",
+            "home.state.unavailable.detail":
+                "Inténtalo de nuevo o continúa con IMC y tu perfil.",
+            "home.action.bmi.title": "Calcular IMC",
+        ]
+        for (key, value) in expected {
+            XCTAssertEqual(spanish[key], value)
+            XCTAssertFalse(try XCTUnwrap(spanish[key]).contains("BMI"))
+        }
+    }
+
+    func testHostedBMIDestinationUsesSpanishInsideEnglishDeviceLocale() async throws {
+        let localization = LocalizationManager.shared
+        let originalLanguage = localization.currentLanguage
+        defer { localization.currentLanguage = originalLanguage }
+        localization.currentLanguage = "es"
+
+        try await assertHostedNavigation(
+            AppSelectedBMINavigationHarness(
+                appLocale: Locale(identifier: localization.currentLanguage)
+            )
+            .environment(\.locale, Locale(identifier: "en")),
+            title: "IMC"
+        )
+    }
+
+    func testTodayNavigationBarKeepsDarkAppearanceInLightWindow() async throws {
+        let localization = LocalizationManager.shared
+        let originalLanguage = localization.currentLanguage
+        defer { localization.currentLanguage = originalLanguage }
+        localization.currentLanguage = "es"
+
+        try await assertHostedNavigation(
+            PlateViewPP().environment(\.locale, Locale(identifier: "es")),
+            title: "Plato de hoy",
+            navigationStyle: .dark
+        )
+    }
+
     func testProgressStateCopyUsesTheAppSelectedLocale() throws {
         let localization = LocalizationManager.shared
         let originalLanguage = localization.currentLanguage
@@ -692,6 +742,10 @@ final class AppNavigationShellTests: XCTestCase {
     }
 
     private func navigationLocalization(locale: String) throws -> [String: String] {
+        try localizationTable(locale: locale).filter { navigationKeys.contains($0.key) }
+    }
+
+    private func localizationTable(locale: String) throws -> [String: String] {
         let url = try repositoryRoot()
             .appendingPathComponent("ios/PulsePlate")
             .appendingPathComponent("\(locale).lproj")
@@ -705,7 +759,80 @@ final class AppNavigationShellTests: XCTestCase {
         guard let values = propertyList as? [String: String] else {
             throw AppNavigationShellTestError.invalidLocalizationFile(locale)
         }
-        return values.filter { navigationKeys.contains($0.key) }
+        return values
+    }
+
+    private func assertHostedNavigation<Content: View>(
+        _ content: Content,
+        title: String,
+        navigationStyle: UIUserInterfaceStyle? = nil
+    ) async throws {
+        let scene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        )
+        let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
+        var controller: UIHostingController<Content>? = UIHostingController(rootView: content)
+        var window: UIWindow? = UIWindow(windowScene: scene)
+        let releaseProbe = HostedViewReleaseProbe(controller: controller, window: window)
+        window?.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window?.overrideUserInterfaceStyle = .light
+        window?.rootViewController = controller
+        window?.makeKeyAndVisible()
+
+        var observedCount = 0
+        var observedTitle: String?
+        var observedStyle: UIUserInterfaceStyle?
+        var observationError: Error?
+        do {
+            for _ in 0..<20 {
+                await Task.yield()
+                controller?.view.layoutIfNeeded()
+                var bars: [UINavigationBar] = []
+                var remaining = [try XCTUnwrap(controller?.view)]
+                while let view = remaining.popLast() {
+                    if let bar = view as? UINavigationBar { bars.append(bar) }
+                    remaining.append(contentsOf: view.subviews)
+                }
+                observedCount = bars.count
+                observedTitle = bars.first?.topItem?.title
+                observedStyle = bars.first?.traitCollection.userInterfaceStyle
+                if observedCount == 1, observedTitle == title,
+                    navigationStyle == nil || observedStyle == navigationStyle {
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(25))
+            }
+        } catch {
+            observationError = error
+        }
+
+        window?.isHidden = true
+        window?.rootViewController = nil
+        previousKeyWindow?.makeKey()
+        // Retain the controller while UIKit drains its after-CA-commit ownership.
+        // The last release then occurs inside this Swift task, not a UIKit callback.
+        // https://github.com/swiftlang/swift/issues/85663
+        await finishHostedWindowTurn()
+        window = nil
+        controller = nil
+        await finishHostedWindowTurn()
+        XCTAssertNil(releaseProbe.window, "The test must release its hosted window")
+        XCTAssertNil(releaseProbe.controller, "The test must release its hosting controller")
+        if let observationError { throw observationError }
+
+        XCTAssertEqual(observedCount, 1, "The actual destination must host one navigation bar")
+        XCTAssertEqual(observedTitle, title)
+        if let navigationStyle {
+            XCTAssertEqual(observedStyle, navigationStyle)
+        }
+    }
+
+    private func finishHostedWindowTurn() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
+                continuation.resume()
+            }
+        }
     }
 
     private func renderedWeeklyLabelSize(
@@ -843,6 +970,22 @@ final class AppNavigationShellTests: XCTestCase {
 
     private func removingWhitespace(from source: String) -> String {
         String(source.filter { !$0.isWhitespace })
+    }
+}
+
+private struct HostedViewReleaseProbe {
+    weak var controller: UIViewController?
+    weak var window: UIWindow?
+}
+
+private struct AppSelectedBMINavigationHarness: View {
+    let appLocale: Locale
+
+    var body: some View {
+        NavigationStack {
+            BMICalculatorScreen()
+        }
+        .environment(\.locale, appLocale)
     }
 }
 

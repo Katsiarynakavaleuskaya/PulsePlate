@@ -31,6 +31,13 @@
 - Today presents its existing localized title through the self-owned stack's
   inline navigation bar. The subtitle, hero, and footer actions stay in their
   existing content and inset positions.
+  Its navigation bar stays visible with a dark color scheme so the title remains
+  legible over the Navy surface in Light appearance, including iOS 17.
+- The existing SwiftUI `BMI` title key resolves to `BMI` / `ИМТ` / `IMC` for
+  EN/RU/ES. Spanish Home and onboarding entry copy uses the same `IMC` name.
+- Plate and Progress issue titles/messages follow the app-selected language.
+  Missing PRO access uses consumer copy in every build; developer key-setup
+  instructions are not rendered in the consumer issue card.
 - Weekly Progress is not a top-level tab. It is a navigation-neutral child
   reachable exactly once from Progress. Progress owns its session HealthKit
   manager; recreated Weekly children observe that same reference. This retains
@@ -146,6 +153,9 @@ All P0 items are shipped. Remaining work is P1 (see below and `BACKLOG_LEDGER.md
 - [ ] Complete IOS-REL-2 exact-head CI, canonical closeout, and
   human-authorized merge; see the
   [canonical ledger item](BACKLOG_LEDGER.md#ledger-p1-ios-release-design-train-navigation-shell).
+- [ ] Validate iPhone Duo continuity when official simulator support is available;
+  see the [bounded follow-up](BACKLOG_LEDGER.md#ledger-p1-ios-iphone-duo-native-validation).
+  Existing iPad window evidence does not prove Duo support or block PR #2376.
 - [ ] Start IOS-REL-3 FREE BMI only after IOS-REL-2 merges, post-merge exact-main
   health is terminal, and a fresh ownership/overlap census is complete.
 - [ ] Mount WeeklyPlanReader behind feature flag (PRO demo slice).

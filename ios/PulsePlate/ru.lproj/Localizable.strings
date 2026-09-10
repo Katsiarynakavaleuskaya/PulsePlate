@@ -4,6 +4,7 @@
 "mascot.progress.great" = "Отличный прогресс сегодня!";
 
 /* Adaptive Navigation Shell */
+"BMI" = "ИМТ";
 "navigation.tab.home" = "Главная";
 "navigation.tab.bmi" = "ИМТ";
 "navigation.tab.today" = "Сегодня";
@@ -81,7 +82,6 @@
 "plate_issue_title_decoding" = "Неожиданный ответ";
 "plate_issue_title_unknown" = "Что-то пошло не так";
 
-"plate_issue_message_missing_pro_key_debug" = "Загрузите PRO-ключ через PRO Settings -> Debug Tools -> Keychain или через явно внедрённый тестовый провайдер. Xcode Environment Variables больше не используются для runtime-доступа PRO.";
 "plate_issue_message_missing_pro_key" = "PRO недоступен на этом устройстве.";
 "plate_issue_message_missing_profile" = "Откройте профиль и укажите пол, возраст, рост и вес.";
 "plate_issue_message_unauthorized" = "Ваш PRO ключ отсутствует или неверный.";

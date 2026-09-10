@@ -4,6 +4,7 @@
 "mascot.progress.great" = "¡Gran progreso hoy!";
 
 /* Adaptive Navigation Shell */
+"BMI" = "IMC";
 "navigation.tab.home" = "Inicio";
 "navigation.tab.bmi" = "IMC";
 "navigation.tab.today" = "Hoy";
@@ -81,7 +82,6 @@
 "plate_issue_title_decoding" = "Respuesta inesperada";
 "plate_issue_title_unknown" = "Algo salió mal";
 
-"plate_issue_message_missing_pro_key_debug" = "Carga una clave PRO en PRO Settings -> Debug Tools -> Keychain o usa un proveedor de prueba inyectado explícitamente. Las variables de entorno de Xcode ya no se usan para el acceso PRO en runtime.";
 "plate_issue_message_missing_pro_key" = "PRO no está disponible en este dispositivo.";
 "plate_issue_message_missing_profile" = "Abre Perfil e introduce sexo, edad, altura y peso.";
 "plate_issue_message_unauthorized" = "Tu clave PRO falta o no es válida.";
@@ -109,7 +109,7 @@
 "onboarding.welcome.screen1.title" = "PulsePlate — nutrición sin complicaciones";
 "onboarding.welcome.screen1.body" = "Sigue tus métricas, entiende tus resultados y mantén un plan que puedas sostener — paso a paso y sin ruido.";
 "onboarding.welcome.screen2.title" = "Cómo usarlo";
-"onboarding.welcome.screen2.body" = "Empieza con BMI, luego ajusta con Plate y tu perfil PRO. Pocos datos → próximos pasos claros.";
+"onboarding.welcome.screen2.body" = "Empieza con IMC, luego ajusta con Plate y tu perfil PRO. Pocos datos → próximos pasos claros.";
 "onboarding.welcome.cta.continue" = "Continuar";
 "onboarding.welcome.cta.back" = "Atrás";
 "onboarding.welcome.cta.start" = "Empezar";
@@ -127,8 +127,8 @@
 "home.state.paid_ready.title" = "Empieza por hoy";
 "home.state.paid_ready.detail" = "Abre el plato de hoy o elige otro paso de planificación.";
 "home.state.unavailable.title" = "No pudimos confirmar tu acceso";
-"home.state.unavailable.detail" = "Inténtalo de nuevo o continúa con BMI y tu perfil.";
-"home.action.bmi.title" = "Calcular BMI";
+"home.state.unavailable.detail" = "Inténtalo de nuevo o continúa con IMC y tu perfil.";
+"home.action.bmi.title" = "Calcular IMC";
 "home.action.bmi.detail" = "Obtén un punto de partida claro.";
 "home.action.complete_profile.title" = "Completar perfil";
 "home.action.complete_profile.detail" = "Añade los datos necesarios para planificar.";

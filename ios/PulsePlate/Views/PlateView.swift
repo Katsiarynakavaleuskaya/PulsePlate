@@ -262,6 +262,8 @@ struct PlateViewPP: View {
       .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
       .navigationTitle(localized("plate.preview.title"))
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(.visible, for: .navigationBar)
+      .toolbarColorScheme(.dark, for: .navigationBar)
       .navigationDestination(isPresented: $showMealEntry) {
         MealEntryView()
       }
@@ -383,7 +385,7 @@ private enum PlateVisualLayout {
 private struct PlateIssueView: View {
   let issue: PlateLoadIssue
   let onAction: (PlateIssuePrimaryAction) -> Void
-  private let localization = LocalizationManager.shared
+  @ObservedObject private var localization = LocalizationManager.shared
 
   var body: some View {
     let action = issue.primaryAction

@@ -644,8 +644,8 @@ final class HomeExperienceTests: XCTestCase {
                     "Abre el plato de hoy o elige otro paso de planificación.",
                 "home.state.unavailable.title": "No pudimos confirmar tu acceso",
                 "home.state.unavailable.detail":
-                    "Inténtalo de nuevo o continúa con BMI y tu perfil.",
-                "home.action.bmi.title": "Calcular BMI",
+                    "Inténtalo de nuevo o continúa con IMC y tu perfil.",
+                "home.action.bmi.title": "Calcular IMC",
                 "home.action.bmi.detail": "Obtén un punto de partida claro.",
                 "home.action.complete_profile.title": "Completar perfil",
                 "home.action.complete_profile.detail":
