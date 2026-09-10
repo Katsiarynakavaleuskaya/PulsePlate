@@ -450,9 +450,18 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `align_macros_with_targets`, `aggregate_day_micros`,
   `premium_targets_legacy`, `api_who_targets`, and `api_nutrient_gaps`.
   Direct calculation tests import the canonical services; retained HTTP-adapter
-  tests import and patch the modular router. Existing schema and helper
-  compatibility exports remain unchanged. Repository source/runtime absence is
-  not proof that unknown external Python importers do not exist.
+  tests import and patch the modular router. The Plate helper family is also
+  retired from `legacy_app.py`: `DB_TO_ALIAS_NUTRIENT_MAP`,
+  `PlateServiceDependencies`, `_convert_db_nutrients_to_alias_format`,
+  `_aggregate_meal_micronutrients`, `_get_recipe_ingredients_for_meal`,
+  `_aggregate_day_micronutrients`, `_macros_to_kcal`, `sanitize_plate_data`,
+  `_iter_exception_chain`, `_is_missing_nh3_error`,
+  `_raise_missing_nh3_http_error`, and `calculate_heuristic_macros`.
+  Import these objects from `app/services/pro_nutrition_plate.py`; the nutrient
+  map remains a constant. Existing schema exports and the separate package
+  `app._macros_to_kcal` exact service alias remain unchanged. Repository
+  source/runtime absence is not proof that unknown external Python importers
+  do not exist.
 - Planning and export direct-call ownership belongs to `core/menu_engine.py`,
   `core/plate.py`, `core/recommendations.py`, and `core/exports.py`. The
   following ordinary `legacy_app.py` bindings are retired and must not be

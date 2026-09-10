@@ -78,6 +78,18 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_execute_insight_request",
         "insight_v1",
         "insight",
+        "DB_TO_ALIAS_NUTRIENT_MAP",
+        "PlateServiceDependencies",
+        "_convert_db_nutrients_to_alias_format",
+        "_aggregate_meal_micronutrients",
+        "_get_recipe_ingredients_for_meal",
+        "_aggregate_day_micronutrients",
+        "_macros_to_kcal",
+        "sanitize_plate_data",
+        "_iter_exception_chain",
+        "_is_missing_nh3_error",
+        "_raise_missing_nh3_http_error",
+        "calculate_heuristic_macros",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(

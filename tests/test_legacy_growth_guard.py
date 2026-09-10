@@ -50,14 +50,28 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_execute_insight_request",
     "insight_v1",
     "insight",
+    "DB_TO_ALIAS_NUTRIENT_MAP",
+    "PlateServiceDependencies",
+    "_convert_db_nutrients_to_alias_format",
+    "_aggregate_meal_micronutrients",
+    "_get_recipe_ingredients_for_meal",
+    "_aggregate_day_micronutrients",
+    "_macros_to_kcal",
+    "sanitize_plate_data",
+    "_iter_exception_chain",
+    "_is_missing_nh3_error",
+    "_raise_missing_nh3_http_error",
+    "calculate_heuristic_macros",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
 RETIRED_PLANNING_EXPORT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[20:31]
 RETIRED_INSIGHT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[31:39]
+RETIRED_PLATE_HELPER_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[39:51]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
+    """Keep the eight retired Insight names distinct from earlier cohorts."""
     assert RETIRED_INSIGHT_BINDINGS == (
         "INSIGHT_TEXT_MAX_LENGTH",
         "InsightRequest",
@@ -68,9 +82,28 @@ def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
         "insight_v1",
         "insight",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 39
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 39
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:31]).isdisjoint(RETIRED_INSIGHT_BINDINGS)
+
+
+def test_retired_plate_helper_binding_tail_is_exact_and_disjoint() -> None:
+    """Require exactly twelve new Plate names without replacing earlier retirements."""
+    assert RETIRED_PLATE_HELPER_BINDINGS == (
+        "DB_TO_ALIAS_NUTRIENT_MAP",
+        "PlateServiceDependencies",
+        "_convert_db_nutrients_to_alias_format",
+        "_aggregate_meal_micronutrients",
+        "_get_recipe_ingredients_for_meal",
+        "_aggregate_day_micronutrients",
+        "_macros_to_kcal",
+        "sanitize_plate_data",
+        "_iter_exception_chain",
+        "_is_missing_nh3_error",
+        "_raise_missing_nh3_http_error",
+        "calculate_heuristic_macros",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 51
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 51
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:39]).isdisjoint(RETIRED_PLATE_HELPER_BINDINGS)
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -98,7 +131,9 @@ def test_legacy_growth_guard_rejects_each_retired_python_binding(
     ]
 
 
-@pytest.mark.parametrize("binding_name", RETIRED_PRO_NUTRITION_BINDINGS)
+@pytest.mark.parametrize(
+    "binding_name", RETIRED_PRO_NUTRITION_BINDINGS + RETIRED_PLATE_HELPER_BINDINGS
+)
 @pytest.mark.parametrize(
     "source_template",
     [
@@ -115,6 +150,7 @@ def test_legacy_growth_guard_rejects_each_pro_nutrition_binding_carrier(
     binding_name: str,
     source_template: str,
 ) -> None:
+    """Reject each retired nutrition name through the existing recognized carriers."""
     source = source_template.format(name=binding_name)
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
