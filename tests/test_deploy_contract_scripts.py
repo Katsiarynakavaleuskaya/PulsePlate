@@ -33,10 +33,10 @@ PROMETHEUS_PLATFORM_MANIFEST_DIGEST = (
 PROMETHEUS_RUNTIME_REF = f"prom/prometheus@{PROMETHEUS_PLATFORM_MANIFEST_DIGEST}"
 POSTGRES_RUNTIME_REF = (
     "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@"
-    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
+    "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec"
+    "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
@@ -94,7 +94,7 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
                         "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"
                     ),
                     "com.pulseplate.postgres.base-manifest": (
-                        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+                        "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
                     ),
                 },
             },
@@ -378,7 +378,7 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"  # pragma: allowlist secret
+        "77b15f4740005daf7b2a1e8c0328d6b6e5e3a7107965ed518e83c8a951137680"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
@@ -387,7 +387,7 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["platform"] == "linux/amd64"
     assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
     assert manifest["config_digest"] == (
-        "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738"
+        "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
     )
     assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
     assert manifest["source_date_epoch"] == "1785349734"
@@ -399,10 +399,10 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["compose_pgdata"] == "/var/lib/postgresql/data"
     assert manifest["compose_volume_target"] == "/var/lib/postgresql/data"
     assert manifest["runtime_base_platform_manifest_digest"] == (
-        "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
+        "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
     )
     assert manifest["builder_base_platform_manifest_digest"] == (
-        "sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a"
+        "sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134"
     )
     assert manifest["legacy_platform_manifest_digest"] == (
         "sha256:a2c20749c564b4eb73a77bfda626f8a3cde1bbfae020fb97c616a00cdc1a2181"
@@ -465,6 +465,166 @@ def test_managed_production_compose_remains_postgres_service_free() -> None:
     assert POSTGRES_RUNTIME_REF not in PRODUCTION_COMPOSE_TEXT
 
 
+def test_postgres_builder_uses_only_authenticated_offline_apk_inputs() -> None:
+    """The production recipe must not resolve transitive inputs from a live index."""
+    recipe = (POSTGRES_MANIFEST_PATH.parent / "Containerfile").read_text(encoding="utf-8")
+    builder = recipe.split("\nFROM ", 2)[1]
+    assert "RUN --network=none " in builder
+    assert "apk update" not in builder
+    assert "apk verify /tmp/builder-apks/x86_64/APKINDEX.tar.gz" in builder
+    assert "--no-network --no-cache --repositories-file /dev/null" in builder
+    assert "--repository /tmp/builder-apks" in builder
+    assert "--allow-untrusted" not in recipe
+    manifest = json.loads(POSTGRES_MANIFEST_PATH.read_bytes())
+    record = POSTGRES_MANIFEST_PATH.parent / "builder-apk-inputs.tsv"
+    index = POSTGRES_MANIFEST_PATH.parent / "builder-apk-index.tar.gz"
+    assert "sha256:" + hashlib.sha256(record.read_bytes()).hexdigest() == (
+        manifest["builder_apk_inputs_sha256"]
+    )
+    assert "sha256:" + hashlib.sha256(index.read_bytes()).hexdigest() == (
+        manifest["builder_apk_index_sha256"]
+    )
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "valid",
+        "record-digest",
+        "index-digest",
+        "duplicate",
+        "short-row",
+        "traversal",
+        "foreign-url",
+        "wrong-version",
+        "wrong-arch",
+        "bad-digest",
+        "zero-size",
+        "symlink-record",
+        "hardlink-record",
+        "symlink-index",
+        "missing-index",
+        "download-failure",
+        "download-truncated",
+        "download-altered",
+        "extra-file",
+        "wrong-count",
+        "no-newline",
+    ],
+)
+def test_postgres_apk_context_executes_exact_acquisition_program(
+    tmp_path: Path, fault: str
+) -> None:
+    """Exercise acquisition checks; native signed-index trust is separate image evidence."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    step = next(
+        item
+        for item in workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+        if item.get("name") == "Prepare exact verified pgvector source context"
+    )
+    program = step["run"].split("python3 - \"$context_dir\" <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    owner = tmp_path / "deploy" / "postgres-pgvector"
+    owner.mkdir(parents=True)
+    context = tmp_path / "context"
+    context.mkdir()
+    payload = b"synthetic package bytes\n"
+    row = [
+        hashlib.sha256(payload).hexdigest(),
+        str(len(payload)),
+        "build-base-0.5-r3.apk",
+        "build-base",
+        "0.5-r3",
+        "x86_64",
+        "https://dhi.io/apk/alpine/v3.23/main/x86_64/build-base-0.5-r3.apk",
+    ]
+    if fault == "short-row":
+        row.pop()
+    elif fault == "traversal":
+        row[2] = "../outside.apk"
+    elif fault == "foreign-url":
+        row[6] = "https://example.invalid/build-base-0.5-r3.apk"
+    elif fault == "wrong-version":
+        row[4] = "0.6-r0"
+    elif fault == "wrong-arch":
+        row[5] = "aarch64"
+    elif fault == "bad-digest":
+        row[0] = "not-a-digest"
+    elif fault == "zero-size":
+        row[1] = "0"
+    record = ("\t".join(row) + "\n").encode()
+    count = 1
+    if fault == "duplicate":
+        record += record
+        count = 2
+    elif fault == "no-newline":
+        record = record.rstrip(b"\n")
+    record_path = owner / "builder-apk-inputs.tsv"
+    record_path.write_bytes(record)
+    index_path = owner / "builder-apk-index.tar.gz"
+    index = b"synthetic index, not signature evidence\n"
+    index_path.write_bytes(index)
+    manifest = {
+        "builder_apk_inputs_sha256": "sha256:" + hashlib.sha256(record).hexdigest(),
+        "builder_apk_index_sha256": "sha256:" + hashlib.sha256(index).hexdigest(),
+        "builder_apk_input_count": str(count + (fault == "wrong-count")),
+    }
+    (owner / "image-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    if fault == "record-digest":
+        record_path.write_bytes(record + b"\n")
+    elif fault == "index-digest":
+        index_path.write_bytes(index + b"altered")
+    elif fault in {"symlink-record", "hardlink-record"}:
+        external = tmp_path / "external-record"
+        record_path.rename(external)
+        if fault == "symlink-record":
+            record_path.symlink_to(external)
+        else:
+            os.link(external, record_path)
+    elif fault == "symlink-index":
+        external = tmp_path / "external-index"
+        index_path.rename(external)
+        index_path.symlink_to(external)
+    elif fault == "missing-index":
+        index_path.unlink()
+    elif fault == "extra-file":
+        repository = context / "builder-apks" / "x86_64"
+        repository.mkdir(parents=True)
+        (repository / "unowned.apk").write_bytes(b"unowned")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_executable(
+        bin_dir / "curl",
+        f"#!{sys.executable}\nimport os, sys\n"
+        "fault = os.environ['APK_TEST_FAULT']\n"
+        "if fault == 'download-failure': sys.exit(22)\n"
+        f"payload = {payload!r}\n"
+        "if fault == 'download-truncated': payload = payload[:-1]\n"
+        "if fault == 'download-altered': payload = b'X' + payload[1:]\n"
+        "sys.stdout.buffer.write(payload)\n",
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(context)],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "APK_TEST_FAULT": fault},
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    if fault == "valid":
+        assert result.returncode == 0, result.stderr
+        repository = context / "builder-apks" / "x86_64"
+        assert {path.name for path in repository.iterdir()} == {
+            "APKINDEX.tar.gz",
+            "build-base-0.5-r3.apk",
+        }
+        assert (repository / "build-base-0.5-r3.apk").read_bytes() == payload
+        assert (repository / "APKINDEX.tar.gz").read_bytes() == index
+    else:
+        assert result.returncode != 0, result.stdout
+        assert "Verified 1 exact APK archives" not in result.stdout
+
+
 def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     containerfile = (REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile").read_text(
         encoding="utf-8"
@@ -473,14 +633,15 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     assert containerfile.count("FROM dhi.io/postgres@sha256:") == 2
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a AS builder"
+        "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134 AS builder"  # pragma: allowlist secret
         in containerfile
     )
     assert (
         "FROM dhi.io/postgres@sha256:"
-        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee" in containerfile
+        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"  # pragma: allowlist secret
+        in containerfile
     )
-    assert "apk add --no-cache build-base=0.5-r3 postgresql15-dev=15.19-r0" in containerfile
+    assert "--repository /tmp/builder-apks add" in containerfile
     assert "PG_CONFIG=/usr/libexec/postgresql15/pg_config" in containerfile
     assert "make -j1" in containerfile
     assert 'OPTFLAGS=""' in containerfile
@@ -507,7 +668,7 @@ def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
     )
     final_stage = containerfile.split(
         "FROM dhi.io/postgres@sha256:"
-        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
         maxsplit=1,
     )[1]
     for forbidden in ("\nRUN ", "\nUSER ", "\nENV ", "\nVOLUME ", "\nENTRYPOINT ", "\nCMD "):
@@ -1496,6 +1657,8 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
 
     initial_auth_step = steps[initial_auth]
     assert set(initial_auth_step["env"]) == {
+        "BUILDX_SHA256",
+        "BUILDKIT_DIGEST",
         "DHI_USER",
         "DHI_TOKEN",
         "GHCR_USER",
@@ -1632,6 +1795,8 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
     (source / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
         "{}\n", encoding="utf-8"
     )
+    for name in ("builder-apk-inputs.tsv", "builder-apk-index.tar.gz"):
+        (source / "deploy" / "postgres-pgvector" / name).write_bytes(b"frozen input")
     (source / "docs" / "note.md").write_text("base\n", encoding="utf-8")
     git(source, "add", ".")
     git(source, "commit", "-qm", "base")
@@ -1748,6 +1913,8 @@ def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation
     (source / "deploy" / "postgres-pgvector" / "image-manifest.json").write_text(
         "{}\n", encoding="utf-8"
     )
+    for name in ("builder-apk-inputs.tsv", "builder-apk-index.tar.gz"):
+        (source / "deploy" / "postgres-pgvector" / name).write_bytes(b"frozen input")
     git(source, "add", ".")
     git(source, "commit", "-qm", "admitted material")
     admitted_sha = git(source, "rev-parse", "HEAD")
@@ -1845,9 +2012,9 @@ def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
     assert "--verify" in verify_run and "--skip-tlog" in verify_run
     for exact_subject in (
         "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-        "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",  # pragma: allowlist secret
+        "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
         "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-        "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",  # pragma: allowlist secret
+        "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",  # pragma: allowlist secret
         "https://slsa.dev/provenance/v1",
     ):
         assert exact_subject in verify_run
@@ -1950,11 +2117,11 @@ def test_postgres_scout_source_statement_consumer(
     identities = {
         "runtime": (
             "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-            "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",  # pragma: allowlist secret
+            "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",  # pragma: allowlist secret
         ),
         "builder": (
             "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-            "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",  # pragma: allowlist secret
+            "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",  # pragma: allowlist secret
         ),
     }
     fixtures = tmp_path / "fixtures"
@@ -2081,7 +2248,16 @@ def _postgres_setup_program() -> str:
 
 
 @pytest.mark.parametrize(
-    "fail_command", ("", "login:dhi.io", "login:ghcr.io", "buildx:create", "buildx:inspect")
+    "fail_command",
+    (
+        "",
+        "buildx-download",
+        "buildx-checksum",
+        "login:dhi.io",
+        "login:ghcr.io",
+        "buildx:create",
+        "buildx:inspect",
+    ),
 )
 def test_postgres_setup_propagates_owned_context_between_processes(
     tmp_path: Path, fail_command: str
@@ -2096,6 +2272,15 @@ def test_postgres_setup_propagates_owned_context_between_processes(
     sentinel = default_config / "config.json"
     sentinel.write_text("unchanged default credentials", encoding="utf-8")
     command_log = tmp_path / "docker.log"
+    fixture_client = b"synthetic Buildx client bytes\n"
+    _write_executable(
+        bin_dir / "curl",
+        f"#!{sys.executable}\nimport os, sys\nfrom pathlib import Path\n"
+        "if os.environ['FAIL_COMMAND'] == 'buildx-download': sys.exit(22)\n"
+        f"data = {fixture_client!r}\n"
+        "if os.environ['FAIL_COMMAND'] == 'buildx-checksum': data += b'changed'\n"
+        "Path(sys.argv[sys.argv.index('--output') + 1]).write_bytes(data)\n",
+    )
     docker = bin_dir / "docker"
     _write_executable(
         docker,
@@ -2105,6 +2290,10 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         'if [ "$1" = login ]; then cat >/dev/null; printf synthetic > "$config/config.json"; fi\n'
         'if [ "$1:${2:-}" = buildx:create ]; then touch "$config/builder"; fi\n'
         'if [ "$FAIL_COMMAND" = "$1:${2:-}" ]; then exit 73; fi\n'
+        'if [ "$1:${2:-}" = buildx:version ]; then '
+        'echo "github.com/docker/buildx v0.37.0 '
+        'ac30b249211430b85fb8f37b6e7154b5c47ba0b6"; fi\n'
+        'if [ "$1:${2:-}" = buildx:inspect ]; then echo "BuildKit version:      v0.32.2"; fi\n'
         'if [ "$1:${2:-}" = buildx:ls ] && [ -f "$config/builder" ]; then echo pulseplate-pgvector-builder-1234-2; fi\n'
         'if [ "$1:${2:-}" = buildx:rm ]; then rm "$config/builder"; fi\n',
     )
@@ -2128,6 +2317,10 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         DEFAULT_CONFIG=str(default_config),
         COMMAND_LOG=str(command_log),
         FAIL_COMMAND=fail_command,
+        BUILDX_SHA256=hashlib.sha256(fixture_client).hexdigest(),
+        BUILDKIT_DIGEST=json.loads(POSTGRES_MANIFEST_PATH.read_bytes())[
+            "buildkit_platform_manifest_digest"
+        ],
     )
     first = subprocess.run(
         [bash, "-c", _postgres_setup_program()],
@@ -2138,7 +2331,8 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         timeout=30,
         check=False,
     )
-    assert first.returncode == (73 if fail_command else 0), first.stderr
+    expected_exit = {"": 0, "buildx-download": 22, "buildx-checksum": 1}.get(fail_command, 73)
+    assert first.returncode == expected_exit, first.stderr
     emitted = dict(line.split("=", 1) for line in env_file.read_text().splitlines())
     selected = emitted["DOCKER_CONFIG"]
     assert stat.S_IMODE(Path(selected).stat().st_mode) == 0o700
@@ -2756,6 +2950,10 @@ def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
         "pgvector_source_commit",
         "containerfile_sha256",
         "builder_apk_closure_sha256",
+        "builder_apk_inputs_sha256",
+        "builder_apk_index_sha256",
+        "buildkit_platform_manifest_digest",
+        "buildx_linux_amd64_sha256",
         "runtime_artifact_inventory_sha256",
         "mountpoint_layer_digest",
         "mountpoint_layer_diff_id",
@@ -2764,6 +2962,112 @@ def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
     ):
         assert material_field in generator
     assert "https://slsa.dev/provenance/v1" in json.dumps(steps, sort_keys=True)
+
+
+@pytest.mark.parametrize("consumer", ["candidate", "reuse"])
+@pytest.mark.parametrize(
+    "fault", ["valid", "duplicate", "duplicate-replacement", "missing", "digest", "wrong-shape"]
+)
+def test_postgres_generated_materials_reach_both_provenance_consumers(
+    tmp_path: Path, consumer: str, fault: str
+) -> None:
+    """Replay native-format producer/consumers; this is not attestation verification."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    generator = (
+        next(
+            step["run"]
+            for step in steps
+            if step.get("name")
+            == "Generate material-bound PostgreSQL pgvector provenance predicate"
+        )
+        .split("python3 - <<'PY'\n", 1)[1]
+        .split("\nPY", 1)[0]
+    )
+    manifest_dir = tmp_path / "deploy" / "postgres-pgvector"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "image-manifest.json").write_bytes(POSTGRES_MANIFEST_PATH.read_bytes())
+    environment = {
+        **os.environ,
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_RUN_ID": "1234",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "PROVENANCE_MODE": "create",
+    }
+    generated = subprocess.run(
+        [sys.executable, "-c", generator],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    assert generated.returncode == 0, generated.stderr
+    predicate = json.loads((tmp_path / "postgres-pgvector-provenance.json").read_bytes())
+    materials = predicate["buildDefinition"]["resolvedDependencies"]
+    assert {"pulseplate:builder-apk-inputs", "pulseplate:builder-apk-signed-index"} <= {
+        item["uri"] for item in materials
+    }
+    if fault == "duplicate":
+        materials.append(materials[0])
+    elif fault == "duplicate-replacement":
+        materials[-1] = materials[0]
+    elif fault == "missing":
+        materials.pop()
+    elif fault == "digest":
+        materials[0]["digest"] = {"sha256": "0" * 64}
+    elif fault == "wrong-shape":
+        predicate["buildDefinition"]["resolvedDependencies"] = None
+    verified = [{"verificationResult": {"statement": {"predicate": predicate}}}]
+    if consumer == "candidate":
+        filename = "postgres-pgvector-provenance-verified.json"
+        program = _postgres_candidate_provenance_verifier_program()
+    else:
+        filename = "postgres-pgvector-reuse-provenance.json"
+        run = next(
+            step["run"]
+            for step in workflow["jobs"]["postgres-pgvector-reuse"]["steps"]
+            if filename in step.get("run", "")
+        )
+        program = run.split(f"> {filename}\n", 1)[1].split("python3 - <<'PY'\n", 1)[1]
+        program = program.split("\nPY", 1)[0]
+    (tmp_path / filename).write_text(json.dumps(verified), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=20,
+    )
+    if fault == "valid":
+        assert result.returncode == 0, result.stderr
+    else:
+        assert result.returncode != 0, result.stdout
+        if consumer == "candidate":
+            assert "Expected exactly one material-bound provenance predicate" in result.stderr
+        else:
+            assert "Reused provenance material" in result.stderr
+
+
+def test_postgres_final_scanner_consumes_the_verified_oci_layout() -> None:
+    """Trivy 0.74 accepts an OCI directory; its Docker-tar input is a different format."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    scan = next(
+        step["run"]
+        for step in steps
+        if step.get("name")
+        == "Scan exact bases, post-APK builder, and final image without suppressions"
+    )
+    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in scan
+    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in scan
+    assert "--exit-code 1" in scan
+    assert "--scanners vuln,secret" in scan
 
 
 def _postgres_oci_verifier_program() -> str:

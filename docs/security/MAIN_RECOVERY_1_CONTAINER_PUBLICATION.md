@@ -72,6 +72,53 @@ file replay pass. Later build, publication, pullback, admission and Prometheus
 steps were not reached in this failed main run and remain required. This
 continuation is implementation recovery, not a standalone bookkeeping PR.
 
+## Post-merge APK input and base-image recovery
+
+PR #2389 was squash-merged as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`.
+Its exact-main CD run `34469999154` passed the DHI Statement/v0.1 consumer
+that had blocked PR #2387, then failed in PostgreSQL job `102850332413` before
+publication. The live Alpine resolver selected transitive `libcurl` 8.22.0-r0
+instead of the closure-recorded 8.21.0-r0. This proves that an
+installed-package checksum detects resolver drift but does not freeze the
+resolver inputs.
+
+The bounded continuation tracks a seven-field SHA-256/size/file/package/version/
+architecture/HTTPS acquisition record for all 41 builder APK archives and the
+supplier's unchanged signed `APKINDEX.tar.gz`. CI downloads only those exact
+bytes, then native APK verifies and installs the signed local repository with
+network and cache access disabled. The build-stage `RUN` also has no network.
+No unsigned subset, replacement key, public mirror fallback, package-manager
+upgrade, `--allow-untrusted`, or vulnerability suppression is accepted. Buildx
+0.37.0 is checksum-bound and BuildKit v0.32.2 is selected by exact linux/amd64
+platform-manifest digest; both identities enter the generated and reused
+provenance material sets.
+
+The first fully frozen candidate retained the old DHI runtime base and exposed
+six HIGH findings in `libuuid` 2.41.4-r0: CVE-2026-53612,
+CVE-2026-53613, CVE-2026-53614, CVE-2026-76642, CVE-2026-78408 and
+CVE-2026-78410. The finding was not ignored. The same PostgreSQL 15.19 Alpine
+3.23 runtime/dev tags were refreshed to new immutable DHI digests containing
+`libuuid` 2.41.6-r1. Trivy 0.74.0 scans of the refreshed runtime base, builder
+base and exact final OCI layout report zero HIGH/CRITICAL findings with no
+ignore entries. Trivy consumes the verified OCI layout directory; an OCI tar
+is retained for reproducibility evidence but is not treated as a Docker-archive
+scanner input.
+
+Two clean-cache linux/amd64 builds produced the same platform digest
+`sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380`,
+config digest
+`sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff`
+and byte-identical OCI archive SHA-256
+`c8557b99c6fbcee628472dc0cecb869562aab2e848b5ce5f896f1b4141a0a415`.
+Publication, exact-main admission and merge evidence remain required.
+
+Docker's warning that credentials are stored in `config.json` is expected when
+a credential helper is not configured; it is not evidence that the temporary
+credentials survive the job. This lane keeps a dedicated mode-0700
+`DOCKER_CONFIG`, uses `--password-stdin`, logs out of both registries, validates
+the owned path and removes it from the always-run cleanup. Cleanup failures
+remain fail-closed without replacing the primary job result.
+
 ## Frozen baseline failures
 
 | Workflow / job | Primary evidence | Recovery owner |

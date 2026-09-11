@@ -1871,7 +1871,7 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     publish_job = workflow.split("\n  postgres-pgvector-publish:\n", maxsplit=1)[1].split(
         "\n  postgres-pgvector-reuse:\n", maxsplit=1
     )[0]
-    assert "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec" in contract_job
+    assert "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380" in contract_job
     assert (
         "EXPECTED_PLATFORM_DIGEST: "
         "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}" in publish_job
@@ -1891,7 +1891,8 @@ def test_cd_exact_pgvector_image_proves_fresh_and_legacy_volume_contracts() -> N
     assert "transitioned_oid" in publish_job
     assert "transitioned_sentinel" in publish_job
     assert 'test "$transitioned_vector" = "0.8.6"' in publish_job
-    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' in publish_job
+    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1"' in publish_job
+    assert '--input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar"' not in publish_job
 
 
 def _ci_authority_environment(database_url: URL | None = None) -> dict[str, str]:

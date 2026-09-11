@@ -28,17 +28,19 @@ If it is not recorded here — it does not exist.
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: continuation `codex/main-recovery-scout-provenance-envelope` after merged #2387 (MAIN-RECOVERY-1 v2)
-  - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; backend publication, Frontend/Caddy, CD-Test and Trivy passed on that SHA. CD remains blocked by the DHI Statement/v0.1 consumer mismatch after successful Scout authentication/signature verification. Native-output replay reproduced the failure; the bounded continuation corrects the consumer and retains every original merged-main acceptance requirement.
+  - Target PR: continuation `codex/main-recovery-pgvector-apk-inputs` after merged #2389 (MAIN-RECOVERY-1 v3)
+  - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 then merged the pinned DHI Statement/v0.1 consumer as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Exact-main CD `34469999154` passed that consumer and exposed the next bounded blocker: the live APK resolver changed transitive `libcurl`, so the recorded builder closure no longer matched. The current continuation freezes all 41 APK archive bytes plus the supplier-signed index, pins Buildx/BuildKit, refreshes vulnerable same-version DHI bases and retains every original exact-main acceptance requirement.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`
   - DoD:
     - Same owned Docker configuration in current/next processes, actual Scout authentication and exact provenance, bounded partial cleanup with primary failure retained.
     - Close the frozen backend image findings while preserving native UUID/TLS/gzip/SQLite/Alembic/app behavior; replace Caddy gRPC 1.83.1 with 1.83.2 and verify full native resolver/binary evidence.
     - Reassess the three expired decisions without broader predicates; remove only the approved obsolete suppression; run strict production-image checks before merge.
+    - Freeze all builder APK identities and bytes behind the supplier-signed index, build with network disabled, pin Buildx/BuildKit, and preserve exact provenance/reuse material equality.
+    - Reject rather than suppress newly exposed base findings; prove clean runtime/base/post-APK/final scans, byte-identical clean-cache builds, PostgreSQL/pgvector ABI and same-volume continuity.
     - Complete all required local/current-head review and CI gates, human exact-head merge and every applicable pipeline on final main, including previously unreached publication/pullback/admission.
     - Preserve evidence, synchronized clean main `0 0`, sanity, stopped Docker Desktop and same-ID readback of the four authorized Drive records.
-  - Carryover (EN): PR #2371 merged as `87feb5272ca81aa698416c5ed999d26e79f21b2a`; PR #2347 merged as `e5d162168a866b64f1750f396e6034643f210cca`. Their repository deliveries are retained; publication/main recovery and production activation are distinct outcomes.
+  - Carryover (EN): PR #2371 merged as `87feb5272ca81aa698416c5ed999d26e79f21b2a`; PR #2347 merged as `e5d162168a866b64f1750f396e6034643f210cca`; PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 merged as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Their repository deliveries are retained; publication/main recovery and production activation are distinct outcomes.
   - Deferred / Follow-ups (EN): No automatic MAIN-STAB-2 or standalone bookkeeping PR. Check only a real residual prevention gap after recovery; DOCX remains the next maintenance candidate after fresh admission. Newly observed application-dependency alerts remain in the separate item below.
 
 <a id="ledger-p1-dependency-alerts-after-main-recovery"></a>

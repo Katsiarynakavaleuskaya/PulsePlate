@@ -1,17 +1,39 @@
 ARG SOURCE_DATE_EPOCH=1785349734
 
-FROM dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a AS builder
+FROM dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134 AS builder
 
 ARG SOURCE_DATE_EPOCH
 
 COPY pgvector-v0.8.6.tar.gz /tmp/pgvector-v0.8.6.tar.gz
+COPY builder-apk-inputs.tsv /tmp/builder-apk-inputs.tsv
+COPY builder-apks/ /tmp/builder-apks/
 
-RUN set -eu; \
+RUN --network=none set -eu; \
     echo "10bf9938906e5d643bbc4a7eea104b6f57ba4898e5b76b20e60484ea1d5a7f8f  /tmp/pgvector-v0.8.6.tar.gz" | sha256sum -c -; \
-    apk update; \
-    apk add --no-cache build-base=0.5-r3 postgresql15-dev=15.19-r0; \
+    test -f /tmp/builder-apk-inputs.tsv && test ! -L /tmp/builder-apk-inputs.tsv; \
+    echo "d9c5cda673f9feb4f41990eb8051f0239a57436fcdcb265bc3b0f22726071dbd  /tmp/builder-apk-inputs.tsv" | sha256sum -c -; \
+    test "$(stat -c %h /tmp/builder-apk-inputs.tsv)" = 1; \
+    test "$(find /tmp/builder-apks -type d | wc -l | tr -d '[:space:]')" = 2; \
+    test "$(find /tmp/builder-apks -type f | wc -l | tr -d '[:space:]')" = 42; \
+    test -z "$(find /tmp/builder-apks ! -type d ! -type f -print -quit)"; \
+    test -f /tmp/builder-apks/x86_64/APKINDEX.tar.gz; \
+    test "$(stat -c %h /tmp/builder-apks/x86_64/APKINDEX.tar.gz)" = 1; \
+    echo "85417d819711b80f3507306e823850748ace65a081af14b0a0eb8f5d67bc5490  /tmp/builder-apks/x86_64/APKINDEX.tar.gz" | sha256sum -c -; \
+    set --; \
+    while IFS="$(printf '\t')" read -r digest size filename package version arch url; do \
+      path="/tmp/builder-apks/x86_64/$filename"; \
+      test -f "$path" && test ! -L "$path"; \
+      test "$(stat -c %h "$path")" = 1; \
+      test "$(wc -c < "$path" | tr -d '[:space:]')" = "$size"; \
+      printf '%s  %s\n' "$digest" "$path" | sha256sum -c -; \
+      set -- "$@" "$package=$version"; \
+    done < /tmp/builder-apk-inputs.tsv; \
+    test "$#" = 41; \
+    apk verify /tmp/builder-apks/x86_64/APKINDEX.tar.gz; \
+    apk --no-network --no-cache --repositories-file /dev/null \
+      --repository /tmp/builder-apks add "$@"; \
     apk info -v | sort > /tmp/builder-apk-closure.txt; \
-    echo "fdf15a85f72f12790911b7e8d15a4cc877255f829b20071593139430aa371c9a  /tmp/builder-apk-closure.txt" | sha256sum -c -; \
+    echo "14d95f6af83be6516fab26f844ede7f7ba7de93bf1dd7017aff7a19188ba2782  /tmp/builder-apk-closure.txt" | sha256sum -c -; \
     test "$(wc -l < /tmp/builder-apk-closure.txt | tr -d '[:space:]')" = "94"; \
     test "$(/usr/libexec/postgresql15/pg_config --version)" = "PostgreSQL 15.19"; \
     test "$(/usr/libexec/postgresql15/pg_config --pkglibdir)" = "/usr/lib/postgresql15"; \
@@ -47,7 +69,7 @@ RUN set -eu; \
     test "$(stat -c '%u:%g:%a' /out/var/lib/postgresql/data)" = "70:70:700"; \
     test -z "$(find /out/var/lib/postgresql/data -mindepth 1 -print -quit)"
 
-FROM dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee
+FROM dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d
 
 ARG SOURCE_DATE_EPOCH
 
@@ -62,7 +84,7 @@ LABEL org.opencontainers.image.description="PulsePlate deployment image derived 
 LABEL org.opencontainers.image.version="15.19-pgvector0.8.6"
 LABEL org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
 LABEL org.opencontainers.image.licenses="Apache-2.0 AND PostgreSQL"
-LABEL com.pulseplate.postgres.base-manifest="sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee"
-LABEL com.pulseplate.postgres.dev-manifest="sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a"
+LABEL com.pulseplate.postgres.base-manifest="sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d"
+LABEL com.pulseplate.postgres.dev-manifest="sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134"
 LABEL com.pulseplate.pgvector.version="0.8.6"
 LABEL com.pulseplate.pgvector.source-commit="8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c"

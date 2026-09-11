@@ -10,6 +10,7 @@ repos:
       - id: trailing-whitespace
       - id: check-merge-conflict
       - id: check-added-large-files
+        args: [--maxkb=2048]
 
   # --- YAML lint: yamllint (style + structure)
   - repo: https://github.com/adrienverge/yamllint
