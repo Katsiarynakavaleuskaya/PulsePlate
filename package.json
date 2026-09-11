@@ -29,7 +29,7 @@
     "yaml": "2.8.3"
   },
   "dependencies": {
-    "docx": "^9.6.1",
+    "docx": "^9.7.1",
     "thesvg": "^2.0.1"
   },
   "devDependencies": {
