@@ -90,8 +90,8 @@ network and cache access disabled. The build-stage `RUN` also has no network.
 No unsigned subset, replacement key, public mirror fallback, package-manager
 upgrade, `--allow-untrusted`, or vulnerability suppression is accepted. Buildx
 0.37.0 is checksum-bound and BuildKit v0.32.2 is selected by exact linux/amd64
-platform-manifest digest; both identities enter the generated and reused
-provenance material sets.
+platform-manifest digest plus the closed manifest `buildkit_version`; both
+identities enter the generated and reused provenance material sets.
 
 The first fully frozen candidate retained the old DHI runtime base and exposed
 six HIGH findings in `libuuid` 2.41.4-r0: CVE-2026-53612,

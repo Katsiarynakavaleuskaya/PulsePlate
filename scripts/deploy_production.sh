@@ -537,7 +537,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "77b15f4740005daf7b2a1e8c0328d6b6e5e3a7107965ed518e83c8a951137680"  # pragma: allowlist secret
+expected_file_sha256 = "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -551,7 +551,8 @@ expected_keys = set(
     pgvector_source_url pgvector_source_sha256 builder_packages builder_apk_closure_count
     builder_apk_closure_sha256 pg_config_path pg_config_version make_jobs optflags
     builder_apk_inputs_sha256 builder_apk_index_sha256 builder_apk_input_count
-    buildkit_platform_manifest_digest buildx_version buildx_linux_amd64_sha256
+    buildkit_platform_manifest_digest buildkit_version buildx_version
+    buildx_linux_amd64_sha256
     runtime_artifact_count runtime_artifact_inventory_sha256 trivy_version
     mountpoint_layer_schema mountpoint_layer_digest mountpoint_layer_size
     mountpoint_layer_diff_id mountpoint_layer_entry_count mountpoint_uid mountpoint_gid
@@ -587,6 +588,7 @@ expected_values = {
     "mountpoint_base_parent_metadata_equal": "true",
     "trivy_version": "0.74.0",
     "trivy_scan_contract": "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none",
+    "buildkit_version": "0.32.2",
 }
 
 

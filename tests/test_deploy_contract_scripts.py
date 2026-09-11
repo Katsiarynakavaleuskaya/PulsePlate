@@ -378,7 +378,7 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
-        "77b15f4740005daf7b2a1e8c0328d6b6e5e3a7107965ed518e83c8a951137680"  # pragma: allowlist secret
+        "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
     )
     manifest = json.loads(manifest_bytes)
     assert manifest["schema"] == "pulseplate.postgres_pgvector_image_manifest.v1"
@@ -432,6 +432,8 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["trivy_scan_contract"] == (
         "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none"
     )
+    assert manifest["buildkit_version"] == "0.32.2"
+    assert manifest["buildx_version"] == "0.37.0"
     containerfile = REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile"
     assert (
         "sha256:" + hashlib.sha256(containerfile.read_bytes()).hexdigest()
@@ -587,19 +589,21 @@ def test_postgres_apk_context_executes_exact_acquisition_program(
     elif fault == "missing-index":
         index_path.unlink()
     elif fault == "extra-file":
-        repository = context / "builder-apks" / "x86_64"
-        repository.mkdir(parents=True)
-        (repository / "unowned.apk").write_bytes(b"unowned")
+        # Planted by the curl fixture after acquisition creates the repository.
+        pass
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _write_executable(
         bin_dir / "curl",
         f"#!{sys.executable}\nimport os, sys\n"
+        "from pathlib import Path\n"
         "fault = os.environ['APK_TEST_FAULT']\n"
         "if fault == 'download-failure': sys.exit(22)\n"
         f"payload = {payload!r}\n"
         "if fault == 'download-truncated': payload = payload[:-1]\n"
         "if fault == 'download-altered': payload = b'X' + payload[1:]\n"
+        "if fault == 'extra-file':\n"
+        "    Path('context/builder-apks/x86_64/unowned.apk').write_bytes(b'unowned')\n"
         "sys.stdout.buffer.write(payload)\n",
     )
     result = subprocess.run(
@@ -620,6 +624,10 @@ def test_postgres_apk_context_executes_exact_acquisition_program(
         }
         assert (repository / "build-base-0.5-r3.apk").read_bytes() == payload
         assert (repository / "APKINDEX.tar.gz").read_bytes() == index
+    elif fault == "extra-file":
+        assert result.returncode != 0, result.stdout
+        assert "APK repository file set drifted" in result.stderr
+        assert "Verified 1 exact APK archives" not in result.stdout
     else:
         assert result.returncode != 0, result.stdout
         assert "Verified 1 exact APK archives" not in result.stdout
@@ -1659,6 +1667,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert set(initial_auth_step["env"]) == {
         "BUILDX_SHA256",
         "BUILDKIT_DIGEST",
+        "BUILDKIT_VERSION",
         "DHI_USER",
         "DHI_TOKEN",
         "GHCR_USER",
@@ -2321,6 +2330,7 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         BUILDKIT_DIGEST=json.loads(POSTGRES_MANIFEST_PATH.read_bytes())[
             "buildkit_platform_manifest_digest"
         ],
+        BUILDKIT_VERSION=json.loads(POSTGRES_MANIFEST_PATH.read_bytes())["buildkit_version"],
     )
     first = subprocess.run(
         [bash, "-c", _postgres_setup_program()],
