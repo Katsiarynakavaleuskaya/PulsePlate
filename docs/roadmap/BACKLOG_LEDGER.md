@@ -2213,8 +2213,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Area: CI / tooling / governance
-  - Status note: Active follow-up in `codex/main-ci-py313-timeout-prevention` narrows this item to the machine-heavy agent-local execution contract. Full local `make verify` stays canonical for normal PRs, while operator-approved CI/tooling lanes may document deferral and use narrow local gates plus canonical current-head CI parity as the heavy signal. The pre-push hook bug remains tracked here for a separate follow-up and is not closed by the Python 3.13 timeout-prevention lane.
-  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Status note: The repo-wide local default is the required narrow bundle plus canonical current-head hosted heavy parity. Full local `make verify` is allowed only by an explicit operator exception for one invocation. The recorded pre-push hook defect remains open for its owned fix and verification; this instruction correction does not close the hook implementation or establish completion of PR #1516.
+  - Reason: The former full-local verification default was too broad for routine PR iteration. The recorded `scripts/run-backend-tests-pre-commit.sh` failure (`FOUND_FOR_FILE[@]: unbound variable`) on merge-commit paths still requires its bounded follow-up under the current local validation budget, without weakening strict current-head merge readiness.
   - Evidence:
     - `AGENTS.md:5-8`
     - `AGENTS.md:27-30`
@@ -2230,8 +2230,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.pre-commit-config.yaml`
     - `scripts/run-backend-tests-pre-commit.sh`
   - DoD:
-    - Repo docs distinguish normal full local `make verify` from the operator-approved machine-heavy deferral path
-    - Agent/runbook guidance points at the correct narrow validation path for machine-heavy PR iteration
+    - Repo docs preserve the repo-wide narrow local default plus hosted heavy parity; full local `make verify` requires an explicit single-invocation operator exception
+    - Agent/runbook guidance points at the required narrow local bundle and canonical current-head CI evidence for PR iteration
     - Deterministic tests cover the promoted validation contract
     - Follow-up PR fixes the pre-push backend test hook failure shape (`FOUND_FOR_FILE[@]: unbound variable`)
 

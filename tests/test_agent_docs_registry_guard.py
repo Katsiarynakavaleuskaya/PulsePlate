@@ -1217,12 +1217,21 @@ def test_entry_recipes_require_canonical_admission(path: str, start: str, end: s
         "scoped implementation handoff",
     ):
         assert required in recipe, f"Recipe omits canonical admission reference: {required}"
+    if path == ".cursor/agents/agent-coordinator.md":
+        assert "packet generation may precede execute preflight" in recipe
+        assert "metadata-only" in recipe and "initial analyze preflight" in recipe
+        assert "--mode analyze|execute|merge" not in recipe
 
 
-def _generated_dispatch_example(task_class: str) -> tuple[str, Namespace, list[dict[str, object]]]:
-    """Generate a current no-path packet and consume its actual command and role order."""
+def _generated_dispatch_example(
+    task_class: str, *, telemetry_path: Path
+) -> tuple[str, Namespace, list[dict[str, object]]]:
+    """Generate a packet with fixture-owned telemetry and consume its emitted command/order."""
     packet = build_task_packet(
-        goal="Document native dispatch examples", task_class=task_class, candidate_paths=[]
+        goal="Document native dispatch examples",
+        task_class=task_class,
+        candidate_paths=[],
+        telemetry_path=telemetry_path,
     )
     command = packet["role_agent_dispatch_contract"]["dispatch_manifest_command"]
     args = _parse_args(shlex.split(command)[2:])
@@ -1245,10 +1254,16 @@ def _generated_dispatch_example(task_class: str) -> tuple[str, Namespace, list[d
     ],
 )
 def test_generated_packet_context_examples_keep_every_owner(
-    task_class: str, intended_role: str, expected_order: int, owners: tuple[str, ...]
+    task_class: str,
+    intended_role: str,
+    expected_order: int,
+    owners: tuple[str, ...],
+    tmp_path: Path,
 ) -> None:
     """Derive QA/Security context positions from real packets without dropping eligible owners."""
-    command, original, entries = _generated_dispatch_example(task_class)
+    command, original, entries = _generated_dispatch_example(
+        task_class, telemetry_path=tmp_path / "missing-telemetry.json"
+    )
     assert len(entries) == 3 and original.implementation_owner == list(owners)
     eligible = [entry for entry in entries if entry["implementation_owner_override"]]
     assert [entry["role_slug"] for entry in eligible] == list(owners)
@@ -1271,9 +1286,13 @@ def test_generated_packet_context_examples_keep_every_owner(
 
 
 @pytest.mark.parametrize("dropped_owner", ["qa-engineer-agent", "bug-hunter"])
-def test_generated_qa_example_rejects_either_dropped_owner(dropped_owner: str) -> None:
+def test_generated_qa_example_rejects_either_dropped_owner(
+    dropped_owner: str, tmp_path: Path
+) -> None:
     """Reject deletion of either real QA owner flag from exact-context command construction."""
-    command, original, entries = _generated_dispatch_example("QA")
+    command, original, entries = _generated_dispatch_example(
+        "QA", telemetry_path=tmp_path / "missing-telemetry.json"
+    )
     selected = entries[1]["order"]
     assert isinstance(selected, int)
     owners = tuple(original.implementation_owner)
@@ -1297,9 +1316,11 @@ def test_generated_qa_example_rejects_either_dropped_owner(dropped_owner: str) -
         )
 
 
-def test_exact_context_example_rejects_reusable_literal_order() -> None:
+def test_exact_context_example_rejects_reusable_literal_order(tmp_path: Path) -> None:
     """Reject the historical order-5 template for Security's generated order-2 occurrence."""
-    command, original, entries = _generated_dispatch_example("Security")
+    command, original, entries = _generated_dispatch_example(
+        "Security", telemetry_path=tmp_path / "missing-telemetry.json"
+    )
     selected = entries[1]["order"]
     assert selected == 2
     document = _read(_DISPATCH_GUIDE)

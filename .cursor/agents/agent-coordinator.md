@@ -489,16 +489,25 @@ The role-dispatch step below MUST follow the
 [canonical admission sequence](../../docs/orchestration/workflow.md#admit-tracked-implementation):
 execute preflight before owner-capable preparation, complete no-write preparation,
 then use the later scoped implementation handoff. Detailed policy stays in that
-workflow; packet generation alone satisfies none of these later steps.
+workflow. After initial analyze preflight, packet generation may precede execute preflight;
+it is metadata-only and does not execute roles. Owner-capable preparatory dispatch
+waits for execute preflight, then runs under no-write constraints. Only tracked
+implementation waits for all preparation to finish and the separate scoped handoff.
 
+- Initial analysis: `python scripts/orchestration/check_preflight.py --mode analyze`
+  with the applicable scope inputs; reuse a starter's completed analyze preflight.
 - `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
-- `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
+- Execute and merge preflight use their stage-specific inputs in the canonical
+  workflow and `RUNBOOK_AGENT.md`; the packet-generation command above is not
+  either of those gates. For an ownerless writing route, follow the workflow's
+  recorded routing-update procedure without manufacturing flags or dropping roles.
 - After `task_bootstrap.py` emits a packet, copy the packet's
   `role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace
   `<packet>` with the actual packet path, and use repo Python per
   `RUNBOOK_AGENT.md`. Do not reconstruct a generic bridge command; runtime
   implementation packets may carry `--mode runtime --implementation-owner ...`
-  flags. Packet creation does not execute role agents. Use the emitted
+  flags. Generate/inspect the manifest as metadata; native owner-capable preparation
+  starts only after execute preflight passes. Use the emitted
   `dispatch_sequence` in order, and do not skip an assigned role without an
   explicit coordinator packet/runbook update.
 

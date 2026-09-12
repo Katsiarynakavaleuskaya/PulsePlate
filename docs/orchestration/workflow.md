@@ -217,6 +217,20 @@ that same stage; complete them before its dependent next action.
 - [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,
   `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
+##### Ownerless routing when writing is intended
+
+Ownerless analysis/review routing is valid. If the accepted task requires tracked
+writing but its implementation-phase packet has no eligible owner, the coordinator
+records a routing update through the existing `task_bootstrap.py` and canonical
+routing graph. Choose a suitable existing route for the actual scope, preserving
+the accepted goal, paths, phase, required/requested roles and their constraints.
+Verify that the resulting manifest actually emits an eligible owner before the
+normal preflight/preparation/handoff sequence. A class label or advisory request
+alone grants no ownership; do not manufacture flags or promote a readonly review
+or L2 packet into implementation. This routing preparation precedes implementation
+admission and needs no fresh permission within the already accepted task scope.
+If no suitable route exists, report that capability gap while preserving analysis.
+
 #### Admit tracked implementation
 
 - [ ] The analysis-stage scope, accepted criteria and governing packet are available.
