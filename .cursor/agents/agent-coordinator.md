@@ -485,6 +485,12 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 **Command-driven bootstrap:**
 
+The role-dispatch step below MUST follow the
+[canonical admission sequence](../../docs/orchestration/workflow.md#admit-tracked-implementation):
+execute preflight before owner-capable preparation, complete no-write preparation,
+then use the later scoped implementation handoff. Detailed policy stays in that
+workflow; packet generation alone satisfies none of these later steps.
+
 - `python scripts/orchestration/task_bootstrap.py --goal "..." --task-class "..." --path ...`
 - `python scripts/orchestration/check_preflight.py --mode analyze|execute|merge ...`
 - After `task_bootstrap.py` emits a packet, copy the packet's

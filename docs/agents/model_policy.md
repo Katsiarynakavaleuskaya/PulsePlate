@@ -33,7 +33,7 @@ not an executable risk classifier.
 | Admitted work | Automatic native selection |
 | --- | --- |
 | Finite, positively bounded low-risk reads or focused tests/checks | `gpt-5.6-sol`, `reasoning_effort=medium` |
-| Bounded low-risk implementation with an existing explicit role owner | `gpt-5.6-sol`, `reasoning_effort=high` |
+| Bounded low-risk implementation with an active scoped implementation handoff | `gpt-5.6-sol`, `reasoning_effort=high` |
 | Protected, unknown-risk or final work | Astra, retaining the coordinator's selected effort |
 
 Protected work includes auth, billing, security policy, CI/workflows, deployment,
@@ -51,7 +51,9 @@ history fork. Full-history inheritance cannot be combined with model/effort
 overrides. Explicitly deliver the full role definition, applicable instructions,
 packet, accepted criteria and predecessor evidence; a reduced history fork does
 not reduce required context. Preserve the manifest's type, occurrence, serial
-order, readonly flag and sole implementation owner.
+order and complete eligible-owner/readonly metadata. Follow the canonical
+workflow's separate handoff selecting one active eligible role, its occurrence
+and exact files; eligibility or a model override alone grants no implementation task.
 
 Allow at most one substantive escalation from an insufficient Sol result,
 through the Astra coordinator, with the attempted work, evidence and unresolved
@@ -81,8 +83,16 @@ arguments. This optional fallback does not apply to an explicitly required
 operator choice: preserve the unavailable-choice boundary above without silent
 substitution, repeated permission requests or model roulette. Never send unknown
 keyword arguments or claim
-the requested model executed. A required binding that the host cannot express
-is a specific tool-capability incompatibility, not a new approval requirement.
+the requested model executed.
+When typed-agent fields are unavailable, use the root-authorized general-purpose
+native spawn with supported arguments and the same validated JSON packet/binding,
+canonical role/context, scope and action limits. Report the actual generic
+transport; do not claim typed or requested-model selection and never emulate
+model choice in prompt prose. This fallback retains inherited defaults, supported
+explicit locks and the unavailable required-choice exception above. Missing or
+ambiguous packet bindings or genuinely missing required action/tool capabilities
+still block only the dependent action. Generic transport changes no metadata,
+permissions or approval boundaries and adds no executable adapter.
 Repository example tests establish finite documentation/binding agreement;
 only actual tool results can establish that a native model ran.
 
@@ -124,13 +134,15 @@ as bounded low-risk work, a Cursor specialist uses its native explorer binding:
 
 ### Sol implementation example
 
-For an already-authorized low-risk client copy change with frontend-engineer
-as the packet's implementation owner:
+For an already-authorized low-risk client copy change after the canonical
+preflight and no-write preparation, use Sol only when the separate active handoff
+selects frontend-engineer, its intended occurrence and exact files. Membership
+in the packet's eligible-owner set alone is insufficient:
 
 ```json
 {
   "task_name": "bounded_copy_change",
-  "message": "You are PulsePlate custom role frontend-engineer. Apply only the approved client copy change within your packet-owned files using the supplied full required context.",
+  "message": "You are PulsePlate custom role frontend-engineer. Apply only the approved client copy change within the exact files selected by your active implementation handoff, using the supplied full required context.",
   "agent_type": "worker",
   "fork_turns": "none",
   "model": "gpt-5.6-sol",

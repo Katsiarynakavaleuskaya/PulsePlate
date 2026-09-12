@@ -48,9 +48,13 @@ ambiguous bindings block the dependent native dispatch, not authorized diagnosis
    parallel execution. Repeated slugs are separate occurrences. Do not append
    or normalize a later post-open tail into a pre-open or analysis sequence.
 6. For Codex, use the matching packet `native_subagent_bridge` binding's
-   `native_agent_type`, not `qoder_subagent_type`. Resolve the applicable role
-   slot without discarding repeated occurrences; an absent or ambiguous
-   binding blocks native dispatch. See `rules/role-mapping.md`.
+   `native_agent_type` on hosts supporting typed dispatch, not `qoder_subagent_type`.
+   A generic-only host may use the root-authorized general-purpose native spawn
+   while preserving that validated binding, canonical role/context and action limits;
+   omit unsupported typed/model/effort arguments and report the actual transport.
+   Resolve the applicable role slot without discarding repeated occurrences;
+   an absent or ambiguous packet binding still blocks native dispatch.
+   See `rules/role-mapping.md` and the model policy's required-choice boundary.
 7. The coordinator dispatches new native children with the full role,
    applicable authority context, packet/criteria and predecessor output.
    Follow `docs/agents/model_policy.md` for inherited arguments or the explicitly
@@ -59,14 +63,19 @@ ambiguous bindings block the dependent native dispatch, not authorized diagnosis
    including an owner with `readonly=false`, receives an explicit prohibition
    on tracked writes until all preparatory roles finish and the coordinator
    issues a separate implementation handoff after successful preflight.
+   The emitted owner set may contain multiple eligible slugs. Each later handoff
+   selects one active eligible role, its occurrence and exact files under the
+   canonical workflow; other eligible roles receive no implementation task.
+   Keep every metadata flag and serial occurrence unchanged.
 8. Record each actual result before the next dependent occurrence. Synthesize
    against the accepted criteria after the declared pass; packet generation
    and a role's `completed` status do not prove overall completion.
 
 ### Runtime-owner command example
 
-Illustration for a packet that emits this command and designates the sole
-`security-auditor` implementation owner. Use your actual emitted command after
+Illustration for a packet whose emitted eligible-owner set contains only
+`security-auditor`. Other packets may emit multiple owner flags; preserve them
+all. Use your actual emitted command after
 the required preflight. Owner metadata never overrides the preparation write ban.
 The override is role-slug scoped for every eligible repetition; it is not an
 occurrence permission selector. See `rules/role-mapping.md` for mixed-rights requests.
@@ -77,12 +86,17 @@ python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchest
 
 ### Exact-context command example
 
-Extend that same emitted command only with the selected occurrence and explicit
-admitted instruction paths. Preserve its runtime owner and all existing flags.
+Extend the actual packet-emitted command only with the selected occurrence and
+explicit admitted instruction paths. Preserve every eligible owner and existing flag.
+Replace `<emitted-dispatch-command>` with that unchanged command after substituting
+its packet path. Select `<N>` from the intended occurrence's `order` in the actual
+validated manifest, using its role/slot and order to distinguish repetitions.
+Missing or ambiguous selection blocks that context request, not analysis. Replace
+both placeholders before running; do not copy a number from an unrelated packet.
 `--role-context-order` selects context only; it does not narrow owner permissions.
 
 ```bash
-python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/example/packet.json --mode runtime --implementation-owner security-auditor --pretty --role-context-order 5 --instruction-file tools/codex_skills/pulseplate-workflow/SKILL.md
+<emitted-dispatch-command> --role-context-order <N> --instruction-file tools/codex_skills/pulseplate-workflow/SKILL.md
 ```
 
 ## Context and evidence boundaries

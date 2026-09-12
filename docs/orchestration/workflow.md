@@ -236,8 +236,15 @@ that same stage; complete them before its dependent next action.
   This action constraint does not rewrite manifest metadata or create an OS sandbox.
 - [ ] Only after all required preparatory occurrences finish and execute-mode
   preflight passes, issue a separate coordinator implementation handoff naming
-  the declared owner and exact file scope. Only that handoff admits tracked
-  implementation; neither preflight nor owner metadata alone grants it.
+  one active eligible role from the emitted owner set, its intended manifest occurrence,
+  and the exact files for that action. Keep implementation handoffs serial;
+  unselected eligible roles receive no implementation task. Missing or ambiguous
+  active selection or file scope blocks implementation, not authorized analysis.
+  Preserve every emitted eligible-owner and readonly flag: the handoff selects
+  an action and does not narrow manifest permissions or enforce a sandbox.
+  Unrepresentable different manifest-rights requirements still need existing
+  coordinator rescoping. Only that handoff admits tracked implementation;
+  neither preflight nor membership in the eligible owner set grants it.
 
 #### Publish and close out
 

@@ -26,8 +26,10 @@ from scripts.orchestration.native_subagent_bridge import build_native_subagent_b
 from scripts.orchestration.qoder_dispatch_bridge import (
     _load_agent_definition,
     _parse_args,
+    _parse_json_packet_roles,
     build_dispatch_manifest,
 )
+from scripts.orchestration.task_bootstrap import build_task_packet
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -908,32 +910,47 @@ def _guide_example(document: str, heading: str, language: str) -> str:
     return examples[0]
 
 
-def _assert_runtime_owner_example(document: str, heading: str) -> Namespace:
-    """Parse a named dispatch example and require its runtime-owner flags."""
-    argv = shlex.split(_guide_example(document, heading, "bash"))
+def _assert_runtime_owner_example(
+    document: str,
+    heading: str,
+    *,
+    context_order: int | None = None,
+    emitted_command: str | None = None,
+    owners: tuple[str, ...] = ("security-auditor",),
+) -> Namespace:
+    """Fill the two documented placeholders and preserve the emitted owner flags."""
+    command = _guide_example(document, heading, "bash")
+    if heading == "Exact-context command example":
+        assert "<emitted-dispatch-command>" in command and "<N>" in command
+        assert context_order is not None and context_order > 0
+        emitted_command = (
+            emitted_command
+            or _guide_example(document, "Runtime-owner command example", "bash").strip()
+        )
+        command = command.replace("<emitted-dispatch-command>", emitted_command).replace(
+            "<N>", str(context_order)
+        )
+    command = command.replace("<packet>", "artifacts/orchestration/example/packet.json")
+    argv = shlex.split(command)
     assert argv[:2] == ["python3", "scripts/orchestration/role_dispatch_bridge.py"]
     args = _parse_args(argv[2:])
-    assert args.mode == "runtime" and args.implementation_owner == [
-        "security-auditor"
-    ], "Runtime owner flags were lost from the packet-command example"
+    assert args.mode == "runtime" and args.implementation_owner == list(
+        owners
+    ), "Runtime owner flags were lost from the packet-command example"
     assert args.packet == "artifacts/orchestration/example/packet.json"
     assert args.roles is None and args.pr_phase == "none" and args.pretty is True
     return args
 
 
 @pytest.mark.parametrize(
-    ("heading", "context_order"),
-    [("Runtime-owner command example", None), ("Exact-context command example", 5)],
+    "heading", ["Runtime-owner command example", "Exact-context command example"]
 )
 def test_dispatch_guide_commands_preserve_owner_and_pre_open_phase(
-    heading: str, context_order: int | None
+    heading: str,
 ) -> None:
     """Preserve sample ownership and pre-open order under both context forms."""
-    args = _assert_runtime_owner_example(_read(_DISPATCH_GUIDE), heading)
-    assert args.role_context_order == context_order
-    assert args.instruction_file == (
-        [] if context_order is None else ["tools/codex_skills/pulseplate-workflow/SKILL.md"]
-    )
+    document = _read(_DISPATCH_GUIDE)
+    initial = _assert_runtime_owner_example(document, "Runtime-owner command example")
     roles = [
         "agent-coordinator",
         "logic-agent",
@@ -944,9 +961,17 @@ def test_dispatch_guide_commands_preserve_owner_and_pre_open_phase(
     ]
     manifest = build_dispatch_manifest(
         role_slugs=roles,
-        mode=args.mode,
-        implementation_owners=args.implementation_owner,
+        mode=initial.mode,
+        implementation_owners=initial.implementation_owner,
         enforce_mandatory_post_open_tail=False,
+    )
+    entries = manifest["dispatch_sequence"]
+    selected = next(entry["order"] for entry in entries if entry["role_slug"] == "security-auditor")
+    context_order = selected if heading == "Exact-context command example" else None
+    args = _assert_runtime_owner_example(document, heading, context_order=context_order)
+    assert args.role_context_order == context_order
+    assert args.instruction_file == (
+        [] if context_order is None else ["tools/codex_skills/pulseplate-workflow/SKILL.md"]
     )
     assert manifest["missing_agents"] == []
     assert manifest["parallel_execution_allowed"] is False
@@ -1077,6 +1102,9 @@ def _assert_preparatory_admission(section: str) -> None:
     assert "No tracked writes during preparation" in section, "Missing preparation write ban"
     assert "`readonly=false`" in section, "Preparation must include the designated owner"
     assert "separate coordinator implementation handoff" in section
+    assert "one active eligible role" in section
+    assert "manifest occurrence" in section and "exact files" in section
+    assert "unselected eligible roles receive no implementation task" in section
 
 
 def test_preparatory_admission_precedes_runtime_owner_dispatch() -> None:
@@ -1115,7 +1143,8 @@ def test_preparatory_admission_rejects_finite_regressions(mutation: str) -> None
 )
 def test_repeated_owner_slug_is_not_narrowed_by_context_selection(heading: str) -> None:
     """Keep ownership on every eligible repeated slug despite context selection."""
-    args = _assert_runtime_owner_example(_read(_DISPATCH_GUIDE), heading)
+    document = _read(_DISPATCH_GUIDE)
+    initial = _assert_runtime_owner_example(document, "Runtime-owner command example")
     roles = [
         "agent-coordinator",
         "logic-agent",
@@ -1126,8 +1155,8 @@ def test_repeated_owner_slug_is_not_narrowed_by_context_selection(heading: str) 
     ]
     manifest = build_dispatch_manifest(
         role_slugs=roles,
-        mode=args.mode,
-        implementation_owners=args.implementation_owner,
+        mode=initial.mode,
+        implementation_owners=initial.implementation_owner,
         enforce_mandatory_post_open_tail=False,
     )
     entries = manifest["dispatch_sequence"]
@@ -1135,7 +1164,9 @@ def test_repeated_owner_slug_is_not_narrowed_by_context_selection(heading: str) 
     owners = [entry for entry in entries if entry["role_slug"] == "security-auditor"]
     assert [entry["order"] for entry in owners] == [3, 5]
     assert all(entry["implementation_owner_override"] and not entry["readonly"] for entry in owners)
-    assert args.role_context_order in (None, 5)
+    selected = owners[1]["order"] if heading == "Exact-context command example" else None
+    args = _assert_runtime_owner_example(document, heading, context_order=selected)
+    assert args.role_context_order == selected
     assert manifest["parallel_execution_allowed"] is False
 
 
@@ -1154,6 +1185,162 @@ def test_codex_native_guide_requires_governing_json_bindings() -> None:
         "does not admit native dispatch",
     ):
         assert required in boundary
+
+
+@pytest.mark.parametrize(
+    ("path", "start", "end"),
+    [
+        (
+            ".cursor/agents/agent-coordinator.md",
+            "**Command-driven bootstrap:**",
+            "## Runbook Reference",
+        ),
+        (
+            "docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md",
+            "8. role dispatch:",
+            "9. this guide for tool-specific setup notes",
+        ),
+        (
+            "docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md",
+            "## Raw session vs bootstrap (invariant)",
+            "## Codex",
+        ),
+    ],
+)
+def test_entry_recipes_require_canonical_admission(path: str, start: str, end: str) -> None:
+    """Keep the three named entry recipes linked to the complete admission sequence."""
+    recipe = _exact_bounded_section(_read(path), start_line=start, end_line=end)
+    for required in (
+        "workflow.md#admit-tracked-implementation",
+        "execute preflight",
+        "no-write preparation",
+        "scoped implementation handoff",
+    ):
+        assert required in recipe, f"Recipe omits canonical admission reference: {required}"
+
+
+def _generated_dispatch_example(task_class: str) -> tuple[str, Namespace, list[dict[str, object]]]:
+    """Generate a current no-path packet and consume its actual command and role order."""
+    packet = build_task_packet(
+        goal="Document native dispatch examples", task_class=task_class, candidate_paths=[]
+    )
+    command = packet["role_agent_dispatch_contract"]["dispatch_manifest_command"]
+    args = _parse_args(shlex.split(command)[2:])
+    manifest = build_dispatch_manifest(
+        role_slugs=_parse_json_packet_roles(packet),
+        mode=args.mode,
+        implementation_owners=args.implementation_owner,
+        enforce_mandatory_post_open_tail=False,
+    )
+    assert manifest["missing_agents"] == [] and manifest["parallel_execution_allowed"] is False
+    return command, args, manifest["dispatch_sequence"]
+
+
+@pytest.mark.parametrize(
+    ("task_class", "intended_role", "expected_order", "owners"),
+    [
+        ("QA", "qa-engineer-agent", 2, ("qa-engineer-agent", "bug-hunter")),
+        ("QA", "bug-hunter", 3, ("qa-engineer-agent", "bug-hunter")),
+        ("Security", "security-auditor", 2, ("security-auditor",)),
+    ],
+)
+def test_generated_packet_context_examples_keep_every_owner(
+    task_class: str, intended_role: str, expected_order: int, owners: tuple[str, ...]
+) -> None:
+    """Derive QA/Security context positions from real packets without dropping eligible owners."""
+    command, original, entries = _generated_dispatch_example(task_class)
+    assert len(entries) == 3 and original.implementation_owner == list(owners)
+    eligible = [entry for entry in entries if entry["implementation_owner_override"]]
+    assert [entry["role_slug"] for entry in eligible] == list(owners)
+    assert all(entry["readonly"] is False for entry in eligible)
+    intended = [entry for entry in entries if entry["role_slug"] == intended_role]
+    assert len(intended) == 1
+    selected = intended[0]["order"]
+    assert selected == expected_order and isinstance(selected, int)
+    rendered = _assert_runtime_owner_example(
+        _read(_DISPATCH_GUIDE),
+        "Exact-context command example",
+        emitted_command=command,
+        context_order=selected,
+        owners=owners,
+    )
+    assert rendered.role_context_order == selected
+    for name, value in vars(original).items():
+        if name not in {"packet", "role_context_order", "instruction_file"}:
+            assert getattr(rendered, name) == value
+
+
+@pytest.mark.parametrize("dropped_owner", ["qa-engineer-agent", "bug-hunter"])
+def test_generated_qa_example_rejects_either_dropped_owner(dropped_owner: str) -> None:
+    """Reject deletion of either real QA owner flag from exact-context command construction."""
+    command, original, entries = _generated_dispatch_example("QA")
+    selected = entries[1]["order"]
+    assert isinstance(selected, int)
+    owners = tuple(original.implementation_owner)
+    document = _read(_DISPATCH_GUIDE)
+    _assert_runtime_owner_example(
+        document,
+        "Exact-context command example",
+        emitted_command=command,
+        context_order=selected,
+        owners=owners,
+    )
+    mutated = command.replace(f" --implementation-owner {dropped_owner}", "", 1)
+    assert mutated != command
+    with pytest.raises(AssertionError, match="Runtime owner flags"):
+        _assert_runtime_owner_example(
+            document,
+            "Exact-context command example",
+            emitted_command=mutated,
+            context_order=selected,
+            owners=owners,
+        )
+
+
+def test_exact_context_example_rejects_reusable_literal_order() -> None:
+    """Reject the historical order-5 template for Security's generated order-2 occurrence."""
+    command, original, entries = _generated_dispatch_example("Security")
+    selected = entries[1]["order"]
+    assert selected == 2
+    document = _read(_DISPATCH_GUIDE)
+    example = _guide_example(document, "Exact-context command example", "bash")
+    mutated = document.replace(example, example.replace("<N>", "5"), 1)
+    assert mutated != document
+    with pytest.raises(AssertionError):
+        _assert_runtime_owner_example(
+            mutated,
+            "Exact-context command example",
+            emitted_command=command,
+            context_order=2,
+            owners=tuple(original.implementation_owner),
+        )
+
+
+def _assert_generic_native_example(document: str) -> None:
+    """Check the named generic-host example's finite supported argument set."""
+    args = json.loads(_guide_example(document, "Generic native-spawn argument example", "json"))
+    assert set(args) == {"task_name", "message", "fork_turns"}, "Unsupported generic-host kwargs"
+    assert args["fork_turns"] == "none"
+    assert "security-auditor" in args["message"] and "read-only" in args["message"]
+    assert "actual generic transport" in args["message"]
+
+
+def test_generic_native_guide_uses_supported_arguments() -> None:
+    """Keep a usable generic-host example alongside the typed-host positive cases."""
+    _assert_generic_native_example(_read(_BINDING_GUIDE))
+
+
+@pytest.mark.parametrize("key", ["agent_type", "model", "reasoning_effort"])
+def test_generic_native_guide_rejects_unsupported_typed_kwargs(key: str) -> None:
+    """Reject each unavailable override field without claiming runtime permission enforcement."""
+    document = _read(_BINDING_GUIDE)
+    _assert_generic_native_example(document)
+    example = _guide_example(document, "Generic native-spawn argument example", "json")
+    args = json.loads(example)
+    args[key] = "unsupported-example-value"
+    mutated = document.replace(example, json.dumps(args, indent=2) + "\n", 1)
+    with pytest.raises(AssertionError, match="Unsupported generic-host kwargs"):
+        _assert_generic_native_example(mutated)
 
 
 @pytest.mark.parametrize("surface", ["frontmatter", "When Invoked"])

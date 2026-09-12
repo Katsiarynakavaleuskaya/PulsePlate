@@ -61,11 +61,14 @@ Each agent file (`.cursor/agents/*.md`) must:
 - Document capabilities and when to use
 - Link to canonical docs (no duplication)
 
-`readonly: true` is the safe default for role definitions. Runtime dispatch
-that intentionally grants implementation ownership must use the explicit
+`readonly: true` is the safe default for role definitions. Runtime eligibility
+is recorded through the packet-emitted
 `role_dispatch_bridge.py --implementation-owner <role>` override in
-`--mode runtime` and remain tied to the coordinator packet for that task. The
-older `qoder_dispatch_bridge.py` name is compatibility-only.
+`--mode runtime`; preserve every emitted eligible owner flag. Eligibility alone
+does not select an implementation task. Follow the
+[canonical admission sequence](../../docs/orchestration/workflow.md#admit-tracked-implementation)
+for no-write preparation and each later active role/occurrence/file handoff.
+The older `qoder_dispatch_bridge.py` name is compatibility-only.
 Readonly is a role/action constraint, not proof of an OS sandbox. Native worker
 transport and model choice do not grant implementation ownership.
 

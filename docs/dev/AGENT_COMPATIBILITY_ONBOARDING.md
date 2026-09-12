@@ -19,7 +19,12 @@ Read these in order:
    `scripts/orchestration/check_preflight.py`, then `scripts/orchestration/task_bootstrap.py`
    (or the helper's printed recipe). Reuse a starter/launcher packet instead of
    running both paths.
-8. role dispatch: run the task packet's `role_agent_dispatch_contract.dispatch_manifest_command` with the actual packet path and execute every `dispatch_sequence` role in order
+8. role dispatch:
+   MUST follow the [canonical admission sequence](../orchestration/workflow.md#admit-tracked-implementation):
+   execute preflight before owner-capable preparation, complete no-write preparation,
+   and use the later scoped implementation handoff. Run the packet's
+   `role_agent_dispatch_contract.dispatch_manifest_command` with the actual path
+   and all emitted flags; execute every required occurrence in order.
 9. this guide for tool-specific setup notes
 
 Follow the staged checklist in `docs/orchestration/workflow.md`: analyze and
@@ -60,9 +65,12 @@ This creates the isolated worktree, runs analyze preflight, runs
 `task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist, the
 bootstrap packet summary, and a Codex-ready coordinator-start prompt. It does
 not push, open a PR, install host plugins, or auto-start a raw Codex session.
-The printed role-dispatch command is mandatory for non-trivial PR lanes:
-execute every bootstrap-requested/custom role in order, then run premortem and
-Experiment Runner oracle-only evidence before opening the PR.
+The printed role-dispatch recipe MUST follow the
+[canonical admission sequence](../orchestration/workflow.md#admit-tracked-implementation):
+execute preflight before owner-capable preparation, complete no-write preparation,
+and use the later scoped implementation handoff. Preserve every emitted flag and
+required occurrence. Run premortem and Experiment Runner oracle-only evidence
+before opening the PR under the root lifecycle.
 When the branch is ready to publish, open the PR non-draft by default so bot
 review and current-head checks run; draft mode is an explicit operator
 exception.
