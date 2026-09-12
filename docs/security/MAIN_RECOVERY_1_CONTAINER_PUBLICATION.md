@@ -153,7 +153,7 @@ sentinels, PostgreSQL 15.19 and pgvector 0.8.6. Disposable test resources were
 removed and Docker Desktop was stopped; no production volume was involved.
 
 Evidence anchors: `.pre-commit-config.yaml:12`,
-`tests/test_deploy_contract_scripts.py:8497`, and
+`tests/test_deploy_contract_scripts.py:8511`, and
 `.github/workflows/cd.yml:1011`.
 
 ## Newly observed backend PCRE2 findings
@@ -177,8 +177,8 @@ The full rebuilt production image must pass its existing strict PR scan,
 including unfixed findings, before merge. Compare complete package inventories
 and preserve the current runtime smoke/UUID/TLS/gzip/SQLite/Alembic guards;
 the successful earlier image scan is historical evidence only.
-Evidence anchors: `Dockerfile:312` and
-`tests/test_docker_workflow_build_path_contract.py:721`.
+Evidence anchors: `Dockerfile:323` and
+`tests/test_docker_workflow_build_path_contract.py:731`.
 
 Docker's warning that credentials are stored in `config.json` is expected when
 a credential helper is not configured; it is not evidence that the temporary

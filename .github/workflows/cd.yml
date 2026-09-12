@@ -1118,6 +1118,7 @@ jobs:
           manifest = json.loads((owner / "image-manifest.json").read_bytes())
 
           def read_regular(path, limit):
+              """Read one size-bounded regular file through a symlink-safe descriptor."""
               fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
               try:
                   metadata = os.fstat(fd)
