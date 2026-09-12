@@ -582,6 +582,61 @@ Evidence:
   `gh run view <RUN_ID>` or `gh run view --job=<JOB_ID>` before calling the PR
   red or green
 
+### Mapping-only test evidence reuse
+
+The canonical `CI` workflow may substitute verified direct test evidence for
+repeated execution at one mapping-only closeout head. Current-head native checks
+retain their existing names and GitHub App identity and execute verification;
+their result is **verified reuse**, not a claim that tests executed again.
+
+- Admission, each projection and the independent evidence writer execute from
+  authenticated base code in isolated workspaces. The existing material/seal
+  recognizers must prove one direct canonical-mapping-only successor, exact base,
+  merge-base and material digest. Every other tracked path remains material.
+- Whole-PR protected workflow, producer, verifier, selection, dependency or
+  security-policy changes use ordinary execution. Candidate policy cannot admit
+  itself. A base without the capability also uses ordinary execution.
+- Derive the complete supported Python/iOS job, matrix and critical-step universe
+  from the base workflow and canonical risk policy. Unsupported structures do not
+  acquire an inferred exemption. Current lint, security, OpenAPI, pgvector
+  compatibility, reporting, diff coverage and all closeout gates still execute.
+- Select one latest same-repository, same-PR canonical material-head run and its
+  latest completed attempt. Every selected source job and mandatory direct step
+  must succeed. Never mix attempts, chase older successes or reuse an aggregate
+  containing inherited results. A source workflow may fail outside selected test
+  evidence; its actual conclusion is retained and current governance remains hard.
+- Bind source and target event checkouts to immutable synthetic commits with
+  exact ordered base/head parents and equal complete material trees. Workflow
+  `head_sha`, candidate JSON or a mutable post-test directory cannot prove this.
+- The fresh base writer collects native run/job/check-App/step evidence and
+  writes one immutable run/attempt artifact. Its schema, policy, upstream assets,
+  fingerprint and idempotency identity describe evidence; they author no seal,
+  approval or authority. Projections and final checkers independently revalidate
+  this artifact and its direct source against live state.
+- Coverage requires the successful native test/finalize/upload producer, unique
+  run/attempt name, immutable artifact ID, upload interval, archive digest and
+  exact regular XML member. Bounded downloads strip credentials on external
+  redirects and reject unsafe archives. Current reporting and diff coverage
+  still execute against the current head/base with the existing 97% threshold.
+- No eligible source selects ordinary execution. Contradictory asserted evidence,
+  incomplete provenance or a raced head/base fails verification. Recheck latest
+  source run/attempt and live artifact identity before accepting the projection.
+- PR runs have separate concurrency slots so metadata edits and mapping pushes
+  cannot cancel the source run. This can overlap ordinary runs while evidence is
+  unavailable; no avoided-run claim is made for that case. Main/push execution,
+  image publication, production, external workflows and branch protection retain
+  their own rules.
+
+The global ledger lifecycle is owned by `AGENTS.md` under **Backlog Ledger
+Policy**: implementation and observed results belong in the delivering PR;
+pending merge/operational criteria remain open; later receipts are reconciled in
+the next real implementation PR without a standalone bookkeeping PR. Actual
+saved executions remain unverified until observed on a natural eligible PR.
+
+Evidence: `scripts/ci/mapping_only_ci_reuse.py:1`,
+`scripts/orchestration/pr_review_evidence.py:1759`,
+`scripts/ci/check_current_head_pr_checks.py:1`, `.github/workflows/ci.yml:1`.
+
 ## 9. CI Check Classification
 
 | Class     | Meaning                   | Blocks Merge                |

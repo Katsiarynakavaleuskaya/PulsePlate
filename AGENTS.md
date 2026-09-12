@@ -40,6 +40,15 @@ This policy does not permit ignored failures, weakened coverage,
 `continue-on-error`, skipped hooks, or merge-ready claims while local narrow
 gates, review threads, canonical current-head CI, or required CI are pending.
 
+Current-head test checks may report verified reuse only through the bounded
+[mapping-only CI contract](docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md#mapping-only-test-evidence-reuse).
+The verifier runs from authenticated base code and requires the same sealed
+material, base and complete supported test universe. Workflow, verifier,
+selection and protected-policy changes use ordinary execution. Lint, security,
+OpenAPI, compatibility, coverage reporting, diff coverage and closeout governance
+remain current-head checks; reuse never authorizes merge or replaces main
+publication or production evidence.
+
 `verify-env` (the first step of `make verify`) also rejects **present** broken
 `.venv/bin` console scripts for flake8/pytest/mypy/coverage/diff-cover (stale
 absolute shebang, non-executable file, broken symlink) so local preflight
@@ -2533,8 +2542,17 @@ Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserv
    Automated review bots may block PRs that violate English-first ledger entries.
 4. Every PR description MUST include a "Deferred / Follow-ups" section with links to ledger items (and GitHub issues if present).
 5. Closing a ledger item requires:
-   - PR merged OR explicit "won't do" decision recorded (with reason).
-6. If a merged PR completes one or more ledger items, you MUST open a follow-up **docs-only** PR within the same working day (or the next working day if merged late) to mark the affected item(s) as closed in `docs/roadmap/BACKLOG_LEDGER.md` (set checkbox + `Target PR` + `Status`). One follow-up docs-only PR MAY update multiple ledger items if they were completed by the same merged PR or merge cycle.
+   - The implementation PR is merged and every applicable DoD criterion has
+     observed evidence, OR an explicit "won't do" decision records the reason.
+   - Repository merge and observed operational completion are separate facts;
+     neither an open PR nor a pending operational criterion permits closure.
+6. Record implementation, observed validation, `Target PR`, and remaining
+   criteria in the delivering implementation PR. Preserve an open checkbox while
+   merge or applicable operational proof remains pending. Reconcile later
+   post-merge receipts in the next real implementation PR that advances the
+   affected line. Do not create a standalone docs/backlog-closeout PR solely to
+   update completion bookkeeping. Keep the original ledger anchor and retain
+   links to the delivering PR and its observed receipts.
 
 **Agent enforcement:**
 
@@ -2680,6 +2698,13 @@ Do not remove this exclusion without a product decision and a separate PR
 - **Merge conflict detection:** Conflict markers MUST be anchored to line start: `^(<<<<<<<|=======|>>>>>>>)` to avoid false positives from banner separators (e.g., `# ======` in code).
 
 **CI strictness (hard rule):**
+
+- A required job using `always()` must explicitly reject failed, cancelled or
+  missing selected prerequisites; `skipped` is valid only for a proven unselected
+  job. Optional evidence publication does not prove successful test execution.
+  A required consumer must verify its writer's successful result even when the
+  consumer itself uses `always()`. Keep the current selection/result contract in
+  the existing workflow and its behavioral guards.
 
 - **Forbidden:** Masking errors with shell hacks like `|| true` (or `; true`) inside `run:` steps under `set -euo pipefail`. Errors must surface to fail the job.
 - **Allowed:** `continue-on-error: true` **only** as metadata at job/step level in YAML, when the step is genuinely optional (e.g., non-blocking notifications, optional reports).

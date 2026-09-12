@@ -48,12 +48,17 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Avoid redundant material CI on verified mapping-only closeout
   - Owner: @katsiaryna_kavaleuskaya (CI / orchestration)
   - Priority: P1
-  - Target PR: bounded implementation after green-main recovery; candidate MAIN-STAB-2, no automatic start
-  - Status: Confirmed gap during #2390: CI classifies the whole PR diff for edited events and mapping-only successors, while strict readiness accepts only current-head checks. No supported evidence-reuse path currently exists.
-  - Reason for deferral (EN): Restore the failing container/publication path first. Reusing material results changes verifier authority and must be implemented with its own ordered logic/philosophy admission and review; bypassing current required CI is not an interim solution.
-  - Links: `.github/workflows/ci.yml`; `scripts/orchestration/check_current_head_pr_checks.py`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; #2390
-  - DoD: Reuse only authenticated successful checks bound to identical sealed material, base and applicable test universe; reject changed or uncertain identities, missing evidence and material edits. Run current-head mapping/seal/disposition/ancestry/authorization checks independently. Keep actual main publication and production gates separate. Update the existing CI/validators rather than introducing a parallel framework.
-  - Ledger contract (EN): Record implementation outcome in the delivering PR and distinguish repository merge from observed operational completion. Reconcile later post-merge receipts in the next real implementation PR, with no standalone docs/backlog-closeout PR and no premature completion claim. Align the conflicting legacy root instructions in that same implementation.
+  - Target PR: current implementation on `codex/mapping-only-ci-backlog`; PR number pending publication
+  - Status: Implementation in progress; repository merge, final validation and operational savings are not claimed.
+  - Operator decision (2026-09-12): Independently implement, open and prepare this PR for its own exact-head authorized merge while recovery #2390 continues. This lane does not alter recovery or claim its main/CD outcome. Reuse is limited to canonical CI tests and coverage; workflow/protected-policy PRs retain ordinary execution.
+  - Reason for prior deferral (EN): The gap was confirmed during #2390 because whole-PR classification and current-head checks reran material CI after mapping-only successors and metadata edits. The owner explicitly admitted this separate implementation after ordered validator/authority review; no interim bypass of recovery checks is authorized.
+  - Links: `.github/workflows/ci.yml`; `scripts/ci/check_current_head_pr_checks.py`; `scripts/ci/mapping_only_ci_reuse.py`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md#mapping-only-test-evidence-reuse`; #2390
+  - DoD:
+    - Authenticate one direct source test attempt for identical sealed material, exact base and complete applicable supported test universe; reject altered or uncertain identities, missing proof and inherited reuse.
+    - Execute current-head mapping/seal/disposition/ancestry/authorization, security/lint/OpenAPI/compatibility, coverage reporting and diff coverage independently; main publication and production remain separate.
+    - Extend existing CI/material/check contracts with deterministic positive and adversarial regressions, narrow local gates, complete applicable current-head hosted CI, review, exact-head authorized merge and merged-code sanity.
+    - Record implementation and observed outcomes in the delivering PR, preserve open merge/operational criteria, and verify the four owner-specified same-ID Drive updates by readback. Reconcile later receipts in the next real implementation PR; no standalone docs/backlog-closeout PR or premature checkbox closure.
+    - Record actual avoided test executions only after a natural eligible PR exercises the merged capability; no synthetic demonstration PR and no inferred savings.
 
 <a id="ledger-p1-dependency-alerts-after-main-recovery"></a>
 - [ ] P1: Reconcile new npm/pip alerts after current main recovery
