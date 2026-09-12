@@ -17,11 +17,14 @@ import yaml
 
 from scripts.ci import check_pr_merge_readiness as merge_gate
 from scripts.orchestration import pr_review_evidence as evidence_module
+from scripts.ci import check_current_head_pr_checks as current_head_module
 from scripts.ci.check_pr_merge_readiness import (
     _canonical_artifact_markdown_link_count,
     _is_actionable,
     _mapped_urls,
 )
+
+
 from scripts.orchestration.pr_commit_identity import (
     CommitRefKind,
     PrCommitEvidence,
@@ -41,8 +44,191 @@ from scripts.orchestration.pr_review_evidence import (
     render_embedded_review_seal,
 )
 
+
+@pytest.fixture(autouse=True)
+def _isolate_base_reuse_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing governance unit tests isolate the separately tested subprocess seam."""
+
+    monkeypatch.setattr(merge_gate, "_verify_base_test_reuse", lambda **_kwargs: None)
+
+
 OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
+
+
+def _base_reuse_checkout(tmp_path: Path) -> tuple[Path, str, str]:
+    """Create a real base verifier and a hostile candidate replacement."""
+
+    repo = tmp_path / "candidate"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "core.hooksPath", "/dev/null")
+    script = repo / "scripts/ci/mapping_only_ci_reuse.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(
+        "import os, sys\nfrom pathlib import Path\n"
+        "assert sys.flags.isolated == 1\n"
+        "assert 'PYTHONPATH' not in os.environ\n"
+        "assert 'PYTHONSTARTUP' not in os.environ\n"
+        "assert os.environ['GH_TOKEN'] == 'opaque'\n"
+        "assert Path.cwd() == Path(__file__).resolve().parents[2]\n"
+        "assert 'verify-current' in sys.argv\n",
+        encoding="utf-8",
+    )
+    base = _commit(repo, "trusted base verifier")
+    script.write_text("raise RuntimeError('candidate authority executed')\n", encoding="utf-8")
+    head = _commit(repo, "hostile candidate verifier")
+    return repo, base, head
+
+
+def test_base_reuse_launcher_uses_isolated_base_not_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, head = _base_reuse_checkout(tmp_path)
+    monkeypatch.setenv("PYTHONPATH", str(repo))
+    monkeypatch.setenv("PYTHONSTARTUP", str(repo / "poison.py"))
+    monkeypatch.setattr(current_head_module, "_live_pr_refs", lambda *_args: (base, head))
+
+    current_head_module.verify_base_test_reuse(
+        repo_root=repo,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        base_sha=base,
+        head_sha=head,
+    )
+
+    assert _git(repo, "rev-parse", "HEAD") == head
+    assert _git(repo, "status", "--porcelain") == ""
+
+
+def test_base_reuse_launcher_rejects_base_race_after_child_proof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, base, head = _base_reuse_checkout(tmp_path)
+    refs = iter([(base, head), ("e" * 40, head)])
+    monkeypatch.setattr(current_head_module, "_live_pr_refs", lambda *_args: next(refs))
+
+    with pytest.raises(ValueError, match="base changed after"):
+        current_head_module.verify_base_test_reuse(
+            repo_root=repo,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            base_sha=base,
+            head_sha=head,
+        )
+
+
+def test_base_reuse_launcher_rejects_symlink_verifier(tmp_path: Path) -> None:
+    repo = tmp_path / "symlink-base"
+    repo.mkdir()
+    _git(repo, "init")
+    script = repo / "scripts/ci/mapping_only_ci_reuse.py"
+    script.parent.mkdir(parents=True)
+    script.symlink_to("../../candidate.py")
+    base = _commit(repo, "invalid symlink verifier")
+
+    with pytest.raises(ValueError, match="regular Git blob"):
+        current_head_module.verify_base_test_reuse(
+            repo_root=repo,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            base_sha=base,
+            head_sha=base,
+        )
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_head", "error"),
+    [
+        ({"base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}}, None, None),
+        ({"base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}}, "a" * 40, None),
+        ([], None, "must be an object"),
+        ({"base": {}, "head": None}, None, "refs are missing"),
+        ({"base": {"sha": True}, "head": {"sha": "a" * 40}}, None, "live base SHA"),
+        ({"base": {"sha": "b" * 40}, "head": {"sha": 111}}, None, "live head SHA"),
+        ({"base": {"sha": "b" * 40}, "head": {"sha": "a" * 40}}, "c" * 40, "head changed"),
+    ],
+)
+def test_live_check_refs_freeze_strict_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: object,
+    expected_head: str | None,
+    error: str | None,
+) -> None:
+    monkeypatch.setattr(current_head_module, "_api_request", lambda *_args: payload)
+    if error:
+        with pytest.raises(ValueError, match=error):
+            current_head_module._live_pr_refs(42, "owner/repo", "opaque", expected_head)
+    else:
+        assert current_head_module._live_pr_refs(42, "owner/repo", "opaque", expected_head) == (
+            "b" * 40,
+            "a" * 40,
+        )
+
+
+def test_base_reuse_absence_preserves_ordinary_execution(tmp_path: Path) -> None:
+    repo = tmp_path / "old-base"
+    repo.mkdir()
+    _git(repo, "init")
+    (repo / "README.md").write_text("old base\n", encoding="utf-8")
+    base = _commit(repo, "base without capability")
+    current_head_module.verify_base_test_reuse(
+        repo_root=repo,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        base_sha=base,
+        head_sha=base,
+    )
+
+
+@pytest.mark.parametrize("failure", ["before-clone", "child"])
+def test_base_reuse_launcher_propagates_identity_and_child_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    repo, base, head = _base_reuse_checkout(tmp_path)
+    if failure == "child":
+        script = repo / "scripts/ci/mapping_only_ci_reuse.py"
+        script.write_text("raise SystemExit('bounded source denial')\n", encoding="utf-8")
+        base = _commit(repo, "denying base verifier")
+        head = base
+    refs = ("f" * 40, head) if failure == "before-clone" else (base, head)
+    monkeypatch.setattr(current_head_module, "_live_pr_refs", lambda *_args: refs)
+    with pytest.raises(ValueError, match="base changed before|bounded source denial"):
+        current_head_module.verify_base_test_reuse(
+            repo_root=repo,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            base_sha=base,
+            head_sha=head,
+        )
+
+
+@pytest.mark.parametrize("fail_at", [1, 2])
+def test_merge_gate_revalidates_test_reuse_before_and_after_wait(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fail_at: int
+) -> None:
+    _calls, trace = _configure_post_wait_revalidation_main(monkeypatch)
+    proofs: list[dict[str, Any]] = []
+
+    def verify(**kwargs: Any) -> None:
+        proofs.append(kwargs)
+        trace.append("test-proof")
+        if len(proofs) == fail_at:
+            raise ValueError("source attempt changed")
+
+    monkeypatch.setattr(merge_gate, "_verify_base_test_reuse", verify)
+
+    assert merge_gate.main() == 1
+    assert len(proofs) == fail_at
+    assert proofs[0]["head_sha"] == "a" * 40
+    assert proofs[0]["base_sha"] == "b" * 40
+    assert ("quiet" in trace) is (fail_at == 2)
+    assert "source attempt changed" in capsys.readouterr().out
 
 
 def test_duplicate_reply_coverage_uses_canonical_shared_validator() -> None:
@@ -2981,6 +3167,7 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "private_python_proxy_health",
         "security",
         "trivy_ignore_policy_expiry",
+        "ci_test_evidence",
     ]
     assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
@@ -2992,6 +3179,10 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "statuses": "read",
     }
     steps = job["steps"]
+    trusted_checkout = steps[0]
+    assert trusted_checkout["name"] == "Checkout trusted base"
+    assert trusted_checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
+    assert trusted_checkout["with"]["persist-credentials"] is False
     checkout = next(step for step in steps if step.get("name") == "Checkout")
     assert checkout["with"] == {
         "fetch-depth": 0,
@@ -3001,6 +3192,11 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     enforcement = next(
         step for step in steps if step.get("name") == "Enforce merge readiness policy"
     )
+    trusted_setup = next(
+        step for step in steps if step.get("name") == "Setup trusted evidence environment"
+    )
+    assert trusted_setup["with"]["requirements-profile"] == "ci-lite"
+    assert steps.index(trusted_setup) < steps.index(checkout) < steps.index(enforcement)
     run = enforcement["run"]
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
     assert "--outage-security-wait-seconds 300" in run

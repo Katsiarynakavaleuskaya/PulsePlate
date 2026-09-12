@@ -8,6 +8,8 @@ import http.client
 import json
 import os
 import re
+import sys
+import tempfile
 import urllib.error
 import urllib.parse
 from dataclasses import dataclass
@@ -40,6 +42,8 @@ class RequiredCheck:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 _MAX_STATUS_CHECK_PAGES = 100
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
@@ -63,6 +67,8 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "test-main (3.13, 90)",
     "coverage-pr",
     "diff-coverage",
+    "CI test reuse admission",
+    "CI test execution evidence",
 }
 DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
 SECURITY_FALLBACK_CHECK_NAMES = {"security-scan"}
@@ -781,6 +787,110 @@ def _print_entries(title: str, entries: list[CheckEntry]) -> None:
         print(_format_entry(entry))
 
 
+def _live_pr_refs(
+    pr_number: int, repository: str, token: str, expected_head_sha: str | None
+) -> tuple[str, str]:
+    """Freeze base and head before classifying checks, then permit exact rechecks."""
+
+    from scripts.orchestration.pr_commit_identity import _require_repository
+
+    _require_repository(repository)
+    raw = _api_request(f"https://api.github.com/repos/{repository}/pulls/{pr_number}", token)
+    if not isinstance(raw, dict):
+        raise ValueError("live PR refs must be an object")
+    base = raw.get("base")
+    head = raw.get("head")
+    if not isinstance(base, dict) or not isinstance(head, dict):
+        raise ValueError("live PR base/head refs are missing")
+    base_sha = _validated_head_sha(base.get("sha"), label="live base SHA")
+    head_sha = _validated_head_sha(head.get("sha"), label="live head SHA")
+    if expected_head_sha is not None and head_sha != expected_head_sha:
+        raise ValueError("SNAPSHOT_CHANGED: live PR head changed")
+    return base_sha, head_sha
+
+
+def verify_base_test_reuse(
+    *,
+    repo_root: Path,
+    repository: str,
+    pr_number: int,
+    token: str,
+    base_sha: str,
+    head_sha: str,
+) -> None:
+    """Execute the admitted base verifier without importing candidate authority."""
+
+    from scripts.orchestration.pr_review_evidence import _run_git
+    from scripts.orchestration.check_merge_ready import _run_gate
+
+    base_sha = _validated_head_sha(base_sha, label="reuse base SHA")
+    head_sha = _validated_head_sha(head_sha, label="reuse head SHA")
+    relative_script = "scripts/ci/mapping_only_ci_reuse.py"
+    entry = _run_git(repo_root, ["ls-tree", base_sha, "--", relative_script])
+    if not entry:
+        # Capability is prospective; the introducing PR takes the ordinary CI path.
+        return
+    if not re.fullmatch(
+        rb"100(?:644|755) blob [0-9a-f]{40}\tscripts/ci/mapping_only_ci_reuse\.py\n",
+        entry,
+    ):
+        raise ValueError("base CI reuse verifier must be one regular Git blob")
+    if _live_pr_refs(pr_number, repository, token, head_sha) != (base_sha, head_sha):
+        raise ValueError("SNAPSHOT_CHANGED: live PR base changed before reuse verification")
+
+    with tempfile.TemporaryDirectory(prefix="pulseplate-base-ci-proof-") as directory:
+        checkout = Path(directory) / "base"
+        _run_git(
+            repo_root,
+            [
+                "-c",
+                "core.hooksPath=/dev/null",
+                "clone",
+                "--shared",
+                "--no-checkout",
+                "--",
+                str(repo_root.resolve()),
+                str(checkout),
+            ],
+        )
+        _run_git(checkout, ["-c", "core.hooksPath=/dev/null", "checkout", "--detach", base_sha])
+        environment = {
+            key: os.environ[key]
+            for key in ("PATH", "HOME", "SYSTEMROOT", "TMPDIR")
+            if key in os.environ
+        }
+        environment.update(
+            GH_TOKEN=token,
+            GITHUB_TOKEN=token,
+            GIT_CONFIG_NOSYSTEM="1",
+            GIT_NO_REPLACE_OBJECTS="1",
+            LC_ALL="C",
+        )
+        # The interpreter and script are absolute; no shell, candidate cwd,
+        # PYTHONPATH, startup environment, local action or candidate import is used.
+        result = _run_gate(
+            "base-ci-test-evidence",
+            checkout / relative_script,
+            [
+                "verify-current",
+                "--repo-root",
+                str(checkout),
+                "--repo",
+                repository,
+                "--pr-number",
+                str(pr_number),
+            ],
+            isolated=True,
+            execution_cwd=checkout,
+            execution_env=environment,
+        )
+        if result.returncode:
+            diagnostic = (result.stdout + result.stderr).strip()[-2000:]
+            raise ValueError(f"base CI test evidence verification failed: {diagnostic}")
+    if _live_pr_refs(pr_number, repository, token, head_sha) != (base_sha, head_sha):
+        raise ValueError("SNAPSHOT_CHANGED: live PR base changed after reuse verification")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate current-head checks and filter superseded noise."""
     parser = argparse.ArgumentParser(
@@ -813,6 +923,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
+        expected_base_sha, expected_head_sha = _live_pr_refs(
+            pr_number, repo, token, expected_head_sha
+        )
         is_draft, merge_state, base_ref, nodes = _fetch_pr_metadata(
             pr_number, repo, token, expected_head_sha
         )
@@ -823,7 +936,7 @@ def main(argv: list[str] | None = None) -> int:
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
         return 1
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         print(f"ERROR: failed to validate GitHub check state: {exc}")
         return 1
 
@@ -890,6 +1003,24 @@ def main(argv: list[str] | None = None) -> int:
             "because required check metadata is unavailable and no fallback-blocking "
             "current-head checks are pending or failed."
         )
+
+    try:
+        verify_base_test_reuse(
+            repo_root=REPO_ROOT,
+            repository=repo,
+            pr_number=pr_number,
+            token=token,
+            base_sha=expected_base_sha,
+            head_sha=expected_head_sha,
+        )
+        if _live_pr_refs(pr_number, repo, token, expected_head_sha) != (
+            expected_base_sha,
+            expected_head_sha,
+        ):
+            raise ValueError("SNAPSHOT_CHANGED: live PR base changed during check filtering")
+    except (RuntimeError, OSError, ValueError) as exc:
+        print(f"ERROR: current-head test evidence verification failed: {exc}")
+        return 1
 
     # RU/EN: superseded failures stay visible but non-blocking once latest head is clean.
     print("current-head-checks: passed.")

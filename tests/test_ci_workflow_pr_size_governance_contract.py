@@ -8,6 +8,8 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from typing import cast
 
 import pytest
@@ -34,6 +36,118 @@ PRE_COMMIT_CONFIG_PATH = REPO_ROOT / ".pre-commit-config.yaml"
 PR_AUTOMATION_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-automation.yml"
 SECURITY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "security.yml"
 TRIVY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "trivy.yml"
+
+
+def _execute_native_guard(script: str, environment: dict[str, str]) -> int:
+    """Exercise the declared bash error semantics without helper/interpreter access."""
+
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+        env={"PATH": "/nonexistent", **environment},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    return result.returncode
+
+
+@pytest.mark.parametrize("backend", ["true", "false"])
+@pytest.mark.parametrize("main", ["true", "false"])
+@pytest.mark.parametrize("ios", ["true", "false"])
+def test_ordinary_test_results_are_required_even_without_base_helper(
+    backend: str, main: str, ios: str
+) -> None:
+    writer = _load_ci_workflow()["jobs"]["ci_test_evidence"]
+    steps = writer["steps"]
+    names = [step["name"] for step in steps]
+    assert "changes" in writer["needs"]
+    assert names.index("Require selected test results") < names.index(
+        "Detect base reuse capability"
+    )
+    guard = next(step for step in steps if step["name"] == "Require selected test results")
+    assert "if" not in guard
+    environment = {
+        "BACKEND_SELECTED": backend,
+        "MAIN_SELECTED": main,
+        "IOS_SELECTED": ios,
+        "BACKEND_RESULT": "success" if backend == "true" else "skipped",
+        "MAIN_RESULT": "success" if main == "true" else "skipped",
+        "IOS_UNIT_RESULT": "success" if ios == "true" else "skipped",
+        "IOS_UI_RESULT": "success" if ios == "true" else "skipped",
+    }
+    assert _execute_native_guard(guard["run"], environment) == 0
+
+
+@pytest.mark.parametrize(
+    ("selection", "result"),
+    [
+        ("BACKEND_SELECTED", "BACKEND_RESULT"),
+        ("MAIN_SELECTED", "MAIN_RESULT"),
+        ("IOS_SELECTED", "IOS_UNIT_RESULT"),
+        ("IOS_SELECTED", "IOS_UI_RESULT"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("selected", "outcome"),
+    [
+        ("true", "failure"),
+        ("true", "cancelled"),
+        ("true", "skipped"),
+        ("true", ""),
+        ("false", "success"),
+        ("false", "failure"),
+        ("false", "cancelled"),
+        ("", "skipped"),
+        ("unknown", "success"),
+    ],
+)
+def test_writer_rejects_every_invalid_current_test_result_pair(
+    selection: str, result: str, selected: str, outcome: str
+) -> None:
+    steps = _load_ci_workflow()["jobs"]["ci_test_evidence"]["steps"]
+    guard = next(step for step in steps if step["name"] == "Require selected test results")
+    environment = {
+        "BACKEND_SELECTED": "true",
+        "MAIN_SELECTED": "true",
+        "IOS_SELECTED": "true",
+        "BACKEND_RESULT": "success",
+        "MAIN_RESULT": "success",
+        "IOS_UNIT_RESULT": "success",
+        "IOS_UI_RESULT": "success",
+    }
+    if selected == "false" and selection == "IOS_SELECTED":
+        environment.update(IOS_UNIT_RESULT="skipped", IOS_UI_RESULT="skipped")
+    environment[selection], environment[result] = selected, outcome
+    assert _execute_native_guard(guard["run"], environment) != 0
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancelled", "skipped", ""])
+def test_always_merge_job_requires_writer_success_before_python(outcome: str) -> None:
+    job = _load_ci_workflow()["jobs"]["merge_readiness_gate"]
+    steps = job["steps"]
+    guard = next(step for step in steps if step["name"] == "Require current test evidence gate")
+    enforcement = next(step for step in steps if step["name"] == "Enforce merge readiness policy")
+    assert "ci_test_evidence" in job["needs"]
+    assert steps.index(guard) < steps.index(enforcement)
+    assert "if" not in guard and "if" not in enforcement
+    assert (_execute_native_guard(guard["run"], {"TEST_EVIDENCE_RESULT": outcome}) == 0) is (
+        outcome == "success"
+    )
+
+
+@pytest.mark.parametrize("failed_input", ["CHANGES_RESULT", "ADMISSION_RESULT"])
+def test_evidence_writer_requires_both_changes_and_admission(failed_input: str) -> None:
+    steps = _load_ci_workflow()["jobs"]["ci_test_evidence"]["steps"]
+    guard = next(step for step in steps if step["name"] == "Require successful reuse admission")
+    environment = {"CHANGES_RESULT": "success", "ADMISSION_RESULT": "success"}
+    assert _execute_native_guard(guard["run"], environment) == 0
+    environment[failed_input] = "failure"
+    assert _execute_native_guard(guard["run"], environment) != 0
+
+
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
 IOS_TEST_TARGETS_PATH = REPO_ROOT / "scripts" / "ios_test_targets.sh"
 IOS_SWIFT_SYNTAX_PATH = REPO_ROOT / "scripts" / "ci" / "check_ios_swift_syntax.sh"
@@ -3377,14 +3491,20 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             ".github/workflows/ci.yml",
             "coverage-pr",
             "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
-            {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
+            {
+                "name": "coverage-xml-${{ env.PYTHON_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "./coverage-artifacts",
+            },
             True,
         ),
         (
             ".github/workflows/ci.yml",
             "diff-coverage",
             "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
-            {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
+            {
+                "name": "coverage-xml-${{ env.PYTHON_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                "path": "./coverage-artifacts",
+            },
             None,
         ),
         (
@@ -3879,11 +3999,29 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert isinstance(jobs, dict)
     ios_tests = jobs["ios-tests"]
     assert isinstance(ios_tests, dict)
-    assert set(ios_tests) == {"name", "runs-on", "timeout-minutes", "if", "needs", "steps"}
+    assert set(ios_tests) == {
+        "name",
+        "runs-on",
+        "timeout-minutes",
+        "if",
+        "needs",
+        "steps",
+        "permissions",
+    }
+    assert ios_tests["permissions"] == {
+        "contents": "read",
+        "pull-requests": "read",
+        "actions": "read",
+        "checks": "read",
+    }
     assert ios_tests["name"] == "iOS unit tests (xcodebuild)"
     assert ios_tests["runs-on"] == "macos-15"
-    assert ios_tests["needs"] == ["changes"]
-    assert ios_tests["if"] == IOS_TESTS_JOB_IF
+    assert ios_tests["needs"] == ["changes", "ci_test_reuse"]
+    assert ios_tests["if"] == (
+        "${{ !cancelled() && ("
+        + " ".join(IOS_TESTS_JOB_IF.split())
+        + ") && needs.changes.result == 'success' && (github.event_name != 'pull_request' || needs.ci_test_reuse.result == 'success') }}"
+    )
     assert "continue-on-error" not in ios_tests
     assert ios_tests["timeout-minutes"] == (
         "${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}"
@@ -3894,6 +4032,9 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert all(isinstance(step, dict) for step in steps)
     step_names = [step.get("name") for step in steps]
     assert step_names == [
+        "Checkout trusted base",
+        "Setup trusted evidence environment",
+        "Verify reusable test evidence",
         "Checkout",
         "Select Xcode (require 26.x for iOS 26 SDK readiness)",
         "Cache SwiftPM packages (SourcePackages only, not Build)",
@@ -3901,6 +4042,8 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
         IOS_APPSTORE_VERIFY_STEP_NAME,
         IOS_UNIT_STEP_NAME,
         IOS_RELEASE_BUILD_STEP_NAME,
+        "Confirm direct test execution",
+        "Confirm verified test reuse",
     ]
     assert step_names.count(IOS_APPSTORE_VERIFY_STEP_NAME) == 1
     assert step_names.count(IOS_UNIT_STEP_NAME) == 1
@@ -3911,9 +4054,17 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert validator_index + 1 == unit_index
     assert release_index == unit_index + 1
 
+    for index in (validator_index, unit_index, release_index):
+        assert steps[index]["if"] == "steps.ci_reuse.outputs.mode != 'reused'"
+    assert (
+        steps[-2]["if"]
+        == "github.event_name == 'pull_request' && steps.ci_reuse.outputs.mode != 'reused'"
+    )
+    assert steps[-1]["if"] == "steps.ci_reuse.outputs.mode == 'reused'"
+
     validator_step = steps[validator_index]
     assert isinstance(validator_step, dict)
-    assert set(validator_step) == {"name", "run"}
+    assert set(validator_step) == {"name", "if", "run"}
     assert validator_step["name"] == IOS_APPSTORE_VERIFY_STEP_NAME
     assert validator_step["run"] == IOS_APPSTORE_VERIFY_COMMAND
     assert (
@@ -3926,7 +4077,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
 
     unit_step = steps[unit_index]
     assert isinstance(unit_step, dict)
-    assert set(unit_step) == {"name", "working-directory", "env", "run"}
+    assert set(unit_step) == {"name", "if", "working-directory", "env", "run"}
     assert unit_step["working-directory"] == "ios"
     assert unit_step["env"] == {"DEVELOPER_DIR": "${{ steps.select-xcode.outputs.developer_dir }}"}
     unit_run = unit_step["run"]
@@ -3940,7 +4091,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
 
     release_step = steps[release_index]
     assert isinstance(release_step, dict)
-    assert set(release_step) == {"name", "working-directory", "env", "run"}
+    assert set(release_step) == {"name", "if", "working-directory", "env", "run"}
     assert release_step["name"] == IOS_RELEASE_BUILD_STEP_NAME
     assert release_step["working-directory"] == "ios"
     release_env = release_step["env"]
@@ -4133,7 +4284,7 @@ def test_ios_unit_tests_stay_in_blocking_ios_job() -> None:
     def active_run_for(job_id: str, step_name: str) -> str:
         job = jobs[job_id]
         assert isinstance(job, dict)
-        assert job["needs"] == ["changes"]
+        assert job["needs"] == ["changes", "ci_test_reuse"]
         assert "needs.changes.outputs.ios == 'true'" in str(job["if"])
         steps = job["steps"]
         assert isinstance(steps, list)
@@ -4554,7 +4705,12 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "needs.changes.outputs.run_main_ci_diagnostic == 'true'" in test_main_if
 
     permissions = test_main["permissions"]
-    assert permissions == {"contents": "read", "actions": "read"}
+    assert permissions == {
+        "contents": "read",
+        "actions": "read",
+        "pull-requests": "read",
+        "checks": "read",
+    }
 
     test_main_env = test_main["env"]
     assert test_main_env == {
@@ -4575,7 +4731,9 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     pr_proxy_step = next(
         step for step in steps if step["name"] == "Resolve PR diagnostic package proxy"
     )
-    assert pr_proxy_step["if"] == "github.event_name == 'pull_request'"
+    assert pr_proxy_step["if"] == (
+        "${{ steps.ci_reuse.outputs.mode != 'reused' && (github.event_name == 'pull_request') }}"
+    )
     assert pr_proxy_step["env"] == {
         "PULSEPLATE_PR_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
         "PULSEPLATE_PR_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
@@ -4596,7 +4754,9 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     protected_proxy_step = next(
         step for step in steps if step["name"] == "Resolve protected package proxy"
     )
-    assert protected_proxy_step["if"] == "github.event_name != 'pull_request'"
+    assert protected_proxy_step["if"] == (
+        "${{ steps.ci_reuse.outputs.mode != 'reused' && (github.event_name != 'pull_request') }}"
+    )
     assert protected_proxy_step["env"] == {
         "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
         "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
@@ -4706,10 +4866,11 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "tests/results-py312-shard-*.xml" in test_main_section
     assert "tests/results-py313-shard-*.xml" in test_main_section
     assert (
-        "name: coverage-main-xml-${{ matrix.python-version }}\n"
+        "name: coverage-main-xml-${{ matrix.python-version }}"
+        "${{ github.event_name == 'pull_request' && format('-{0}-{1}', github.run_id, github.run_attempt) || '' }}\n"
         "          path: coverage.xml\n"
-        "          if-no-files-found: ignore\n"
-        "          overwrite: true"
+        "          if-no-files-found: ${{ github.event_name == 'pull_request' && 'error' || 'ignore' }}\n"
+        "          overwrite: ${{ github.event_name != 'pull_request' }}"
     ) in test_main_section
     assert (
         "name: junit-main-${{ matrix.python-version }}\n"

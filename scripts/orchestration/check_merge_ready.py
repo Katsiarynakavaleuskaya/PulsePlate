@@ -107,17 +107,26 @@ def _experiment_runner_evidence_mode(value: str | None) -> str:
     return normalized
 
 
-def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult:
+def _run_gate(
+    name: str,
+    script_path: Path,
+    extra_args: list[str],
+    *,
+    isolated: bool = False,
+    execution_cwd: Path | None = None,
+    execution_env: dict[str, str] | None = None,
+) -> GateResult:
     """Run a gate script and capture its output without mutating its behavior."""
 
-    argv = [sys.executable, str(script_path), *extra_args]
+    argv = [sys.executable, *(["-I"] if isolated else []), str(script_path), *extra_args]
     timeout_seconds = (
         MERGE_GATE_TIMEOUT_SEC if script_path in (MERGE_GATE, DISPOSITION_GATE) else RUN_TIMEOUT_SEC
     )
     try:
         result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,
-            cwd=REPO_ROOT,
+            cwd=execution_cwd if execution_cwd is not None else REPO_ROOT,
+            env=execution_env,
             capture_output=True,
             text=True,
             check=False,

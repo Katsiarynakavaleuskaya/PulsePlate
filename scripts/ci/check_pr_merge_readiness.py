@@ -70,6 +70,7 @@ from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     _normalize_node as _normalize_check_node,
     _path_touches_any,
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
+    verify_base_test_reuse as _verify_base_test_reuse,
 )
 from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
 
@@ -1593,6 +1594,18 @@ def main() -> int:
     review_wait_result: tuple[int, int] | None = None
     if not args.pre_closeout and not errors:
         try:
+            _verify_base_test_reuse(
+                repo_root=REPO_ROOT,
+                repository=repo,
+                pr_number=pr_number,
+                token=token,
+                base_sha=snapshot.base_sha,
+                head_sha=snapshot.head_sha,
+            )
+        except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            errors.append(f"Current-head CI test evidence validation failed: {exc}")
+    if not args.pre_closeout and not errors:
+        try:
             review_wait_result = _wait_for_review_quiet_window(
                 repo=repo,
                 pr_number=pr_number,
@@ -1621,7 +1634,22 @@ def main() -> int:
                 enforce_outage_security_checks=True,
                 require_committed_closeout=True,
             )
-        except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
+            _verify_base_test_reuse(
+                repo_root=REPO_ROOT,
+                repository=repo,
+                pr_number=pr_number,
+                token=token,
+                base_sha=snapshot.base_sha,
+                head_sha=snapshot.head_sha,
+            )
+        except (
+            CommitIdentityError,
+            ReviewEvidenceError,
+            OSError,
+            ValueError,
+            RuntimeError,
+            subprocess.SubprocessError,
+        ) as exc:
             errors.append(f"Post-wait material review seal validation failed: {exc}")
 
     try:

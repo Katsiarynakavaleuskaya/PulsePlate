@@ -12,6 +12,7 @@ import hashlib
 import http.client
 import json
 import re
+import time
 import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -326,11 +327,101 @@ def github_api_request(
         connection.close()
 
 
-def _require_sha(value: str, *, field: str) -> str:
-    normalized = value.strip().lower()
-    if not _SHA_RE.fullmatch(normalized):
+def github_artifact_download(url: str, *, token: str, max_bytes: int = 32_000_000) -> bytes:
+    """Download one native artifact ZIP without forwarding API credentials.
+
+    The API endpoint is exact and the native redirect is restricted to the
+    Actions result stores. Redirect URLs and error bodies are never surfaced.
+    Every connection is new, with no cookie jar or ambient authorization.
+    """
+
+    parsed = urllib.parse.urlsplit(url)
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != _API_HOST
+        or parsed.query
+        or parsed.fragment
+        or not re.fullmatch(
+            r"/repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/artifacts/[1-9][0-9]*/zip", parsed.path
+        )
+    ):
+        raise CommitIdentityError("artifact download requires an exact GitHub artifact endpoint")
+    if not isinstance(token, str) or not token.strip() or any(c in token for c in "\r\n"):
+        raise CommitIdentityError("GitHub artifact token is required and must be single-line")
+    if type(max_bytes) is not int or not 0 < max_bytes <= 32_000_000:
+        raise CommitIdentityError("artifact byte budget is invalid")
+    deadline = time.monotonic() + 90
+    current = parsed
+    for redirect in range(3):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CommitIdentityError("artifact download exceeded its time budget")
+        headers = {"Accept": "application/zip", "User-Agent": "pulseplate-pr-commit-identity"}
+        if redirect == 0:
+            headers.update(
+                {"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"}
+            )
+        connection = http.client.HTTPSConnection(current.netloc, timeout=min(30, remaining))
+        try:
+            path = current.path + (f"?{current.query}" if current.query else "")
+            connection.request(method="GET", url=path, headers=headers)
+            response = connection.getresponse()
+            if response.status in {301, 302, 303, 307, 308}:
+                location = response.getheader("Location") or ""
+                target = urllib.parse.urlsplit(location)
+                hostname = target.hostname or ""
+                if (
+                    redirect >= 2
+                    or target.scheme != "https"
+                    or target.netloc != hostname
+                    or target.fragment
+                    or not target.path.startswith("/")
+                    or not hostname.endswith(
+                        (".blob.core.windows.net", ".actions.githubusercontent.com")
+                    )
+                ):
+                    raise CommitIdentityError(
+                        "artifact redirect is not a permitted HTTPS result store"
+                    )
+                current = target
+                continue
+            if response.status != 200:
+                raise GitHubHttpError(response.status, "artifact download failed")
+            if redirect == 0:
+                raise CommitIdentityError(
+                    "artifact API did not supply a native result-store redirect"
+                )
+            length = response.getheader("Content-Length")
+            if length is not None and (not length.isdecimal() or int(length) > max_bytes):
+                raise CommitIdentityError("artifact download exceeds byte budget")
+            chunks: list[bytes] = []
+            received = 0
+            while received <= max_bytes:
+                if time.monotonic() >= deadline:
+                    raise CommitIdentityError("artifact download exceeded its time budget")
+                chunk = response.read1(min(65536, max_bytes + 1 - received))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                received += len(chunk)
+            if received > max_bytes:
+                raise CommitIdentityError("artifact download exceeds byte budget")
+            if length is not None and received != int(length):
+                raise CommitIdentityError("artifact download is incomplete")
+            return b"".join(chunks)
+        except (OSError, http.client.HTTPException, ValueError) as exc:
+            raise CommitIdentityError("artifact transport failed") from exc
+        finally:
+            connection.close()
+    raise CommitIdentityError("artifact redirect budget exceeded")
+
+
+def _require_sha(value: Any, *, field: str) -> str:
+    if not isinstance(value, str):
         raise CommitIdentityError(f"{field} must be a full lowercase 40-character SHA")
-    return normalized
+    if not _SHA_RE.fullmatch(value):
+        raise CommitIdentityError(f"{field} must be a full lowercase 40-character SHA")
+    return value
 
 
 def _require_repository(repository: str) -> tuple[str, str]:
@@ -914,8 +1005,8 @@ def _parse_pr_page(
     pull_request = repository.get("pullRequest")
     if not isinstance(pull_request, dict):
         raise CommitIdentityError("GitHub GraphQL response is missing pullRequest")
-    base_sha = _require_sha(str(pull_request.get("baseRefOid") or ""), field="baseRefOid")
-    head_sha = _require_sha(str(pull_request.get("headRefOid") or ""), field="headRefOid")
+    base_sha = _require_sha(pull_request.get("baseRefOid"), field="baseRefOid")
+    head_sha = _require_sha(pull_request.get("headRefOid"), field="headRefOid")
     connection = pull_request.get("commits")
     if not isinstance(connection, dict):
         raise CommitIdentityError("GitHub GraphQL response is missing commits connection")
@@ -929,7 +1020,7 @@ def _parse_pr_page(
         if not isinstance(node, dict) or not isinstance(node.get("commit"), dict):
             raise CommitIdentityError("GitHub commits connection contains malformed node")
         commit = node["commit"]
-        oid = _require_sha(str(commit.get("oid") or ""), field="PR commit oid")
+        oid = _require_sha(commit.get("oid"), field="PR commit oid")
         pushed_at_raw = commit.get("pushedDate")
         if pushed_at_raw is not None and (
             not isinstance(pushed_at_raw, str) or not _ISO_8601_RE.fullmatch(pushed_at_raw)

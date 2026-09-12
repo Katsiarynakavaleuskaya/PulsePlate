@@ -21,8 +21,9 @@ on:
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Each PR run keeps its own active and pending slot, including edited events.
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'pull_request' && format('-{0}', github.run_id) || '' }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 defaults:
   run:
@@ -420,7 +421,7 @@ jobs:
     name: Merge readiness gate
     # Security is the stable blocking dependency and transitively requires the
     # specialized compatibility proof when the changes output selects it.
-    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry]
+    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry, ci_test_evidence]
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -431,6 +432,33 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect base reuse capability
+        id: capability
+        run: |
+          if [[ -f scripts/ci/mapping_only_ci_reuse.py ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup trusted evidence environment
+        if: steps.capability.outputs.available == 'true'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -442,6 +470,11 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Require current test evidence gate
+        env:
+          TEST_EVIDENCE_RESULT: ${{ needs.ci_test_evidence.result }}
+        run: test "$TEST_EVIDENCE_RESULT" = success
 
       - name: Enforce merge readiness policy
         env:
@@ -647,6 +680,156 @@ jobs:
           if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
             rm -f "$HOME/.netrc" "$marker"
           fi
+  ci_test_reuse:
+    name: CI test reuse admission
+    if: github.event_name == 'pull_request'
+    needs: [changes, private_python_proxy_health]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect base reuse capability
+        id: capability
+        run: |
+          if [[ -f scripts/ci/mapping_only_ci_reuse.py ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup trusted evidence environment
+        if: steps.capability.outputs.available == 'true'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Plan authenticated CI test reuse
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          BASE_CAPABILITY: ${{ steps.capability.outputs.available }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_CAPABILITY" != 'true' ]]; then
+            echo 'mode=executed' >> "$GITHUB_OUTPUT"
+            echo 'plan={"mode":"executed","reason":"base_helper_absent"}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -I scripts/ci/mapping_only_ci_reuse.py plan \
+            --event-path "$GITHUB_EVENT_PATH" --github-output "$GITHUB_OUTPUT"
+
+  ci_test_evidence:
+    name: CI test execution evidence
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [changes, ci_test_reuse, test-pr, test-main, ios-tests, ios-ui-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require successful reuse admission
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ADMISSION_RESULT: ${{ needs.ci_test_reuse.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$ADMISSION_RESULT" = success
+
+      - name: Require selected test results
+        env:
+          BACKEND_SELECTED: ${{ needs.changes.outputs.run_backend_blocking }}
+          MAIN_SELECTED: ${{ needs.changes.outputs.run_main_ci_diagnostic }}
+          IOS_SELECTED: ${{ needs.changes.outputs.ios }}
+          BACKEND_RESULT: ${{ needs.test-pr.result }}
+          MAIN_RESULT: ${{ needs.test-main.result }}
+          IOS_UNIT_RESULT: ${{ needs.ios-tests.result }}
+          IOS_UI_RESULT: ${{ needs.ios-ui-smoke.result }}
+        run: |
+          set -euo pipefail
+          require_result() {
+            case "$1:$2" in
+              true:success|false:skipped) ;;
+              *) echo "::error::Selected test execution has no successful result"; return 1 ;;
+            esac
+          }
+          require_result "$BACKEND_SELECTED" "$BACKEND_RESULT"
+          require_result "$MAIN_SELECTED" "$MAIN_RESULT"
+          require_result "$IOS_SELECTED" "$IOS_UNIT_RESULT"
+          require_result "$IOS_SELECTED" "$IOS_UI_RESULT"
+
+      - name: Detect base reuse capability
+        id: capability
+        run: |
+          if [[ -f scripts/ci/mapping_only_ci_reuse.py ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup trusted evidence environment
+        if: steps.capability.outputs.available == 'true'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Collect authenticated CI test evidence
+        id: collect
+        if: steps.capability.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_REUSE_PLAN_JSON: ${{ needs.ci_test_reuse.outputs.plan }}
+        run: |
+          python -I scripts/ci/mapping_only_ci_reuse.py collect \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output "$RUNNER_TEMP/ci-test-execution.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload CI test execution evidence
+        if: steps.collect.outputs.publish == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: ci-test-execution-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-test-execution.json
+          if-no-files-found: error
+          overwrite: false
+          retention-days: 7
+
   lint:
     needs: [private_python_proxy_health]
     runs-on: ubuntu-latest
@@ -794,23 +977,67 @@ jobs:
 
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
-    needs: [changes, pr_scope_guard, private_python_proxy_health]
+    if: ${{ !cancelled() && (github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true') && needs.changes.result == 'success' && (github.event_name != 'pull_request' || needs.ci_test_reuse.result == 'success') && needs.private_python_proxy_health.result == 'success' && needs.pr_scope_guard.result == 'success' }}
+    needs: [changes, pr_scope_guard, private_python_proxy_health, ci_test_reuse]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
       actions: write
+      pull-requests: read
+      checks: read
     strategy:
       fail-fast: false
       matrix:
         python-version: ['3.13']
 
     steps:
-      - name: Checkout
+      - name: Checkout trusted base
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup trusted evidence environment
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Verify reusable test evidence
+        id: ci_reuse
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_REUSE_PLAN_JSON: ${{ needs.ci_test_reuse.outputs.plan }}
+        run: |
+          set -euo pipefail
+          python -I scripts/ci/mapping_only_ci_reuse.py project \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --job-id test-pr --matrix-value "${{ matrix.python-version }}" \
+            --coverage-output "$GITHUB_WORKSPACE/coverage.xml" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.ci_reuse.outputs.mode != 'reused'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python environment
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/python-setup
         env:
           DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
@@ -821,6 +1048,7 @@ jobs:
           install-mode: direct-proxy
 
       - name: Setup Node.js
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
@@ -830,6 +1058,7 @@ jobs:
             package-lock.json
 
       - name: Cache pip dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
@@ -839,19 +1068,23 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install root Node dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/npm-ci-with-retry
         with:
           working-directory: .
 
       - name: Install frontend dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/npm-ci-with-retry
         with:
           working-directory: frontend
 
       - name: Clean Python cache
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/clean-python-cache
 
       - name: Initialize test database
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/init-test-db
         env:
           APP_ENV: test
@@ -859,6 +1092,7 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}"
 
       - name: Critical smoke (deterministic merge blocker)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -882,7 +1116,7 @@ jobs:
             -o junit_family=legacy
 
       - name: Contract and risk suites
-        if: ${{ needs.changes.outputs.contract_risk_groups != '' }}
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (needs.changes.outputs.contract_risk_groups != '') }}
         shell: bash
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
@@ -1021,6 +1255,7 @@ jobs:
               merge_governance)
                 add_suite \
                   tests/test_check_pr_size_governance.py \
+                  tests/test_current_head_pr_checks.py \
                   tests/test_ci_risk_profile.py \
                   tests/test_orchestration_merge_ready.py \
                   tests/test_pr_body_phase2_gates.py \
@@ -1069,6 +1304,7 @@ jobs:
           done
 
       - name: Finalize coverage artifacts
+        if: steps.ci_reuse.outputs.mode != 'reused'
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
         run: |
@@ -1077,20 +1313,21 @@ jobs:
           python -m coverage xml
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (always()) }}
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (single coverage runtime)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.PYTHON_VERSION }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: coverage.xml
-          if-no-files-found: ignore
+          if-no-files-found: error
+          overwrite: false
           retention-days: 7
 
       - name: Upload JUnit test report
-        if: always()
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (always()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: junit-${{ env.PYTHON_VERSION }}
@@ -1099,6 +1336,14 @@ jobs:
             tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Confirm direct test execution
+        if: github.event_name == 'pull_request' && steps.ci_reuse.outputs.mode != 'reused'
+        run: echo 'Direct test execution completed in this job.'
+
+      - name: Confirm verified test reuse
+        if: steps.ci_reuse.outputs.mode == 'reused'
+        run: echo 'Verified reuse of direct source test evidence; tests were not executed again.'
 
   pgvector_compat:
     name: pgvector-compat
@@ -1426,6 +1671,7 @@ jobs:
               merge_governance)
                 add_suite \
                   tests/test_check_pr_size_governance.py \
+                  tests/test_current_head_pr_checks.py \
                   tests/test_ci_risk_profile.py \
                   tests/test_orchestration_merge_ready.py \
                   tests/test_pr_body_phase2_gates.py \
@@ -1555,13 +1801,15 @@ jobs:
 
   # Comprehensive testing for main branch
   test-main:
-    needs: [changes, private_python_proxy_health]
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')
+    needs: [changes, private_python_proxy_health, ci_test_reuse]
+    if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')) && needs.changes.result == 'success' && (github.event_name != 'pull_request' || needs.ci_test_reuse.result == 'success') && needs.private_python_proxy_health.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
       contents: read
       actions: read
+      pull-requests: read
+      checks: read
     env:
       # PR diagnostic runs execute code from the pull request checkout. Start
       # with an empty job-level proxy env so those runs cannot inherit the
@@ -1580,13 +1828,52 @@ jobs:
             timeout-minutes: 90
 
     steps:
-      - name: Checkout
+      - name: Checkout trusted base
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup trusted evidence environment
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Verify reusable test evidence
+        id: ci_reuse
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_REUSE_PLAN_JSON: ${{ needs.ci_test_reuse.outputs.plan }}
+        run: |
+          set -euo pipefail
+          python -I scripts/ci/mapping_only_ci_reuse.py project \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --job-id test-main --matrix-value "${{ matrix.python-version }}" \
+            --coverage-output "$GITHUB_WORKSPACE/coverage.xml" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.ci_reuse.outputs.mode != 'reused'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Resolve PR diagnostic package proxy
-        if: github.event_name == 'pull_request'
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (github.event_name == 'pull_request') }}
         env:
           PULSEPLATE_PR_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
           PULSEPLATE_PR_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -1616,7 +1903,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Resolve protected package proxy
-        if: github.event_name != 'pull_request'
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (github.event_name != 'pull_request') }}
         env:
           PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
           PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -1646,6 +1933,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Setup Python environment
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/python-setup
         env:
           DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
@@ -1656,6 +1944,7 @@ jobs:
           install-mode: direct-proxy
 
       - name: Setup Node.js
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
@@ -1665,6 +1954,7 @@ jobs:
             package-lock.json
 
       - name: Cache pip dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
@@ -1674,23 +1964,28 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install root Node dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/npm-ci-with-retry
         with:
           working-directory: .
 
       - name: Install frontend dependencies
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/npm-ci-with-retry
         with:
           working-directory: frontend
 
       - name: Clean Python cache
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/clean-python-cache
 
       - name: Validate data
+        if: steps.ci_reuse.outputs.mode != 'reused'
         run: |
           make validate-data
 
       - name: Initialize test database
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: ./.github/actions/init-test-db
         env:
           APP_ENV: test
@@ -1698,6 +1993,7 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}"
 
       - name: Run tests with coverage
+        if: steps.ci_reuse.outputs.mode != 'reused'
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
@@ -1770,21 +2066,21 @@ jobs:
           exit "$test_exit_code"
 
       - name: Clean Python cache (post-test)
-        if: always()
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (always()) }}
         uses: ./.github/actions/clean-python-cache
 
       - name: Upload coverage artifact (all Python versions)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: coverage-main-xml-${{ matrix.python-version }}
+          name: coverage-main-xml-${{ matrix.python-version }}${{ github.event_name == 'pull_request' && format('-{0}-{1}', github.run_id, github.run_attempt) || '' }}
           path: coverage.xml
-          if-no-files-found: ignore
-          overwrite: true
+          if-no-files-found: ${{ github.event_name == 'pull_request' && 'error' || 'ignore' }}
+          overwrite: ${{ github.event_name != 'pull_request' }}
           retention-days: 7
 
       - name: Upload JUnit test report
-        if: always()
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (always()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: junit-main-${{ matrix.python-version }}
@@ -1798,6 +2094,15 @@ jobs:
           retention-days: 7
 
   # Coverage reporting for PRs
+
+      - name: Confirm direct test execution
+        if: github.event_name == 'pull_request' && steps.ci_reuse.outputs.mode != 'reused'
+        run: echo 'Direct test execution completed in this job.'
+
+      - name: Confirm verified test reuse
+        if: steps.ci_reuse.outputs.mode == 'reused'
+        run: echo 'Verified reuse of direct source test evidence; tests were not executed again.'
+
   coverage-pr:
     if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, test-pr]
@@ -1814,7 +2119,7 @@ jobs:
       - name: Download coverage artifact (Python ${{ env.PYTHON_VERSION }})
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.PYTHON_VERSION }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ./coverage-artifacts
         continue-on-error: true
 
@@ -1855,7 +2160,7 @@ jobs:
       - name: Download coverage artifact (Python ${{ env.PYTHON_VERSION }})
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
         with:
-          name: coverage-xml-${{ env.PYTHON_VERSION }}
+          name: coverage-xml-${{ env.PYTHON_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ./coverage-artifacts
 
       - name: Fetch base branch
@@ -1970,17 +2275,59 @@ jobs:
     # The 60m fallback leaves nominal 20m setup/diagnostic headroom, not a guarantee or SLA;
     # IOS_TESTS_JOB_TIMEOUT_MINUTES may override it.
     timeout-minutes: ${{ fromJSON(vars.IOS_TESTS_JOB_TIMEOUT_MINUTES || '60') }}
-    if: |
-      needs.changes.outputs.ios == 'true' && (
-        github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
-      )
-    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.outputs.ios == 'true' && ( github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main')) )) && needs.changes.result == 'success' && (github.event_name != 'pull_request' || needs.ci_test_reuse.result == 'success') }}
+    needs: [changes, ci_test_reuse]
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     steps:
-      - name: Checkout
+      - name: Checkout trusted base
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup trusted evidence environment
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Verify reusable test evidence
+        id: ci_reuse
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_REUSE_PLAN_JSON: ${{ needs.ci_test_reuse.outputs.plan }}
+        run: |
+          set -euo pipefail
+          python -I scripts/ci/mapping_only_ci_reuse.py project \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --job-id ios-tests \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.ci_reuse.outputs.mode != 'reused'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         id: select-xcode
         shell: bash
         run: |
@@ -2044,6 +2391,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: cache-swiftpm
         with:
@@ -2056,6 +2404,7 @@ jobs:
             ${{ runner.os }}-swiftpm-
 
       - name: Select iOS simulator destination (stable)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         working-directory: ios
         id: select-destination
         env:
@@ -2185,9 +2534,11 @@ jobs:
           PY
 
       - name: iOS App Store repo-local verification
+        if: steps.ci_reuse.outputs.mode != 'reused'
         run: python3 scripts/release/check_ios_appstore_verify.py
 
       - name: iOS tests (project-based, app scheme)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         working-directory: ios
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
@@ -2386,6 +2737,7 @@ jobs:
           PY
 
       - name: iOS Release simulator build (unsigned)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         working-directory: ios
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
@@ -2468,21 +2820,72 @@ jobs:
           PY
 
   # iOS UI smoke (minimal, separate signal from unit tests)
+
+      - name: Confirm direct test execution
+        if: github.event_name == 'pull_request' && steps.ci_reuse.outputs.mode != 'reused'
+        run: echo 'Direct test execution completed in this job.'
+
+      - name: Confirm verified test reuse
+        if: steps.ci_reuse.outputs.mode == 'reused'
+        run: echo 'Verified reuse of direct source test evidence; tests were not executed again.'
+
   ios-ui-smoke:
     name: iOS UI smoke (xcodebuild)
     runs-on: macos-15
     timeout-minutes: 25
-    if: |
-      needs.changes.outputs.ios == 'true' && (
-        github.event_name == 'pull_request' ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main'))
-      )
-    needs: [changes]
+    if: ${{ !cancelled() && (needs.changes.outputs.ios == 'true' && ( github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/') || github.ref == 'refs/heads/main')) )) && needs.changes.result == 'success' && (github.event_name != 'pull_request' || needs.ci_test_reuse.result == 'success') }}
+    needs: [changes, ci_test_reuse]
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     steps:
-      - name: Checkout
+      - name: Checkout trusted base
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup trusted evidence environment
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        uses: ./.github/actions/python-setup
+        env:
+          DEVPI_CI_USER: ''
+          DEVPI_CI_PASSWORD: ''
+          PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          requirements-profile: ci-lite
+          install-mode: direct-proxy
+
+      - name: Verify reusable test evidence
+        id: ci_reuse
+        if: github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_REUSE_PLAN_JSON: ${{ needs.ci_test_reuse.outputs.plan }}
+        run: |
+          set -euo pipefail
+          python -I scripts/ci/mapping_only_ci_reuse.py project \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --job-id ios-ui-smoke \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.ci_reuse.outputs.mode != 'reused'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         id: select-xcode
         shell: bash
         run: |
@@ -2537,6 +2940,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: cache-swiftpm
         with:
@@ -2549,6 +2953,7 @@ jobs:
             ${{ runner.os }}-swiftpm-
 
       - name: Select iOS simulator destination (stable)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         working-directory: ios
         id: select-destination
         env:
@@ -2652,6 +3057,7 @@ jobs:
           PY
 
       - name: iOS UI smoke (build-for-testing + test-without-building)
+        if: steps.ci_reuse.outputs.mode != 'reused'
         working-directory: ios
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
@@ -2791,9 +3197,17 @@ jobs:
           PY
 
       - name: Upload xcresult on failure (crash evidence)
-        if: failure()
+        if: ${{ steps.ci_reuse.outputs.mode != 'reused' && (failure()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: ios-ui-smoke-xcresult-${{ github.run_id }}
           path: ios/.derivedData/Logs/Test/
           retention-days: 7
+
+      - name: Confirm direct test execution
+        if: github.event_name == 'pull_request' && steps.ci_reuse.outputs.mode != 'reused'
+        run: echo 'Direct test execution completed in this job.'
+
+      - name: Confirm verified test reuse
+        if: steps.ci_reuse.outputs.mode == 'reused'
+        run: echo 'Verified reuse of direct source test evidence; tests were not executed again.'
