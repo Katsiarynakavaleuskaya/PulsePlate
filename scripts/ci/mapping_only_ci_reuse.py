@@ -303,7 +303,8 @@ def _context(
 
 
 def _blob(root: Path, ref: str, path: str) -> bytes:
-    return evidence._run_git(root, ["show", f"{ref}:{path}"])
+    blob: bytes = evidence._run_git(root, ["show", f"{ref}:{path}"])
+    return blob
 
 
 def _ensure_git(root: Path, sha: str) -> None:
@@ -643,16 +644,16 @@ def _policy(root: Path, context: Context, material: evidence.MaterialManifest) -
         cells: list[Cell] = []
         if job_id == "test-pr":
             matrix = _object(_object(strategy, "BASE test strategy").get("matrix"), "BASE matrix")
-            versions = matrix.get("python-version")
+            pr_versions = matrix.get("python-version")
             if (
                 set(matrix) != {"python-version"}
-                or not isinstance(versions, list)
-                or len(versions) != 1
-                or not isinstance(versions[0], str)
-                or re.fullmatch(PYTHON_VERSION_PATTERN, versions[0]) is None
+                or not isinstance(pr_versions, list)
+                or len(pr_versions) != 1
+                or not isinstance(pr_versions[0], str)
+                or re.fullmatch(PYTHON_VERSION_PATTERN, pr_versions[0]) is None
             ):
                 raise Ineligible("unsupported_base_test_matrix")
-            version = versions[0]
+            version = pr_versions[0]
             if version != python and version.split(".") != python.split(".")[:2]:
                 raise Ineligible("inconsistent_base_coverage_runtime")
             cells.append(Cell(job_id, version, f"{name} ({version})", f"coverage-xml-{python}"))
