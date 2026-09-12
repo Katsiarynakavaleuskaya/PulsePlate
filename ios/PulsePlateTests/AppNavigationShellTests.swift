@@ -411,11 +411,22 @@ final class AppNavigationShellTests: XCTestCase {
         }
     }
 
-    func testBMIDestinationAndSpanishEntryCopyShareLocalizedTerminology() throws {
+    func testBMIDestinationAndEntryCopyShareLocalizedTerminology() throws {
         for (locale, title) in [("en", "BMI"), ("ru", "ИМТ"), ("es", "IMC")] {
             let values = try localizationTable(locale: locale)
             XCTAssertEqual(values["BMI"], title)
             XCTAssertEqual(values["BMI"], values["navigation.tab.bmi"])
+            for key in [
+                "onboarding.welcome.screen2.body",
+                "home.state.unavailable.detail",
+                "home.action.bmi.title",
+            ] {
+                let copy = try XCTUnwrap(values[key])
+                XCTAssertTrue(copy.contains(title), "\(locale):\(key)")
+                if locale != "en" {
+                    XCTAssertFalse(copy.contains("BMI"), "\(locale):\(key)")
+                }
+            }
         }
 
         let spanish = try localizationTable(locale: "es")
