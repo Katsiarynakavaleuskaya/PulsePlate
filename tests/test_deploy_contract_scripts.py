@@ -457,9 +457,18 @@ def test_local_postgres_contours_use_one_immutable_pgvector_volume_contract(
     assert postgres["image"] == POSTGRES_RUNTIME_REF
     assert postgres["platform"] == "linux/amd64"
     assert "PGDATA=/var/lib/postgresql/data" in postgres["environment"]
-    assert postgres["volumes"] == ["postgres_data:/var/lib/postgresql/data"]
+    assert postgres["volumes"][0] == "postgres_data:/var/lib/postgresql/data"
     assert "ports" not in postgres
-    assert postgres["networks"] == ["web"]
+    assert postgres["networks"] == (
+        ["database"] if compose_path == STAGING_COMPOSE_PATH else ["web"]
+    )
+    if compose_path == STAGING_COMPOSE_PATH:
+        assert (
+            postgres["volumes"][1]
+            == "./postgres-pgvector/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro"
+        )
+        assert compose["networks"]["database"]["internal"] is True
+        assert "POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password" in postgres["environment"]
 
 
 def test_managed_production_compose_remains_postgres_service_free() -> None:
@@ -729,20 +738,26 @@ def test_cd_postgres_pgvector_contract_is_pr_secret_free_and_main_publish_only()
     assert "82cde02f1b64bf198b19829fcf8169efae35fdb89fcd236bbd5b0e4faa2b8817" not in workflow
 
 
+def _copy_pgvector_material_helpers(root: Path) -> None:
+    """Copy actual stdlib helper and finite CI universe for native Git shell tests."""
+    for relative in (
+        ".github/workflows/ci.yml",
+        "scripts/ci/check_pgvector_attestations.py",
+        "scripts/ci/check_docker_provenance_attestation.py",
+    ):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / relative, target)
+
+
 def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() -> None:
     workflow_text = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
     workflow = yaml.safe_load(workflow_text)
     jobs = workflow["jobs"]
     classifier = jobs["postgres-pgvector-material-change"]
     classifier_run = classifier["steps"][1]["run"]
-    for classifier_pattern in (
-        ".github/workflows/cd.yml",
-        ".github/workflows/ci.yml",
-        "deploy/postgres-pgvector/*",
-        "alembic/versions/*",
-    ):
-        assert classifier_pattern in classifier_run
-    assert "--diff-filter=ACDMRTUXB" in classifier_run
+    assert "scripts/ci/check_pgvector_attestations.py changes" in classifier_run
+    assert '--base "$BEFORE_SHA" --head "$AFTER_SHA"' in classifier_run
     assert 'git merge-base --is-ancestor "$BEFORE_SHA" "$AFTER_SHA"' in classifier_run
 
     publish = jobs["postgres-pgvector-publish"]
@@ -853,18 +868,13 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert 'canonical_tag_ref="${RUNTIME_REF%@*}"' in reuse_run
     assert 'docker buildx imagetools inspect --raw "$canonical_tag_ref"' in reuse_run
     assert "Canonical PostgreSQL tag does not select the frozen digest" in reuse_run
-    assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready"' in reuse_run
-    assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') >= 4
+    assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready:$materials_ready"' in reuse_run
+    assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') == 3
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
-    assert "--format spdx-json" in reuse_run
-    assert "postgres-pgvector-reuse-current.spdx.json" in reuse_run
-    assert 'normalized.pop("name", None)' in reuse_run
-    assert 'normalized.pop("documentNamespace", None)' in reuse_run
-    assert 'creation_info.pop("created", None)' in reuse_run
-    assert "normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx)" in reuse_run
-    assert "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM" in (
-        reuse_run
-    )
+    assert "--format spdx-json" not in reuse_run
+    assert "postgres-pgvector-reuse-current.spdx.json" not in reuse_run
+    assert "scripts/ci/check_pgvector_attestations.py verify" in reuse_run
+    assert "--sbom" not in reuse_run
     owner_package_endpoint = (
         'gh api "/users/${GITHUB_REPOSITORY_OWNER}/packages/container/pulseplate"'
     )
@@ -975,18 +985,10 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
         step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
     )
     compatibility_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
-    expected_paths = {".github/workflows/cd.yml"}
-    for compatibility_path in compatibility_paths:
-        if compatibility_path.startswith("alembic/versions/"):
-            expected_paths.add("alembic/versions")
-        else:
-            expected_paths.add(compatibility_path.removesuffix("/**"))
-    terminal_paths = set(
-        terminal_program.split("pgvector_relevant_paths=(", maxsplit=1)[1]
-        .split(")", maxsplit=1)[0]
-        .split()
-    )
-    assert terminal_paths == expected_paths
+    from scripts.ci import check_pgvector_attestations as material_helper
+
+    assert set(compatibility_paths).issubset(material_helper.material_rules("HEAD"))
+    assert "scripts/ci/check_pgvector_attestations.py unchanged" in terminal_program
 
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
@@ -1057,6 +1059,7 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
         path = source / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("base\n", encoding="utf-8")
+    _copy_pgvector_material_helpers(source)
     git(source, "add", ".")
     git(source, "commit", "-qm", "base")
     base_sha = git(source, "rev-parse", "HEAD")
@@ -1112,7 +1115,7 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     git(source, "push", "-q", "origin", "main")
     superseded = terminal_recheck("1")
     assert superseded.returncode != 0
-    assert "compatibility surface superseded" in superseded.stderr
+    assert "material superseded run" in superseded.stderr
 
 
 def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_programs(
@@ -1129,14 +1132,10 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
         step for step in ci_workflow["jobs"]["changes"]["steps"] if step.get("id") == "filter"
     )
     pgvector_compat_paths = yaml.safe_load(filter_step["with"]["filters"])["pgvector_compat"]
-    for compatibility_path in pgvector_compat_paths:
-        classifier_pattern = compatibility_path
-        if compatibility_path.endswith("/**"):
-            classifier_pattern = compatibility_path[:-1]
-        elif compatibility_path.startswith("alembic/versions/"):
-            classifier_pattern = "alembic/versions/*"
-        assert classifier_pattern in classifier_program
-    assert ".github/workflows/cd.yml" in classifier_program
+    from scripts.ci import check_pgvector_attestations as material_helper
+
+    assert set(pgvector_compat_paths).issubset(material_helper.material_rules("HEAD"))
+    assert "scripts/ci/check_pgvector_attestations.py changes" in classifier_program
     git_bin = shutil.which("git", path=os.defpath)
     bash_bin = shutil.which("bash")
     assert git_bin is not None and bash_bin is not None
@@ -1168,6 +1167,7 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
         assert completed.returncode == 0, completed.stderr
         return completed.stdout.strip()
 
+    _copy_pgvector_material_helpers(fixture_root)
     git("init", "-q")
     git("config", "user.name", "PulsePlate Test")
     git("config", "user.email", "pulseplate-test@example.invalid")
@@ -1242,7 +1242,12 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
         probe_path = compatibility_path.replace("**", "nested/compatibility_probe.py")
         target = fixture_root / probe_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(f"compatibility input: {probe_path}\n", encoding="utf-8")
+        if probe_path == ".github/workflows/ci.yml":
+            target.write_text(
+                target.read_text() + "\n# compatibility input change\n", encoding="utf-8"
+            )
+        else:
+            target.write_text(f"compatibility input: {probe_path}\n", encoding="utf-8")
         git("add", probe_path)
         git("commit", "-qm", f"compatibility member {probe_path}")
         member_head = git("rev-parse", "HEAD")
@@ -1312,324 +1317,6 @@ def test_cd_postgres_reuse_event_admission_executes_exact_prefix(
     assert (completed.returncode == 0) is expected_success, completed.stderr
 
 
-def _postgres_attestation_inventory_program() -> str:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
-    step = next(
-        item
-        for item in steps
-        if item.get("name") == "Classify existing exact-digest PostgreSQL attestations"
-    )
-    marker = "python3 - \"$response_path\" <<'PY'\n"
-    run = step["run"]
-    assert run.count(marker) == 1
-    return run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
-
-
-def _postgres_candidate_provenance_verifier_program() -> str:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
-    step = next(
-        item
-        for item in steps
-        if item.get("name")
-        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
-    )
-    marker = "python3 - <<'PY'\n"
-    run = step["run"]
-    assert run.count(marker) == 2
-    return run.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
-
-
-def _postgres_candidate_spdx_verifier_program() -> str:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
-    step = next(
-        item
-        for item in steps
-        if item.get("name")
-        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
-    )
-    marker = "python3 - <<'PY'\n"
-    run = step["run"]
-    assert run.count(marker) == 2
-    return run.split(marker, maxsplit=2)[2].split("\nPY\n", maxsplit=1)[0]
-
-
-def _postgres_reuse_spdx_verifier_program() -> str:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    step = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]
-    marker = "python3 - <<'PY'\n"
-    run = step["run"]
-    assert run.count(marker) == 2
-    return run.rsplit(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
-
-
-@pytest.mark.parametrize(
-    ("variant", "expected_success"),
-    (
-        ("valid", True),
-        ("reuse-historical", True),
-        ("duplicate", False),
-        ("wrong", False),
-    ),
-)
-def test_cd_postgres_candidate_provenance_verifier_executes_exact_program(
-    tmp_path: Path,
-    variant: str,
-    expected_success: bool,
-) -> None:
-    expected = {
-        "buildDefinition": {
-            "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
-            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
-        },
-        "runDetails": {
-            "builder": {"id": "builder"},
-            "metadata": {"invocationId": "current"},
-        },
-    }
-    observed = json.loads(json.dumps(expected))
-    observed["runDetails"]["metadata"]["invocationId"] = "historical"
-    if variant in {"reuse-historical", "wrong"}:
-        observed["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
-    if variant == "wrong":
-        observed["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
-    item = {"verificationResult": {"statement": {"predicate": observed}}}
-    verified = [item, item] if variant == "duplicate" else [item]
-    (tmp_path / "postgres-pgvector-provenance.json").write_text(
-        json.dumps(expected), encoding="utf-8"
-    )
-    (tmp_path / "postgres-pgvector-provenance-verified.json").write_text(
-        json.dumps(verified), encoding="utf-8"
-    )
-    completed = subprocess.run(
-        [sys.executable, "-c", _postgres_candidate_provenance_verifier_program()],
-        cwd=tmp_path,
-        env={
-            **os.environ,
-            "PROVENANCE_MODE": "reuse" if variant == "reuse-historical" else "create",
-        },
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert (completed.returncode == 0) is expected_success, completed.stderr
-
-
-@pytest.mark.parametrize(
-    ("variant", "expected_success"),
-    (("matching", True), ("mismatching", False), ("duplicate", False)),
-)
-def test_cd_postgres_candidate_spdx_verifier_executes_exact_program(
-    tmp_path: Path,
-    variant: str,
-    expected_success: bool,
-) -> None:
-    expected = {"SPDXID": "SPDXRef-DOCUMENT", "name": "pulseplate-pgvector"}
-    observed = json.loads(json.dumps(expected))
-    if variant == "mismatching":
-        observed["name"] = "historical-incomplete"
-    item = {
-        "verificationResult": {
-            "statement": {
-                "predicateType": "https://spdx.dev/Document/v2.3",
-                "predicate": observed,
-            }
-        }
-    }
-    verified = [item, item] if variant == "duplicate" else [item]
-    (tmp_path / "postgres-pgvector-image-sbom.spdx.json").write_text(
-        json.dumps(expected), encoding="utf-8"
-    )
-    (tmp_path / "postgres-pgvector-spdx-verified.json").write_text(
-        json.dumps(verified), encoding="utf-8"
-    )
-    completed = subprocess.run(
-        [sys.executable, "-c", _postgres_candidate_spdx_verifier_program()],
-        cwd=tmp_path,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert (completed.returncode == 0) is expected_success, completed.stderr
-
-
-@pytest.mark.parametrize(
-    ("variant", "expected_success"),
-    (
-        ("matching", True),
-        ("volatile-metadata", True),
-        ("tag-derived-name", True),
-        ("mismatching", False),
-        ("relationship-mismatch", False),
-        ("duplicate", False),
-    ),
-)
-def test_cd_postgres_reuse_spdx_verifier_executes_exact_program(
-    tmp_path: Path,
-    variant: str,
-    expected_success: bool,
-) -> None:
-    expected = {
-        "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "pulseplate-pgvector",
-        "documentNamespace": "https://spdx.org/spdxdocs/pulseplate-current",
-        "creationInfo": {
-            "created": "2026-08-29T00:00:00Z",
-            "creators": ["Tool: trivy-0.74.0"],
-        },
-        "packages": [{"SPDXID": "SPDXRef-Package-postgres", "name": "postgresql"}],
-        "relationships": [
-            {
-                "spdxElementId": "SPDXRef-DOCUMENT",
-                "relationshipType": "DESCRIBES",
-                "relatedSpdxElement": "SPDXRef-Package-postgres",
-            }
-        ],
-    }
-    observed = json.loads(json.dumps(expected))
-    if variant == "volatile-metadata":
-        observed["documentNamespace"] = "https://spdx.org/spdxdocs/pulseplate-historical"
-        observed["creationInfo"]["created"] = "2026-08-28T00:00:00Z"
-    elif variant == "tag-derived-name":
-        observed["name"] = "ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-pgvector"
-    elif variant == "mismatching":
-        observed["packages"][0]["name"] = "historical-incomplete"
-    elif variant == "relationship-mismatch":
-        observed["relationships"][0]["relatedSpdxElement"] = "SPDXRef-Package-other"
-    item = {
-        "verificationResult": {
-            "statement": {
-                "predicateType": "https://spdx.dev/Document/v2.3",
-                "predicate": observed,
-            }
-        }
-    }
-    verified = [item, item] if variant == "duplicate" else [item]
-    (tmp_path / "postgres-pgvector-reuse-current.spdx.json").write_text(
-        json.dumps(expected), encoding="utf-8"
-    )
-    (tmp_path / "postgres-pgvector-reuse-spdx.json").write_text(
-        json.dumps(verified), encoding="utf-8"
-    )
-    completed = subprocess.run(
-        [sys.executable, "-c", _postgres_reuse_spdx_verifier_program()],
-        cwd=tmp_path,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert (completed.returncode == 0) is expected_success, completed.stderr
-
-
-@pytest.mark.parametrize(
-    ("variant", "expected_modes", "expected_success"),
-    (
-        ("empty", ("create", "create"), True),
-        ("one-each", ("reuse", "reuse"), True),
-        ("provenance-only", ("reuse", "create"), True),
-        ("spdx-only", ("create", "reuse"), True),
-        ("historical-source", ("reuse", "reuse"), True),
-        ("duplicate-provenance", None, False),
-        ("duplicate-spdx", None, False),
-        ("conflicting-provenance", None, False),
-    ),
-)
-def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinality(
-    tmp_path: Path,
-    variant: str,
-    expected_modes: tuple[str, str] | None,
-    expected_success: bool,
-) -> None:
-    platform_digest = "sha256:" + "6" * 64
-    repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
-    expected_predicate = {
-        "buildDefinition": {
-            "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
-            "externalParameters": {"platform": "linux/amd64", "source_sha": "a" * 40},
-            "resolvedDependencies": [],
-        },
-        "runDetails": {
-            "builder": {"id": "builder"},
-            "metadata": {"invocationId": "current"},
-        },
-    }
-    (tmp_path / "postgres-pgvector-provenance.json").write_text(
-        json.dumps(expected_predicate), encoding="utf-8"
-    )
-
-    def record(predicate_type: str, predicate: dict[str, object]) -> dict[str, object]:
-        statement = {
-            "_type": "https://in-toto.io/Statement/v1",
-            "subject": [
-                {
-                    "name": repository,
-                    "digest": {"sha256": platform_digest.removeprefix("sha256:")},
-                }
-            ],
-            "predicateType": predicate_type,
-            "predicate": predicate,
-        }
-        encoded = base64.b64encode(json.dumps(statement).encode()).decode()
-        return {"bundle": {"dsseEnvelope": {"payload": encoded}}}
-
-    records: list[dict[str, object]] = []
-    provenance_variants = {
-        "one-each",
-        "provenance-only",
-        "duplicate-provenance",
-        "conflicting-provenance",
-        "historical-source",
-    }
-    spdx_variants = {
-        "one-each",
-        "spdx-only",
-        "duplicate-provenance",
-        "duplicate-spdx",
-        "conflicting-provenance",
-        "historical-source",
-    }
-    if variant in provenance_variants:
-        historical = json.loads(json.dumps(expected_predicate))
-        historical["runDetails"]["metadata"]["invocationId"] = "historical"
-        if variant == "historical-source":
-            historical["buildDefinition"]["externalParameters"]["source_sha"] = "b" * 40
-        records.append(record("https://slsa.dev/provenance/v1", historical))
-    if variant in spdx_variants:
-        records.append(record("https://spdx.dev/Document/v2.3", {"name": "sbom"}))
-    if variant == "duplicate-provenance":
-        records.append(record("https://slsa.dev/provenance/v1", expected_predicate))
-    if variant == "duplicate-spdx":
-        records.append(record("https://spdx.dev/Document/v2.3", {"name": "duplicate"}))
-    if variant == "conflicting-provenance":
-        conflict = json.loads(json.dumps(expected_predicate))
-        conflict["buildDefinition"]["externalParameters"]["platform"] = "linux/arm64"
-        records.append(record("https://slsa.dev/provenance/v1", conflict))
-    response_path = tmp_path / "attestations.json"
-    response_path.write_text(json.dumps({"attestations": records}), encoding="utf-8")
-    output_path = tmp_path / "output.txt"
-    completed = subprocess.run(
-        [sys.executable, "-c", _postgres_attestation_inventory_program(), str(response_path)],
-        cwd=tmp_path,
-        env={
-            **os.environ,
-            "GITHUB_OUTPUT": str(output_path),
-            "PLATFORM_DIGEST": platform_digest,
-            "REPOSITORY": repository,
-        },
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert (completed.returncode == 0) is expected_success, completed.stderr
-    if expected_modes is not None:
-        assert output_path.read_text(encoding="utf-8").splitlines() == [
-            f"provenance_mode={expected_modes[0]}",
-            f"spdx_mode={expected_modes[1]}",
-        ]
-
-
 def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     """Require candidate verification before the provisional canonical tag write."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
@@ -1646,7 +1333,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
         "Verify existing public GHCR package identity before candidate write"
     )
     candidate = position("Publish reproduced manifest under one unadmitted candidate tag")
-    provenance = position("Attest PostgreSQL pgvector material-bound provenance")
+    provenance = position("Attest actual PostgreSQL pgvector build provenance")
     spdx = position("Attest PostgreSQL pgvector SPDX SBOM")
     verify = position("Verify candidate pullback, material provenance, SBOM, and runtime identity")
     visibility = position("Recheck public GHCR package identity after candidate admission")
@@ -1691,10 +1378,10 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     )
     assert 'test "$canonical_runtime_ref" = "$EXPECTED_RUNTIME_REF"' in promote_run
     assert "${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}" not in promote_run
-    material_check = 'git diff --quiet "$GITHUB_SHA" "$current_main_sha"'
+    material_check = '--base "$GITHUB_SHA" --head "$current_main_sha"'
     assert material_check in promote_run
     assert promote_run.index(material_check) < promote_run.index("docker buildx imagetools create")
-    post_promotion_check = 'git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha"'
+    post_promotion_check = '--base "$GITHUB_SHA" --head "$post_promotion_main_sha"'
     assert post_promotion_check in promote_run
     assert promote_run.index("docker buildx imagetools create") < promote_run.index(
         post_promotion_check
@@ -1702,39 +1389,26 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert promote_run.index(post_promotion_check) < promote_run.index(
         "docker buildx imagetools inspect"
     )
-    assert "replacement publisher must repair it; HOLD" in promote_run
-    assert ".github/workflows/cd.yml" in promote_run
-    assert "deploy/postgres-pgvector/Containerfile" in promote_run
-    assert "deploy/postgres-pgvector/image-manifest.json" in promote_run
+    assert "scripts/ci/check_pgvector_attestations.py unchanged" in promote_run
     assert "docker buildx imagetools create" in promote_run
     assert '"$CANDIDATE_RUNTIME_REF"' in promote_run
     assert "docker buildx build" not in promote_run
     job_text = json.dumps(workflow["jobs"]["postgres-pgvector-publish"], sort_keys=True)
     assert job_text.count("actions/attest@") == 2
-    assert "actions/attest-build-provenance@" not in job_text
+    assert job_text.count("actions/attest-build-provenance@") == 1
     assert "python -m pytest" not in job_text
     assert "DEVPI_CI_USER" not in job_text
     assert "DEVPI_CI_PASSWORD" not in job_text
     verify_step = steps[verify]
-    assert verify_step["env"]["PROVENANCE_MODE"] == (
-        "${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}"
-    )
-    assert verify_step["env"]["SPDX_MODE"] == (
-        "${{ steps.pgvector-attestation-inventory.outputs.spdx_mode }}"
+    assert (
+        verify_step["env"]["ATTESTATION_MODE"]
+        == "${{ steps.pgvector-attestation-inventory.outputs.mode }}"
     )
     verify_run = verify_step["run"]
-    assert 'case "$PROVENANCE_MODE" in' in verify_run
-    assert 'create) provenance_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
-    assert "reuse) ;;" in verify_run
-    assert verify_run.count('provenance_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
-    assert 'case "$SPDX_MODE" in' in verify_run
-    assert 'create) spdx_verify_args+=(--source-digest "$GITHUB_SHA")' in verify_run
-    assert verify_run.count('spdx_verify_args+=(--source-digest "$GITHUB_SHA")') == 1
-    assert 'Path("postgres-pgvector-image-sbom.spdx.json")' in verify_run
-    assert "observed_spdx != expected_spdx" in verify_run
-    assert "Verified PostgreSQL SPDX predicate does not equal the exact generated SBOM" in (
-        verify_run
-    )
+    assert '--source-sha "$ORIGINAL_SOURCE_SHA"' in verify_run
+    assert '--run-invocation-uri "$ORIGINAL_RUN_INVOCATION_URI"' in verify_run
+    assert "--sbom postgres-pgvector-image-sbom.spdx.json" in verify_run
+    assert "scripts/ci/check_pgvector_attestations.py verify" in verify_run
 
     runtime_step = next(
         step
@@ -1812,6 +1486,7 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
     for name in ("builder-apk-inputs.tsv", "builder-apk-index.tar.gz"):
         (source / "deploy" / "postgres-pgvector" / name).write_bytes(b"frozen input")
     (source / "docs" / "note.md").write_text("base\n", encoding="utf-8")
+    _copy_pgvector_material_helpers(source)
     git(source, "add", ".")
     git(source, "commit", "-qm", "base")
     base_sha = git(source, "rev-parse", "HEAD")
@@ -1850,7 +1525,7 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
         check=False,
     )
     assert superseded_policy.returncode != 0
-    assert "publication policy superseded" in superseded_policy.stderr
+    assert "material superseded run" in superseded_policy.stderr
 
     (source / ".github" / "workflows" / "cd.yml").write_text("name: base\n", encoding="utf-8")
     (source / "deploy" / "postgres-pgvector" / "Containerfile").write_text(
@@ -1868,7 +1543,7 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
         check=False,
     )
     assert superseded.returncode != 0
-    assert "image material or publication policy superseded" in superseded.stderr
+    assert "material superseded run" in superseded.stderr
 
 
 def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation(
@@ -1930,6 +1605,7 @@ def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation
     )
     for name in ("builder-apk-inputs.tsv", "builder-apk-index.tar.gz"):
         (source / "deploy" / "postgres-pgvector" / name).write_bytes(b"frozen input")
+    _copy_pgvector_material_helpers(source)
     git(source, "add", ".")
     git(source, "commit", "-qm", "admitted material")
     admitted_sha = git(source, "rev-parse", "HEAD")
@@ -1984,7 +1660,7 @@ def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation
     )
 
     assert completed.returncode != 0
-    assert "superseded during promotion" in completed.stderr
+    assert "material superseded run" in completed.stderr
     log_lines = docker_log.read_text(encoding="utf-8").splitlines()
     assert sum("buildx imagetools create" in line for line in log_lines) == 1
     assert all("buildx imagetools inspect" not in line for line in log_lines)
@@ -2963,128 +2639,27 @@ def test_published_backup_helper_binding_rejects_post_publication_drift(
         assert "backup-helper" in completed.stderr or "backup helper" in completed.stderr
 
 
-def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
-    """Ensure provenance includes all authenticated recipe and build-engine inputs."""
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+def test_cd_postgres_material_helper_is_shared_by_producer_and_consumers() -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    publish = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     generator = next(
         step
-        for step in steps
-        if step.get("name") == "Generate material-bound PostgreSQL pgvector provenance predicate"
-    )["run"]
-    for material_field in (
-        "runtime_base_index_digest",
-        "runtime_base_platform_manifest_digest",
-        "runtime_base_config_digest",
-        "builder_base_index_digest",
-        "builder_base_platform_manifest_digest",
-        "builder_base_config_digest",
-        "pgvector_source_sha256",
-        "pgvector_source_commit",
-        "containerfile_sha256",
-        "builder_apk_closure_sha256",
-        "builder_apk_inputs_sha256",
-        "builder_apk_index_sha256",
-        "buildkit_platform_manifest_digest",
-        "buildx_linux_amd64_sha256",
-        "runtime_artifact_inventory_sha256",
-        "mountpoint_layer_digest",
-        "mountpoint_layer_diff_id",
-        "platform_manifest_digest",
-        "config_digest",
-    ):
-        assert material_field in generator
-    assert "https://slsa.dev/provenance/v1" in json.dumps(steps, sort_keys=True)
-
-
-@pytest.mark.parametrize("consumer", ["candidate", "reuse"])
-@pytest.mark.parametrize(
-    "fault", ["valid", "duplicate", "duplicate-replacement", "missing", "digest", "wrong-shape"]
-)
-def test_postgres_generated_materials_reach_both_provenance_consumers(
-    tmp_path: Path, consumer: str, fault: str
-) -> None:
-    """Replay native-format producer/consumers; this is not attestation verification."""
-    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
-    generator = (
-        next(
-            step["run"]
-            for step in steps
-            if step.get("name")
-            == "Generate material-bound PostgreSQL pgvector provenance predicate"
-        )
-        .split("python3 - <<'PY'\n", 1)[1]
-        .split("\nPY", 1)[0]
+        for step in publish
+        if step.get("name") == "Generate exact PostgreSQL material predicate"
     )
-    manifest_dir = tmp_path / "deploy" / "postgres-pgvector"
-    manifest_dir.mkdir(parents=True)
-    (manifest_dir / "image-manifest.json").write_bytes(POSTGRES_MANIFEST_PATH.read_bytes())
-    environment = {
-        **os.environ,
-        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
-        "GITHUB_REF": "refs/heads/main",
-        "GITHUB_SHA": "a" * 40,
-        "GITHUB_RUN_ID": "1234",
-        "GITHUB_RUN_ATTEMPT": "1",
-        "PROVENANCE_MODE": "create",
-    }
-    generated = subprocess.run(
-        [sys.executable, "-c", generator],
-        cwd=tmp_path,
-        env=environment,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=20,
+    assert "scripts/ci/check_pgvector_attestations.py generate" in generator["run"]
+    candidate = next(
+        step
+        for step in publish
+        if step.get("name")
+        == "Verify candidate pullback, material provenance, SBOM, and runtime identity"
     )
-    assert generated.returncode == 0, generated.stderr
-    predicate = json.loads((tmp_path / "postgres-pgvector-provenance.json").read_bytes())
-    materials = predicate["buildDefinition"]["resolvedDependencies"]
-    assert {"pulseplate:builder-apk-inputs", "pulseplate:builder-apk-signed-index"} <= {
-        item["uri"] for item in materials
-    }
-    if fault == "duplicate":
-        materials.append(materials[0])
-    elif fault == "duplicate-replacement":
-        materials[-1] = materials[0]
-    elif fault == "missing":
-        materials.pop()
-    elif fault == "digest":
-        materials[0]["digest"] = {"sha256": "0" * 64}
-    elif fault == "wrong-shape":
-        predicate["buildDefinition"]["resolvedDependencies"] = None
-    verified = [{"verificationResult": {"statement": {"predicate": predicate}}}]
-    if consumer == "candidate":
-        filename = "postgres-pgvector-provenance-verified.json"
-        program = _postgres_candidate_provenance_verifier_program()
-    else:
-        filename = "postgres-pgvector-reuse-provenance.json"
-        run = next(
-            step["run"]
-            for step in workflow["jobs"]["postgres-pgvector-reuse"]["steps"]
-            if filename in step.get("run", "")
-        )
-        program = run.split(f"> {filename}\n", 1)[1].split("python3 - <<'PY'\n", 1)[1]
-        program = program.split("\nPY", 1)[0]
-    (tmp_path / filename).write_text(json.dumps(verified), encoding="utf-8")
-    result = subprocess.run(
-        [sys.executable, "-c", program],
-        cwd=tmp_path,
-        env=environment,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=20,
-    )
-    if fault == "valid":
-        assert result.returncode == 0, result.stderr
-    else:
-        assert result.returncode != 0, result.stdout
-        if consumer == "candidate":
-            assert "Expected exactly one material-bound provenance predicate" in result.stderr
-        else:
-            assert "Reused provenance material" in result.stderr
+    assert "scripts/ci/check_pgvector_attestations.py verify" in candidate["run"]
+    reuse = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]
+    assert "scripts/ci/check_pgvector_attestations.py verify" in reuse["run"]
+    helper = (REPO_ROOT / "scripts/ci/check_pgvector_attestations.py").read_text()
+    assert '"recipe": copy.deepcopy(manifest)' in helper
+    assert "material_dependencies(manifest)" in helper
 
 
 def test_postgres_final_scanner_consumes_the_verified_oci_layout() -> None:
@@ -3408,7 +2983,11 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
     prometheus = services["prometheus"]
 
     assert normalized["networks"]["observability"]["internal"] is True
-    assert set(services["app"]["networks"]) == {"web", "observability"}
+    assert set(services["app"]["networks"]) == (
+        {"web", "observability", "database"}
+        if compose_path == STAGING_COMPOSE_PATH
+        else {"web", "observability"}
+    )
     assert set(prometheus["networks"]) == {"observability"}
     assert prometheus["image"] == PROMETHEUS_RUNTIME_REF
     assert prometheus["platform"] == "linux/amd64"
@@ -3445,13 +3024,14 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
             "target": "/run/secrets/pulseplate_metrics_scrape_key",
         }
     ]
-    assert services["app"]["secrets"] == prometheus["secrets"]
+    assert prometheus["secrets"][0] in services["app"]["secrets"]
     assert "prometheus" not in services["app"].get("depends_on", {})
     for service_name in ("caddy", "worker", "postgres"):
         service = services.get(service_name)
         if isinstance(service, dict):
             assert "observability" not in service.get("networks", {})
-            assert "secrets" not in service
+            if compose_path != STAGING_COMPOSE_PATH or service_name == "caddy":
+                assert "secrets" not in service
     assert "prometheus_data" in normalized["volumes"]
 
 
@@ -3617,20 +3197,51 @@ set -euo pipefail
     assert not log_file.exists()
 
 
-def _staging_compose_fixture_json() -> str:
+def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-staging")) -> str:
+    from scripts.ops.check_staging_security import POSTGRES_COMMAND, STORAGE_ROOT
+
     payload = json.loads(FAKE_PROMETHEUS_COMPOSE_JSON)
     payload["services"]["postgres"]["environment"].update(
         {
             "POSTGRES_DB": "pulseplate",
             "POSTGRES_USER": "pulseplate",
-            "POSTGRES_PASSWORD": "test-only",  # pragma: allowlist secret
+            "POSTGRES_PASSWORD_FILE": "/run/secrets/postgres_password",
         }
     )
-    local_database_url = (
-        "postgresql+psycopg://pulseplate:test-only@postgres/pulseplate"  # pragma: allowlist secret
-    )
-    payload["services"]["app"] = {"environment": {"DATABASE_URL": local_database_url}}
-    payload["services"]["worker"] = {"environment": {"DATABASE_URL": local_database_url}}
+    local_database_url = "postgresql+psycopg://pulseplate@postgres:5432/pulseplate?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca&passfile=/run/secrets/postgres_pgpass"
+    for name in ("app", "worker"):
+        payload["services"][name] = {
+            "environment": {
+                "DATABASE_URL": local_database_url,
+                "PGSSLMODE": "verify-full",
+                "PGPASSFILE": "/run/secrets/postgres_pgpass",
+            }
+        }
+    payload["services"]["postgres"]["command"] = POSTGRES_COMMAND
+    payload["services"]["postgres"]["networks"] = {"database": {}}
+    payload["networks"] = {"database": {"internal": True}}
+    for name, directory in (("postgres_data", "postgres"), ("prometheus_data", "prometheus")):
+        payload["volumes"].setdefault(name, {})
+        payload["volumes"][name].update(
+            {
+                "driver": "local",
+                "driver_opts": {
+                    "type": "none",
+                    "o": "bind",
+                    "device": f"{STORAGE_ROOT}/{directory}",
+                },
+            }
+        )
+    payload["secrets"] = {
+        name: {"file": str(project_dir / "secrets" / name)}
+        for name in (
+            "postgres_ca",
+            "postgres_server_crt",
+            "postgres_server_key",
+            "postgres_password",
+            "postgres_pgpass",
+        )
+    }
     return json.dumps(payload, separators=(",", ":"))
 
 
@@ -3640,6 +3251,16 @@ FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
         contract_responses = f"""case \"$*\" in
+  *pg_restore\\ --list*)
+    if [ "${{STUB_PG_RESTORE_LIST_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_LIST_STATUS}}"; fi
+    printf '214; 1259 16387 TABLE public items user\\n'
+    ;;
+  *pg_restore\\ --file=/dev/null*)
+    if [ "${{STUB_PG_RESTORE_BODY_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_BODY_STATUS}}"; fi
+    cat >/dev/null
+    ;;
+  *pg_catalog.pg_tables*) printf '1\\n' ;;
+  run\\ --rm\\ --network\\ none\\ --entrypoint\\ python\\ *) printf '%s\\n' "${{STUB_BACKEND_IDS:-1000:1000}}" ;;
   *\"config --format json\"*)
     if [ \"${{STUB_COMPOSE_CONFIG_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_COMPOSE_CONFIG_STATUS}}\"
@@ -4109,7 +3730,12 @@ def test_staging_deploy_rejects_rendered_postgres_identity_drift_before_pull(
     )
 
     assert completed.returncode != 0
-    assert "PostgreSQL" in completed.stderr
+    expected_surface = (
+        "app"
+        if variant in ("missing-app", "app-external-dsn")
+        else ("worker" if variant in ("missing-worker", "worker-dsn-drift") else "PostgreSQL")
+    )
+    assert expected_surface in completed.stderr
     log_lines = log_file.read_text(encoding="utf-8").splitlines()
     assert any("config --format json" in line for line in log_lines)
     assert all(
@@ -5046,7 +4672,7 @@ printf 'curl %s\n' "$*" >> "{log_file}"
 def test_postgres_backup_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     bin_dir = tmp_path / "bin"
-    backup_dir = tmp_path / "backups"
+    backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
     bin_dir.mkdir()
@@ -5063,6 +4689,7 @@ FAKE_BACKUP
 EOF
 """
     _write_executable(bin_dir / "docker", docker_stub)
+    _write_stage_native_oracles(project_dir)
 
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}:{env['PATH']}"  # pragma: allowlist secret
@@ -5072,6 +4699,8 @@ EOF
     env["ENV_FILE"] = str(env_file)
     env["POSTGRES_USER"] = "pulseplate"
     env["POSTGRES_DB"] = "pulseplate"
+    env["PYTHON_BIN"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
 
     completed = subprocess.run(
         [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
@@ -5090,6 +4719,7 @@ EOF
     backup_files = list(backup_dir.glob("pulseplate_*.dump"))
     assert len(backup_files) == 1
     assert backup_files[0].read_text(encoding="utf-8").strip() == "FAKE_BACKUP"
+    assert stat.S_IMODE(backup_files[0].stat().st_mode) == 0o600
 
 
 def test_postgres_backup_helper_uses_container_database_identity_when_host_env_is_absent(
@@ -5097,7 +4727,7 @@ def test_postgres_backup_helper_uses_container_database_identity_when_host_env_i
 ) -> None:
     project_dir = tmp_path / "project"
     bin_dir = tmp_path / "bin"
-    backup_dir = tmp_path / "backups"
+    backup_dir = project_dir / "backups"
     log_file = tmp_path / "docker.log"
     project_dir.mkdir()
     bin_dir.mkdir()
@@ -5109,6 +4739,7 @@ printf '%s\n' "$*" >> "{log_file}"
 printf 'FAKE_BACKUP\n'
 """
     _write_executable(bin_dir / "docker", docker_stub)
+    _write_stage_native_oracles(project_dir)
 
     env = os.environ.copy()
     env.pop("POSTGRES_USER", None)
@@ -5117,6 +4748,8 @@ printf 'FAKE_BACKUP\n'
     env["PROJECT_DIR"] = str(project_dir)
     env["BACKUP_DIR"] = str(backup_dir)
     env["COMPOSE_FILE"] = "docker-compose.staging.yaml"
+    env["PYTHON_BIN"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
 
     completed = subprocess.run(
         [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
@@ -5164,6 +4797,8 @@ fi
     completed = subprocess.run(
         [
             str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
+            "--verify-into",
+            "pulseplate_restore_check_fixture",
             str(backup_file),
         ],
         cwd=str(REPO_ROOT),
@@ -5173,18 +4808,21 @@ fi
         check=True,
     )
 
-    assert "Restore completed from:" in completed.stdout
+    assert "Restore completed into: pulseplate_restore_check_fixture" in completed.stdout
     docker_calls = log_file.read_text(encoding="utf-8").splitlines()
-    assert len(docker_calls) == 2
+    assert len(docker_calls) == 5
     assert all(f"compose --project-directory {project_dir}" in call for call in docker_calls)
     assert all(
         f"-f {project_dir / 'docker-compose.production.yaml'}" in call for call in docker_calls
     )
-    assert "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" in docker_calls[0]
+    assert "pg_restore --list" in docker_calls[0]
+    assert "pg_restore --file=/dev/null" in docker_calls[1]
+    assert "createdb" in docker_calls[2]
     assert (
-        "exec -T postgres pg_restore -U pulseplate -d pulseplate --clean --if-exists"
-        in docker_calls[1]
+        "pg_restore -U pulseplate -d pulseplate_restore_check_fixture --exit-on-error --single-transaction --clean --if-exists"
+        in docker_calls[3]
     )
+    assert all("DROP SCHEMA" not in call for call in docker_calls)
 
 
 def test_deploy_production_runs_migrations_before_caddy_and_external_ready(
@@ -7384,6 +7022,78 @@ exit 0
     assert "❌ diagnose_web.sh reported a routing mismatch" in completed.stdout
 
 
+def _write_stage_native_oracles(project_dir: Path) -> None:
+    """Keep real JSON validators while replacing native mount/crypto observations."""
+    from scripts.ops.check_staging_security import DEVICE_PATH, STORAGE_ROOT
+
+    (project_dir / "scripts" / "ops").mkdir(parents=True, exist_ok=True)
+    (project_dir / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
+    (project_dir / "secrets").mkdir(exist_ok=True)
+    (project_dir / "backups").mkdir(exist_ok=True)
+    receipt = {
+        "schema": "pulseplate.staging-storage.v1",
+        "droplet_id": 594869239,
+        "volume_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "volume_name": "pulseplate-staging-data",
+        "filesystem_uuid": "11111111-2222-3333-4444-555555555555",
+        "mountpoint": STORAGE_ROOT,
+        "device": DEVICE_PATH,
+        "size_gib": 50,
+        "backend_uid": 1000,
+        "backend_gid": 1000,
+    }
+    (project_dir / ".staging-storage.json").write_text(json.dumps(receipt))
+    (project_dir / ".staging-storage.json").chmod(0o600)
+    for name in (
+        "postgres_ca",
+        "postgres_server_crt",
+        "postgres_server_key",
+        "postgres_password",
+        "postgres_pgpass",
+    ):
+        target = project_dir / "secrets" / name
+        target.write_text("native-crypto-oracle-fixture")
+        target.chmod(0o600)
+    _write_executable(
+        project_dir / "scripts" / "ops" / "check_staging_security.py",
+        """#!/usr/bin/env python3
+import argparse, json, sys
+from pathlib import Path
+from scripts.ops import check_staging_security as security
+parser = argparse.ArgumentParser()
+parser.add_argument("--project-dir", type=Path, required=True)
+parser.add_argument("--storage-only", action="store_true")
+parser.add_argument("--compose-stdin", action="store_true")
+parser.add_argument("--print-backup-dir", action="store_true")
+args = parser.parse_args()
+try:
+    security.validate_contract(json.loads((args.project_dir / ".staging-storage.json").read_text()))
+    if args.compose_stdin:
+        security.validate_compose(json.loads(sys.stdin.read()), args.project_dir)
+except (ValueError, OSError) as error:
+    print("Staging security HOLD: " + str(error), file=sys.stderr)
+    raise SystemExit(1)
+print(str(args.project_dir / "backups") if args.print_backup_dir else "Native staging probes verified")
+""",
+    )
+    _write_executable(
+        project_dir / "scripts" / "ci" / "check_pgvector_attestations.py",
+        """#!/usr/bin/env python3
+import json, os, subprocess
+from scripts.ci import check_pgvector_attestations as verifier
+from tests.test_pgvector_attestations import packet
+_, payloads = packet()
+def verified_crypto(arguments):
+    kind = arguments[arguments.index("--predicate-type") + 1]
+    if os.getenv("STUB_ATTESTATION_STATUS", "0") != "0":
+        raise RuntimeError("Native attestation crypto rejected")
+    return subprocess.CompletedProcess(arguments, 0, json.dumps(payloads[kind]), "")
+verifier.native._run_gh = verified_crypto
+raise SystemExit(verifier.main())
+""",
+    )
+
+
 def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     project_dir = tmp_path / "staging"
     bin_dir = tmp_path / "bin"
@@ -7434,6 +7144,7 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
         encoding="utf-8",
     )
     (project_dir / ".env").chmod(0o600)
+    _write_stage_native_oracles(project_dir)
     _write_executable(
         project_dir / "scripts" / "ops" / "postgres_backup.sh",
         f"""#!/usr/bin/env bash
@@ -7528,6 +7239,8 @@ esac
             "STAGING_DEPLOY_MARKER": str(project_dir / ".attested-digest-deploy-v1"),
             "DOCKER_BIN": str(bin_dir / "docker"),
             "PYTHON_BIN": sys.executable,
+            "PYTHONPATH": str(REPO_ROOT),
+            "STUB_PROMETHEUS_COMPOSE_JSON": _staging_compose_fixture_json(project_dir),
             "CURL_BIN": str(bin_dir / "curl"),
             "STAT_BIN": str(bin_dir / "stat"),
             "STAGING_DOMAIN": "staging.example.com",
@@ -7962,7 +7675,7 @@ def test_deploy_backup_helpers_receive_selected_compose_env_file() -> None:
     assert "export DOCKER_BIN BACKUP_DIR PROJECT_DIR COMPOSE_FILE ENV_FILE" in staging_script
     assert "export DOCKER_BIN BACKUP_DIR POSTGRES_USER POSTGRES_DB ENV_FILE" in production_script
     assert 'ENV_FILE="${ENV_FILE:-}"' in helper_script
-    assert 'compose_cmd+=(--env-file "${ENV_FILE}")' in helper_script
+    assert 'compose_cmd+=(--env-file "$ENV_FILE")' in helper_script
 
 
 def test_postgres_backup_and_receipt_failures_keep_product_writers_quiesced() -> None:
@@ -8592,3 +8305,103 @@ test "$(cat "$STATE")" = 3
         assert "Synthetic PostgreSQL image did not become ready" in result.stderr
         assert calls.read_text().count("--command SELECT 1") == 60
     assert "pg_isready" not in calls.read_text()
+
+
+@pytest.mark.parametrize(
+    "oracle,value,message",
+    [
+        ("STUB_ATTESTATION_STATUS", "1", "Native attestation crypto rejected"),
+        ("STUB_BACKEND_IDS", "0:0", "Backend runtime user differs"),
+    ],
+)
+def test_staging_crypto_and_passfile_owner_rejection_precede_product_mutation(
+    tmp_path: Path, oracle: str, value: str, message: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env[oracle] = value
+    backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert message in completed.stderr
+    assert all(
+        " stop worker caddy app" not in line
+        and " up " not in line
+        and not line.startswith("backup ")
+        for line in log_file.read_text().splitlines()
+    )
+
+
+def test_staging_backup_full_archive_failure_preserves_old_dump_and_no_publication(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "staging"
+    project.mkdir()
+    _write_stage_native_oracles(project)
+    docker = tmp_path / "docker"
+    _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
+    old = project / "backups" / "pulseplate_old.dump"
+    old.write_text("preserve-old-native-dump")
+    env = {
+        **os.environ,
+        "PROJECT_DIR": str(project),
+        "BACKUP_DIR": str(old.parent),
+        "COMPOSE_FILE": "docker-compose.staging.yaml",
+        "DOCKER_BIN": str(docker),
+        "PYTHON_BIN": sys.executable,
+        "PYTHONPATH": str(REPO_ROOT),
+        "POSTGRES_USER": "pulseplate",
+        "POSTGRES_DB": "pulseplate",
+        "STUB_PG_RESTORE_BODY_STATUS": "51",
+    }
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 51
+    assert "Backup created:" not in completed.stdout
+    assert list(old.parent.glob("pulseplate_*.dump")) == [old]
+    assert old.read_text() == "preserve-old-native-dump"
+    assert not list(old.parent.glob(".pulseplate-backup.*"))
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        (),
+        ("file.dump",),
+        ("--verify-into", "pulseplate", "file.dump"),
+        ("--verify-into", "arbitrary_target", "file.dump"),
+    ],
+)
+def test_restore_requires_explicit_isolated_target_before_native_mutation(
+    tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    docker = tmp_path / "docker"
+    log = tmp_path / "docker.log"
+    _write_executable(docker, f"#!/usr/bin/env bash\nprintf 'mutation\\n' >> '{log}'\n")
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/ops/postgres_restore.sh"), *arguments],
+        env={
+            **os.environ,
+            "POSTGRES_USER": "pulseplate",
+            "POSTGRES_DB": "pulseplate",
+            "DOCKER_BIN": str(docker),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert not log.exists()

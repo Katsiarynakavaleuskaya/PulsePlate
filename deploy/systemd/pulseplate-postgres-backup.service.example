@@ -1,22 +1,28 @@
 # Example systemd unit: run the host backup script (uses docker compose exec into postgres).
 # Install: copy to /etc/systemd/system/pulseplate-postgres-backup.service and adjust paths/user.
 #
-# Requires: docker CLI, deploy/.env with POSTGRES_* and a running self-hosted stack.
+# Staging instance: requires the admitted encrypted mount and the selected .env.
 # BACKUP_DIR defaults inside scripts/ops/postgres_backup.sh; override with Environment= if needed.
 
 [Unit]
 Description=PulsePlate Postgres backup (host script + compose exec)
 After=docker.service network-online.target
 Wants=network-online.target
+RequiresMountsFor=/mnt/pulseplate-staging-data
+BindsTo=mnt-pulseplate\x2dstaging\x2ddata.mount
+After=mnt-pulseplate\x2dstaging\x2ddata.mount
 
 [Service]
 Type=oneshot
 User=root
-WorkingDirectory=/opt/pulseplate
-EnvironmentFile=/opt/pulseplate/deploy/.env
-Environment=PROJECT_DIR=/opt/pulseplate/deploy
-Environment=COMPOSE_FILE=docker-compose.production.selfhosted.yaml
-ExecStart=/usr/bin/env bash /opt/pulseplate/scripts/ops/postgres_backup.sh
+WorkingDirectory=/srv/pulseplate-staging
+EnvironmentFile=/srv/pulseplate-staging/.env
+Environment=PROJECT_DIR=/srv/pulseplate-staging
+Environment=ENV_FILE=/srv/pulseplate-staging/.env
+Environment=COMPOSE_FILE=docker-compose.staging.yaml
+Environment=BACKUP_DIR=/mnt/pulseplate-staging-data/backups
+ExecStartPre=/usr/bin/python3 /srv/pulseplate-staging/scripts/ops/check_staging_security.py --project-dir /srv/pulseplate-staging --storage-only
+ExecStart=/usr/bin/bash /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
 
 [Install]
 WantedBy=multi-user.target
