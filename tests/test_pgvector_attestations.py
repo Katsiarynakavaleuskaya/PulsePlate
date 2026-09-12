@@ -388,13 +388,13 @@ def test_material_changes_union_includes_added_and_deleted_descendants(
         if args[0] == "ls-tree":
             return (
                 b"app/models/old/nested.py\0docs/note.md\0"
-                if args[-1] == "base"
+                if args[-1] == "a" * 40
                 else b"app/models/new/nested.py\0docs/note.md\0"
             )
         return b"app/models/old/nested.py\0app/models/new/nested.py\0docs/note.md\0"
 
     monkeypatch.setattr(verifier, "git_output", git)
-    assert verifier.material_changes("base", "head") == [
+    assert verifier.material_changes("a" * 40, "b" * 40) == [
         "app/models/new/nested.py",
         "app/models/old/nested.py",
     ]
@@ -565,3 +565,53 @@ def test_historical_custom_slsa_is_retained_without_counting_as_native_evidence(
     ] = "https://unknown.example/build"
     with pytest.raises(ValueError, match="Unrecognized"):
         verifier.validate_triple(current, manifest, REPO, WORKFLOW, REF)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["inventory"],
+        ["changes"],
+        ["changes", "--base", "a" * 40],
+        ["unchanged", "--head", "a" * 40],
+    ],
+)
+def test_mode_specific_missing_arguments_reject_before_input_use(
+    arguments: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert verifier.main(arguments) == 1
+    assert "requires" in capsys.readouterr().err
+
+
+def test_official_verifier_fetch_limit_matches_complete_bounded_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest, payloads = packet()
+    calls = []
+
+    def run(args: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        assert args[args.index("--limit") + 1] == "100"
+        kind = args[args.index("--predicate-type") + 1]
+        return subprocess.CompletedProcess(args, 0, json.dumps(payloads[kind] * 100), "")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", run)
+    with pytest.raises(ValueError, match="limit exhausted"):
+        verifier.verify(manifest, REPO, WORKFLOW, REF)
+
+
+def test_first_creation_base_is_changed_only_after_addressable_full_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def git(args: list[str]) -> bytes:
+        calls.append(args)
+        return b"core/db.py\0" if args[0] == "ls-tree" else b""
+
+    monkeypatch.setattr(verifier, "git_output", git)
+    monkeypatch.setattr(verifier, "material_rules", lambda ref: ("core/db.py",))
+    assert verifier.material_changes("0" * 40, "a" * 40) == ["core/db.py"]
+    assert calls[0] == ["cat-file", "-e", "a" * 40 + "^{commit}"]
+    with pytest.raises(ValueError, match="full SHA"):
+        verifier.material_changes("0" * 40, "malformed")

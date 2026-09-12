@@ -96,6 +96,7 @@ jobs:
           umask 077
           config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-staging-native-auth.XXXXXXXX")"
           printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
           printf '%s' "$GHCR_EPHEMERAL_TOKEN" | docker --config "$config_dir" login ghcr.io \
             --username "$GHCR_OWNER" --password-stdin
       - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
@@ -103,30 +104,41 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          python3 - <<'PY_COMPOSE_VERSION'
+          import json, subprocess, shutil
+          binary = shutil.which("docker")
+          if binary is None: raise SystemExit("Docker is required")
+          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
+          parts = version.split(".")
+          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
+              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
+          PY_COMPOSE_VERSION
           python3 -m scripts.ci.check_staging_postgres_runtime \
             --json-out staging-postgres-native-result.json
       - name: Retain public native experiment metadata without private PKI or dumps
         if: always() && steps.native-material.outputs.changed == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: staging-postgres-native-integration
           path: staging-postgres-native-result.json
           if-no-files-found: warn
       - name: Remove the exact ephemeral public-package Docker credentials
-        if: always() && steps.native-material.outputs.changed == 'true'
+        if: always()
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
         run: |
-          set -euo pipefail
-          case "${DOCKER_CONFIG:-}" in
-            "${RUNNER_TEMP}"/pulseplate-staging-native-auth.*)
-              test -d "$DOCKER_CONFIG" && test ! -L "$DOCKER_CONFIG"
-              docker --config "$DOCKER_CONFIG" logout ghcr.io
-              if [ -e "$DOCKER_CONFIG/config.json" ]; then
-                test -f "$DOCKER_CONFIG/config.json" && test ! -L "$DOCKER_CONFIG/config.json"
-                rm -- "$DOCKER_CONFIG/config.json"
-              fi
-              rmdir -- "$DOCKER_CONFIG"
-              ;;
-            *) echo "Native integration credential context is unknown; HOLD" >&2; exit 1 ;;
+          set -u
+          cleanup_failed=0
+          if [ -n "${DOCKER_CONFIG:-}" ]; then
+            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
+            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
+          fi
+          case "$PRIMARY_JOB_STATUS" in
+            success) exit "$cleanup_failed" ;;
+            failure | cancelled)
+              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
+              exit 0 ;;
+            *) exit 1 ;;
           esac
 
   postgres-synthetic-attestation-probe:
@@ -183,6 +195,7 @@ jobs:
           config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-attestation-probe-auth.XXXXXXXX")"
           export DOCKER_CONFIG="$config_dir"
           printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_REPOSITORY_OWNER" --password-stdin
           docker build --file "$context/Containerfile" --tag "$tag" "$context"
           docker push "$tag"
@@ -201,6 +214,16 @@ jobs:
           printf '%s\n' '{"spdxVersion":"SPDX-2.3","dataLicense":"CC0-1.0","SPDXID":"SPDXRef-DOCUMENT","name":"synthetic-probe","documentNamespace":"https://pulseplate.app/synthetic-probe","creationInfo":{"created":"2026-09-12T00:00:00Z","creators":["Tool: PulsePlate synthetic probe v1"]},"packages":[{"name":"synthetic-attestation-probe-v1","SPDXID":"SPDXRef-Probe","downloadLocation":"NOASSERTION"}],"relationships":[{"spdxElementId":"SPDXRef-DOCUMENT","relatedSpdxElement":"SPDXRef-Probe","relationshipType":"DESCRIBES"}]}' > probe.spdx.json
           GITHUB_SHA="$SOURCE_SHA" python3 scripts/ci/check_pgvector_attestations.py generate \
             --manifest probe-manifest.json --source-ref "$GITHUB_REF" --sbom probe.spdx.json --json-out probe-materials.json
+      - name: Initialize the pinned native SDK GHCR reader for synthetic writes
+        env:
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ghcr_dir="$(python3 -m scripts.ci.ghcr_attestation_credentials ghcr-directory --directory "$DOCKER_CONFIG")"
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker --config "$ghcr_dir" login ghcr.io --username "$GHCR_USER" --password-stdin
+          python3 -m scripts.ci.ghcr_attestation_credentials install --directory "$DOCKER_CONFIG" --ghcr-config "$ghcr_dir/config.json"
       - name: Attest actual synthetic build
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
         with:
@@ -222,6 +245,48 @@ jobs:
           SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
         run: |
           set -euo pipefail
+          python3 - <<'PY_INCOMPLETE_CONTROL'
+          import hashlib, json, os
+          from pathlib import Path
+          from scripts.ci.check_pgvector_attestations import TYPES, read_json, tuple_records, validate_triple, verified_payloads
+
+          manifest = read_json(Path("probe-manifest.json"))
+          materials = read_json(Path("probe-materials.json"))
+          repo = os.environ["GITHUB_REPOSITORY"]
+          workflow = repo + "/.github/workflows/cd.yml"
+          ref = os.environ["GITHUB_REF"]
+          invocation = "https://github.com/" + repo + "/actions/runs/" + os.environ["GITHUB_RUN_ID"] + "/attempts/" + os.environ["GITHUB_RUN_ATTEMPT"]
+          expected = {"repository": repo, "source_sha": os.environ["SOURCE_SHA"],
+              "source_ref": ref, "signer_workflow": workflow, "run_invocation_uri": invocation}
+          if materials["source"] != expected:
+              raise SystemExit("Generated materials are not the exact current execution")
+          payloads = verified_payloads(manifest, repo, workflow, ref, present=TYPES[:2])
+          groups = tuple_records(payloads, manifest, repo, workflow, ref)
+          current = groups.get(json.dumps(expected, sort_keys=True))
+          if current is None or set(current["records"]) != set(TYPES[:2]):
+              raise SystemExit("Official verified native and materials records are not both present for the current execution")
+          signed_materials = current["records"][TYPES[1]][0]["verificationResult"]["statement"]["predicate"]
+          if signed_materials != materials:
+              raise SystemExit("Official verified materials differ from the generated exact recipe and SPDX hash")
+          try:
+              validate_triple(payloads, manifest, repo, workflow, ref,
+                  source_sha=expected["source_sha"], run_invocation_uri=invocation)
+          except ValueError as error:
+              if str(error) != "No complete eligible original-build tuple; source SHA/content/inventory HOLD":
+                  raise
+          else:
+              raise SystemExit("Verified two-record tuple unexpectedly accepted before SPDX")
+          evidence = {
+              "original_build": expected, "native_and_materials_verified": True,
+              "exact_generated_materials_verified": True, "incomplete_membership_rejected": True,
+              "asset_type": "native_verified_incomplete_tuple_control",
+              "upstream_assets": [{"path": name, "sha256": hashlib.sha256(Path(name).read_bytes()).hexdigest()}
+                  for name in ("probe-manifest.json", "probe-materials.json")],
+              "policy_version": "original-build-three-records-v1", "idempotency_key": invocation,
+              "replay_admission": "Fresh current-execution negative control only; no publication or deployment authority"}
+          evidence["fingerprint"] = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+          Path("probe-incomplete-control.json").write_text(json.dumps(evidence, sort_keys=True) + "\n")
+          PY_INCOMPLETE_CONTROL
           if python3 scripts/ci/check_pgvector_attestations.py verify \
               --manifest probe-manifest.json --source-ref "$GITHUB_REF" --source-sha "$SOURCE_SHA" \
               --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"; then
@@ -342,25 +407,27 @@ jobs:
           PY_SIGNATURE_EVIDENCE
       - name: Retain native external probe evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: postgres-synthetic-attestation-probe
           path: probe*.json
       - name: Logout probe registry
         if: always()
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
         run: |
-          set -euo pipefail
-          case "${DOCKER_CONFIG:-}" in
-            "${RUNNER_TEMP}"/pulseplate-attestation-probe-auth.*)
-              test -d "$DOCKER_CONFIG" && test ! -L "$DOCKER_CONFIG"
-              docker --config "$DOCKER_CONFIG" logout ghcr.io
-              if [ -e "$DOCKER_CONFIG/config.json" ]; then
-                test -f "$DOCKER_CONFIG/config.json" && test ! -L "$DOCKER_CONFIG/config.json"
-                rm -- "$DOCKER_CONFIG/config.json"
-              fi
-              rmdir -- "$DOCKER_CONFIG"
-              ;;
-            *) echo "Synthetic probe credential context is unknown; HOLD" >&2; exit 1 ;;
+          set -u
+          cleanup_failed=0
+          if [ -n "${DOCKER_CONFIG:-}" ]; then
+            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
+            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
+          fi
+          case "$PRIMARY_JOB_STATUS" in
+            success) exit "$cleanup_failed" ;;
+            failure | cancelled)
+              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
+              exit 0 ;;
+            *) exit 1 ;;
           esac
 
   prometheus-image-security:
@@ -1238,6 +1305,7 @@ jobs:
           printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           chmod 700 "$credential_dir"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$credential_dir"
           mkdir -m 700 "$credential_dir/cli-plugins"
           buildx_path="$credential_dir/cli-plugins/docker-buildx"
           : "${BUILDX_VERSION:?Buildx version is required}"
@@ -2058,6 +2126,16 @@ jobs:
             --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
             --json-out postgres-pgvector-inventory.json
 
+      - name: Initialize the pinned native SDK GHCR reader for PostgreSQL writes
+        env:
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ghcr_dir="$(python3 -m scripts.ci.ghcr_attestation_credentials ghcr-directory --directory "$DOCKER_CONFIG")"
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker --config "$ghcr_dir" login ghcr.io --username "$GHCR_USER" --password-stdin
+          python3 -m scripts.ci.ghcr_attestation_credentials install --directory "$DOCKER_CONFIG" --ghcr-config "$ghcr_dir/config.json"
       - name: Attest actual PostgreSQL pgvector build provenance
         if: steps.pgvector-attestation-inventory.outputs.provenance_mode == 'create'
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
@@ -2321,7 +2399,9 @@ jobs:
               continue
             fi
             if valid_temp_dir "$temp_dir" "$slot"; then
-              if ! rm -rf -- "$temp_dir"; then
+              if [ "$slot" = docker-config ]; then
+                if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$temp_dir"; then cleanup_failed=1; fi
+              elif ! rm -rf -- "$temp_dir"; then
                 cleanup_failed=1
               fi
             else
@@ -3011,7 +3091,7 @@ jobs:
             echo "native_attestation_helper_sha256=$(sha256sum scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)"
             echo "postgres_hba_sha256=$(sha256sum deploy/postgres-pgvector/pg_hba.conf | cut -d' ' -f1)"
             echo "staging_storage_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)"
-            echo "staging_backup_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)"
+            echo "staging_backup_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-postgres-backup.service.example | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify remote staging deploy contract

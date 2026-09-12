@@ -26,11 +26,24 @@ from scripts.ci import check_docker_provenance_attestation as redactor
 
 LABEL = "io.pulseplate.staging-native-probe"
 USER = "pulseplate_probe"
-DATABASE = "pulseplate_probe"
+DATABASE = "pulseplate_probe_db"
 
 
 class ProbeError(ValueError):
     """A bounded native experiment failed."""
+
+
+def diagnostic_detail(value: bytes, secrets: tuple[str, ...] = (), limit: int = 500) -> str:
+    text = value.decode(errors="replace")
+    for secret in secrets:
+        text = text.replace(secret, "[redacted-probe-secret]")
+    text = re.sub(
+        r"-----BEGIN (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?(?:-----END (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----|$)",
+        "[redacted-private-key]",
+        text,
+    )
+    text = redactor._redact_sensitive_text(text)
+    return text[:limit].replace("\r", "\\r").replace("\n", "\\n")
 
 
 def native(
@@ -53,13 +66,7 @@ def native(
     )
     if required and result.returncode:
         # Native stderr only; never binary stdout, the complete argv or environment.
-        stderr = result.stderr.decode(errors="replace")
-        stderr = re.sub(
-            r"-----BEGIN (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?(?:-----END (?:RSA |EC |ENCRYPTED )?PRIVATE KEY-----|$)",
-            "[redacted-private-key]",
-            stderr,
-        )
-        detail = redactor._trim_for_error(stderr)
+        detail = diagnostic_detail(result.stderr)
         operation = " ".join(arguments[:2])
         raise ProbeError(f"Native {operation} rejected (exit {result.returncode}): {detail}")
     return result
@@ -76,13 +83,8 @@ def selected_contract(rendered: object, manifest: dict[str, Any]) -> dict[str, A
     ):
         raise ProbeError("Rendered PostgreSQL image differs from the selected immutable manifest")
     command = postgres.get("command")
-    if (
-        not isinstance(command, list)
-        or not command
-        or command[0] != "postgres"
-        or any(not isinstance(item, str) for item in command)
-    ):
-        raise ProbeError("Rendered PostgreSQL command is malformed")
+    if command != source.POSTGRES_COMMAND:
+        raise ProbeError("Rendered PostgreSQL command differs from the admitted TLS arguments")
     mounts = postgres.get("volumes")
     if not isinstance(mounts, list):
         raise ProbeError("Rendered PostgreSQL mounts missing")
@@ -326,6 +328,7 @@ def query(
 
 def wait_database(container: str, verified: bool = True) -> None:
     deadline = time.monotonic() + 60
+    last_query = "No readiness query completed"
     while time.monotonic() < deadline:
         result = (
             query(container, "SELECT 1", required=False)
@@ -348,8 +351,62 @@ def wait_database(container: str, verified: bool = True) -> None:
         )
         if result.returncode == 0:
             return
+        last_query = f"exit={result.returncode} stderr={diagnostic_detail(result.stderr)}"
         time.sleep(1)
-    raise ProbeError("Native PostgreSQL startup did not reach the bounded readiness condition")
+    raise ProbeError(
+        "Native PostgreSQL startup did not reach the bounded readiness condition; " + last_query
+    )
+
+
+def diagnose_container(container: str, owner: str, secrets: tuple[str, ...]) -> None:
+    """Read only this invocation's container, without full inspect/env/argv output."""
+    inspected = native(
+        [
+            "docker",
+            "container",
+            "inspect",
+            "--format",
+            '{{json (index .Config.Labels "' + LABEL + '")}}',
+            container,
+        ],
+        required=False,
+        timeout=10,
+    )
+    if inspected.returncode or source._read_json(inspected.stdout.decode()) != owner:
+        print(
+            "native-staging diagnostics unavailable: container ownership unconfirmed",
+            file=sys.stderr,
+        )
+        return
+    state = native(
+        [
+            "docker",
+            "container",
+            "inspect",
+            "--format",
+            '{"status":{{json .State.Status}},"running":{{json .State.Running}},'
+            '"oom_killed":{{json .State.OOMKilled}},"exit_code":{{json .State.ExitCode}},'
+            '"error":{{json .State.Error}}}',
+            container,
+        ],
+        required=False,
+        timeout=10,
+    )
+    logs = native(["docker", "logs", "--tail", "64", container], required=False, timeout=10)
+    for name, result, limit in (("state", state, 1500), ("logs", logs, 8000)):
+        print(
+            "native-staging diagnostic="
+            + name
+            + " "
+            + json.dumps(
+                {
+                    "exit_code": result.returncode,
+                    "output": diagnostic_detail(result.stdout + result.stderr, secrets, limit),
+                }
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def crash_at_transaction_barrier(container: str, owner: str) -> None:
@@ -423,6 +480,375 @@ def cleanup(resources: dict[str, list[str]], owner: str) -> None:
         raise ProbeError("Owned native cleanup rejected: " + ", ".join(errors))
 
 
+def compose_project(
+    directory: Path, contract: dict[str, Any], prefix: str, owner: str, secrets: Path
+) -> Path:
+    """Give the actual ops wrappers a native Compose service on disposable storage."""
+    document = {
+        "name": prefix,
+        "services": {
+            "postgres": {
+                "container_name": prefix + "-db",
+                "image": contract["image"],
+                "platform": contract["platform"],
+                "command": contract["command"],
+                "labels": {LABEL: owner},
+                "cap_drop": ["ALL"],
+                "security_opt": ["no-new-privileges:true"],
+                "mem_limit": "512m",
+                "cpus": 1,
+                "pids_limit": 256,
+                "environment": {
+                    "POSTGRES_DB": DATABASE,
+                    "POSTGRES_USER": USER,
+                    "POSTGRES_PASSWORD_FILE": str(Path("/run/secrets") / "postgres_password"),
+                    "PGDATA": contract["pgdata"],
+                },
+                "volumes": [
+                    {"type": "volume", "source": "data", "target": contract["data_target"]},
+                    {
+                        "type": "bind",
+                        "source": str(secrets),
+                        "target": "/run/secrets",
+                        "read_only": True,
+                    },
+                    {
+                        "type": "bind",
+                        "source": contract["hba"],
+                        "target": "/etc/postgresql/pg_hba.conf",
+                        "read_only": True,
+                    },
+                ],
+                "networks": {"database": {"aliases": ["postgres"]}},
+            }
+        },
+        "volumes": {"data": {"external": True, "name": prefix + "-data"}},
+        "networks": {"database": {"external": True, "name": prefix + "-network"}},
+    }
+    compose_file = directory / "compose.native.json"
+    compose_file.write_text(json.dumps(document, sort_keys=True))
+    return compose_file
+
+
+def wrapper_restore_checks(
+    root: Path, directory: Path, container: str, owner: str, compose_file: Path
+) -> dict[str, bool]:
+    """Exercise real wrappers against the invocation-owned generic Compose DB.
+
+    Wrappers use the configured local socket, matching deployed scripts.
+    query() independently proves network verify-full; no DigitalOcean or
+    wrapper network-session claim is authored by these controls.
+    """
+    if USER == DATABASE or re.fullmatch(r"[0-9a-f]{32}", owner) is None:
+        raise ProbeError("Wrapper fixture requires distinct role/database and a native owner")
+    docker = shutil.which("docker")
+    if docker is None:
+        raise ProbeError("Native wrapper Docker executable unavailable")
+    backups = directory / "wrapper-backups"
+    backups.mkdir(mode=0o700)
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("PG")
+        and key
+        not in ("COMPOSE_PROJECT_NAME", "COMPOSE_PROFILES", "COMPOSE_FILE", "COMPOSE_ENV_FILES")
+    }
+    environment.update(
+        {
+            "PROJECT_DIR": str(directory),
+            "COMPOSE_FILE": str(compose_file),
+            "BACKUP_DIR": str(backups),
+            "POSTGRES_USER": USER,
+            "POSTGRES_DB": DATABASE,
+            "ENV_FILE": "/dev/null",
+            "DOCKER_BIN": docker,
+        }
+    )
+    suffix = owner[:16]
+    primary: BaseException | None = None
+    results: dict[str, bool] = {}
+    source_select = "SELECT count(*)::text || ':' || min(payload) FROM public.staging_probe"
+    source_expected = query(container, source_select).stdout.decode().strip()
+    if not source_expected.startswith("1:"):
+        raise ProbeError("Wrapper fixture lacks the observed source sentinel")
+
+    def backup() -> Path:
+        before = set(backups.glob("pulseplate_*.dump"))
+        completed = native(
+            ["bash", str(root / "scripts/ops/postgres_backup.sh")],
+            timeout=120,
+            environment=environment,
+        )
+        created = set(backups.glob("pulseplate_*.dump")) - before
+        if len(created) != 1:
+            raise ProbeError("Actual backup wrapper publication is ambiguous")
+        path = created.pop()
+        metadata = path.lstat()
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or metadata.st_nlink != 1
+            or metadata.st_mode & 0o777 != 0o600
+            or not 0 < metadata.st_size <= 64 * 1024**2
+            or completed.stdout.decode().strip() != "Backup created: " + str(path)
+            or list(backups.glob(".pulseplate-backup.*"))
+        ):
+            raise ProbeError("Actual backup wrapper did not publish one private complete archive")
+        native(
+            ["docker", "exec", "-i", container, "pg_restore", "--file=/dev/null"], path.read_bytes()
+        )
+        return path
+
+    def restore(
+        mode: str, target: str, path: Path, required: bool = True
+    ) -> subprocess.CompletedProcess[bytes]:
+        return native(
+            ["bash", str(root / "scripts/ops/postgres_restore.sh"), mode, target, str(path)],
+            timeout=120,
+            required=required,
+            environment=environment,
+        )
+
+    def target_query(target: str, sql: str, variables: dict[str, str] | None = None) -> str:
+        return (
+            query(container, sql, connection(target), variables=variables).stdout.decode().strip()
+        )
+
+    def create_old_target(target: str) -> None:
+        native(
+            [
+                "docker",
+                "exec",
+                container,
+                "createdb",
+                "-U",
+                USER,
+                "--maintenance-db",
+                DATABASE,
+                "--owner",
+                USER,
+                target,
+            ]
+        )
+        target_query(
+            target,
+            "CREATE TABLE public.wrapper_original(id integer PRIMARY KEY,payload text NOT NULL); "
+            "INSERT INTO public.wrapper_original VALUES(1,:'old_payload'); "
+            "CREATE TABLE public.wrapper_extra(id integer); "
+            "CREATE VIEW public.wrapper_stale_view AS SELECT * FROM public.wrapper_original; "
+            "CREATE FUNCTION public.wrapper_stale_fn() RETURNS integer LANGUAGE sql AS 'SELECT 7';",
+            variables={"old_payload": "old_" + suffix},
+        )
+
+    def old_snapshot(target: str) -> str:
+        return target_query(
+            target,
+            "SELECT count(*)::text || ':' || min(payload) FROM public.wrapper_original; "
+            "SELECT to_regclass('public.wrapper_extra') IS NOT NULL, "
+            "to_regclass('public.wrapper_stale_view') IS NOT NULL, "
+            "to_regprocedure('public.wrapper_stale_fn()') IS NOT NULL, "
+            "to_regclass('public.staging_probe') IS NULL;",
+        )
+
+    def assert_replaced(target: str) -> None:
+        if target_query(target, source_select) != source_expected:
+            raise ProbeError("Actual replacement lost the source sentinel")
+        if (
+            target_query(
+                target,
+                "SELECT to_regclass('public.wrapper_original') IS NULL, "
+                "to_regclass('public.wrapper_extra') IS NULL, "
+                "to_regclass('public.wrapper_stale_view') IS NULL, "
+                "to_regprocedure('public.wrapper_stale_fn()') IS NULL; "
+                "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;",
+            )
+            != "t|t|t|t\nstaging_probe"
+        ):
+            raise ProbeError("Actual replacement retained stale public objects or wrong tables")
+        if list(backups.glob(".pulseplate-restore.*")):
+            raise ProbeError("Actual replacement left private temporary SQL residue")
+
+    def schema_shape(path: Path, expected: str) -> None:
+        contents = native(
+            ["docker", "exec", "-i", container, "pg_restore", "--list"], path.read_bytes()
+        ).stdout.decode()
+        sql = native(
+            ["docker", "exec", "-i", container, "pg_restore", "--clean", "--if-exists", "--file=-"],
+            path.read_bytes(),
+        ).stdout.decode()
+        has_record = (
+            re.search(r"^\d+; \d+ \d+ SCHEMA - public ", contents, re.MULTILINE) is not None
+        )
+        has_create = re.search(r"^CREATE SCHEMA public;$", sql, re.MULTILINE) is not None
+        if (has_record, has_create) != {
+            "omitted": (False, False),
+            "metadata-only": (True, False),
+            "definition": (True, True),
+        }[expected]:
+            raise ProbeError(
+                "Native public schema shape differs from its required observed control"
+            )
+
+    try:
+        query(container, "ALTER SCHEMA public OWNER TO pg_database_owner;")
+        default_dump = backup()
+        schema_shape(default_dump, "omitted")
+        results["wrapper_backup_private_archive_verified"] = True
+        if (
+            query(
+                container,
+                "SELECT count(*) FROM pg_database WHERE datname=:'role';",
+                variables={"role": USER},
+            )
+            .stdout.decode()
+            .strip()
+            != "0"
+        ):
+            raise ProbeError(
+                "Role-name database exists; maintenance negative boundary not exercised"
+            )
+        verify_target = "pulseplate_restore_check_wrapper_" + suffix
+        restore("--verify-into", verify_target, default_dump)
+        if target_query(verify_target, source_select) != source_expected:
+            raise ProbeError("Actual isolated wrapper restore sentinel mismatch")
+        if restore("--verify-into", verify_target, default_dump, required=False).returncode == 0:
+            raise ProbeError("Actual verification wrapper replaced its pre-existing target")
+        if target_query(verify_target, source_select) != source_expected:
+            raise ProbeError("Rejected duplicate verification mutated the target")
+        results["wrapper_verify_maintenance_distinct_role"] = True
+
+        query(container, "ALTER SCHEMA public OWNER TO " + USER + ";")
+        metadata_dump = backup()
+        schema_shape(metadata_dump, "metadata-only")
+        explicit_dump = backups / "explicit-public.dump"
+        explicit_bytes = native(
+            [
+                "docker",
+                "exec",
+                container,
+                "pg_dump",
+                "-U",
+                USER,
+                "-d",
+                DATABASE,
+                "-Fc",
+                "--schema=public",
+            ]
+        ).stdout
+        if not 0 < len(explicit_bytes) <= 64 * 1024**2:
+            raise ProbeError("Explicit schema fixture exceeds native archive bounds")
+        with explicit_dump.open("xb") as handle:
+            handle.write(explicit_bytes)
+        explicit_dump.chmod(0o600)
+        schema_shape(explicit_dump, "definition")
+        query(container, "ALTER SCHEMA public OWNER TO pg_database_owner;")
+        for shape, archive in (
+            ("omitted", default_dump),
+            ("metadata-only", metadata_dump),
+            ("definition", explicit_dump),
+        ):
+            target = "pulseplate_wrapper_" + shape.replace("-", "_") + "_" + suffix
+            create_old_target(target)
+            restore("--replace-existing", target, archive)
+            assert_replaced(target)
+            results["wrapper_replacement_schema_" + shape.replace("-", "_")] = True
+        results["wrapper_replacement_stale_public_objects_removed"] = True
+
+        # Build an index while the immutable function succeeds, then change its
+        # body. The complete archive decodes; rebuilding the post-data index
+        # invokes the new body and raises after schema/data restoration begins.
+        query(
+            container,
+            "CREATE FUNCTION public.wrapper_restore_key(text) RETURNS integer LANGUAGE plpgsql IMMUTABLE "
+            "AS $$ BEGIN RETURN 1; END; $$; "
+            "CREATE INDEX wrapper_restore_failure_idx ON public.staging_probe ((public.wrapper_restore_key(payload))); "
+            "CREATE OR REPLACE FUNCTION public.wrapper_restore_key(text) RETURNS integer LANGUAGE plpgsql IMMUTABLE "
+            "AS $$ BEGIN RAISE EXCEPTION 'synthetic restore index failure'; END; $$;",
+        )
+        failing_dump = backup()
+        query(
+            container,
+            "DROP INDEX public.wrapper_restore_failure_idx; DROP FUNCTION public.wrapper_restore_key(text);",
+        )
+        rollback_target = "pulseplate_wrapper_rollback_" + suffix
+        create_old_target(rollback_target)
+        before = old_snapshot(rollback_target)
+        failed = restore("--replace-existing", rollback_target, failing_dump, required=False)
+        if (
+            failed.returncode == 0
+            or b"synthetic restore index failure" not in failed.stderr
+            or b"Restore completed" in failed.stdout
+            or old_snapshot(rollback_target) != before
+            or list(backups.glob(".pulseplate-restore.*"))
+        ):
+            raise ProbeError("Actual late SQL failure did not roll the replacement back exactly")
+        results["wrapper_replacement_late_sql_failure_rolled_back"] = True
+
+        query(
+            container,
+            "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); INSERT INTO private_wrapper.hidden VALUES(9);",
+        )
+        nonpublic_dump = backup()
+        query(container, "DROP SCHEMA private_wrapper CASCADE;")
+        hold_target = "pulseplate_wrapper_hold_" + suffix
+        create_old_target(hold_target)
+        before = old_snapshot(hold_target)
+        held = restore("--replace-existing", hold_target, nonpublic_dump, required=False)
+        if (
+            held.returncode == 0
+            or b"archive contains unsupported" not in held.stderr
+            or old_snapshot(hold_target) != before
+        ):
+            raise ProbeError(
+                "Actual non-public source archive was not rejected before target mutation"
+            )
+        results["wrapper_nonpublic_source_hold"] = True
+        target_query(
+            hold_target,
+            "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); INSERT INTO private_wrapper.hidden VALUES(9);",
+        )
+        held = restore("--replace-existing", hold_target, default_dump, required=False)
+        if (
+            held.returncode == 0
+            or b"target contains unsupported" not in held.stderr
+            or old_snapshot(hold_target) != before
+            or target_query(hold_target, "SELECT id FROM private_wrapper.hidden;") != "9"
+            or list(backups.glob(".pulseplate-restore.*"))
+        ):
+            raise ProbeError(
+                "Actual non-public target was not held with all original data retained"
+            )
+        results["wrapper_nonpublic_target_hold"] = True
+    except BaseException as error:
+        primary = error
+    finally:
+        cleanup_error: BaseException | None = None
+        try:
+            repaired = query(
+                container,
+                "DROP INDEX IF EXISTS public.wrapper_restore_failure_idx; "
+                "DROP FUNCTION IF EXISTS public.wrapper_restore_key(text); "
+                "DROP SCHEMA IF EXISTS private_wrapper CASCADE; "
+                "ALTER SCHEMA public OWNER TO pg_database_owner;",
+                required=False,
+            )
+            if repaired.returncode:
+                cleanup_error = ProbeError("Owned wrapper source cleanup failed")
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            cleanup_error = error
+        if cleanup_error is not None:
+            if primary is None:
+                primary = cleanup_error
+            else:
+                print(
+                    "Owned wrapper source cleanup also failed; primary failure preserved",
+                    file=sys.stderr,
+                )
+    if primary is not None:
+        raise primary
+    return results
+
+
 def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
     owner = uuid.uuid4().hex
     prefix = "pulseplate-staging-native-" + owner[:16]
@@ -431,10 +857,13 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
     resources = {"container": [container, *tools], "volume": [volume], "network": [network]}
     primary: BaseException | None = None
     key_ownership_attempted = False
+    database_start_attempted = False
+    sensitive_values: tuple[str, ...] = ()
     result: dict[str, Any] = {}
     directory = tempfile.mkdtemp(prefix="pulseplate-staging-native-")
     try:
         secrets = create_pki(Path(directory))
+        sensitive_values = ((secrets / "postgres_password").read_text(),)
         fingerprint = (
             native(
                 [
@@ -495,47 +924,21 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
             tools[0],
             "chown 70:70 /k /k/*; chmod 0700 /k; chmod 0600 /k/postgres_server_key /k/postgres_pgpass /k/postgres_password; chmod 0444 /k/postgres_ca /k/postgres_server_crt /k/wrong_ca /k/expired_server_crt",
         )
+        compose_file = compose_project(Path(directory), contract, prefix, owner, secrets)
+        database_start_attempted = True
         native(
             [
                 "docker",
-                "run",
+                "compose",
+                "--project-directory",
+                directory,
+                "-f",
+                str(compose_file),
+                "up",
                 "--detach",
-                "--name",
-                container,
-                "--label",
-                f"{LABEL}={owner}",
-                "--platform",
-                contract["platform"],
-                "--network",
-                network,
-                "--network-alias",
+                "--pull",
+                "never",
                 "postgres",
-                "--memory",
-                "512m",
-                "--cpus",
-                "1",
-                "--pids-limit",
-                "256",
-                "--cap-drop",
-                "ALL",
-                "--security-opt",
-                "no-new-privileges:true",
-                "--env",
-                f"POSTGRES_DB={DATABASE}",
-                "--env",
-                f"POSTGRES_USER={USER}",
-                "--env",
-                "POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password",
-                "--env",
-                f"PGDATA={contract['pgdata']}",
-                "--mount",
-                f"type=volume,source={volume},target={contract['data_target']}",
-                "--mount",
-                f"type=bind,source={secrets},target=/run/secrets,readonly",
-                "--mount",
-                f"type=bind,source={contract['hba']},target=/etc/postgresql/pg_hba.conf,readonly",
-                contract["image"],
-                *contract["command"],
             ]
         )
         print("native-staging phase=TLS-and-pgvector", flush=True)
@@ -655,6 +1058,10 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
         )
         if query(container, select, connection(target)).stdout.decode().strip() != expected:
             raise ProbeError("Isolated native restore sentinel/count differs from source")
+        print("native-staging phase=actual-backup-replacement-and-rollback", flush=True)
+        wrapper_results = wrapper_restore_checks(
+            root, Path(directory), container, owner, compose_file
+        )
         print("native-staging phase=TLS-negative-controls", flush=True)
         for label, conn in (
             ("plaintext", connection(sslmode="disable")),
@@ -687,6 +1094,7 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
             "same_volume_restart": True,
             "process_crash_committed_survives_uncommitted_rolls_back": True,
             "isolated_restore_sentinel_count_equal": True,
+            "actual_ops_wrappers": wrapper_results,
             "pgvector_cast": True,
             "rejected": [
                 "plaintext",
@@ -711,6 +1119,8 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
                         root / "deploy/docker-compose.staging.yaml",
                         Path(contract["hba"]),
                         Path(__file__),
+                        root / "scripts/ops/postgres_backup.sh",
+                        root / "scripts/ops/postgres_restore.sh",
                     )
                 ],
                 "policy_version": "staging-native-runtime-v1",
@@ -724,6 +1134,14 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
     except BaseException as error:
         primary = error
     finally:
+        if primary is not None and database_start_attempted:
+            try:
+                diagnose_container(container, owner, sensitive_values)
+            except (ValueError, OSError, subprocess.SubprocessError):
+                print(
+                    "Native diagnostic collection failed; primary failure preserved",
+                    file=sys.stderr,
+                )
         try:
             cleanup(resources, owner)
         except (ValueError, OSError, subprocess.SubprocessError) as error:

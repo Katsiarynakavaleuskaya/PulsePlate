@@ -29,6 +29,8 @@ import sys
 import pytest
 
 import yaml
+from scripts.ci import ghcr_attestation_credentials as credentials
+from scripts.ci import check_pgvector_attestations as pgvector
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -52,6 +54,203 @@ PRODUCTION_ATTESTATION_STEP_IDS = (
 def _load_cd_workflow() -> dict[str, object]:
     """Load and parse the CD workflow YAML."""
     return yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_restores_original(
+    tmp_path: Path, present: bool
+) -> None:
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "pulseplate-attestation-probe-auth.test"
+    private.mkdir(mode=0o700)
+    credentials.capture(private, runner)
+    (private / "config.json").write_text('{"auths":{"dhi.io":{"auth":"private-dhi"}}}')
+    (private / "config.json").chmod(0o600)
+    default = tmp_path / "home" / ".docker"
+    default.parent.mkdir()
+    original = b'{"auths":{"elsewhere":{"auth":"original"}},"credsStore":"original-reader"}\n'
+    if present:
+        default.mkdir(mode=0o700)
+        (default / "config.json").write_bytes(original)
+        (default / "config.json").chmod(0o600)
+    login = credentials.ghcr_directory(private) / "config.json"
+    login.write_text('{"auths":{"ghcr.io":{"auth":"nonsecret-native-login"}}}')
+    login.chmod(0o600)
+    credentials.install(private, login, default)
+    # Same fixed location as the retained pinned SDK reader; this is fixture evidence.
+    assert json.loads((default / "config.json").read_text())["auths"] == {
+        "ghcr.io": {"auth": "nonsecret-native-login"}
+    }
+    assert "dhi.io" in (private / "config.json").read_text()
+    nested = private / "buildx" / "instances"
+    nested.mkdir(parents=True)
+    (nested / "native-metadata").write_text("owned")
+    sentinel = tmp_path / "unrelated"
+    sentinel.write_text("preserve")
+    (private / "interior-link").symlink_to(sentinel)
+    credentials.cleanup(private)
+    assert not private.exists() and sentinel.read_text() == "preserve"
+    if present:
+        assert (default / "config.json").read_bytes() == original
+        assert (default / "config.json").stat().st_mode & 0o777 == 0o600
+    else:
+        assert not default.exists()
+
+
+@pytest.mark.parametrize(
+    "fault", ["external_change", "symlink", "hardlink", "foreign_root", "helper_only", "dhi_source"]
+)
+def test_native_credential_bridge_fails_closed_and_preserves_original_on_ambiguity(
+    tmp_path: Path, fault: str
+) -> None:
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "pulseplate-pgvector-docker-config.test"
+    private.mkdir(mode=0o700)
+    credentials.capture(private, runner)
+    default = tmp_path / ".docker"
+    default.mkdir(mode=0o700)
+    target = default / "config.json"
+    target.write_text("original-bytes")
+    target.chmod(0o600)
+    login = credentials.ghcr_directory(private) / "config.json"
+    login.write_text('{"auths":{"ghcr.io":{"auth":"native"}}}')
+    login.chmod(0o600)
+    if fault in ("helper_only", "dhi_source"):
+        login.write_text(
+            '{"credsStore":"external"}'
+            if fault == "helper_only"
+            else '{"auths":{"ghcr.io":{"auth":"native"},"dhi.io":{"auth":"private"}}}'
+        )
+    elif fault == "symlink":
+        target.unlink()
+        target.symlink_to(login)
+    elif fault == "hardlink":
+        (default / "other").hardlink_to(target)
+    elif fault == "foreign_root":
+        private.chmod(0o755)
+    if fault != "external_change":
+        with pytest.raises(ValueError):
+            credentials.install(private, login, default)
+    else:
+        credentials.install(private, login, default)
+        target.write_text("external-owned-change")
+        with pytest.raises(ValueError):
+            credentials.cleanup(private)
+        assert (private / ".original-docker-config").read_text() == "original-bytes"
+        assert target.read_text() == "external-owned-change"
+
+
+def test_sdk_bridge_and_owned_cleanup_are_shared_by_two_actual_writers() -> None:
+    workflow = _load_cd_workflow()
+    for job in ("postgres-synthetic-attestation-probe", "postgres-pgvector-publish"):
+        steps = workflow["jobs"][job]["steps"]
+        text = json.dumps(steps)
+        assert "ghcr_attestation_credentials capture" in text
+        assert "ghcr_attestation_credentials install" in text
+        assert "ghcr_attestation_credentials cleanup" in text
+        bridge = next(
+            step
+            for step in steps
+            if step.get("name", "").startswith("Initialize the pinned native SDK")
+        )
+        assert 'docker --config "$ghcr_dir" login ghcr.io' in bridge["run"]
+        assert "dhi.io" not in bridge["run"]
+        assert "HOME=" not in text
+
+
+def test_native_sdk_interrupted_install_restores_before_private_backup_deletion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "pulseplate-attestation-probe-auth.test"
+    private.mkdir(mode=0o700)
+    credentials.capture(private, runner)
+    default = tmp_path / ".docker"
+    default.mkdir(mode=0o700)
+    target = default / "config.json"
+    target.write_bytes(b"original-exact-bytes")
+    target.chmod(0o644)
+    generated = credentials.ghcr_directory(private) / "config.json"
+    generated.write_text('{"auths":{"ghcr.io":{"auth":"native"}}}')
+    generated.chmod(0o600)
+    replace = credentials.os.replace
+
+    def interrupt(source: Path, destination: Path) -> None:
+        if destination == target:
+            raise OSError("native installation interrupted before replacement")
+        replace(source, destination)
+
+    monkeypatch.setattr(credentials.os, "replace", interrupt)
+    with pytest.raises(OSError):
+        credentials.install(private, generated, default)
+    assert (private / ".original-docker-config").read_bytes() == b"original-exact-bytes"
+    credentials.cleanup(private)
+    assert target.read_bytes() == b"original-exact-bytes" and target.stat().st_mode & 0o777 == 0o644
+    assert not private.exists()
+
+
+@pytest.mark.parametrize(
+    "primary,logout,cleanup,expected",
+    [("success", 0, 0, 0), ("success", 1, 0, 1), ("success", 0, 1, 1), ("failure", 1, 1, 0)],
+)
+def test_native_cleanup_retains_primary_and_propagates_cleanup_only_failure(
+    primary: str, logout: int, cleanup: int, expected: int, tmp_path: Path
+) -> None:
+    workflow = _load_cd_workflow()
+    step = _step_by_name(
+        workflow["jobs"]["postgres-synthetic-attestation-probe"]["steps"], "Logout probe registry"
+    )
+    shell = shutil.which("bash")
+    assert shell is not None
+    program = (
+        'docker() { return "$LOGOUT"; }\npython3() { printf "attempted\\n" > "$MARKER"; return "$CLEANUP"; }\n'
+        + step["run"]
+    )
+    marker = tmp_path / "attempted"
+    process = subprocess.run(
+        [shell, "-c", program],
+        env={
+            **os.environ,
+            "DOCKER_CONFIG": "owned",
+            "PRIMARY_JOB_STATUS": primary,
+            "LOGOUT": str(logout),
+            "CLEANUP": str(cleanup),
+            "MARKER": str(marker),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert process.returncode == expected and marker.exists()
+
+
+@pytest.mark.parametrize("version,success", [("2.35.0", True), ("2.34.9", False), ("bad", False)])
+def test_native_job_declares_and_checks_compose_minimum_before_runtime(
+    version: str, success: bool
+) -> None:
+    workflow = _load_cd_workflow()
+    steps = workflow["jobs"]["staging-postgres-native-integration"]["steps"]
+    step = _step_by_name(
+        steps, "Execute real isolated PostgreSQL TLS crash restart and restore checks"
+    )
+    assert ">=2.35.0" in step["run"]
+    code = (
+        step["run"]
+        .split("python3 - <<'PY_COMPOSE_VERSION'\n", 1)[1]
+        .split("\nPY_COMPOSE_VERSION", 1)[0]
+    )
+    fake = (
+        'import subprocess, shutil\nshutil.which=lambda name: "/native/docker"\nsubprocess.check_output=lambda *args, **kwargs: '
+        + repr(version)
+        + "\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", fake + code], capture_output=True, text=True, check=False
+    )
+    assert (result.returncode == 0) is success
 
 
 def test_pgvector_native_and_distinct_materials_producers_are_conjunctive() -> None:
@@ -323,6 +522,166 @@ def test_cd_attestation_steps_remain_fail_closed() -> None:
                     assert (
                         "|| true" not in run_script
                     ), f"Step {name!r} in job {job_name!r} must not use || true"
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "auth_failure",
+        "missing_native",
+        "missing_materials",
+        "wrong_sha",
+        "wrong_attempt",
+        "wrong_materials",
+        "unexpected_validator_failure",
+        "validator_accepts_incomplete",
+    ],
+)
+def test_pre_spdx_control_requires_official_current_two_record_positive_proof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
+) -> None:
+    steps = _load_cd_workflow()["jobs"]["postgres-synthetic-attestation-probe"]["steps"]
+    control = _step_by_name(
+        steps, "Reject the exact current incomplete native and materials tuple before SPDX"
+    )["run"]
+    code = control.split("<<'PY_INCOMPLETE_CONTROL'\n", 1)[1].split("\nPY_INCOMPLETE_CONTROL", 1)[0]
+    assert control.index("PY_INCOMPLETE_CONTROL") < control.index("if python3")
+    assert "--run-invocation-uri" in control
+    assert (
+        steps.index(_step_by_name(steps, "Attest synthetic exact materials"))
+        < steps.index(
+            _step_by_name(
+                steps, "Reject the exact current incomplete native and materials tuple before SPDX"
+            )
+        )
+        < steps.index(_step_by_name(steps, "Attest synthetic SPDX"))
+    )
+    repo = "Katsiarynakavaleuskaya/PulsePlate"
+    ref = "refs/heads/codex/attestation-probe/" + "a" * 40
+    identity = {
+        "repository": repo,
+        "source_sha": "a" * 40,
+        "source_ref": ref,
+        "signer_workflow": repo + "/.github/workflows/cd.yml",
+        "run_invocation_uri": "https://github.com/" + repo + "/actions/runs/123/attempts/2",
+    }
+    manifest = {
+        "schema": "pulseplate.synthetic_attestation_probe.v1",
+        "repository": "ghcr.io/owner/probe",
+        "platform_manifest_digest": "sha256:" + "b" * 64,
+        "recipe": {"base": "scratch", "payload": "synthetic-attestation-probe-v1"},
+    }
+    materials = pgvector.materials_predicate(manifest, identity, "sha256:" + "c" * 64)
+    certificate = {
+        "sourceRepositoryDigest": identity["source_sha"],
+        "sourceRepositoryRef": ref,
+        "sourceRepositoryURI": "https://github.com/" + repo,
+        "buildSignerURI": "https://github.com/" + identity["signer_workflow"] + "@" + ref,
+        "runInvocationURI": identity["run_invocation_uri"],
+        "runnerEnvironment": "github-hosted",
+    }
+    payloads = {kind: [] for kind in pgvector.TYPES}
+    for kind, predicate in zip(
+        pgvector.TYPES[:2],
+        (
+            {"buildDefinition": {"buildType": "https://actions.github.io/buildtypes/workflow/v1"}},
+            materials,
+        ),
+    ):
+        payloads[kind] = [
+            {
+                "verificationResult": {
+                    "signature": {"certificate": copy.deepcopy(certificate)},
+                    "statement": {
+                        "_type": "https://in-toto.io/Statement/v1",
+                        "predicateType": kind,
+                        "subject": [
+                            {"name": manifest["repository"], "digest": {"sha256": "b" * 64}}
+                        ],
+                        "predicate": copy.deepcopy(predicate),
+                    },
+                }
+            }
+        ]
+    if fault == "missing_native":
+        payloads[pgvector.TYPES[0]] = []
+    if fault == "missing_materials":
+        payloads[pgvector.TYPES[1]] = []
+    if fault in ("wrong_sha", "wrong_attempt"):
+        for kind in pgvector.TYPES[:2]:
+            cert = payloads[kind][0]["verificationResult"]["signature"]["certificate"]
+            cert["sourceRepositoryDigest" if fault == "wrong_sha" else "runInvocationURI"] = (
+                "d" * 40
+                if fault == "wrong_sha"
+                else identity["run_invocation_uri"].replace("/attempts/2", "/attempts/1")
+            )
+    if fault == "wrong_materials":
+        payloads[pgvector.TYPES[1]][0]["verificationResult"]["statement"]["predicate"][
+            "spdx_sha256"
+        ] = ("sha256:" + "d" * 64)
+
+    def verified(
+        manifest_arg: dict, repo_arg: str, workflow: str, ref_arg: str, present: tuple
+    ) -> dict:
+        assert (manifest_arg, repo_arg, workflow, ref_arg, present) == (
+            manifest,
+            repo,
+            identity["signer_workflow"],
+            ref,
+            pgvector.TYPES[:2],
+        )
+        if fault == "auth_failure":
+            raise RuntimeError("official gh authentication rejected")
+        return payloads
+
+    monkeypatch.setattr(pgvector, "verified_payloads", verified)
+    if fault == "unexpected_validator_failure":
+
+        def rejected(*args: object, **kwargs: object) -> dict:
+            raise ValueError("unrelated validator failure")
+
+        monkeypatch.setattr(pgvector, "validate_triple", rejected)
+    if fault == "validator_accepts_incomplete":
+        monkeypatch.setattr(pgvector, "validate_triple", lambda *args, **kwargs: {})
+    monkeypatch.chdir(tmp_path)
+    for name, value in {
+        "GITHUB_REPOSITORY": repo,
+        "GITHUB_REF": ref,
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "SOURCE_SHA": identity["source_sha"],
+    }.items():
+        monkeypatch.setenv(name, value)
+    Path("probe-manifest.json").write_text(json.dumps(manifest))
+    Path("probe-materials.json").write_text(json.dumps(materials))
+    if fault:
+        with pytest.raises((SystemExit, RuntimeError, ValueError)):
+            exec(compile(code, "native-incomplete-control", "exec"), {})
+        assert not Path("probe-incomplete-control.json").exists()
+    else:
+        exec(compile(code, "native-incomplete-control", "exec"), {})
+        evidence = json.loads(Path("probe-incomplete-control.json").read_text())
+        import hashlib
+
+        fingerprint = evidence.pop("fingerprint")
+        assert (
+            fingerprint == hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+        )
+        assert evidence == {
+            "original_build": identity,
+            "native_and_materials_verified": True,
+            "exact_generated_materials_verified": True,
+            "incomplete_membership_rejected": True,
+            "asset_type": "native_verified_incomplete_tuple_control",
+            "upstream_assets": [
+                {"path": name, "sha256": hashlib.sha256(Path(name).read_bytes()).hexdigest()}
+                for name in ("probe-manifest.json", "probe-materials.json")
+            ],
+            "policy_version": "original-build-three-records-v1",
+            "idempotency_key": identity["run_invocation_uri"],
+            "replay_admission": "Fresh current-execution negative control only; no publication or deployment authority",
+        }
 
 
 @pytest.mark.parametrize("fault", [None, "empty_signature", "bad_base64", "multiple_signatures"])

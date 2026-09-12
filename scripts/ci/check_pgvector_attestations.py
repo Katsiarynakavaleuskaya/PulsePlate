@@ -39,6 +39,8 @@ HELPER_PATHS = (
     "tests/test_staging_security.py",
     "scripts/ci/check_staging_postgres_runtime.py",
     "tests/test_staging_postgres_runtime.py",
+    "scripts/ci/ghcr_attestation_credentials.py",
+    "deploy/systemd/pulseplate-staging-postgres-backup.service.example",
 )
 
 
@@ -398,9 +400,14 @@ def verified_payloads(
                 "--deny-self-hosted-runners",
                 "--format",
                 "json",
+                "--limit",
+                "100",
             ]
         )
-        payloads[kind] = loads(completed.stdout)
+        items = loads(completed.stdout)
+        if not isinstance(items, list) or len(items) >= 100:
+            raise ValueError("Verified predicate inventory malformed or bounded limit exhausted")
+        payloads[kind] = items
     return payloads
 
 
@@ -449,6 +456,19 @@ def selected(path: str, rules: tuple[str, ...]) -> bool:
 
 
 def material_changes(base: str, head: str) -> list[str]:
+    if base is None or head is None:
+        raise ValueError("Material comparison requires --base and --head")
+    for label, value in (("base", base), ("head", head)):
+        if re.fullmatch(r"[0-9a-f]{40}", value) is None:
+            raise ValueError(f"Material {label} must be a lowercase full SHA")
+    git_output(["cat-file", "-e", head + "^{commit}"])
+    if base == "0" * 40:
+        rules = material_rules(head)
+        return [
+            path.decode()
+            for path in git_output(["ls-tree", "-r", "--name-only", "-z", head]).split(b"\0")
+            if path and selected(path.decode(), rules)
+        ]
     rules = tuple(dict.fromkeys(material_rules(base) + material_rules(head)))
     # Independently enumerate both tracked trees: additions/deletions are admitted.
     universe: set[str] = set()
@@ -489,6 +509,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--head")
     args = parser.parse_args(argv)
     try:
+        if args.mode == "inventory" and args.inventory is None:
+            raise ValueError("Attestation inventory mode requires --inventory")
         if args.mode in ("changes", "unchanged"):
             changes = material_changes(args.base, args.head)
             if args.mode == "unchanged" and changes:

@@ -1939,6 +1939,43 @@ def _postgres_setup_program() -> str:
     )
 
 
+def _isolated_pgvector_credentials(root: Path, directory: Path | None = None) -> dict[str, str]:
+    """Execute the first-party adapter without repository or real HOME access."""
+    modules = root / "scripts" / "ci"
+    modules.mkdir(parents=True)
+    for filename in (
+        "ghcr_attestation_credentials.py",
+        "check_pgvector_attestations.py",
+        "check_docker_provenance_attestation.py",
+    ):
+        shutil.copyfile(REPO_ROOT / "scripts" / "ci" / filename, modules / filename)
+    home = root / "home"
+    default = home / ".docker"
+    default.mkdir(parents=True, mode=0o700)
+    (default / "config.json").write_bytes(b"unchanged default credentials\n")
+    (default / "config.json").chmod(0o600)
+    environment = {"HOME": str(home), "PYTHONPATH": "", "RUNNER_TEMP": str(root)}
+    if directory is not None:
+        directory.chmod(0o700)
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.ci.ghcr_attestation_credentials",
+                "capture",
+                "--directory",
+                str(directory),
+            ],
+            cwd=root,
+            env={**os.environ, **environment},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+    return environment
+
+
 @pytest.mark.parametrize(
     "fail_command",
     (
@@ -1962,10 +1999,10 @@ def test_postgres_setup_propagates_owned_context_between_processes(
     assert bash is not None
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    default_config = tmp_path / "default-docker"
-    default_config.mkdir()
+    isolated_environment = _isolated_pgvector_credentials(tmp_path)
+    default_config = Path(isolated_environment["HOME"]) / ".docker"
     sentinel = default_config / "config.json"
-    sentinel.write_text("unchanged default credentials", encoding="utf-8")
+    original_bytes, original_mode = sentinel.read_bytes(), stat.S_IMODE(sentinel.stat().st_mode)
     command_log = tmp_path / "docker.log"
     fixture_client = b"synthetic Buildx client bytes\n"
     _write_executable(
@@ -2023,6 +2060,7 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         ],
         BUILDKIT_VERSION=json.loads(POSTGRES_MANIFEST_PATH.read_bytes())["buildkit_version"],
     )
+    environment.update(isolated_environment)
     first = subprocess.run(
         [bash, "-c", _postgres_setup_program()],
         env=environment,
@@ -2063,10 +2101,18 @@ def test_postgres_setup_propagates_owned_context_between_processes(
     assert Path(selected).parent == tmp_path
     assert Path(selected).name.startswith("pulseplate-pgvector-docker-config.")
     assert all(line.split("|", 1)[0] == selected for line in command_log.read_text().splitlines())
-    assert sentinel.read_text() == "unchanged default credentials"
+    assert sentinel.read_bytes() == original_bytes
+    assert stat.S_IMODE(sentinel.stat().st_mode) == original_mode
     assert not Path(selected).exists()
     for secret in (environment["DHI_TOKEN"], environment["GHCR_TOKEN_VALUE"]):
-        assert secret not in first.stdout + first.stderr + command_log.read_text()
+        assert (
+            secret
+            not in first.stdout
+            + first.stderr
+            + second.stdout
+            + second.stderr
+            + command_log.read_text()
+        )
         assert secret not in env_file.read_text()
 
 
@@ -2111,11 +2157,13 @@ def test_cd_postgres_publish_cleanup_executes_primary_secondary_state_machine(
     docker_stub.chmod(0o700)
     credential_dir = tmp_path / "pulseplate-pgvector-docker-config.test"
     credential_dir.mkdir()
+    isolated_environment = _isolated_pgvector_credentials(tmp_path, credential_dir)
     completed = subprocess.run(
         [bash_bin, "-c", _postgres_publish_cleanup_program()],
         cwd=tmp_path,
         env={
             **os.environ,
+            **isolated_environment,
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "PRIMARY_JOB_STATUS": primary_status,
             "STUB_LOGOUT_STATUS": cleanup_status,
@@ -2134,6 +2182,10 @@ def test_cd_postgres_publish_cleanup_executes_primary_secondary_state_machine(
         check=False,
     )
     assert completed.returncode == expected_status
+    assert not credential_dir.exists()
+    assert (
+        Path(isolated_environment["HOME"]) / ".docker/config.json"
+    ).read_bytes() == b"unchanged default credentials\n"
     if primary_status != "success" and cleanup_status != "0":
         assert f"preserving primary {primary_status} result" in completed.stderr
 
@@ -2162,17 +2214,21 @@ def test_cd_postgres_publish_cleanup_accounts_for_bounded_rm_failure(
     rm_stub.chmod(0o700)
     credential_dir = tmp_path / "pulseplate-pgvector-docker-config.test"
     credential_dir.mkdir()
+    isolated_environment = _isolated_pgvector_credentials(tmp_path, credential_dir)
+    context_dir = tmp_path / "pulseplate-pgvector-context.test"
+    context_dir.mkdir()
     completed = subprocess.run(
         [bash_bin, "-c", _postgres_publish_cleanup_program()],
         cwd=tmp_path,
         env={
             **os.environ,
+            **isolated_environment,
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "PRIMARY_JOB_STATUS": primary_status,
             "RUNNER_TEMP": str(tmp_path),
             "PGVECTOR_RESOURCE_PREFIX": "",
             "PGVECTOR_BUILDX_BUILDER": "",
-            "PGVECTOR_CONTEXT_DIR": "",
+            "PGVECTOR_CONTEXT_DIR": str(context_dir),
             "PGVECTOR_OCI_OUTPUT_DIR": "",
             "PGVECTOR_TRIVY_DIR": "",
             "PGVECTOR_SCOUT_DIR": "",
@@ -2184,7 +2240,8 @@ def test_cd_postgres_publish_cleanup_accounts_for_bounded_rm_failure(
         check=False,
     )
     assert completed.returncode == expected_status
-    assert credential_dir.is_dir()
+    assert context_dir.is_dir()
+    assert not credential_dir.exists()
     if primary_status != "success":
         assert f"preserving primary {primary_status} result" in completed.stderr
 
@@ -2208,6 +2265,7 @@ def test_postgres_cleanup_distinguishes_inventory_failure_from_absence(
     log = tmp_path / "commands"
     config = tmp_path / "pulseplate-pgvector-docker-config.test"
     config.mkdir()
+    isolated_environment = _isolated_pgvector_credentials(tmp_path, config)
     scout = tmp_path / "pulseplate-pgvector-scout.test"
     scout.mkdir()
     _write_executable(
@@ -2229,6 +2287,7 @@ def test_postgres_cleanup_distinguishes_inventory_failure_from_absence(
         cwd=tmp_path,
         env={
             **os.environ,
+            **isolated_environment,
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
             "COMMAND_LOG": str(log),
             "INVENTORY_STATUS": str(inventory_status),
@@ -3251,13 +3310,26 @@ FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
         contract_responses = f"""case \"$*\" in
+  *pg_restore\\ --list\\ --exclude-schema=public*)
+    printf '%s\\n' "${{STUB_ARCHIVE_OUTSIDE_PUBLIC:-}}"
+    ;;
   *pg_restore\\ --list*)
     if [ "${{STUB_PG_RESTORE_LIST_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_LIST_STATUS}}"; fi
-    printf '214; 1259 16387 TABLE public items user\\n'
+    printf '%s\\n' "${{STUB_ARCHIVE_LIST:-214; 1259 16387 TABLE public items user}}"
     ;;
   *pg_restore\\ --file=/dev/null*)
     if [ "${{STUB_PG_RESTORE_BODY_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_BODY_STATUS}}"; fi
     cat >/dev/null
+    ;;
+  *pg_restore\\ --clean\\ --if-exists\\ --file=-*)
+    printf '%s\\n' "${{STUB_RESTORE_SQL:-CREATE TABLE public.items(id integer);}}"
+    exit "${{STUB_RESTORE_RENDER_STATUS:-0}}"
+    ;;
+  *psql*pg_largeobject_metadata*) printf '%s\\n' "${{STUB_TARGET_PUBLIC_ONLY:-t}}" ;;
+  *psql*--single-transaction*)
+    if [ -n "${{STUB_RESTORE_TRANSACTION_CALLS:-}}" ]; then printf '%s\\n' "$*" >> "$STUB_RESTORE_TRANSACTION_CALLS"; fi
+    cat > "$STUB_RESTORE_TRANSACTION_SQL"
+    exit "${{STUB_RESTORE_TRANSACTION_STATUS:-0}}"
     ;;
   *pg_catalog.pg_tables*) printf '1\\n' ;;
   run\\ --rm\\ --network\\ none\\ --entrypoint\\ python\\ *) printf '%s\\n' "${{STUB_BACKEND_IDS:-1000:1000}}" ;;
@@ -4817,7 +4889,9 @@ fi
     )
     assert "pg_restore --list" in docker_calls[0]
     assert "pg_restore --file=/dev/null" in docker_calls[1]
-    assert "createdb" in docker_calls[2]
+    assert (
+        "createdb -U pulseplate --maintenance-db pulseplate --owner pulseplate" in docker_calls[2]
+    )
     assert (
         "pg_restore -U pulseplate -d pulseplate_restore_check_fixture --exit-on-error --single-transaction --clean --if-exists"
         in docker_calls[3]
@@ -7198,6 +7272,9 @@ case "$*" in
     fi
     : > "$STUB_POSTGRES_STARTED_FILE"
     ;;
+  *"psycopg.connect"*)
+    exit "${{STUB_APPLICATION_TLS_STATUS:-0}}"
+    ;;
   *"run --rm --no-deps app alembic upgrade head"*)
     if [[ "${{STUB_MIGRATION_FAILURE:-0}}" == "1" ]]; then
       exit 42
@@ -8405,3 +8482,289 @@ def test_restore_requires_explicit_isolated_target_before_native_mutation(
     )
     assert completed.returncode == 2
     assert not log.exists()
+
+
+@pytest.mark.parametrize("tls_status", [0, 61])
+def test_existing_staging_passfile_authentication_precedes_all_product_stops(
+    tmp_path: Path, tls_status: int
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_APPLICATION_TLS_STATUS"] = str(tls_status)
+    backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    calls = log_file.read_text().splitlines()
+    tls_calls = [i for i, call in enumerate(calls) if "psycopg.connect" in call]
+    assert tls_calls and "connect_timeout=10" in calls[tls_calls[0]]
+    if tls_status:
+        assert result.returncode == tls_status
+        assert (
+            "HOLD for an explicit verified credential/TLS migration before quiescence"
+            in result.stderr
+        )
+        assert all(
+            " stop " not in call and " up " not in call and not call.startswith("backup ")
+            for call in calls
+        )
+    else:
+        assert result.returncode == 0, result.stderr
+        stop = next(i for i, call in enumerate(calls) if " stop worker caddy app" in call)
+        assert tls_calls[0] < stop < tls_calls[-1]
+
+
+def test_generic_and_staging_backup_units_keep_their_distinct_storage_contracts() -> None:
+    generic = (REPO_ROOT / "deploy/systemd/pulseplate-postgres-backup.service.example").read_text()
+    staging = (
+        REPO_ROOT / "deploy/systemd/pulseplate-staging-postgres-backup.service.example"
+    ).read_text()
+    assert "COMPOSE_FILE=docker-compose.production.selfhosted.yaml" in generic
+    assert "check_staging_security.py" not in generic
+    assert (
+        "RequiresMountsFor=/mnt/pulseplate-staging-data /srv/pulseplate-staging/secrets" in staging
+    )
+    assert (
+        "BindsTo=mnt-pulseplate\\x2dstaging\\x2ddata.mount srv-pulseplate\\x2dstaging-secrets.mount"
+        in staging
+    )
+    assert "COMPOSE_FILE=docker-compose.staging.yaml" in staging
+    assert "--storage-only" in staging
+    assert (
+        "systemd/pulseplate-staging-postgres-backup.service.example"
+        in (REPO_ROOT / "docs/deploy/STAGING.md").read_text()
+    )
+
+
+def test_verification_restore_selects_source_database_when_role_name_differs(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "production"
+    project.mkdir()
+    dump = tmp_path / "input.dump"
+    dump.write_text("synthetic archive")
+    docker = tmp_path / "docker"
+    calls = tmp_path / "calls"
+    _write_executable(
+        docker,
+        f'#!/usr/bin/env bash\nset -euo pipefail\nprintf "%s\\n" "$*" >> "{calls}"\n',
+    )
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
+            "--verify-into",
+            "pulseplate_restore_check_distinct",
+            str(dump),
+        ],
+        env={
+            **os.environ,
+            "PROJECT_DIR": str(project),
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "application_role",
+            "POSTGRES_DB": "application_database",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    create = next(call for call in calls.read_text().splitlines() if "createdb" in call)
+    assert (
+        "createdb -U application_role --maintenance-db application_database --owner application_role"
+        in create
+    )
+
+
+@pytest.mark.parametrize("schema_shape", ["omitted", "metadata-only", "definition"])
+@pytest.mark.parametrize("transaction_status", [0, 3])
+def test_replacement_restore_clears_public_objects_and_asserts_inventory_in_one_transaction(
+    tmp_path: Path, schema_shape: str, transaction_status: int
+) -> None:
+    project = tmp_path / "production"
+    project.mkdir()
+    dump = tmp_path / "input.dump"
+    dump.write_text("synthetic archive")
+    docker, calls, sql = tmp_path / "docker", tmp_path / "calls", tmp_path / "transaction.sql"
+    _write_executable(
+        docker, f'#!/usr/bin/env bash\nset -euo pipefail\nprintf "%s\\n" "$*" >> "{calls}"\n'
+    )
+    archive_list = "214; 1259 16387 TABLE public items user"
+    restore_sql = "CREATE TABLE public.items(id integer);"
+    if schema_shape != "omitted":
+        archive_list = "5; 2615 2200 SCHEMA - public user\n" + archive_list
+    if schema_shape == "definition":
+        # Explicit pg_dump --schema=public has native DROP/CREATE statements.
+        restore_sql = "DROP SCHEMA IF EXISTS public;\nCREATE SCHEMA public;\n" + restore_sql
+    elif schema_shape == "metadata-only":
+        # PostgreSQL 15.19 ordinary dumps with a non-default public owner have
+        # a SCHEMA entry carrying ownership but no schema creation statement.
+        restore_sql = (
+            "-- *not* dropping schema, since initdb creates it\n"
+            "-- *not* creating schema, since initdb creates it\n"
+            "ALTER SCHEMA public OWNER TO user;\n" + restore_sql
+        )
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
+            "--replace-existing",
+            "pulseplate",
+            str(dump),
+        ],
+        env={
+            **os.environ,
+            "PROJECT_DIR": str(project),
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "role",
+            "POSTGRES_DB": "pulseplate",
+            "STUB_ARCHIVE_LIST": archive_list,
+            "STUB_RESTORE_SQL": restore_sql,
+            "STUB_RESTORE_TRANSACTION_SQL": str(sql),
+            "STUB_RESTORE_TRANSACTION_CALLS": str(calls),
+            "STUB_RESTORE_TRANSACTION_STATUS": str(transaction_status),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == transaction_status, result.stderr
+    rendered = sql.read_text()
+    assert "DO $$ BEGIN IF EXISTS" in rendered
+    assert rendered.index("DROP SCHEMA IF EXISTS public CASCADE;") < rendered.index(
+        "CREATE TABLE public.items"
+    )
+    assert (
+        "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n" + restore_sql in rendered
+    )
+    assert rendered.count("CREATE SCHEMA public;") == (2 if schema_shape == "definition" else 1)
+    assert rendered.index("CREATE TABLE public.items") < rendered.index(
+        "Restored inventory differs"
+    )
+    assert "<> 1" in rendered
+    assert "BEGIN;" not in rendered and "COMMIT;" not in rendered
+    assert not list((project / "backups").glob(".pulseplate-restore.*"))
+    if transaction_status:
+        assert "Restore completed" not in result.stdout
+    else:
+        assert "Restore completed into: pulseplate" in result.stdout
+    transaction_calls = [
+        call for call in calls.read_text().splitlines() if "--single-transaction" in call
+    ]
+    assert len(transaction_calls) == 1 and "psql -X -q -v ON_ERROR_STOP=1" in transaction_calls[0]
+    assert "--file=-" in transaction_calls[0]
+
+
+@pytest.mark.parametrize(
+    "failure", ["archive-schema", "archive-table", "archive-global", "target-schema", "render"]
+)
+def test_replacement_restore_holds_before_target_transaction_for_unsupported_or_failed_input(
+    tmp_path: Path, failure: str
+) -> None:
+    project = tmp_path / "production"
+    project.mkdir()
+    dump = tmp_path / "input.dump"
+    dump.write_text("synthetic archive")
+    docker, sql = tmp_path / "docker", tmp_path / "transaction.sql"
+    _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\n")
+    env = {
+        **os.environ,
+        "PROJECT_DIR": str(project),
+        "DOCKER_BIN": str(docker),
+        "POSTGRES_USER": "role",
+        "POSTGRES_DB": "pulseplate",
+        "STUB_RESTORE_TRANSACTION_SQL": str(sql),
+    }
+    if failure.startswith("archive"):
+        env["STUB_ARCHIVE_OUTSIDE_PUBLIC"] = {
+            "archive-schema": "5; 2615 2200 SCHEMA - private role",
+            "archive-table": "5; 1259 2200 TABLE private history role",
+            "archive-global": "5; 0 2200 BLOB - 1234 role",
+        }[failure]
+    elif failure == "target-schema":
+        env["STUB_TARGET_PUBLIC_ONLY"] = "f"
+    else:
+        env["STUB_RESTORE_RENDER_STATUS"] = "49"
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
+            "--replace-existing",
+            "pulseplate",
+            str(dump),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert not sql.exists()
+    assert "Restore completed" not in result.stdout
+    assert not list((project / "backups").glob(".pulseplate-restore.*"))
+
+
+@pytest.mark.parametrize(
+    "compose_path",
+    [
+        "docker-compose.staging.yaml",
+        "./docker-compose.staging.yaml",
+        "config/docker-compose.staging.yaml",
+    ],
+)
+def test_reserved_staging_compose_paths_cannot_bypass_encrypted_backup_destination(
+    tmp_path: Path, compose_path: str
+) -> None:
+    project = tmp_path / "staging"
+    project.mkdir()
+    _write_stage_native_oracles(project)
+    docker = tmp_path / "docker"
+    _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
+    unencrypted = tmp_path / "other-backups"
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
+        env={
+            **os.environ,
+            "PROJECT_DIR": str(project) + "/",
+            "COMPOSE_FILE": compose_path,
+            "BACKUP_DIR": str(unencrypted),
+            "DOCKER_BIN": str(docker),
+            "PYTHON_BIN": sys.executable,
+            "POSTGRES_USER": "role",
+            "POSTGRES_DB": "database",
+            "PYTHONPATH": str(REPO_ROOT),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "Staging backup destination must be the admitted encrypted directory" in result.stderr
+    assert not unencrypted.exists()
+
+
+def test_production_custom_name_containing_staging_does_not_select_reserved_contract(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "production-staging-reference"
+    project.mkdir()
+    docker = tmp_path / "docker"
+    _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'FAKE_BACKUP\\n'\n")
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
+        env={
+            **os.environ,
+            "PROJECT_DIR": str(project),
+            "COMPOSE_FILE": "docker-compose.production-staging.yaml",
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "role",
+            "POSTGRES_DB": "database",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Backup created:" in result.stdout

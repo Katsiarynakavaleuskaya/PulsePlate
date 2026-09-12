@@ -3,6 +3,7 @@
 set -euo pipefail
 umask 077
 PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-production}"
+PROJECT_DIR="$(cd -- "$PROJECT_DIR" && pwd -P)"
 BACKUP_DIR="${BACKUP_DIR:-${PROJECT_DIR}/backups}"
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 ENV_FILE="${ENV_FILE:-}"
@@ -11,6 +12,13 @@ DOCKER_BIN="${DOCKER_BIN:-$(command -v docker)}"
 if [[ "$DOCKER_BIN" != /* ]] || [ ! -x "$DOCKER_BIN" ]; then
   echo "An absolute docker executable is required" >&2
   exit 1
+fi
+# These project/Compose names are reserved staging deployment identities.
+if [ -n "$COMPOSE_FILE" ] && [ "${COMPOSE_FILE#/}" = "$COMPOSE_FILE" ]; then
+  COMPOSE_FILE="$PROJECT_DIR/$COMPOSE_FILE"
+fi
+if [ -n "$ENV_FILE" ] && [ "${ENV_FILE#/}" = "$ENV_FILE" ]; then
+  ENV_FILE="$PROJECT_DIR/$ENV_FILE"
 fi
 if [ "$PROJECT_DIR" = "/srv/pulseplate-staging" ] || \
    [ "${COMPOSE_FILE##*/}" = "docker-compose.staging.yaml" ]; then
@@ -26,12 +34,6 @@ if [ -L "$BACKUP_DIR" ]; then
   exit 1
 fi
 mkdir -p "$BACKUP_DIR"
-if [ -n "$COMPOSE_FILE" ] && [ "${COMPOSE_FILE#/}" = "$COMPOSE_FILE" ]; then
-  COMPOSE_FILE="$PROJECT_DIR/$COMPOSE_FILE"
-fi
-if [ -n "$ENV_FILE" ] && [ "${ENV_FILE#/}" = "$ENV_FILE" ]; then
-  ENV_FILE="$PROJECT_DIR/$ENV_FILE"
-fi
 compose_exec() {
   local compose_cmd=("$DOCKER_BIN" compose)
   if [ -n "$ENV_FILE" ]; then compose_cmd+=(--env-file "$ENV_FILE"); fi

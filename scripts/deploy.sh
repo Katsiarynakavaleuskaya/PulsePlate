@@ -848,6 +848,11 @@ if [ -z "$DOCKER_BIN" ] || [ ! -x "$DOCKER_BIN" ]; then
   exit 1
 fi
 
+verify_application_database_tls() {
+  "${COMPOSE[@]}" run --rm --no-deps app python -c \
+  'import os; import psycopg; url=os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://", 1); connection=psycopg.connect(url, connect_timeout=10); row=connection.execute("SELECT ssl, version FROM pg_stat_ssl WHERE pid=pg_backend_pid()").fetchone(); assert row and row[0] is True and row[1] in ("TLSv1.2", "TLSv1.3"); connection.close()'
+}
+
 COMPOSE=("$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 
 PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_MANIFEST")"
@@ -1013,6 +1018,15 @@ if [ -n "$postgres_container_raw" ]; then
     echo "❌ Existing PostgreSQL volume does not match rendered Compose identity" >&2
     exit 1
   fi
+  # The password file cannot rotate a persisted role. Prove the exact new app
+  # credentials against the running predecessor over verified TLS before stops.
+  if verify_application_database_tls >/dev/null 2>&1; then
+    :
+  else
+    credential_status=$?
+    echo "❌ Existing PostgreSQL rejected the admitted application TLS/passfile connection; HOLD for an explicit verified credential/TLS migration before quiescence" >&2
+    exit "$credential_status"
+  fi
 else
   require_absent_postgres_volume
 fi
@@ -1119,8 +1133,7 @@ else
 fi
 
 echo "Verify actual TLS from the application connection before exposing the product"
-"${COMPOSE[@]}" run --rm --no-deps app python -c \
-  'import os; import psycopg; url=os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://", 1); connection=psycopg.connect(url); row=connection.execute("SELECT ssl, version FROM pg_stat_ssl WHERE pid=pg_backend_pid()").fetchone(); assert row and row[0] is True and row[1] in ("TLSv1.2", "TLSv1.3"); connection.close()'
+verify_application_database_tls
 
 echo "Starting app after successful migrations"
 "${COMPOSE[@]}" up -d --pull never app

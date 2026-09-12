@@ -43,7 +43,6 @@ services:
       - postgres_server_crt
       - postgres_server_key
     command:
-      - postgres
       - -c
       - ssl=on
       - -c

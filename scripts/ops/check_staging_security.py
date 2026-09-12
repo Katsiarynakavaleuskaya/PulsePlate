@@ -39,7 +39,6 @@ CONTRACT_FIELDS = {
     "backend_gid",
 }
 POSTGRES_COMMAND = [
-    "postgres",
     "-c",
     "ssl=on",
     "-c",
@@ -77,14 +76,17 @@ def _read_json(value: str) -> object:
     return json.loads(value, object_pairs_hook=_unique_object, parse_constant=reject_constant)
 
 
-def _regular_file(path: Path, uid: int, gid: int, mode: int) -> None:
+def _regular_file(path: Path, uid: int, gid: int, mode: int, device: int | None = None) -> None:
     metadata = path.lstat()
     if (
         not stat.S_ISREG(metadata.st_mode)
+        or (device is not None and metadata.st_dev != device)
         or metadata.st_nlink != 1
         or (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)) != (uid, gid, mode)
     ):
-        raise SecurityError(f"Invalid regular-file owner, permissions or links: {path.name}")
+        raise SecurityError(
+            f"Invalid regular-file owner, permissions, links or device: {path.name}"
+        )
 
 
 def _directory(path: Path, uid: int, gid: int, mode: int, device: int) -> None:
@@ -227,7 +229,7 @@ def check_tls(
         ),
     }
     for name, owner in owners.items():
-        _regular_file(secrets / name, *owner)
+        _regular_file(secrets / name, *owner, metadata.st_dev)
     ca, certificate, key = (
         secrets / name for name in ("postgres_ca", "postgres_server_crt", "postgres_server_key")
     )

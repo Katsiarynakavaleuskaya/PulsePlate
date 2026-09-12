@@ -33,8 +33,10 @@ Copy these paths from the same verified merged revision under
 - `deploy/prometheus/prometheus.yml` and `image-manifest.json` become the
   corresponding `prometheus/` files.
 - `deploy/systemd/pulseplate-staging-storage.conf` and
-  `pulseplate-postgres-backup.service.example` become the corresponding
-  `systemd/` files. Retain the existing backup timer example as well.
+  `pulseplate-staging-postgres-backup.service.example` become
+  `systemd/pulseplate-staging-storage.conf` and
+  `systemd/pulseplate-postgres-backup.service.example`, respectively. Retain
+  the existing backup timer example as well.
 
 Use root-owned regular files, mode `0644` for helpers/systemd files and `0755`
 for shell entrypoints; PostgreSQL HBA is `0444`. Keep the current staging marker
@@ -65,10 +67,11 @@ Bind-mount its `secrets` directory at `/srv/pulseplate-staging/secrets`; use a
 real mount, not a symlink. Configure UUID-bound systemd/fstab mounts for both
 paths. The escaped unit names are
 `mnt-pulseplate\x2dstaging\x2ddata.mount` and
-`srv-pulseplate\x2dstaging-secrets.mount`. Keep mount activation dependent on
-the Docker/backup consumers so an unavailable Volume does not prevent recovery
-access to the otherwise running VM. Both consumer units must fail closed when
-the mount cannot activate; do not add a root-disk storage fallback.
+`srv-pulseplate\x2dstaging-secrets.mount`. Docker and backup consumers depend
+on both mounts through `RequiresMountsFor`, `BindsTo` and `After`. Do not make
+these mounts required by `multi-user.target`, so the VM remains available for
+host recovery when the Volume cannot activate. Both consumers must fail closed
+on mount failure; do not add a root-disk storage fallback.
 
 Write root-owned mode-`0600` `.staging-storage.json` with the exact closed fields:
 
@@ -148,14 +151,27 @@ Run `deploy.sh --preflight-only <backend-digest-ref> <caddy-digest-ref>` after
 installing the selected files/mounts. It verifies actual storage/TLS inputs,
 rendered Compose and existing volume backing before product mutation. The
 normal deployment additionally verifies the original PostgreSQL attestation
-tuple and backend/passfile UID, waits for the database, migrates and checks an
+tuple and backend/passfile UID. With an existing database, it verifies the new
+application passfile against the running predecessor using `verify-full` TLS
+before stopping any product writers. A new password file cannot change a
+persisted PostgreSQL role password. Incompatible credentials or legacy TLS
+setups HOLD for an explicit verified migration that preserves the existing
+data; deployment does not rotate credentials or fall back to plaintext.
+After admission it waits for the database, migrates and checks an
 actual TLS session through the application before exposure. Respect existing
 staging enablement and public-release locks; this work does not authorize a
 production rollout or public release.
 
-Install the supplied staging backup service plus existing daily timer. Its
+Install `deploy/systemd/pulseplate-staging-postgres-backup.service.example`
+as `pulseplate-postgres-backup.service` plus the existing daily timer. The
+generic `pulseplate-postgres-backup.service.example` is for self-hosted
+production and must not replace the staging unit. Its
 `EnvironmentFile`, selected Compose file and encrypted `BACKUP_DIR` must match
-deployment. Check `systemctl list-timers`, execute one backup and retain its
+deployment. `/srv/pulseplate-staging` and the selected Compose basename
+`docker-compose.staging.yaml` are reserved staging identities; either requires
+the encrypted-storage checks even when supplied through a relative path.
+Production operators use their production project and Compose filenames.
+Check `systemctl list-timers`, execute one backup and retain its
 exit/metadata receipt. Complete native archive parsing and substantive table
 inventory must succeed before publication/pruning. Droplet backups do not
 implicitly cover the attached Volume.
@@ -168,7 +184,7 @@ PROJECT_DIR=/srv/pulseplate-staging \
 COMPOSE_FILE=docker-compose.staging.yaml \
 ENV_FILE=/srv/pulseplate-staging/.env \
 POSTGRES_USER=pulseplate POSTGRES_DB=pulseplate \
-  scripts/ops/postgres_restore.sh --verify-into pulseplate_restore_check_01 /mnt/pulseplate-staging-data/backups/selected.dump
+  /srv/pulseplate-staging/scripts/ops/postgres_restore.sh --verify-into pulseplate_restore_check_01 /mnt/pulseplate-staging-data/backups/selected.dump
 ```
 
 Use the actual observed source role/database rather than assuming the example.
@@ -177,8 +193,28 @@ restored sentinel/rows before cleaning the owned test database. Ordinary
 replacement recovery now requires the explicit `--replace-existing TARGET_DB`
 mode; do not invoke it as a verification test.
 
+Replacement is bounded to the `public` schema. Before mutation, the helper
+rejects archives and targets with non-public user schemas or unsupported global
+objects, including large objects; it does not silently filter archived data.
+It pre-renders complete native SQL into private temporary storage (the admitted
+encrypted backup directory on staging), then resets `public`, restores the
+archive and checks its substantive table inventory in one transaction. SQL or
+inventory failure rolls the whole replacement back. Quiesce writers and verify
+the authorized target before explicit replacement; unsupported schema layouts
+HOLD for a separately verified migration. Verification restore selects the
+configured source database as its maintenance connection, so role and database
+names may differ.
+
+
 Native Linux CI uses disposable PostgreSQL storage/PKI and actual TLS, pgvector,
-dump/restore and process-crash checks. It does not emulate DigitalOcean
+dump/restore and process-crash checks. Its temporary Compose project exercises
+the actual backup and restore wrappers, including all three native public-schema
+archive shapes, stale-object removal, and a late SQL failure that must roll back
+the complete replacement. Wrapper commands use their deployed local socket;
+separate TCP queries verify TLS. The selected DHI entrypoint owns the PostgreSQL
+executable, so Compose supplies only `-c` arguments. On failure, the driver
+retains bounded redacted query and container diagnostics before owned cleanup.
+It does not emulate DigitalOcean
 at-rest encryption. On the real staging host additionally prove mount identity,
 actual application/worker TLS, Prometheus scrape/required series and history
 surviving restart, with no public `5432` or `9090`. Record staging observation
@@ -264,9 +300,24 @@ sudo chown $USER:$USER /srv/pulseplate-staging
 sudo cp deploy/docker-compose.staging.yaml /srv/pulseplate-staging/
 sudo cp deploy/Caddyfile /srv/pulseplate-staging/
 sudo cp scripts/deploy.sh /srv/pulseplate-staging/
-sudo mkdir -p /srv/pulseplate-staging/scripts/ops
+sudo install -d -m 0755 /srv/pulseplate-staging/scripts/ops /srv/pulseplate-staging/scripts/ci \
+  /srv/pulseplate-staging/postgres-pgvector /srv/pulseplate-staging/prometheus \
+  /srv/pulseplate-staging/systemd
 sudo cp scripts/ops/postgres_backup.sh /srv/pulseplate-staging/scripts/ops/
 sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
+sudo install -m 0644 scripts/ops/check_staging_security.py /srv/pulseplate-staging/scripts/ops/
+sudo install -m 0644 scripts/ci/check_pgvector_attestations.py \
+  scripts/ci/check_docker_provenance_attestation.py /srv/pulseplate-staging/scripts/ci/
+sudo install -m 0644 deploy/postgres-pgvector/image-manifest.json /srv/pulseplate-staging/postgres-pgvector/
+sudo install -m 0444 deploy/postgres-pgvector/pg_hba.conf /srv/pulseplate-staging/postgres-pgvector/
+sudo install -m 0644 deploy/prometheus/prometheus.yml deploy/prometheus/image-manifest.json \
+  /srv/pulseplate-staging/prometheus/
+sudo install -m 0644 deploy/systemd/pulseplate-staging-storage.conf /srv/pulseplate-staging/systemd/
+sudo install -m 0644 deploy/systemd/pulseplate-staging-postgres-backup.service.example \
+  /srv/pulseplate-staging/systemd/pulseplate-postgres-backup.service.example
+sudo install -m 0644 deploy/systemd/pulseplate-postgres-backup.timer.example /srv/pulseplate-staging/systemd/
+sudo chown root:root /srv/pulseplate-staging/deploy.sh /srv/pulseplate-staging/docker-compose.staging.yaml \
+  /srv/pulseplate-staging/Caddyfile /srv/pulseplate-staging/scripts/ops/*.sh
 sudo chmod +x /srv/pulseplate-staging/deploy.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_restore.sh
@@ -279,11 +330,14 @@ sudo chmod 0644 /srv/pulseplate-staging/.attested-digest-deploy-v1
 ```
 
 The marker is an activation contract, not a substitute for file synchronization.
-CD compares SHA-256 for `deploy.sh`, `docker-compose.staging.yaml`, `Caddyfile`,
-and `scripts/ops/postgres_backup.sh` against the current workflow commit before
-sending the GHCR read token. Set the
-staging Environment variable `STAGING_ATTESTED_DIGEST_READY=true` only after that
-server-local contract has been installed and reviewed. Once enabled, a marker or
+CD compares SHA-256 for the complete protected bundle, including both
+`scripts/ci` attestation helpers, the operations helpers, PostgreSQL HBA/manifest,
+Prometheus configuration/manifest and staging systemd files, against the current
+workflow commit before sending the GHCR read token. Set the staging
+Environment variable `STAGING_ATTESTED_DIGEST_READY=true` only after that
+server-local contract has been installed and reviewed. Provisioning is manual
+from one verified merged revision; the SSH deployment does not synchronize or
+automatically install missing helpers. Once enabled, a marker or
 hash mismatch fails the CD job before registry credentials are transmitted, even
 when the later SSH deployment remains optional.
 

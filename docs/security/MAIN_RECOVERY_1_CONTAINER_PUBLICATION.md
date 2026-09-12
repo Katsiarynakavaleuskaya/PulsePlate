@@ -52,6 +52,38 @@ The resulting native signer/ref identity stays literal; it is not rewritten as
 main. The probe exercises external persistence and OCI verification only;
 actual merged-main PostgreSQL publication/reuse remains independently required.
 
+PR #2393's first external probe
+[34712970847](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34712970847)
+persisted native provenance in GitHub, then failed its OCI write with
+`No credentials found for registry ghcr.io`. Ordinary exported GitHub auth and
+Docker publication worked. The pinned Sigstore OCI reader uses
+`$HOME/.docker/config.json` and does not consume `DOCKER_CONFIG`.
+The correction installs native-generated GHCR-only auth at that supported
+location, restores the previous exact default file and removes only the
+invocation-owned temporary context. It preserves private DHI/Buildx lifetime
+and the partial original attestation. Corrected-head external proof is required;
+local adapter tests do not establish successful remote publication.
+Evidence: `scripts/ci/ghcr_attestation_credentials.py:1`,
+`.github/workflows/cd.yml:1` and
+[pinned native credential reader](https://github.com/sigstore/sigstore-js/blob/21dd66d041593ad5d9fc2fe461131d8db868ad6f/packages/oci/src/credentials.ts).
+
+The first native PostgreSQL experiment
+[34713145671](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34713145671)
+timed out without preserving its failed-query/container diagnostics. Inspection
+of the selected immutable image's actual entrypoint subsequently showed that
+it already executes PostgreSQL; a leading `postgres` in Compose duplicated
+that executable argument. The corrected contract passes only the admitted TLS
+options and retains bounded sanitized diagnostics before cleanup. PostgreSQL
+15.19's native dump formats also distinguish omitted public schema records,
+metadata-only records and actual schema definitions. Transactional replacement
+must handle all three without inferring SQL creation from TOC presence. The
+real-wrapper CI probe includes those positive controls, stale-object removal
+and a valid archive whose late index creation fails and must preserve the
+target through rollback. These source fixes require successful native execution
+before any runtime outcome claim.
+Evidence: `scripts/ci/check_staging_postgres_runtime.py:1`,
+`scripts/ops/postgres_restore.sh:1`, `deploy/docker-compose.staging.yaml:45`.
+
 The ready-made DHI pgvector alternative was examined independently. Native
 Trivy 0.74.0 with database updated `2026-09-12T13:01:09Z` reported three CRITICAL
 and eighteen HIGH entries on linux/amd64 digest

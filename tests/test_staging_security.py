@@ -226,6 +226,7 @@ def test_rendered_compose_uses_private_tls_and_file_backed_credentials(tmp_path:
     "mutation",
     [
         "tls-off",
+        "duplicate-executable",
         "public-port",
         "public-network",
         "wrong-network",
@@ -248,6 +249,8 @@ def test_rendered_compose_cannot_downgrade_security(tmp_path: Path, mutation: st
     client = value["services"]["worker"]["environment"]
     if mutation == "tls-off":
         postgres["command"] += ["-c", "ssl=off"]
+    elif mutation == "duplicate-executable":
+        postgres["command"].insert(0, "postgres")
     elif mutation == "public-port":
         postgres["ports"] = [{"published": "5432"}]
     elif mutation == "public-network":
@@ -629,3 +632,46 @@ def test_plain_file_cannot_impersonate_a_block_device(
     monkeypatch.setattr(security.stat, "S_ISBLK", lambda _: False)
     with pytest.raises(security.SecurityError, match="block device"):
         security.check_storage(project)
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        "postgres_ca",
+        "postgres_server_crt",
+        "postgres_server_key",
+        "postgres_password",
+        "postgres_pgpass",
+    ],
+)
+def test_each_tls_credential_rejects_a_nested_other_device_mount(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, file_name: str
+) -> None:
+    secrets = tmp_path / "secrets"
+    secrets.mkdir()
+    owners = {
+        "postgres_ca": (0, 0, 0o444),
+        "postgres_server_crt": (0, 0, 0o444),
+        "postgres_server_key": (0, 70, 0o640),
+        "postgres_password": (70, 70, 0o400),
+        "postgres_pgpass": (contract()["backend_uid"], contract()["backend_gid"], 0o600),
+    }
+    for name in owners:
+        (secrets / name).write_text("synthetic metadata-only input")
+    native_lstat = Path.lstat
+
+    def lstat(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        metadata = list(native_lstat(path, *args, **kwargs))
+        if path == secrets:
+            metadata[0], metadata[2], metadata[4], metadata[5] = stat.S_IFDIR | 0o700, 42, 0, 0
+        elif path.parent == secrets:
+            uid, gid, mode = owners[path.name]
+            metadata[0], metadata[2] = stat.S_IFREG | mode, 13 if path.name == file_name else 42
+            metadata[4], metadata[5] = uid, gid
+        return os.stat_result(metadata)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+    with pytest.raises(security.SecurityError, match="device"):
+        security.check_tls(
+            tmp_path, contract(), {"POSTGRES_USER": "pulseplate", "POSTGRES_DB": "pulseplate"}
+        )

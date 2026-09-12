@@ -171,11 +171,23 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   synthetic subject and uses only a test tag; it receives no DHI credentials
   and has no runtime promotion or deploy path. Later manual dispatch retains
   the same boundary. Main-only manual reuse is read-only.
+- Initialize credentials for the actual pinned native attestation reader:
+  it reads inline GHCR auth from `$HOME/.docker/config.json`, independently
+  of the private publisher's `DOCKER_CONFIG`. Use the bounded
+  `ghcr_attestation_credentials.py` adapter to install native-generated
+  GHCR-only auth and restore the previous default config before owned cleanup.
+  Keep `HOME` and the private DHI/Buildx/Scout context unchanged. Successful
+  ordinary `gh` authentication or Docker push does not prove this OCI reader
+  received credentials; diagnose each consumer at its real boundary.
 - Staging contract v5 uses PostgreSQL TLS >=1.2, SCRAM, and passwordless
   `postgresql+psycopg` URLs with `verify-full`, the exact CA and libpq passfile.
   Derive database identity from the selected rendered Compose, never ambient
   host variables. Real PostgreSQL session proof remains required in addition
   to configuration/certificate checks.
+- The selected DHI PostgreSQL entrypoint executes `postgres "$@"` itself.
+  Compose passes only the admitted `-c` arguments, without another executable
+  name. Native integration must exercise that actual entrypoint and retain
+  bounded redacted container diagnostics before cleaning up failed probes.
 - Staging storage receipt `.staging-storage.json` is a root-owned local
   provisioning record, never a committed artifact. Authenticate the selected
   DigitalOcean Volume separately; native device/UUID/mount/directory checks
