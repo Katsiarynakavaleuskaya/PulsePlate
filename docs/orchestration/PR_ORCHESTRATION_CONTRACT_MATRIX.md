@@ -625,6 +625,11 @@ their result is **verified reuse**, not a claim that tests executed again.
   plan is emitted. Initial admission falls back only for explicit insufficiency
   or stable incompatibility; malformed present claims, conflicting native
   identities, digest mismatches and proof-time races propagate as errors.
+  PR snapshot `base.sha`/`baseRefOid` must also equal the independently
+  authenticated native base-branch target before reuse or source publication.
+  An initially behind snapshot selects ordinary execution; a native target
+  advance or branch retarget during proof fails, even if the PR snapshot did not
+  change. Snapshot BASE checkout meaning remains unchanged.
   The isolated final verifier has a 300-second total subprocess cap in the
   canonical wrapper. Parent current-head/merge subprocess budgets include their
   one/two verifier calls; unrelated gate budgets and the hosted job's overall

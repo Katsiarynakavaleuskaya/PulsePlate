@@ -2147,6 +2147,8 @@ class _NativeReuseHarness:
         self.archives: dict[int, bytes] = {}
         self.checks: dict[int, dict[str, Any]] = {}
         self.pr_override: dict[str, Any] | None = None
+        self.base_ref = "main"
+        self.native_branch_override: Any = None
         self.tree_override: dict[str, Any] | None = None
         self.graph_override: dict[str, Any] | None = None
         self.download_hook: Any = None
@@ -2182,6 +2184,7 @@ class _NativeReuseHarness:
         self.git(["add", "."])
         self.git(["commit", "-m", "BASE fixture"])
         self.base = self.git(["rev-parse", "HEAD"]).strip()
+        self.native_base_sha = self.base
         for path in self.material_paths:
             (root / path).write_text("value = 2\n")
         self.git(["add", "."])
@@ -2498,12 +2501,29 @@ class _NativeReuseHarness:
         parsed = urllib.parse.urlsplit(url)
         assert parsed.netloc == "api.github.com"
         path = parsed.path.removeprefix(f"/repos/{self.repository}/")
+        if path.startswith("branches/"):
+            assert path == "branches/" + urllib.parse.quote(self.base_ref, safe="")
+            if self.native_branch_override is not None:
+                if isinstance(self.native_branch_override, Exception):
+                    raise self.native_branch_override
+                return deepcopy(self.native_branch_override)
+            return {
+                "name": self.base_ref,
+                "commit": {
+                    "sha": self.native_base_sha,
+                    "url": f"https://api.github.com/repos/{self.repository}/commits/{self.native_base_sha}",
+                },
+                "_links": {
+                    "self": f"https://api.github.com/repos/{self.repository}/branches/{urllib.parse.quote(self.base_ref, safe='')}"
+                },
+            }
         if path == "pulls/42":
             return self.pr_override or {
                 "number": 42,
                 "state": "open",
                 "base": {
                     "sha": self.base,
+                    "ref": self.base_ref,
                     "repo": {"id": self.repo_id, "full_name": self.repository},
                 },
                 "head": {
@@ -2768,6 +2788,7 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
             "state": "open",
             "base": {
                 "sha": "f" * 40 if fault == "raced_base" else harness.base,
+                "ref": harness.base_ref,
                 "repo": {"id": harness.repo_id, "full_name": harness.repository},
             },
             "head": {
@@ -4361,3 +4382,132 @@ def test_mapping_reuse_derives_python_and_timeout_parameters_from_base(
         definition["timeout-minutes"] = invalid
         with pytest.raises(ci_reuse.Ineligible):
             ci_reuse._job_shape("ios-tests", definition)
+
+
+def test_mapping_reuse_stale_pr_snapshot_executes_without_source_publication(
+    native_reuse: _NativeReuseHarness,
+) -> None:
+    harness = native_reuse
+    harness.target_manifest()
+    ci_reuse.verify_current_reuse(
+        repo_root=harness.root,
+        repository=harness.repository,
+        pr_number=42,
+        token="opaque-test-token",
+    )
+    harness.native_base_sha = harness.material
+    context = harness.context()
+    assert context.base_sha == harness.base and context.current_base_sha == harness.material
+    plan = ci_reuse.plan_reuse(
+        repo_root=harness.root,
+        context=context,
+        run=harness.target_run,
+        token="opaque-test-token",
+        checkout_sha=harness.synthetic_head,
+    )
+    assert plan["mode"] == "executed" and plan["reason"] == "snapshot_base_behind_native_target"
+    assert plan["source"] is None
+    assert (
+        ci_reuse.collect_execution(
+            repo_root=harness.root,
+            context=context,
+            run=harness.target_run,
+            token="opaque-test-token",
+            checkout_sha=harness.synthetic_head,
+            plan=plan,
+        )
+        is None
+    )
+    with pytest.raises(ci_reuse.ReuseError, match="no longer independently admissible"):
+        ci_reuse.project_reuse(
+            repo_root=harness.root,
+            context=context,
+            run=harness.target_run,
+            token="opaque-test-token",
+            checkout_sha=harness.synthetic_head,
+            plan=harness.plan,
+            job_id="test-pr",
+            matrix_value="3.13",
+            coverage_output=harness.root / "behind-projection.xml",
+        )
+    with pytest.raises(ci_reuse.ReuseError, match="snapshot_base_behind_native_target"):
+        ci_reuse.verify_current_reuse(
+            repo_root=harness.root,
+            repository=harness.repository,
+            pr_number=42,
+            token="opaque-test-token",
+        )
+
+
+@pytest.mark.parametrize("change", ["advance", "retarget"])
+def test_mapping_reuse_refresh_observes_native_base_change_with_stale_snapshot(
+    native_reuse: _NativeReuseHarness, change: str
+) -> None:
+    harness = native_reuse
+    frozen = harness.context()
+    if change == "advance":
+        harness.native_base_sha = harness.material
+    else:
+        harness.base_ref = "release/stable"
+    with pytest.raises(ci_reuse.ReuseError, match="native PR base ref or target"):
+        ci_reuse._refresh(frozen, harness.target_run, "opaque-test-token")
+    assert harness.base == frozen.base_sha and harness.head == frozen.head_sha
+
+
+def test_mapping_reuse_native_base_advance_during_asserted_proof_is_terminal(
+    native_reuse: _NativeReuseHarness,
+) -> None:
+    harness = native_reuse
+
+    def advance(artifact_id: int) -> None:
+        harness.native_base_sha = harness.material
+
+    harness.download_hook = advance
+    with pytest.raises(ci_reuse.ReuseError, match="native PR base ref or target"):
+        harness.project()
+
+
+@pytest.mark.parametrize("fault", ["missing", "name", "sha", "branch_url", "commit_url"])
+def test_mapping_reuse_native_branch_identity_rejects_unusable_evidence(
+    native_reuse: _NativeReuseHarness, fault: str
+) -> None:
+    harness = native_reuse
+    branch = {
+        "name": harness.base_ref,
+        "commit": {
+            "sha": harness.base,
+            "url": f"https://api.github.com/repos/{harness.repository}/commits/{harness.base}",
+        },
+        "_links": {"self": f"https://api.github.com/repos/{harness.repository}/branches/main"},
+    }
+    if fault == "missing":
+        harness.native_branch_override = reuse_identity.CommitIdentityError(
+            "native branch unavailable"
+        )
+    elif fault == "name":
+        branch["name"] = "other"
+    elif fault == "sha":
+        branch["commit"]["sha"] = True
+    elif fault == "branch_url":
+        branch["_links"]["self"] = "https://api.github.com/repos/foreign/repo/branches/main"
+    else:
+        branch["commit"][
+            "url"
+        ] = f"https://api.github.com/repos/foreign/repo/commits/{harness.base}"
+    if fault != "missing":
+        harness.native_branch_override = branch
+    with pytest.raises((ci_reuse.ReuseError, reuse_identity.CommitIdentityError)):
+        harness.context()
+
+
+def test_mapping_reuse_native_branch_name_with_slash_is_encoded(
+    native_reuse: _NativeReuseHarness,
+) -> None:
+    harness = native_reuse
+    harness.base_ref = "release/stable"
+    context = harness.context()
+    assert context.base_ref == "release/stable" and context.current_base_sha == harness.base
+    assert (
+        f"https://api.github.com/repos/{harness.repository}/branches/release%2Fstable"
+        in harness.urls
+    )

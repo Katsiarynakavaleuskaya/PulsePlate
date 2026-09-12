@@ -185,9 +185,12 @@ def test_base_reuse_absence_preserves_ordinary_execution(tmp_path: Path) -> None
     )
 
 
-@pytest.mark.parametrize("failure", ["before-clone", "child"])
+@pytest.mark.parametrize(
+    ("failure", "expected"),
+    [("before-clone", "base changed before"), ("child", "bounded source denial")],
+)
 def test_base_reuse_launcher_propagates_identity_and_child_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str, expected: str
 ) -> None:
     repo, base, head = _base_reuse_checkout(tmp_path)
     if failure == "child":
@@ -197,7 +200,7 @@ def test_base_reuse_launcher_propagates_identity_and_child_failure(
         head = base
     refs = ("f" * 40, head) if failure == "before-clone" else (base, head)
     monkeypatch.setattr(current_head_module, "_live_pr_refs", lambda *_args: refs)
-    with pytest.raises(ValueError, match="base changed before|bounded source denial"):
+    with pytest.raises(ValueError, match=expected):
         current_head_module.verify_base_test_reuse(
             repo_root=repo,
             repository="owner/repo",

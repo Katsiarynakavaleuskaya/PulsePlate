@@ -15,6 +15,7 @@ import os
 import re
 import stat
 import sys
+import urllib.parse
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -119,6 +120,8 @@ class Context:
     snapshot: identity.PrSnapshot
     head_repository: str
     head_repository_id: int
+    base_ref: str
+    current_base_sha: str
 
     @property
     def is_fork(self) -> bool:
@@ -265,6 +268,36 @@ def _context(
     if base_repo.get("full_name") != repository:
         raise ReuseError("PR canonical BASE repository differs")
     repo_id = _positive(base_repo.get("id"), "repository ID")
+    base_ref = base.get("ref")
+    if (
+        not isinstance(base_ref, str)
+        or not base_ref
+        or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in base_ref)
+    ):
+        raise ReuseError("PR base ref is invalid")
+    encoded_ref = urllib.parse.quote(base_ref, safe="")
+    branch = _object(_api(repository, f"branches/{encoded_ref}", token), "native base branch")
+    links = _object(branch.get("_links"), "native branch links")
+    branch_url = links.get("self")
+    if not isinstance(branch_url, str):
+        raise ReuseError("native branch identity is missing")
+    parsed_branch = urllib.parse.urlsplit(branch_url)
+    if (
+        branch.get("name") != base_ref
+        or parsed_branch.scheme != "https"
+        or parsed_branch.netloc != "api.github.com"
+        or parsed_branch.query
+        or parsed_branch.fragment
+        or urllib.parse.unquote(parsed_branch.path) != f"/repos/{repository}/branches/{base_ref}"
+    ):
+        raise ReuseError("native branch has foreign or mismatched identity")
+    current_commit = _object(branch.get("commit"), "native base commit")
+    current_base_sha = _sha(current_commit.get("sha"), "native current base SHA")
+    if (
+        current_commit.get("url")
+        != f"https://api.github.com/repos/{repository}/commits/{current_base_sha}"
+    ):
+        raise ReuseError("native branch commit has foreign identity")
     head_repo_id = _positive(head_repo.get("id"), "head repository ID")
     head_repository = head_repo.get("full_name")
     if (
@@ -299,6 +332,8 @@ def _context(
         snapshot,
         head_repository,
         head_repo_id,
+        base_ref,
+        current_base_sha,
     )
 
 
@@ -847,6 +882,8 @@ def _refresh(
         expected_head=context.head_sha,
         expected_base=context.base_sha,
     )
+    if fresh.base_ref != context.base_ref or fresh.current_base_sha != context.current_base_sha:
+        raise ReuseError("native PR base ref or target changed during proof")
     if (
         fresh.repository_id != context.repository_id
         or fresh.head_repository != context.head_repository
@@ -930,6 +967,8 @@ def _commit_tree(context: Context, checkout_sha: str, *, tested_head: str, token
 def _material(
     root: Path, context: Context, *, successor: bool
 ) -> tuple[evidence.MaterialManifest, str]:
+    if context.base_sha != context.current_base_sha:
+        raise Ineligible("snapshot_base_behind_native_target")
     if context.is_fork:
         raise Ineligible("fork_pr_ordinary_only")
     live = evidence.compute_material_manifest(
@@ -1611,6 +1650,8 @@ def _source(
         context.snapshot,
         context.head_repository,
         context.head_repository_id,
+        context.base_ref,
+        context.current_base_sha,
     )
     checkout = _sha(manifest["checkout_sha"], "source event checkout")
     tree_digest = _commit_tree(context, checkout, tested_head=material_head, token=token)
