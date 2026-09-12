@@ -2640,6 +2640,39 @@ def native_reuse(
     return _NativeReuseHarness(tmp_path, monkeypatch, getattr(request, "param", "backend"))
 
 
+@pytest.mark.parametrize("latest", ["absent", "pending", "failure", "cancelled"])
+def test_mapping_reuse_incomplete_current_run_cannot_mask_prior_reused_checks(
+    native_reuse: _NativeReuseHarness, latest: str
+) -> None:
+    harness = native_reuse
+    harness.target_manifest()
+    ci_reuse.verify_current_reuse(
+        repo_root=harness.root,
+        repository=harness.repository,
+        pr_number=42,
+        token="opaque-test-token",
+    )
+    if latest == "absent":
+        harness.runs.pop(102)
+    else:
+        run = harness.add_run(103, harness.head, complete=latest != "pending")
+        if latest != "pending":
+            run["conclusion"] = latest
+    harness.source_run["run_attempt"] = 2
+    expected = (
+        "canonical current-head CI run is unavailable"
+        if latest == "absent"
+        else "source_evidence_writer_absent"
+    )
+    with pytest.raises(ci_reuse.ReuseError, match=expected):
+        ci_reuse.verify_current_reuse(
+            repo_root=harness.root,
+            repository=harness.repository,
+            pr_number=42,
+            token="opaque-test-token",
+        )
+
+
 def test_mapping_reuse_real_mapping_successor_source_failure_outside_tests_and_final_refresh(
     native_reuse: _NativeReuseHarness,
 ) -> None:

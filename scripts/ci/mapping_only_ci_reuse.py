@@ -2103,7 +2103,7 @@ def verify_current_reuse(
     )
     run = _latest_run(context, context.head_sha, token)
     if run is None:
-        return
+        raise ReuseError("canonical current-head CI run is unavailable")
     jobs = _jobs(context, run, token)
     claimed = any(_steps(job).get(REUSED_MARKER, {}).get("conclusion") == "success" for job in jobs)
     try:
@@ -2114,12 +2114,6 @@ def verify_current_reuse(
         # Ordinary ineligible runs do not publish substitution evidence.
         return
     artifact_name = f"ci-test-execution-{run['id']}-{run['run_attempt']}"
-    artifacts = _pages(
-        context.repository, f"actions/runs/{run['id']}/artifacts", "artifacts", token
-    )
-    has_aggregate = any(artifact.get("name") == artifact_name for artifact in artifacts)
-    if not claimed and not has_aggregate:
-        return
     writer = _writer(context, run, token)
     aggregate_ref, raw = _artifact(
         context,

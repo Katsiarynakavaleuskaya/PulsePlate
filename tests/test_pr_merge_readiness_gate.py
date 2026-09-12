@@ -3182,7 +3182,8 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "statuses": "read",
     }
     steps = job["steps"]
-    trusted_checkout = steps[0]
+    assert steps[0]["name"] == "Require current test evidence gate"
+    trusted_checkout = next(step for step in steps if step.get("name") == "Checkout trusted base")
     assert trusted_checkout["name"] == "Checkout trusted base"
     assert trusted_checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
     assert trusted_checkout["with"]["persist-credentials"] is False

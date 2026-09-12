@@ -634,6 +634,10 @@ their result is **verified reuse**, not a claim that tests executed again.
   canonical wrapper. Parent current-head/merge subprocess budgets include their
   one/two verifier calls; unrelated gate budgets and the hosted job's overall
   timeout remain unchanged. Exceeding a budget is still a verification failure.
+  A newer empty or incomplete current-head run cannot hide older reused checks:
+  an eligible current CI must have its execution writer and aggregate evidence.
+  Conditional BASE Python setup stays behind the successful proxy-health chain;
+  `always()` consumers enforce prerequisite results before installing tooling.
 - PR concurrency is partitioned by workflow, PR identity and head with running
   cancellation disabled. Metadata edits retain a running source while replacing
   older pending runs of that same head; material and mapping heads have separate

@@ -234,7 +234,7 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         if isinstance(job, dict) and job_uses_python_setup(job)
     }
 
-    assert python_setup_jobs == {
+    direct_health_jobs = {
         "lint",
         "security",
         "openapi-sync",
@@ -242,8 +242,46 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         "test-feature",
         "test-main",
         "diff-coverage",
+        "ci_test_reuse",
+        "merge_readiness_gate",
     }
-    for job_name in python_setup_jobs:
+    conditional_reuse_jobs = {"ci_test_evidence", "ios-tests", "ios-ui-smoke"}
+    assert python_setup_jobs == direct_health_jobs | conditional_reuse_jobs
+    for job_name in direct_health_jobs:
         job = jobs[job_name]
         assert isinstance(job, dict)
         assert HEALTH_JOB in as_needs_set(job), f"{job_name} must need {HEALTH_JOB}"
+
+    for job_name in conditional_reuse_jobs:
+        job = jobs[job_name]
+        assert "ci_test_reuse" in as_needs_set(job)
+        setups = [
+            step for step in job["steps"] if step.get("uses") == "./.github/actions/python-setup"
+        ]
+        assert len(setups) == 1
+        setup = setups[0]
+        assert not job.get("continue-on-error") and not setup.get("continue-on-error")
+        if job_name == "ci_test_evidence":
+            guard = next(
+                step
+                for step in job["steps"]
+                if step.get("name") == "Require successful reuse admission"
+            )
+            assert guard.get("if") is None and not guard.get("continue-on-error")
+            assert guard["env"]["ADMISSION_RESULT"] == "${{ needs.ci_test_reuse.result }}"
+            assert guard["run"].strip() == (
+                'test "$CHANGES_RESULT" = success\ntest "$ADMISSION_RESULT" = success'
+            )
+            assert job["steps"].index(guard) < job["steps"].index(setup)
+        else:
+            assert setup["if"] == (
+                "github.event_name == 'pull_request' && needs.ci_test_reuse.outputs.mode == 'reused'"
+            )
+            assert "needs.ci_test_reuse.result == 'success'" in job["if"]
+
+    merge_steps = jobs["merge_readiness_gate"]["steps"]
+    guard = merge_steps[0]
+    assert guard["name"] == "Require current test evidence gate"
+    assert guard.get("if") is None and not guard.get("continue-on-error")
+    assert guard["env"] == {"TEST_EVIDENCE_RESULT": "${{ needs.ci_test_evidence.result }}"}
+    assert guard["run"].strip() == 'test "$TEST_EVIDENCE_RESULT" = success'

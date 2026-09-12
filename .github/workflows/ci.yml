@@ -432,6 +432,11 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
+      - name: Require current test evidence gate
+        env:
+          TEST_EVIDENCE_RESULT: ${{ needs.ci_test_evidence.result }}
+        run: test "$TEST_EVIDENCE_RESULT" = success
+
       - name: Checkout trusted base
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -470,11 +475,6 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Require current test evidence gate
-        env:
-          TEST_EVIDENCE_RESULT: ${{ needs.ci_test_evidence.result }}
-        run: test "$TEST_EVIDENCE_RESULT" = success
 
       - name: Enforce merge readiness policy
         env:
