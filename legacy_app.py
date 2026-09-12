@@ -58,7 +58,6 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
     LegacyWeekPlanRequest,
     WeeklyMenuResponse,
 )
-from app.services import pro_nutrition_plate as _canonical_plate_service
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
     generate_who_targets_response as _generate_who_targets_response,
@@ -223,27 +222,6 @@ _api_description = _application_metadata.description
 #
 # NOTE: Legacy weekly-plan contracts are now owned by
 # `app.schemas.legacy_premium_weekly_plan`; `legacy_app` only re-exports them.
-
-
-# Canonical Plate ownership. Retained schema and helper compatibility exports
-# remain exact service aliases. Canonical and retained HTTP handlers import the
-# service directly.
-DB_TO_ALIAS_NUTRIENT_MAP = _canonical_plate_service.DB_TO_ALIAS_NUTRIENT_MAP
-
-
-PlateServiceDependencies = _canonical_plate_service.PlateServiceDependencies
-_convert_db_nutrients_to_alias_format = (
-    _canonical_plate_service._convert_db_nutrients_to_alias_format
-)
-_aggregate_meal_micronutrients = _canonical_plate_service._aggregate_meal_micronutrients
-_get_recipe_ingredients_for_meal = _canonical_plate_service._get_recipe_ingredients_for_meal
-_aggregate_day_micronutrients = _canonical_plate_service._aggregate_day_micronutrients
-_macros_to_kcal = _canonical_plate_service._macros_to_kcal
-sanitize_plate_data = _canonical_plate_service.sanitize_plate_data
-_iter_exception_chain = _canonical_plate_service._iter_exception_chain
-_is_missing_nh3_error = _canonical_plate_service._is_missing_nh3_error
-_raise_missing_nh3_http_error = _canonical_plate_service._raise_missing_nh3_http_error
-calculate_heuristic_macros = _canonical_plate_service.calculate_heuristic_macros
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.

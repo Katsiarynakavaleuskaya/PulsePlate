@@ -66,20 +66,33 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_execute_insight_request",
     "insight_v1",
     "insight",
+    "DB_TO_ALIAS_NUTRIENT_MAP",
+    "PlateServiceDependencies",
+    "_convert_db_nutrients_to_alias_format",
+    "_aggregate_meal_micronutrients",
+    "_get_recipe_ingredients_for_meal",
+    "_aggregate_day_micronutrients",
+    "_macros_to_kcal",
+    "sanitize_plate_data",
+    "_iter_exception_chain",
+    "_is_missing_nh3_error",
+    "_raise_missing_nh3_http_error",
+    "calculate_heuristic_macros",
 }
 
-RETIRED_PLANNING_EXPORT_BINDINGS = (
-    "analyze_nutrient_gaps",
-    "make_daily_menu",
-    "make_weekly_menu",
-    "repair_week_plan",
-    "make_plate",
-    "build_nutrition_targets",
-    "to_csv_day",
-    "to_pdf_day",
-    "to_csv_week",
-    "to_pdf_week",
-    "WeeklyPlanFlexibleRequest",
+RETIRED_PLATE_HELPER_BINDINGS = (
+    "DB_TO_ALIAS_NUTRIENT_MAP",
+    "PlateServiceDependencies",
+    "_convert_db_nutrients_to_alias_format",
+    "_aggregate_meal_micronutrients",
+    "_get_recipe_ingredients_for_meal",
+    "_aggregate_day_micronutrients",
+    "_macros_to_kcal",
+    "sanitize_plate_data",
+    "_iter_exception_chain",
+    "_is_missing_nh3_error",
+    "_raise_missing_nh3_http_error",
+    "calculate_heuristic_macros",
 )
 
 RETIRED_INSIGHT_BINDINGS = (
@@ -176,6 +189,8 @@ def test_legacy_retirement_probe_excludes_ambient_credentials(
 
 
 def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present() -> None:
+    """Verify retired-name absence while preserving canonical objects and retained schemas."""
+    import app as app_facade
     import app.schemas.bmi_compat as bmi_schemas
     import app.schemas.insight as insight_schemas
     import app.schemas.premium_contracts as premium_contracts
@@ -230,8 +245,21 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_execute_insight_request": insight_compat._execute_insight_request,
         "insight_v1": insight_compat.insight_v1,
         "insight": insight_compat.insight,
+        "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
+        "PlateServiceDependencies": plate_service.PlateServiceDependencies,
+        "_convert_db_nutrients_to_alias_format": plate_service._convert_db_nutrients_to_alias_format,
+        "_aggregate_meal_micronutrients": plate_service._aggregate_meal_micronutrients,
+        "_get_recipe_ingredients_for_meal": plate_service._get_recipe_ingredients_for_meal,
+        "_aggregate_day_micronutrients": plate_service._aggregate_day_micronutrients,
+        "_macros_to_kcal": plate_service._macros_to_kcal,
+        "sanitize_plate_data": plate_service.sanitize_plate_data,
+        "_iter_exception_chain": plate_service._iter_exception_chain,
+        "_is_missing_nh3_error": plate_service._is_missing_nh3_error,
+        "_raise_missing_nh3_http_error": plate_service._raise_missing_nh3_http_error,
+        "calculate_heuristic_macros": plate_service.calculate_heuristic_macros,
     }
     canonical_constants = {
+        "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
         "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
         "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
     }
@@ -239,6 +267,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
+    assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
     assert legacy_app.Activity is premium_contracts.Activity
@@ -286,7 +315,9 @@ def test_retained_premium_schema_bindings_remain_importable_in_fresh_process() -
     }
 
 
-def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
+def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None:
+    """Prove fresh-import retirement and canonical Plate availability without ambient state."""
+    retired_bindings = tuple(sorted(RETIRED_LEGACY_PYTHON_BINDINGS))
     import_failure_checks = "\n".join(textwrap.dedent(f"""
             try:
                 from legacy_app import {binding_name}
@@ -294,12 +325,25 @@ def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
                 pass
             else:
                 raise AssertionError("legacy from-import remains: {binding_name}")
-            """) for binding_name in RETIRED_PLANNING_EXPORT_BINDINGS)
+            """) for binding_name in retired_bindings)
     scenario = textwrap.dedent(f"""
         import json
         import legacy_app
+        import app as app_facade
+        import app.services.pro_nutrition_plate as plate_service
 
-        retired = {RETIRED_PLANNING_EXPORT_BINDINGS!r}
+        retired = {retired_bindings!r}
+        plate_helpers = {RETIRED_PLATE_HELPER_BINDINGS!r}
+        assert set(retired).isdisjoint(vars(legacy_app))
+        assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
+        for binding_name in plate_helpers:
+            canonical_object = getattr(plate_service, binding_name)
+            if binding_name == "DB_TO_ALIAS_NUTRIENT_MAP":
+                assert isinstance(canonical_object, dict)
+                assert not callable(canonical_object)
+            else:
+                assert callable(canonical_object)
+                assert canonical_object.__module__ == plate_service.__name__
         for binding_name in retired:
             try:
                 getattr(legacy_app, binding_name)
@@ -310,11 +354,20 @@ def test_planning_export_bindings_fail_closed_in_a_fresh_process() -> None:
         """)
     scenario += import_failure_checks
     scenario += textwrap.dedent("""
-        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({"absent": list(retired)}))
+        print(
+            "LEGACY_RETIREMENT_RESULT="
+            + json.dumps({
+                "absent": list(retired),
+                "canonical_plate_helpers": list(plate_helpers),
+                "package_macro_identity_preserved": True,
+            })
+        )
         """)
 
     assert _run_legacy_retirement_probe(scenario) == {
-        "absent": list(RETIRED_PLANNING_EXPORT_BINDINGS)
+        "absent": list(retired_bindings),
+        "canonical_plate_helpers": list(RETIRED_PLATE_HELPER_BINDINGS),
+        "package_macro_identity_preserved": True,
     }
 
 

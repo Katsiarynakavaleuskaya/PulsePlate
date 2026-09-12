@@ -766,9 +766,9 @@ def test_week_plan_registration_requires_api_key_dependency(
         app_main._include_legacy_premium_weekly_plan_router_if_needed(FastAPI())
 
 
-def test_retained_legacy_plate_contract_exports_are_exact_canonical_aliases() -> None:
-    """Retained Plate contracts cannot diverge from canonical service ownership."""
-    assert legacy_app.PlateServiceDependencies is plate_service.PlateServiceDependencies
+def test_legacy_plate_dependency_bindings_remain_retired() -> None:
+    """Plate dependency ownership remains outside the legacy facade."""
+    assert not hasattr(legacy_app, "PlateServiceDependencies")
     assert not hasattr(legacy_app, "_plate_deps")
 
 
