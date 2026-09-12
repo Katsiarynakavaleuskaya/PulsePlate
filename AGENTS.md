@@ -55,7 +55,18 @@ dead interpreter. Missing scripts are OK; see
 - `scripts/quick_check.sh` delegates to `make validate-min`, then adds staged-file format/import/syntax checks.
 - Use `. .venv/bin/activate` before direct local `pytest` runs outside Make targets.
 
-**If ANY command fails:**
+**Command results and failure scope:**
+
+Classify the result before choosing the next action:
+
+| Result | Required action |
+| --- | --- |
+| Required gate fails | Preserve raw failure output, fix the cause, and rerun that gate. No readiness claim while it fails. |
+| Exploratory `rg`/`grep` returns 1 with no matches | Record the empty search result. It is not a failed gate unless the check required a match. Exit 2 or tool diagnostics still require investigation. |
+| Tool/service invocation fails | Preserve the error and diagnose its own prerequisite. A service HTTP 403 does not authorize model switching or a retry loop. |
+| Required CI is pending | Record pending and wait for current-head evidence; pending is neither pass nor failure. |
+
+For a failed required command:
 
 1. Paste raw output lines showing the failure
 2. Provide `file:line:error` pointers
@@ -63,6 +74,12 @@ dead interpreter. Missing scripts are OK; see
 4. Fix the issue first, then re-run the failed required gate. Locally this means
    the narrow bundle above; full `make verify` remains a GitHub CI/heavy-runner
    signal unless a human explicitly overrides the local budget rule.
+
+Run the required narrow bundle and focused checks for the admitted scope. Repeat
+or broaden them only for a new change, failure, unresolved concern, or explicit
+coordinator/owner instruction. A failure in another owned lane does not transfer
+that lane's files or recovery work to this agent. The global Next-PR Start Gate
+still applies; preserve the current lane's scope and report the dependency.
 
 **Current-PR defect handling (hard rule):**
 
@@ -697,6 +714,9 @@ Rules:
   slug in the prompt (for example, "You are PulsePlate custom role
   `security-auditor`"). The transport name is adapter-only; the repo role slug and
   bootstrap packet remain the authority for the pass.
+- Native model/effort selection follows `docs/agents/model_policy.md`. Model
+  choice does not grant role ownership, reorder dispatch, or replace required
+  context, validation, review, or human approval.
 - Missing execution of a bootstrap-assigned role is a hard gate: do not implement,
   push, or claim readiness until the role has run in order or the coordinator
   records an explicit disposition with evidence in the packet/runbook.
@@ -943,7 +963,10 @@ pytest -q tests/test_repo_policy_guards.py
 make test-fast
 ```
 
-### 4) Coverage gate (only when preparing merge)
+### 4) Coverage gate (GitHub CI / admitted heavy runner)
+
+These Make targets run the full suite. They describe the heavy coverage signal,
+not an additional local default; use canonical current-head CI under Hard Gates.
 
 ```bash
 make cov-check  # Total coverage ≥97%
@@ -953,7 +976,9 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 **Coverage rule (hard):**
 
 - Never use per-file coverage % as a readiness signal.
-- Only `make cov-check` (total ≥97%) + `make diff-cov` (diff-coverage ≥97%) count.
+- Canonical current-head total coverage ≥97% and diff coverage ≥97% count;
+  `make cov-check` / `make diff-cov` are the heavy-runner targets, not permission
+  to run an unsharded full suite locally.
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 - **Diff-cover failures:** Fix ONLY via tests (preferred) unless behavior is wrong; do not rewrite code solely for coverage.
@@ -1076,8 +1101,8 @@ make test-fast
 # 3. Lint/format check
 make lint
 
-# 4. First-fail triage (stop after 20 failures to see patterns)
-pytest -q --maxfail=20
+# 4. First-fail triage of the selected failing surface only
+pytest -q tests/<failing_surface>.py --maxfail=20
 
 # 5. Docker entrypoint sanity
 rg -n "COPY .*app\.py" Dockerfile
@@ -2052,7 +2077,9 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **For every worktree-based PR, run cleanup commands after merge to avoid stale branch/worktree buildup.**
 - ✅ **Before continuing work after merge, verify PR state (`gh pr view <N> --json state,mergeCommit,mergedAt`). If `state=MERGED`, start a new worktree + branch from `origin/main` and do not push to the merged PR branch.**
 - ✅ **If a stacked child PR auto-closes after its parent base branch is merged/deleted, create a new branch from `origin/main`, cherry-pick the child commits, rerun local gates, and open a replacement PR on `main` with a new `docs/review/PR_<N>_FIXED_MAPPING.md` artifact.**
-- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
+- ✅ Failed required CI on the current PR blocks readiness and unrelated scope
+  expansion; fix its bounded cause. Interpret pending, diagnostic no-match, and
+  separately owned failures under "Command results and failure scope" above.
 
 **Dependabot merges:** One-at-a-time; after each merge run `pre-commit run -a` and `pytest -q tests/test_repo_policy_guards.py` locally, then proceed to the next. Use squash + delete-branch. Do not extend dependabot PR scope — fix failures in a separate PR.
 
@@ -2111,9 +2138,8 @@ git fetch origin
 # 2. Make changes
 # ... edit files ...
 
-# 3. Verify tests pass
-make test-fast
-make cov-check
+# 3. Complete the local narrow bundle from Hard Gates above;
+# GitHub current-head CI supplies the heavy coverage/test signal.
 
 # 4. Push normally (no force push)
 git push
@@ -2139,9 +2165,8 @@ git cherry-pick <sha1> <sha2> ...
 git diff origin/main...HEAD --stat
 # If branch becomes identical to main, close PR as duplicate (no-op merges are forbidden)
 
-# 6. Verify tests pass
-make test-fast
-make cov-check
+# 6. Complete the local narrow bundle from Hard Gates above;
+# GitHub current-head CI supplies the heavy coverage/test signal.
 
 # 7. Push new branch
 git push -u origin fix/<new-branch>

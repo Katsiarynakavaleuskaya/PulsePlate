@@ -8,10 +8,10 @@ readonly: true
 ## Model Selection Rationale
 
 - **Model:** `auto`
-- **Why auto:** Bug diagnosis and root cause analysis benefit from stronger reasoning and context adaptation. Latest models often improve on debugging capabilities.
+- **Selection:** Follow `docs/agents/model_policy.md` for native inheritance and explicitly enabled routing.
 - **Work type:** CI triage, minimal reproducible cases, pinpoint code locations, test failure analysis.
-- **Determinism:** Achieved through reproducible steps (commands/logs/tests), not identical text. Bug reports are artifacts, not model outputs.
-- **Escalation:** If stable test matrix/table reports needed, can fix model for reporting only.
+- **Evidence:** Reproduction steps, commands and observed logs bound the diagnosis; model selection does not guarantee repeatability.
+- **Escalation:** Return unresolved evidence through the coordinator under the canonical model policy.
 
 ## Required pre-flight (SoT)
 
@@ -43,7 +43,7 @@ PulsePlate is a FastAPI-based nutrition and meal planning application with:
 - **Backend**: FastAPI (Python 3.13.5) with 97% test coverage requirement
 - **Frontend**: React/Vite web app
 - **iOS**: SwiftUI mobile app
-- **Quality Gates**: `make verify` (lint → typecheck → test-fast → diff-cov ≥97%)
+- **Quality Gates**: root `AGENTS.md` → Hard Gates; `RUNBOOK_AGENT.md` → Quality Gates
 - **Architecture**: Domain logic in `core/`, FastAPI layer in `app/routers/`, thin adapters only
 
 ## When Invoked
@@ -58,16 +58,12 @@ PulsePlate is a FastAPI-based nutrition and meal planning application with:
 
 ### Step 1: Run Quality Gates
 
-```bash
-# Full verification (required before PR)
-make verify
-
-# Individual checks
-make lint          # ruff/flake8
-make typecheck     # mypy (no cache)
-make test-fast     # pytest quick run
-make diff-cov      # diff-cover ≥97%
-```
+Use the root local narrow bundle and the focused checks selected for the actual
+diff. Inspect current-head CI for the heavy test/coverage signal. Apply root
+`AGENTS.md` → Command results and failure scope: an empty exploratory search is
+not a failed gate; pending CI is not a failure. Preserve other owners' lanes.
+Do not start broad verification or repeat a role chain merely because this role
+was invoked; rerun the relevant failed gate after fixing its cause.
 
 **Critical**: If ANY gate fails, report the failure with:
 - Raw output lines showing the error
@@ -76,7 +72,8 @@ make diff-cov      # diff-cover ≥97%
 
 ### Step 2: Run Guard Tests
 
-Guard tests enforce architectural invariants. These MUST pass:
+Guard tests enforce architectural invariants. Select applicable guards from the
+touched surface; these examples do not require every suite on every invocation:
 
 ```bash
 # Import hygiene guards
@@ -160,16 +157,10 @@ git grep -n "^def test_" -- tests | grep -v "-> None:"
 
 ### Step 4: Check Coverage Gaps
 
-```bash
-# Total coverage check
-make cov-check  # Must be ≥97%
-
-# Diff coverage check (for PR)
-make diff-cov   # Must be ≥97% on changed lines
-
-# Find uncovered lines
-coverage report --show-missing | grep -E "^\s+[0-9]+\s+[0-9]+\s+[0-9]+%"
-```
+Inspect the current-head coverage artifact using the root coverage contract.
+Use focused tests to close relevant gaps. A stale or absent local report does
+not justify an unsharded full local coverage run; follow the root local budget
+and `RUNBOOK_AGENT.md` for the admitted evidence path.
 
 **Rule**: If diff-cover shows uncovered code with **zero call sites** → **delete it**, don't write tests.
 
@@ -213,7 +204,7 @@ grep -rn "URLSession\.shared\.data" --include="*.swift" ios/
 ### P0 - Critical (Block PR)
 
 - Guard tests failing (architectural violations)
-- `make verify` failing
+- A required local narrow gate or current-head CI check failing
 - Test failures in CI
 - Security vulnerabilities (bandit/pip-audit)
 - Import hygiene violations
@@ -260,20 +251,18 @@ Command: pytest -q tests/test_no_bmi_math_outside_core.py
 
 ## Proactive Scanning
 
-When invoked proactively (no specific issue), run:
-
-1. `make verify` - Full quality check
-2. All guard tests - Architectural compliance
-3. Coverage check - Ensure ≥97%
-4. Security scan - Bandit + pip-audit
-5. Pattern checks - Common bug patterns above
+When invoked proactively, agree the bounded inspection surface with the
+coordinator, inspect the actual diff and existing evidence, then run only its
+focused checks under the root validation budget. The examples above are a
+diagnostic menu. They do not start recurring scans or create new cleanup work.
 
 ## Integration with Project Workflow
 
 - **Before commit**: Run `pre-commit run --all-files`
-- **Before PR**: Run `make verify` and all guard tests
-- **After merge**: Verify CI passes, check coverage reports
-- **Weekly**: Full security audit, dead code cleanup
+- **Before PR**: Complete root local narrow gates and applicable focused guards
+- **After merge**: Follow the root synchronization and current-main health contract
+- **Later findings**: Fix/disposition the finding and run targeted validation;
+  reopen the full role chain only under the root Role-Agent Order Contract
 
 ## Key Principles
 

@@ -24,6 +24,27 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-production-readiness-timeout-evidence"></a>
+- [ ] P1: Bound the production-readiness HTTP probe and overall wait
+  - Owner: dev-operator / agent-coordinator follow-up owner
+  - Priority: P1 (release viability and recovery evidence)
+  - Target PR: TBD dedicated bounded production-readiness timeout PR, unless an existing owner explicitly absorbs this exact scope
+  - Reason for deferral: Instruction/dispatch corrections cannot repair deployment behavior. This HTTP timeout gap is independent of the existing image-admission recovery and is not assigned to that owner without its explicit handoff.
+  - Evidence: `scripts/deploy_production.sh:2024` calls `urllib.request.urlopen('http://localhost:8000/ready').read()` without a request timeout; the surrounding retry counter cannot bound an accepted connection that stalls. This is a code-level gap, not proof of a live production outage.
+  - Links: [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication), `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`, `RUNBOOK_AGENT.md`.
+  - DoD: Record exact image/head/config identity and deterministic success, HTTP 503 and accepted-but-stalled-connection cases; enforce per-request and overall wait bounds; preserve bounded diagnostics and the original nonzero failure status; prove timeout prevents worker/Caddy promotion. Retain current-head gates and separate deployment approval without weakening readiness checks.
+  - Separate reference: [main CD run 34704810352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34704810352) at `b0eecb29160129be961a7038cd08084293759fc3` reported PostgreSQL reuse-admission timeout. That publication failure belongs to [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication); it is not this HTTP gap's root cause. No recovery monitoring or deployment change is authorized by this ledger entry.
+
+<a id="ledger-p1-disposable-stack-recovery-integration"></a>
+- [ ] P1: Complete disposable whole-stack failure and recovery integration evidence
+  - Owner: agent-coordinator / qa-engineer-agent / dev-operator for gap reconciliation; existing secure-staging owner retains its crash/restore implementation
+  - Priority: P1 (stack integration and recovery correctness)
+  - Target PR: TBD after reconciling the existing secure-staging task's scope (worktree `main-recovery-secure-staging`); use its evidence and obtain explicit ownership for any additional cases
+  - Reason for deferral: Unit/role checks and instruction edits do not establish backend, PostgreSQL/pgvector and proxy behavior together. Crash/restore implementation is already owned by the secure-staging task and must not be duplicated here.
+  - Links: [production-readiness HTTP gap](#ledger-p1-production-readiness-timeout-evidence), [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication), `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`, `docs/deploy/README.md`.
+  - DoD: Reconcile the owner's existing crash/restore scenarios first without claiming it accepted extra scope; run only the remaining explicitly owned cases against one disposable backend/PostgreSQL/pgvector/proxy stack with exact images and synthetic data. Prove happy-path routing, dependency loss, bounded readiness failure, crash during an open transaction with committed data retained and uncommitted data absent, restart/same-volume continuity, valid restore and corrupt-dump rejection before promotion. Verify cleanup and retain raw results plus explicit untested cases. Close only after merged owning changes and observed scenario evidence; production deployment/fault injection requires separate authorization.
+  - Boundary: Ledger-only coordination in the instruction lane; no deploy code, production fault injection, new stack runner or duplicate recovery implementation.
+
 <a id="ledger-p1-ios-iphone-duo-native-validation"></a>
 - [ ] P1: Validate iPhone Duo adaptive navigation with official simulator support
   - Owner: iOS lane owner / qa-engineer-agent

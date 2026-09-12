@@ -1,59 +1,35 @@
-# Packet Parsing Rules
+# Packet Consumption Rules
 
-How to extract the role order from a governance packet file.
+## Existing executable owner
 
-## Locating the Role Order Section
+`scripts/orchestration/role_dispatch_bridge.py` owns packet parsing and manifest
+validation. Invoke the packet's
+`role_agent_dispatch_contract.dispatch_manifest_command`, substituting the
+actual packet path and repo-approved interpreter while preserving every mode,
+owner and phase flag. Use the examples in `../SKILL.md` only as illustrations.
 
-Scan the packet for a heading (any level) containing one of:
-- "Coordinator Role Order"
-- "Role Order"
-- "Role-Agent Order"
+Do not extract role order with a new Markdown/regex parser, deduplicate slugs,
+guess unknown roles, or repair a failed manifest through best-effort parsing.
+Supported Markdown/manual inputs still go through the existing bridge.
 
-The section immediately following this heading contains the ordered list.
+## Preserve the returned occurrence
 
-## Parsing the List
+- Require exit 0 and an empty `missing_agents` result before native dispatch.
+- Ordinary output is the manifest. Exact-context output contains it under
+  `manifest` together with the selected current occurrence and context result.
+- Keep every `dispatch_sequence` occurrence, its one-based `order`, constraints
+  and `depends_on_previous` handoff. Repeated names are not duplicate work to
+  discard; occurrence identity includes order and the applicable packet slot.
+- Follow the manifest's serial policy. `parallelizable_groups` hints do not
+  override `parallel_execution_allowed=false`.
+- Preserve the selected phase. `post_open_role_gates` describes the later
+  required QA/Bug/Security pass; its presence in metadata does not append that
+  pass to an analysis/pre-open sequence. Let the existing bridge handle an
+  explicitly selected post-open phase.
 
-Role order is expressed as a numbered Markdown list:
+## Failure boundary
 
-```markdown
-1. agent-coordinator — scope analysis and task decomposition
-2. architecture-specialist — verify structural alignment
-3. philosophy-agent — validate epistemic invariants
-4. qa-engineer-agent -> bug-hunter — post-open mandatory pass
-```
-
-### Extraction rules
-
-1. **Strip numbering**: Remove leading `N.` or `N)` prefix
-2. **Extract slug**: The agent slug is the first token (hyphenated-lowercase word)
-3. **Strip description**: Everything after ` — ` (em-dash) or ` - ` is description, ignore it
-4. **Handle chain notation**: `slug-a -> slug-b` means two agents in strict sequence
-   - Both are separate dispatch entries
-   - Second depends on first (`depends_on_previous: true`)
-5. **Handle group notation**: `[slug-a, slug-b]` means parallelizable group
-   - Both are separate entries with same `parallelizable_groups` id
-
-## Post-open Mandatory Pass
-
-The notation `qa-engineer-agent -> bug-hunter` (or any `->` chain at the end)
-indicates the mandatory post-open pass. This pair:
-- Always appears last in the dispatch sequence
-- Is never parallelized with other agents
-- Is never skipped regardless of packet scope
-- Runs once as required lane evidence. New review comments after that pass do
-  not restart the full post-open role/Codex Security/`pulseplate-pr-review`
-  chain; they are fixed or dispositioned in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and validated with targeted gates. Reopen the full chain only when the diff
-  gains new security-relevant surface, the coordinator records a new
-  evidence-backed routing update, or the operator explicitly requests another
-  pass.
-
-## Validation
-
-After parsing, verify:
-1. First entry is `agent-coordinator` (or coordinator-equivalent)
-2. Last entry includes the QA mandatory pass
-3. No duplicate slugs (except in chain notation)
-4. All slugs resolve to known agent definitions in `.cursor/agents/`
-
-If validation fails, emit a warning but proceed with best-effort parsing.
+Retain the original exit code/diagnostic and report the unmet prerequisite.
+Missing definitions, invalid input or absent/ambiguous native bindings block
+dispatch. A parsed object alone is not proof of role execution or authority.
+Context completeness is handled separately under `context-loading.md`.

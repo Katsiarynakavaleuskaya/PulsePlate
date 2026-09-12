@@ -155,26 +155,42 @@ treatment. TaskNormative N1 and its separate empirical admission remain unchange
 
 ### Pre-flight Checklist
 
-#### 0) Auto-verification (mandatory)
-- [ ] Run: `python3 -m scripts.orchestration.check_preflight` — must exit 0 (PASS). Failure = stop execution.
-- [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
-- [ ] Confirm coordinator-first start gate was satisfied: either `agent-coordinator` was invoked manually, or a launcher/bootstrap path already produced the governing packet for this lane.
+Complete the stage that admits the next action. Initial analysis and routing
+establish the packet and assignments; completed roles are a prerequisite for
+tracked implementation, not for assigning those roles. An analysis-only task
+may finish with its requested report without entering implementation or PR stages.
+Checklist items are actions within each stage, not prerequisites for entering
+that same stage; complete them before its dependent next action.
 
-#### 1) Context loading
+#### Analyze and route
+
+- [ ] Inspect current branch/worktree ownership, base, relevant PRs and the
+  applicable root start gates before starting a new lane.
+- [ ] Choose the starter or manual path. `start_pr_lane.sh` may create the
+  isolated worktree before analyze preflight/bootstrap. If it or a compatible
+  launcher already created the governing packet, reuse it; do not bootstrap a
+  second packet merely to follow the manual recipe.
+- [ ] Run: `python3 scripts/orchestration/check_preflight.py --mode analyze` — must exit 0 (PASS).
+- [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
+- [ ] Invoke `agent-coordinator` with the governing packet, or perform its
+  initial analysis before manual bootstrap. Packet generation alone is not
+  coordinator or role execution.
+
+##### Context loading
 - [ ] Загружен root `AGENTS.md` (инварианты, quality gates, запреты)
 - [ ] Загружен `RUNBOOK_AGENT.md` (операционные команды/проверки)
 - [ ] Определены затронутые модули (core/app/frontend/ios/tests/…)
 - [ ] Загружены `AGENTS.md` для **каждого** затронутого модуля
 
-#### 2) Contract docs (если меняется API/схемы/tiers)
+##### Contract docs (если меняется API/схемы/tiers)
 - [ ] Загружены релевантные contract-docs (например `API_CANONICAL_MAP`, `PRODUCT_TIER_MAP`,
   `OPENAPI_VISIBILITY_MATRIX`, `soft_paywall`)
 
-#### 3) Quality gates
+##### Quality gates
 - [ ] Ясно какие проверки обязательны (pytest/coverage/mypy/lint/openapi determinism/guards)
 - [ ] Список guard-тестов для задачи понятен
 
-#### 4) Routing readiness
+##### Routing readiness
 - [ ] Назначен primary agent
 - [ ] Назначены secondary agents (если multi-domain)
 - [ ] Проставлены зависимости / handoff / sync points (если multi-agent)
@@ -189,17 +205,34 @@ treatment. TaskNormative N1 and its separate empirical admission remain unchange
   а repo-agent slug остаётся канонической идентичностью роли
 - [ ] Явно запрошенные пользователем agent slugs сохранены в task packet и либо honored,
   либо preserved as required readonly/custom role passes, либо отклонены с явной причиной
-- [ ] Команда из `role_agent_dispatch_contract.dispatch_manifest_command`
-  выполнена с actual packet path, включая packet-emitted runtime owner flags, и
-  все bootstrap-requested/custom role passes из dispatch manifest выполнены;
-  readonly/review-only contribution mode не даёт права пропуска
+- [ ] Preserve `role_agent_dispatch_contract.dispatch_manifest_command` and its
+  runtime-owner flags for the next stage; identify every required occurrence.
 - [ ] Для non-trivial PR lane запланированы обязательные gates:
   `pulseplate-premortem-risk-review` на actual diff и Experiment Runner
   oracle-only governance review после первого coherent diff до PR open
 - [ ] Для privilege-sensitive surfaces (`.github/workflows/**`, `ios/fastlane/**`,
   `scripts/orchestration/**`, merge-governance docs/scripts) включён security review path
 
-**Stop condition:** если есть хоть один незакрытый пункт — execution запрещён.
+#### Admit tracked implementation
+
+- [ ] The analysis-stage scope, accepted criteria and governing packet are available.
+- [ ] Execute the packet-emitted dispatch command with the actual packet path
+  and repo-approved Python. Preserve mode and owner flags. Complete every
+  required preparatory occurrence in `dispatch_sequence` order, carrying
+  predecessor evidence; readonly/review-only roles are not optional.
+- [ ] Run execute-mode preflight with its required packet inputs and obtain the
+  coordinator's implementation handoff to the declared owner and file scope.
+
+#### Publish and close out
+
+- [ ] Follow root `AGENTS.md` and `RUNBOOK_AGENT.md` for local narrow gates,
+  actual-diff premortem, Runner oracle evidence, PR opening, post-open roles,
+  exact-material review and strict current-head closeout.
+- [ ] Preserve separate human approval for merge and other protected actions.
+
+**Stop condition:** an unmet prerequisite blocks its dependent stage. It does
+not forbid the authorized analysis or diagnosis needed to satisfy it. A report,
+packet, or completed role pass never supplies implementation or merge authority.
 
 ### Task Packet Expectations (PR2 bootstrap baseline)
 
@@ -557,7 +590,7 @@ Rule: promotion writes exactly one durable destination artifact plus one local p
 3. **Documentation:** Update AGENTS.md/RUNBOOK if workflow changes
 4. **Postponed items:** Always record in BACKLOG_LEDGER
 5. **Dev-only:** This workflow is for development, not runtime product
-6. **Pre-flight enforcement:** Coordinator must complete Pre-flight Checklist before starting
+6. **Pre-flight enforcement:** Coordinator completes the applicable Pre-flight Checklist stage before its dependent action
 7. **Post-flight verification:** Coordinator must verify execution requirements before Synthesis
 8. **Next-PR start gate:** in PR trains, the next PR starts only after the previous PR is merged,
    local `main` is synced, and current-head `main` is green after merge fallout

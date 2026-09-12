@@ -1,51 +1,46 @@
-# Role-to-Qoder Type Mapping
+# Native Role Binding Consumption
 
-Canonical mapping from PulsePlate agent slugs to Qoder subagent types.
+## Canonical sources
 
-## Mapping Table
+The role slug and full `.cursor/agents/<slug>.md` definition are canonical.
+The existing `scripts/orchestration/native_subagent_bridge.py` builds packet
+native bindings; `role_dispatch_bridge.py` validates manifest occurrences and
+explicit runtime ownership. This guide contains no independent mapping table.
 
-| Agent slug | readonly | Default Qoder type | Override conditions |
-|------------|----------|-------------------|---------------------|
-| agent-coordinator | false | Research | Always analysis mode |
-| architecture-specialist | true | Research | Never Coding |
-| philosophy-agent | true | Research | Never Coding |
-| rag-systems-agent | false | Research | Coding only if mode=runtime |
-| logic-agent | true | Research | Never Coding |
-| security-auditor | true | Research | Never Coding |
-| qa-engineer-agent | false | Verify | Always runs tests |
-| bug-hunter | false | Verify | Always runs tests |
-| backend-engineer | false | Coding | Research if mode=analysis |
-| frontend-engineer | false | Coding | Browser if UI validation |
-| dev-operator | false | Coding | Research if mode=analysis |
-| creative-designer | false | Research | Coding if mode=runtime |
-| web-research-agent | true | Research | Always Research |
-| cursor-specialist-agent | false | Research | Coding if mode=runtime |
-| All others | varies | Research | Safe fallback |
+For Codex, select `native_agent_type` from the matching packet
+`native_subagent_bridge` binding. Current Codex types are `default`, `explorer`
+and `worker`; Qoder `qoder_subagent_type` is for the Qoder adapter only. Bind the
+applicable slot and occurrence; missing or ambiguous bindings stop dispatch.
+Do not infer a type from a role name, readonly flag, or the task's size.
 
-## Special Overrides
+## Role constraints survive transport
 
-### Reviewer slot
+Readonly describes permitted actions. It is not proof that an OS sandbox blocks
+writes. Readonly Logic/Philosophy may use `default`; readonly verification or
+review roles may use their native binding, including Qoder Verify/CodeReview.
+An implementation-capable transport never grants write authority by itself.
 
-When an agent occupies the "reviewer" slot (as defined in
-`docs/orchestration/AGENT_ROUTING_GRAPH.md`), always use **CodeReview** type
-regardless of the default mapping above. The reviewer slot is determined by
-the packet's review section or routing graph edge annotation.
+Use an explicit packet-bound `--mode runtime --implementation-owner <role>`
+override only for the coordinator's designated owner, scope and phase. Preserve
+the manifest's resulting readonly and owner flags. Model choice cannot widen
+them. Generic worker instructions do not permit implementation by other roles.
 
-### Mode-based resolution
+### Inherited Logic argument example
 
-The `--mode` flag (or packet `mode` field) influences type selection:
+Illustrative Codex call arguments for a Logic binding; the actual `message`
+must include the full required role/context, packet and predecessor evidence.
+The omitted model/effort fields follow `docs/agents/model_policy.md`.
 
-- `mode=analysis` — forces all non-readonly agents to Research type
-- `mode=runtime` — allows Coding type for agents that support it
-- `mode=review` — forces CodeReview type for all agents in the sequence
+```json
+{
+  "task_name": "logic_review",
+  "message": "You are PulsePlate custom role logic-agent. Perform the assigned read-only analysis using the supplied full required context and predecessor evidence.",
+  "agent_type": "default"
+}
+```
 
-### Verify type agents
-
-Agents mapped to **Verify** type (qa-engineer-agent, bug-hunter) always run
-tests and validations. They receive `make verify` or specific test commands
-in their prompt. They never produce code changes — only findings.
-
-## Fallback Rule
-
-Any agent slug not listed in this table defaults to **Research** type.
-This is the safest fallback since Research agents cannot modify files.
+The coordinator owns this manifest's declared role dispatch and model choices.
+Already-authorized subordinate delegation cannot replace those occurrences or
+expand scope. Follow the canonical native model policy for explicitly enabled
+routing; this document creates no model service, fallback router, role ownership
+or retry loop.

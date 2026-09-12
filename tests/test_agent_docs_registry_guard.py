@@ -11,6 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shlex
+import tomllib
+from argparse import Namespace
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -18,6 +21,9 @@ from pathlib import Path
 import pytest
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_binding
+from scripts.orchestration.qoder_dispatch_bridge import _parse_args, build_dispatch_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -863,6 +869,178 @@ def test_agent_coordinator_uses_packet_dispatch_manifest_command() -> None:
         "python scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
         not in coordinator_md
     )
+
+
+_DISPATCH_GUIDE = ".agents/skills/pulseplate-orchestration-dispatch/SKILL.md"
+_BINDING_GUIDE = ".agents/skills/pulseplate-orchestration-dispatch/rules/role-mapping.md"
+_MODEL_GUIDE = "docs/agents/model_policy.md"
+
+
+def _guide_example(document: str, heading: str, language: str) -> str:
+    """Read one named example with the existing Markdown parser, not prose inference."""
+    tokens = _MARKDOWN.parse(document)
+    matches = [
+        index
+        for index, token in enumerate(tokens[:-1])
+        if token.type == "heading_open" and tokens[index + 1].content == heading
+    ]
+    assert len(matches) == 1, f"Expected one guide heading: {heading}"
+    start = matches[0]
+    level = int(tokens[start].tag[1:])
+    stop = next(
+        (
+            index
+            for index in range(start + 1, len(tokens))
+            if tokens[index].type == "heading_open" and int(tokens[index].tag[1:]) <= level
+        ),
+        len(tokens),
+    )
+    examples = [
+        token.content
+        for token in tokens[start:stop]
+        if token.type == "fence" and token.info == language
+    ]
+    assert len(examples) == 1, f"Expected one {language} example under {heading}"
+    return examples[0]
+
+
+def _assert_runtime_owner_example(document: str, heading: str) -> Namespace:
+    argv = shlex.split(_guide_example(document, heading, "bash"))
+    assert argv[:2] == ["python3", "scripts/orchestration/role_dispatch_bridge.py"]
+    args = _parse_args(argv[2:])
+    assert args.mode == "runtime" and args.implementation_owner == [
+        "security-auditor"
+    ], "Runtime owner flags were lost from the packet-command example"
+    assert args.packet == "artifacts/orchestration/example/packet.json"
+    assert args.roles is None and args.pr_phase == "none" and args.pretty is True
+    return args
+
+
+@pytest.mark.parametrize(
+    ("heading", "context_order"),
+    [("Runtime-owner command example", None), ("Exact-context command example", 5)],
+)
+def test_dispatch_guide_commands_preserve_owner_and_pre_open_phase(
+    heading: str, context_order: int | None
+) -> None:
+    args = _assert_runtime_owner_example(_read(_DISPATCH_GUIDE), heading)
+    assert args.role_context_order == context_order
+    assert args.instruction_file == (
+        [] if context_order is None else ["tools/codex_skills/pulseplate-workflow/SKILL.md"]
+    )
+    roles = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "cursor-specialist-agent",
+        "security-auditor",
+        "architecture-specialist",
+    ]
+    manifest = build_dispatch_manifest(
+        role_slugs=roles,
+        mode=args.mode,
+        implementation_owners=args.implementation_owner,
+        enforce_mandatory_post_open_tail=False,
+    )
+    assert manifest["missing_agents"] == []
+    assert manifest["parallel_execution_allowed"] is False
+    entries = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in entries] == roles
+    assert [entry["order"] for entry in entries] == list(range(1, 7))
+    for entry in entries:
+        is_owner = entry["role_slug"] == "security-auditor"
+        assert entry["implementation_owner_override"] is is_owner
+        assert entry["readonly"] is not is_owner
+
+
+def test_dispatch_guide_negative_control_rejects_ownerless_generic_command() -> None:
+    original = _read(_DISPATCH_GUIDE)
+    heading = "Runtime-owner command example"
+    _assert_runtime_owner_example(original, heading)
+    mutated = original.replace(" --mode runtime --implementation-owner security-auditor", "", 1)
+    assert mutated != original
+    with pytest.raises(AssertionError, match="Runtime owner flags"):
+        _assert_runtime_owner_example(mutated, heading)
+
+
+def _assert_native_argument_example(
+    document: str, heading: str, role_slug: str, role: str = "secondary"
+) -> dict[str, object]:
+    args = json.loads(_guide_example(document, heading, "json"))
+    assert isinstance(args, dict)
+    binding = build_native_subagent_binding(agent_slug=role_slug, role=role)
+    assert args["agent_type"] == binding["native_agent_type"], "Native binding mismatch"
+    assert isinstance(args["task_name"], str) and args["task_name"]
+    assert isinstance(args["message"], str) and role_slug in args["message"]
+    return args
+
+
+@pytest.mark.parametrize(
+    ("path", "heading", "role_slug", "role", "effort"),
+    [
+        (_BINDING_GUIDE, "Inherited Logic argument example", "logic-agent", "secondary", None),
+        (_MODEL_GUIDE, "Sol read/check example", "cursor-specialist-agent", "secondary", "medium"),
+        (_MODEL_GUIDE, "Sol implementation example", "frontend-engineer", "secondary", "high"),
+        (
+            _MODEL_GUIDE,
+            "Protected/unknown/final work example",
+            "security-auditor",
+            "reviewer",
+            None,
+        ),
+    ],
+)
+def test_native_guide_examples_match_bindings_and_override_boundary(
+    path: str, heading: str, role_slug: str, role: str, effort: str | None
+) -> None:
+    args = _assert_native_argument_example(_read(path), heading, role_slug, role)
+    fields = {"task_name", "message", "agent_type"}
+    if effort is None:
+        assert "model" not in args and "reasoning_effort" not in args
+    else:
+        fields |= {"fork_turns", "model", "reasoning_effort"}
+        assert args["model"] == "gpt-5.6-sol"
+        assert args["reasoning_effort"] == effort
+        assert args["fork_turns"] == "none"
+    assert set(args) == fields
+
+
+def test_native_guide_negative_control_rejects_retired_coder() -> None:
+    original = _read(_BINDING_GUIDE)
+    heading = "Inherited Logic argument example"
+    _assert_native_argument_example(original, heading, "logic-agent")
+    mutated = original.replace('"agent_type": "default"', '"agent_type": "coder"', 1)
+    assert mutated != original
+    with pytest.raises(AssertionError, match="Native binding mismatch"):
+        _assert_native_argument_example(mutated, heading, "logic-agent")
+
+
+def test_codex_template_preserves_host_choices_by_default() -> None:
+    config = tomllib.loads(_read("docs/templates/codex.config.example.toml"))
+    assert not (
+        {"model", "model_reasoning_effort", "approval_policy", "sandbox_mode"} & config.keys()
+    )
+
+
+def test_startup_guide_exposes_ordered_stage_actions_and_canonical_links() -> None:
+    workflow = _exact_bounded_section(
+        _read("docs/orchestration/workflow.md"),
+        start_line="## Canonical Pre-flight Checklist (SoT)",
+        end_line="### Task Packet Expectations (PR2 bootstrap baseline)",
+    )
+    tokens = _MARKDOWN.parse(workflow)
+    stages = [
+        tokens[index + 1].content
+        for index, token in enumerate(tokens[:-1])
+        if token.type == "heading_open" and token.tag == "h4"
+    ]
+    assert stages == ["Analyze and route", "Admit tracked implementation", "Publish and close out"]
+    for path in (
+        ".cursor/agents/agent-coordinator.md",
+        "docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md",
+    ):
+        assert "docs/orchestration/workflow.md" in _read(path)
+    assert "core.db.load_canonical_orm_metadata()" in _read("tests/AGENTS.md")
 
 
 _SUPPRESSION_MUTATIONS = (
