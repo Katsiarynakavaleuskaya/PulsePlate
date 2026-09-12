@@ -718,6 +718,22 @@ def test_runtime_base_requires_fixed_bookworm_glibc_line() -> None:
     assert "below fixed glibc line 2.36-9+deb12u13" in runtime_base_section
 
 
+def test_runtime_base_requires_fixed_bookworm_pcre2_line() -> None:
+    """Refresh inherited PCRE2 and reject packages below both Debian CVE fixes."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    runtime = dockerfile.split(f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base", 1)[1]
+    runtime = runtime.split("COPY --from=builder", 1)[0]
+    assert "        libpcre2-8-0 \\" in runtime
+    pcre2_guard = runtime.split("&& pcre2_version=", 1)[1].split(
+        "&& rm -rf /var/lib/apt/lists/*", 1
+    )[0]
+    assert (
+        'if ! dpkg --compare-versions "${pcre2_version}" ge "10.42-1+deb12u1"; then' in pcre2_guard
+    )
+    assert "exit 1;" in pcre2_guard
+    assert "below fixed PCRE2 line 10.42-1+deb12u1" in runtime
+
+
 def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
     """Docker workflows fail if production keeps Perl runtime packages."""
     for workflow_name, image_ref in (
