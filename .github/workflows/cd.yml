@@ -208,6 +208,7 @@ jobs:
           subject-digest: ${{ steps.probe.outputs.digest }}
           push-to-registry: true
       - name: Attest synthetic exact materials
+        id: attest-probe-materials
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ steps.probe.outputs.repository }}
@@ -255,6 +256,90 @@ jobs:
             echo "Incorrect-source probe unexpectedly accepted" >&2
             exit 1
           fi
+      - name: Verify original reject damaged signature and reverify original native materials bundle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          PROBE_REF: ${{ steps.probe.outputs.ref }}
+          MATERIALS_BUNDLE_PATH: ${{ steps.attest-probe-materials.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          umask 077
+          verify_bundle() {
+            gh attestation verify "oci://$PROBE_REF" --bundle "$1" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+              --source-ref "$GITHUB_REF" --source-digest "$SOURCE_SHA" \
+              --predicate-type https://pulseplate.app/attestations/postgres-pgvector-materials/v1 \
+              --deny-self-hosted-runners --format json
+          }
+          verify_bundle "$MATERIALS_BUNDLE_PATH" > probe-materials-bundle-original-verified.json
+          python3 - <<'PY_CORRUPT_SIGNATURE'
+          import base64
+          import copy
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from scripts.ci.check_pgvector_attestations import loads
+
+          source_path = Path(os.environ["MATERIALS_BUNDLE_PATH"])
+          if source_path.is_symlink() or not source_path.is_file():
+              raise ValueError("Materials bundle must be a regular local action output")
+          bundle = loads(source_path.read_bytes())
+          if not isinstance(bundle, dict) or not isinstance(bundle.get("mediaType"), str) or not bundle["mediaType"]:
+              raise ValueError("Unexpected native bundle mediaType")
+          if not isinstance(bundle.get("verificationMaterial"), dict) or not bundle["verificationMaterial"]:
+              raise ValueError("Unexpected native verification material")
+          envelope = bundle.get("dsseEnvelope")
+          if not isinstance(envelope, dict) or not isinstance(envelope.get("payload"), str) or not envelope["payload"]:
+              raise ValueError("Unexpected native DSSE envelope")
+          payload = base64.b64decode(envelope["payload"], validate=True)
+          if not payload:
+              raise ValueError("Native DSSE payload must be nonempty")
+          signatures = envelope.get("signatures")
+          if not isinstance(signatures, list) or len(signatures) != 1 or not isinstance(signatures[0], dict):
+              raise ValueError("Exactly one native DSSE signature is required")
+          encoded = signatures[0].get("sig")
+          if not isinstance(encoded, str) or not encoded:
+              raise ValueError("Native DSSE signature must be nonempty base64")
+          signature = base64.b64decode(encoded, validate=True)
+          if not signature:
+              raise ValueError("Decoded native DSSE signature must be nonempty")
+          damaged = bytes([signature[0] ^ 1]) + signature[1:]
+          changed = copy.deepcopy(bundle)
+          changed["dsseEnvelope"]["signatures"][0]["sig"] = base64.b64encode(damaged).decode("ascii")
+          Path("probe-materials-corrupted-bundle.json").write_text(
+              json.dumps(changed, sort_keys=True, separators=(",", ":"), allow_nan=False), encoding="utf-8"
+          )
+          Path("probe-signature-corruption.json").write_text(json.dumps({
+              "asset_type": "synthetic_attestation_signature_negative_control",
+              "upstream_assets": [{"sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(), "source": "materials_action_bundle"}],
+              "policy_version": "native_signature_corruption_v1",
+              "idempotency_key": "signature-corruption:" + os.environ["GITHUB_RUN_ID"] + ":" + os.environ["GITHUB_RUN_ATTEMPT"],
+              "replay_admission": "Synthetic probe only; no publication, deployment or merge authority",
+              "decoded_signature_size": len(signature),
+              "changed_byte_index": 0,
+              "original_signature_sha256": hashlib.sha256(signature).hexdigest(),
+              "damaged_signature_sha256": hashlib.sha256(damaged).hexdigest(),
+              "unchanged_payload_sha256": hashlib.sha256(payload).hexdigest()
+          }, sort_keys=True) + "\n", encoding="utf-8")
+          PY_CORRUPT_SIGNATURE
+          if verify_bundle probe-materials-corrupted-bundle.json > probe-materials-bundle-corrupt-verification.json 2> probe-materials-bundle-corrupt-error.log; then
+            echo "Damaged native DSSE signature unexpectedly accepted" >&2
+            exit 1
+          fi
+          verify_bundle "$MATERIALS_BUNDLE_PATH" > probe-materials-bundle-reverified.json
+          python3 - <<'PY_SIGNATURE_EVIDENCE'
+          import hashlib
+          import json
+          from pathlib import Path
+          evidence = Path("probe-signature-corruption.json")
+          record = json.loads(evidence.read_text())
+          record.update(original_verified_before=True, corrupted_signature_rejected=True, original_verified_after=True)
+          record["fingerprint"] = hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()
+          evidence.write_text(json.dumps(record, sort_keys=True) + "\n")
+          PY_SIGNATURE_EVIDENCE
       - name: Retain native external probe evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

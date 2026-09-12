@@ -21,6 +21,10 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
+import base64
+import copy
+import json
+import sys
 
 import pytest
 
@@ -319,3 +323,96 @@ def test_cd_attestation_steps_remain_fail_closed() -> None:
                     assert (
                         "|| true" not in run_script
                     ), f"Step {name!r} in job {job_name!r} must not use || true"
+
+
+@pytest.mark.parametrize("fault", [None, "empty_signature", "bad_base64", "multiple_signatures"])
+def test_synthetic_probe_signature_corruption_mutates_one_decoded_byte_only(
+    tmp_path: Path, fault: str | None
+) -> None:
+    workflow = _load_cd_workflow()
+    steps = workflow["jobs"]["postgres-synthetic-attestation-probe"]["steps"]
+    material = _step_by_name(steps, "Attest synthetic exact materials")
+    assert material["id"] == "attest-probe-materials"
+    control = _step_by_name(
+        steps,
+        "Verify original reject damaged signature and reverify original native materials bundle",
+    )
+    assert (
+        control["env"]["MATERIALS_BUNDLE_PATH"]
+        == "${{ steps.attest-probe-materials.outputs.bundle-path }}"
+    )
+    run = control["run"]
+    for flag in (
+        "--bundle",
+        "--repo",
+        "--signer-workflow",
+        "--source-ref",
+        "--source-digest",
+        "--predicate-type",
+        "--deny-self-hosted-runners",
+    ):
+        assert flag in run
+    assert run.index('verify_bundle "$MATERIALS_BUNDLE_PATH"') < run.index("PY_CORRUPT_SIGNATURE")
+    assert run.count('verify_bundle "$MATERIALS_BUNDLE_PATH"') == 2
+    assert "if verify_bundle probe-materials-corrupted-bundle.json" in run
+    assert "exit 1" in run and "continue-on-error" not in control
+    assert (
+        steps.index(material)
+        < steps.index(control)
+        < steps.index(_step_by_name(steps, "Retain native external probe evidence"))
+    )
+    marker = "python3 - <<'PY_CORRUPT_SIGNATURE'\n"
+    code = run.split(marker, 1)[1].split("\nPY_CORRUPT_SIGNATURE", 1)[0]
+    original_signature = bytes(range(1, 73))
+    bundle = {
+        "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+        "verificationMaterial": {"certificate": {"rawBytes": "public-certificate"}},
+        "dsseEnvelope": {
+            "payload": base64.b64encode(b"bound-public-payload").decode(),
+            "payloadType": "application/vnd.in-toto+json",
+            "signatures": [
+                {"sig": base64.b64encode(original_signature).decode(), "keyid": "preserved"}
+            ],
+        },
+    }
+    if fault == "empty_signature":
+        bundle["dsseEnvelope"]["signatures"][0]["sig"] = ""
+    elif fault == "bad_base64":
+        bundle["dsseEnvelope"]["signatures"][0]["sig"] = "not base64!"
+    elif fault == "multiple_signatures":
+        bundle["dsseEnvelope"]["signatures"].append(
+            copy.deepcopy(bundle["dsseEnvelope"]["signatures"][0])
+        )
+    original_file = tmp_path / "original-bundle.json"
+    original_file.write_text(json.dumps(bundle))
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "MATERIALS_BUNDLE_PATH": str(original_file),
+            "PYTHONPATH": str(REPO_ROOT),
+            "GITHUB_RUN_ID": "101",
+            "GITHUB_RUN_ATTEMPT": "1",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = tmp_path / "probe-materials-corrupted-bundle.json"
+    if fault is not None:
+        assert result.returncode != 0 and not output.exists()
+        return
+    assert result.returncode == 0, result.stderr
+    damaged = json.loads(output.read_text())
+    decoded = base64.b64decode(damaged["dsseEnvelope"]["signatures"][0]["sig"], validate=True)
+    assert len(decoded) == len(original_signature)
+    assert [
+        index
+        for index, (before, after) in enumerate(zip(original_signature, decoded))
+        if before != after
+    ] == [0]
+    assert decoded[0] == original_signature[0] ^ 1
+    damaged["dsseEnvelope"]["signatures"][0]["sig"] = bundle["dsseEnvelope"]["signatures"][0]["sig"]
+    assert damaged == bundle
+    assert json.loads(original_file.read_text()) == bundle
