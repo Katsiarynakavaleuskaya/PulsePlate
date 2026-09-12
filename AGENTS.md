@@ -1120,6 +1120,15 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Privileged CI/security/workflow PR: target `<=10` files; hard cap `<=15` unless `Operator approval: approved` plus `Privileged scope exception: approved` is documented and backed by trusted GitHub labels; cannot mix with frontend product implementation unless `Frontend/backend mix approval: approved` is backed by a trusted label or an emergency exception is documented with trusted label backing.
 - `>30` files fail closed unless explicit `Operator approval: approved` plus `Emergency exception: approved` is documented and backed by trusted GitHub labels.
 - Closeout/mapping files such as `docs/review/PR_<N>_FIXED_MAPPING.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and narrow runbook/PR-body mirror docs tied to the PR are allowed in the same PR and still count for visibility.
+
+The existing frontend category and approval identifiers cover both web
+(`frontend/`) and native iOS (`ios/`) client paths. Use the same path definition
+for vertical-flow classification, client/backend mixing, and privileged/client
+mixing. Privileged paths retain classification priority: a client PR that repairs
+its CI guard must meet the privileged size and client-mix approval requirements.
+An operator-approved coherent flow may stay in one PR under these existing
+exceptions; classification alone grants no exception or merge authority.
+
 4. **Warnings (non-blocking):**
 
 - runtime PRs with >2 markdown files (mixed-concern signal)

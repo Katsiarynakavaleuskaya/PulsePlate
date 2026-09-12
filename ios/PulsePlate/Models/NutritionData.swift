@@ -51,10 +51,12 @@ enum PlateLoadIssue: Equatable, Sendable {
   case decoding(message: String)
   case unknown(message: String)
 
+  @MainActor
   private static func l(_ key: String) -> String {
-    NSLocalizedString(key, comment: "")
+    LocalizationManager.shared.localized(key)
   }
 
+  @MainActor
   var title: String {
     switch self {
     case .missingProKey:
@@ -78,14 +80,11 @@ enum PlateLoadIssue: Equatable, Sendable {
     }
   }
 
+  @MainActor
   var message: String {
     switch self {
     case .missingProKey:
-      #if DEBUG
-      return Self.l("plate_issue_message_missing_pro_key_debug")
-      #else
       return Self.l("plate_issue_message_missing_pro_key")
-      #endif
     case .missingProfile:
       return Self.l("plate_issue_message_missing_profile")
     case .unauthorized:

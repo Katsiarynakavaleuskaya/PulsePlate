@@ -174,6 +174,11 @@ def _normalize_path(path: str) -> str:
     return normalized
 
 
+def _is_product_client_path(path: str) -> bool:
+    """Recognize web and native clients under the existing frontend policy vocabulary."""
+    return _normalize_path(path).startswith(("frontend/", "ios/"))
+
+
 def _is_privileged_path(path: str) -> bool:
     normalized = _normalize_path(path)
     return normalized in PRIVILEGED_EXACT_PATHS or normalized.startswith(PRIVILEGED_PREFIXES)
@@ -288,8 +293,8 @@ def has_frontend_mvp_approval(
 
 
 def has_mixed_frontend_backend_runtime(changed_files: list[str]) -> bool:
-    """Return True when frontend files mix with backend/API/AI runtime files."""
-    has_frontend = any(_normalize_path(path).startswith("frontend/") for path in changed_files)
+    """Return True when web or native clients mix with backend/API/AI runtime files."""
+    has_frontend = any(_is_product_client_path(path) for path in changed_files)
     has_backend_api_ai = any(_is_backend_api_ai_path(path) for path in changed_files)
     return has_frontend and has_backend_api_ai
 
@@ -304,7 +309,7 @@ def classify_pr_scope(
     """Classify the PR under the current file-count scope policy."""
     if any(_is_privileged_path(path) for path in changed_files):
         return "privileged_ci_security_workflow"
-    has_frontend = any(_normalize_path(path).startswith("frontend/") for path in changed_files)
+    has_frontend = any(_is_product_client_path(path) for path in changed_files)
     if has_frontend and (
         counted_files > STANDARD_MAX_FILES
         or has_frontend_mvp_approval(pr_body, trusted_approvals)
@@ -422,7 +427,7 @@ def evaluate_pr_size_policy(
         return 0, lines
 
     if category == "privileged_ci_security_workflow":
-        if any(_normalize_path(path).startswith("frontend/") for path in changed_files) and not (
+        if any(_is_product_client_path(path) for path in changed_files) and not (
             has_emergency_exception(pr_body, trusted_approvals)
             or has_frontend_backend_mix_approval(pr_body, trusted_approvals)
         ):

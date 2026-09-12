@@ -55,6 +55,7 @@
 				"Info-Debug.plist",
 				"Info-Release.plist",
 				Info.plist,
+				"Views/Info-Debug.plist",
 			);
 			target = B6169A322E893CF100B218D8 /* PulsePlate */;
 		};

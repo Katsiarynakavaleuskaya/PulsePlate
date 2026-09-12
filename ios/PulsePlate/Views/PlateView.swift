@@ -212,9 +212,6 @@ struct PlateViewPP: View {
         VStack(spacing: PPDesignTokens.Spacing.xLarge) {
           // Header
           VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
-            Text(localized("plate.preview.title"))
-              .font(PPDesignTokens.Typography.largeTitle)
-              .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
             Text(localized("plate.preview.subtitle"))
               .font(PPDesignTokens.Typography.body)
               .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
@@ -263,6 +260,10 @@ struct PlateViewPP: View {
         .padding(.bottom, PPDesignTokens.Spacing.medium)
       }
       .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
+      .navigationTitle(localized("plate.preview.title"))
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(.visible, for: .navigationBar)
+      .toolbarColorScheme(.dark, for: .navigationBar)
       .navigationDestination(isPresented: $showMealEntry) {
         MealEntryView()
       }
@@ -384,7 +385,7 @@ private enum PlateVisualLayout {
 private struct PlateIssueView: View {
   let issue: PlateLoadIssue
   let onAction: (PlateIssuePrimaryAction) -> Void
-  private let localization = LocalizationManager.shared
+  @ObservedObject private var localization = LocalizationManager.shared
 
   var body: some View {
     let action = issue.primaryAction

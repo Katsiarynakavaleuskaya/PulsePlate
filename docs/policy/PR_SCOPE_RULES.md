@@ -1,7 +1,7 @@
 # PR Scope Rules (Runtime vs Docs Separation)
 
 **Status:** Mandatory
-**Last updated:** 2026-05-27 (tiered PR-scope policy for governance/design/frontend MVP lanes)
+**Last updated:** 2026-09-12 (web and native client parity in scope classification)
 **Applies to:** All contributors, agents, CI reviewers
 
 **CI Enforcement:** Runtime PRs that include planning docs or `docs/pr/*.py` will be blocked.
@@ -136,6 +136,10 @@ PR-495:
 
 ### Frontend Vertical MVP PR
 
+- This existing category covers web (`frontend/`) and native iOS (`ios/`)
+  client product paths. The same definition applies to client/backend and
+  privileged/client mixing. Existing frontend-named category, label, and approval
+  identifiers are retained for compatibility.
 - **≤30 files changed**
 - Requires explicit `Operator approval: approved` and `Frontend vertical MVP approval: approved` in the PR body, backed by trusted GitHub labels `operator-approved` and `scope/frontend-mvp-approved`
 - Requires `Split Justification`
@@ -151,7 +155,19 @@ PR-495:
 
 The file-count guard enforces the privileged lane cap and mixed-scope boundary. The security review and bug-hunter proof are enforced by coordinator-owned PR lifecycle review, fixed mapping, and merge-readiness governance rather than by the file-count helper alone.
 
-The file-count guard treats PR body approval lines as documentation only. Exception approval lines are effective only when paired with trusted GitHub labels from the pull request event payload, so a PR author cannot self-attest exceptions by editing the PR description.
+The file-count guard treats PR body approval lines as documentation only.
+Exception approval lines are effective only when paired with trusted GitHub
+labels collected from the PR event payload and authenticated PR API metadata.
+Both `operator-approved` and `scope/operator-approved` satisfy the operator
+label requirement. Body text alone cannot supply approval.
+
+Privileged paths retain priority over the client category. A single approved
+client work package that also repairs its scope guard is classified as
+`privileged_ci_security_workflow`: it needs the privileged size exception above
+15 files and the client-mix exception. Native paths cannot bypass either check.
+The operator decides whether the work forms one coherent outcome; the guard
+checks the declared paths and approval evidence, without inferring coherence or
+granting merge authority.
 
 ### Oversized PR
 
