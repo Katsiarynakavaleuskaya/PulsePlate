@@ -65,13 +65,13 @@ POSTGRES_USER=... POSTGRES_DB=... \
   /srv/pulseplate/scripts/ops/postgres_backup.sh
 ```
 
-**Restore** (operator adjusts paths and dump file):
+**Restore** (explicit replacement recovery; operator verifies the target identity and dump first):
 
 ```bash
 PROJECT_DIR=/srv/pulseplate/deploy \
 COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
 POSTGRES_USER=... POSTGRES_DB=... \
-  scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+  scripts/ops/postgres_restore.sh --replace-existing pulseplate /absolute/path/to/file.dump
 ```
 
 **Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory` / paths).

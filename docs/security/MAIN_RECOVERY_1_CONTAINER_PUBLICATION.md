@@ -1,5 +1,120 @@
 # MAIN-RECOVERY-1: image security and publication recovery
 
+## Current continuation: original-build admission and protected staging
+
+The owner accepted one new implementation carrier,
+`codex/main-recovery-secure-staging`, from main
+`5b384c91708f774c025b0b19edc1c8c83d11266b`. It retains PostgreSQL 15.19,
+pgvector 0.8.6 and the frozen Alpine image. The target is the existing staging
+Droplet `594869239`, not production; the accepted storage budget is one 50 GiB
+DigitalOcean Volume at $5/month. Actual host access, provisioning and activation
+remain unproved until their operational receipts exist.
+
+Exact-main CD run
+[34700002720](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34700002720)
+reached the derived attestation action and failed with:
+
+```text
+Failed to persist attestation: Invalid Argument - unsupported build type:
+https://pulseplate.app/buildtypes/postgres-pgvector/v1
+```
+
+Custom SLSA build types are not intrinsically invalid. This failure establishes
+an incompatibility with GitHub persistence for this exact type, not a general
+SLSA prohibition or an inability to build PostgreSQL. The remediation delegates
+native SLSA production to the pinned GitHub action and preserves the exact
+PulsePlate recipe/material assertions under a distinct custom predicate URI.
+
+Native GitHub SLSA, PulsePlate materials/v1 and SPDX are verified conjunctively
+against one subject and original certificate source/workflow/run/attempt. The
+shared bounded helper compares exact material records before redaction. Actual
+build executions may complete their own missing tuple members; historical
+proofs are retained. Read-only reuse selects an existing complete compatible
+tuple and cannot author a new-build claim. Actual native Trivy documents exposed 246 changed scalar fields, including
+package identities, relationships and package annotation dates. The prior
+three-field normalization was stopped. Materials now bind the entire original
+parsed SPDX predicate using sorted compact UTF-8 JSON (ensure_ascii=False,
+allow_nan=False) and SHA-256, retaining array order and every content field.
+This is parsed-document identity, not raw-file byte identity or semantic
+equivalence of regenerated documents. Reuse retains that original signed
+document/hash; the independently blocking fresh image scan remains required. Classifier and terminal
+checks compare the same finite compatibility rules over both Git trees.
+Evidence anchors: `scripts/ci/check_pgvector_attestations.py:1`,
+`tests/test_pgvector_attestations.py:1`, `.github/workflows/cd.yml:1`.
+
+The premerge integration transport uses an explicit same-repository push to
+`codex/attestation-probe/<exact-full-sha>` because a new `workflow_dispatch`
+trigger is not dispatchable before it exists on the default branch. This is a
+temporary synthetic-only branch, not another PR or a direct push to main.
+The checked-out SHA and ref suffix must equal the event SHA. The job receives
+no DHI credentials and cannot promote a runtime tag or enter a deploy job.
+The resulting native signer/ref identity stays literal; it is not rewritten as
+main. The probe exercises external persistence and OCI verification only;
+actual merged-main PostgreSQL publication/reuse remains independently required.
+
+The ready-made DHI pgvector alternative was examined independently. Native
+Trivy 0.74.0 with database updated `2026-09-12T13:01:09Z` reported three CRITICAL
+and eighteen HIGH entries on linux/amd64 digest
+`sha256:6483fa1212f6d5962cb00d6677a6b0b00ff0cb0ecc50afd3856c063aa016bb45`.
+That reporting invocation exited zero because it did not use `--exit-code 1`;
+zero is not a security admission. The candidate also changes Debian/PGDATA
+contracts, so this continuation does not replace the selected Alpine image.
+
+Staging v5 explicitly requires TLS-only PostgreSQL network authentication,
+verify-full libpq clients, file-backed database credentials and protected
+certificate mounts. A root-owned local storage receipt is bound to actual
+DigitalOcean device name, filesystem UUID, exact writable mount and capacity.
+Named PostgreSQL/Prometheus volumes and local backups must use that mount;
+credential files are bind-mounted from its protected secrets directory.
+The Docker service's systemd mount dependencies and disabled live restore
+extend the boundary to daemon restart/mount loss, while backups independently
+check the mount before writing. Existing mismatched volumes fail closed and
+remain preserved. Configuration, provider encryption statements and actual
+runtime observations remain separate evidence.
+Evidence anchors: `scripts/ops/check_staging_security.py:1`,
+`deploy/systemd/pulseplate-staging-storage.conf:1`, `scripts/deploy.sh:1`.
+
+Premortem exposed partial-attestation recovery, selected-Compose versus ambient
+DB identity, omitted backup material owners and premerge trigger eligibility.
+Their closure is executable in this same diff. Euler uses prospective local
+family/episode evidence; Telos preserves each original MAIN-RECOVERY-1 criterion
+and the owner-added staging criteria; the zero-network Apple Container Runner
+provides oracle-only review. No experiment or role report grants merge,
+production, crypto-provider success or operational-completion authority.
+
+Current validation and future native receipts must remain distinguished in
+closeout. Full local make verify is not part of this lane. The final outcome
+still requires exact-head PR gates, separately authorized merge, actual new-main
+CD and repeat/reuse, trusted staging deployment, TLS negative controls,
+backup/restore and Prometheus persistence, plus same-ID readback of the four
+existing Drive continuity records. No main/staging completion is claimed here.
+
+## Native command security dispositions
+
+The complete pre-commit hook checks low-severity findings as well as higher
+severities. It reported six generic B404/B603 import/call alerts at
+`scripts/ci/check_pgvector_attestations.py:15`,
+`scripts/ci/check_pgvector_attestations.py:426`,
+`scripts/ci/check_staging_postgres_runtime.py:17`,
+`scripts/ci/check_staging_postgres_runtime.py:46`,
+`scripts/ops/check_staging_security.py:17` and
+`scripts/ops/check_staging_security.py:104`.
+The coordinator reviewed the security role's caller assessment and found no
+safer bounded replacement: these paths deliberately delegate tracked Git
+trees, Docker/PostgreSQL protocols and native mount/TLS/daemon recognition.
+Each uses an absolute resolved executable, argv without shell interpretation
+and a bounded timeout; the Git path disables replacement objects, while native
+runtime errors redact sensitive diagnostics.
+
+Exactly these six sites have rule-specific inline dispositions through
+2026-10-12 under the existing no-safe-code-fix policy. No scanner configuration,
+severity or path allowlist changes. Native executable and caller argument trust
+remain review obligations; shell avoidance does not establish tool semantics
+or signature validity. The
+[bounded follow-up](../roadmap/BACKLOG_LEDGER.md#ledger-p1-native-cli-subprocess-review)
+requires reassessment before expiry. Actual all-files hook and nosec/absolute
+binary guards remain required evidence.
+
 ## Outcome and authority
 
 The operator accepted one bounded recovery carrier on 2026-09-09:
