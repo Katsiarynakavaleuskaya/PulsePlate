@@ -2,7 +2,7 @@
 # Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
-STAGING_DEPLOY_CONTRACT_VERSION="4"
+STAGING_DEPLOY_CONTRACT_VERSION="5"
 STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"
 CANONICAL_IMAGE_PATTERN='^ghcr\.io/katsiarynakavaleuskaya/pulseplate@sha256:[0-9a-f]{64}$'
 
@@ -46,7 +46,7 @@ PROJECT_DIR="${PROJECT_DIR:-/srv/pulseplate-staging}"
 ENV_FILE="${ENV_FILE:-${PROJECT_DIR}/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-${PROJECT_DIR}/docker-compose.staging.yaml}"
 CADDYFILE="${CADDYFILE:-${PROJECT_DIR}/Caddyfile}"
-BACKUP_DIR="${BACKUP_DIR:-${PROJECT_DIR}/backups}"
+BACKUP_DIR="${BACKUP_DIR:-/mnt/pulseplate-staging-data/backups}"
 BACKUP_HELPER="${BACKUP_HELPER:-${PROJECT_DIR}/scripts/ops/postgres_backup.sh}"
 STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-deploy-v1}"
 PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
@@ -496,70 +496,9 @@ if type(repo_digests) is not list or expected not in repo_digests:
 }
 
 validate_staging_database_binding() {
-  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" -c '
-import json
-import sys
-from urllib.parse import unquote, urlsplit
-
-def reject_duplicates(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("duplicate rendered Compose key")
-        result[key] = value
-    return result
-
-try:
-    payload = json.load(sys.stdin, object_pairs_hook=reject_duplicates)
-except (TypeError, ValueError, json.JSONDecodeError) as exc:
-    raise SystemExit("Rendered Compose JSON is malformed") from exc
-services = payload.get("services") if type(payload) is dict else None
-postgres = services.get("postgres") if type(services) is dict else None
-postgres_environment = postgres.get("environment") if type(postgres) is dict else None
-required_postgres_environment = ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
-if type(postgres_environment) is not dict or any(
-    type(postgres_environment.get(key)) is not str or not postgres_environment[key]
-    for key in required_postgres_environment
-):
-    raise SystemExit("Rendered staging PostgreSQL credentials are missing or malformed")
-
-database_urls = []
-for service_name in ("app", "worker"):
-    service = services.get(service_name)
-    service_environment = service.get("environment") if type(service) is dict else None
-    database_url = (
-        service_environment.get("DATABASE_URL")
-        if type(service_environment) is dict
-        else None
-    )
-    if type(database_url) is not str or not database_url:
-        raise SystemExit(
-            f"Rendered staging {service_name} must define one PostgreSQL DATABASE_URL"
-        )
-    try:
-        parsed = urlsplit(database_url)
-        port = parsed.port
-    except ValueError as exc:
-        raise SystemExit(
-            f"Rendered staging {service_name} DATABASE_URL is malformed"
-        ) from exc
-    if (
-        parsed.scheme not in {"postgresql", "postgresql+psycopg"}
-        or parsed.hostname != "postgres"
-        or port not in (None, 5432)
-        or parsed.query
-        or parsed.fragment
-        or unquote(parsed.username or "") != postgres_environment["POSTGRES_USER"]
-        or unquote(parsed.password or "") != postgres_environment["POSTGRES_PASSWORD"]
-        or unquote(parsed.path.removeprefix("/")) != postgres_environment["POSTGRES_DB"]
-    ):
-        raise SystemExit(
-            f"Rendered staging {service_name} DATABASE_URL does not target the local PostgreSQL service"
-        )
-    database_urls.append(database_url)
-if len(set(database_urls)) != 1:
-    raise SystemExit("Rendered staging app and worker DATABASE_URL identities differ")
-'
+  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" \
+    "$PROJECT_DIR/scripts/ops/check_staging_security.py" \
+    --project-dir "$PROJECT_DIR" --compose-stdin
 }
 
 validate_pulled_postgres_mountpoint() {
@@ -909,6 +848,11 @@ if [ -z "$DOCKER_BIN" ] || [ ! -x "$DOCKER_BIN" ]; then
   exit 1
 fi
 
+verify_application_database_tls() {
+  "${COMPOSE[@]}" run --rm --no-deps app python -c \
+  'import os; import psycopg; url=os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://", 1); connection=psycopg.connect(url, connect_timeout=10); row=connection.execute("SELECT ssl, version FROM pg_stat_ssl WHERE pid=pg_backend_pid()").fetchone(); assert row and row[0] is True and row[1] in ("TLSv1.2", "TLSv1.3"); connection.close()'
+}
+
 COMPOSE=("$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 
 PROMETHEUS_RUNTIME_REF="$(validate_prometheus_image_manifest "$PROMETHEUS_IMAGE_MANIFEST")"
@@ -931,6 +875,11 @@ esac
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
 validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
 validate_staging_database_binding
+admitted_backup_dir="$("$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only --print-backup-dir)"
+if [ "$BACKUP_DIR" != "$admitted_backup_dir" ]; then
+  echo "Staging backups must use the admitted encrypted mount" >&2
+  exit 1
+fi
 POSTGRES_VOLUME_NAME="$(read_rendered_postgres_volume_name)"
 readonly POSTGRES_VOLUME_NAME
 
@@ -1000,6 +949,26 @@ echo "Validating the pulled PostgreSQL platform manifest before product mutation
 validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
 echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation"
 validate_pulled_postgres_mountpoint "$POSTGRES_RUNTIME_REF"
+
+# Verify the original publisher identity before any product state transition.
+GH_TOKEN="$GHCR_TOKEN" GITHUB_TOKEN="$GHCR_TOKEN" "$PYTHON_BIN" \
+  "$PROJECT_DIR/scripts/ci/check_pgvector_attestations.py" verify \
+  --manifest "$POSTGRES_IMAGE_MANIFEST" \
+  --repo Katsiarynakavaleuskaya/PulsePlate \
+  --signer-workflow Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml \
+  --source-ref refs/heads/main \
+  --json-out "$DOCKER_CONFIG/postgres-verification.json"
+
+backend_ids="$("$DOCKER_BIN" run --rm --network none --entrypoint python \
+  "$BACKEND_IMAGE_REF" -c 'import os; print(str(os.getuid()) + ":" + str(os.getgid()))')"
+"$PYTHON_BIN" - "$PROJECT_DIR/.staging-storage.json" "$backend_ids" <<'PY_BACKEND_ID'
+import json
+from pathlib import Path
+import sys
+receipt = json.loads(Path(sys.argv[1]).read_text())
+if sys.argv[2] != str(receipt["backend_uid"]) + ":" + str(receipt["backend_gid"]):
+    raise SystemExit("Backend runtime user differs from the protected libpq passfile owner")
+PY_BACKEND_ID
 "$DOCKER_BIN" logout ghcr.io >/dev/null
 if [ -L "$DOCKER_CONFIG/config.json" ]; then
   echo "❌ Docker credential file became a symlink" >&2
@@ -1016,6 +985,9 @@ echo "Invoking the canonical application production invariant before product mut
 "${COMPOSE[@]}" run --rm --no-deps app python -c \
   'from app.main import app; from app.security.production_invariants import assert_production_runtime_invariants; assert_production_runtime_invariants(app=app)'
 
+# Recheck mount and TLS immediately before the bounded product transition.
+validate_staging_database_binding
+
 echo "[3/5] Census and quiesce the current product before PostgreSQL transition"
 CAPTURED_WORKER_ID="$(capture_running_service_container worker)"
 CAPTURED_CADDY_ID="$(capture_running_service_container caddy)"
@@ -1031,7 +1003,7 @@ postgres_transition="fresh"
 postgres_container=""
 postgres_image_id=""
 postgres_configured_image=""
-postgres_pgdata=""
+_postgres_pgdata=""
 postgres_volume=""
 postgres_state_receipt=""
 postgres_runtime_receipt=""
@@ -1039,12 +1011,21 @@ if [ -n "$postgres_container_raw" ]; then
   postgres_transition="existing"
   postgres_state_receipt="$(read_existing_postgres_state "$postgres_container_raw")"
   IFS=$'\t' read -r postgres_container postgres_image_id postgres_configured_image \
-    postgres_pgdata postgres_volume <<< "$postgres_state_receipt"
+    _postgres_pgdata postgres_volume <<< "$postgres_state_receipt"
   validate_existing_postgres_image_identity "$postgres_image_id" "$postgres_configured_image"
   postgres_runtime_receipt="$(read_existing_postgres_runtime_state "$postgres_container")"
   if [ "$postgres_volume" != "$POSTGRES_VOLUME_NAME" ]; then
     echo "❌ Existing PostgreSQL volume does not match rendered Compose identity" >&2
     exit 1
+  fi
+  # The password file cannot rotate a persisted role. Prove the exact new app
+  # credentials against the running predecessor over verified TLS before stops.
+  if verify_application_database_tls >/dev/null 2>&1; then
+    :
+  else
+    credential_status=$?
+    echo "❌ Existing PostgreSQL rejected the admitted application TLS/passfile connection; HOLD for an explicit verified credential/TLS migration before quiescence" >&2
+    exit "$credential_status"
   fi
 else
   require_absent_postgres_volume
@@ -1112,6 +1093,7 @@ else
 fi
 
 echo "Starting the already pulled exact PostgreSQL candidate without registry access"
+"$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only
 "${COMPOSE[@]}" up -d --pull never postgres
 
 max_wait=60
@@ -1149,6 +1131,9 @@ else
   echo "Caddy and app remain stopped; restore the pre-migration backup before retrying if needed" >&2
   exit "$migration_exit_code"
 fi
+
+echo "Verify actual TLS from the application connection before exposing the product"
+verify_application_database_tls
 
 echo "Starting app after successful migrations"
 "${COMPOSE[@]}" up -d --pull never app
@@ -1223,6 +1208,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
 fi
 
+"$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only
 echo "Starting Prometheus after complete product health"
 if "${COMPOSE[@]}" up -d --pull never prometheus; then
   :

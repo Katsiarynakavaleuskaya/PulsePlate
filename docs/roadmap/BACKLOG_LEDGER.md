@@ -87,11 +87,20 @@ If it is not recorded here — it does not exist.
     instruction only if supported by observed evidence. No leaked objects, empty
     product deinit workarounds, test skips, HealthKit changes, or broad concurrency migration.
 
+<a id="ledger-p1-native-cli-subprocess-review"></a>
+- [ ] P1: Reassess six native CLI Bandit dispositions by 2026-10-12
+  - Owner: @katsiaryna_kavaleuskaya with security-auditor
+  - Target PR: bounded follow-up after `codex/main-recovery-secure-staging`, before 2026-10-12
+  - Reason: Git, Docker/PostgreSQL, OpenSSL and host mount/daemon recognition require native tools. The six exact B404/B603 import/call sites already use resolved binaries, argv without a shell and timeouts; no safer bounded replacement exists in the current recovery scope. An unrelated process framework or hand-written native recognizer would expand the trust boundary.
+  - Evidence: [recovery security owner](../security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#native-command-security-dispositions); exact inline rule/expiry/reference comments in the three named scripts, without rule-wide or path allowlists.
+  - DoD: Review each caller and executable/argument/environment trust boundary, adopt a demonstrated safer bounded replacement if available and delete its disposition, or obtain a separately reviewed evidence-backed decision before expiry. Never silently extend the date or reduce scanner severity.
+
 <a id="ledger-p1-main-recovery-1-image-publication"></a>
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: #2390 (`codex/main-recovery-pgvector-apk-inputs`), continuation after merged #2389; original MAIN-RECOVERY-1 v2 DoD retained
+  - Target PR: new owned `codex/main-recovery-secure-staging` continuation after merged #2390; original MAIN-RECOVERY-1 v2 DoD retained and owner-added TLS/encrypted staging criteria included
+  - Current continuation (EN): #2390 merged as `5b384c91708f774c025b0b19edc1c8c83d11266b`; exact-main CD `34700002720` reached derived attestation persistence and rejected the custom SLSA build type. The owner accepted native GitHub provenance plus separate exact-material/SPDX admission, recoverable repeated publication/reuse, and protected PostgreSQL/Prometheus staging on existing Droplet `594869239` with one 50 GiB encrypted Volume at $5/month. Repository, actual main, host activation and four same-ID Drive outcomes remain separate; no completion or production activation is claimed.
   - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 then merged the pinned DHI Statement/v0.1 consumer as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Exact-main CD `34469999154` passed that consumer and exposed the next bounded blocker: the live APK resolver changed transitive `libcurl`, so the recorded builder closure no longer matched. The current continuation freezes all 41 APK archive bytes plus the supplier-signed index, pins Buildx/BuildKit, refreshes vulnerable same-version DHI bases and retains every original exact-main acceptance requirement.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`

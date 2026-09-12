@@ -65,16 +65,28 @@ POSTGRES_USER=... POSTGRES_DB=... \
   /srv/pulseplate/scripts/ops/postgres_backup.sh
 ```
 
-**Restore** (operator adjusts paths and dump file):
+**Restore** (explicit replacement recovery; operator verifies the target identity and dump first):
 
 ```bash
 PROJECT_DIR=/srv/pulseplate/deploy \
 COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
 POSTGRES_USER=... POSTGRES_DB=... \
-  scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+  /srv/pulseplate/scripts/ops/postgres_restore.sh --replace-existing pulseplate /absolute/path/to/file.dump
 ```
 
-**Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory` / paths).
+Replacement is bounded to the `public` schema. Before mutation, the helper
+rejects archives and targets with non-public user schemas or unsupported global
+objects, including large objects; it does not silently filter archived data.
+It pre-renders complete native SQL into private temporary storage (the admitted
+encrypted backup directory on staging), then resets `public`, restores the
+archive and checks its substantive table inventory in one transaction. SQL or
+inventory failure rolls the whole replacement back. Quiesce writers and verify
+the authorized target before explicit replacement; unsupported schema layouts
+HOLD for a separately verified migration. Verification restore selects the
+configured source database as its maintenance connection, so role and database
+names may differ.
+
+**Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory`, `EnvironmentFile`, `PROJECT_DIR`, `ENV_FILE`, `COMPOSE_FILE` and script paths). The generic service selects the self-hosted production Compose contract and does not require staging receipts/mounts. Staging uses the separate `pulseplate-staging-postgres-backup.service.example` source.
 
 ### Environment contract
 

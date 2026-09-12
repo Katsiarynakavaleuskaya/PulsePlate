@@ -28,11 +28,23 @@
 name: CD
 
 on:
+  workflow_dispatch:
+    inputs:
+      postgres_mode:
+        description: Explicit synthetic attestation probe or main-only read-only reuse
+        required: true
+        default: disabled
+        type: choice
+        options: [disabled, synthetic-probe, reuse]
+      source_sha:
+        description: Exact same-repository commit SHA for synthetic probe
+        required: false
+        type: string
   pull_request: {}
   schedule:
     - cron: '17 4 * * 1'
   push:
-    branches: [main]
+    branches: [main, 'codex/attestation-probe/*']
     tags: ['v*']
 
 permissions:
@@ -46,6 +58,378 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  staging-postgres-native-integration:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout native staging integration source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select the existing finite PostgreSQL material universe
+        id: native-material
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 -m scripts.ci.check_pgvector_attestations changes \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --json-out native-staging-material.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          material = json.loads(Path("native-staging-material.json").read_text())
+          print("changed=" + str(material["changed"]).lower())
+          PY
+      - name: Authenticate public package read with ephemeral repository token
+        if: steps.native-material.outputs.changed == 'true'
+        env:
+          GHCR_EPHEMERAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          umask 077
+          config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-staging-native-auth.XXXXXXXX")"
+          printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
+          printf '%s' "$GHCR_EPHEMERAL_TOKEN" | docker --config "$config_dir" login ghcr.io \
+            --username "$GHCR_OWNER" --password-stdin
+      - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
+        if: steps.native-material.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY_COMPOSE_VERSION'
+          import json, subprocess, shutil
+          binary = shutil.which("docker")
+          if binary is None: raise SystemExit("Docker is required")
+          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
+          parts = version.split(".")
+          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
+              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
+          PY_COMPOSE_VERSION
+          python3 -m scripts.ci.check_staging_postgres_runtime \
+            --json-out staging-postgres-native-result.json
+      - name: Retain public native experiment metadata without private PKI or dumps
+        if: always() && steps.native-material.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: staging-postgres-native-integration
+          path: staging-postgres-native-result.json
+          if-no-files-found: warn
+      - name: Remove the exact ephemeral public-package Docker credentials
+        if: always()
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          cleanup_failed=0
+          if [ -n "${DOCKER_CONFIG:-}" ]; then
+            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
+            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
+          fi
+          case "$PRIMARY_JOB_STATUS" in
+            success) exit "$cleanup_failed" ;;
+            failure | cancelled)
+              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
+              exit 0 ;;
+            *) exit 1 ;;
+          esac
+
+  postgres-synthetic-attestation-probe:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.postgres_mode == 'synthetic-probe')
+      || (github.event_name == 'push' && !github.event.deleted
+          && startsWith(github.ref, 'refs/heads/codex/attestation-probe/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Authenticate exact same-repository probe source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          PROBE_PUSH_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Katsiarynakavaleuskaya/PulsePlate
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_SHA" = "$GITHUB_SHA"
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            push:refs/heads/codex/attestation-probe/*)
+              test "$PROBE_PUSH_DELETED" = false
+              test "${GITHUB_REF#refs/heads/codex/attestation-probe/}" = "$SOURCE_SHA"
+              ;;
+            workflow_dispatch:*) ;;
+            *) echo "Unapproved synthetic probe trigger" >&2; exit 1 ;;
+          esac
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)" = "$SOURCE_SHA"
+      - name: Checkout authenticated probe source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          persist-credentials: false
+      - name: Build and push tiny synthetic image
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          context="$(mktemp -d "${RUNNER_TEMP}/pulseplate-attestation-probe.XXXXXX")"
+          printf 'synthetic-attestation-probe-v1\n' > "$context/payload"
+          printf 'FROM scratch\nCOPY payload /payload\n' > "$context/Containerfile"
+          repository=ghcr.io/katsiarynakavaleuskaya/pulseplate
+          tag="$repository:synthetic-attestation-probe-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-attestation-probe-auth.XXXXXXXX")"
+          export DOCKER_CONFIG="$config_dir"
+          printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_REPOSITORY_OWNER" --password-stdin
+          docker build --file "$context/Containerfile" --tag "$tag" "$context"
+          docker push "$tag"
+          digest="$(docker inspect "$tag" --format '{{index .RepoDigests 0}}')"
+          digest="${digest##*@}"
+          printf 'repository=%s\ndigest=%s\nref=%s@%s\n' "$repository" "$digest" "$tag" "$digest" >> "$GITHUB_OUTPUT"
+          GITHUB_SHA="$SOURCE_SHA" PROBE_REPOSITORY="$repository" PROBE_DIGEST="$digest" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = {"schema": "pulseplate.synthetic_attestation_probe.v1",
+              "repository": os.environ["PROBE_REPOSITORY"],
+              "platform_manifest_digest": os.environ["PROBE_DIGEST"],
+              "recipe": {"base": "scratch", "payload": "synthetic-attestation-probe-v1"}}
+          Path("probe-manifest.json").write_text(json.dumps(manifest))
+          PY
+          printf '%s\n' '{"spdxVersion":"SPDX-2.3","dataLicense":"CC0-1.0","SPDXID":"SPDXRef-DOCUMENT","name":"synthetic-probe","documentNamespace":"https://pulseplate.app/synthetic-probe","creationInfo":{"created":"2026-09-12T00:00:00Z","creators":["Tool: PulsePlate synthetic probe v1"]},"packages":[{"name":"synthetic-attestation-probe-v1","SPDXID":"SPDXRef-Probe","downloadLocation":"NOASSERTION"}],"relationships":[{"spdxElementId":"SPDXRef-DOCUMENT","relatedSpdxElement":"SPDXRef-Probe","relationshipType":"DESCRIBES"}]}' > probe.spdx.json
+          GITHUB_SHA="$SOURCE_SHA" python3 scripts/ci/check_pgvector_attestations.py generate \
+            --manifest probe-manifest.json --source-ref "$GITHUB_REF" --sbom probe.spdx.json --json-out probe-materials.json
+      - name: Initialize the pinned native SDK GHCR reader for synthetic writes
+        env:
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ghcr_dir="$(python3 -m scripts.ci.ghcr_attestation_credentials ghcr-directory --directory "$DOCKER_CONFIG")"
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker --config "$ghcr_dir" login ghcr.io --username "$GHCR_USER" --password-stdin
+          python3 -m scripts.ci.ghcr_attestation_credentials install --directory "$DOCKER_CONFIG" --ghcr-config "$ghcr_dir/config.json"
+      - name: Attest actual synthetic build
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-name: ${{ steps.probe.outputs.repository }}
+          subject-digest: ${{ steps.probe.outputs.digest }}
+          push-to-registry: true
+      - name: Attest synthetic exact materials
+        id: attest-probe-materials
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ steps.probe.outputs.repository }}
+          subject-digest: ${{ steps.probe.outputs.digest }}
+          predicate-type: https://pulseplate.app/attestations/postgres-pgvector-materials/v1
+          predicate-path: probe-materials.json
+          push-to-registry: true
+      - name: Reject the exact current incomplete native and materials tuple before SPDX
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY_INCOMPLETE_CONTROL'
+          import hashlib, json, os
+          from pathlib import Path
+          from scripts.ci.check_pgvector_attestations import TYPES, read_json, tuple_records, validate_triple, verified_payloads
+
+          manifest = read_json(Path("probe-manifest.json"))
+          materials = read_json(Path("probe-materials.json"))
+          repo = os.environ["GITHUB_REPOSITORY"]
+          workflow = repo + "/.github/workflows/cd.yml"
+          ref = os.environ["GITHUB_REF"]
+          invocation = "https://github.com/" + repo + "/actions/runs/" + os.environ["GITHUB_RUN_ID"] + "/attempts/" + os.environ["GITHUB_RUN_ATTEMPT"]
+          expected = {"repository": repo, "source_sha": os.environ["SOURCE_SHA"],
+              "source_ref": ref, "signer_workflow": workflow, "run_invocation_uri": invocation}
+          if materials["source"] != expected:
+              raise SystemExit("Generated materials are not the exact current execution")
+          payloads = verified_payloads(manifest, repo, workflow, ref, present=TYPES[:2])
+          groups = tuple_records(payloads, manifest, repo, workflow, ref)
+          current = groups.get(json.dumps(expected, sort_keys=True))
+          if current is None or set(current["records"]) != set(TYPES[:2]):
+              raise SystemExit("Official verified native and materials records are not both present for the current execution")
+          signed_materials = current["records"][TYPES[1]][0]["verificationResult"]["statement"]["predicate"]
+          if signed_materials != materials:
+              raise SystemExit("Official verified materials differ from the generated exact recipe and SPDX hash")
+          try:
+              validate_triple(payloads, manifest, repo, workflow, ref,
+                  source_sha=expected["source_sha"], run_invocation_uri=invocation)
+          except ValueError as error:
+              if str(error) != "No complete eligible original-build tuple; source SHA/content/inventory HOLD":
+                  raise
+          else:
+              raise SystemExit("Verified two-record tuple unexpectedly accepted before SPDX")
+          evidence = {
+              "original_build": expected, "native_and_materials_verified": True,
+              "exact_generated_materials_verified": True, "incomplete_membership_rejected": True,
+              "asset_type": "native_verified_incomplete_tuple_control",
+              "upstream_assets": [{"path": name, "sha256": hashlib.sha256(Path(name).read_bytes()).hexdigest()}
+                  for name in ("probe-manifest.json", "probe-materials.json")],
+              "policy_version": "original-build-three-records-v1", "idempotency_key": invocation,
+              "replay_admission": "Fresh current-execution negative control only; no publication or deployment authority"}
+          evidence["fingerprint"] = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+          Path("probe-incomplete-control.json").write_text(json.dumps(evidence, sort_keys=True) + "\n")
+          PY_INCOMPLETE_CONTROL
+          if python3 scripts/ci/check_pgvector_attestations.py verify \
+              --manifest probe-manifest.json --source-ref "$GITHUB_REF" --source-sha "$SOURCE_SHA" \
+              --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"; then
+            echo "Exact current incomplete tuple unexpectedly accepted before SPDX" >&2
+            exit 1
+          fi
+      - name: Attest synthetic SPDX
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ steps.probe.outputs.repository }}
+          subject-digest: ${{ steps.probe.outputs.digest }}
+          predicate-type: https://spdx.dev/Document/v2.3
+          predicate-path: probe.spdx.json
+          push-to-registry: true
+      - name: Fresh-process external pullback repeat and source-rejection probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          PROBE_REF: ${{ steps.probe.outputs.ref }}
+        run: |
+          set -euo pipefail
+          docker pull "$PROBE_REF"
+          for attempt in 1 2; do
+            python3 scripts/ci/check_pgvector_attestations.py verify \
+              --manifest probe-manifest.json --source-ref "$GITHUB_REF" --source-sha "$SOURCE_SHA" \
+              --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+              --sbom probe.spdx.json --json-out "probe-verified-$attempt.json"
+          done
+          if python3 scripts/ci/check_pgvector_attestations.py verify \
+              --manifest probe-manifest.json --source-ref "$GITHUB_REF" \
+              --source-sha 0000000000000000000000000000000000000000; then
+            echo "Incorrect-source probe unexpectedly accepted" >&2
+            exit 1
+          fi
+      - name: Verify original reject damaged signature and reverify original native materials bundle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          PROBE_REF: ${{ steps.probe.outputs.ref }}
+          MATERIALS_BUNDLE_PATH: ${{ steps.attest-probe-materials.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          umask 077
+          verify_bundle() {
+            gh attestation verify "oci://$PROBE_REF" --bundle "$1" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+              --source-ref "$GITHUB_REF" --source-digest "$SOURCE_SHA" \
+              --predicate-type https://pulseplate.app/attestations/postgres-pgvector-materials/v1 \
+              --deny-self-hosted-runners --format json
+          }
+          verify_bundle "$MATERIALS_BUNDLE_PATH" > probe-materials-bundle-original-verified.json
+          python3 - <<'PY_CORRUPT_SIGNATURE'
+          import base64
+          import copy
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from scripts.ci.check_pgvector_attestations import loads
+
+          source_path = Path(os.environ["MATERIALS_BUNDLE_PATH"])
+          if source_path.is_symlink() or not source_path.is_file():
+              raise ValueError("Materials bundle must be a regular local action output")
+          bundle = loads(source_path.read_bytes())
+          if not isinstance(bundle, dict) or not isinstance(bundle.get("mediaType"), str) or not bundle["mediaType"]:
+              raise ValueError("Unexpected native bundle mediaType")
+          if not isinstance(bundle.get("verificationMaterial"), dict) or not bundle["verificationMaterial"]:
+              raise ValueError("Unexpected native verification material")
+          envelope = bundle.get("dsseEnvelope")
+          if not isinstance(envelope, dict) or not isinstance(envelope.get("payload"), str) or not envelope["payload"]:
+              raise ValueError("Unexpected native DSSE envelope")
+          payload = base64.b64decode(envelope["payload"], validate=True)
+          if not payload:
+              raise ValueError("Native DSSE payload must be nonempty")
+          signatures = envelope.get("signatures")
+          if not isinstance(signatures, list) or len(signatures) != 1 or not isinstance(signatures[0], dict):
+              raise ValueError("Exactly one native DSSE signature is required")
+          encoded = signatures[0].get("sig")
+          if not isinstance(encoded, str) or not encoded:
+              raise ValueError("Native DSSE signature must be nonempty base64")
+          signature = base64.b64decode(encoded, validate=True)
+          if not signature:
+              raise ValueError("Decoded native DSSE signature must be nonempty")
+          damaged = bytes([signature[0] ^ 1]) + signature[1:]
+          changed = copy.deepcopy(bundle)
+          changed["dsseEnvelope"]["signatures"][0]["sig"] = base64.b64encode(damaged).decode("ascii")
+          Path("probe-materials-corrupted-bundle.json").write_text(
+              json.dumps(changed, sort_keys=True, separators=(",", ":"), allow_nan=False), encoding="utf-8"
+          )
+          Path("probe-signature-corruption.json").write_text(json.dumps({
+              "asset_type": "synthetic_attestation_signature_negative_control",
+              "upstream_assets": [{"sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(), "source": "materials_action_bundle"}],
+              "policy_version": "native_signature_corruption_v1",
+              "idempotency_key": "signature-corruption:" + os.environ["GITHUB_RUN_ID"] + ":" + os.environ["GITHUB_RUN_ATTEMPT"],
+              "replay_admission": "Synthetic probe only; no publication, deployment or merge authority",
+              "decoded_signature_size": len(signature),
+              "changed_byte_index": 0,
+              "original_signature_sha256": hashlib.sha256(signature).hexdigest(),
+              "damaged_signature_sha256": hashlib.sha256(damaged).hexdigest(),
+              "unchanged_payload_sha256": hashlib.sha256(payload).hexdigest()
+          }, sort_keys=True) + "\n", encoding="utf-8")
+          PY_CORRUPT_SIGNATURE
+          if verify_bundle probe-materials-corrupted-bundle.json > probe-materials-bundle-corrupt-verification.json 2> probe-materials-bundle-corrupt-error.log; then
+            echo "Damaged native DSSE signature unexpectedly accepted" >&2
+            exit 1
+          fi
+          verify_bundle "$MATERIALS_BUNDLE_PATH" > probe-materials-bundle-reverified.json
+          python3 - <<'PY_SIGNATURE_EVIDENCE'
+          import hashlib
+          import json
+          from pathlib import Path
+          evidence = Path("probe-signature-corruption.json")
+          record = json.loads(evidence.read_text())
+          record.update(original_verified_before=True, corrupted_signature_rejected=True, original_verified_after=True)
+          record["fingerprint"] = hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()
+          evidence.write_text(json.dumps(record, sort_keys=True) + "\n")
+          PY_SIGNATURE_EVIDENCE
+      - name: Retain native external probe evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: postgres-synthetic-attestation-probe
+          path: probe*.json
+      - name: Logout probe registry
+        if: always()
+        env:
+          PRIMARY_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          cleanup_failed=0
+          if [ -n "${DOCKER_CONFIG:-}" ]; then
+            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
+            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
+          fi
+          case "$PRIMARY_JOB_STATUS" in
+            success) exit "$cleanup_failed" ;;
+            failure | cancelled)
+              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
+              exit 0 ;;
+            *) exit 1 ;;
+          esac
+
   prometheus-image-security:
     if: >-
       always()
@@ -535,6 +919,7 @@ jobs:
           fi
 
   postgres-pgvector-contract:
+    if: github.event_name != 'push' || !startsWith(github.ref, 'refs/heads/codex/attestation-probe/')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -770,46 +1155,10 @@ jobs:
           fi
           git cat-file -e "${BEFORE_SHA}^{commit}"
           git merge-base --is-ancestor "$BEFORE_SHA" "$AFTER_SHA"
-          changed=false
-          while IFS= read -r path; do
-            case "$path" in
-              .github/workflows/cd.yml | \
-              .github/workflows/ci.yml | \
-              constraints.txt | \
-              requirements-ci-lite.txt | \
-              requirements-rag-vector.in | \
-              requirements-rag-vector.txt | \
-              requirements-rag-vector-cpu.in | \
-              requirements-rag-vector-cpu.txt | \
-              requirements-test.in | \
-              requirements-test.txt | \
-              scripts/ci/emergency_python_wheels.json | \
-              scripts/ci/install_locked_python_requirements.py | \
-              scripts/deploy.sh | \
-              scripts/deploy_production.sh | \
-              deploy/docker-compose.staging.yaml | \
-              deploy/docker-compose.production.selfhosted.yaml | \
-              deploy/postgres-pgvector/* | \
-              scripts/ci/check_alembic_autogenerate_completeness.py | \
-              core/db.py | \
-              core/db_alembic_comparison.py | \
-              core/rag/vector_rag.py | \
-              core/db_rls.py | \
-              core/models.py | \
-              app/models/* | \
-              alembic.ini | \
-              alembic/env.py | \
-              alembic/versions/* | \
-              tests/test_deploy_contract_scripts.py | \
-              tests/test_alembic_autogenerate_completeness.py | \
-              tests/test_pgvector_compat.py | \
-              tests/test_pgvector_embedding_migration.py | \
-              tests/test_vector_rag.py | \
-              tests/test_db_rls.py)
-                changed=true
-                ;;
-            esac
-          done < <(git diff --name-only --diff-filter=ACDMRTUXB "$BEFORE_SHA" "$AFTER_SHA")
+          python3 scripts/ci/check_pgvector_attestations.py changes \
+            --base "$BEFORE_SHA" --head "$AFTER_SHA" \
+            --json-out postgres-pgvector-material-change.json
+          changed="$(python3 -c 'import json; print(str(json.load(open("postgres-pgvector-material-change.json"))["changed"]).lower())')"
           printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
 
   postgres-pgvector-ci-admission:
@@ -956,6 +1305,7 @@ jobs:
           printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           chmod 700 "$credential_dir"
+          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$credential_dir"
           mkdir -m 700 "$credential_dir/cli-plugins"
           buildx_path="$credential_dir/cli-plugins/docker-buildx"
           : "${BUILDX_VERSION:?Buildx version is required}"
@@ -1717,100 +2067,33 @@ jobs:
             printf 'canonical_tag_ref=%s\n' "$canonical_tag_ref"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Generate material-bound PostgreSQL pgvector provenance predicate
+      - name: Generate PostgreSQL pgvector SPDX SBOM with exact Trivy
+        env:
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
+          TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
+          test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
+          test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
+            && test ! -s "$TRIVY_IGNORE_FILE"
+          "$TRIVY_BIN" image \
+            --scanners vuln \
+            --format spdx-json \
+            --pkg-types os,library \
+            --ignorefile "$TRIVY_IGNORE_FILE" \
+            --output postgres-pgvector-image-sbom.spdx.json \
+            "${REPOSITORY}@${PLATFORM_DIGEST}"
+          test -f postgres-pgvector-image-sbom.spdx.json
+          test ! -L postgres-pgvector-image-sbom.spdx.json
+          test -s postgres-pgvector-image-sbom.spdx.json
 
-          manifest = json.loads(
-              Path("deploy/postgres-pgvector/image-manifest.json").read_text(encoding="utf-8")
-          )
-          materials = [
-              ("dhi.io/postgres:runtime-index", manifest["runtime_base_index_digest"]),
-              ("dhi.io/postgres:runtime-platform", manifest["runtime_base_platform_manifest_digest"]),
-              ("dhi.io/postgres:runtime-config", manifest["runtime_base_config_digest"]),
-              ("dhi.io/postgres:builder-index", manifest["builder_base_index_digest"]),
-              ("dhi.io/postgres:builder-platform", manifest["builder_base_platform_manifest_digest"]),
-              ("dhi.io/postgres:builder-config", manifest["builder_base_config_digest"]),
-              (manifest["pgvector_source_url"], manifest["pgvector_source_sha256"]),
-              (
-                  "git+https://github.com/pgvector/pgvector",
-                  "sha1:" + manifest["pgvector_source_commit"],
-              ),
-              (
-                  "git+https://github.com/Katsiarynakavaleuskaya/PulsePlate#deploy/postgres-pgvector/Containerfile",
-                  manifest["containerfile_sha256"],
-              ),
-              ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
-              ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
-              ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
-              ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
-              (
-                  "https://github.com/docker/buildx/releases/download/"
-                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
-                  manifest["buildx_linux_amd64_sha256"],
-              ),
-              (
-                  "pulseplate:runtime-artifact-inventory",
-                  manifest["runtime_artifact_inventory_sha256"],
-              ),
-              ("pulseplate:mountpoint-layer", manifest["mountpoint_layer_digest"]),
-              ("pulseplate:mountpoint-layer-diff-id", manifest["mountpoint_layer_diff_id"]),
-          ]
-          resolved_dependencies = []
-          for uri, digest in materials:
-              algorithm, value = digest.split(":", 1)
-              resolved_dependencies.append({"uri": uri, "digest": {algorithm: value}})
-          predicate = {
-              "buildDefinition": {
-                  "buildType": "https://pulseplate.app/buildtypes/postgres-pgvector/v1",
-                  "externalParameters": {
-                      "repository": os.environ["GITHUB_REPOSITORY"],
-                      "source_ref": os.environ["GITHUB_REF"],
-                      "source_sha": os.environ["GITHUB_SHA"],
-                      "platform": manifest["platform"],
-                      "source_date_epoch": manifest["source_date_epoch"],
-                      "builder_packages": manifest["builder_packages"],
-                      "builder_apk_closure_count": manifest["builder_apk_closure_count"],
-                      "runtime_artifact_count": manifest["runtime_artifact_count"],
-                      "mountpoint_layer_entry_count": manifest["mountpoint_layer_entry_count"],
-                      "final_platform_manifest_digest": manifest["platform_manifest_digest"],
-                      "final_config_digest": manifest["config_digest"],
-                  },
-                  "internalParameters": {
-                      "buildx_provenance": False,
-                      "buildx_sbom": False,
-                      "oci_rewrite_timestamp": True,
-                  },
-                  "resolvedDependencies": resolved_dependencies,
-              },
-              "runDetails": {
-                  "builder": {
-                      "id": (
-                          "https://github.com/"
-                          + os.environ["GITHUB_REPOSITORY"]
-                          + "/.github/workflows/cd.yml@refs/heads/main"
-                      )
-                  },
-                  "metadata": {
-                      "invocationId": (
-                          "https://github.com/"
-                          + os.environ["GITHUB_REPOSITORY"]
-                          + "/actions/runs/"
-                          + os.environ["GITHUB_RUN_ID"]
-                          + "/attempts/"
-                          + os.environ["GITHUB_RUN_ATTEMPT"]
-                      )
-                  },
-              },
-          }
-          Path("postgres-pgvector-provenance.json").write_text(
-              json.dumps(predicate, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-          )
-          PY
+      - name: Generate exact PostgreSQL material predicate
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_pgvector_attestations.py generate \
+            --sbom postgres-pgvector-image-sbom.spdx.json --json-out postgres-pgvector-materials.json
 
       - name: Classify existing exact-digest PostgreSQL attestations
         id: pgvector-attestation-inventory
@@ -1837,111 +2120,42 @@ jobs:
               exit 1
               ;;
           esac
-          python3 - "$response_path" <<'PY'
-          import base64
-          import copy
-          import json
-          import os
-          from pathlib import Path
-          import sys
+          python3 scripts/ci/check_pgvector_attestations.py inventory \
+            --inventory "$response_path" --current-build --source-sha "$GITHUB_SHA" \
+            --sbom postgres-pgvector-image-sbom.spdx.json \
+            --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --json-out postgres-pgvector-inventory.json
 
-          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          records = payload.get("attestations") if isinstance(payload, dict) else None
-          if not isinstance(records, list) or len(records) >= 100:
-              raise SystemExit("Attestation inventory is malformed or pagination-ambiguous")
-          expected_predicate = json.loads(
-              Path("postgres-pgvector-provenance.json").read_text(encoding="utf-8")
-          )
-          expected_subject = [
-              {
-                  "name": os.environ["REPOSITORY"],
-                  "digest": {"sha256": os.environ["PLATFORM_DIGEST"].removeprefix("sha256:")},
-              }
-          ]
-
-          def normalize_provenance(predicate):
-              normalized = copy.deepcopy(predicate)
-              metadata = normalized.get("runDetails", {}).get("metadata", {})
-              if isinstance(metadata, dict):
-                  metadata.pop("invocationId", None)
-              external = normalized.get("buildDefinition", {}).get("externalParameters", {})
-              if isinstance(external, dict):
-                  external.pop("source_sha", None)
-              return normalized
-
-          expected_normalized = normalize_provenance(expected_predicate)
-          provenance_matches = 0
-          provenance_conflicts = 0
-          spdx_matches = 0
-          for record in records:
-              bundle = record.get("bundle") if isinstance(record, dict) else None
-              envelope = bundle.get("dsseEnvelope") if isinstance(bundle, dict) else None
-              encoded = envelope.get("payload") if isinstance(envelope, dict) else None
-              if not isinstance(encoded, str):
-                  raise SystemExit("Attestation bundle lacks one DSSE payload")
-              try:
-                  statement = json.loads(base64.b64decode(encoded, validate=True))
-              except (ValueError, json.JSONDecodeError) as exc:
-                  raise SystemExit("Attestation DSSE payload is malformed") from exc
-              if statement.get("subject") != expected_subject:
-                  continue
-              predicate_type = statement.get("predicateType")
-              predicate = statement.get("predicate")
-              if predicate_type == "https://slsa.dev/provenance/v1":
-                  definition = predicate.get("buildDefinition") if isinstance(predicate, dict) else None
-                  if isinstance(definition, dict) and definition.get("buildType") == (
-                      "https://pulseplate.app/buildtypes/postgres-pgvector/v1"
-                  ):
-                      if normalize_provenance(predicate) == expected_normalized:
-                          provenance_matches += 1
-                      else:
-                          provenance_conflicts += 1
-              elif predicate_type == "https://spdx.dev/Document/v2.3":
-                  if not isinstance(predicate, dict):
-                      raise SystemExit("Existing SPDX predicate is malformed")
-                  spdx_matches += 1
-          if provenance_conflicts or provenance_matches > 1 or spdx_matches > 1:
-              raise SystemExit("Existing PostgreSQL attestation inventory is conflicting or duplicated")
-          provenance_mode = "create" if provenance_matches == 0 else "reuse"
-          spdx_mode = "create" if spdx_matches == 0 else "reuse"
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              print(f"provenance_mode={provenance_mode}", file=output)
-              print(f"spdx_mode={spdx_mode}", file=output)
-          PY
-
-      - name: Attest PostgreSQL pgvector material-bound provenance
+      - name: Initialize the pinned native SDK GHCR reader for PostgreSQL writes
+        env:
+          GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ghcr_dir="$(python3 -m scripts.ci.ghcr_attestation_credentials ghcr-directory --directory "$DOCKER_CONFIG")"
+          printf '%s' "$GHCR_TOKEN_VALUE" | docker --config "$ghcr_dir" login ghcr.io --username "$GHCR_USER" --password-stdin
+          python3 -m scripts.ci.ghcr_attestation_credentials install --directory "$DOCKER_CONFIG" --ghcr-config "$ghcr_dir/config.json"
+      - name: Attest actual PostgreSQL pgvector build provenance
         if: steps.pgvector-attestation-inventory.outputs.provenance_mode == 'create'
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          subject-digest: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+          push-to-registry: true
+
+      - name: Attest exact PostgreSQL pgvector materials
+        if: steps.pgvector-attestation-inventory.outputs.materials_mode == 'create'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
           subject-digest: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
-          predicate-type: https://slsa.dev/provenance/v1
-          predicate-path: postgres-pgvector-provenance.json
+          predicate-type: https://pulseplate.app/attestations/postgres-pgvector-materials/v1
+          predicate-path: postgres-pgvector-materials.json
           push-to-registry: true
 
-      - name: Generate PostgreSQL pgvector SPDX SBOM with exact Trivy
-        env:
-          RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
-          TRIVY_BIN: ${{ steps.pgvector-trivy.outputs.path }}
-          TRIVY_IGNORE_FILE: ${{ steps.pgvector-trivy.outputs.ignore }}
-        run: |
-          set -euo pipefail
-          test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
-          test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
-            && test ! -s "$TRIVY_IGNORE_FILE"
-          "$TRIVY_BIN" image \
-            --scanners vuln \
-            --format spdx-json \
-            --pkg-types os,library \
-            --ignorefile "$TRIVY_IGNORE_FILE" \
-            --output postgres-pgvector-image-sbom.spdx.json \
-            "$RUNTIME_REF"
-          test -f postgres-pgvector-image-sbom.spdx.json
-          test ! -L postgres-pgvector-image-sbom.spdx.json
-          test -s postgres-pgvector-image-sbom.spdx.json
-
       - name: Attest PostgreSQL pgvector SPDX SBOM
-        if: steps.pgvector-attestation-inventory.outputs.spdx_mode == 'create'
+        if: steps.pgvector-attestation-inventory.outputs.sbom_mode == 'create'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ needs.postgres-pgvector-contract.outputs.repository }}
@@ -1956,110 +2170,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUNTIME_REF: ${{ steps.publish-pgvector.outputs.candidate_runtime_ref }}
           PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
-          PROVENANCE_MODE: ${{ steps.pgvector-attestation-inventory.outputs.provenance_mode }}
+          ATTESTATION_MODE: ${{ steps.pgvector-attestation-inventory.outputs.mode }}
+          ORIGINAL_SOURCE_SHA: ${{ steps.pgvector-attestation-inventory.outputs.source_sha }}
+          ORIGINAL_RUN_INVOCATION_URI: ${{ steps.pgvector-attestation-inventory.outputs.run_invocation_uri }}
           REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
-          SPDX_MODE: ${{ steps.pgvector-attestation-inventory.outputs.spdx_mode }}
         run: |
           set -euo pipefail
           docker pull --platform linux/amd64 "$RUNTIME_REF"
-          python3 scripts/ci/check_docker_provenance_attestation.py \
-            --image-name "$REPOSITORY" \
-            --digest "$PLATFORM_DIGEST" \
-            --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-            --source-ref refs/heads/main \
-            --json-out postgres-pgvector-provenance-attestation-check.json \
-            --markdown-out postgres-pgvector-provenance-attestation-check.md
-          provenance_verify_args=(
-            --repo "$GITHUB_REPOSITORY"
-            --predicate-type https://slsa.dev/provenance/v1
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml"
-            --source-ref refs/heads/main
-          )
-          case "$PROVENANCE_MODE" in
-            create) provenance_verify_args+=(--source-digest "$GITHUB_SHA") ;;
-            reuse) ;;
-            *) echo "Unknown PostgreSQL provenance admission mode" >&2; exit 1 ;;
-          esac
-          gh attestation verify "oci://${RUNTIME_REF}" \
-            "${provenance_verify_args[@]}" \
-            --format json > postgres-pgvector-provenance-verified.json
-          python3 - <<'PY'
-          import copy
-          import json
-          import os
-          from pathlib import Path
-
-          expected = json.loads(
-              Path("postgres-pgvector-provenance.json").read_text(encoding="utf-8")
-          )
-          verified = json.loads(
-              Path("postgres-pgvector-provenance-verified.json").read_text(encoding="utf-8")
-          )
-          def normalize(predicate):
-              result = copy.deepcopy(predicate)
-              metadata = result.get("runDetails", {}).get("metadata", {})
-              if isinstance(metadata, dict):
-                  metadata.pop("invocationId", None)
-              if os.environ["PROVENANCE_MODE"] == "reuse":
-                  external = result.get("buildDefinition", {}).get("externalParameters", {})
-                  if isinstance(external, dict):
-                      external.pop("source_sha", None)
-              return result
-
-          expected_normalized = normalize(expected)
-          matches = []
-          for item in verified:
-              predicate = (
-                  item.get("verificationResult", {}).get("statement", {}).get("predicate")
-              )
-              if isinstance(predicate, dict) and normalize(predicate) == expected_normalized:
-                  matches.append(item)
-          if len(matches) != 1:
-              raise SystemExit("Expected exactly one material-bound provenance predicate")
-          PY
-          spdx_verify_args=(
-            --repo "$GITHUB_REPOSITORY"
-            --predicate-type https://spdx.dev/Document/v2.3
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml"
-            --source-ref refs/heads/main
-          )
-          case "$SPDX_MODE" in
-            create) spdx_verify_args+=(--source-digest "$GITHUB_SHA") ;;
-            reuse) ;;
-            *) echo "Unknown PostgreSQL SPDX admission mode" >&2; exit 1 ;;
-          esac
-          gh attestation verify "oci://${RUNTIME_REF}" \
-            "${spdx_verify_args[@]}" \
-            --format json > postgres-pgvector-spdx-verified.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          verified = json.loads(
-              Path("postgres-pgvector-spdx-verified.json").read_text(encoding="utf-8")
-          )
-          matches = [
-              item
-              for item in verified
-              if item.get("verificationResult", {})
-              .get("statement", {})
-              .get("predicateType")
-              == "https://spdx.dev/Document/v2.3"
-          ]
-          if len(matches) != 1:
-              raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
-          expected_spdx = json.loads(
-              Path("postgres-pgvector-image-sbom.spdx.json").read_text(encoding="utf-8")
-          )
-          observed_spdx = matches[0].get("verificationResult", {}).get("statement", {}).get(
-              "predicate"
-          )
-          if observed_spdx != expected_spdx:
-              raise SystemExit(
-                  "Verified PostgreSQL SPDX predicate does not equal the exact generated SBOM"
-              )
-          PY
+          python3 scripts/ci/check_pgvector_attestations.py verify \
+            --sbom postgres-pgvector-image-sbom.spdx.json --source-sha "$ORIGINAL_SOURCE_SHA" \
+            --run-invocation-uri "$ORIGINAL_RUN_INVOCATION_URI" \
+            --json-out postgres-pgvector-provenance-attestation-check.json
           inspected_digest="$(docker image inspect "$RUNTIME_REF" \
             --format '{{join .RepoDigests "\n"}}')"
           printf '%s\n' "$inspected_digest" | \
@@ -2088,53 +2209,21 @@ jobs:
           EXPECTED_RUNTIME_REF: ${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}
         run: |
           set -euo pipefail
-          git fetch --no-tags --prune --depth=1 origin \
+          git fetch --no-tags --prune origin \
             +refs/heads/main:refs/remotes/origin/main
           current_main_sha="$(git rev-parse refs/remotes/origin/main)"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          for material_path in \
-            .github/workflows/cd.yml \
-            deploy/postgres-pgvector/Containerfile \
-            deploy/postgres-pgvector/image-manifest.json \
-            deploy/postgres-pgvector/builder-apk-inputs.tsv \
-            deploy/postgres-pgvector/builder-apk-index.tar.gz; do
-            git cat-file -e "${GITHUB_SHA}:${material_path}"
-            git cat-file -e "${current_main_sha}:${material_path}"
-          done
-          if ! git diff --quiet "$GITHUB_SHA" "$current_main_sha" -- \
-              .github/workflows/cd.yml \
-              deploy/postgres-pgvector/Containerfile \
-              deploy/postgres-pgvector/image-manifest.json \
-            deploy/postgres-pgvector/builder-apk-inputs.tsv \
-            deploy/postgres-pgvector/builder-apk-index.tar.gz; then
-            echo "Current main PostgreSQL image material or publication policy superseded this publishing run" >&2
-            exit 1
-          fi
+          python3 scripts/ci/check_pgvector_attestations.py unchanged \
+            --base "$GITHUB_SHA" --head "$current_main_sha"
           # The tag write is provisional until the post-promotion main check gates output/admission.
           docker buildx imagetools create \
             --tag "$CANONICAL_TAG_REF" \
             "$CANDIDATE_RUNTIME_REF"
-          git fetch --no-tags --prune --depth=1 origin \
+          git fetch --no-tags --prune origin \
             +refs/heads/main:refs/remotes/origin/main
           post_promotion_main_sha="$(git rev-parse refs/remotes/origin/main)"
-          for material_path in \
-            .github/workflows/cd.yml \
-            deploy/postgres-pgvector/Containerfile \
-            deploy/postgres-pgvector/image-manifest.json \
-            deploy/postgres-pgvector/builder-apk-inputs.tsv \
-            deploy/postgres-pgvector/builder-apk-index.tar.gz; do
-            git cat-file -e "${GITHUB_SHA}:${material_path}"
-            git cat-file -e "${post_promotion_main_sha}:${material_path}"
-          done
-          if ! git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha" -- \
-              .github/workflows/cd.yml \
-              deploy/postgres-pgvector/Containerfile \
-              deploy/postgres-pgvector/image-manifest.json \
-            deploy/postgres-pgvector/builder-apk-inputs.tsv \
-            deploy/postgres-pgvector/builder-apk-index.tar.gz; then
-            echo "Canonical PostgreSQL tag was mutated by a publisher superseded during promotion; replacement publisher must repair it; HOLD" >&2
-            exit 1
-          fi
+          python3 scripts/ci/check_pgvector_attestations.py unchanged \
+            --base "$GITHUB_SHA" --head "$post_promotion_main_sha"
           canonical_raw="${RUNNER_TEMP}/pulseplate-pgvector-canonical-manifest.json"
           docker buildx imagetools inspect --raw "$CANONICAL_TAG_REF" > "$canonical_raw"
           python3 - "$canonical_raw" <<'PY'
@@ -2189,7 +2278,8 @@ jobs:
           name: postgres-pgvector-image-admission
           path: |
             postgres-pgvector-image-sbom.spdx.json
-            postgres-pgvector-provenance.json
+            postgres-pgvector-materials.json
+            postgres-pgvector-inventory.json
             postgres-pgvector-provenance-verified.json
             postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
@@ -2309,7 +2399,9 @@ jobs:
               continue
             fi
             if valid_temp_dir "$temp_dir" "$slot"; then
-              if ! rm -rf -- "$temp_dir"; then
+              if [ "$slot" = docker-config ]; then
+                if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$temp_dir"; then cleanup_failed=1; fi
+              elif ! rm -rf -- "$temp_dir"; then
                 cleanup_failed=1
               fi
             else
@@ -2338,6 +2430,7 @@ jobs:
       always()
       && (
         github.event_name == 'schedule'
+        || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.postgres_mode == 'reuse')
         || (
           github.event_name == 'push'
           && startsWith(github.ref, 'refs/tags/v')
@@ -2370,6 +2463,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.repository_owner }}
+          PGVECTOR_MANUAL_MODE: ${{ inputs.postgres_mode }}
           MATERIAL_CHANGED: ${{ needs.postgres-pgvector-material-change.outputs.changed }}
           RUNTIME_REF: ${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}
           TRIVY_VERSION: ${{ needs.postgres-pgvector-contract.outputs.trivy_version }}
@@ -2378,6 +2472,9 @@ jobs:
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "Katsiarynakavaleuskaya/PulsePlate"
           case "${GITHUB_EVENT_NAME}:${GITHUB_REF}:${MATERIAL_CHANGED}" in
+            workflow_dispatch:refs/heads/main:)
+              test "$PGVECTOR_MANUAL_MODE" = reuse
+              ;;
             push:refs/heads/main:false | schedule:refs/heads/main:)
               ;;
             push:refs/tags/v*:)
@@ -2511,6 +2608,7 @@ jobs:
             image_ready=false
             provenance_ready=false
             spdx_ready=false
+            materials_ready=false
             if docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1; then
               image_ready=true
               if canonical_tag_selects_expected_digest; then
@@ -2525,14 +2623,21 @@ jobs:
               fi
               if gh attestation verify "oci://${RUNTIME_REF}" \
                   --repo "$GITHUB_REPOSITORY" \
+                  --predicate-type https://pulseplate.app/attestations/postgres-pgvector-materials/v1 \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
+                  --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners >/dev/null 2>&1; then
+                materials_ready=true
+              fi
+              if gh attestation verify "oci://${RUNTIME_REF}" \
+                  --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://spdx.dev/Document/v2.3 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
                   --source-ref refs/heads/main >/dev/null 2>&1; then
                 spdx_ready=true
               fi
             fi
-            if [ "$tag_ready:$image_ready:$provenance_ready:$spdx_ready" = \
-                 "true:true:true:true" ]; then
+            if [ "$tag_ready:$image_ready:$provenance_ready:$spdx_ready:$materials_ready" = \
+                 "true:true:true:true:true" ]; then
               break
             fi
             if [ "$SECONDS" -ge "$admission_deadline" ]; then
@@ -2562,156 +2667,8 @@ jobs:
             --ignorefile "$empty_ignore" \
             --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse" \
             "$RUNTIME_REF"
-          "$install_dir/trivy" image \
-            --format spdx-json \
-            --output postgres-pgvector-reuse-current.spdx.json \
-            --timeout 15m \
-            --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse-sbom" \
-            "$RUNTIME_REF"
-          gh attestation verify "oci://${RUNTIME_REF}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --predicate-type https://slsa.dev/provenance/v1 \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-            --source-ref refs/heads/main \
-            --format json > postgres-pgvector-reuse-provenance.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          manifest = json.loads(
-              Path("deploy/postgres-pgvector/image-manifest.json").read_text(encoding="utf-8")
-          )
-          expected_materials = {
-              ("dhi.io/postgres:runtime-index", manifest["runtime_base_index_digest"]),
-              ("dhi.io/postgres:runtime-platform", manifest["runtime_base_platform_manifest_digest"]),
-              ("dhi.io/postgres:runtime-config", manifest["runtime_base_config_digest"]),
-              ("dhi.io/postgres:builder-index", manifest["builder_base_index_digest"]),
-              ("dhi.io/postgres:builder-platform", manifest["builder_base_platform_manifest_digest"]),
-              ("dhi.io/postgres:builder-config", manifest["builder_base_config_digest"]),
-              (manifest["pgvector_source_url"], manifest["pgvector_source_sha256"]),
-              (
-                  "git+https://github.com/pgvector/pgvector",
-                  "sha1:" + manifest["pgvector_source_commit"],
-              ),
-              (
-                  "git+https://github.com/Katsiarynakavaleuskaya/PulsePlate#deploy/postgres-pgvector/Containerfile",
-                  manifest["containerfile_sha256"],
-              ),
-              ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
-              ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
-              ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
-              ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
-              (
-                  "https://github.com/docker/buildx/releases/download/"
-                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
-                  manifest["buildx_linux_amd64_sha256"],
-              ),
-              (
-                  "pulseplate:runtime-artifact-inventory",
-                  manifest["runtime_artifact_inventory_sha256"],
-              ),
-              ("pulseplate:mountpoint-layer", manifest["mountpoint_layer_digest"]),
-              ("pulseplate:mountpoint-layer-diff-id", manifest["mountpoint_layer_diff_id"]),
-          }
-          payload = json.loads(
-              Path("postgres-pgvector-reuse-provenance.json").read_text(encoding="utf-8")
-          )
-          matching = 0
-          for item in payload:
-              predicate = (
-                  item.get("verificationResult", {}).get("statement", {}).get("predicate")
-              )
-              if not isinstance(predicate, dict):
-                  continue
-              definition = predicate.get("buildDefinition")
-              if not isinstance(definition, dict) or definition.get("buildType") != (
-                  "https://pulseplate.app/buildtypes/postgres-pgvector/v1"
-              ):
-                  continue
-              dependencies = definition.get("resolvedDependencies")
-              if not isinstance(dependencies, list) or len(dependencies) != len(expected_materials):
-                  raise SystemExit("Reused provenance material cardinality drifted")
-              observed_materials = set()
-              for dependency in dependencies:
-                  digest = dependency.get("digest") if isinstance(dependency, dict) else None
-                  if not isinstance(digest, dict) or len(digest) != 1:
-                      raise SystemExit("Reused provenance material digest is malformed")
-                  algorithm, value = next(iter(digest.items()))
-                  uri = dependency.get("uri")
-                  if not isinstance(uri, str) or not isinstance(value, str):
-                      raise SystemExit("Reused provenance material identity is malformed")
-                  material = (uri, f"{algorithm}:{value}")
-                  if material in observed_materials:
-                      raise SystemExit("Reused provenance material is duplicated")
-                  observed_materials.add(material)
-              if observed_materials != expected_materials:
-                  raise SystemExit("Reused provenance material set drifted")
-              external = definition.get("externalParameters")
-              expected_external = {
-                  "platform": manifest["platform"],
-                  "source_date_epoch": manifest["source_date_epoch"],
-                  "builder_packages": manifest["builder_packages"],
-                  "builder_apk_closure_count": manifest["builder_apk_closure_count"],
-                  "runtime_artifact_count": manifest["runtime_artifact_count"],
-                  "mountpoint_layer_entry_count": manifest["mountpoint_layer_entry_count"],
-                  "final_platform_manifest_digest": manifest["platform_manifest_digest"],
-                  "final_config_digest": manifest["config_digest"],
-              }
-              if not isinstance(external, dict) or any(
-                  external.get(key) != value for key, value in expected_external.items()
-              ):
-                  raise SystemExit("Reused provenance external parameters drifted")
-              matching += 1
-          if matching != 1:
-              raise SystemExit("Expected exactly one material-bound provenance for the frozen recipe")
-          PY
-          gh attestation verify "oci://${RUNTIME_REF}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --predicate-type https://spdx.dev/Document/v2.3 \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-            --source-ref refs/heads/main \
-            --format json > postgres-pgvector-reuse-spdx.json
-          python3 - <<'PY'
-          import copy
-          import json
-          from pathlib import Path
-
-          payload = json.loads(
-              Path("postgres-pgvector-reuse-spdx.json").read_text(encoding="utf-8")
-          )
-          matches = [
-              item
-              for item in payload
-              if item.get("verificationResult", {})
-              .get("statement", {})
-              .get("predicateType")
-              == "https://spdx.dev/Document/v2.3"
-          ]
-          if len(matches) != 1:
-              raise SystemExit("Expected exactly one verified PostgreSQL SPDX predicate")
-          expected_spdx = json.loads(
-              Path("postgres-pgvector-reuse-current.spdx.json").read_text(encoding="utf-8")
-          )
-          observed_spdx = matches[0].get("verificationResult", {}).get("statement", {}).get(
-              "predicate"
-          )
-          if not isinstance(expected_spdx, dict) or not isinstance(observed_spdx, dict):
-              raise SystemExit("Reused PostgreSQL SPDX predicate is malformed")
-
-          def normalize_spdx(document):
-              normalized = copy.deepcopy(document)
-              normalized.pop("name", None)
-              normalized.pop("documentNamespace", None)
-              creation_info = normalized.get("creationInfo")
-              if isinstance(creation_info, dict):
-                  creation_info.pop("created", None)
-              return normalized
-
-          if normalize_spdx(observed_spdx) != normalize_spdx(expected_spdx):
-              raise SystemExit(
-                  "Reused PostgreSQL SPDX predicate does not equal the exact regenerated SBOM"
-              )
-          PY
+          python3 scripts/ci/check_pgvector_attestations.py verify \
+            --json-out postgres-pgvector-reuse-attestation-check.json
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
@@ -2721,55 +2678,13 @@ jobs:
             --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
           # Final read-only transaction boundary. Stronger exclusion requires a separate
           # host-lock/ownership lane rather than another same-job polling loop.
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            pgvector_relevant_paths=(
-              .github/workflows/cd.yml
-              .github/workflows/ci.yml
-              constraints.txt
-              requirements-ci-lite.txt
-              requirements-rag-vector.in
-              requirements-rag-vector.txt
-              requirements-rag-vector-cpu.in
-              requirements-rag-vector-cpu.txt
-              requirements-test.in
-              requirements-test.txt
-              scripts/ci/emergency_python_wheels.json
-              scripts/ci/install_locked_python_requirements.py
-              scripts/deploy.sh
-              scripts/deploy_production.sh
-              deploy/docker-compose.staging.yaml
-              deploy/docker-compose.production.selfhosted.yaml
-              deploy/postgres-pgvector
-              scripts/ci/check_alembic_autogenerate_completeness.py
-              core/db.py
-              core/db_alembic_comparison.py
-              core/rag/vector_rag.py
-              core/db_rls.py
-              core/models.py
-              app/models
-              alembic.ini
-              alembic/env.py
-              alembic/versions
-              tests/test_deploy_contract_scripts.py
-              tests/test_alembic_autogenerate_completeness.py
-              tests/test_pgvector_compat.py
-              tests/test_pgvector_embedding_migration.py
-              tests/test_vector_rag.py
-              tests/test_db_rls.py
-            )
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
             git fetch --no-tags --prune origin \
               +refs/heads/main:refs/remotes/origin/main
             reuse_terminal_main_sha="$(git rev-parse refs/remotes/origin/main)"
             git merge-base --is-ancestor "$GITHUB_SHA" "$reuse_terminal_main_sha"
-            for material_path in "${pgvector_relevant_paths[@]}"; do
-              git cat-file -e "${GITHUB_SHA}:${material_path}"
-              git cat-file -e "${reuse_terminal_main_sha}:${material_path}"
-            done
-            if ! git diff --quiet "$GITHUB_SHA" "$reuse_terminal_main_sha" -- \
-                "${pgvector_relevant_paths[@]}"; then
-              echo "Current main PostgreSQL compatibility surface superseded this reuse run; HOLD" >&2
-              exit 1
-            fi
+            python3 scripts/ci/check_pgvector_attestations.py unchanged \
+              --base "$GITHUB_SHA" --head "$reuse_terminal_main_sha"
           fi
           if ! docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1 || \
              ! canonical_tag_selects_expected_digest; then
@@ -2815,9 +2730,9 @@ jobs:
       id-token: write
     environment:
       name: staging
-      # Staging domain: pulseplate-staging.duckdns.org (DuckDNS, free DDNS)
+      # Existing protected staging subdomain on the project's Cloudflare zone.
       # Note: environment.url cannot use secrets context, using static value
-      url: https://pulseplate-staging.duckdns.org
+      url: https://staging.pulseplate.app
     concurrency:
       group: cd-build-${{ github.ref_name }}
       # Backup/migration/deploy is stateful and must not be cancelled mid-flight.
@@ -3171,6 +3086,12 @@ jobs:
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
+            echo "staging_security_helper_sha256=$(sha256sum scripts/ops/check_staging_security.py | cut -d' ' -f1)"
+            echo "pgvector_attestation_helper_sha256=$(sha256sum scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)"
+            echo "native_attestation_helper_sha256=$(sha256sum scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)"
+            echo "postgres_hba_sha256=$(sha256sum deploy/postgres-pgvector/pg_hba.conf | cut -d' ' -f1)"
+            echo "staging_storage_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)"
+            echo "staging_backup_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-postgres-backup.service.example | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify remote staging deploy contract
@@ -3193,12 +3114,18 @@ jobs:
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
+          STAGING_SECURITY_HELPER_SHA256: ${{ steps.staging-contract.outputs.staging_security_helper_sha256 }}
+          PGVECTOR_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.pgvector_attestation_helper_sha256 }}
+          NATIVE_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.native_attestation_helper_sha256 }}
+          POSTGRES_HBA_SHA256: ${{ steps.staging-contract.outputs.postgres_hba_sha256 }}
+          STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
+          STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3207,7 +3134,7 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="4"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
@@ -3219,7 +3146,20 @@ jobs:
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
-            ./deploy.sh --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
+            [ ! -L ./scripts/ops/check_staging_security.py ] && [ -f ./scripts/ops/check_staging_security.py ]
+            [ "$(sha256sum ./scripts/ops/check_staging_security.py | cut -d' ' -f1)" = "$STAGING_SECURITY_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/check_pgvector_attestations.py ] && [ -f ./scripts/ci/check_pgvector_attestations.py ]
+            [ "$(sha256sum ./scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)" = "$PGVECTOR_ATTESTATION_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ] && [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ "$(sha256sum ./scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)" = "$NATIVE_ATTESTATION_HELPER_SHA256" ]
+            [ ! -L ./postgres-pgvector/pg_hba.conf ] && [ -f ./postgres-pgvector/pg_hba.conf ]
+            [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
+            [ ! -L ./systemd/pulseplate-staging-storage.conf ] && [ -f ./systemd/pulseplate-staging-storage.conf ]
+            [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
+            sudo -n --preserve-env=STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
+              --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
       - name: Deploy to staging over SSH
         id: deploy-staging
@@ -3244,12 +3184,18 @@ jobs:
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
+          STAGING_SECURITY_HELPER_SHA256: ${{ steps.staging-contract.outputs.staging_security_helper_sha256 }}
+          PGVECTOR_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.pgvector_attestation_helper_sha256 }}
+          NATIVE_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.native_attestation_helper_sha256 }}
+          POSTGRES_HBA_SHA256: ${{ steps.staging-contract.outputs.postgres_hba_sha256 }}
+          STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
+          STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3258,7 +3204,7 @@ jobs:
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
-            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="4"' ./deploy.sh
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
@@ -3270,7 +3216,20 @@ jobs:
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
-            ./deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
+            [ ! -L ./scripts/ops/check_staging_security.py ] && [ -f ./scripts/ops/check_staging_security.py ]
+            [ "$(sha256sum ./scripts/ops/check_staging_security.py | cut -d' ' -f1)" = "$STAGING_SECURITY_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/check_pgvector_attestations.py ] && [ -f ./scripts/ci/check_pgvector_attestations.py ]
+            [ "$(sha256sum ./scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)" = "$PGVECTOR_ATTESTATION_HELPER_SHA256" ]
+            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ] && [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ "$(sha256sum ./scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)" = "$NATIVE_ATTESTATION_HELPER_SHA256" ]
+            [ ! -L ./postgres-pgvector/pg_hba.conf ] && [ -f ./postgres-pgvector/pg_hba.conf ]
+            [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
+            [ ! -L ./systemd/pulseplate-staging-storage.conf ] && [ -f ./systemd/pulseplate-staging-storage.conf ]
+            [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
+            [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
+            sudo -n --preserve-env=GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
+              "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
       - name: Handle staging deployment failure (non-blocking by default)
         if: >-
@@ -3436,7 +3395,7 @@ jobs:
 
   # Pre-production quality gates
   production-gates:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: prometheus-image-security
     runs-on: ubuntu-latest
     steps:
@@ -3509,7 +3468,7 @@ jobs:
           echo "✅ CI on main passed and covers tag commit $TAG_COMMIT"
 
   build-production:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
     env:
@@ -3655,7 +3614,7 @@ jobs:
           retention-days: 14
 
   production-deploy-config:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     outputs:
@@ -3787,7 +3746,7 @@ jobs:
           echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
   release-control-plane-production-evidence:
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
     needs: [build-production, production-deploy-config]
     runs-on: ubuntu-latest
     permissions:
@@ -3937,7 +3896,7 @@ jobs:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
     # The config is resolved inside production-deploy-config so environment-scoped vars
     # are visible before the deploy jobs decide whether to run.
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: ubuntu-latest
     environment:
@@ -4039,7 +3998,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
   deploy-production-self-hosted:
-    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
     needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:

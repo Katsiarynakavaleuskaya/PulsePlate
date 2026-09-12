@@ -148,6 +148,63 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `PGDATA` to that legacy-compatible target, select `linux/amd64`, and publish
   no database port. Managed production remains external and has no Compose
   `postgres` service.
+
+### PostgreSQL publication and protected staging
+
+- PostgreSQL image admission requires native GitHub SLSA provenance, the
+  distinct `https://pulseplate.app/attestations/postgres-pgvector-materials/v1`
+  predicate and SPDX together. Use `scripts/ci/check_pgvector_attestations.py`
+  for original certificate source/workflow/run/attempt binding, exact material
+  comparison and the entire original SPDX predicate hash. Use the declared
+  sorted compact UTF-8 JSON encoding with no ASCII escapes or non-finite
+  values; preserve array order and every field. Read-only reuse retains the
+  original signed document, with a fresh image scan separately required.
+  Do not compare regenerated SPDX by expanding ignored fields. Reuse never claims a
+  new build. An actual rebuilt image may complete its own execution tuple;
+  retain historical proofs and reject conflicts within an execution.
+- The same helper owns the finite existing CI PostgreSQL compatibility rules
+  plus its explicit deployment/test owners. Compare both Git trees, including
+  additions and deletions, at classification and terminal promotion/reuse.
+  Do not recreate independent inline material lists or generic glob semantics.
+- The synthetic premerge probe is limited to an explicit push of the exact SHA
+  to `codex/attestation-probe/<same-full-sha>` in this repository. It builds a
+  synthetic subject and uses only a test tag; it receives no DHI credentials
+  and has no runtime promotion or deploy path. Later manual dispatch retains
+  the same boundary. Main-only manual reuse is read-only.
+- Initialize credentials for the actual pinned native attestation reader:
+  it reads inline GHCR auth from `$HOME/.docker/config.json`, independently
+  of the private publisher's `DOCKER_CONFIG`. Use the bounded
+  `ghcr_attestation_credentials.py` adapter to install native-generated
+  GHCR-only auth and restore the previous default config before owned cleanup.
+  Keep `HOME` and the private DHI/Buildx/Scout context unchanged. Successful
+  ordinary `gh` authentication or Docker push does not prove this OCI reader
+  received credentials; diagnose each consumer at its real boundary.
+- Staging contract v5 uses PostgreSQL TLS >=1.2, SCRAM, and passwordless
+  `postgresql+psycopg` URLs with `verify-full`, the exact CA and libpq passfile.
+  Derive database identity from the selected rendered Compose, never ambient
+  host variables. Real PostgreSQL session proof remains required in addition
+  to configuration/certificate checks.
+- The selected DHI PostgreSQL entrypoint executes `postgres "$@"` itself.
+  Compose passes only the admitted `-c` arguments, without another executable
+  name. Native integration must exercise that actual entrypoint and retain
+  bounded redacted container diagnostics before cleaning up failed probes.
+- Staging storage receipt `.staging-storage.json` is a root-owned local
+  provisioning record, never a committed artifact. Authenticate the selected
+  DigitalOcean Volume separately; native device/UUID/mount/directory checks
+  then bind PostgreSQL, Prometheus, backups and credential files to it.
+  Docker and backup systemd lifecycles must depend on that mount, with live
+  restore disabled. A missing mount must stop writers instead of creating
+  unencrypted root-disk directories. Do not silently rebind existing named
+  volumes or initialize discovered data.
+- For an existing staging Droplet, bind its provider ID to the retained
+  provisioning record and inventory dedicated SSH/known-hosts carriers first.
+  Verify the recorded operator login with strict saved-host-key checking
+  before requesting new access details or proposing credential changes.
+- Backups validate the complete native archive and substantive table inventory
+  before publishing/pruning. Restore requires an explicit mode; verification
+  creates a distinct `pulseplate_restore_check_*` database and never replaces
+  a pre-existing target. A successful listing is not restore/data proof.
+
 - Pull-request execution is DHI-secret-free and registry-write-free. Only an
   exact trusted push to `refs/heads/main` may read `DHI_USERNAME` and
   `DHI_ACCESS_TOKEN`, reproduce the frozen digest twice, scan exact bases,

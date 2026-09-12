@@ -1,22 +1,23 @@
-# Example systemd unit: run the host backup script (uses docker compose exec into postgres).
-# Install: copy to /etc/systemd/system/pulseplate-postgres-backup.service and adjust paths/user.
-#
-# Requires: docker CLI, deploy/.env with POSTGRES_* and a running self-hosted stack.
-# BACKUP_DIR defaults inside scripts/ops/postgres_backup.sh; override with Environment= if needed.
+# Generic self-hosted production example; adjust the selected project/env paths.
+# Install as /etc/systemd/system/pulseplate-postgres-backup.service.
+# Staging uses the separate pulseplate-staging-postgres-backup.service.example.
 
 [Unit]
 Description=PulsePlate Postgres backup (host script + compose exec)
 After=docker.service network-online.target
 Wants=network-online.target
+Requires=docker.service
 
 [Service]
 Type=oneshot
 User=root
-WorkingDirectory=/opt/pulseplate
-EnvironmentFile=/opt/pulseplate/deploy/.env
-Environment=PROJECT_DIR=/opt/pulseplate/deploy
+WorkingDirectory=/srv/pulseplate/deploy
+EnvironmentFile=/srv/pulseplate/deploy/.env
+Environment=PROJECT_DIR=/srv/pulseplate/deploy
+Environment=ENV_FILE=/srv/pulseplate/deploy/.env
 Environment=COMPOSE_FILE=docker-compose.production.selfhosted.yaml
-ExecStart=/usr/bin/env bash /opt/pulseplate/scripts/ops/postgres_backup.sh
+Environment=BACKUP_DIR=/srv/pulseplate/deploy/backups
+ExecStart=/usr/bin/bash /srv/pulseplate/scripts/ops/postgres_backup.sh
 
 [Install]
 WantedBy=multi-user.target

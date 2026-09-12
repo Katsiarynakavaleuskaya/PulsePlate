@@ -3026,7 +3026,7 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "docker-image-sbom.spdx.json",
             },
-            "startsWith(github.ref, 'refs/tags/v')",
+            "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')",
             None,
             None,
             None,
