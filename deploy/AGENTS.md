@@ -107,15 +107,34 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - The sole repository image record is
   `deploy/postgres-pgvector/image-manifest.json`. It binds the exact DHI
   PostgreSQL 15.19 Alpine 3.23 runtime/dev platform manifests, pgvector 0.8.6
-  source commit/archive hash, exact APK build closure, reproducible build
+  source commit/archive hash, exact APK build closure and acquisition record,
+  supplier-signed index, pinned Buildx/BuildKit inputs, reproducible build
   epoch, Containerfile hash, derived GHCR platform/config digests, and Trivy
   0.74 suppression-free scan contract.
 - `deploy/postgres-pgvector/Containerfile` is a two-stage build. Source enters
-  only as the preverified `pgvector-v0.8.6.tar.gz` context file; the file is not
-  tracked. The builder must use
+  only as the preverified `pgvector-v0.8.6.tar.gz` context file; the source archive
+  and APK archives are not tracked. The hash-bound `builder-apk-inputs.tsv` and
+  original `builder-apk-index.tar.gz` are reviewed build inputs, not diagnostic
+  artifacts. Preserve the supplier's index bytes and signature; never generate
+  an unsigned subset or add trust keys. The existing source-context step owns
+  exact archive acquisition. Native APK authenticates the signed local index
+  and indexed package identities using the pinned base keys. A standalone APK
+  signature and authenticated repository installation are different native
+  trust paths; use the demonstrated repository path without `--allow-untrusted`.
+  Install only the complete hash-bound local archive set with network and cache
+  access disabled, and compile inside `RUN --network=none`. An installed-package
+  checksum alone cannot freeze transitive inputs. Base refreshes require a new
+  base/acquisition/final inventory reconciliation and native output proof.
+  The builder must use
   `/usr/libexec/postgresql15/pg_config`, `make -j1`, empty `OPTFLAGS`, and the
   closed artifact inventory. Do not add curl, git, floating APK packages, a
   second source path, or a host build toolchain.
+- Native pre-publication proof must reach each affected image consumer. Trivy
+  0.74 consumes the already verified OCI layout directory; a Docker tar archive
+  and an OCI tar archive are not interchangeable scanner inputs. Retain exact
+  scanner/database and subject identity, and keep newly revealed blocking
+  findings open until remediated. Matching build digests do not prove a current
+  clean scan or the later trusted publication path.
 - The final image adds one and only one compatibility mountpoint layer:
   `/var/lib/postgresql/data` is an empty real directory, owner `70:70`, mode
   `0700`, copied from one verified empty builder directory. This lets the

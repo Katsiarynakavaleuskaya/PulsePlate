@@ -537,7 +537,7 @@ import stat
 import sys
 
 manifest_path = sys.argv[1]
-expected_file_sha256 = "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"  # pragma: allowlist secret
+expected_file_sha256 = "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
 expected_keys = set(
     """
     schema repository tag platform platform_manifest_digest config_digest runtime_ref
@@ -550,6 +550,9 @@ expected_keys = set(
     compose_pgdata compose_volume_target pgvector_version pgvector_source_commit
     pgvector_source_url pgvector_source_sha256 builder_packages builder_apk_closure_count
     builder_apk_closure_sha256 pg_config_path pg_config_version make_jobs optflags
+    builder_apk_inputs_sha256 builder_apk_index_sha256 builder_apk_input_count
+    buildkit_platform_manifest_digest buildkit_version buildx_version
+    buildx_linux_amd64_sha256
     runtime_artifact_count runtime_artifact_inventory_sha256 trivy_version
     mountpoint_layer_schema mountpoint_layer_digest mountpoint_layer_size
     mountpoint_layer_diff_id mountpoint_layer_entry_count mountpoint_uid mountpoint_gid
@@ -562,8 +565,8 @@ expected_values = {
     "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
     "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
     "platform": "linux/amd64",
-    "platform_manifest_digest": "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec",
-    "config_digest": "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738",
+    "platform_manifest_digest": "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380",
+    "config_digest": "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
     "runtime_user": "70",
     "runtime_entrypoint": "/usr/local/bin/docker-entrypoint.sh",
     "runtime_default_pgdata": "/var/lib/postgresql/15/data",
@@ -585,6 +588,7 @@ expected_values = {
     "mountpoint_base_parent_metadata_equal": "true",
     "trivy_version": "0.74.0",
     "trivy_scan_contract": "vuln,secret;os,library;HIGH,CRITICAL;exit=1;suppressions=none",
+    "buildkit_version": "0.32.2",
 }
 
 
@@ -652,6 +656,10 @@ for key in (
     "legacy_config_digest",
     "pgvector_source_sha256",
     "builder_apk_closure_sha256",
+    "builder_apk_inputs_sha256",
+    "builder_apk_index_sha256",
+    "buildkit_platform_manifest_digest",
+    "buildx_linux_amd64_sha256",
     "runtime_artifact_inventory_sha256",
     "mountpoint_layer_digest",
     "mountpoint_layer_diff_id",
@@ -820,7 +828,7 @@ labels = config.get("Labels")
 required_labels = {
     "com.pulseplate.pgvector.version": "0.8.6",
     "com.pulseplate.pgvector.source-commit": "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c",
-    "com.pulseplate.postgres.base-manifest": "sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+    "com.pulseplate.postgres.base-manifest": "sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",
 }
 if type(labels) is not dict or any(labels.get(key) != value for key, value in required_labels.items()):
     raise SystemExit("Pulled PostgreSQL image labels do not match the closed build")
@@ -2165,7 +2173,7 @@ validate_existing_postgres_image_identity() {
       fi
       ;;
     "$POSTGRES_RUNTIME_REF")
-      if [ "$image_id" != "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738" ]; then
+      if [ "$image_id" != "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff" ]; then
         echo "❌ Existing current PostgreSQL image ID does not match the frozen candidate" >&2
         return 1
       fi

@@ -72,6 +72,121 @@ file replay pass. Later build, publication, pullback, admission and Prometheus
 steps were not reached in this failed main run and remain required. This
 continuation is implementation recovery, not a standalone bookkeeping PR.
 
+## Post-merge APK input and base-image recovery
+
+PR #2389 was squash-merged as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`.
+Its exact-main CD run `34469999154` passed the DHI Statement/v0.1 consumer
+that had blocked PR #2387, then failed in PostgreSQL job `102850332413` before
+publication. The live Alpine resolver selected transitive `libcurl` 8.22.0-r0
+instead of the closure-recorded 8.21.0-r0. This proves that an
+installed-package checksum detects resolver drift but does not freeze the
+resolver inputs.
+
+The bounded continuation tracks a seven-field SHA-256/size/file/package/version/
+architecture/HTTPS acquisition record for all 41 builder APK archives and the
+supplier's unchanged signed `APKINDEX.tar.gz`. CI downloads only those exact
+bytes, then native APK verifies and installs the signed local repository with
+network and cache access disabled. The build-stage `RUN` also has no network.
+No unsigned subset, replacement key, public mirror fallback, package-manager
+upgrade, `--allow-untrusted`, or vulnerability suppression is accepted. Buildx
+0.37.0 is checksum-bound and BuildKit v0.32.2 is selected by exact linux/amd64
+platform-manifest digest plus the closed manifest `buildkit_version`; both
+identities enter the generated and reused provenance material sets.
+
+The first fully frozen candidate retained the old DHI runtime base and exposed
+six HIGH findings in `libuuid` 2.41.4-r0: CVE-2026-53612,
+CVE-2026-53613, CVE-2026-53614, CVE-2026-76642, CVE-2026-78408 and
+CVE-2026-78410. The finding was not ignored. The same PostgreSQL 15.19 Alpine
+3.23 runtime/dev tags were refreshed to new immutable DHI digests containing
+`libuuid` 2.41.6-r1. Trivy 0.74.0 scans of the refreshed runtime base, builder
+base and exact final OCI layout report zero HIGH/CRITICAL findings with no
+ignore entries. Trivy consumes the verified OCI layout directory; an OCI tar
+is retained for reproducibility evidence but is not treated as a Docker-archive
+scanner input.
+
+Two clean-cache linux/amd64 builds produced the same platform digest
+`sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380`,
+config digest
+`sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff`
+and byte-identical OCI archive SHA-256
+`c8557b99c6fbcee628472dc0cecb869562aab2e848b5ce5f896f1b4141a0a415`.
+Publication, exact-main admission and merge evidence remain required.
+
+The resumed review on 2026-09-12 found missing execution evidence despite the
+published mapping. The actual premortem and ordered post-open QA, bug-hunter and
+security passes were recovered before merge; their execution is not backdated
+to PR opening. The premortem restored the ordinary 500 KB file-size check and
+scoped the 2048 KB exception to the single supplier-signed APK index. The source
+fixture documentation now separates its historical observed output shape from
+synthetic current-digest substitutions.
+
+The dedicated index hook also checks modified tracked files via `--enforce-all`.
+The ordinary size limit is unchanged. The existing detect-secrets hook runs
+serially because its file batches update one shared baseline; parallel batches
+can overwrite each other's metadata updates. This serializes one hook invocation,
+not independent operator processes or other worktrees.
+
+The missing post-APK builder scan was executed against a newly reproduced
+current-recipe OCI image. Trivy 0.74.0 reported zero HIGH/CRITICAL and secret
+findings across its 94-package inventory. The final 49-package runtime layout
+also passed with the same fresh database. Scout 1.24.0 authenticated both new
+DHI source subjects with `--verify --skip-tlog`, and the unchanged workflow
+consumer accepted both actual outputs. This is source-signature evidence,
+without transparency-log proof or derived-publication authority.
+
+The first resumed Experiment Runner packet executed the 42 governance tests
+successfully but was rejected because its second oracle required an absent
+Python pgvector binding. That rejected result remains retained. The corrected
+governance-only packet passed both immutable oracles in strict Apple Container
+isolation; Python binding and PostgreSQL compatibility remain separate required
+CI/native checks. These procedural corrections grant no merge authority and do
+not close the original final-main or documentation criteria.
+
+The full native runtime replay exposed an initialization race in the inherited
+`pg_isready` probe: the temporary Unix server accepted connections before the
+requested database existed. The startup loop now requires both a successful
+TCP `psql` command against that database and its exact `SELECT 1` result.
+The same bounded loop rejects a never-ready database and output `1` paired
+with a nonzero process exit. Native fresh-volume, same-volume restart and
+legacy-image transition replay then passed with preserved database OIDs,
+sentinels, PostgreSQL 15.19 and pgvector 0.8.6. Disposable test resources were
+removed and Docker Desktop was stopped; no production volume was involved.
+
+Evidence anchors: `.pre-commit-config.yaml:12`,
+`tests/test_deploy_contract_scripts.py:8511`, and
+`.github/workflows/cd.yml:1011`.
+
+## Newly observed backend PCRE2 findings
+
+Docker run `34686508035` reported two HIGH findings in Debian
+`libpcre2-8-0 10.42-1`: CVE-2026-86145 and CVE-2026-89161. This was an
+image vulnerability failure, not an expired review date. The same affected
+package is independently present in this recovery PR's own production scan
+from run `34677565852`, image
+`sha256:f4e36161c7dcbc2c7299146a6d889076bc0f6e31dcde4b14a5850e8fd5014545`.
+
+The Debian trackers for [CVE-2026-86145](https://security-tracker.debian.org/tracker/CVE-2026-86145)
+and [CVE-2026-89161](https://security-tracker.debian.org/tracker/CVE-2026-89161)
+identify Bookworm security package `10.42-1+deb12u1` as fixed. The existing
+runtime-base installation now explicitly refreshes only this additional
+package and rejects any installed version below that native Debian floor.
+The Python/base-image pins, requirements and security suppressions are
+unchanged. No blanket `apt upgrade` or new waiver is introduced.
+
+The full rebuilt production image must pass its existing strict PR scan,
+including unfixed findings, before merge. Compare complete package inventories
+and preserve the current runtime smoke/UUID/TLS/gzip/SQLite/Alembic guards;
+the successful earlier image scan is historical evidence only.
+Evidence anchors: `Dockerfile:323` and
+`tests/test_docker_workflow_build_path_contract.py:731`.
+
+Docker's warning that credentials are stored in `config.json` is expected when
+a credential helper is not configured; it is not evidence that the temporary
+credentials survive the job. This lane keeps a dedicated mode-0700
+`DOCKER_CONFIG`, uses `--password-stdin`, logs out of both registries, validates
+the owned path and removes it from the always-run cleanup. Cleanup failures
+remain fail-closed without replacing the primary job result.
+
 ## Frozen baseline failures
 
 | Workflow / job | Primary evidence | Recovery owner |

@@ -548,6 +548,10 @@ jobs:
       source_date_epoch: ${{ steps.postgres-contract.outputs.source_date_epoch }}
       source_url: ${{ steps.postgres-contract.outputs.source_url }}
       source_sha256: ${{ steps.postgres-contract.outputs.source_sha256 }}
+      buildx_sha256: ${{ steps.postgres-contract.outputs.buildx_sha256 }}
+      buildx_version: ${{ steps.postgres-contract.outputs.buildx_version }}
+      buildkit_digest: ${{ steps.postgres-contract.outputs.buildkit_digest }}
+      buildkit_version: ${{ steps.postgres-contract.outputs.buildkit_version }}
       trivy_version: ${{ steps.postgres-contract.outputs.trivy_version }}
       trivy_archive_sha256: ${{ steps.postgres-contract.outputs.trivy_archive_sha256 }}
       mountpoint_layer_digest: ${{ steps.postgres-contract.outputs.mountpoint_layer_digest }}
@@ -585,7 +589,7 @@ jobs:
               raise SystemExit("PostgreSQL Containerfile must be one regular file")
           manifest_bytes = manifest_path.read_bytes()
           if hashlib.sha256(manifest_bytes).hexdigest() != (
-              "8aec1e26695bd552693568dd13a56ecb02e1d87fae63cabcf59fbaa2a601e89f"
+              "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"
           ):
               raise SystemExit("PostgreSQL image manifest bytes drifted")
           manifest = json.loads(manifest_bytes)
@@ -594,10 +598,17 @@ jobs:
               "repository": "ghcr.io/katsiarynakavaleuskaya/pulseplate",
               "tag": "postgres-15.19-pgvector0.8.6-alpine3.23",
               "platform": "linux/amd64",
-              "platform_manifest_digest": "sha256:ca0968c51a9af5d873c1053af0fdbf6e96f20fa4995bb0b98bfc3df47371d0ec",
-              "config_digest": "sha256:bf19b760177b04d255691b4d793493b158240836e78afbb17904a8b385db7738",
+              "platform_manifest_digest": "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380",
+              "config_digest": "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff",
               "source_date_epoch": "1785349734",
-              "containerfile_sha256": "sha256:2381acb59b94614e81721bbcdccf277b22805c836245bc994c2ccebc202c57ea",
+              "containerfile_sha256": "sha256:7820095e552a9a5aeb1709563fb47cfe79307e1954af8eda58829180d28c183c",
+              "builder_apk_inputs_sha256": "sha256:d9c5cda673f9feb4f41990eb8051f0239a57436fcdcb265bc3b0f22726071dbd",
+              "builder_apk_index_sha256": "sha256:85417d819711b80f3507306e823850748ace65a081af14b0a0eb8f5d67bc5490",
+              "builder_apk_input_count": "41",
+              "buildkit_platform_manifest_digest": "sha256:040d34121c27906c4ff9ac152a30d52bf2c5d328d3bb748916bb3d2743c02528",
+              "buildkit_version": "0.32.2",
+              "buildx_version": "0.37.0",
+              "buildx_linux_amd64_sha256": "sha256:ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba",
               "postgres_version": "15.19",
               "pgvector_version": "0.8.6",
               "mountpoint_layer_schema": "pulseplate.pgvector_mountpoint_layer.v1",
@@ -633,6 +644,16 @@ jobs:
           ).hexdigest()
           if containerfile_digest != manifest["containerfile_sha256"]:
               raise SystemExit("PostgreSQL Containerfile hash does not match the manifest")
+
+          for filename, key in (
+              ("builder-apk-inputs.tsv", "builder_apk_inputs_sha256"),
+              ("builder-apk-index.tar.gz", "builder_apk_index_sha256"),
+          ):
+              path = manifest_path.parent / filename
+              if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+                  raise SystemExit("APK acquisition record must be one regular file")
+              if "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest() != manifest[key]:
+                  raise SystemExit("APK acquisition record hash drifted")
 
           runtime_ref = manifest["runtime_ref"]
           for compose_name in (
@@ -679,6 +700,10 @@ jobs:
               "source_date_epoch": manifest["source_date_epoch"],
               "source_url": manifest["pgvector_source_url"],
               "source_sha256": manifest["pgvector_source_sha256"].removeprefix("sha256:"),
+              "buildx_sha256": manifest["buildx_linux_amd64_sha256"].removeprefix("sha256:"),
+              "buildx_version": manifest["buildx_version"],
+              "buildkit_digest": manifest["buildkit_platform_manifest_digest"],
+              "buildkit_version": manifest["buildkit_version"],
               "trivy_version": manifest["trivy_version"],
               "trivy_archive_sha256": manifest["trivy_linux_archive_sha256"].removeprefix(
                   "sha256:"
@@ -900,6 +925,10 @@ jobs:
 
       - name: Authenticate DHI read and GHCR publication rails
         env:
+          BUILDX_SHA256: ${{ needs.postgres-pgvector-contract.outputs.buildx_sha256 }}
+          BUILDX_VERSION: ${{ needs.postgres-pgvector-contract.outputs.buildx_version }}
+          BUILDKIT_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.buildkit_digest }}
+          BUILDKIT_VERSION: ${{ needs.postgres-pgvector-contract.outputs.buildkit_version }}
           DHI_USER: ${{ secrets.DHI_USERNAME }}
           DHI_TOKEN: ${{ secrets.DHI_ACCESS_TOKEN }}
           GHCR_USER: ${{ github.repository_owner }}
@@ -927,16 +956,41 @@ jobs:
           printf 'DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           printf 'PGVECTOR_DOCKER_CONFIG=%s\n' "$credential_dir" >> "$GITHUB_ENV"
           chmod 700 "$credential_dir"
+          mkdir -m 700 "$credential_dir/cli-plugins"
+          buildx_path="$credential_dir/cli-plugins/docker-buildx"
+          : "${BUILDX_VERSION:?Buildx version is required}"
+          if [[ ! "$BUILDX_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Malformed Buildx version" >&2
+            exit 1
+          fi
+          curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
+            "https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-amd64" \
+            --output "$buildx_path"
+          printf '%s  %s\n' \
+            "${BUILDX_SHA256:?Buildx checksum is required}" \
+            "$buildx_path" | sha256sum --check -
+          chmod 0700 "$buildx_path"
           printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
           printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          docker buildx version
+          case "$(docker buildx version)" in
+            "github.com/docker/buildx v${BUILDX_VERSION} "*) ;;
+            *) echo "Buildx version differs from its checksum-bound manifest" >&2; exit 1 ;;
+          esac
           builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
           docker buildx create \
             --name "$builder_name" \
             --driver docker-container \
+            --driver-opt "image=moby/buildkit@${BUILDKIT_DIGEST:?BuildKit digest is required}" \
             --use >/dev/null
-          docker buildx inspect --bootstrap >/dev/null
+          docker buildx inspect --bootstrap | tee postgres-pgvector-build-engine.txt
+          : "${BUILDKIT_VERSION:?BuildKit version is required}"
+          case "$BUILDKIT_VERSION" in
+            [0-9].[0-9][0-9].[0-9]) ;;
+            *) echo "BuildKit version is malformed" >&2; exit 1 ;;
+          esac
+          buildkit_version_pattern="$(printf '%s' "$BUILDKIT_VERSION" | sed 's/\./\\./g')"
+          grep -Eq "^BuildKit version:[[:space:]]+v${buildkit_version_pattern}$" postgres-pgvector-build-engine.txt
 
       - name: Install exact Docker Scout 1.24.0 CLI
         id: docker-scout
@@ -974,8 +1028,8 @@ jobs:
           : "${DOCKER_SCOUT_HUB_USER:?Docker Scout Hub user is required}"
           : "${DOCKER_SCOUT_HUB_PASSWORD:?Docker Scout Hub authentication is required}"
           test -f "$SCOUT_BIN" && test ! -L "$SCOUT_BIN" && test -x "$SCOUT_BIN"
-          runtime_base='registry://dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee'
-          builder_base='registry://dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a'
+          runtime_base='registry://dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d'
+          builder_base='registry://dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134'
           "$SCOUT_BIN" attestation get \
             --predicate-type https://slsa.dev/provenance/v1 \
             --verify \
@@ -1003,12 +1057,12 @@ jobs:
               (
                   Path("dhi-postgres-runtime-provenance.json"),
                   "pkg:docker/dhi/postgres@15-alpine3.23&platform=linux/amd64",
-                  "eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee",
+                  "d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d",
               ),
               (
                   Path("dhi-postgres-builder-provenance.json"),
                   "pkg:docker/dhi/postgres@15-alpine3.23-dev&platform=linux/amd64",
-                  "e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a",
+                  "276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134",
               ),
           )
           for path, expected_name, expected_digest in expected:
@@ -1048,6 +1102,87 @@ jobs:
             --output "$archive_path"
           printf '%s  %s\n' "$PGVECTOR_SOURCE_SHA256" "$archive_path" | sha256sum --check -
           chmod 0600 "$context_dir/Containerfile" "$archive_path"
+          python3 - "$context_dir" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import sys
+
+          owner = Path("deploy/postgres-pgvector")
+          context = Path(sys.argv[1])
+          manifest = json.loads((owner / "image-manifest.json").read_bytes())
+
+          def read_regular(path, limit):
+              """Read one size-bounded regular file through a symlink-safe descriptor."""
+              fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+              try:
+                  metadata = os.fstat(fd)
+                  if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                          or not 0 < metadata.st_size <= limit):
+                      raise SystemExit("APK input must be one bounded regular file")
+                  data = os.read(fd, metadata.st_size + 1)
+                  if len(data) != metadata.st_size:
+                      raise SystemExit("APK input changed while reading")
+                  return data
+              finally:
+                  os.close(fd)
+
+          record = read_regular(owner / "builder-apk-inputs.tsv", 32768)
+          index = read_regular(owner / "builder-apk-index.tar.gz", 4 * 1024 * 1024)
+          for data, key in ((record, "builder_apk_inputs_sha256"),
+                            (index, "builder_apk_index_sha256")):
+              if "sha256:" + hashlib.sha256(data).hexdigest() != manifest[key]:
+                  raise SystemExit("APK acquisition input digest drifted")
+          rows = [line.split("\t") for line in record.decode("ascii").splitlines()]
+          if not record.endswith(b"\n") or len(rows) != int(manifest["builder_apk_input_count"]):
+              raise SystemExit("APK acquisition record cardinality drifted")
+          names = set()
+          filenames = set()
+          for row in rows:
+              if len(row) != 7:
+                  raise SystemExit("Malformed APK acquisition row")
+              digest, size, filename, package, version, arch, url = row
+              if (re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                      or re.fullmatch(r"[1-9][0-9]{0,8}", size) is None
+                      or re.fullmatch(r"[a-z0-9][a-z0-9+_.-]{0,99}", package) is None
+                      or re.fullmatch(r"[0-9][A-Za-z0-9._+-]{0,60}", version) is None
+                      or arch not in {"x86_64", "noarch"}
+                      or filename != f"{package}-{version}.apk"
+                      or url != "https://dhi.io/apk/alpine/v3.23/main/x86_64/" + filename
+                      or package in names or filename in filenames):
+                  raise SystemExit("APK acquisition identity is malformed or duplicated")
+              names.add(package)
+              filenames.add(filename)
+          # The unchanged supplier-signed index is a build input, never a regenerated subset.
+          repository = context / "builder-apks" / "x86_64"
+          repository.mkdir(parents=True, mode=0o700)
+          with (context / "builder-apk-inputs.tsv").open("xb") as output:
+              output.write(record)
+          with (repository / "APKINDEX.tar.gz").open("xb") as output:
+              output.write(index)
+          curl = shutil.which("curl")
+          if curl is None:
+              raise SystemExit("curl is required for exact APK acquisition")
+          for digest, size, filename, package, version, arch, url in rows:
+              destination = repository / filename
+              with destination.open("xb") as output:
+                  subprocess.run([
+                      curl, "--fail", "--silent", "--show-error", "--proto", "=https",
+                      "--tlsv1.2", "--connect-timeout", "20", "--max-time", "180",
+                      "--max-filesize", size, url,
+                  ], stdout=output, check=True, timeout=190)
+              data = read_regular(destination, int(size))
+              if len(data) != int(size) or hashlib.sha256(data).hexdigest() != digest:
+                  raise SystemExit("Downloaded APK bytes differ from the acquisition record")
+          if {path.name for path in repository.iterdir()} != filenames | {"APKINDEX.tar.gz"}:
+              raise SystemExit("APK repository file set drifted")
+          print(f"Verified {len(rows)} exact APK archives and the pinned signed index")
+          PY
 
       - name: Reproduce the exact platform manifest twice
         id: pgvector-build
@@ -1315,8 +1450,8 @@ jobs:
           test -x "$TRIVY_BIN" && test ! -L "$TRIVY_BIN"
           test -f "$TRIVY_IGNORE_FILE" && test ! -L "$TRIVY_IGNORE_FILE" \
             && test ! -s "$TRIVY_IGNORE_FILE"
-          runtime_base='dhi.io/postgres@sha256:eb42371d95afbeda8d559979fcfa11efc1416d2991551f05181522cda64561ee'
-          builder_base='dhi.io/postgres@sha256:e3c58b320ec86ad6e045f8f31492d335ad19c71c9211ecde28baf1662973584a'
+          runtime_base='dhi.io/postgres@sha256:d94fee7e5e98fcb5cd58db6ad96fc6aa844f1af6dd56aba1f87d9f8e57a7a16d'
+          builder_base='dhi.io/postgres@sha256:276224f2143616286f74af844e9508db1cd50d6393163cf9ec60940b2b90f134'
           docker pull --platform linux/amd64 "$runtime_base"
           docker pull --platform linux/amd64 "$builder_base"
           scan_number=0
@@ -1337,7 +1472,7 @@ jobs:
               "$image_ref"
           done
           "$TRIVY_BIN" image \
-            --input "$PGVECTOR_OCI_OUTPUT_DIR/image-1.oci.tar" \
+            --input "$PGVECTOR_OCI_OUTPUT_DIR/oci-1" \
             --scanners vuln,secret \
             --format table \
             --pkg-types os,library \
@@ -1380,8 +1515,10 @@ jobs:
               "$target_image" >/dev/null
             ready=0
             for attempt in $(seq 1 60); do
-              if docker exec "$target_container" pg_isready \
-                --username "$database_user" --dbname "$database_name" >/dev/null 2>&1; then
+              if database_probe="$(docker exec --env "PGPASSWORD=$database_password" "$target_container" \
+                psql --host 127.0.0.1 --username "$database_user" --dbname "$database_name" \
+                --set ON_ERROR_STOP=1 --tuples-only --no-align --command 'SELECT 1' 2>/dev/null)" \
+                && [ "$database_probe" = "1" ]; then
                 ready=1
                 break
               fi
@@ -1608,6 +1745,14 @@ jobs:
                   manifest["containerfile_sha256"],
               ),
               ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
+              ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
+              ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
+              ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
+              (
+                  "https://github.com/docker/buildx/releases/download/"
+                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
+                  manifest["buildx_linux_amd64_sha256"],
+              ),
               (
                   "pulseplate:runtime-artifact-inventory",
                   manifest["runtime_artifact_inventory_sha256"],
@@ -1950,14 +2095,18 @@ jobs:
           for material_path in \
             .github/workflows/cd.yml \
             deploy/postgres-pgvector/Containerfile \
-            deploy/postgres-pgvector/image-manifest.json; do
+            deploy/postgres-pgvector/image-manifest.json \
+            deploy/postgres-pgvector/builder-apk-inputs.tsv \
+            deploy/postgres-pgvector/builder-apk-index.tar.gz; do
             git cat-file -e "${GITHUB_SHA}:${material_path}"
             git cat-file -e "${current_main_sha}:${material_path}"
           done
           if ! git diff --quiet "$GITHUB_SHA" "$current_main_sha" -- \
               .github/workflows/cd.yml \
               deploy/postgres-pgvector/Containerfile \
-              deploy/postgres-pgvector/image-manifest.json; then
+              deploy/postgres-pgvector/image-manifest.json \
+            deploy/postgres-pgvector/builder-apk-inputs.tsv \
+            deploy/postgres-pgvector/builder-apk-index.tar.gz; then
             echo "Current main PostgreSQL image material or publication policy superseded this publishing run" >&2
             exit 1
           fi
@@ -1971,14 +2120,18 @@ jobs:
           for material_path in \
             .github/workflows/cd.yml \
             deploy/postgres-pgvector/Containerfile \
-            deploy/postgres-pgvector/image-manifest.json; do
+            deploy/postgres-pgvector/image-manifest.json \
+            deploy/postgres-pgvector/builder-apk-inputs.tsv \
+            deploy/postgres-pgvector/builder-apk-index.tar.gz; do
             git cat-file -e "${GITHUB_SHA}:${material_path}"
             git cat-file -e "${post_promotion_main_sha}:${material_path}"
           done
           if ! git diff --quiet "$GITHUB_SHA" "$post_promotion_main_sha" -- \
               .github/workflows/cd.yml \
               deploy/postgres-pgvector/Containerfile \
-              deploy/postgres-pgvector/image-manifest.json; then
+              deploy/postgres-pgvector/image-manifest.json \
+            deploy/postgres-pgvector/builder-apk-inputs.tsv \
+            deploy/postgres-pgvector/builder-apk-index.tar.gz; then
             echo "Canonical PostgreSQL tag was mutated by a publisher superseded during promotion; replacement publisher must repair it; HOLD" >&2
             exit 1
           fi
@@ -2040,6 +2193,7 @@ jobs:
             postgres-pgvector-provenance-verified.json
             postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
+            postgres-pgvector-build-engine.txt
             postgres-pgvector-provenance-attestation-check.md
             dhi-postgres-runtime-provenance.json
             dhi-postgres-builder-provenance.json
@@ -2444,6 +2598,14 @@ jobs:
                   manifest["containerfile_sha256"],
               ),
               ("pulseplate:builder-apk-closure", manifest["builder_apk_closure_sha256"]),
+              ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
+              ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
+              ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
+              (
+                  "https://github.com/docker/buildx/releases/download/"
+                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
+                  manifest["buildx_linux_amd64_sha256"],
+              ),
               (
                   "pulseplate:runtime-artifact-inventory",
                   manifest["runtime_artifact_inventory_sha256"],
@@ -2466,13 +2628,22 @@ jobs:
                   "https://pulseplate.app/buildtypes/postgres-pgvector/v1"
               ):
                   continue
+              dependencies = definition.get("resolvedDependencies")
+              if not isinstance(dependencies, list) or len(dependencies) != len(expected_materials):
+                  raise SystemExit("Reused provenance material cardinality drifted")
               observed_materials = set()
-              for dependency in definition.get("resolvedDependencies", []):
+              for dependency in dependencies:
                   digest = dependency.get("digest") if isinstance(dependency, dict) else None
                   if not isinstance(digest, dict) or len(digest) != 1:
                       raise SystemExit("Reused provenance material digest is malformed")
                   algorithm, value = next(iter(digest.items()))
-                  observed_materials.add((dependency.get("uri"), f"{algorithm}:{value}"))
+                  uri = dependency.get("uri")
+                  if not isinstance(uri, str) or not isinstance(value, str):
+                      raise SystemExit("Reused provenance material identity is malformed")
+                  material = (uri, f"{algorithm}:{value}")
+                  if material in observed_materials:
+                      raise SystemExit("Reused provenance material is duplicated")
+                  observed_materials.add(material)
               if observed_materials != expected_materials:
                   raise SystemExit("Reused provenance material set drifted")
               external = definition.get("externalParameters")
