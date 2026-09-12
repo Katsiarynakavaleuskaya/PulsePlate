@@ -1,6 +1,6 @@
 ---
 name: pulseplate-orchestration-dispatch
-description: Execute a coordinator-owned PulsePlate role manifest through the available native subagent transport.
+description: Execute a coordinator-owned PulsePlate JSON role packet through the available Codex-native subagent transport.
 license: MIT
 metadata:
   author: PulsePlate
@@ -14,41 +14,62 @@ Use this skill after coordinator routing establishes the governing packet. Root
 staged startup. This skill consumes the existing bridge and creates no parser,
 role registry, implementation permission or model service.
 
+## Codex-native input boundary
+
+Use a governing JSON packet from the existing `task_bootstrap.py` with validated,
+unambiguous `native_subagent_bridge` bindings for this Codex-native workflow.
+Existing CLI Markdown or `--roles` parsing remains available for manifest
+inspection; that compatibility path does not admit native dispatch by itself.
+Manual bootstrap means generating the JSON packet with the existing bootstrap,
+not inventing bindings from a Markdown list. Reuse an existing governing packet;
+do not create a second packet merely to follow the manual path. Missing or
+ambiguous bindings block the dependent native dispatch, not authorized diagnosis.
+
 ## Packet-backed dispatch
 
-1. Reuse the governing packet. Copy
+1. Before dispatching a potentially writable runtime-owner occurrence, run
+   execute-mode preflight with the declared scope/routing inputs and require
+   exit 0 under `docs/orchestration/workflow.md` → Admit tracked implementation.
+   This does not require completed preparatory roles and grants no edit authority.
+2. Reuse the governing packet. Copy
    `role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace
    `<packet>` with its actual path, and use repo-approved Python. Do not
    reconstruct a generic bridge command or drop runtime mode/owner flags.
-2. Require successful validation by
+3. Require successful validation by
    `scripts/orchestration/role_dispatch_bridge.py`. A nonzero exit or nonempty
    `missing_agents` blocks dispatch; retain diagnostics and repair the input.
    No best-effort parsing or guessed role fallback is permitted.
-3. Default output is the v2 manifest. Exact context output wraps the unchanged
+4. Default output is the v2 manifest. Exact context output wraps the unchanged
    manifest under `manifest`; consume its selected occurrence and source
    contents under `rules/context-loading.md`.
-4. Preserve every `dispatch_sequence` occurrence and its `order`, phase,
+5. Preserve every `dispatch_sequence` occurrence and its `order`, phase,
    readonly/owner constraints and predecessor evidence. Execute serially as
    required by `parallel_execution_allowed=false`; group hints do not grant
    parallel execution. Repeated slugs are separate occurrences. Do not append
    or normalize a later post-open tail into a pre-open or analysis sequence.
-5. For Codex, use the matching packet `native_subagent_bridge` binding's
+6. For Codex, use the matching packet `native_subagent_bridge` binding's
    `native_agent_type`, not `qoder_subagent_type`. Resolve the applicable role
    slot without discarding repeated occurrences; an absent or ambiguous
    binding blocks native dispatch. See `rules/role-mapping.md`.
-6. The coordinator dispatches new native children with the full role,
+7. The coordinator dispatches new native children with the full role,
    applicable authority context, packet/criteria and predecessor output.
    Follow `docs/agents/model_policy.md` for inherited arguments or the explicitly
    enabled Astra/Sol mode. Native transport and model choice grant no write
-   authority and do not change the manifest.
-7. Record each actual result before the next dependent occurrence. Synthesize
+   authority and do not change the manifest. Every preparatory occurrence,
+   including an owner with `readonly=false`, receives an explicit prohibition
+   on tracked writes until all preparatory roles finish and the coordinator
+   issues a separate implementation handoff after successful preflight.
+8. Record each actual result before the next dependent occurrence. Synthesize
    against the accepted criteria after the declared pass; packet generation
    and a role's `completed` status do not prove overall completion.
 
 ### Runtime-owner command example
 
 Illustration for a packet that emits this command and designates the sole
-`security-auditor` implementation owner. Use your actual emitted command.
+`security-auditor` implementation owner. Use your actual emitted command after
+the required preflight. Owner metadata never overrides the preparation write ban.
+The override is role-slug scoped for every eligible repetition; it is not an
+occurrence permission selector. See `rules/role-mapping.md` for mixed-rights requests.
 
 ```bash
 python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/example/packet.json --mode runtime --implementation-owner security-auditor --pretty
@@ -58,6 +79,7 @@ python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchest
 
 Extend that same emitted command only with the selected occurrence and explicit
 admitted instruction paths. Preserve its runtime owner and all existing flags.
+`--role-context-order` selects context only; it does not narrow owner permissions.
 
 ```bash
 python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/example/packet.json --mode runtime --implementation-owner security-auditor --pretty --role-context-order 5 --instruction-file tools/codex_skills/pulseplate-workflow/SKILL.md

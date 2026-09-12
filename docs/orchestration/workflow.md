@@ -169,7 +169,11 @@ that same stage; complete them before its dependent next action.
 - [ ] Choose the starter or manual path. `start_pr_lane.sh` may create the
   isolated worktree before analyze preflight/bootstrap. If it or a compatible
   launcher already created the governing packet, reuse it; do not bootstrap a
-  second packet merely to follow the manual recipe.
+  second packet merely to follow the manual recipe. For this Codex-native
+  workflow, manual bootstrap uses the existing `task_bootstrap.py` JSON output;
+  native dispatch requires that governing JSON packet with validated,
+  unambiguous native bindings. CLI Markdown/manual manifest inspection alone
+  does not admit native dispatch.
 - [ ] Run: `python3 scripts/orchestration/check_preflight.py --mode analyze` — must exit 0 (PASS).
 - [ ] Run: `python3 scripts/orchestration/check_agent_consistency.py` — must exit 0 (PASS). Ensures routing ⊆ inventory ⊆ capability.
 - [ ] Invoke `agent-coordinator` with the governing packet, or perform its
@@ -216,12 +220,24 @@ that same stage; complete them before its dependent next action.
 #### Admit tracked implementation
 
 - [ ] The analysis-stage scope, accepted criteria and governing packet are available.
+- [ ] Run execute-mode preflight with the declared `--path` scope and coordinator's
+  explicit routing inputs: `--primary`, `--reviewer`, and at most two applicable
+  `--secondary` slots. These slots are distinct from the expanded required-role
+  inventory; do not forward `packet.secondary_agents` wholesale. Bootstrap-added
+  invariant/security roles still execute in the unchanged manifest order.
+  Require exit 0 before dispatching any potentially writable runtime-owner
+  occurrence. This scope/routing check does not require completed preparatory outputs.
 - [ ] Execute the packet-emitted dispatch command with the actual packet path
-  and repo-approved Python. Preserve mode and owner flags. Complete every
-  required preparatory occurrence in `dispatch_sequence` order, carrying
-  predecessor evidence; readonly/review-only roles are not optional.
-- [ ] Run execute-mode preflight with its required packet inputs and obtain the
-  coordinator's implementation handoff to the declared owner and file scope.
+  and repo-approved Python, preserving mode and owner flags. Every preparatory
+  handoff must explicitly require: **No tracked writes during preparation**,
+  including the designated owner when manifest metadata says `readonly=false`.
+  Complete every required preparatory occurrence in `dispatch_sequence` order,
+  carrying predecessor evidence; readonly/review-only roles are not optional.
+  This action constraint does not rewrite manifest metadata or create an OS sandbox.
+- [ ] Only after all required preparatory occurrences finish and execute-mode
+  preflight passes, issue a separate coordinator implementation handoff naming
+  the declared owner and exact file scope. Only that handoff admits tracked
+  implementation; neither preflight nor owner metadata alone grants it.
 
 #### Publish and close out
 

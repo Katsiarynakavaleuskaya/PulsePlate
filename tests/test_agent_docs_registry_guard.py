@@ -909,6 +909,7 @@ def _guide_example(document: str, heading: str, language: str) -> str:
 
 
 def _assert_runtime_owner_example(document: str, heading: str) -> Namespace:
+    """Parse a named dispatch example and require its runtime-owner flags."""
     argv = shlex.split(_guide_example(document, heading, "bash"))
     assert argv[:2] == ["python3", "scripts/orchestration/role_dispatch_bridge.py"]
     args = _parse_args(argv[2:])
@@ -927,6 +928,7 @@ def _assert_runtime_owner_example(document: str, heading: str) -> Namespace:
 def test_dispatch_guide_commands_preserve_owner_and_pre_open_phase(
     heading: str, context_order: int | None
 ) -> None:
+    """Preserve sample ownership and pre-open order under both context forms."""
     args = _assert_runtime_owner_example(_read(_DISPATCH_GUIDE), heading)
     assert args.role_context_order == context_order
     assert args.instruction_file == (
@@ -958,6 +960,7 @@ def test_dispatch_guide_commands_preserve_owner_and_pre_open_phase(
 
 
 def test_dispatch_guide_negative_control_rejects_ownerless_generic_command() -> None:
+    """Reject dropped owner flags after validating the unchanged positive example."""
     original = _read(_DISPATCH_GUIDE)
     heading = "Runtime-owner command example"
     _assert_runtime_owner_example(original, heading)
@@ -970,6 +973,7 @@ def test_dispatch_guide_negative_control_rejects_ownerless_generic_command() -> 
 def _assert_native_argument_example(
     document: str, heading: str, role_slug: str, role: str = "secondary"
 ) -> dict[str, object]:
+    """Compare named native arguments with the canonical role-slot binding."""
     args = json.loads(_guide_example(document, heading, "json"))
     assert isinstance(args, dict)
     binding = build_native_subagent_binding(agent_slug=role_slug, role=role)
@@ -997,6 +1001,7 @@ def _assert_native_argument_example(
 def test_native_guide_examples_match_bindings_and_override_boundary(
     path: str, heading: str, role_slug: str, role: str, effort: str | None
 ) -> None:
+    """Keep inherited defaults and bounded Sol overrides explicit in the examples."""
     args = _assert_native_argument_example(_read(path), heading, role_slug, role)
     fields = {"task_name", "message", "agent_type"}
     if effort is None:
@@ -1010,6 +1015,7 @@ def test_native_guide_examples_match_bindings_and_override_boundary(
 
 
 def test_native_guide_negative_control_rejects_retired_coder() -> None:
+    """Reject the retired coder transport against the current Logic native binding."""
     original = _read(_BINDING_GUIDE)
     heading = "Inherited Logic argument example"
     _assert_native_argument_example(original, heading, "logic-agent")
@@ -1020,6 +1026,7 @@ def test_native_guide_negative_control_rejects_retired_coder() -> None:
 
 
 def test_codex_template_preserves_host_choices_by_default() -> None:
+    """Keep the template free of active model, effort and permission overrides."""
     config = tomllib.loads(_read("docs/templates/codex.config.example.toml"))
     assert not (
         {"model", "model_reasoning_effort", "approval_policy", "sandbox_mode"} & config.keys()
@@ -1027,6 +1034,7 @@ def test_codex_template_preserves_host_choices_by_default() -> None:
 
 
 def test_startup_guide_exposes_ordered_stage_actions_and_canonical_links() -> None:
+    """Retain the three ordered startup stages and their canonical context links."""
     workflow = _exact_bounded_section(
         _read("docs/orchestration/workflow.md"),
         start_line="## Canonical Pre-flight Checklist (SoT)",
@@ -1045,6 +1053,107 @@ def test_startup_guide_exposes_ordered_stage_actions_and_canonical_links() -> No
     ):
         assert "docs/orchestration/workflow.md" in _read(path)
     assert "core.db.load_canonical_orm_metadata()" in _read("tests/AGENTS.md")
+
+
+def _preparatory_admission_section() -> str:
+    """Extract only the checklist stage that admits tracked implementation."""
+    return _exact_bounded_section(
+        _read("docs/orchestration/workflow.md"),
+        start_line="#### Admit tracked implementation",
+        end_line="#### Publish and close out",
+    )
+
+
+def _assert_preparatory_admission(section: str) -> None:
+    """Check only the three named checklist actions and explicit preparation ban."""
+    markers = (
+        "- [ ] Run execute-mode preflight",
+        "- [ ] Execute the packet-emitted dispatch command",
+        "- [ ] Only after all required preparatory occurrences finish",
+    )
+    assert all(section.count(marker) == 1 for marker in markers), "Missing admission action"
+    positions = [section.index(marker) for marker in markers]
+    assert positions == sorted(positions), "Preflight must precede dispatch and handoff"
+    assert "No tracked writes during preparation" in section, "Missing preparation write ban"
+    assert "`readonly=false`" in section, "Preparation must include the designated owner"
+    assert "separate coordinator implementation handoff" in section
+
+
+def test_preparatory_admission_precedes_runtime_owner_dispatch() -> None:
+    """Require preflight, preparation constraints and a separate implementation handoff."""
+    _assert_preparatory_admission(_preparatory_admission_section())
+
+
+@pytest.mark.parametrize("mutation", ["reverse-order", "omit-write-ban", "omit-handoff"])
+def test_preparatory_admission_rejects_finite_regressions(mutation: str) -> None:
+    """Reject reordered admission steps and omitted preparation or handoff constraints."""
+    original = _preparatory_admission_section()
+    _assert_preparatory_admission(original)
+    if mutation == "reverse-order":
+        preflight = original.index("- [ ] Run execute-mode preflight")
+        dispatch = original.index("- [ ] Execute the packet-emitted dispatch command")
+        handoff = original.index("- [ ] Only after all required preparatory occurrences finish")
+        mutated = (
+            original[:preflight]
+            + original[dispatch:handoff]
+            + original[preflight:dispatch]
+            + original[handoff:]
+        )
+    elif mutation == "omit-write-ban":
+        mutated = original.replace("No tracked writes during preparation", "Preparation", 1)
+    else:
+        mutated = original[
+            : original.index("- [ ] Only after all required preparatory occurrences finish")
+        ]
+    assert mutated != original
+    with pytest.raises(AssertionError):
+        _assert_preparatory_admission(mutated)
+
+
+@pytest.mark.parametrize(
+    "heading", ["Runtime-owner command example", "Exact-context command example"]
+)
+def test_repeated_owner_slug_is_not_narrowed_by_context_selection(heading: str) -> None:
+    """Keep ownership on every eligible repeated slug despite context selection."""
+    args = _assert_runtime_owner_example(_read(_DISPATCH_GUIDE), heading)
+    roles = [
+        "agent-coordinator",
+        "logic-agent",
+        "security-auditor",
+        "philosophy-agent",
+        "security-auditor",
+        "architecture-specialist",
+    ]
+    manifest = build_dispatch_manifest(
+        role_slugs=roles,
+        mode=args.mode,
+        implementation_owners=args.implementation_owner,
+        enforce_mandatory_post_open_tail=False,
+    )
+    entries = manifest["dispatch_sequence"]
+    assert [entry["role_slug"] for entry in entries] == roles
+    owners = [entry for entry in entries if entry["role_slug"] == "security-auditor"]
+    assert [entry["order"] for entry in owners] == [3, 5]
+    assert all(entry["implementation_owner_override"] and not entry["readonly"] for entry in owners)
+    assert args.role_context_order in (None, 5)
+    assert manifest["parallel_execution_allowed"] is False
+
+
+def test_codex_native_guide_requires_governing_json_bindings() -> None:
+    """Retain the explicit JSON/native-binding admission boundary in the Codex guide."""
+    boundary = _exact_bounded_section(
+        _read(_DISPATCH_GUIDE),
+        start_line="## Codex-native input boundary",
+        end_line="## Packet-backed dispatch",
+    )
+    for required in (
+        "governing JSON packet",
+        "`task_bootstrap.py`",
+        "`native_subagent_bridge`",
+        "`--roles`",
+        "does not admit native dispatch",
+    ):
+        assert required in boundary
 
 
 @pytest.mark.parametrize("surface", ["frontmatter", "When Invoked"])
