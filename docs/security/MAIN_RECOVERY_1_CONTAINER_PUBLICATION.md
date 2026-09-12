@@ -112,6 +112,68 @@ and byte-identical OCI archive SHA-256
 `c8557b99c6fbcee628472dc0cecb869562aab2e848b5ce5f896f1b4141a0a415`.
 Publication, exact-main admission and merge evidence remain required.
 
+The resumed review on 2026-09-12 found missing execution evidence despite the
+published mapping. The actual premortem and ordered post-open QA, bug-hunter and
+security passes were recovered before merge; their execution is not backdated
+to PR opening. The premortem restored the ordinary 500 KB file-size check and
+scoped the 2048 KB exception to the single supplier-signed APK index. The source
+fixture documentation now separates its historical observed output shape from
+synthetic current-digest substitutions.
+
+The missing post-APK builder scan was executed against a newly reproduced
+current-recipe OCI image. Trivy 0.74.0 reported zero HIGH/CRITICAL and secret
+findings across its 94-package inventory. The final 49-package runtime layout
+also passed with the same fresh database. Scout 1.24.0 authenticated both new
+DHI source subjects with `--verify --skip-tlog`, and the unchanged workflow
+consumer accepted both actual outputs. This is source-signature evidence,
+without transparency-log proof or derived-publication authority.
+
+The first resumed Experiment Runner packet executed the 42 governance tests
+successfully but was rejected because its second oracle required an absent
+Python pgvector binding. That rejected result remains retained. The corrected
+governance-only packet passed both immutable oracles in strict Apple Container
+isolation; Python binding and PostgreSQL compatibility remain separate required
+CI/native checks. These procedural corrections grant no merge authority and do
+not close the original final-main or documentation criteria.
+
+The full native runtime replay exposed an initialization race in the inherited
+`pg_isready` probe: the temporary Unix server accepted connections before the
+requested database existed. The startup loop now requires both a successful
+TCP `psql` command against that database and its exact `SELECT 1` result.
+The same bounded loop rejects a never-ready database and output `1` paired
+with a nonzero process exit. Native fresh-volume, same-volume restart and
+legacy-image transition replay then passed with preserved database OIDs,
+sentinels, PostgreSQL 15.19 and pgvector 0.8.6. Disposable test resources were
+removed and Docker Desktop was stopped; no production volume was involved.
+
+Evidence anchors: `.pre-commit-config.yaml:12`,
+`tests/test_deploy_contract_scripts.py:31`, and
+`.github/workflows/cd.yml:1011`.
+
+## Newly observed backend PCRE2 findings
+
+Docker run `34686508035` reported two HIGH findings in Debian
+`libpcre2-8-0 10.42-1`: CVE-2026-86145 and CVE-2026-89161. This was an
+image vulnerability failure, not an expired review date. The same affected
+package is independently present in this recovery PR's own production scan
+from run `34677565852`, image
+`sha256:f4e36161c7dcbc2c7299146a6d889076bc0f6e31dcde4b14a5850e8fd5014545`.
+
+The Debian trackers for [CVE-2026-86145](https://security-tracker.debian.org/tracker/CVE-2026-86145)
+and [CVE-2026-89161](https://security-tracker.debian.org/tracker/CVE-2026-89161)
+identify Bookworm security package `10.42-1+deb12u1` as fixed. The existing
+runtime-base installation now explicitly refreshes only this additional
+package and rejects any installed version below that native Debian floor.
+The Python/base-image pins, requirements and security suppressions are
+unchanged. No blanket `apt upgrade` or new waiver is introduced.
+
+The full rebuilt production image must pass its existing strict PR scan,
+including unfixed findings, before merge. Compare complete package inventories
+and preserve the current runtime smoke/UUID/TLS/gzip/SQLite/Alembic guards;
+the successful earlier image scan is historical evidence only.
+Evidence anchors: `Dockerfile:313` and
+`tests/test_docker_workflow_build_path_contract.py:721`.
+
 Docker's warning that credentials are stored in `config.json` is expected when
 a credential helper is not configured; it is not evidence that the temporary
 credentials survive the job. This lane keeps a dedicated mode-0700

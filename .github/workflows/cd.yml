@@ -1504,8 +1504,10 @@ jobs:
               "$target_image" >/dev/null
             ready=0
             for attempt in $(seq 1 60); do
-              if docker exec "$target_container" pg_isready \
-                --username "$database_user" --dbname "$database_name" >/dev/null 2>&1; then
+              if database_probe="$(docker exec --env "PGPASSWORD=$database_password" "$target_container" \
+                psql --host 127.0.0.1 --username "$database_user" --dbname "$database_name" \
+                --set ON_ERROR_STOP=1 --tuples-only --no-align --command 'SELECT 1' 2>/dev/null)" \
+                && [ "$database_probe" = "1" ]; then
                 ready=1
                 break
               fi

@@ -10,6 +10,10 @@ repos:
       - id: trailing-whitespace
       - id: check-merge-conflict
       - id: check-added-large-files
+        exclude: ^deploy/postgres-pgvector/builder-apk-index\.tar\.gz$
+      - id: check-added-large-files
+        name: check signed PostgreSQL APK index size
+        files: ^deploy/postgres-pgvector/builder-apk-index\.tar\.gz$
         args: [--maxkb=2048]
 
   # --- YAML lint: yamllint (style + structure)

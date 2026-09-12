@@ -2119,8 +2119,8 @@ def test_postgres_scout_source_statement_consumer(
 ) -> None:
     """Exercise the whole step; recorded Scout output is not signature verification.
 
-    The two source projections match native artifact 10124696818 from CD run
-    34403818948. Full original JSON and hashes are retained in the recovery archive.
+    The output shape follows native artifact 10124696818 from CD run 34403818948.
+    Current digest substitutions are synthetic; that archive verified predecessor subjects.
     Statement/v0.1 and SLSA predicate/v1 are independent schema identifiers.
     """
     identities = {
@@ -8469,3 +8469,103 @@ def test_cd_pgvector_admission_executes_complete_canonical_suite_and_propagates_
     )
     assert completed.stdout.splitlines() == ["-m", "pytest", "-q", *targets]
     assert completed.returncode == pytest_exit, completed.stderr
+
+
+def test_signed_apk_index_size_exception_preserves_unrelated_file_limit() -> None:
+    """The reviewed signed index must not raise the repository-wide 500KB default."""
+    import re
+
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text())
+    hooks = [
+        hook
+        for repo in config["repos"]
+        for hook in repo["hooks"]
+        if hook["id"] == "check-added-large-files"
+    ]
+    assert len(hooks) == 2
+    normal, index = hooks
+    assert normal.get("args", []) == []
+    assert index["args"] == ["--maxkb=2048"]
+    index_path = "deploy/postgres-pgvector/builder-apk-index.tar.gz"
+    for path in (index_path, index_path + ".extra", "unrelated.bin", "deploy/other/index.tar.gz"):
+        selected = [
+            hook
+            for hook in hooks
+            if re.search(hook.get("files", ""), path)
+            and not re.search(hook.get("exclude", "^$"), path)
+        ]
+        assert len(selected) == 1
+        assert (selected[0] is index) == (path == index_path)
+
+
+@pytest.mark.parametrize("scenario", ["ready-after-init", "never-ready", "output-with-error"])
+def test_postgres_runtime_waits_for_final_tcp_database_before_sql(
+    tmp_path: Path, scenario: str
+) -> None:
+    """The init-only Unix server can accept connections before the database exists."""
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    run = next(
+        step["run"]
+        for step in steps
+        if step.get("name") == "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
+    )
+    start = run.split("start_postgres() {", 1)[1].split("\n}\n", 1)[0]
+    shell = shutil.which("bash")
+    assert shell is not None
+    # Calls one and two model the init-only server; the third exposes the final TCP DB.
+    program = (
+        r"""
+set -euo pipefail
+database_user=synthetic_user
+database_password=synthetic_password
+database_name=pgvector_compat
+prefix=owned_prefix
+sleep() { :; }
+docker() {
+  printf '%s\n' "$*" >> "$CALLS"
+  if [ "$1" = run ]; then return 0; fi
+  if [ "$1" = logs ]; then return 0; fi
+  if [[ "$*" == *pg_isready* ]]; then return 0; fi
+  if [[ "$*" == *'--command SELECT 1'* ]]; then
+    [[ "$*" == *'--host 127.0.0.1'* ]] || return 9
+    [[ "$*" == *'--dbname pgvector_compat'* ]] || return 9
+    local n
+    n="$(cat "$STATE")"
+    n=$((n + 1))
+    printf '%s' "$n" > "$STATE"
+    if [ "$SCENARIO" = never-ready ]; then return 2; fi
+    if [ "$SCENARIO" = output-with-error ]; then printf '1\n'; return 2; fi
+    if [ "$n" -lt 3 ]; then return 2; fi
+    printf '1\n'
+    return 0
+  fi
+  return 1
+}
+start_postgres() {"""
+        + start
+        + r"""
+}
+start_postgres owned_container owned_volume owned_image
+test "$(cat "$STATE")" = 3
+"""
+    )
+    state = tmp_path / "state"
+    state.write_text("0")
+    calls = tmp_path / "calls"
+    result = subprocess.run(
+        [shell, "-c", program],
+        env={**os.environ, "STATE": str(state), "CALLS": str(calls), "SCENARIO": scenario},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    if scenario == "ready-after-init":
+        assert result.returncode == 0, result.stderr
+        assert calls.read_text().count("--command SELECT 1") == 3
+    else:
+        assert result.returncode != 0
+        assert "Synthetic PostgreSQL image did not become ready" in result.stderr
+        assert calls.read_text().count("--command SELECT 1") == 60
+    assert "pg_isready" not in calls.read_text()

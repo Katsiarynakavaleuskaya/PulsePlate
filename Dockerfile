@@ -309,6 +309,7 @@ RUN apt-get update \
         libc-bin \
         libc6 \
         libgnutls30 \
+        libpcre2-8-0 \
         libssl3 \
         openssl \
     && for package in libc6 libc-bin; do \
@@ -318,6 +319,11 @@ RUN apt-get update \
             exit 1; \
         fi; \
     done \
+    && pcre2_version="$(dpkg-query -W -f='${Version}' libpcre2-8-0)" \
+    && if ! dpkg --compare-versions "${pcre2_version}" ge "10.42-1+deb12u1"; then \
+        echo "libpcre2-8-0 ${pcre2_version} is below fixed PCRE2 line 10.42-1+deb12u1" >&2; \
+        exit 1; \
+    fi \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
