@@ -23,6 +23,7 @@ CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
 MERGE_GATE_TIMEOUT_SEC = 480
+TEST_EVIDENCE_TIMEOUT_SEC = 300
 EXPERIMENT_RUNNER_EVIDENCE_MODES = ("advisory", "required")
 
 
@@ -119,9 +120,16 @@ def _run_gate(
     """Run a gate script and capture its output without mutating its behavior."""
 
     argv = [sys.executable, *(["-I"] if isolated else []), str(script_path), *extra_args]
-    timeout_seconds = (
-        MERGE_GATE_TIMEOUT_SEC if script_path in (MERGE_GATE, DISPOSITION_GATE) else RUN_TIMEOUT_SEC
-    )
+    if isolated and name == "base-ci-test-evidence":
+        timeout_seconds = TEST_EVIDENCE_TIMEOUT_SEC
+    elif script_path == CURRENT_HEAD_CHECKS_GATE:
+        timeout_seconds = RUN_TIMEOUT_SEC + TEST_EVIDENCE_TIMEOUT_SEC
+    elif script_path == MERGE_GATE:
+        timeout_seconds = MERGE_GATE_TIMEOUT_SEC + 2 * TEST_EVIDENCE_TIMEOUT_SEC
+    elif script_path == DISPOSITION_GATE:
+        timeout_seconds = MERGE_GATE_TIMEOUT_SEC
+    else:
+        timeout_seconds = RUN_TIMEOUT_SEC
     try:
         result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,

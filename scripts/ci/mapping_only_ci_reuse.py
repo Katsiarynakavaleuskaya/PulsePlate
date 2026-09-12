@@ -732,7 +732,9 @@ def _run_tuple(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _validate_run(run: dict[str, Any], context: Context, head_sha: str) -> dict[str, Any]:
+def _validate_run(
+    run: dict[str, Any], context: Context, head_sha: str, *, require_base: bool = True
+) -> dict[str, Any]:
     locator = _run_tuple(run)
     repository = _object(run.get("repository"), "run repository")
     head_repository = _object(run.get("head_repository"), "run head repository")
@@ -761,10 +763,11 @@ def _validate_run(run: dict[str, Any], context: Context, head_sha: str) -> dict[
     base, head = _object(pr.get("base"), "run PR base"), _object(pr.get("head"), "run PR head")
     if (
         pr.get("number") != context.pr_number
-        or base.get("sha") != context.base_sha
+        or (require_base and base.get("sha") != context.base_sha)
         or head.get("sha") != head_sha
     ):
         raise ReuseError("workflow run PR/base/head binding differs")
+    _sha(base.get("sha"), "workflow run base")
     if (
         run.get("url")
         != f"https://api.github.com/repos/{context.repository}/actions/runs/{locator['run_id']}"
@@ -788,7 +791,7 @@ def _latest_run(context: Context, head_sha: str, token: str) -> dict[str, Any] |
         if not isinstance(linked, list):
             raise ReuseError("workflow run PR inventory is malformed")
         if any(isinstance(pr, dict) and pr.get("number") == context.pr_number for pr in linked):
-            _validate_run(row, context, head_sha)
+            _validate_run(row, context, head_sha, require_base=False)
             matching.append(row)
     if not matching:
         return None
@@ -806,11 +809,15 @@ def _latest_run(context: Context, head_sha: str, token: str) -> dict[str, Any] |
     if len(same_start) > 1 and any(row["run_attempt"] > 1 for row in same_start):
         raise Ineligible("latest_attempt_order_ambiguous")
     live = _object(_api(context.repository, f"actions/runs/{newest['id']}", token), "latest run")
-    _validate_run(live, context, head_sha)
-    if _run_tuple(live) != _run_tuple(newest) or live.get("run_started_at") != newest.get(
-        "run_started_at"
+    _validate_run(live, context, head_sha, require_base=False)
+    if (
+        _run_tuple(live) != _run_tuple(newest)
+        or live.get("run_started_at") != newest.get("run_started_at")
+        or live["pull_requests"] != newest["pull_requests"]
     ):
         raise ReuseError("workflow latest attempt changed during selection")
+    if live["pull_requests"][0]["base"]["sha"] != context.base_sha:
+        raise Ineligible("latest_source_base_differs")
     return live
 
 
@@ -847,11 +854,17 @@ def _refresh(
         or fresh.snapshot.commit_shas != context.snapshot.commit_shas
     ):
         raise ReuseError("complete PR graph changed during evidence proof")
-    current = _latest_run(context, context.head_sha, token)
+    try:
+        current = _latest_run(context, context.head_sha, token)
+    except Ineligible as exc:
+        raise ReuseError("current workflow binding changed during proof") from exc
     if current is None or _run_tuple(current) != _run_tuple(run):
         raise ReuseError("current workflow run or attempt is no longer latest")
     if source is not None:
-        latest_source = _latest_run(context, source["head_sha"], token)
+        try:
+            latest_source = _latest_run(context, source["head_sha"], token)
+        except Ineligible as exc:
+            raise ReuseError("direct source binding changed during proof") from exc
         if (
             latest_source is None
             or _run_tuple(latest_source) != source
@@ -997,7 +1010,7 @@ def _success_step(steps: Mapping[str, dict[str, Any]], name: str) -> dict[str, A
         or step.get("status") != "completed"
         or step.get("conclusion") != "success"
     ):
-        raise ReuseError("required native execution step is not successful")
+        raise Ineligible("required_native_execution_step_not_successful")
     start, end = _time(step.get("started_at"), "step start"), _time(
         step.get("completed_at"), "step completion"
     )
@@ -1045,7 +1058,7 @@ def _job_identity(
     if check.get("status") != job.get("status") or check.get("conclusion") != job.get("conclusion"):
         raise ReuseError("native job and check conclusions differ")
     if complete and (job.get("status") != "completed" or job.get("conclusion") != "success"):
-        raise ReuseError("selected native job did not complete successfully")
+        raise Ineligible("selected_native_job_not_successful")
     return _steps(job)
 
 
@@ -1079,13 +1092,15 @@ def _selected_jobs(
         elif any(name.startswith(f"{job_id} (") for job_id in ("test-pr", "test-main")):
             raise ReuseError("native test matrix contains an unsupported cell")
     if set(selected) != expected:
-        raise ReuseError("native test universe is incomplete")
+        raise Ineligible("native_test_universe_incomplete")
     result: list[tuple[Cell, dict[str, Any], str]] = []
     for cell in policy.cells:
         job = selected[cell.check_name]
         steps = _job_identity(job, context, run, token)
         direct = steps.get(DIRECT_MARKER, {}).get("conclusion") == "success"
         reused = steps.get(REUSED_MARKER, {}).get("conclusion") == "success"
+        if not direct and not reused:
+            raise Ineligible("native_execution_proof_absent")
         if direct == reused or (direct_only and reused):
             raise ReuseError("native execution markers are contradictory or inherited")
         if direct:
@@ -1124,8 +1139,10 @@ def _selected_jobs(
 
 def _writer(context: Context, run: dict[str, Any], token: str) -> dict[str, Any]:
     writers = [job for job in _jobs(context, run, token) if job.get("name") == WRITER_NAME]
+    if not writers:
+        raise Ineligible("source_evidence_writer_absent")
     if len(writers) != 1:
-        raise ReuseError("source evidence writer is absent or duplicated")
+        raise ReuseError("source evidence writer is duplicated")
     writer = writers[0]
     steps = _job_identity(writer, context, run, token)
     for name in ("Checkout trusted base", WRITER_COLLECT, WRITER_UPLOAD):
@@ -1152,12 +1169,8 @@ def _artifact_metadata(
     upload_step: str,
 ) -> None:
     artifact_id = _positive(metadata.get("id"), "artifact ID")
-    if (
-        metadata.get("name") != name
-        or metadata.get("expired") is not False
-        or _time(metadata.get("expires_at"), "artifact expiry") <= datetime.now(timezone.utc)
-    ):
-        raise ReuseError("artifact identity is different or expired")
+    if metadata.get("name") != name or type(metadata.get("expired")) is not bool:
+        raise ReuseError("artifact identity or expiry flag differs")
     if (
         metadata.get("url")
         != f"https://api.github.com/repos/{context.repository}/actions/artifacts/{artifact_id}"
@@ -1175,6 +1188,10 @@ def _artifact_metadata(
         or native.get("head_repository_id") != context.repository_id
     ):
         raise ReuseError("artifact run/repository/head identity differs")
+    if metadata["expired"] or _time(metadata.get("expires_at"), "artifact expiry") <= datetime.now(
+        timezone.utc
+    ):
+        raise Ineligible("source_artifact_expired")
     _hash(metadata.get("digest"), "artifact digest")
     size = _positive(metadata.get("size_in_bytes"), "artifact size")
     if size > MAX_ARCHIVE_BYTES:
@@ -1280,8 +1297,10 @@ def _artifact(
 ) -> tuple[dict[str, Any], bytes]:
     rows = _pages(context.repository, f"actions/runs/{run['id']}/artifacts", "artifacts", token)
     matches = [row for row in rows if row.get("name") == name]
+    if not matches:
+        raise Ineligible("attempt_specific_artifact_absent")
     if len(matches) != 1:
-        raise ReuseError("attempt-specific artifact is absent or duplicated")
+        raise ReuseError("attempt-specific artifact is duplicated")
     metadata = matches[0]
     _artifact_metadata(
         context, run, metadata, name=name, producer=producer, upload_step=upload_step
@@ -1304,7 +1323,12 @@ def _artifact(
     fresh = _object(
         _api(context.repository, f"actions/artifacts/{metadata['id']}", token), "fresh artifact"
     )
-    _artifact_metadata(context, run, fresh, name=name, producer=producer, upload_step=upload_step)
+    try:
+        _artifact_metadata(
+            context, run, fresh, name=name, producer=producer, upload_step=upload_step
+        )
+    except Ineligible as exc:
+        raise ReuseError("artifact availability changed during proof") from exc
     if fresh != metadata:
         raise ReuseError("artifact metadata changed during proof")
     return reference, content
@@ -1355,6 +1379,7 @@ def _validate_document(document: Any, *, schema: str) -> dict[str, Any]:
         or value["policy_version"] != POLICY_VERSION
         or value["asset_type"]
         != ("ci_test_execution" if schema == MANIFEST_SCHEMA else "ci_test_reuse_plan")
+        or not isinstance(value["mode"], str)
         or value["mode"] not in {"executed", "reused"}
     ):
         raise ReuseError("evidence document schema, policy or mode differs")
@@ -1616,7 +1641,10 @@ def _source(
     _refresh_artifacts(context, run, selected, rows, token, aggregate=artifact, writer=writer)
     # Selection and immutable artifact metadata are refreshed again by each
     # projection/final consumer; no central-plan trust shortcut exists.
-    latest = _latest_run(context, material_head, token)
+    try:
+        latest = _latest_run(context, material_head, token)
+    except Ineligible as exc:
+        raise ReuseError("source availability changed after native proof") from exc
     if (
         latest is None
         or _run_tuple(latest) != _run_tuple(run)
@@ -1650,9 +1678,17 @@ def _refresh_artifacts(
             _api(context.repository, f"actions/artifacts/{reference['artifact_id']}", token),
             "final artifact",
         )
-        _artifact_metadata(
-            context, run, metadata, name=reference["name"], producer=producer, upload_step=upload
-        )
+        try:
+            _artifact_metadata(
+                context,
+                run,
+                metadata,
+                name=reference["name"],
+                producer=producer,
+                upload_step=upload,
+            )
+        except Ineligible as exc:
+            raise ReuseError(f"artifact availability changed after complete proof: {exc}") from exc
         if (
             metadata["id"] != reference["artifact_id"]
             or metadata["digest"] != reference["archive_digest"]
@@ -1814,15 +1850,11 @@ def plan_reuse(
             source=source,
         )
         _refresh(context, run, token, source=source["run"])
-    except (
-        Ineligible,
-        ReuseError,
-        identity.CommitIdentityError,
-        evidence.ReviewEvidenceError,
-    ) as exc:
-        # There is no asserted source yet. Missing, expired or insufficient
-        # evidence selects native execution without older-green searching.
-        ordinary["reason"] = str(exc) if isinstance(exc, Ineligible) else "source_not_admissible"
+    except Ineligible as exc:
+        # Missing, expired or insufficient proof selects native execution.
+        # Published assertions already count as claims: contradictions and
+        # identity races propagate even before a reused plan is emitted.
+        ordinary["reason"] = str(exc)
         value = _finish_document(ordinary)
         _refresh(context, run, token)
     return value

@@ -38,6 +38,19 @@ SECURITY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "security.yml"
 TRIVY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "trivy.yml"
 
 
+def test_ci_pr_concurrency_preserves_running_heads_and_coalesces_pending_metadata() -> None:
+    """Keep M/H isolated while using GitHub's single pending slot per PR head."""
+
+    assert _load_ci_workflow()["concurrency"] == {
+        "group": (
+            "${{ github.workflow }}-${{ github.event_name == 'pull_request' && "
+            "format('pr-{0}-{1}', github.event.pull_request.number, "
+            "github.event.pull_request.head.sha) || github.ref }}"
+        ),
+        "cancel-in-progress": "${{ github.event_name != 'pull_request' }}",
+    }
+
+
 def _execute_native_guard(script: str, environment: dict[str, str]) -> int:
     """Exercise the declared bash error semantics without helper/interpreter access."""
 

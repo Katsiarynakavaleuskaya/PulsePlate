@@ -21,8 +21,8 @@ on:
     branches: [ main, feat/**, fix/** ]
 
 concurrency:
-  # Each PR run keeps its own active and pending slot, including edited events.
-  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'pull_request' && format('-{0}', github.run_id) || '' }}
+  # Preserve running material heads; coalesce pending metadata runs of the same head.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.head.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 defaults:

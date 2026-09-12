@@ -111,8 +111,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Avoid redundant material CI on verified mapping-only closeout
   - Owner: @katsiaryna_kavaleuskaya (CI / orchestration)
   - Priority: P1
-  - Target PR: current implementation on `codex/mapping-only-ci-backlog`; PR number pending publication
-  - Status: Implementation in progress; repository merge, final validation and operational savings are not claimed.
+  - Target PR: [#2391](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2391) (`codex/mapping-only-ci-backlog`)
+  - Status: Non-draft #2391 opened after narrow local gates, pre-push checks, ordered pre-fix roles, actual-diff premortem and accepted oracle-only Runner. Ordered post-open QA/bug/security completed; malformed-mode and same-head metadata fan-out findings received bounded fixes and regression coverage. Hosted CI, final review/closeout and repository merge remain pending; operational savings remain unverified until natural eligible use.
   - Operator decision (2026-09-12): Independently implement, open and prepare this PR for its own exact-head authorized merge while recovery #2390 continues. This lane does not alter recovery or claim its main/CD outcome. Reuse is limited to canonical CI tests and coverage; workflow/protected-policy PRs retain ordinary execution.
   - Reason for prior deferral (EN): The gap was confirmed during #2390 because whole-PR classification and current-head checks reran material CI after mapping-only successors and metadata edits. The owner explicitly admitted this separate implementation after ordered validator/authority review; no interim bypass of recovery checks is authorized.
   - Links: `.github/workflows/ci.yml`; `scripts/ci/check_current_head_pr_checks.py`; `scripts/ci/mapping_only_ci_reuse.py`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md#mapping-only-test-evidence-reuse`; #2390

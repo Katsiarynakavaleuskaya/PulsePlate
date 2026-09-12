@@ -621,9 +621,21 @@ their result is **verified reuse**, not a claim that tests executed again.
 - No eligible source selects ordinary execution. Contradictory asserted evidence,
   incomplete provenance or a raced head/base fails verification. Recheck latest
   source run/attempt and live artifact identity before accepting the projection.
-- PR runs have separate concurrency slots so metadata edits and mapping pushes
-  cannot cancel the source run. This can overlap ordinary runs while evidence is
-  unavailable; no avoided-run claim is made for that case. Main/push execution,
+  A published execution manifest already makes evidence claims before a reuse
+  plan is emitted. Initial admission falls back only for explicit insufficiency
+  or stable incompatibility; malformed present claims, conflicting native
+  identities, digest mismatches and proof-time races propagate as errors.
+  The isolated final verifier has a 300-second total subprocess cap in the
+  canonical wrapper. Parent current-head/merge subprocess budgets include their
+  one/two verifier calls; unrelated gate budgets and the hosted job's overall
+  timeout remain unchanged. Exceeding a budget is still a verification failure.
+- PR concurrency is partitioned by workflow, PR identity and head with running
+  cancellation disabled. Metadata edits retain a running source while replacing
+  older pending runs of that same head; material and mapping heads have separate
+  groups. A pending run has no direct execution evidence. Latest-source admission
+  remains unchanged: a newer pending, cancelled or failing source cannot justify
+  searching for an older success. Ordinary execution can still overlap across
+  heads; no avoided-run claim is made for that case. Main/push execution,
   image publication, production, external workflows and branch protection retain
   their own rules.
 

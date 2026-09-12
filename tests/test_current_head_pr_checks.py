@@ -2646,12 +2646,15 @@ def test_mapping_reuse_real_mapping_successor_source_failure_outside_tests_and_f
     [
         "newer_pending",
         "newer_failure",
+        "newer_cancelled",
         "mixed_attempt",
         "foreign_app",
         "missing_critical",
         "neutral_critical",
         "both_markers",
         "inherited_source",
+        "array_source_mode",
+        "object_source_mode",
         "missing_cell",
         "duplicate_cell",
         "extra_cell",
@@ -2665,7 +2668,9 @@ def test_mapping_reuse_real_mapping_successor_source_failure_outside_tests_and_f
         "unsafe_xml",
         "forged_plan",
         "raced_source",
+        "raced_source_base",
         "raced_head",
+        "raced_base",
         "wrong_merge_parents",
         "different_merge_tree",
     ],
@@ -2677,8 +2682,10 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
     source_job = harness.source_job_rows[0]
     coverage = harness.artifacts[101][0]
     plan = deepcopy(harness.plan)
-    if fault in {"newer_pending", "newer_failure"}:
-        harness.add_run(103, harness.material, complete=fault == "newer_failure")
+    if fault in {"newer_pending", "newer_failure", "newer_cancelled"}:
+        harness.add_run(103, harness.material, complete=fault != "newer_pending")
+        if fault == "newer_cancelled":
+            harness.runs[103]["conclusion"] = "cancelled"
     elif fault == "mixed_attempt":
         source_job["run_attempt"] = 2
     elif fault == "foreign_app":
@@ -2695,9 +2702,13 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
         next(step for step in source_job["steps"] if step["name"] == ci_reuse.REUSED_MARKER)[
             "conclusion"
         ] = "success"
-    elif fault == "inherited_source":
+    elif fault in {"inherited_source", "array_source_mode", "object_source_mode"}:
         manifest = deepcopy(harness.source_manifest)
-        manifest["mode"] = "reused"
+        manifest["mode"] = {
+            "inherited_source": "reused",
+            "array_source_mode": [],
+            "object_source_mode": {},
+        }[fault]
         manifest["source"] = deepcopy(plan["source"])
         manifest = ci_reuse._finish_document(manifest)
         archive = _reuse_zip("ci-test-execution.json", ci_reuse._canonical(manifest))
@@ -2742,22 +2753,25 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
     elif fault == "forged_plan":
         plan["universe"] = []
         plan = ci_reuse._finish_document(plan)
-    elif fault == "raced_source":
+    elif fault in {"raced_source", "raced_source_base"}:
 
         def race(artifact_id: int) -> None:
-            harness.source_run["run_attempt"] = 2
+            if fault == "raced_source":
+                harness.source_run["run_attempt"] = 2
+            else:
+                harness.source_run["pull_requests"][0]["base"]["sha"] = "d" * 40
 
         harness.download_hook = race
-    elif fault == "raced_head":
+    elif fault in {"raced_head", "raced_base"}:
         harness.pr_override = {
             "number": 42,
             "state": "open",
             "base": {
-                "sha": harness.base,
+                "sha": "f" * 40 if fault == "raced_base" else harness.base,
                 "repo": {"id": harness.repo_id, "full_name": harness.repository},
             },
             "head": {
-                "sha": "f" * 40,
+                "sha": "f" * 40 if fault == "raced_head" else harness.head,
                 "ref": "codex/fixture",
                 "repo": {"id": harness.repo_id, "full_name": harness.repository},
             },
@@ -2773,6 +2787,41 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
                 {"path": "app/planning.py", "type": "blob", "mode": "100644", "sha": "f" * 40}
             ],
         }
+    if fault in {
+        "array_source_mode",
+        "object_source_mode",
+        "foreign_app",
+        "mixed_attempt",
+        "both_markers",
+        "inherited_source",
+        "duplicate_cell",
+        "extra_cell",
+        "wrong_artifact_head",
+        "outside_upload",
+        "archive_digest",
+        "unsafe_zip",
+        "unsafe_xml",
+        "raced_source",
+        "raced_source_base",
+        "raced_head",
+        "raced_base",
+        "wrong_merge_parents",
+        "different_merge_tree",
+    }:
+        with pytest.raises(
+            (
+                ci_reuse.ReuseError,
+                reuse_identity.CommitIdentityError,
+                reuse_evidence.ReviewEvidenceError,
+            )
+        ):
+            ci_reuse.plan_reuse(
+                repo_root=harness.root,
+                context=harness.target_context,
+                run=harness.target_run,
+                token="opaque-test-token",
+                checkout_sha=harness.synthetic_head,
+            )
     with pytest.raises(
         (
             ci_reuse.ReuseError,
@@ -2783,11 +2832,54 @@ def test_mapping_reuse_projection_rejects_contradictory_or_raced_native_evidence
         harness.project(plan=plan)
 
 
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "absent",
+        "missing_writer",
+        "missing_cell",
+        "failed_job",
+        "missing_artifact",
+        "expired_artifact",
+        "old_source_base",
+        "missing_step",
+        "missing_markers",
+    ],
+)
 def test_mapping_reuse_missing_source_executes_without_older_green_search(
     native_reuse: _NativeReuseHarness,
+    fault: str,
 ) -> None:
     harness = native_reuse
-    harness.runs.pop(101)
+    if fault == "absent":
+        harness.runs.pop(101)
+    elif fault == "missing_writer":
+        harness.native_jobs[101] = [
+            job for job in harness.native_jobs[101] if job["name"] != ci_reuse.WRITER_NAME
+        ]
+    elif fault == "missing_cell":
+        harness.native_jobs[101].remove(harness.source_job_rows[0])
+    elif fault == "failed_job":
+        job = harness.source_job_rows[0]
+        job["conclusion"] = "failure"
+        harness.checks[job["id"]]["conclusion"] = "failure"
+    elif fault == "missing_artifact":
+        harness.artifacts[101].remove(harness.artifacts[101][0])
+    elif fault == "expired_artifact":
+        harness.artifacts[101][0]["expires_at"] = "2020-01-01T00:00:00Z"
+    elif fault == "old_source_base":
+        harness.source_run["pull_requests"][0]["base"]["sha"] = "d" * 40
+    elif fault == "missing_step":
+        job = harness.source_job_rows[0]
+        job["steps"] = [
+            step for step in job["steps"] if not step["name"].startswith("Critical smoke")
+        ]
+    else:
+        next(
+            step
+            for step in harness.source_job_rows[0]["steps"]
+            if step["name"] == ci_reuse.DIRECT_MARKER
+        )["conclusion"] = "skipped"
     plan = ci_reuse.plan_reuse(
         repo_root=harness.root,
         context=harness.target_context,
@@ -2795,7 +2887,21 @@ def test_mapping_reuse_missing_source_executes_without_older_green_search(
         token="opaque-test-token",
         checkout_sha=harness.synthetic_head,
     )
-    assert plan["mode"] == "executed" and plan["reason"] == "source_absent"
+    assert plan["mode"] == "executed"
+    assert (
+        plan["reason"]
+        == {
+            "absent": "source_absent",
+            "missing_writer": "source_evidence_writer_absent",
+            "missing_cell": "native_test_universe_incomplete",
+            "failed_job": "selected_native_job_not_successful",
+            "missing_artifact": "attempt_specific_artifact_absent",
+            "expired_artifact": "source_artifact_expired",
+            "old_source_base": "latest_source_base_differs",
+            "missing_step": "required_native_execution_step_not_successful",
+            "missing_markers": "native_execution_proof_absent",
+        }[fault]
+    )
     assert plan["source"] is None
     assert (
         ci_reuse.project_reuse(
@@ -2817,6 +2923,7 @@ def test_mapping_reuse_new_pending_source_selects_ordinary_plan(
     native_reuse: _NativeReuseHarness,
 ) -> None:
     harness = native_reuse
+    harness.source_run["pull_requests"][0]["base"]["sha"] = "d" * 40
     harness.add_run(103, harness.material, complete=False)
     plan = ci_reuse.plan_reuse(
         repo_root=harness.root,
@@ -3658,6 +3765,8 @@ def test_mapping_reuse_document_and_projection_cell_malformed_boundaries(
     for mutation in (
         {"schema_version": "other"},
         {"mode": "neutral"},
+        {"mode": []},
+        {"mode": {}},
         {"fingerprint": "sha256:" + "0" * 64},
         {"run": {"run_id": 102}},
         {"run": {**harness.plan["run"], "run_attempt": True}},
@@ -3765,7 +3874,7 @@ def test_mapping_reuse_native_step_order_and_missing_current_aggregate_are_block
         harness.project()
     smoke["number"], finalize["number"] = finalize["number"], smoke["number"]
     harness.add_jobs(harness.target_run, harness.policy, reused=True)
-    with pytest.raises(ci_reuse.ReuseError, match="artifact is absent"):
+    with pytest.raises(ci_reuse.ReuseError, match="attempt_specific_artifact_absent"):
         ci_reuse.verify_current_reuse(
             repo_root=harness.root, repository="owner/repo", pr_number=42, token="opaque-test-token"
         )

@@ -562,17 +562,20 @@ def test_wrapper_rejects_mixed_event_and_local_modes() -> None:
 
 
 @pytest.mark.parametrize(
-    ("script_path", "expected_timeout"),
+    ("name", "script_path", "isolated", "expected_timeout"),
     (
-        (merge_ready.MERGE_GATE, 480),
-        (merge_ready.DISPOSITION_GATE, 480),
-        (merge_ready.PHASE2_GATE, 120),
-        (merge_ready.CURRENT_HEAD_CHECKS_GATE, 120),
+        ("merge-readiness-gate", merge_ready.MERGE_GATE, False, 1080),
+        ("review-threads-disposition", merge_ready.DISPOSITION_GATE, False, 480),
+        ("phase2-pr-body-gates", merge_ready.PHASE2_GATE, False, 120),
+        ("current-head-checks", merge_ready.CURRENT_HEAD_CHECKS_GATE, False, 420),
+        ("base-ci-test-evidence", Path("/tmp/base/scripts/ci/mapping_only_ci_reuse.py"), True, 300),
     ),
 )
 def test_run_gate_returns_failure_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
+    name: str,
     script_path: Path,
+    isolated: bool,
     expected_timeout: int,
 ) -> None:
     observed_timeout: list[int] = []
@@ -588,9 +591,10 @@ def test_run_gate_returns_failure_on_timeout(
     monkeypatch.setattr(merge_ready.subprocess, "run", raise_timeout)
 
     result = merge_ready._run_gate(
-        "merge-readiness-gate",
+        name,
         script_path,
         ["--pr-number", "1007", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
+        isolated=isolated,
     )
 
     assert result.returncode == 1
