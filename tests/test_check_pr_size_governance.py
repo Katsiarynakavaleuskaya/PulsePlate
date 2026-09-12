@@ -21,6 +21,119 @@ TRUSTED_FRONTEND_MIX = {
 }
 
 
+@pytest.mark.parametrize("client_prefix", ["frontend/", "ios/", "./ios/"])
+@pytest.mark.parametrize("count", [20, 21, 30, 31])
+def test_client_vertical_scope_preserves_size_boundaries(client_prefix: str, count: int) -> None:
+    body = _standard_body(
+        "\n## Split Justification\nOne client flow and its owning tests ship together.\n"
+        "Operator approval: approved\nFrontend vertical MVP approval: approved\n"
+    )
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1200,
+        counted_files=count,
+        changed_files=[f"{client_prefix}screen_{index}.swift" for index in range(count)],
+        pr_body=body,
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
+    )
+    assert code == (1 if count > 30 else 0), lines
+    assert any("category: frontend_vertical_mvp" in line for line in lines)
+
+
+@pytest.mark.parametrize("missing", ["operator_label", "lane_label", "body", "justification"])
+def test_native_vertical_scope_rejects_incomplete_approval(missing: str) -> None:
+    body = _standard_body(
+        "\n## Split Justification\nOne native flow and its owning tests ship together.\n"
+        "Operator approval: approved\nFrontend vertical MVP approval: approved\n"
+    )
+    labels = set(TRUSTED_FRONTEND_MVP)
+    if missing == "operator_label":
+        labels.remove("operator-approved")
+    elif missing == "lane_label":
+        labels.remove("scope/frontend-mvp-approved")
+    elif missing == "body":
+        body = body.replace("Frontend vertical MVP approval: approved", "")
+    else:
+        body = body.replace(
+            "## Split Justification\nOne native flow and its owning tests ship together.", ""
+        )
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1200,
+        counted_files=22,
+        changed_files=[f"ios/screen_{index}.swift" for index in range(22)],
+        pr_body=body,
+        trusted_approvals=labels,
+    )
+    assert code == 1
+    assert any("frontend vertical MVP proof missing" in line for line in lines)
+
+
+@pytest.mark.parametrize("client_prefix", ["frontend/", "ios/", "./ios/"])
+@pytest.mark.parametrize("mix_approved", [False, True])
+def test_client_backend_mix_requires_specific_approval(
+    client_prefix: str, mix_approved: bool
+) -> None:
+    body = _standard_body(
+        "\n## Split Justification\nOne client flow and its API contract.\n"
+        "Operator approval: approved\nFrontend vertical MVP approval: approved\n"
+        "Frontend/backend mix approval: approved\n"
+    )
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=20,
+        counted_files=2,
+        changed_files=[f"{client_prefix}screen.swift", "app/routers/example.py"],
+        pr_body=body,
+        trusted_approvals=TRUSTED_FRONTEND_MIX if mix_approved else TRUSTED_FRONTEND_MVP,
+    )
+    assert code == (0 if mix_approved else 1), lines
+    assert any("category: frontend_vertical_mvp" in line for line in lines)
+
+
+@pytest.mark.parametrize("client_prefix", ["frontend/", "ios/", "./ios/"])
+@pytest.mark.parametrize("count", [2, 28, 31])
+@pytest.mark.parametrize("mix_approved", [False, True])
+@pytest.mark.parametrize("size_approved", [False, True])
+def test_privileged_client_mix_preserves_independent_approvals(
+    client_prefix: str, count: int, mix_approved: bool, size_approved: bool
+) -> None:
+    body = _standard_body(
+        "\n## Split Justification\nClient delivery and its required guard correction.\n"
+        "Operator approval: approved\nPrivileged scope exception: approved\n"
+        "Frontend/backend mix approval: approved\n"
+    )
+    labels = {"scope/operator-approved"}
+    if mix_approved:
+        labels.add("scope/frontend-backend-mix-approved")
+    if size_approved:
+        labels.add("scope/privileged-approved")
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1200,
+        counted_files=count,
+        changed_files=["scripts/ci/check.py"]
+        + [f"{client_prefix}screen_{index}.swift" for index in range(count - 1)],
+        pr_body=body,
+        trusted_approvals=labels,
+    )
+    expected = 0 if mix_approved and (count <= 15 or size_approved) and count <= 30 else 1
+    assert code == expected, lines
+    assert any("category: privileged_ci_security_workflow" in line for line in lines)
+
+
+@pytest.mark.parametrize("prefix", ["ios-lookalike/", "frontend-copy/", "docs/ios/"])
+def test_client_scope_does_not_admit_lookalike_prefixes(prefix: str) -> None:
+    code, lines = size_gate.evaluate_pr_size_policy(
+        total_changed_lines=1200,
+        counted_files=22,
+        changed_files=[f"{prefix}screen_{index}.swift" for index in range(22)],
+        pr_body=_standard_body(
+            "\n## Split Justification\nOnly declared client roots have this exception.\n"
+            "Operator approval: approved\nFrontend vertical MVP approval: approved\n"
+        ),
+        trusted_approvals=TRUSTED_FRONTEND_MVP,
+    )
+    assert code == 1
+    assert any("category: standard_governance_design" in line for line in lines)
+
+
 def test_repo_root_can_be_overridden_for_trusted_base_script_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

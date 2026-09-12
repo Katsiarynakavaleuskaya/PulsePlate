@@ -20,12 +20,20 @@ NC='\033[0m' # No Color
 if command -v rg >/dev/null 2>&1; then
     _match() { rg -q "$1"; }
     _filter() { rg "$1" || true; }
-    _count() { rg -c "$1" 2>/dev/null || echo 0; }
 else
     _match() { grep -Eq "$1"; }
     _filter() { grep -E "$1" || true; }
-    _count() { grep -Ec "$1" 2>/dev/null || echo 0; }
 fi
+
+# Count through one portable implementation: no-match is one zero, errors propagate.
+# ENVIRON preserves regex backslashes; BEGIN validates even when stdin is empty.
+_count() {
+    PR_SCOPE_COUNT_PATTERN="$1" awk '
+        BEGIN { pattern = ENVIRON["PR_SCOPE_COUNT_PATTERN"]; checked = ("" ~ pattern) }
+        $0 ~ pattern { count++ }
+        END { print count + 0 }
+    '
+}
 
 # Base ref resolution:
 # - GitHub Actions PRs: GITHUB_BASE_REF
@@ -97,7 +105,7 @@ if echo "$CHANGED_FILES" | _match '^(app|core)/.*\.py$'; then
     echo "   Runtime PR detected (app/ or core/ Python changes)"
 else
     HAS_RUNTIME=0
-    echo "   Docs-only PR detected (no app/ or core/ Python changes)"
+    echo "   No app/ or core/ Python runtime changes detected"
 fi
 
 # Check 1: Python files in docs/pr (ALWAYS BLOCK)
