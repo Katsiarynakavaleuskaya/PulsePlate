@@ -23,7 +23,11 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_binding
-from scripts.orchestration.qoder_dispatch_bridge import _parse_args, build_dispatch_manifest
+from scripts.orchestration.qoder_dispatch_bridge import (
+    _load_agent_definition,
+    _parse_args,
+    build_dispatch_manifest,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -1041,6 +1045,28 @@ def test_startup_guide_exposes_ordered_stage_actions_and_canonical_links() -> No
     ):
         assert "docs/orchestration/workflow.md" in _read(path)
     assert "core.db.load_canonical_orm_metadata()" in _read("tests/AGENTS.md")
+
+
+@pytest.mark.parametrize("surface", ["frontmatter", "When Invoked"])
+def test_bug_hunter_invocation_is_coordinator_scoped(surface: str) -> None:
+    """Cover the two named invocation surfaces and their retired trigger examples."""
+    document = _read(".cursor/agents/bug-hunter.md")
+    if surface == "frontmatter":
+        definition = _load_agent_definition("bug-hunter", source_text=document)
+        assert definition is not None
+        text = definition["description"]
+        retired = ("Use immediately", "Proactively finds")
+    else:
+        text = _exact_bounded_section(
+            document,
+            start_line="## When Invoked",
+            end_line="## Bug Detection Workflow",
+        )
+        retired = ("**Immediately after code changes**", "**Before commits**", "**Proactively**")
+        assert "AGENTS.md" in text and "Role-Agent Order Contract" in text
+    assert not any(trigger in text for trigger in retired), "Retired automatic invocation trigger"
+    assert "coordinator-assigned bounded review" in text
+    assert "explicitly requested diagnosis" in text
 
 
 _SUPPRESSION_MUTATIONS = (

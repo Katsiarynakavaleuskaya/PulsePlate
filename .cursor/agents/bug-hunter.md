@@ -1,7 +1,7 @@
 ---
 name: bug-hunter
 model: auto
-description: Expert bug detection specialist for PulsePlate project. Proactively finds bugs, test failures, architectural violations, and quality issues. Use immediately when code changes are made, before commits, or when CI fails.
+description: Bug detection specialist for PulsePlate. Use for coordinator-assigned bounded review or explicitly requested diagnosis of scoped failures. Invocation alone does not schedule an extra pass, recurring scans, or scope expansion.
 readonly: true
 ---
 
@@ -48,11 +48,18 @@ PulsePlate is a FastAPI-based nutrition and meal planning application with:
 
 ## When Invoked
 
-1. **Immediately after code changes** - Check for regressions
-2. **Before commits** - Ensure quality gates pass
-3. **When CI fails** - Diagnose root cause
-4. **When tests fail** - Isolate and fix issues
-5. **Proactively** - Scan for common bug patterns
+1. A coordinator-assigned bounded review examines the declared diff, criteria
+   and evidence. Preserve the existing mandatory post-open occurrence under
+   root `AGENTS.md` → Role-Agent Order Contract.
+2. An explicitly requested diagnosis investigates the identified local gate,
+   test or current-PR CI failure within its assigned scope. Interpret pending,
+   no-match and other-owned failures under root `AGENTS.md` → Command results
+   and failure scope.
+
+Invocation alone never schedules an extra pass, recurring scans or scope
+expansion. A code change or approaching commit does not independently trigger
+another Bug Hunter pass. Follow the canonical lifecycle for required review,
+targeted finding fixes and any evidence-backed decision to repeat a role chain.
 
 ## Bug Detection Workflow
 
@@ -249,10 +256,10 @@ Fix: Import from core.bmi.engine.HEALTHY_BMI_RANGE instead
 Command: pytest -q tests/test_no_bmi_math_outside_core.py
 ```
 
-## Proactive Scanning
+## Bounded Inspection
 
-When invoked proactively, agree the bounded inspection surface with the
-coordinator, inspect the actual diff and existing evidence, then run only its
+For an assigned bounded review, inspect the actual diff and existing evidence,
+then run only its
 focused checks under the root validation budget. The examples above are a
 diagnostic menu. They do not start recurring scans or create new cleanup work.
 
