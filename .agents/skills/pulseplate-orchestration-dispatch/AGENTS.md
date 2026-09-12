@@ -1,72 +1,48 @@
 # Orchestration Dispatch — Agent Instructions
 
-## Envelope Protocol
+Root `AGENTS.md` owns authority, required roles and validation budgets.
+`docs/orchestration/workflow.md` owns staged startup; this scope consumes the
+existing packet and bridge under `SKILL.md`.
 
-Communication between the dispatch layer and agents uses two envelope types:
+## Envelopes and sources
 
-- **TASK_PACKET_V1** (dispatcher → agent): Contains task scope, constraints,
-  required context paths, and expected output format.
-- **AGENT_RESULT_V1** (agent → dispatcher): Contains status, findings, artifacts
-  produced, and blockers encountered.
-- **REPAIR_REQUEST_V1** (dispatcher → agent): Sent when result is insufficient;
-  contains what's missing and retry constraints.
+Use the existing `TASK_PACKET_V1`, `AGENT_RESULT_V1` and `REPAIR_REQUEST_V1`
+envelopes when the canonical message protocol requires them. A generated
+packet, partial result or native transport label grants no execution authority.
 
-Envelope usage is optional in Qoder — natural language prompts work. Envelopes
-add structure for audit trail and cross-tool compatibility.
+The bridge's validated manifest owns ordered occurrences and permissions;
+the packet's native bindings own transport types. Do not maintain a copied
+role/type table or a manual Markdown parser. Follow `rules/packet-parsing.md`
+and `rules/role-mapping.md`.
 
-## Role Mapping (Summary)
+## Context loading
 
-| Agent slug | Qoder type | Notes |
-|------------|-----------|-------|
-| agent-coordinator | Research | Always analysis mode |
-| architecture-specialist | Research | Read-only |
-| philosophy-agent | Research | Read-only |
-| rag-systems-agent | Research | Coding if mode=runtime |
-| security-auditor | Research | Read-only |
-| qa-engineer-agent | Verify | Runs tests |
-| bug-hunter | Verify | Runs tests |
-| backend-engineer | Coding | Research if mode=analysis |
-| frontend-engineer | Coding | Browser if UI validation |
-| dev-operator | Coding | Research if mode=analysis |
-| All others | Research | Safe fallback |
+Follow `rules/context-loading.md`. The coordinator resolves wildcard/directory
+navigation through the canonical context map into task-applicable concrete
+paths with reasons, without dropping literal mandatory files. Full selected
+role/authority/context sources, the current packet, accepted criteria and
+predecessor evidence must reach the child. Summaries may cover optional
+references; they do not replace mandatory instructions to fit a budget.
 
-Full mapping: `rules/role-mapping.md`
+For supported JSON packets, `--role-context-order <N>` requests exact full
+context for one existing occurrence. Use a complete successful delivery
+directly. `complete=false` requires manual loading before claiming complete
+context; errors remain fail-closed. Exact delivery has no persisted cache.
 
-## Context Loading
+## Serial execution and phases
 
-1. Read `docs/orchestration/AGENT_CONTEXT_MAP.md` for per-role requirements
-2. Load each file listed under `required_context` for the active role
-3. Include loaded content in the subagent prompt under "Required Context"
-4. If total context exceeds ~50K tokens, summarize secondary/conditional files
+Preserve `dispatch_sequence`, including repeated slugs, and
+`parallel_execution_allowed=false`. Group metadata grants no parallel work.
+Carry each predecessor's evidence to its dependent occurrence. Do not append
+post-open roles to an earlier phase or skip a required readonly role.
 
-For JSON packet-backed roles that require exact full context, opt in with
-`--role-context-order <N>`. The resulting
-`pulseplate.role-context-output.v1` envelope wraps the unchanged v2 manifest,
-the selected current dispatch occurrence, exact full source contents, the
-current packet outside the static source list, and read metrics. Use those
-returned contents directly. Do not summarize, truncate, or reread a successful
-exact delivery. Unsupported glob or directory context returns
-`complete=false` and requires the existing manual loading route.
+The later post-open role pass and conditions for repeating it are owned by root
+`AGENTS.md` → Role-Agent Order Contract. New comments require disposition and
+targeted validation, not an automatic new role chain or provider invocation.
 
-The bridge has no context-cache flag or persisted context store. Every exact
-invocation revalidates current repository bytes.
+## Results and model selection
 
-## Parallelization Rules
-
-- Agents in the same `parallelizable_groups` array MAY run concurrently
-- An agent with `depends_on_previous: true` MUST wait for its predecessor
-- The post-open mandatory pass is always sequential: qa-engineer → bug-hunter
-- Coordinator (first) and QA pass (last) are never parallelized with others
-- The post-open role/security/review chain is one required pass per PR lane. Do
-  not rerun the full chain for each new review comment. Later comments are
-  handled through `docs/review/PR_<N>_FIXED_MAPPING.md` disposition and targeted
-  validation unless a new security-relevant diff, coordinator routing update, or
-  explicit operator instruction reopens the chain.
-
-## Error Handling
-
-- `status: "completed"` — proceed to next agent
-- `status: "blocked"` — stop sequence, report blocker to user, do NOT skip
-- `status: "partial"` — feed partial results to next agent, flag for synthesis
-- If an agent fails to produce a result within timeout, treat as blocked
-- Never auto-retry more than once without user confirmation
+Use root `AGENTS.md` → Command results and failure scope. An unresolved
+prerequisite blocks its dependent action; partial evidence is not a passed gate.
+Native model/effort inheritance, opt-in routing, unavailability and escalation
+follow `docs/agents/model_policy.md`; this skill adds no retry budget.
