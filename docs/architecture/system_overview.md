@@ -6,6 +6,7 @@
 
 - [Canonical entrypoint](#canonical-entrypoint)
 - [Routing map](#routing-map-source-of-truth)
+- [iOS adaptive navigation shell](#ios-adaptive-navigation-shell)
 - [FitChef support handoff](#fitchef-support-handoff-pr-2320-landed)
 - [FitChef support outcome ledger](#fitchef-support-outcome-ledger)
 - [OpenAPI generation mode](#openapi-generation-mode-current)
@@ -34,6 +35,59 @@
 ## Routing map (source of truth)
 
 See: `docs/architecture/backend_routing_map.md` (evidence-driven router registration map).
+
+## iOS adaptive navigation shell
+
+The iOS presentation shell has one closed five-section inventory in the stable
+order `Home / BMI / Today / Progress / Profile`. `AppSection` owns identity,
+localization keys, and SF Symbols; `RootTabs` owns one `TabView(selection:)`
+with stable tags. It applies `sidebarAdaptable` on iOS 18 and keeps the default
+system tab presentation on iOS 17. Labels resolve through the app-selected
+`LocalizationManager.currentLanguage` in EN/RU/ES.
+
+Home and BMI retain their external stacks in `RootTabs`. Today, Progress, and
+Profile remain direct children with their existing self-owned stacks, so the
+shell does not add redundant navigation containers. Today uses its existing
+stack's localized inline navigation title, keeping its subtitle and footer in
+their existing content positions. Weekly Progress is
+navigation-neutral and reachable exactly once beneath Progress. Technical
+destinations in Profile and Today are compile-gated under `#if DEBUG`; Today's
+Release fallback opens Profile. Diagnostics never become a top-level tab.
+
+Progress owns the `HealthKitManager` used by its Weekly child as a session-scoped
+`StateObject`. Recreated Weekly destinations observe the same injected reference
+while that Progress container remains alive. Request/query behavior stays in the
+existing manager; the retained request-completion state is not proof of per-type
+HealthKit read permission and does not survive a destroyed parent or app relaunch.
+Progress state labels and actions also use the app-selected localization manager.
+
+The manually managed Debug and Release plists explicitly select the existing
+`LaunchScreen` storyboard, declare iPhone/iPad orientation arrays and the existing
+single-scene lifecycle, and provide the existing Health read-purpose fallback.
+All four source `Info*.plist` files are excluded from synchronized app resources;
+the built application uses its processed canonical `Info.plist`. Source settings
+alone do not establish the effective bundle metadata or native viewport behavior.
+
+This remains a thin presentation shell. It owns no backend, OpenAPI, DTO,
+entitlement, billing, calculation, or persistence authority.
+
+Evidence:
+
+- `ios/PulsePlate/Models/AppSection.swift:3-52`
+- `ios/PulsePlate/Views/RootTabs.swift:4-58`
+- `ios/PulsePlate/Views/PlateView.swift:203-204`
+- `ios/PulsePlate/Views/ProgressView.swift:4`
+- `ios/PulsePlate/Views/ProgressView.swift:285`
+- `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
+- `ios/PulsePlate/Models/HealthKitManager.swift:37`
+- `ios/PulsePlate/Views/ProfileView.swift:5`
+- `ios/PulsePlate/Views/ProfileView.swift:101`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
+- `ios/PulsePlate/Info-Debug.plist:19`
+- `ios/PulsePlate/Info-Release.plist:25`
+- `ios/PulsePlate.xcodeproj/project.pbxproj:54`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:580`
+- `ios/PulsePlateTests/AppNavigationShellTests.swift:642`
 
 ## FitChef support handoff (PR #2320 landed)
 

@@ -2,8 +2,10 @@ import SwiftUI
 
 struct ProfileView: View {
     @ObservedObject var localization = LocalizationManager.shared
+    #if DEBUG
     @State private var showAnimationTest = false
     @State private var showBundleTest = false
+    #endif
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -16,9 +18,11 @@ struct ProfileView: View {
     @AppStorage("pro_profile_activity") private var proActivity: String = ProProfileActivity.moderate.rawValue
     @AppStorage("pro_profile_goal") private var proGoal: String = ProProfileGoal.maintain.rawValue
 
+    #if DEBUG
     private var isAppStoreScreenshotMode: Bool {
         AppStoreScreenshotContext.isEnabled
     }
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -94,6 +98,7 @@ struct ProfileView: View {
                         systemImage: "globe"
                     )
                 }
+                #if DEBUG
                 if !isAppStoreScreenshotMode {
                     Section(header: Text("Animation Test")) {
                         Button("Test MP4 Animation") {
@@ -105,8 +110,12 @@ struct ProfileView: View {
                         NavigationLink("Test Lottie Animation") {
                             LottieTestView()
                         }
+                        NavigationLink("Debug Tools") {
+                            DebugToolsScreen()
+                        }
                     }
                 }
+                #endif
                 Section(header: Text(localization.localized("profile_legal_section"))) {
                     if let privacyURL = URL(string: "https://pulseplate.app/privacy") {
                         Link(destination: privacyURL) {
@@ -127,12 +136,14 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle(localization.localized("home.action.profile.title"))
+            #if DEBUG
             .sheet(isPresented: $showAnimationTest) {
                 SimpleVideoTest()
             }
             .sheet(isPresented: $showBundleTest) {
                 BundleTestView()
             }
+            #endif
             .accessibilityLabel(localization.localized("profile_screen_accessibility_label"))
         }
     }

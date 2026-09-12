@@ -1,4 +1,13 @@
 /* English Localization */
+/* Adaptive Navigation Shell */
+"BMI" = "BMI";
+"navigation.tab.home" = "Home";
+"navigation.tab.bmi" = "BMI";
+"navigation.tab.today" = "Today";
+"navigation.tab.progress" = "Progress";
+"navigation.tab.profile" = "Profile";
+"navigation.progress.weekly" = "Weekly progress";
+
 "chart.day" = "Day";
 "chart.kcal" = "kcal";
 "week_no_data" = "No data for this week";
@@ -59,7 +68,6 @@
 "plate_issue_title_decoding" = "Unexpected response";
 "plate_issue_title_unknown" = "Something went wrong";
 
-"plate_issue_message_missing_pro_key_debug" = "Load a PRO key in PRO Settings -> Debug Tools -> Keychain or use an explicitly injected test provider. Xcode environment variables are not used for runtime PRO access.";
 "plate_issue_message_missing_pro_key" = "PRO is not available on this device.";
 "plate_issue_message_missing_profile" = "Open Profile and enter sex, age, height, and weight.";
 "plate_issue_message_unauthorized" = "Your PRO key is missing or invalid.";
@@ -96,8 +104,8 @@
 "home.accessibility.screen_label" = "Home screen";
 "home.state.loading.title" = "Preparing your next step";
 "home.state.loading.detail" = "Checking your access before showing planning options.";
-"home.state.free_ready.title" = "Start with a clear baseline";
-"home.state.free_ready.detail" = "Check your BMI, then add profile details when you are ready.";
+"home.state.free_ready.title" = "Check your BMI to get started";
+"home.state.free_ready.detail" = "A quick calculation shows your starting point.";
 "home.state.paid_needs_profile.title" = "Complete your profile";
 "home.state.paid_needs_profile.detail" = "Add the required details before opening your planning options.";
 "home.state.paid_ready.title" = "Start with today";
@@ -129,6 +137,10 @@
 "progress.nutrient_progress.title" = "Nutrient progress";
 "progress.complete" = "of daily goal";
 "progress.label" = "Daily nutrition progress";
+"progress.loading" = "Loading progress data...";
+"progress.empty.title" = "No progress data";
+"progress.empty.detail" = "Configure profile + key, then refresh to load your current day.";
+"progress.action.refresh" = "Refresh";
 "progress.chart.nutrient_category" = "Nutrient category";
 "progress.chart.completion" = "Completion";
 "plate.preview.add_meal" = "Add Meal";

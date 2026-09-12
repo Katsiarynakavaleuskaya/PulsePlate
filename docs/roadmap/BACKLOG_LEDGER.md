@@ -24,6 +24,69 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-ios-iphone-duo-native-validation"></a>
+- [ ] P1: Validate iPhone Duo adaptive navigation with official simulator support
+  - Owner: iOS lane owner / qa-engineer-agent
+  - Priority: P1 (release compatibility)
+  - Target PR: dedicated iOS compatibility PR after official simulator availability
+  - Status: Follow-up recorded from the operator's 10 September 2026 device update;
+    no current PR #2376 implementation, acceptance, CI, or merge blocker.
+  - Reason for deferral: Local Xcode 26.6 exposes no Duo device type. Apple's
+    developer page lists Xcode 27.1 beta/tools as coming later in September 2026.
+  - Sources: [Apple announcement](https://www.apple.com/newsroom/2026/09/apple-unveils-iphone-duo/)
+    and [Apple developer availability](https://developer.apple.com/iphone-duo/),
+    checked on 10 September 2026.
+  - DoD: Use an official supported simulator and record its exact Xcode/runtime
+    identity; exercise opening, closing, and resizing; verify selected-section
+    continuity and the Progress-owned Weekly manager/request-completion state
+    within one app lifetime; inspect localization, accessibility, clipping and
+    action reachability; retain focused tests/native evidence and normal PR gates.
+  - Limits: Existing iPad window captures do not prove Duo behavior. Do not invent
+    display dimensions or hinge behavior, infer relaunch persistence or HealthKit
+    read grants, or adopt SDK/Xcode/CI/runtime changes through this reference item.
+    It does not authorize automatic future work or beta-tool adoption.
+
+<a id="ledger-p2-ios-hosted-uikit-test-guidance"></a>
+- [ ] P2: Promote observed UIKit-backed SwiftUI test guidance into scoped instructions
+  - Owner: qa-engineer-agent / iOS lane owner
+  - Priority: P2 (engineering instructions)
+  - Target PR: PR-TBD-IOS-HOSTED-UIKIT-TEST-GUIDANCE
+  - Status: Instruction promotion deferred from PR #2376; the executable hosted
+    spinner regression and native visual evidence remain in that implementation PR.
+  - Reason for deferral: Keep the navigation work package within its standard
+    20-path limit, including the required closeout artifact. The process-only
+    instruction addition is separate from the retained correctness fix.
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift:290`;
+    local retained proposal
+    `artifacts/orchestration/ios_rel2/recovery_20260908/spinner-ci-learning-record.json`
+    and the verified PR #2376 recovery checkpoint.
+  - DoD: Review the retained CI and native evidence; promote one bounded rule to
+    `ios/AGENTS.md` explaining when to inspect public UIKit state because
+    `ImageRenderer` does not render the embedded native view. Require real
+    hierarchy/color/state assertions, retain raster evidence where supported,
+    and add no skips, private-class heuristics, or product changes.
+
+<a id="ledger-p1-ios-xctest-isolated-deinit-runtime-matrix"></a>
+- [ ] P1: Validate XCTest isolated-deinit execution across supported iOS runtimes
+  - Owner: qa-engineer-agent / iOS lane owner
+  - Priority: P1 (test/toolchain reliability)
+  - Target PR: TBD dedicated iOS test-infrastructure or scoped-instructions PR
+  - Status: Follow-up identified by PR #2376; its manager-identity regression now
+    executes as a main-actor async XCTest with all identity/state assertions retained.
+  - Reason for deferral: The synchronous test aborted in Swift task-local deinit
+    bookkeeping on iOS 26.2 with Xcode 26.6. The matched upstream reproduction and
+    successful async rerun do not establish a repository-wide or cross-runtime rule.
+    A broader concurrency change is outside the navigation-shell recovery.
+  - Evidence: `ios/PulsePlateTests/AppNavigationShellTests.swift:233`;
+    [Swift #85663](https://github.com/swiftlang/swift/issues/85663) and
+    [Swift #88036](https://github.com/swiftlang/swift/issues/88036).
+  - DoD: Preserve a minimal non-product reproduction and sanitized stack; compare
+    synchronous and main-actor async XCTest on exact supported iOS 17.5 and current
+    iOS 26 runtimes with recorded Xcode/Swift versions; classify test-only,
+    runtime-visible, version-specific, or unresolved results; promote a scoped
+    instruction only if supported by observed evidence. No leaked objects, empty
+    product deinit workarounds, test skips, HealthKit changes, or broad concurrency migration.
+
 <a id="ledger-p1-main-recovery-1-image-publication"></a>
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
@@ -2875,6 +2938,134 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Late-phase client hint work is explicitly limited to consuming the
       already existing backend `next_best_action` contract
 
+<a id="ledger-p1-ios-release-design-train-navigation-shell"></a>
+- [ ] P1: IOS-REL-2 consumer-first adaptive navigation shell
+  - Owner: frontend-engineer / agent-coordinator
+  - Priority: P1 (iOS release design train)
+  - Target PR: [PR #2376](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2376)
+    (`codex/ios-adaptive-navigation-shell`)
+  - Status: Same-PR recovery implements Weekly session-manager retention and
+    Progress localization while preserving Candidate A and merged V5 visuals.
+    Native launch/orientation and plist-resource metadata are corrected in the
+    same carrier after the Release probe exposed their missing effective values.
+    Native accessibility findings are also addressed in this carrier: readable
+    Progress cards/axes and whole-word Weekly titles at Accessibility 5, plus the
+    owner-authorized primary-button contrast correction on 8 September 2026.
+    The Product Owner accepted the bounded 14-frame Human V1 kit as `GO` on
+    9 September 2026 at material head
+    `f8f65b2bf5b42777681d4a3cce1cdbfe7f284088`. Current-head CI, canonical
+    closeout, and merge remain pending; the operator delegated merge after those
+    gates. The visual acceptance does not establish HealthKit read permission,
+    persistence across relaunch, or geometry beyond the captured window conditions.
+    Late review corrections give Today's native navigation bar an explicit visible
+    dark scheme and align the existing BMI title/Spanish entry-copy translations;
+    focused hosted tests and supplemental native probes cover these corrections.
+    The owner also requested localized consumer PRO-access messages on the same
+    screens. Their canonical title/message mapping now follows app-selected
+    language and omits developer setup instructions; service/auth/action behavior
+    is unchanged. The owner explicitly expanded this PR's existing-screen scope
+    on 10 September 2026 and rejected a separate prerequisite PR.
+  - Dependency: PR `#2368` merged at
+    `6327960917e2a04e5fec0d89b358b51781b12f67`
+    - V5 asset prerequisite [#2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
+      merged at `5adbb917e54261e999c076e77bbff92d3c53fcdd`
+    - Release/AppIcon prerequisite [#2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
+      merged at `d9883bc9c0a6eb69691c5b2cda3795c387758c9f`
+    - RubyZip prerequisite
+      [#2347](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2347)
+      merged at `e5d162168a866b64f1750f396e6034643f210cca` and is inherited by
+      this branch. Current-head security checks remain independently required;
+      Trivy policy maintenance and general main health have a separate owner.
+  - Area: ios / navigation / localization / accessibility / tests / docs
+  - Finding Type: consumer-first top-level navigation release slice
+  - Scope / Reason:
+    - Compile one closed presentation inventory in this exact order:
+      `Home / BMI / Today / Progress / Profile`
+    - Use stable `TabView(selection:)` tags, iOS 18 `sidebarAdaptable`, and the
+      default system tab presentation on iOS 17 while preserving section state
+    - Keep Weekly Progress reachable exactly once under Progress, resolve all
+      shell labels through app-selected `LocalizationManager.currentLanguage`
+      in EN/RU/ES, and exclude technical Profile UI from Release builds
+    - Retain the same Progress-owned HealthKit manager across Weekly pop/re-entry
+      within one parent lifetime, without authorization/query changes or a new
+      permission-state carrier; localize the touched Progress states and actions
+    - Make the existing launch storyboard, accepted orientations, single-scene
+      lifecycle and Health read-purpose fallback explicit in both active plists;
+      exclude the inactive fourth Info plist through the existing target exception
+    - Keep Progress card material readable in Light and Reduce Transparency;
+      give the Weekly title the full row width at accessibility sizes and retain
+      the existing chart data/scale with explicitly readable axis styling
+    - Owner-authorized scope amendment: primary PPButton labels and loading
+      indicators use the existing Navy foreground over unchanged primary blue.
+      This fixes the observed Today CTA contrast in this PR without a new
+      prerequisite, token, variant, asset, action or sizing change
+    - The Today screen uses its existing stack's localized inline navigation
+      title to give system iPad window controls their own navigation space;
+      its subtitle, hero, footer actions, and data behavior remain unchanged
+    - This item absorbs only the `RootTabs` / top-level-navigation portion of
+      the older
+      `ledger-p1-ui-epic-post-bridge-series` visible-coherence slice. It does
+      not close the remaining Plate/Progress localization or content-coherence
+      work
+    - Image binaries, design tokens, backend/OpenAPI/DTO contracts,
+      entitlement and billing truth, and product behavior outside navigation
+      remain zero-diff
+  - Evidence:
+    - `ios/PulsePlate/Models/AppSection.swift:3-52`
+    - `ios/PulsePlate/Views/RootTabs.swift:4-58`
+    - `ios/PulsePlate/Views/PlateView.swift:203-204`
+    - `ios/PulsePlate/Views/ProgressView.swift:4`
+    - `ios/PulsePlate/Views/ProgressView.swift:285`
+    - `ios/PulsePlate/DesignSystem/PPButton.swift:98`
+    - `ios/PulsePlate/DesignSystem/PPButton.swift:138`
+    - `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift:220`
+    - `ios/PulsePlate/Views/WeeklyProgressView.swift:4`
+    - `ios/PulsePlate/Views/ProfileView.swift:5`
+    - `ios/PulsePlate/Views/ProfileView.swift:101`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:233`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:413`
+    - `ios/PulsePlate/Info-Debug.plist:19`
+    - `ios/PulsePlate/Info-Release.plist:25`
+    - `ios/PulsePlate.xcodeproj/project.pbxproj:54`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:580`
+    - `ios/PulsePlateTests/AppNavigationShellTests.swift:642`
+  - Links:
+    - `docs/roadmap/IOS_ROADMAP.md#app-entry--navigation`
+    - `docs/architecture/system_overview.md#ios-adaptive-navigation-shell`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ui-epic-post-bridge-series`
+    - [PulsePlate Design Train Index](https://docs.google.com/document/d/15PFCyUWvHzWQmZ-lx3hjdSbGJprdKUGQPf_zfeIehZ0/edit),
+      with the accepted reference-only 14-frame kit on Creative Production board
+      `3d02c9c6-e900-415e-948e-58d6b26640f3`
+  - DoD:
+    - `AppSection` owns the exact five-section identity, order, localization
+      keys, and SF Symbols with no runtime A/B or entitlement-dependent tabs
+    - Home and BMI retain their external stack owners; Today, Progress, and
+      Profile retain their existing self-owned stacks
+    - Weekly Progress is navigation-neutral and has exactly one localized,
+      Dynamic-Type-safe link under Progress; injected manager identity and native
+      pop/re-entry prove retention for the bounded parent session
+    - DEBUG diagnostics are absent from the production section count and
+      compile-gated at both existing Profile and Today entry points
+    - Actual primary-button rasters meet the 4.5:1 contrast floor in Light/Dark
+      idle/loading states, preserve Large/AX5 bounds, and include isolated native
+      loading-indicator evidence; conservative pressed-color evidence is bound
+      to the unchanged primary fill/opacity implementation
+      - The CI spinner regression inspects the actual hosted public UIKit
+        indicator and its explicit color/state; it does not depend on headless
+        rasterization or skip when the native hierarchy is unavailable
+    - Fresh Debug/Release bundles contain the exact effective launch, orientation,
+      scene and read-purpose metadata, preserve URL/ATS differences, package the
+      existing storyboard, and contain no extra source Info plist resource;
+      native full-viewport launch and correct tap alignment are observed
+    - Focused navigation/localization/accessibility tests, full `make ios-test`,
+      required narrow local gates, and terminal current-head CI pass
+    - Product Owner reviews the real SwiftUI V1 matrix and records `GO` before
+      exact-head closeout and the delegated, gate-conditioned merge
+    - No image binary, token, backend, OpenAPI, DTO, entitlement, billing, or
+      user-data migration is introduced
+  - Rollback: Revert the whole PR; no database, backend, billing, entitlement,
+    or user-data migration rollback is required
+
 <a id="ledger-p1-design-execution-adapter-seam"></a>
 - [ ] P1: Design execution adapter seam promotion beyond local artifact lane
   - Owner: @katsiaryna_kavaleuskaya
@@ -5690,8 +5881,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (native visual parity / consumer copy / canonical asset packaging)
   - Target PR: [PR #2380](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2380)
     (`codex/ios-v5-asset-parity-prerequisite`)
-  - Status: Implementation and native verification in the existing PR; final
-    current-head review, CI, mapping/seal, and merge remain pending.
+  - Status: Asset implementation merged in PR #2380 on 2026-09-04 at
+    `5adbb917e54261e999c076e77bbff92d3c53fcdd`. The existing PR #2376 now inherits
+    those assets; combined native-shell V1 acceptance and its final kit remain
+    owned by #2376.
   - Reason (EN): The approved V5 navigation direction needs its selected
     photography, semantic FitChef assets, and consumer-facing copy in the real
     iOS screens before the combined adaptive-shell acceptance.

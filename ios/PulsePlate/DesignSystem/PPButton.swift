@@ -98,7 +98,7 @@ struct PPButton: View {
     private var foregroundColor: Color {
         switch variant {
         case .primary:
-            return PPDesignTokens.ColorToken.primaryForeground
+            return PPDesignTokens.Brand.navy
         case .secondary, .ghost:
             return PPDesignTokens.ColorToken.textPrimary
         }
@@ -138,7 +138,7 @@ struct PPButtonStyle: ButtonStyle {
     private var foregroundColor: Color {
         switch variant {
         case .primary:
-            return PPDesignTokens.ColorToken.primaryForeground
+            return PPDesignTokens.Brand.navy
         case .secondary:
             return PPDesignTokens.ColorToken.textPrimary
         case .ghost:
