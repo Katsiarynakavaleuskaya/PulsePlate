@@ -724,7 +724,13 @@ def test_runtime_base_requires_fixed_bookworm_pcre2_line() -> None:
     runtime = dockerfile.split(f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base", 1)[1]
     runtime = runtime.split("COPY --from=builder", 1)[0]
     assert "        libpcre2-8-0 \\" in runtime
-    assert 'dpkg --compare-versions "${pcre2_version}" ge "10.42-1+deb12u1"' in runtime
+    pcre2_guard = runtime.split("&& pcre2_version=", 1)[1].split(
+        "&& rm -rf /var/lib/apt/lists/*", 1
+    )[0]
+    assert (
+        'if ! dpkg --compare-versions "${pcre2_version}" ge "10.42-1+deb12u1"; then' in pcre2_guard
+    )
+    assert "exit 1;" in pcre2_guard
     assert "below fixed PCRE2 line 10.42-1+deb12u1" in runtime
 
 

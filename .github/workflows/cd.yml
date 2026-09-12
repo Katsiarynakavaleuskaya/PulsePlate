@@ -549,6 +549,7 @@ jobs:
       source_url: ${{ steps.postgres-contract.outputs.source_url }}
       source_sha256: ${{ steps.postgres-contract.outputs.source_sha256 }}
       buildx_sha256: ${{ steps.postgres-contract.outputs.buildx_sha256 }}
+      buildx_version: ${{ steps.postgres-contract.outputs.buildx_version }}
       buildkit_digest: ${{ steps.postgres-contract.outputs.buildkit_digest }}
       buildkit_version: ${{ steps.postgres-contract.outputs.buildkit_version }}
       trivy_version: ${{ steps.postgres-contract.outputs.trivy_version }}
@@ -700,6 +701,7 @@ jobs:
               "source_url": manifest["pgvector_source_url"],
               "source_sha256": manifest["pgvector_source_sha256"].removeprefix("sha256:"),
               "buildx_sha256": manifest["buildx_linux_amd64_sha256"].removeprefix("sha256:"),
+              "buildx_version": manifest["buildx_version"],
               "buildkit_digest": manifest["buildkit_platform_manifest_digest"],
               "buildkit_version": manifest["buildkit_version"],
               "trivy_version": manifest["trivy_version"],
@@ -924,6 +926,7 @@ jobs:
       - name: Authenticate DHI read and GHCR publication rails
         env:
           BUILDX_SHA256: ${{ needs.postgres-pgvector-contract.outputs.buildx_sha256 }}
+          BUILDX_VERSION: ${{ needs.postgres-pgvector-contract.outputs.buildx_version }}
           BUILDKIT_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.buildkit_digest }}
           BUILDKIT_VERSION: ${{ needs.postgres-pgvector-contract.outputs.buildkit_version }}
           DHI_USER: ${{ secrets.DHI_USERNAME }}
@@ -955,8 +958,13 @@ jobs:
           chmod 700 "$credential_dir"
           mkdir -m 700 "$credential_dir/cli-plugins"
           buildx_path="$credential_dir/cli-plugins/docker-buildx"
+          : "${BUILDX_VERSION:?Buildx version is required}"
+          if [[ ! "$BUILDX_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Malformed Buildx version" >&2
+            exit 1
+          fi
           curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
-            https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64 \
+            "https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-amd64" \
             --output "$buildx_path"
           printf '%s  %s\n' \
             "${BUILDX_SHA256:?Buildx checksum is required}" \
@@ -964,8 +972,10 @@ jobs:
           chmod 0700 "$buildx_path"
           printf '%s' "$DHI_TOKEN" | docker login dhi.io -u "$DHI_USER" --password-stdin
           printf '%s' "$GHCR_TOKEN_VALUE" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-          test "$(docker buildx version)" = \
-            "github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6"
+          case "$(docker buildx version)" in
+            "github.com/docker/buildx v${BUILDX_VERSION} "*) ;;
+            *) echo "Buildx version differs from its checksum-bound manifest" >&2; exit 1 ;;
+          esac
           builder_name="pulseplate-pgvector-builder-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           printf 'PGVECTOR_BUILDX_BUILDER=%s\n' "$builder_name" >> "$GITHUB_ENV"
           docker buildx create \
@@ -1737,7 +1747,11 @@ jobs:
               ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
               ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
               ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
-              ("https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64", manifest["buildx_linux_amd64_sha256"]),
+              (
+                  "https://github.com/docker/buildx/releases/download/"
+                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
+                  manifest["buildx_linux_amd64_sha256"],
+              ),
               (
                   "pulseplate:runtime-artifact-inventory",
                   manifest["runtime_artifact_inventory_sha256"],
@@ -2586,7 +2600,11 @@ jobs:
               ("pulseplate:builder-apk-inputs", manifest["builder_apk_inputs_sha256"]),
               ("pulseplate:builder-apk-signed-index", manifest["builder_apk_index_sha256"]),
               ("docker.io/moby/buildkit", manifest["buildkit_platform_manifest_digest"]),
-              ("https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.linux-amd64", manifest["buildx_linux_amd64_sha256"]),
+              (
+                  "https://github.com/docker/buildx/releases/download/"
+                  f"v{manifest['buildx_version']}/buildx-v{manifest['buildx_version']}.linux-amd64",
+                  manifest["buildx_linux_amd64_sha256"],
+              ),
               (
                   "pulseplate:runtime-artifact-inventory",
                   manifest["runtime_artifact_inventory_sha256"],

@@ -44,6 +44,17 @@ If it is not recorded here — it does not exist.
   - Carryover (EN): PR #2371 merged as `87feb5272ca81aa698416c5ed999d26e79f21b2a`; PR #2347 merged as `e5d162168a866b64f1750f396e6034643f210cca`; PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 merged as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Their repository deliveries are retained; publication/main recovery and production activation are distinct outcomes.
   - Deferred / Follow-ups (EN): No automatic MAIN-STAB-2 or standalone bookkeeping PR. Check only a real residual prevention gap after recovery; DOCX remains the next maintenance candidate after fresh admission. Newly observed application-dependency alerts remain in the separate item below.
 
+<a id="ledger-p1-main-closeout-ci-and-ledger"></a>
+- [ ] P1: Avoid redundant material CI on verified mapping-only closeout
+  - Owner: @katsiaryna_kavaleuskaya (CI / orchestration)
+  - Priority: P1
+  - Target PR: bounded implementation after green-main recovery; candidate MAIN-STAB-2, no automatic start
+  - Status: Confirmed gap during #2390: CI classifies the whole PR diff for edited events and mapping-only successors, while strict readiness accepts only current-head checks. No supported evidence-reuse path currently exists.
+  - Reason for deferral (EN): Restore the failing container/publication path first. Reusing material results changes verifier authority and must be implemented with its own ordered logic/philosophy admission and review; bypassing current required CI is not an interim solution.
+  - Links: `.github/workflows/ci.yml`; `scripts/orchestration/check_current_head_pr_checks.py`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; #2390
+  - DoD: Reuse only authenticated successful checks bound to identical sealed material, base and applicable test universe; reject changed or uncertain identities, missing evidence and material edits. Run current-head mapping/seal/disposition/ancestry/authorization checks independently. Keep actual main publication and production gates separate. Update the existing CI/validators rather than introducing a parallel framework.
+  - Ledger contract (EN): Record implementation outcome in the delivering PR and distinguish repository merge from observed operational completion. Reconcile later post-merge receipts in the next real implementation PR, with no standalone docs/backlog-closeout PR and no premature completion claim. Align the conflicting legacy root instructions in that same implementation.
+
 <a id="ledger-p1-dependency-alerts-after-main-recovery"></a>
 - [ ] P1: Reconcile new npm/pip alerts after current main recovery
   - Owner: @katsiaryna_kavaleuskaya (Dependency maintenance)

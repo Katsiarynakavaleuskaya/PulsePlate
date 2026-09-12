@@ -14,7 +14,7 @@ repos:
       - id: check-added-large-files
         name: check signed PostgreSQL APK index size
         files: ^deploy/postgres-pgvector/builder-apk-index\.tar\.gz$
-        args: [--maxkb=2048]
+        args: [--maxkb=2048, --enforce-all]
 
   # --- YAML lint: yamllint (style + structure)
   - repo: https://github.com/adrienverge/yamllint
@@ -32,6 +32,7 @@ repos:
     hooks:
       - id: detect-secrets
         name: detect-secrets (secrets scan)
+        require_serial: true
         args: [--baseline, .secrets.baseline]
         exclude: ^(ios/\.build/|\.venv/|\.venv-ci/|node_modules/|build/|dist/)  # generated/venv
 

@@ -120,6 +120,12 @@ scoped the 2048 KB exception to the single supplier-signed APK index. The source
 fixture documentation now separates its historical observed output shape from
 synthetic current-digest substitutions.
 
+The dedicated index hook also checks modified tracked files via `--enforce-all`.
+The ordinary size limit is unchanged. The existing detect-secrets hook runs
+serially because its file batches update one shared baseline; parallel batches
+can overwrite each other's metadata updates. This serializes one hook invocation,
+not independent operator processes or other worktrees.
+
 The missing post-APK builder scan was executed against a newly reproduced
 current-recipe OCI image. Trivy 0.74.0 reported zero HIGH/CRITICAL and secret
 findings across its 94-package inventory. The final 49-package runtime layout
@@ -147,7 +153,7 @@ sentinels, PostgreSQL 15.19 and pgvector 0.8.6. Disposable test resources were
 removed and Docker Desktop was stopped; no production volume was involved.
 
 Evidence anchors: `.pre-commit-config.yaml:12`,
-`tests/test_deploy_contract_scripts.py:31`, and
+`tests/test_deploy_contract_scripts.py:8497`, and
 `.github/workflows/cd.yml:1011`.
 
 ## Newly observed backend PCRE2 findings
@@ -171,7 +177,7 @@ The full rebuilt production image must pass its existing strict PR scan,
 including unfixed findings, before merge. Compare complete package inventories
 and preserve the current runtime smoke/UUID/TLS/gzip/SQLite/Alembic guards;
 the successful earlier image scan is historical evidence only.
-Evidence anchors: `Dockerfile:313` and
+Evidence anchors: `Dockerfile:312` and
 `tests/test_docker_workflow_build_path_contract.py:721`.
 
 Docker's warning that credentials are stored in `config.json` is expected when

@@ -376,6 +376,7 @@ def test_prometheus_image_manifest_is_one_closed_exact_record() -> None:
 
 
 def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract() -> None:
+    """Bind the image recipe and every deployment consumer to the same immutable subject."""
     manifest_bytes = POSTGRES_MANIFEST_PATH.read_bytes()
     assert hashlib.sha256(manifest_bytes).hexdigest() == (
         "f5695851db7e29f4f3d70f202655ca474eddaabc6aecfb9725a4783ca09e55ce"  # pragma: allowlist secret
@@ -634,6 +635,7 @@ def test_postgres_apk_context_executes_exact_acquisition_program(
 
 
 def test_postgres_containerfile_is_exact_multistage_source_build() -> None:
+    """Keep offline source compilation separate from the minimal non-root runtime image."""
     containerfile = (REPO_ROOT / "deploy" / "postgres-pgvector" / "Containerfile").read_text(
         encoding="utf-8"
     )
@@ -1629,6 +1631,7 @@ def test_cd_postgres_attestation_inventory_executes_idempotent_closed_cardinalit
 
 
 def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
+    """Require candidate verification before the provisional canonical tag write."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     names = [step.get("name") for step in steps]
@@ -1666,6 +1669,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     initial_auth_step = steps[initial_auth]
     assert set(initial_auth_step["env"]) == {
         "BUILDX_SHA256",
+        "BUILDX_VERSION",
         "BUILDKIT_DIGEST",
         "BUILDKIT_VERSION",
         "DHI_USER",
@@ -1757,6 +1761,7 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
 def test_cd_postgres_canonical_promotion_executes_current_main_material_freshness(
     tmp_path: Path,
 ) -> None:
+    """Reject superseded build inputs while allowing unrelated main changes."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     promote = next(
@@ -1869,6 +1874,7 @@ def test_cd_postgres_canonical_promotion_executes_current_main_material_freshnes
 def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation(
     tmp_path: Path,
 ) -> None:
+    """A superseded provisional tag write must not emit downstream admission."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     publish = workflow["jobs"]["postgres-pgvector-publish"]
@@ -1987,6 +1993,7 @@ def test_pgvector_promotion_fails_when_main_material_advances_after_tag_mutation
 
 
 def test_cd_postgres_pins_scout_and_binds_exact_dhi_source_subjects() -> None:
+    """Preserve pinned Scout execution and independent exact source-subject checks."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     install = next(
@@ -2262,6 +2269,9 @@ def _postgres_setup_program() -> str:
         "",
         "buildx-download",
         "buildx-checksum",
+        "buildx-version-mismatch",
+        "buildx-version-missing",
+        "buildx-version-malformed",
         "login:dhi.io",
         "login:ghcr.io",
         "buildx:create",
@@ -2326,6 +2336,11 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         DEFAULT_CONFIG=str(default_config),
         COMMAND_LOG=str(command_log),
         FAIL_COMMAND=fail_command,
+        BUILDX_VERSION={
+            "buildx-version-mismatch": "0.38.0",
+            "buildx-version-missing": "",
+            "buildx-version-malformed": "0.37.0/other",
+        }.get(fail_command, "0.37.0"),
         BUILDX_SHA256=hashlib.sha256(fixture_client).hexdigest(),
         BUILDKIT_DIGEST=json.loads(POSTGRES_MANIFEST_PATH.read_bytes())[
             "buildkit_platform_manifest_digest"
@@ -2341,7 +2356,14 @@ def test_postgres_setup_propagates_owned_context_between_processes(
         timeout=30,
         check=False,
     )
-    expected_exit = {"": 0, "buildx-download": 22, "buildx-checksum": 1}.get(fail_command, 73)
+    expected_exit = {
+        "": 0,
+        "buildx-download": 22,
+        "buildx-checksum": 1,
+        "buildx-version-mismatch": 1,
+        "buildx-version-missing": 1,
+        "buildx-version-malformed": 1,
+    }.get(fail_command, 73)
     assert first.returncode == expected_exit, first.stderr
     emitted = dict(line.split("=", 1) for line in env_file.read_text().splitlines())
     selected = emitted["DOCKER_CONFIG"]
@@ -2942,6 +2964,7 @@ def test_published_backup_helper_binding_rejects_post_publication_drift(
 
 
 def test_cd_postgres_provenance_binds_the_closed_material_universe() -> None:
+    """Ensure provenance includes all authenticated recipe and build-engine inputs."""
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     generator = next(
@@ -8485,7 +8508,7 @@ def test_signed_apk_index_size_exception_preserves_unrelated_file_limit() -> Non
     assert len(hooks) == 2
     normal, index = hooks
     assert normal.get("args", []) == []
-    assert index["args"] == ["--maxkb=2048"]
+    assert index["args"] == ["--maxkb=2048", "--enforce-all"]
     index_path = "deploy/postgres-pgvector/builder-apk-index.tar.gz"
     for path in (index_path, index_path + ".extra", "unrelated.bin", "deploy/other/index.tar.gz"):
         selected = [
