@@ -177,6 +177,7 @@ services:
 
 volumes:
   postgres_data:
+    name: pulseplate-staging_postgres_data_v5
     driver: local
     driver_opts:
       type: none
@@ -186,6 +187,7 @@ volumes:
   caddy_data:
   caddy_config:
   prometheus_data:
+    name: pulseplate-staging_prometheus_data_v5
     driver: local
     driver_opts:
       type: none

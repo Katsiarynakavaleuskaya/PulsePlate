@@ -42,8 +42,8 @@ def diagnostic_detail(value: bytes, secrets: tuple[str, ...] = (), limit: int = 
         "[redacted-private-key]",
         text,
     )
-    text = redactor._redact_sensitive_text(text)
-    return text[:limit].replace("\r", "\\r").replace("\n", "\\n")
+    redacted: str = redactor._redact_sensitive_text(text)
+    return redacted[:limit].replace("\r", "\\r").replace("\n", "\\n")
 
 
 def native(

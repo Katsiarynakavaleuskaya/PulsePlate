@@ -675,3 +675,50 @@ def test_each_tls_credential_rejects_a_nested_other_device_mount(
         security.check_tls(
             tmp_path, contract(), {"POSTGRES_USER": "pulseplate", "POSTGRES_DB": "pulseplate"}
         )
+
+
+def test_v5_named_volumes_admit_new_encrypted_bindings_and_leave_old_names_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    value = compose(tmp_path)
+    for key in ("postgres_data", "prometheus_data"):
+        value["volumes"][key]["name"] = "pulseplate-staging_" + key + "_v5"
+    calls: list[list[str]] = []
+
+    def native(args: list[str]) -> str:
+        calls.append(args)
+        assert args == ["docker", "volume", "ls", "--format", "{{.Name}}"]
+        return "pulseplate-staging_postgres_data\npulseplate-staging_prometheus_data\n"
+
+    monkeypatch.setattr(security, "_native", native)
+    security.validate_compose(value, tmp_path)
+    security.check_existing_volumes(value)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("key", ["postgres_data", "prometheus_data"])
+def test_v5_existing_volume_with_wrong_backing_holds_without_mutating_old_volumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    value = compose(tmp_path)
+    for name in ("postgres_data", "prometheus_data"):
+        value["volumes"][name]["name"] = "pulseplate-staging_" + name + "_v5"
+    selected_name = value["volumes"][key]["name"]
+    calls: list[list[str]] = []
+
+    def native(args: list[str]) -> str:
+        calls.append(args)
+        if args[2] == "ls":
+            return (
+                "pulseplate-staging_postgres_data\npulseplate-staging_prometheus_data\n"
+                + selected_name
+                + "\n"
+            )
+        assert args == ["docker", "volume", "inspect", selected_name]
+        return json.dumps([{"Driver": "local", "Options": {}}])
+
+    monkeypatch.setattr(security, "_native", native)
+    with pytest.raises(security.SecurityError, match="preserve it and migrate explicitly"):
+        security.check_existing_volumes(value)
+    assert calls[-1][-1] == selected_name
+    assert all("create" not in args and "rm" not in args for args in calls)

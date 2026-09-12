@@ -9,8 +9,14 @@ managed production remain outside this operation. The owner authorized one
 snapshots are included. Check actual disk/data use before creation. An active
 Droplet or reachable SSH port does not prove a working administrative login.
 
-Use a trusted SSH fingerprint from the authenticated Recovery Console or a
-retained trusted host record. A console timeout is not evidence that the VM is
+The current operator login is `pulseplate-ops` with key authentication;
+root and password SSH logins are disabled. Use the dedicated
+`~/.ssh/pulseplate_staging_obs1_20260824` key and
+`~/.ssh/known_hosts_pulseplate_staging_obs1_20260824` trusted host record,
+with strict host-key checking and the authenticated Droplet address.
+Use `sudo` from that account for privileged preparation and deployment.
+A trusted SSH fingerprint must come from the authenticated Recovery Console or
+an existing trusted host record. A console timeout is not evidence that the VM is
 down. Do not reset/rebuild the VM or disable host-key checking to work around it.
 After login, census Docker/Compose, mounts, existing containers/volumes, data
 and available capacity. The fresh-host path below requires observed absence of
@@ -105,6 +111,70 @@ the loaded unit and actual Docker setting before enabling application writers.
 Inspect any existing named volumes' `Driver` and `Options`; Compose changes do
 not convert an existing ordinary Docker volume into the new bind-backed volume.
 
+### Preserve the existing cluster before the v5 cutover
+
+The trusted 2026-09-13 census found PostgreSQL `15.19` with TLS off,
+`pulseplate_staging` at about 7.95 MB and zero public tables, plus the
+`postgres` maintenance database. The old PostgreSQL volume uses about
+47,308 KiB; Prometheus and food cache volumes use about 4 KiB each. This is
+an existing cluster to preserve, even though application tables are absent.
+Refresh these observations immediately before the operator-selected migration.
+
+Staging keeps its existing Compose project and logical `postgres_data` and
+`prometheus_data` sources. Its reviewed Compose selects new physical names
+`pulseplate-staging_postgres_data_v5` and
+`pulseplate-staging_prometheus_data_v5`, bound to the encrypted `postgres` and
+`prometheus` directories. Existing `pulseplate-staging_postgres_data`,
+`pulseplate-staging_prometheus_data` and food cache volumes remain intact.
+Do not change their driver options, rebind them, delete them or use
+`external: true` to bypass the checked bind-volume contract.
+
+This preparation is the owner's selected preservation/migration and first
+application setup, separate from automatic `deploy.sh` execution:
+
+1. Census writers, the actual PGDATA/data mount, PostgreSQL version, databases,
+   roles, extensions, `pg_tblspc` links and any external `pg_wal` location.
+   A complete copy must include WAL and all tablespaces; an unverified external
+   path remains HOLD rather than being silently omitted.
+2. Keep app/worker traffic quiesced and stop the old PostgreSQL server cleanly.
+   Copy the complete stopped cluster through a read-only source mount into the
+   verified empty encrypted PostgreSQL directory. Preserve numeric ownership,
+   permissions and file contents; verify the copy and retain an independently
+   restorable private cluster backup before changing the service binding.
+   Do not copy live PGDATA or initialize over either old or copied data.
+3. Stop Prometheus before copying its TSDB into the empty encrypted Prometheus
+   directory; verify the copy and apply the selected runtime ownership only to
+   that copy. Preserve the original history and old volume for rollback.
+4. Prepare the TLS/credential files described below. The copied roles retain
+   their persisted password verifiers: a new password file does not change
+   them. Establish matching admitted password/passfile contents and SCRAM
+   compatibility without logging passwords or verifiers. MD5-only verifiers,
+   an incompatible legacy password format or failed `verify-full` authentication
+   remain HOLD for the selected credential migration on the copy; the original
+   cluster remains unchanged.
+5. Start and verify the copied cluster using the exact selected PostgreSQL
+   image, TLS configuration and new named-volume binding. Verify database/role
+   preservation and real `pg_stat_ssl` through the application passfile.
+   Cut the existing Compose `postgres` service over to that verified copy,
+   retaining the project identity. A running old-volume service will fail the
+   deploy volume-name check; a new volume without a trustworthy running service
+   also remains HOLD.
+6. Because the observed copied application database has zero public tables,
+   run canonical `alembic upgrade head` from the verified backend image against
+   the copied TLS database while writers remain quiesced. Verify the actual
+   application schema and migration head. This is first application setup on
+   the preserved copy, not permission to initialize over discovered data.
+   Then execute the substantive backup/isolated-restore checks and normal
+   deployment. Do not create a dummy table or weaken the archive gate to let an
+   empty-cluster automatic deployment pass.
+
+Retain the old immutable image identity, runtime configuration and untouched
+volumes. If copied-cluster, TLS, schema or cutover verification fails, keep
+writers quiesced and restore the old service binding/configuration using the
+retained original cluster. Normal deploy must pass its storage, running-state,
+TLS/passfile and substantive backup gates after preparation; these steps do not
+add a deployment bypass.
+
 ### Provision TLS and database credentials
 
 Use a dedicated staging CA. Keep its private signing key outside the containers
@@ -142,10 +212,10 @@ administration remains confined to the PostgreSQL container.
 
 ### Validate deployment, backups and crash recovery
 
-Run the staging bootstrap/deploy as root: protected credential and storage
-configuration files are intentionally inaccessible to other host users. The
-staging SSH identity must be configured for that admitted deployment account;
-do not change production SSH settings.
+Connect as `pulseplate-ops` using the trusted dedicated SSH key/host record.
+Execute privileged bootstrap/deploy with `sudo`: protected credential and
+storage files are intentionally inaccessible to other users. Keep root/password
+SSH disabled and do not change production SSH settings.
 
 Run `deploy.sh --preflight-only <backend-digest-ref> <caddy-digest-ref>` after
 installing the selected files/mounts. It verifies actual storage/TLS inputs,
@@ -204,7 +274,6 @@ the authorized target before explicit replacement; unsupported schema layouts
 HOLD for a separately verified migration. Verification restore selects the
 configured source database as its maintenance connection, so role and database
 names may differ.
-
 
 Native Linux CI uses disposable PostgreSQL storage/PKI and actual TLS, pgvector,
 dump/restore and process-crash checks. Its temporary Compose project exercises
@@ -500,7 +569,8 @@ Set the **Environment variable** (Settings → Environments → staging → Envi
 Add these **secrets** to the `staging` environment:
 
 - `SSH_HOST_STAGING` - Your server IP or domain
-- `SSH_USER` - SSH username (usually `root` or `ubuntu`)
+- `SSH_USER` - `pulseplate-ops` for the current staging Droplet; use its
+  dedicated key and privileged `sudo` execution, with root/password SSH disabled
 - `SSH_KEY` - Full private SSH key (PEM format), including `-----BEGIN ... KEY-----` and `-----END ... KEY-----`; preserve newlines when pasting to avoid "ssh: no key found"
 - `SSH_HOST_STAGING_FINGERPRINT` - Required staging **server** host key fingerprint, usually `SHA256:...`. **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
 - `GHCR_READ_TOKEN` - GitHub PAT with `read:packages` permission

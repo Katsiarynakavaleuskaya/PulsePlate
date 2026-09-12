@@ -469,6 +469,15 @@ def test_local_postgres_contours_use_one_immutable_pgvector_volume_contract(
         )
         assert compose["networks"]["database"]["internal"] is True
         assert "POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password" in postgres["environment"]
+        for key, directory in (("postgres_data", "postgres"), ("prometheus_data", "prometheus")):
+            assert compose["volumes"][key]["name"] == "pulseplate-staging_" + key + "_v5"
+            assert compose["volumes"][key]["driver"] == "local"
+            assert compose["volumes"][key]["driver_opts"] == {
+                "type": "none",
+                "o": "bind",
+                "device": "/mnt/pulseplate-staging-data/" + directory,
+            }
+            assert "external" not in compose["volumes"][key]
 
 
 def test_managed_production_compose_remains_postgres_service_free() -> None:
@@ -3254,6 +3263,97 @@ set -euo pipefail
     assert completed.returncode == 1
     assert "SHELL_BUNDLE_DIR is missing frontend/" in completed.stderr
     assert not log_file.exists()
+
+
+@pytest.mark.parametrize("phase", ("preflight", "deploy"))
+@pytest.mark.parametrize("fault", (None, "sudo_denied", "sudo_missing", "required_env_missing"))
+def test_staging_remote_deploy_uses_noninteractive_sudo_closed_environment(
+    tmp_path: Path, phase: str, fault: str | None
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text())
+    steps = workflow["jobs"]["build"]["steps"]
+    name = "Deploy to staging over SSH" if phase == "deploy" else None
+    step = next(
+        item
+        for item in steps
+        if (item.get("name") == name if name else item.get("id") == "staging-contract-preflight")
+    )
+    script = step["with"]["script"]
+    invocation = script[script.index("sudo -n ") :]
+    expected_names = (
+        "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN" if phase == "deploy" else "STAGING_DOMAIN"
+    )
+    assert invocation.startswith(
+        "sudo -n --preserve-env="
+        + expected_names
+        + " -- /bin/bash /srv/pulseplate-staging/deploy.sh"
+    )
+    assert (
+        "--preflight-only" in invocation
+        if phase == "preflight"
+        else "--preflight-only" not in invocation
+    )
+    assert '"$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"' in invocation
+    assert script.index("grep -Fqx") < script.index("sudo -n ")
+    assert script.index('[ "$(sha256sum ./deploy.sh') < script.index("sudo -n ")
+    assert "--preserve-env " not in invocation and "sudo -E" not in invocation
+    assert "GHCR_TOKEN=" not in invocation
+    binary_dir = tmp_path / "bin"
+    binary_dir.mkdir()
+    record = tmp_path / "sudo-invocation.json"
+    if fault != "sudo_missing":
+        _write_executable(
+            binary_dir / "sudo",
+            f"#!{sys.executable}\n" + """import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+if os.environ["SUDO_DENIED"] == "true": sys.exit(1)
+assert args[0] == "-n" and args[1].startswith("--preserve-env=") and args[2] == "--"
+names = args[1].split("=", 1)[1].split(",")
+child_env = {name: os.environ[name] for name in names if name in os.environ}
+if set(child_env) != set(names): sys.exit(1)
+assert "unrelated-private-value" not in child_env.values()
+assert "synthetic-ghcr-secret" not in args
+Path(os.environ["SUDO_RECORD"]).write_text(json.dumps({"argv":args, "preserved": sorted(child_env),
+    "token_delivered": child_env.get("GHCR_TOKEN") == "synthetic-ghcr-secret"}))
+""",
+        )
+    environment = {
+        "PATH": str(binary_dir),
+        "STAGING_DOMAIN": "staging.example.com",
+        "STAGING_IMAGE_REF": "ghcr.io/owner/image@sha256:" + "a" * 64,
+        "STAGING_CADDY_IMAGE_REF": "ghcr.io/owner/image@sha256:" + "b" * 64,
+        "GHCR_USER": "synthetic-owner",
+        "GHCR_TOKEN": "synthetic-ghcr-secret",
+        "UNRELATED_SETTING": "unrelated-private-value",
+        "SUDO_RECORD": str(record),
+        "SUDO_DENIED": str(fault == "sudo_denied").lower(),
+    }
+    if fault == "required_env_missing":
+        environment.pop("STAGING_DOMAIN")
+    completed = subprocess.run(
+        ["/bin/bash", "-c", "set -euo pipefail\n" + invocation],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode != 0 if fault else completed.returncode == 0
+    assert "synthetic-ghcr-secret" not in completed.stdout + completed.stderr
+    if fault:
+        assert not record.exists()
+    else:
+        observed = json.loads(record.read_text())
+        assert observed["preserved"] == sorted(expected_names.split(","))
+        assert observed["token_delivered"] == (phase == "deploy")
+        assert observed["argv"][3:] == [
+            "/bin/bash",
+            "/srv/pulseplate-staging/deploy.sh",
+            *(["--preflight-only"] if phase == "preflight" else []),
+            environment["STAGING_IMAGE_REF"],
+            environment["STAGING_CADDY_IMAGE_REF"],
+        ]
 
 
 def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-staging")) -> str:
@@ -8768,3 +8868,48 @@ def test_production_custom_name_containing_staging_does_not_select_reserved_cont
     )
     assert result.returncode == 0, result.stderr
     assert "Backup created:" in result.stdout
+
+
+@pytest.mark.parametrize("matches_selected_name", [True, False])
+def test_staging_deploy_binds_running_container_to_selected_v5_volume_name(
+    tmp_path: Path, matches_selected_name: bool
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    rendered = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    selected_name = "pulseplate-staging_postgres_data_v5"
+    rendered["volumes"]["postgres_data"]["name"] = selected_name
+    rendered["volumes"]["prometheus_data"]["name"] = "pulseplate-staging_prometheus_data_v5"
+    rendered["services"]["postgres"]["volumes"][0]["source"] = "postgres_data"
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = json.dumps(rendered)
+    inspected = json.loads(FAKE_POSTGRES_CONTAINER_INSPECT_JSON)
+    manifest = json.loads(POSTGRES_MANIFEST_PATH.read_text())
+    inspected[0]["Config"]["Image"] = POSTGRES_RUNTIME_REF
+    inspected[0]["Image"] = manifest["config_digest"]
+    inspected[0]["Mounts"][0]["Name"] = (
+        selected_name if matches_selected_name else "pulseplate-staging_postgres_data"
+    )
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(inspected)
+    backend = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend, caddy],
+        env=env,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    calls = log_file.read_text().splitlines()
+    if matches_selected_name:
+        assert result.returncode == 0, result.stderr
+        assert any(call.startswith("backup ") for call in calls)
+        assert any(" up -d --pull never postgres" in call for call in calls)
+    else:
+        assert result.returncode == 1
+        assert (
+            "Existing PostgreSQL volume does not match rendered Compose identity" in result.stderr
+        )
+        assert all(
+            " stop " not in call and " up " not in call and not call.startswith("backup ")
+            for call in calls
+        )

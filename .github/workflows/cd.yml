@@ -2730,9 +2730,9 @@ jobs:
       id-token: write
     environment:
       name: staging
-      # Staging domain: pulseplate-staging.duckdns.org (DuckDNS, free DDNS)
+      # Existing protected staging subdomain on the project's Cloudflare zone.
       # Note: environment.url cannot use secrets context, using static value
-      url: https://pulseplate-staging.duckdns.org
+      url: https://staging.pulseplate.app
     concurrency:
       group: cd-build-${{ github.ref_name }}
       # Backup/migration/deploy is stateful and must not be cancelled mid-flight.
@@ -3158,7 +3158,8 @@ jobs:
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
             [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
             [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
-            ./deploy.sh --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
+            sudo -n --preserve-env=STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
+              --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
       - name: Deploy to staging over SSH
         id: deploy-staging
@@ -3227,7 +3228,8 @@ jobs:
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
             [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
             [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
-            ./deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
+            sudo -n --preserve-env=GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
+              "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
       - name: Handle staging deployment failure (non-blocking by default)
         if: >-

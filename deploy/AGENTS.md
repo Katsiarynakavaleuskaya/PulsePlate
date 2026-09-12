@@ -196,6 +196,10 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   restore disabled. A missing mount must stop writers instead of creating
   unencrypted root-disk directories. Do not silently rebind existing named
   volumes or initialize discovered data.
+- For an existing staging Droplet, bind its provider ID to the retained
+  provisioning record and inventory dedicated SSH/known-hosts carriers first.
+  Verify the recorded operator login with strict saved-host-key checking
+  before requesting new access details or proposing credential changes.
 - Backups validate the complete native archive and substantive table inventory
   before publishing/pruning. Restore requires an explicit mode; verification
   creates a distinct `pulseplate_restore_check_*` database and never replaces
