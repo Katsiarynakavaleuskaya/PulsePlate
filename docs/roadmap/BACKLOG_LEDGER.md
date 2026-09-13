@@ -116,6 +116,16 @@ If it is not recorded here — it does not exist.
   - Carryover (EN): PR #2371 merged as `87feb5272ca81aa698416c5ed999d26e79f21b2a`; PR #2347 merged as `e5d162168a866b64f1750f396e6034643f210cca`; PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 merged as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Their repository deliveries are retained; publication/main recovery and production activation are distinct outcomes.
   - Deferred / Follow-ups (EN): No automatic MAIN-STAB-2 or standalone bookkeeping PR. Check only a real residual prevention gap after recovery; DOCX remains the next maintenance candidate after fresh admission. Newly observed application-dependency alerts remain in the separate item below.
 
+<a id="ledger-p1-staging-operational-alerting"></a>
+- [ ] P1: Complete staging host visibility and tested failure notifications
+  - Owner: @katsiaryna_kavaleuskaya with DevOps and security-auditor
+  - Priority: P1 (operational detection and diagnosis)
+  - Target PR: separately scoped observability follow-up after PR #2393; no automatic start
+  - Status: Gap recorded after the owner's 2026-09-13 monitoring-architecture question; implementation and notification destinations remain unselected.
+  - Reason for deferral (EN): Current Compose Prometheus config scrapes the application only. It does not configure host exporters, alert rules or notification routing. These gaps may delay diagnosis but are not evidence that missing Kubernetes components caused the observed attestation failures. PR #2393 retains its accepted publication, TLS, encrypted storage, backup/restore and scrape/persistence criteria.
+  - Links: `deploy/prometheus/prometheus.yml`; `deploy/docker-compose.staging.yaml`; `docs/deploy/OPERATIONAL_SIGNALS.md`; `docs/deploy/STAGING.md`; [PR #2393](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2393)
+  - DoD: Select a bounded Compose-compatible design for host CPU/RAM/disk visibility, service/database availability, backup age/failure and scrape failures; define actionable thresholds and operator-approved notification destinations; prove alert delivery with synthetic failures; include an independently hosted availability observation for whole-Droplet loss and a documented log inspection/retention path. Preserve internal-only metrics endpoints, secret-file handling and the production/staging evidence boundary. Kubernetes, Grafana, exporters, new services or paid monitoring require the subsequent reviewed scope and are not authorized by this entry.
+
 <a id="ledger-p1-main-closeout-ci-and-ledger"></a>
 - [ ] P1: Avoid redundant material CI on verified mapping-only closeout
   - Owner: @katsiaryna_kavaleuskaya (CI / orchestration)

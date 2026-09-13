@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hmac
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -372,10 +373,153 @@ def check_daemon_guard(project_dir: Path) -> None:
         raise SecurityError("Docker live restore would bypass the storage lifecycle boundary")
 
 
+def _systemd_property(unit: str, interface: str, name: str, signature: str) -> object:
+    path = "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2e" + unit
+    envelope = _object(
+        _read_json(
+            _native(
+                [
+                    "busctl",
+                    "--json=short",
+                    "get-property",
+                    "org.freedesktop.systemd1",
+                    path,
+                    "org.freedesktop.systemd1." + interface,
+                    name,
+                ]
+            )
+        ),
+        "systemd property",
+    )
+    if set(envelope) != {"type", "data"} or envelope.get("type") != signature:
+        raise SecurityError(f"systemd property has an unexpected type: {name}")
+    return envelope["data"]
+
+
+def check_backup_units(project_dir: Path) -> None:
+    """Compare installed files and the manager's loaded staging backup contract."""
+    if project_dir != Path("/srv/pulseplate-staging"):
+        raise SecurityError("Backup units require the canonical staging project directory")
+    for suffix in ("service", "timer"):
+        name = "pulseplate-postgres-backup." + suffix
+        installed = Path("/etc/systemd/system") / name
+        expected = project_dir / "systemd" / (name + ".example")
+        _regular_file(installed, 0, 0, 0o644)
+        _regular_file(expected, 0, 0, 0o644)
+        if installed.read_bytes() != expected.read_bytes():
+            raise SecurityError(f"Installed backup {suffix} differs from the staging contract")
+        for property_name, expected_value in {
+            "LoadState": "loaded",
+            "FragmentPath": str(installed),
+            "DropInPaths": "",
+            "NeedDaemonReload": "no",
+        }.items():
+            if (
+                _native(
+                    ["systemctl", "show", name, "--property=" + property_name, "--value"]
+                ).rstrip("\n")
+                != expected_value
+            ):
+                raise SecurityError(f"Loaded backup {suffix} has incorrect {property_name}")
+    for name, signature, expected_property in (
+        ("User", "s", "root"),
+        ("Type", "s", "oneshot"),
+        ("WorkingDirectory", "s", str(project_dir)),
+        ("EnvironmentFiles", "a(sb)", [[str(project_dir / ".env"), False]]),
+    ):
+        actual = _systemd_property("service", "Service", name, signature)
+        if actual != expected_property or type(actual) is not type(expected_property):
+            raise SecurityError(f"Loaded backup service has incorrect {name}")
+        if name == "EnvironmentFiles" and (
+            not isinstance(actual, list)
+            or len(actual) != 1
+            or not isinstance(actual[0], list)
+            or len(actual[0]) != 2
+            or actual[0][1] is not False
+        ):
+            raise SecurityError("Loaded backup service has malformed EnvironmentFiles")
+    environment = _systemd_property("service", "Service", "Environment", "as")
+    expected_environment = [
+        "PROJECT_DIR=" + str(project_dir),
+        "ENV_FILE=" + str(project_dir / ".env"),
+        "COMPOSE_FILE=docker-compose.staging.yaml",
+        "BACKUP_DIR=" + STORAGE_ROOT + "/backups",
+    ]
+    if (
+        not isinstance(environment, list)
+        or any(not isinstance(item, str) for item in environment)
+        or sorted(environment) != sorted(expected_environment)
+    ):
+        raise SecurityError("Loaded backup service has incorrect Environment")
+    for name, argv in (
+        (
+            "ExecStartPre",
+            [
+                "/usr/bin/python3",
+                str(project_dir / "scripts/ops/check_staging_security.py"),
+                "--project-dir",
+                str(project_dir),
+                "--storage-only",
+            ],
+        ),
+        ("ExecStart", ["/usr/bin/bash", str(project_dir / "scripts/ops/postgres_backup.sh")]),
+    ):
+        commands = _systemd_property("service", "Service", name, "a(sasbttttuii)")
+        if not isinstance(commands, list) or len(commands) != 1:
+            raise SecurityError(f"Loaded backup service has unexpected {name} commands")
+        command = commands[0]
+        if (
+            not isinstance(command, list)
+            or len(command) != 10
+            or command[:2] != [argv[0], argv]
+            or command[2] is not False
+            or any(type(item) is not int or item < 0 for item in command[3:])
+        ):
+            raise SecurityError(f"Loaded backup service has incorrect {name}")
+    mount_units = {
+        r"mnt-pulseplate\x2dstaging\x2ddata.mount",
+        r"srv-pulseplate\x2dstaging-secrets.mount",
+    }
+    for name, required in (
+        ("BindsTo", mount_units),
+        ("After", mount_units | {"docker.service", "network-online.target"}),
+        ("RequiresMountsFor", {STORAGE_ROOT, str(project_dir / "secrets")}),
+    ):
+        actual = _systemd_property("service", "Unit", name, "as")
+        if (
+            not isinstance(actual, list)
+            or any(not isinstance(item, str) for item in actual)
+            or len(actual) != len(set(actual))
+            or not required.issubset(actual)
+            or (name == "BindsTo" and set(actual) != required)
+        ):
+            raise SecurityError(f"Loaded backup service has incorrect {name}")
+    if _systemd_property("timer", "Timer", "Unit", "s") != "pulseplate-postgres-backup.service":
+        raise SecurityError("Backup timer targets a different service")
+    if _systemd_property("timer", "Timer", "Persistent", "b") is not True:
+        raise SecurityError("Backup timer must retain its persistent daily schedule")
+    calendars = _systemd_property("timer", "Timer", "TimersCalendar", "a(sst)")
+    if (
+        not isinstance(calendars, list)
+        or len(calendars) != 1
+        or not isinstance(calendars[0], list)
+        or len(calendars[0]) != 3
+        or calendars[0][:2] != ["OnCalendar", "*-*-* 02:15:00"]
+        or type(calendars[0][2]) is not int
+        or calendars[0][2] < 0
+    ):
+        raise SecurityError("Backup timer has an unexpected calendar schedule")
+    for name, expected_state in (("UnitFileState", "enabled"), ("ActiveState", "active")):
+        if _systemd_property("timer", "Unit", name, "s") != expected_state:
+            raise SecurityError(f"Backup timer has incorrect {name}")
+
+
 def check_existing_volumes(value: object) -> None:
     volumes = _object(_object(value, "Compose").get("volumes"), "Compose volumes")
     existing = _native(["docker", "volume", "ls", "--format", "{{.Name}}"]).splitlines()
-    if any(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name) is None for name in existing):
+    if len(existing) != len(set(existing)) or any(
+        re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name) is None for name in existing
+    ):
         raise SecurityError("Docker volume census is malformed")
     for key in ("postgres_data", "prometheus_data"):
         requested = _object(volumes.get(key), key)
@@ -386,15 +530,131 @@ def check_existing_volumes(value: object) -> None:
         ):
             raise SecurityError("Rendered named-volume identity is missing or invalid")
         if name not in existing:
+            if key == "postgres_data" and "pulseplate-staging_postgres_data" in existing:
+                raise SecurityError("Legacy PostgreSQL volume retains possible data; migrate first")
+            check_empty_data_directory("postgres" if key == "postgres_data" else "prometheus")
             continue
         inspected = _read_json(_native(["docker", "volume", "inspect", name]))
         if not isinstance(inspected, list) or len(inspected) != 1:
             raise SecurityError("Docker named-volume inspection is ambiguous")
         actual = _object(inspected[0], "Docker volume")
-        if actual.get("Driver") != "local" or actual.get("Options") != requested.get("driver_opts"):
+        if (
+            actual.get("Name") != name
+            or actual.get("Driver") != "local"
+            or actual.get("Options") != requested.get("driver_opts")
+        ):
             raise SecurityError(
                 "Existing named volume has different storage backing; preserve it and migrate explicitly"
             )
+    check_prometheus_state(value, existing)
+
+
+def check_empty_data_directory(directory: str) -> None:
+    """Observe an empty admitted backing directory, without following a replacement link."""
+    path = Path(STORAGE_ROOT) / directory
+    before = path.lstat()
+    if not stat.S_ISDIR(before.st_mode) or before.st_mode & 0o500 != 0o500:
+        raise SecurityError(f"Fresh {directory} backing must be a readable ordinary directory")
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(descriptor)
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            raise SecurityError(f"Fresh {directory} backing changed during observation")
+        with os.scandir(descriptor) as entries:
+            if next(entries, None) is not None:
+                raise SecurityError(f"Fresh {directory} backing is populated; preserve and migrate")
+        after = path.lstat()
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_mode,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        ) != (after.st_dev, after.st_ino, after.st_mode, after.st_mtime_ns, after.st_ctime_ns):
+            raise SecurityError(f"Fresh {directory} backing changed during observation")
+    finally:
+        os.close(descriptor)
+
+
+def check_prometheus_state(value: object, existing: list[str]) -> None:
+    """Require manual first v5 cutover for any retained Prometheus state."""
+    document = _object(value, "Compose")
+    if document.get("name") != "pulseplate-staging":
+        raise SecurityError("Prometheus history requires the existing staging Compose project")
+    volumes = _object(document.get("volumes"), "Compose volumes")
+    name = _object(volumes.get("prometheus_data"), "Prometheus volume").get("name")
+    legacy = "pulseplate-staging_prometheus_data"
+    if name != legacy + "_v5":
+        raise SecurityError("Prometheus requires the admitted v5 named-volume identity")
+    identifiers = _native(
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--quiet",
+            "--no-trunc",
+            "--filter",
+            "label=com.docker.compose.project=pulseplate-staging",
+            "--filter",
+            "label=com.docker.compose.service=prometheus",
+        ]
+    ).splitlines()
+    if not identifiers and legacy not in existing and name not in existing:
+        check_empty_data_directory("prometheus")
+        return
+    if len(identifiers) != 1 or re.fullmatch(r"[0-9a-f]{64}", identifiers[0]) is None:
+        raise SecurityError("Prometheus history requires one trustworthy running v5 service")
+    inspected = _read_json(_native(["docker", "inspect", identifiers[0]]))
+    if not isinstance(inspected, list) or len(inspected) != 1:
+        raise SecurityError("Prometheus container inspection is ambiguous")
+    actual = _object(inspected[0], "Prometheus container")
+    config = _object(actual.get("Config"), "Prometheus config")
+    labels = _object(config.get("Labels"), "Prometheus Compose labels")
+    state = _object(actual.get("State"), "Prometheus state")
+    health = _object(state.get("Health"), "Prometheus health")
+    service = _object(
+        _object(document.get("services"), "Compose services").get("prometheus"),
+        "Prometheus service",
+    )
+    mounts = actual.get("Mounts")
+    if not isinstance(mounts, list):
+        raise SecurityError("Prometheus mount census is malformed")
+    data_mounts = [
+        _object(mount, "Prometheus mount")
+        for mount in mounts
+        if _object(mount, "Prometheus mount").get("Destination") == "/prometheus"
+    ]
+    if (
+        actual.get("Id") != identifiers[0]
+        or name not in existing
+        or labels.get("com.docker.compose.project") != "pulseplate-staging"
+        or labels.get("com.docker.compose.service") != "prometheus"
+        or labels.get("com.docker.compose.oneoff") != "False"
+        or not isinstance(service.get("image"), str)
+        or config.get("Image") != service.get("image")
+        or state.get("Running") is not True
+        or state.get("Status") != "running"
+        or health.get("Status") != "healthy"
+        or len(data_mounts) != 1
+        or data_mounts[0].get("Type") != "volume"
+        or data_mounts[0].get("Name") != name
+        or data_mounts[0].get("RW") is not True
+    ):
+        raise SecurityError("Prometheus history is not bound to the healthy admitted v5 service")
+    volume = _read_json(_native(["docker", "volume", "inspect", name]))
+    if not isinstance(volume, list) or len(volume) != 1:
+        raise SecurityError("Prometheus volume reinspection is ambiguous")
+    observed = _object(volume[0], "Prometheus volume")
+    requested = _object(volumes.get("prometheus_data"), "Prometheus volume")
+    if (
+        observed.get("Name") != name
+        or observed.get("Driver") != "local"
+        or observed.get("Options") != requested.get("driver_opts")
+        or not isinstance(observed.get("Mountpoint"), str)
+        or not cast(str, observed["Mountpoint"]).startswith("/")
+        or data_mounts[0].get("Source") != observed["Mountpoint"]
+    ):
+        raise SecurityError("Prometheus mounted source differs from the admitted Docker volume")
 
 
 def main() -> int:
@@ -403,9 +663,12 @@ def main() -> int:
     parser.add_argument("--storage-only", action="store_true")
     parser.add_argument("--compose-stdin", action="store_true")
     parser.add_argument("--print-backup-dir", action="store_true")
+    parser.add_argument("--fresh-postgres", action="store_true")
     arguments = parser.parse_args()
     try:
         contract = check_storage(arguments.project_dir)
+        if arguments.fresh_postgres:
+            check_empty_data_directory("postgres")
         composed = _read_json(sys.stdin.read()) if arguments.compose_stdin else None
         if composed is not None:
             validate_compose(composed, arguments.project_dir)
@@ -419,6 +682,7 @@ def main() -> int:
             )
             check_tls(arguments.project_dir, contract, database_environment)
             check_daemon_guard(arguments.project_dir)
+            check_backup_units(arguments.project_dir)
         if composed is not None:
             check_existing_volumes(composed)
     except (ValueError, OSError, subprocess.SubprocessError) as error:

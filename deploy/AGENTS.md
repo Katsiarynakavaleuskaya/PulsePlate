@@ -175,7 +175,17 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   its OCI SDK reads inline GHCR auth from `$HOME/.docker/config.json`, independently
   of the private publisher's `DOCKER_CONFIG`. Use the bounded
   `ghcr_attestation_credentials.py` adapter to install native-generated
-  GHCR-only auth and restore the previous default config before owned cleanup.
+  GHCR-only auth in a fresh `0700` directory with a `0600` config. Preserve the
+  entire pre-existing default directory as an opaque object in a private sibling
+  holder; do not read its children or require its original UID/GID/mode to match
+  newly authored credentials. Restore the same original directory before deleting
+  authored files or the recovery journal. All four directory moves use the native
+  no-replace primitive; unsupported or ambiguous state is HOLD, with the original
+  and journal retained. Journal/topology recovery can continue in a fresh process
+  while the filesystem remains available; it does not promise recovery of a lost
+  hosted VM. One placement at a time is supported in the isolated job HOME, with
+  no other writer or consumer requiring the original default context during that
+  interval. Kernel no-replace protects occupied destinations, not source exclusion.
   Keep `HOME` and the private DHI/Buildx/Scout context unchanged. Successful
   ordinary `gh` authentication or Docker push does not prove this OCI reader
   received credentials; diagnose each consumer at its real boundary. The
@@ -203,6 +213,18 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   restore disabled. A missing mount must stop writers instead of creating
   unencrypted root-disk directories. Do not silently rebind existing named
   volumes or initialize discovered data.
+- Staging admission checks the installed backup service/timer bytes against the
+  admitted bundle and the manager's loaded systemd properties, including exact
+  commands, environment-file identity, mount dependencies and persistent daily
+  timer. A staged example alone is insufficient. The timer must be enabled and
+  active; stale loaded state or extra drop-ins holds deployment.
+- Before Prometheus recreation, census the existing Compose service and its
+  actual v5 data-volume mount. Retained legacy history requires a manual first
+  copy and verified v5 service before automatic deploy; preserve the old volume
+  for rollback. Only absent legacy/v5 objects plus an empty backing directory
+  admit a fresh installation. Run preflight promtool against the exact image
+  with only config/credential mounts, so validation cannot create a service
+  data volume. Repeat the history census immediately before recreation.
 - For an existing staging Droplet, bind its provider ID to the retained
   provisioning record and inventory dedicated SSH/known-hosts carriers first.
   Verify the recorded operator login with strict saved-host-key checking
@@ -257,12 +279,17 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   normal PostgreSQL initialization. This is bounded Docker-engine evidence,
   not universal runtime or existing-volume evidence.
 - A fresh PostgreSQL transition must prove the rendered named volume absent
+  and its admitted backing directory ordinary, readable and exactly empty
   twice: once before product quiesce and once immediately before the single
   no-pull Compose start. The second census is the declared fresh-volume
-  handoff boundary; any appearance, malformed listing, or listing error leaves
+  handoff boundary; hidden entries, populated copied data, replacement links,
+  any volume appearance, malformed listing, or listing error leave
   captured writers quiesced and returns `HOLD`. Do not add further same-step
   polling or rollback writes; concurrent manual Compose/Docker mutation is
   outside the admitted transition and requires a separate host-lock design.
+  The exact retained legacy PostgreSQL volume also blocks fresh admission,
+  even with no current service and an empty destination. Keep that old volume
+  only alongside the verified existing-v5 transition after manual migration.
 - The `postgres-pgvector-publish` canonical-tag write is provisional until an
   immediate exact-main revalidation of the closed PostgreSQL material set
   gates `runtime_ref` output and admission. If that post-write check detects a

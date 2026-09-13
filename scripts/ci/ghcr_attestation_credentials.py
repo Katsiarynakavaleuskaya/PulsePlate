@@ -7,6 +7,7 @@ Native Docker creates the inline auth; the pinned SDK reads the fixed home path.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -25,6 +26,7 @@ PREFIXES = (
 )
 OWNER = ".native-owned.json"
 SDK = ".ghcr-sdk-restore.json"
+HOLDER = ".pulseplate-ghcr-sdk"
 
 
 def identity(path: Path, directory: bool = False, *, role: str = "invocation_object") -> dict:
@@ -59,6 +61,7 @@ def identity(path: Path, directory: bool = False, *, role: str = "invocation_obj
         "uid": info.st_uid,
         "gid": info.st_gid,
         "mode": stat.S_IMODE(info.st_mode),
+        "type": stat.S_IFMT(info.st_mode),
     }
     if not directory:
         value["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -66,7 +69,8 @@ def identity(path: Path, directory: bool = False, *, role: str = "invocation_obj
 
 
 def read(path: Path, *, role: str = "invocation_receipt") -> dict:
-    identity(path, role=role)
+    if identity(path, role=role)["mode"] != 0o600:
+        raise ValueError("Native credential or recovery record must have mode0600")
     value = loads(path.read_bytes())
     if not isinstance(value, dict):
         raise ValueError("Native credential receipt must be an object")
@@ -75,13 +79,100 @@ def read(path: Path, *, role: str = "invocation_receipt") -> dict:
 
 def write(path: Path, value: dict) -> None:
     data = json.dumps(value, sort_keys=True).encode()
-    if path.exists():
-        identity(path)
+    if path.exists() or path.is_symlink():
+        if identity(path)["mode"] != 0o600:
+            raise ValueError("Native recovery record must remain mode0600 before replacement")
     temporary = path.with_name(path.name + ".next")
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "wb") as output:
-        output.write(data)
-    os.replace(temporary, path)
+    created = os.fstat(fd)
+    try:
+        with os.fdopen(fd, "wb") as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        sync_directory(path.parent)
+    except BaseException:
+        try:
+            observed = temporary.lstat()
+            if (observed.st_dev, observed.st_ino) == (created.st_dev, created.st_ino):
+                temporary.unlink()
+            else:
+                print("Native journal temporary changed; retained", file=sys.stderr)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            print("Native journal temporary cleanup failed; retained", file=sys.stderr)
+        raise
+
+
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def directory_entry(path: Path) -> dict | None:
+    """Observe an opaque directory entry without opening any of its children."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError("Native Docker directory entry must be an ordinary directory")
+    return {
+        "dev": info.st_dev,
+        "ino": info.st_ino,
+        "uid": info.st_uid,
+        "gid": info.st_gid,
+        "mode": stat.S_IMODE(info.st_mode),
+        "type": stat.S_IFMT(info.st_mode),
+    }
+
+
+def move_directory(source: Path, destination: Path) -> None:
+    """Use the supported kernel no-replace operation; never fall back to overwrite/copy."""
+    if sys.platform == "darwin":
+        symbol, flag = "renameatx_np", 4
+    elif sys.platform.startswith("linux"):
+        symbol, flag = "renameat2", 1
+    else:
+        raise ValueError("Native no-replace directory move is unsupported")
+    try:
+        operation = getattr(ctypes.CDLL(None, use_errno=True), symbol)
+    except (AttributeError, OSError) as error:
+        raise ValueError("Native no-replace directory move is unavailable") from error
+    operation.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    operation.restype = ctypes.c_int
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    source_fd = os.open(source.parent, flags)
+    try:
+        destination_fd = os.open(destination.parent, flags)
+        try:
+            ctypes.set_errno(0)
+            result = operation(
+                source_fd,
+                os.fsencode(source.name),
+                destination_fd,
+                os.fsencode(destination.name),
+                flag,
+            )
+            if result != 0:
+                raise OSError(ctypes.get_errno(), "Native no-replace directory move rejected")
+            os.fsync(source_fd)
+            os.fsync(destination_fd)
+        finally:
+            os.close(destination_fd)
+    finally:
+        os.close(source_fd)
 
 
 def capture(directory: Path, runner_temp: Path) -> None:
@@ -132,85 +223,171 @@ def install(directory: Path, generated: Path, default: Path) -> None:
         or not auths["ghcr.io"]["auth"]
     ):
         raise ValueError("Native login must generate exactly one inline GHCR auth")
-    if (directory / SDK).exists():
+    if (directory / SDK).exists() or (directory / SDK).is_symlink():
         raise ValueError("Native SDK credential placement already active")
-    created = not default.exists()
-    if created:
-        default.mkdir(mode=0o700)
-    directory_identity = identity(default, True, role="default_docker_directory")
-    target = default / "config.json"
-    original = (
-        identity(target, role="default_docker_config")
-        if target.exists() or target.is_symlink()
-        else None
-    )
-    backup = directory / ".original-docker-config"
-    if original is not None:
-        fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, "wb") as output:
-            output.write(target.read_bytes())
-    fd, name = tempfile.mkstemp(prefix=".pulseplate-ghcr-", dir=default)
-    temporary = Path(name)
+    home = default.parent
+    if default.name != ".docker" or home != home.resolve(strict=True):
+        raise ValueError("Native SDK default must use its physical home directory")
+    parent = directory_entry(home)
+    if parent is None or parent["uid"] != os.getuid() or parent["mode"] & 0o022:
+        raise ValueError("Native SDK home must be owned and not group/world writable")
+    holder = home / HOLDER
+    if holder.exists() or holder.is_symlink():
+        raise ValueError("Native SDK holder already exists; overlapping placement is unsupported")
+    original = directory_entry(default)
+    if original is not None and original["dev"] != parent["dev"]:
+        raise ValueError("Native SDK original must remain on the home filesystem")
+    state: dict[str, Any] = {
+        "home": str(home),
+        "home_identity": parent,
+        "default": str(default),
+        "original": original,
+        "holder_identity": None,
+        "authored": None,
+        "config": None,
+        "restored": False,
+    }
+    # Intent precedes allocations: an interrupted, unrecorded inode is HOLD, not guessed ownership.
+    write(directory / SDK, state)
+    holder.mkdir(mode=0o700)
+    state["holder_identity"] = identity(holder, True, role="sdk_holder")
+    if state["holder_identity"]["mode"] != 0o700:
+        raise ValueError("Native SDK holder must be private")
+    write(directory / SDK, state)
+    fresh = holder / "sdk"
+    fresh.mkdir(mode=0o700)
+    state["authored"] = identity(fresh, True, role="authored_sdk_directory")
+    if state["authored"]["mode"] != 0o700:
+        raise ValueError("Native SDK directory must be private")
+    write(directory / SDK, state)
+    target = fresh / "config.json"
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "wb") as output:
         output.write(json.dumps({"auths": auths}, sort_keys=True).encode())
-    authored = identity(temporary)
-    state = {
-        "default": str(default),
-        "directory": directory_identity,
-        "created": created,
-        "original": original,
-        "backup": identity(backup) if original else None,
-        "authored": authored,
-        "temporary": str(temporary),
-    }
+        output.flush()
+        os.fsync(output.fileno())
+    sync_directory(fresh)
+    state["config"] = identity(target, role="authored_sdk_config")
+    if state["config"]["mode"] != 0o600:
+        raise ValueError("Native SDK config must be private")
+    # This complete record can recover either side of every following namespace move.
     write(directory / SDK, state)
-    if original is not None and identity(target) != original:
-        raise ValueError("Default native credential config changed before installation")
-    if original is None and (target.exists() or target.is_symlink()):
-        raise ValueError("Default native credential config appeared before installation")
-    os.replace(temporary, target)
+    if directory_entry(home) != parent or directory_entry(default) != original:
+        raise ValueError("Native SDK original or home changed before placement")
+    if original is not None:
+        move_directory(default, holder / "original")
+        if directory_entry(holder / "original") != original:
+            raise ValueError("Native SDK original changed during preservation")
+    move_directory(fresh, default)
+    if identity(default, True) != state["authored"]:
+        raise ValueError("Native SDK authored directory changed during placement")
+
+
+def _state_paths(state: dict) -> tuple[Path, Path, Path]:
+    if set(state) != {
+        "home",
+        "home_identity",
+        "default",
+        "original",
+        "holder_identity",
+        "authored",
+        "config",
+        "restored",
+    } or not isinstance(state["restored"], bool):
+        raise ValueError("Native SDK recovery record has an unknown shape")
+    if not isinstance(state["home"], str) or not isinstance(state["default"], str):
+        raise ValueError("Native SDK recovery paths are invalid")
+    home = Path(state["home"])
+    default = Path(state["default"])
+    if home != home.resolve(strict=True) or default != home / ".docker":
+        raise ValueError("Native SDK recovery paths changed")
+    if directory_entry(home) != state["home_identity"]:
+        raise ValueError("Native SDK physical home identity changed")
+    return home, default, home / HOLDER
+
+
+def _authored(directory: Path, state: dict, *, removing: bool = False) -> None:
+    if identity(directory, True, role="authored_sdk_directory") != state["authored"]:
+        raise ValueError("Native SDK authored directory identity changed")
+    if {child.name for child in directory.iterdir()} - {"config.json"}:
+        raise ValueError("Native SDK authored directory contains unknown children")
+    config = directory / "config.json"
+    if config.exists() or config.is_symlink():
+        if identity(config, role="authored_sdk_config") != state["config"]:
+            raise ValueError("Native SDK authored config identity changed")
+    elif state["config"] is not None and not removing:
+        raise ValueError("Native SDK authored config disappeared")
 
 
 def restore(directory: Path) -> None:
     owned(directory)
-    if not (directory / SDK).exists():
+    if not (directory / SDK).exists() and not (directory / SDK).is_symlink():
         return
     state = read(directory / SDK)
-    default = Path(state["default"])
-    if identity(default, True) != state["directory"]:
-        raise ValueError("Default native credential directory changed")
-    target = default / "config.json"
-    present = identity(target) if target.exists() or target.is_symlink() else None
-    if "restored" in state:
-        if present != state["restored"]:
-            raise ValueError("Restored native config changed externally")
-    elif present == state["authored"]:
-        if state["original"] is None:
-            target.unlink()
-        else:
-            backup = directory / ".original-docker-config"
-            if identity(backup) != state["backup"]:
-                raise ValueError("Original native config backup changed")
-            fd, name = tempfile.mkstemp(prefix=".pulseplate-restore-", dir=default)
-            temporary = Path(name)
-            with os.fdopen(fd, "wb") as output:
-                output.write(backup.read_bytes())
-            temporary.chmod(state["original"]["mode"])
-            os.replace(temporary, target)
-        state["restored"] = identity(target) if target.exists() else None
+    home, default, holder = _state_paths(state)
+    original = state["original"]
+    current = directory_entry(default)
+    held = directory_entry(holder)
+    if held is None:
+        if current != original or (state["holder_identity"] is not None and not state["restored"]):
+            raise ValueError("Native SDK holder disappeared before proven restoration")
+        (directory / SDK).unlink()
+        sync_directory(directory)
+        return
+    if identity(holder, True, role="sdk_holder") != state["holder_identity"]:
+        raise ValueError("Native SDK holder identity is unknown or changed")
+    if {child.name for child in holder.iterdir()} - {"original", "sdk"}:
+        raise ValueError("Native SDK holder contains unknown children; original retained")
+    backup = holder / "original"
+    fresh = holder / "sdk"
+    saved = directory_entry(backup)  # Only the original entry, never its children.
+    staged = directory_entry(fresh)
+    authored = state["authored"]
+    if saved is not None and saved != original:
+        raise ValueError("Native SDK saved original identity changed")
+    if staged is not None:
+        _authored(fresh, state, removing=state["restored"])
+    if state["restored"]:
+        if current != original or saved is not None:
+            raise ValueError("Native SDK original restoration postcondition changed")
+    else:
+        if current is not None and current == authored:
+            if staged is not None or saved != original or state["config"] is None:
+                raise ValueError("Native SDK active topology is inconsistent")
+            _authored(default, state)
+            move_directory(default, fresh)
+            current = directory_entry(default)
+            staged = directory_entry(fresh)
+            if current is not None or staged != authored:
+                raise ValueError("Native SDK authored return changed identity")
+        elif current != original and current is not None:
+            raise ValueError("Native SDK default changed externally; original retained")
+        if original is not None:
+            if current is None and saved == original:
+                move_directory(backup, default)
+            elif current != original or saved is not None:
+                raise ValueError("Native SDK original recovery topology is ambiguous")
+        elif current is not None or saved is not None:
+            raise ValueError("Native SDK originally absent default changed externally")
+        if directory_entry(default) != original or directory_entry(backup) is not None:
+            raise ValueError("Native SDK original restoration is unproven")
+        if staged is None and authored is not None:
+            raise ValueError("Native SDK authored state disappeared before cleanup")
+        state["restored"] = True
         write(directory / SDK, state)
-    elif present != state["original"]:
-        raise ValueError("Authored native config changed externally; original backup retained")
-    temporary = Path(state["temporary"])
-    if temporary.exists():
-        if identity(temporary) != state["authored"]:
-            raise ValueError("Private native config sibling changed")
-        temporary.unlink()
-    if state["created"]:
-        default.rmdir()  # Unexpected children fail; never recursively remove the home directory.
+    # Restore O first; only then replay deletion of the finite authored config/empty dirs.
+    if staged is not None:
+        _authored(fresh, state, removing=True)
+        config = fresh / "config.json"
+        if config.exists():
+            config.unlink()
+            sync_directory(fresh)
+        fresh.rmdir()
+        sync_directory(holder)
+    holder.rmdir()  # Never recurse into the original holder or any unknown child.
+    sync_directory(home)
     (directory / SDK).unlink()
-    if state["original"] is not None:
-        (directory / ".original-docker-config").unlink()
+    sync_directory(directory)
 
 
 def cleanup(directory: Path) -> None:
@@ -238,7 +415,14 @@ def main() -> int:
         else:
             cleanup(args.directory)
         return 0
-    except (ValueError, OSError, KeyError) as error:
+    except OSError as error:
+        print(
+            "Native GHCR credential placement/cleanup HOLD: filesystem operation failed; "
+            + json.dumps({"errno": error.errno}),
+            file=sys.stderr,
+        )
+        return 1
+    except (ValueError, KeyError) as error:
         print("Native GHCR credential placement/cleanup HOLD: " + str(error), file=sys.stderr)
         return 1
 

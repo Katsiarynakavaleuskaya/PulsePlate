@@ -153,6 +153,10 @@ application setup, separate from automatic `deploy.sh` execution:
 3. Stop Prometheus before copying its TSDB into the empty encrypted Prometheus
    directory; verify the copy and apply the selected runtime ownership only to
    that copy. Preserve the original history and old volume for rollback.
+   Complete the first v5 Prometheus start, successful scrape and history/restart
+   verification manually before automatic deploy. Admission requires one
+   healthy existing Compose service mounted on the exact v5 volume; an old
+   volume without that service remains HOLD, including an empty legacy volume.
 4. Prepare the TLS/credential files described below. The copied roles retain
    their persisted password verifiers: a new password file does not change
    them. Establish matching admitted password/passfile contents and SCRAM
@@ -167,6 +171,11 @@ application setup, separate from automatic `deploy.sh` execution:
    retaining the project identity. A running old-volume service will fail the
    deploy volume-name check; a new volume without a trustworthy running service
    also remains HOLD.
+   A populated encrypted directory without a Docker volume object is never a
+   fresh database. Automatic deployment checks its empty-directory census
+   before quiescing writers and again immediately before the fresh start.
+   An orphaned legacy PostgreSQL volume also requires preservation/migration;
+   an empty new destination does not prove the old database is absent.
 6. Because the observed copied application database has zero public tables,
    run canonical `alembic upgrade head` from the verified backend image against
    the copied TLS database while writers remain quiesced. Verify the actual
@@ -253,6 +262,17 @@ Check `systemctl list-timers`, execute one backup and retain its
 exit/metadata receipt. Complete native archive parsing and substantive table
 inventory must succeed before publication/pruning. Droplet backups do not
 implicitly cover the attached Volume.
+
+Install both unit files as root-owned regular `0644` files at
+`/etc/systemd/system/pulseplate-postgres-backup.service` and `.timer`, then
+reload systemd and enable/start the timer before enabling automatic deployment.
+Admission compares their bytes with the checked staging bundle and reads the
+loaded systemd 255 properties via `systemctl show` and structured `busctl`
+output. Missing units, a different fragment, drop-ins, pending daemon reload,
+changed commands/environment paths, absent mount dependencies or a disabled
+timer remain HOLD. The reviewed daily calendar is `02:15` in the host timezone;
+verify that timezone explicitly. These observations do not prove a successful
+backup or restore; retain the separate execution evidence above.
 
 For an isolated restore, pass the source identity and selected Compose/env
 through the existing helper interface:

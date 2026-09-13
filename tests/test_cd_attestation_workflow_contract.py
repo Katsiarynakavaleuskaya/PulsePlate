@@ -26,6 +26,7 @@ import copy
 import json
 import sys
 import stat
+from typing import Any, IO, Iterator
 
 import pytest
 
@@ -57,10 +58,7 @@ def _load_cd_workflow() -> dict[str, object]:
     return yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("present", [False, True])
-def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_restores_original(
-    tmp_path: Path, present: bool
-) -> None:
+def _sdk_fixture(tmp_path: Path, present: bool = True) -> tuple[Path, Path, Path]:
     runner = tmp_path / "runner"
     runner.mkdir()
     private = runner / "pulseplate-attestation-probe-auth.test"
@@ -69,76 +67,145 @@ def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_restores_or
     (private / "config.json").write_text('{"auths":{"dhi.io":{"auth":"private-dhi"}}}')
     (private / "config.json").chmod(0o600)
     default = tmp_path / "home" / ".docker"
-    default.parent.mkdir()
-    original = b'{"auths":{"elsewhere":{"auth":"original"}},"credsStore":"original-reader"}\n'
+    default.parent.mkdir(mode=0o700)
     if present:
-        default.mkdir(mode=0o700)
-        (default / "config.json").write_bytes(original)
-        (default / "config.json").chmod(0o600)
+        default.mkdir(mode=0o755)
+        (default / "config.json").write_bytes(b"opaque original, not a JSON credential input\n")
+        (default / "config.json").chmod(0o644)
+        (default / "nested").mkdir()
+        (default / "nested" / "sentinel").write_text("unchanged")
     login = credentials.ghcr_directory(private) / "config.json"
     login.write_text('{"auths":{"ghcr.io":{"auth":"nonsecret-native-login"}}}')
     login.chmod(0o600)
+    return private, login, default
+
+
+def _entry_identity(path: Path) -> tuple[int, ...] | None:
+    if not path.exists() and not path.is_symlink():
+        return None
+    value = path.lstat()
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_uid,
+        value.st_gid,
+        value.st_mode,
+    )
+
+
+def _original_snapshot(default: Path) -> dict[str, tuple[int, ...] | None]:
+    names = (".", "config.json", "nested", "nested/sentinel")
+    return {name: _entry_identity(default / name) for name in names}
+
+
+def _fresh_cleanup(private: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.ci.ghcr_attestation_credentials",
+            "cleanup",
+            "--directory",
+            str(private),
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_original_inodes(
+    tmp_path: Path, present: bool
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path, present)
+    before = _original_snapshot(default)
+    private_dhi = (private / "config.json").read_bytes()
     credentials.install(private, login, default)
-    # Same fixed location as the retained pinned SDK reader; this is fixture evidence.
-    assert json.loads((default / "config.json").read_text())["auths"] == {
-        "ghcr.io": {"auth": "nonsecret-native-login"}
+    # Same fixed location as the pinned SDK reader; actual OCI proof remains hosted.
+    assert json.loads((default / "config.json").read_text()) == {
+        "auths": {"ghcr.io": {"auth": "nonsecret-native-login"}}
     }
-    assert json.loads((private / "config.json").read_text()) == {
-        "auths": {"dhi.io": {"auth": "private-dhi"}}
-    }
+    assert default.stat().st_mode & 0o777 == 0o700
+    assert (default / "config.json").stat().st_mode & 0o777 == 0o600
+    assert (private / "config.json").read_bytes() == private_dhi
+    assert _entry_identity(default) != before["."]
     nested = private / "buildx" / "instances"
     nested.mkdir(parents=True)
     (nested / "native-metadata").write_text("owned")
     sentinel = tmp_path / "unrelated"
     sentinel.write_text("preserve")
     (private / "interior-link").symlink_to(sentinel)
-    credentials.cleanup(private)
+    result = _fresh_cleanup(private)
+    assert result.returncode == 0, result.stderr
+    assert _original_snapshot(default) == before
+    assert not (default.parent / credentials.HOLDER).exists()
     assert not private.exists() and sentinel.read_text() == "preserve"
-    if present:
-        assert (default / "config.json").read_bytes() == original
-        assert (default / "config.json").stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("kind", ["symlink", "hardlink", "unreadable", "foreign_metadata"])
+def test_original_children_are_opaque_and_preserved_without_reading_or_enumerating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    config = default / "config.json"
+    if kind == "symlink":
+        config.unlink()
+        config.symlink_to(default / "nested" / "sentinel")
+    elif kind == "hardlink":
+        (default / "linked-config").hardlink_to(config)
+    elif kind == "unreadable":
+        config.chmod(0)
     else:
-        assert not default.exists()
+        default.chmod(0o777)  # O is preserved, not admitted as authored credential input.
+    before = _original_snapshot(default)
+    original_inode = default.lstat().st_ino
+    real_lstat, real_open, real_iterdir = Path.lstat, Path.open, Path.iterdir
+
+    def metadata(path: Path) -> os.stat_result:
+        value = real_lstat(path)
+        if value.st_ino == original_inode and kind == "foreign_metadata":
+            fields = list(value)
+            fields[4], fields[5] = os.getuid() + 1, os.getgid() + 1
+            return os.stat_result(fields)
+        return value
+
+    def original_ancestor(path: Path) -> bool:
+        for parent in (path, *path.parents):
+            if parent.exists() and real_lstat(parent).st_ino == original_inode:
+                return True
+        return False
+
+    def no_original_open(path: Path, *args: Any, **kwargs: Any) -> IO[Any]:
+        assert not original_ancestor(path), "adapter must not open original contents"
+        return real_open(path, *args, **kwargs)
+
+    def no_original_enumeration(path: Path) -> Iterator[Path]:
+        assert not original_ancestor(path), "adapter must not enumerate original children"
+        return real_iterdir(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "lstat", metadata)
+        patch.setattr(Path, "open", no_original_open)
+        patch.setattr(Path, "iterdir", no_original_enumeration)
+        credentials.install(private, login, default)
+        credentials.cleanup(private)
+    assert _original_snapshot(default) == before
 
 
-@pytest.mark.parametrize(
-    "object_role",
-    [
-        "generated_ghcr_directory",
-        "generated_ghcr_config",
-        "default_docker_directory",
-        "default_docker_config",
-    ],
-)
+@pytest.mark.parametrize("object_role", ["generated_ghcr_directory", "generated_ghcr_config"])
 def test_native_install_rejection_identifies_only_object_metadata(
     tmp_path: Path, object_role: str
 ) -> None:
-    runner = tmp_path / "runner"
-    runner.mkdir()
-    private = runner / "pulseplate-attestation-probe-auth.metadata"
-    private.mkdir(mode=0o700)
-    credentials.capture(private, runner)
-    login = credentials.ghcr_directory(private) / "config.json"
-    login.write_text('{"auths":{"ghcr.io":{"auth":"fixture-login-value"}}}')
-    login.chmod(0o600)
-    default = tmp_path / ".docker"
-    default.mkdir(mode=0o700)
-    original = default / "config.json"
-    original.write_text("original-value-must-not-be-logged")
-    original.chmod(0o600)
-    selected = {
-        "generated_ghcr_directory": login.parent,
-        "generated_ghcr_config": login,
-        "default_docker_directory": default,
-        "default_docker_config": original,
-    }[object_role]
+    private, login, default = _sdk_fixture(tmp_path)
+    selected = login.parent if object_role.endswith("directory") else login
     selected.chmod(0o770 if selected.is_dir() else 0o660)
     before = selected.lstat()
     with pytest.raises(ValueError, match="ownership/type/links/permissions changed") as error:
         credentials.install(private, login, default)
     message = str(error.value)
-    observed = json.loads(message.split(": ", 1)[1])
-    assert observed == {
+    assert json.loads(message.split(": ", 1)[1]) == {
         "object_role": object_role,
         "expected_directory": selected.is_dir(),
         "expected_uid": os.getuid(),
@@ -151,55 +218,518 @@ def test_native_install_rejection_identifies_only_object_metadata(
         "device": before.st_dev,
         "inode": before.st_ino,
     }
-    assert str(tmp_path) not in message
-    assert "fixture-login-value" not in message
-    assert "original-value-must-not-be-logged" not in message
-    assert original.read_text() == "original-value-must-not-be-logged"
+    assert str(tmp_path) not in message and "nonsecret-native-login" not in message
+    assert "opaque original" not in message
     assert not (private / credentials.SDK).exists()
 
 
 @pytest.mark.parametrize(
-    "fault", ["external_change", "symlink", "hardlink", "foreign_root", "helper_only", "dhi_source"]
+    "kind",
+    [
+        "symlink",
+        "hardlink",
+        "fifo",
+        "foreign_uid",
+        "foreign_gid",
+        "readable_config",
+        "helper_only",
+        "dhi_source",
+        "foreign_root",
+    ],
 )
-def test_native_credential_bridge_fails_closed_and_preserves_original_on_ambiguity(
+def test_generated_credentials_remain_strict_and_original_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    if kind in {"symlink", "fifo"}:
+        login.unlink()
+        if kind == "symlink":
+            login.symlink_to(default / "config.json")
+        else:
+            os.mkfifo(login)
+    elif kind == "hardlink":
+        (login.parent / "other").hardlink_to(login)
+    elif kind in {"foreign_uid", "foreign_gid"}:
+        original_lstat = Path.lstat
+        target_inode = login.lstat().st_ino
+
+        def foreign_metadata(path: Path) -> os.stat_result:
+            value = original_lstat(path)
+            if value.st_ino == target_inode:
+                fields = list(value)
+                fields[4 if kind == "foreign_uid" else 5] += 1
+                return os.stat_result(fields)
+            return value
+
+        monkeypatch.setattr(Path, "lstat", foreign_metadata)
+    elif kind == "helper_only":
+        login.write_text('{"credsStore":"external"}')
+    elif kind == "dhi_source":
+        login.write_text('{"auths":{"ghcr.io":{"auth":"native"},"dhi.io":{"auth":"private"}}}')
+    elif kind == "readable_config":
+        login.chmod(0o644)
+    else:
+        private.chmod(0o755)
+    with pytest.raises(ValueError):
+        credentials.install(private, login, default)
+    assert _original_snapshot(default) == before
+    assert not (private / credentials.SDK).exists()
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "symlink",
+        "file",
+        "fifo",
+        "home_symlink",
+        "home_writable",
+        "holder_occupied",
+        "journal_symlink",
+    ],
+)
+def test_invalid_original_entry_parent_or_overlap_does_not_start_transaction(
+    tmp_path: Path, kind: str
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path, present=False)
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text("preserve")
+    if kind == "symlink":
+        default.symlink_to(sentinel)
+    elif kind == "file":
+        default.write_text("not a directory")
+    elif kind == "fifo":
+        os.mkfifo(default)
+    elif kind == "home_symlink":
+        alias = tmp_path / "alias"
+        alias.symlink_to(default.parent, target_is_directory=True)
+        default = alias / ".docker"
+    elif kind == "home_writable":
+        default.parent.chmod(0o777)
+    elif kind == "holder_occupied":
+        (default.parent / credentials.HOLDER).mkdir()
+    else:
+        (private / credentials.SDK).symlink_to(tmp_path / "missing")
+    with pytest.raises(ValueError):
+        credentials.install(private, login, default)
+    assert sentinel.read_text() == "preserve"
+    assert not (default.parent / credentials.HOLDER / "original").exists()
+
+
+@pytest.mark.parametrize("move_number", [1, 2, 3, 4])
+@pytest.mark.parametrize("after", [False, True])
+def test_every_native_move_interruption_recovers_original_in_fresh_process(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, move_number: int, after: bool
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    native_move = credentials.move_directory
+    count = 0
+
+    def interrupted(source: Path, destination: Path) -> None:
+        nonlocal count
+        count += 1
+        if count == move_number and not after:
+            raise OSError("before selected native move")
+        native_move(source, destination)
+        if count == move_number and after:
+            raise OSError("after selected native move")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(credentials, "move_directory", interrupted)
+        with pytest.raises(OSError, match="selected native move"):
+            credentials.install(private, login, default)
+            credentials.cleanup(private)
+    assert (private / credentials.SDK).exists()
+    result = _fresh_cleanup(private)
+    assert result.returncode == 0, result.stderr
+    assert _original_snapshot(default) == before and not private.exists()
+
+
+@pytest.mark.parametrize("move_number", [1, 2, 3, 4])
+def test_process_exit_after_native_move_leaves_replayable_journal(
+    tmp_path: Path, move_number: int
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    script = """
+import os
+from pathlib import Path
+import sys
+from scripts.ci import ghcr_attestation_credentials as c
+real_move = c.move_directory
+count = 0
+def exit_after_move(source, destination):
+    global count
+    count += 1
+    real_move(source, destination)
+    if count == int(sys.argv[4]):
+        os._exit(79)
+c.move_directory = exit_after_move
+c.install(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]))
+c.cleanup(Path(sys.argv[1]))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(private), str(login), str(default), str(move_number)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 79, result.stderr
+    recovered = _fresh_cleanup(private)
+    assert recovered.returncode == 0, recovered.stderr
+    assert _original_snapshot(default) == before and not private.exists()
+
+
+@pytest.mark.parametrize("kind", ["empty_directory", "nonempty_directory", "file", "symlink"])
+def test_kernel_no_replace_preserves_both_entries_on_occupied_destination(
+    tmp_path: Path, kind: str
+) -> None:
+    source, destination = tmp_path / "source", tmp_path / "destination"
+    source.mkdir()
+    (source / "original").write_text("retained")
+    if kind.endswith("directory"):
+        destination.mkdir()
+        if kind == "nonempty_directory":
+            (destination / "other").write_text("occupied")
+    elif kind == "symlink":
+        destination.symlink_to(source, target_is_directory=True)
+    else:
+        destination.write_text("occupied")
+    before = (_entry_identity(source), _entry_identity(destination))
+    with pytest.raises(OSError, match="no-replace directory move rejected"):
+        credentials.move_directory(source, destination)
+    assert (_entry_identity(source), _entry_identity(destination)) == before
+    assert (source / "original").read_text() == "retained"
+
+
+@pytest.mark.parametrize("move_number", [1, 2, 3, 4])
+def test_each_transaction_destination_collision_holds_without_overwriting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, move_number: int
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    native_move = credentials.move_directory
+    count = 0
+    occupied: Path | None = None
+    occupied_identity: tuple[int, ...] | None = None
+
+    def collide(source: Path, destination: Path) -> None:
+        nonlocal count, occupied, occupied_identity
+        count += 1
+        if count == move_number:
+            destination.mkdir()
+            occupied, occupied_identity = destination, _entry_identity(destination)
+        native_move(source, destination)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(credentials, "move_directory", collide)
+        with pytest.raises(OSError, match="no-replace directory move rejected"):
+            credentials.install(private, login, default)
+            credentials.cleanup(private)
+    assert occupied is not None and _entry_identity(occupied) == occupied_identity
+    original = default if move_number == 1 else default.parent / credentials.HOLDER / "original"
+    assert _original_snapshot(original) == before
+    assert (private / credentials.SDK).exists()
+    recovered = _fresh_cleanup(private)
+    assert recovered.returncode == 1 and "HOLD" in recovered.stderr
+    assert _entry_identity(occupied) == occupied_identity
+    assert _original_snapshot(original) == before
+
+
+@pytest.mark.parametrize("fault", ["platform", "symbol", "cross_device"])
+def test_native_no_replace_never_falls_back_to_overwrite_or_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    source, destination = tmp_path / "source", tmp_path / "destination"
+    source.mkdir()
+    before = _entry_identity(source)
+    if fault == "platform":
+        monkeypatch.setattr(credentials.sys, "platform", "unsupported")
+    elif fault == "symbol":
+        monkeypatch.setattr(credentials.ctypes, "CDLL", lambda *a, **kw: object())
+    else:
+
+        class RejectingNative:
+            def __call__(self, *args: object) -> int:
+                credentials.ctypes.set_errno(18)  # EXDEV on the supported platforms.
+                return -1
+
+        class Library:
+            renameat2 = RejectingNative()
+            renameatx_np = RejectingNative()
+
+        monkeypatch.setattr(credentials.ctypes, "CDLL", lambda *a, **kw: Library())
+    with pytest.raises((ValueError, OSError)):
+        credentials.move_directory(source, destination)
+    assert _entry_identity(source) == before and not destination.exists()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "home",
+        "holder",
+        "original",
+        "default",
+        "config",
+        "authored_child",
+        "holder_child",
+        "journal_symlink",
+    ],
+)
+def test_unknown_recovery_state_holds_and_retains_original_and_journal(
     tmp_path: Path, fault: str
 ) -> None:
-    runner = tmp_path / "runner"
-    runner.mkdir()
-    private = runner / "pulseplate-pgvector-docker-config.test"
-    private.mkdir(mode=0o700)
-    credentials.capture(private, runner)
-    default = tmp_path / ".docker"
-    default.mkdir(mode=0o700)
-    target = default / "config.json"
-    target.write_text("original-bytes")
-    target.chmod(0o600)
-    login = credentials.ghcr_directory(private) / "config.json"
-    login.write_text('{"auths":{"ghcr.io":{"auth":"native"}}}')
-    login.chmod(0o600)
-    if fault in ("helper_only", "dhi_source"):
-        login.write_text(
-            '{"credsStore":"external"}'
-            if fault == "helper_only"
-            else '{"auths":{"ghcr.io":{"auth":"native"},"dhi.io":{"auth":"private"}}}'
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    credentials.install(private, login, default)
+    holder = default.parent / credentials.HOLDER
+    original = holder / "original"
+    if fault == "home":
+        default.parent.chmod(0o755)
+    elif fault in {"holder", "original", "default"}:
+        target = {"holder": holder, "original": original, "default": default}[fault]
+        target.chmod(0o750)
+    elif fault == "config":
+        (default / "config.json").write_text("external change")
+    elif fault in {"authored_child", "holder_child"}:
+        target = default if fault == "authored_child" else holder
+        (target / "unexpected").write_text("preserve")
+    else:
+        (private / credentials.SDK).rename(private / "retained-journal")
+        (private / credentials.SDK).symlink_to(private / "missing")
+    result = _fresh_cleanup(private)
+    assert result.returncode == 1 and "HOLD" in result.stderr
+    assert private.exists() and (private / credentials.SDK).is_symlink() == (
+        fault == "journal_symlink"
+    )
+    assert original.exists()
+    assert original.stat().st_ino == before["."][1]
+    assert (original / "config.json").stat().st_ino == before["config.json"][1]
+
+
+@pytest.mark.parametrize("fault", ["home", "holder", "original", "default", "config"])
+def test_replaced_recovery_objects_do_not_gain_cleanup_authority(
+    tmp_path: Path, fault: str
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    credentials.install(private, login, default)
+    holder = default.parent / credentials.HOLDER
+    original = holder / "original"
+    target = {
+        "home": default.parent,
+        "holder": holder,
+        "original": original,
+        "default": default,
+        "config": default / "config.json",
+    }[fault]
+    retained = target.with_name(target.name + "-retained")
+    was_directory = target.is_dir()
+    original_mode = stat.S_IMODE(target.stat().st_mode)
+    target.rename(retained)
+    if was_directory:
+        target.mkdir(mode=original_mode)
+    else:
+        target.write_bytes(retained.read_bytes())  # Same bytes never substitute for inode identity.
+        target.chmod(original_mode)
+    foreign = _entry_identity(target)
+    saved_original = (
+        retained / credentials.HOLDER / "original"
+        if fault == "home"
+        else (
+            retained / "original"
+            if fault == "holder"
+            else retained if fault == "original" else original
         )
-    elif fault == "symlink":
-        target.unlink()
-        target.symlink_to(login)
-    elif fault == "hardlink":
-        (default / "other").hardlink_to(target)
-    elif fault == "foreign_root":
-        private.chmod(0o755)
-    if fault != "external_change":
+    )
+    result = _fresh_cleanup(private)
+    assert result.returncode == 1 and "HOLD" in result.stderr
+    assert _original_snapshot(saved_original) == before
+    assert _entry_identity(target) == foreign
+    assert (private / credentials.SDK).exists()
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        "marker_write",
+        "config_unlink",
+        "sdk_rmdir",
+        "holder_rmdir",
+        "journal_unlink",
+        "private_cleanup",
+    ],
+)
+@pytest.mark.parametrize("after", [False, True])
+def test_cleanup_interruption_replays_only_after_original_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str, after: bool
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    credentials.install(private, login, default)
+    holder = default.parent / credentials.HOLDER
+    target = {
+        "marker_write": private / credentials.SDK,
+        "config_unlink": holder / "sdk" / "config.json",
+        "sdk_rmdir": holder / "sdk",
+        "holder_rmdir": holder,
+        "journal_unlink": private / credentials.SDK,
+        "private_cleanup": private,
+    }[boundary]
+    owner, method = (
+        (credentials, "write")
+        if boundary == "marker_write"
+        else (
+            (credentials.shutil, "rmtree")
+            if boundary == "private_cleanup"
+            else (Path, "unlink" if boundary.endswith("unlink") else "rmdir")
+        )
+    )
+    operation = getattr(owner, method)
+
+    def interrupt(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path == target:
+            assert _original_snapshot(default) == before
+            if not after:
+                raise OSError("selected cleanup boundary")
+        result = operation(path, *args, **kwargs)
+        if path == target and after:
+            raise OSError("selected cleanup boundary")
+        return result
+
+    with monkeypatch.context() as patch:
+        patch.setattr(owner, method, interrupt)
+        with pytest.raises(OSError, match="selected cleanup boundary"):
+            credentials.cleanup(private)
+    assert _original_snapshot(default) == before
+    if private.exists():
+        result = _fresh_cleanup(private)
+        assert result.returncode == 0, result.stderr
+    assert not private.exists() and not holder.exists()
+
+
+@pytest.mark.parametrize("write_number", [1, 2, 3, 4])
+@pytest.mark.parametrize("after", [False, True])
+def test_preparation_journal_failure_preserves_unmoved_original(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write_number: int, after: bool
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    native_write = credentials.write
+    count = 0
+
+    def interrupt(path: Path, value: dict) -> None:
+        nonlocal count
+        count += 1
+        if count == write_number and not after:
+            raise OSError("selected journal boundary")
+        native_write(path, value)
+        if count == write_number and after:
+            raise OSError("selected journal boundary")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(credentials, "write", interrupt)
+        with pytest.raises(OSError, match="selected journal boundary"):
+            credentials.install(private, login, default)
+    assert _original_snapshot(default) == before
+    result = _fresh_cleanup(private)
+    # Allocation without a persisted identity is retained, never guessed from its name.
+    expected_hold = not after and write_number in {2, 3, 4}
+    assert result.returncode == int(expected_hold), result.stderr
+    assert _original_snapshot(default) == before
+    if expected_hold:
+        assert (private / credentials.SDK).exists()
+    else:
+        assert not private.exists()
+
+
+@pytest.mark.parametrize("kind", ["widened_mode", "broken_symlink"])
+def test_journal_replacement_refuses_changed_existing_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    native_write = credentials.write
+    count = 0
+    changed_identity: tuple[int, ...] | None = None
+
+    def changed_record(path: Path, value: dict) -> None:
+        nonlocal count, changed_identity
+        count += 1
+        if count == 2:
+            if kind == "widened_mode":
+                path.chmod(0o640)
+            else:
+                path.rename(path.with_name("retained-record"))
+                path.symlink_to(tmp_path / "missing")
+            changed_identity = _entry_identity(path)
+        native_write(path, value)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(credentials, "write", changed_record)
         with pytest.raises(ValueError):
             credentials.install(private, login, default)
-    else:
-        credentials.install(private, login, default)
-        target.write_text("external-owned-change")
-        with pytest.raises(ValueError):
+    assert _original_snapshot(default) == before
+    assert _entry_identity(private / credentials.SDK) == changed_identity
+    result = _fresh_cleanup(private)
+    assert result.returncode == 1 and "HOLD" in result.stderr
+    assert _original_snapshot(default) == before
+    assert private.exists()
+
+
+def test_cli_filesystem_error_does_not_emit_paths_or_exception_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    private, _, _ = _sdk_fixture(tmp_path)
+
+    def fail_cleanup(directory: Path) -> None:
+        raise OSError(13, "fixture-value-must-not-be-logged", str(directory / "secret-path"))
+
+    monkeypatch.setattr(credentials, "cleanup", fail_cleanup)
+    monkeypatch.setattr(sys, "argv", ["credentials", "cleanup", "--directory", str(private)])
+    assert credentials.main() == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == (
+        'Native GHCR credential placement/cleanup HOLD: filesystem operation failed; {"errno": 13}\n'
+    )
+    assert str(tmp_path) not in output.err and "fixture-value" not in output.err
+
+
+@pytest.mark.parametrize("fsync_number", range(1, 25))
+def test_file_and_directory_sync_failures_preserve_recoverable_original(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fsync_number: int
+) -> None:
+    private, login, default = _sdk_fixture(tmp_path)
+    before = _original_snapshot(default)
+    native_sync = os.fsync
+    count = 0
+
+    def interrupt(descriptor: int) -> None:
+        nonlocal count
+        count += 1
+        if count == fsync_number:
+            raise OSError("selected sync boundary")
+        native_sync(descriptor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(credentials.os, "fsync", interrupt)
+        with pytest.raises(OSError, match="selected sync boundary"):
+            credentials.install(private, login, default)
             credentials.cleanup(private)
-        assert (private / ".original-docker-config").read_text() == "original-bytes"
-        assert target.read_text() == "external-owned-change"
+    result = _fresh_cleanup(private)
+    # Journal file fsync can fail before a newly allocated object's identity is published.
+    expected_hold = fsync_number in {3, 5, 7, 8, 9}
+    assert result.returncode == int(expected_hold), result.stderr
+    assert _original_snapshot(default) == before
+    if expected_hold:
+        assert (private / credentials.SDK).exists()
+    else:
+        assert not private.exists()
 
 
 def test_sdk_bridge_and_owned_cleanup_are_shared_by_two_actual_writers() -> None:
@@ -218,38 +748,6 @@ def test_sdk_bridge_and_owned_cleanup_are_shared_by_two_actual_writers() -> None
         assert 'docker --config "$ghcr_dir" login ghcr.io' in bridge["run"]
         assert "dhi.io" not in bridge["run"]
         assert "HOME=" not in text
-
-
-def test_native_sdk_interrupted_install_restores_before_private_backup_deletion(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    runner = tmp_path / "runner"
-    runner.mkdir()
-    private = runner / "pulseplate-attestation-probe-auth.test"
-    private.mkdir(mode=0o700)
-    credentials.capture(private, runner)
-    default = tmp_path / ".docker"
-    default.mkdir(mode=0o700)
-    target = default / "config.json"
-    target.write_bytes(b"original-exact-bytes")
-    target.chmod(0o644)
-    generated = credentials.ghcr_directory(private) / "config.json"
-    generated.write_text('{"auths":{"ghcr.io":{"auth":"native"}}}')
-    generated.chmod(0o600)
-    replace = credentials.os.replace
-
-    def interrupt(source: Path, destination: Path) -> None:
-        if destination == target:
-            raise OSError("native installation interrupted before replacement")
-        replace(source, destination)
-
-    monkeypatch.setattr(credentials.os, "replace", interrupt)
-    with pytest.raises(OSError):
-        credentials.install(private, generated, default)
-    assert (private / ".original-docker-config").read_bytes() == b"original-exact-bytes"
-    credentials.cleanup(private)
-    assert target.read_bytes() == b"original-exact-bytes" and target.stat().st_mode & 0o777 == 0o644
-    assert not private.exists()
 
 
 @pytest.mark.parametrize(

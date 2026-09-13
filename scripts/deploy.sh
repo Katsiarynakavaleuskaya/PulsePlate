@@ -498,7 +498,7 @@ if type(repo_digests) is not list or expected not in repo_digests:
 validate_staging_database_binding() {
   "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" \
     "$PROJECT_DIR/scripts/ops/check_staging_security.py" \
-    --project-dir "$PROJECT_DIR" --compose-stdin
+    --project-dir "$PROJECT_DIR" --compose-stdin "$@"
 }
 
 validate_pulled_postgres_mountpoint() {
@@ -553,11 +553,14 @@ require_absent_postgres_volume() {
       echo "❌ Docker PostgreSQL volume listing is malformed; HOLD" >&2
       return 1
     fi
-    if [ "$observed_volume" = "$POSTGRES_VOLUME_NAME" ]; then
+    if [ "$observed_volume" = "$POSTGRES_VOLUME_NAME" ] || \
+       [ "$observed_volume" = "pulseplate-staging_postgres_data" ]; then
       echo "❌ PostgreSQL volume exists without one trustworthy running container; HOLD" >&2
       return 1
     fi
   done <<< "$volume_names"
+  "$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" \
+    --project-dir "$PROJECT_DIR" --storage-only --fresh-postgres
 }
 
 read_existing_postgres_state() {
@@ -978,7 +981,11 @@ rm -f -- "$DOCKER_CONFIG/config.json"
 unset GHCR_TOKEN GHCR_USER
 
 echo "Validating the exact Prometheus configuration before product mutation"
-"${COMPOSE[@]}" run --rm --no-deps --entrypoint /bin/promtool prometheus \
+"$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+  --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,source=$PROMETHEUS_CONFIG,target=/etc/prometheus/prometheus.yml,readonly" \
+  --mount "type=bind,source=$METRICS_SECRET_FILE,target=/run/secrets/pulseplate_metrics_scrape_key,readonly" \
+  --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
   check config --syntax-only /etc/prometheus/prometheus.yml
 
 echo "Invoking the canonical application production invariant before product mutation"
@@ -1083,6 +1090,10 @@ if [ "$postgres_transition" = "existing" ]; then
   fi
 else
   echo "Fresh PostgreSQL path admitted: rendered named volume is absent"
+fi
+
+"$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only
+if [ "$postgres_transition" = "fresh" ]; then
   if require_absent_postgres_volume; then
     :
   else
@@ -1093,7 +1104,6 @@ else
 fi
 
 echo "Starting the already pulled exact PostgreSQL candidate without registry access"
-"$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only
 "${COMPOSE[@]}" up -d --pull never postgres
 
 max_wait=60
@@ -1208,7 +1218,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
 fi
 
-"$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only
+validate_staging_database_binding --storage-only
 echo "Starting Prometheus after complete product health"
 if "${COMPOSE[@]}" up -d --pull never prometheus; then
   :

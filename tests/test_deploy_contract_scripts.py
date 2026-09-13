@@ -7204,6 +7204,7 @@ def _write_stage_native_oracles(project_dir: Path) -> None:
     (project_dir / "scripts" / "ci").mkdir(parents=True, exist_ok=True)
     (project_dir / "secrets").mkdir(exist_ok=True)
     (project_dir / "backups").mkdir(exist_ok=True)
+    (project_dir / "synthetic-storage" / "postgres").mkdir(parents=True, mode=0o700)
     receipt = {
         "schema": "pulseplate.staging-storage.v1",
         "droplet_id": 594869239,
@@ -7231,7 +7232,7 @@ def _write_stage_native_oracles(project_dir: Path) -> None:
     _write_executable(
         project_dir / "scripts" / "ops" / "check_staging_security.py",
         """#!/usr/bin/env python3
-import argparse, json, sys
+import argparse, json, os, sys
 from pathlib import Path
 from scripts.ops import check_staging_security as security
 parser = argparse.ArgumentParser()
@@ -7239,11 +7240,20 @@ parser.add_argument("--project-dir", type=Path, required=True)
 parser.add_argument("--storage-only", action="store_true")
 parser.add_argument("--compose-stdin", action="store_true")
 parser.add_argument("--print-backup-dir", action="store_true")
+parser.add_argument("--fresh-postgres", action="store_true")
 args = parser.parse_args()
 try:
     security.validate_contract(json.loads((args.project_dir / ".staging-storage.json").read_text()))
     if args.compose_stdin:
         security.validate_compose(json.loads(sys.stdin.read()), args.project_dir)
+    if args.fresh_postgres:
+        security.STORAGE_ROOT = str(args.project_dir / "synthetic-storage")
+        counter = args.project_dir / "fresh-census-count"
+        count = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(count))
+        if count == 2 and os.getenv("STUB_BACKING_APPEARS_AFTER_FIRST") == "1":
+            (Path(security.STORAGE_ROOT) / "postgres" / "PG_VERSION").write_text("15")
+        security.check_empty_data_directory("postgres")
 except (ValueError, OSError) as error:
     print("Staging security HOLD: " + str(error), file=sys.stderr)
     raise SystemExit(1)
@@ -7992,6 +8002,8 @@ def test_fresh_postgres_volume_probe_requires_definitive_absence(
         "set -euo pipefail\n"
         f'DOCKER_BIN="{docker_stub}"\n'
         'POSTGRES_VOLUME_NAME="pulseplate_postgres_data"\n'
+        f'PYTHON_BIN="{shutil.which("true")}"\n'
+        f'PROJECT_DIR="{tmp_path}"\n'
         f"{function_definition}\n"
         "require_absent_postgres_volume\n"
     )
@@ -8913,3 +8925,131 @@ def test_staging_deploy_binds_running_container_to_selected_v5_volume_name(
             " stop " not in call and " up " not in call and not call.startswith("backup ")
             for call in calls
         )
+
+
+@pytest.mark.parametrize("when", ["before-quiesce", "after-quiesce"])
+def test_staging_populated_backing_without_volume_object_never_starts_postgres(
+    tmp_path: Path, when: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    backing = tmp_path / "staging" / "synthetic-storage" / "postgres"
+    if when == "before-quiesce":
+        (backing / ".retained").touch()
+    else:
+        env["STUB_BACKING_APPEARS_AFTER_FIRST"] = "1"
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1, completed.stderr
+    assert "populated" in completed.stderr
+    log_lines = log_file.read_text().splitlines()
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert any(" stop worker caddy app" in line for line in log_lines) is (when == "after-quiesce")
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert list(backing.iterdir())
+
+
+def test_prometheus_census_is_repeated_immediately_before_service_recreation() -> None:
+    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    start = script.index('if "${COMPOSE[@]}" up -d --pull never prometheus; then')
+    gate = script.rindex("validate_staging_database_binding --storage-only", 0, start)
+    assert script[gate:start].splitlines() == [
+        "validate_staging_database_binding --storage-only",
+        'echo "Starting Prometheus after complete product health"',
+    ]
+    assert script.index("validate_staging_database_binding\n") < script.index(
+        '"${COMPOSE[@]}" stop worker caddy app'
+    )
+
+
+def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    assert bash
+    script = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    start = script.index(
+        '"$DOCKER_BIN" run', script.index('echo "Validating the exact Prometheus configuration')
+    )
+    end = script.index('\necho "Invoking the canonical application', start)
+    argv_file = tmp_path / "argv.json"
+    docker = tmp_path / "docker-argv-capture"
+    _write_executable(
+        docker,
+        f"#!{sys.executable}\nimport json, sys\nfrom pathlib import Path\nPath({str(argv_file)!r}).write_text(json.dumps(sys.argv[1:]))\n",
+    )
+    env = {
+        **os.environ,
+        "DOCKER_BIN": str(docker),
+        "PROMETHEUS_RUNTIME_REF": PROMETHEUS_RUNTIME_REF,
+        "PROMETHEUS_CONFIG": str(tmp_path / "config.yml"),
+        "METRICS_SECRET_FILE": str(tmp_path / "key"),
+    }
+    completed = subprocess.run(
+        [bash, "-euc", script[start:end]], env=env, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr
+    argv = json.loads(argv_file.read_text())
+    assert argv[:10] == [
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--network",
+        "none",
+        "--read-only",
+        "--user",
+    ]
+    assert "compose" not in argv and "--volume" not in argv and "-v" not in argv
+    mounts = [argv[index + 1] for index, arg in enumerate(argv) if arg == "--mount"]
+    assert mounts == [
+        f"type=bind,source={tmp_path}/config.yml,target=/etc/prometheus/prometheus.yml,readonly",
+        f"type=bind,source={tmp_path}/key,target=/run/secrets/pulseplate_metrics_scrape_key,readonly",
+    ]
+    assert argv[-7:] == [
+        "--entrypoint",
+        "/bin/promtool",
+        PROMETHEUS_RUNTIME_REF,
+        "check",
+        "config",
+        "--syntax-only",
+        "/etc/prometheus/prometheus.yml",
+    ]
+
+
+@pytest.mark.parametrize("when", ["before-quiesce", "after-quiesce"])
+def test_staging_legacy_orphan_or_late_volume_is_not_fresh(tmp_path: Path, when: str) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_ABSENT"] = "1"
+    if when == "before-quiesce":
+        env["STUB_POSTGRES_VOLUME_LIST_OUTPUT"] = "pulseplate-staging_postgres_data\n"
+    else:
+        env["STUB_POSTGRES_VOLUME_LIST_COUNTER_FILE"] = str(tmp_path / "volume-count")
+        env["STUB_POSTGRES_VOLUME_LIST_OUTPUT_AFTER_FIRST"] = "pulseplate-staging_postgres_data\n"
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "volume exists without one trustworthy running container" in result.stderr
+    lines = log_file.read_text().splitlines()
+    assert all(" up -d --pull never postgres" not in line for line in lines)
+    assert any(" stop worker caddy app" in line for line in lines) is (when == "after-quiesce")
