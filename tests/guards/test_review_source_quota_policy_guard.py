@@ -279,7 +279,7 @@ def test_every_policy_surface_selects_this_guard_in_diff_validation() -> None:
     assert "printf '%s\\n' \"$CHANGED_FILES\"" not in runner
     assert "printf '%s\\n' \"$PYTHON_CHANGES\"" not in runner
     assert '[[ "$candidate" == .claude/* ]]' not in runner
-    assert 'for file in "${CHANGED_FILES[@]}"; do' in runner
+    assert 'for file in ${CHANGED_FILES[@]+"${CHANGED_FILES[@]}"}; do' in runner
     assert 'for file in "${PYTHON_CHANGES[@]}"; do' in runner
     assert "record_changed_files < <(" not in runner
     assert "append_changed_files < <(" not in runner

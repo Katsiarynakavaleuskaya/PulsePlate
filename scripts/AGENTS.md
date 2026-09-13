@@ -548,6 +548,15 @@
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 
+Verify this hook on the supported shells from
+[the Bash portability lesson](../docs/ENGINEERING_LESSONS.md#3-bash-scripts-must-be-portable-bash-32),
+including the actual macOS Bash 3.2 executable when validating on macOS.
+A successfully established empty selection is a no-test result; failed or
+aborted discovery is an error. Nonempty selection regressions must observe the
+actual pytest arguments, and discovery/test failures must stop the real
+`make validate-changed` target before its completion message. Do not treat exit
+zero alone as proof that tests ran or let cleanup overwrite an earlier error.
+
 First-class repo wrappers:
 
 - `make validate-changed` is the supported repo-root command for this diff-based path and runs the script with the repo `.venv` on `PATH`.

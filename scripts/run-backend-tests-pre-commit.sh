@@ -45,17 +45,36 @@ DIFF_OUTPUT_FILE=""
 
 cleanup_diff_output() {
     if [ -n "$DIFF_OUTPUT_FILE" ]; then
-        rm -f -- "$DIFF_OUTPUT_FILE"
-        DIFF_OUTPUT_FILE=""
+        if rm -f -- "$DIFF_OUTPUT_FILE"; then
+            DIFF_OUTPUT_FILE=""
+        else
+            local cleanup_status=$?
+            echo "❌ Could not remove changed-file discovery output (exit ${cleanup_status})" >&2
+            return "$cleanup_status"
+        fi
     fi
 }
 
-trap cleanup_diff_output EXIT
+fail_discovery() {
+    local failure_status="$1"
+    trap - HUP INT TERM
+    # Preserve the discovery/signal failure even if cleanup also fails.
+    if cleanup_diff_output; then
+        :
+    fi
+    exit "$failure_status"
+}
+
+# Bash 3.2 can enter EXIT with status zero after a fatal nounset expansion.
+# Clean up explicitly, so an interpreter abort cannot become a successful hook.
+trap 'fail_discovery 129' HUP
+trap 'fail_discovery 130' INT
+trap 'fail_discovery 143' TERM
 
 refresh_python_changes() {
     local changed_file
     PYTHON_CHANGES=()
-    for changed_file in "${CHANGED_FILES[@]}"; do
+    for changed_file in ${CHANGED_FILES[@]+"${CHANGED_FILES[@]}"}; do
         if [[ "$changed_file" == *.py ]]; then
             PYTHON_CHANGES+=("$changed_file")
         fi
@@ -65,7 +84,7 @@ refresh_python_changes() {
 add_changed_file() {
     local candidate="$1"
     local existing
-    for existing in "${CHANGED_FILES[@]}"; do
+    for existing in ${CHANGED_FILES[@]+"${CHANGED_FILES[@]}"}; do
         if [ "$existing" = "$candidate" ]; then
             return 0
         fi
@@ -96,27 +115,36 @@ collect_git_diff() {
     local diff_output_bytes
     shift
 
-    if ! DIFF_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-backend-diff.XXXXXX")"; then
+    if DIFF_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-backend-diff.XXXXXX")"; then
+        :
+    else
+        diff_status=$?
         echo "❌ Could not allocate temporary storage for changed-file discovery" >&2
-        exit 1
+        exit "$diff_status"
     fi
     if git diff --no-renames --name-only -z --diff-filter=ACMDT "$@" > "$DIFF_OUTPUT_FILE"; then
         :
     else
         diff_status=$?
         echo "❌ git diff failed while collecting changed files (exit ${diff_status})" >&2
-        exit "$diff_status"
+        fail_discovery "$diff_status"
     fi
 
-    diff_output_bytes="$(wc -c < "$DIFF_OUTPUT_FILE")"
+    if diff_output_bytes="$(wc -c < "$DIFF_OUTPUT_FILE")"; then
+        :
+    else
+        diff_status=$?
+        echo "❌ Could not measure changed-file discovery output (exit ${diff_status})" >&2
+        fail_discovery "$diff_status"
+    fi
     diff_output_bytes="${diff_output_bytes//[[:space:]]/}"
     if ! [[ "$diff_output_bytes" =~ ^[0-9]+$ ]]; then
         echo "❌ Could not measure changed-file discovery output" >&2
-        exit 1
+        fail_discovery 1
     fi
     if [ "$diff_output_bytes" -gt "$CHANGED_DIFF_MAX_BYTES" ]; then
         echo "❌ Changed-file discovery output exceeds the ${CHANGED_DIFF_MAX_BYTES}-byte limit" >&2
-        exit 1
+        fail_discovery 1
     fi
 
     if [ "$mode" = "append" ]; then
@@ -145,7 +173,9 @@ resolve_branch_diff_from_base() {
         fi
     done
 
-    return 1
+    # Absence is a normal fallback result; operational failures propagate from
+    # ordinary calls instead of being suppressed by a conditional function call.
+    return 0
 }
 
 if [ -n "${PRE_COMMIT:-}" ]; then
@@ -154,19 +184,13 @@ if [ -n "${PRE_COMMIT:-}" ]; then
     # the branch diff to keep manifest governance from going false-green.
     collect_git_diff replace --cached
     if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
-        if resolve_branch_diff_from_base; then
-            :
-        fi
+        resolve_branch_diff_from_base
     else
-        if resolve_branch_diff_from_base append; then
-            :
-        fi
+        resolve_branch_diff_from_base append
     fi
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
-    if resolve_branch_diff_from_base; then
-        :
-    fi
+    resolve_branch_diff_from_base
 else
     # Pre-push hook: check files in commits that will be pushed
     # In pre-push, we need to compare what's being pushed with what's already on remote
@@ -174,7 +198,7 @@ else
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
     # Try to get remote tracking branch from git config
-    REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo "")
+    REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo "")
     log_debug "Current branch: $CURRENT_BRANCH"
     log_debug "Upstream branch: ${REMOTE_BRANCH:-<not set>}"
 
@@ -205,9 +229,7 @@ else
 
     # Last resort: compare branch diff against main/master using merge-base
     if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
-        if resolve_branch_diff_from_base; then
-            :
-        fi
+        resolve_branch_diff_from_base
     fi
 fi
 
@@ -266,7 +288,7 @@ add_python_dependency_testclient_tests() {
 
 add_extra_tests_for_changed_files() {
     local file
-    for file in "${CHANGED_FILES[@]}"; do
+    for file in ${CHANGED_FILES[@]+"${CHANGED_FILES[@]}"}; do
         # Keep the hook aligned with Dependabot's configured root/one-level
         # .txt/.in carrier class. The Python policy is the content authority.
         case "$file" in
@@ -447,7 +469,8 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     source "$ROOT_DIR/scripts/hooks/repo_python.sh"
     REPO_PYTHON_BIN="$(resolve_repo_python "$ROOT_DIR")"
     export VENV_PYTHON="$REPO_PYTHON_BIN"
-    export PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+    PATH="$(dirname "$REPO_PYTHON_BIN"):$PATH"
+    export PATH
 
     if ! "$REPO_PYTHON_BIN" -m pytest --version > /dev/null 2>&1; then
         echo "❌ pytest not available through repo Python: $REPO_PYTHON_BIN" >&2
@@ -462,7 +485,7 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     declare -a DEDUPED_TEST_FILES=()
     for test_file in "${TEST_FILES[@]}"; do
         test_file_seen=0
-        for deduped_test_file in "${DEDUPED_TEST_FILES[@]}"; do
+        for deduped_test_file in ${DEDUPED_TEST_FILES[@]+"${DEDUPED_TEST_FILES[@]}"}; do
             if [ "$deduped_test_file" = "$test_file" ]; then
                 test_file_seen=1
                 break
