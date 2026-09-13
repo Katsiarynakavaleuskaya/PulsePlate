@@ -34,6 +34,7 @@ HELPER_PATHS = (
     "scripts/ops/check_staging_security.py",
     "deploy/systemd/pulseplate-staging-storage.conf",
     "deploy/systemd/pulseplate-postgres-backup.service.example",
+    "deploy/systemd/pulseplate-postgres-backup.timer.example",
     "scripts/ops/postgres_backup.sh",
     "scripts/ops/postgres_restore.sh",
     "tests/test_staging_security.py",

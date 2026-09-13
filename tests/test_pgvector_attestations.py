@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 
 import pytest
+import yaml
 
 from scripts.ci import check_pgvector_attestations as verifier
 
@@ -538,10 +539,54 @@ def test_repeated_actual_build_digest_selects_complete_original_execution() -> N
         "scripts/ops/postgres_backup.sh",
         "scripts/ops/postgres_restore.sh",
         "tests/test_staging_security.py",
+        "deploy/systemd/pulseplate-postgres-backup.service.example",
+        "deploy/systemd/pulseplate-staging-postgres-backup.service.example",
+        "deploy/systemd/pulseplate-postgres-backup.timer.example",
+        "deploy/systemd/pulseplate-staging-storage.conf",
     ],
 )
 def test_storage_mutation_and_validation_owners_are_finite_material_paths(path: str) -> None:
     assert verifier.selected(path, verifier.material_rules("HEAD"))
+
+
+def test_timer_only_change_is_material_in_native_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workflow = Path(".github/workflows/ci.yml").read_bytes()
+    timer_path = "deploy/systemd/pulseplate-postgres-backup.timer.example"
+    steps = yaml.safe_load(workflow)["jobs"]["changes"]["steps"]
+    filters = next(step for step in steps if step.get("id") == "filter")["with"]["filters"]
+    assert timer_path in yaml.safe_load(filters)["pgvector_compat"]
+    timer_content = Path(timer_path).read_text()
+    for name in verifier.git_output(["rev-parse", "--local-env-vars"]).decode().splitlines():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.chdir(tmp_path)
+    verifier.git_output(["init", "--initial-branch=main"])
+    workflow_path = tmp_path / ".github/workflows/ci.yml"
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_bytes(workflow)
+    timer = tmp_path / timer_path
+    timer.parent.mkdir(parents=True)
+    timer.write_text(timer_content)
+    commit = [
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.org",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        "fixture",
+    ]
+    verifier.git_output(["add", "."])
+    verifier.git_output(commit)
+    base = verifier.git_output(["rev-parse", "HEAD"]).decode().strip()
+    timer.write_text(timer_content.replace("02:15:00", "03:15:00"))
+    verifier.git_output(["add", timer_path])
+    verifier.git_output(commit)
+    head = verifier.git_output(["rev-parse", "HEAD"]).decode().strip()
+    assert verifier.material_changes(base, head) == [timer_path]
 
 
 def test_historical_custom_slsa_is_retained_without_counting_as_native_evidence() -> None:
