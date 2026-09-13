@@ -351,6 +351,13 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     with two distinct lowercase full 40-character SHAs and no Markdown, extra
     whitespace, newline, or explanation:
     `OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
+    For this fifth class, the authenticated current root revision must satisfy
+    `created_at <= updated_at < OWNER reply createdAt`, with matching REST/GraphQL
+    body and identity. The OWNER's inspection must cover that same complete
+    revision. Before posting, reread the root: a changed body or revision time
+    invalidates the earlier confirmation for the changed revision. Timestamp
+    ordering proves temporal eligibility, not that the human read the root.
+    The other OWNER-only classes retain their unedited-root requirement.
     The selected reseal `R` must be a real, reachable PR commit pushed after the
     root but no later than the OWNER reply and the sole direct child of `S` in
     the complete live PR commit graph. It must be non-empty, non-trigger-only,
