@@ -6839,25 +6839,35 @@ def _stale_seal_reply_coverage(
     }
 
 
+@pytest.mark.parametrize("updated_at", ["2026-08-12T10:00:00Z", "2026-08-12T10:00:01Z"])
 def test_owner_stale_seal_fixed_accepts_real_git_later_sync_and_current_reseal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    updated_at: str,
 ) -> None:
-    covered, graph = _stale_seal_reply_coverage(tmp_path, monkeypatch)
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path, monkeypatch, rest_mutation=("updated_at", updated_at)
+    )
 
     assert covered == {graph["url"]}
     assert graph["live_head"] != graph["reseal"]
     assert graph["current_material"] not in {graph["stale_head"], graph["reseal"]}
 
 
+@pytest.mark.parametrize(
+    "updated_at",
+    ["2026-08-12T10:00:00Z", "2026-08-12T10:00:01Z", "2026-08-12T14:59:59+03:00"],
+)
 def test_owner_stale_seal_fixed_accepts_real_git_linear_material_then_reseal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    updated_at: str,
 ) -> None:
     covered, graph = _stale_seal_reply_coverage(
         tmp_path,
         monkeypatch,
         stale_shape="linear-material",
+        rest_mutation=("updated_at", updated_at),
     )
 
     assert covered == {graph["url"]}
@@ -6898,7 +6908,11 @@ def test_owner_stale_seal_fixed_reply_parser_returns_both_commits() -> None:
         {"activity_time": None},
         {"activity_time": "2026-08-12T09:00:00Z"},
         {"activity_edge_matches": False},
-        {"rest_mutation": ("updated_at", "2026-08-12T10:00:01Z")},
+        {"rest_mutation": ("updated_at", "2026-08-12T12:00:01Z")},
+        {"rest_mutation": ("updated_at", "2026-08-12T12:00:00Z")},
+        {"rest_mutation": ("updated_at", "2026-08-12T09:59:59Z")},
+        {"rest_mutation": ("updated_at", "not-a-timestamp")},
+        {"rest_mutation": ("updated_at", "2026-08-12T11:00:00")},
         {"reseal_subject": "trigger ci"},
         {"reseal_changes_material": True},
         {"current_digest_matches": False},
@@ -6908,7 +6922,11 @@ def test_owner_stale_seal_fixed_reply_parser_returns_both_commits() -> None:
         "missing-activity",
         "reseal-before-root",
         "mismatched-activity-edge",
-        "edited-rest-root",
+        "root-edited-after-owner-reply",
+        "root-edited-at-owner-reply",
+        "root-edited-before-creation",
+        "malformed-root-revision-time",
+        "timezone-free-root-revision-time",
         "trigger-reseal",
         "material-changing-reseal",
         "stale-current-caller-binding",

@@ -1568,6 +1568,21 @@ def main() -> int:
 
     disposition_covered_urls = mapped_urls | duplicate_covered_urls
 
+    if args.pre_closeout:
+        unmapped_roots = [
+            thread.comments[0].url
+            for thread in review_threads
+            if not thread.is_resolved
+            and not _is_ghas_thread(thread)
+            and thread.comments[0].url not in mapped_urls
+        ]
+        if unmapped_roots:
+            errors.append(
+                "Unmapped unresolved review-thread roots: "
+                + ", ".join(unmapped_roots)
+                + ". Record each root's disposition before the mapping commit."
+            )
+
     if actionable_items:
         if no_actionable_marker and any(
             item.url not in disposition_covered_urls for item in actionable_items

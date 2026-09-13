@@ -14,39 +14,56 @@ This file lists, per agent slug:
 
 ## Loading Steps
 
-1. **Resolve agent slug** from the dispatch manifest entry
+1. **Resolve the occurrence and agent slug** from the dispatch manifest entry
 2. **Look up context map** for that slug's `required_context` paths
-3. **Read each file** listed in `required_context`
-4. **Check conditions** for `conditional_context` entries:
-   - If condition matches the packet's scope/domain, load the file
-   - Otherwise skip it
+3. **Select concrete sources** under the context map's applicability conditions.
+   Wildcard/directory entries such as `docs/orchestration/*` are navigation
+   selectors, not instructions to expand and read the entire library. The
+   coordinator records selected concrete paths and an applicability reason for
+   each in the handoff. Preserve every literal mandatory packet/role file,
+   root `AGENTS.md`, and nearest scoped `AGENTS.md`.
+4. **Read the selected mandatory files fully**, including each task-applicable
+   conditional source. The selection follows
+   `docs/orchestration/AGENT_CONTEXT_MAP.md` → Context Requirements by Agent;
+   it does not invent a parser, change that map or imply all wildcard files were read.
 5. **Assemble prompt section** titled "Required Context" with loaded content
-6. **Budget check** — see below
+6. Include the current packet, accepted criteria and predecessor output. Keep
+   the full role definition; `system_prompt_excerpt` is not sufficient.
 
 ## Context Budget
 
-- Target: keep total prompt under ~50K tokens (including agent definition + context)
-- If `required_context` alone exceeds budget:
-  - Summarize files longer than 200 lines (keep first 20 + last 20 lines + summary)
-  - Never drop `required_context` entirely — always include at least the summary
-- `optional_context` is loaded only if remaining budget allows
-- Priority order: required > conditional (matched) > optional
+- Load every selected mandatory role, authority and applicable context file fully.
+  Do not replace them with excerpts or summaries to meet a convenience budget.
+- Trim or summarize optional reference material first. Literal mandatory files
+  cannot be silently dropped because of size. If the selected required material
+  truly cannot be delivered, report the concrete missing paths and bounded
+  context limitation to the coordinator for evidence rescoping before the
+  dependent action. Never describe a summary or omitted file as full delivery.
+- A new child with a bounded/no-history fork still needs the same required
+  context and predecessor evidence; model selection does not waive it.
 
-These budget rules govern the ordinary manual prompt path. They do not permit
-summarization inside an exact delivery requested with
+The same full-context obligation applies to the manual prompt path and to
+exact delivery requested with
 `--role-context-order <N>`. Exact mode either returns every byte of its finite
 supported source inventory or returns an incomplete/manual result or a
 fail-closed error.
+The existing exact materializer and successful complete source bytes remain
+unchanged. A glob/directory `complete=false` result uses the manual selection
+above; selection is not a claim that the exact invocation completed.
 
 ## Prompt Assembly Order
 
 ```
-1. System instructions (agent definition from .cursor/agents/<slug>.md)
+1. Role definition/project instructions (.cursor/agents/<slug>.md), under runtime and user precedence
 2. Packet constraints (scope, DoD, hard rules)
 3. Required Context (loaded files)
-4. Previous agent output (if depends_on_previous)
+4. Relevant predecessor findings/evidence for each required serial occurrence
 5. Task-specific instructions
 ```
+
+`depends_on_previous` describes a handoff dependency; a false value does not
+authorize skipping a serial occurrence or withholding predecessor evidence
+needed for that assigned pass.
 
 ## Caching
 

@@ -1403,6 +1403,7 @@ def validated_duplicate_reply_urls(
                 pr_number=snapshot.pr_number,
                 token=token,
                 request_json=github_api_request,
+                owner_reply_time=reply_time,
             ):
                 continue
             if not current_stale_seal_closeout_validated:
@@ -3059,7 +3060,10 @@ def _validate_stale_seal_root_identity(
     pr_number: int,
     token: str,
     request_json: Any,
+    owner_reply_time: datetime | None = None,
 ) -> bool:
+    """Bind the current root; only historical stale-seal replies admit earlier revisions."""
+
     match = re.fullmatch(
         rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
         rf"{pr_number}#discussion_r(?P<comment_id>[1-9][0-9]*)",
@@ -3126,6 +3130,15 @@ def _validate_stale_seal_root_identity(
         and actual_pr_path == expected_pr_path
     )
     expected_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    revision_matches = response.get("updated_at") == finding.created_at
+    if owner_reply_time is not None:
+        created_time = _parse_timestamp(
+            response["created_at"], label="owner stale-seal root created_at"
+        )
+        updated_time = _parse_timestamp(
+            response["updated_at"], label="owner stale-seal root updated_at"
+        )
+        revision_matches = created_time <= updated_time < owner_reply_time
     return (
         response.get("id") == int(match.group("comment_id"))
         and response.get("html_url") == url
@@ -3134,7 +3147,7 @@ def _validate_stale_seal_root_identity(
         and response.get("original_commit_id") == stale_head_sha
         and response.get("body") == finding.body
         and response.get("created_at") == finding.created_at
-        and response.get("updated_at") == finding.created_at
+        and revision_matches
         and user.get("id") == 199_175_422
         and user.get("login") == "chatgpt-codex-connector[bot]"
         and user.get("type") == "Bot"

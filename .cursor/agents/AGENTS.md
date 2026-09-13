@@ -61,11 +61,16 @@ Each agent file (`.cursor/agents/*.md`) must:
 - Document capabilities and when to use
 - Link to canonical docs (no duplication)
 
-`readonly: true` is the safe default for role definitions. Runtime dispatch
-that intentionally grants implementation ownership must use the explicit
+`readonly: true` is the safe default for role definitions. Runtime eligibility
+is recorded through the packet-emitted
 `role_dispatch_bridge.py --implementation-owner <role>` override in
-`--mode runtime` and remain tied to the coordinator packet for that task. The
-older `qoder_dispatch_bridge.py` name is compatibility-only.
+`--mode runtime`; preserve every emitted eligible owner flag. Eligibility alone
+does not select an implementation task. Follow the
+[canonical admission sequence](../../docs/orchestration/workflow.md#admit-tracked-implementation)
+for no-write preparation and each later active role/occurrence/file handoff.
+The older `qoder_dispatch_bridge.py` name is compatibility-only.
+Readonly is a role/action constraint, not proof of an OS sandbox. Native worker
+transport and model choice do not grant implementation ownership.
 
 ### Coordinator Role
 
@@ -114,11 +119,9 @@ Use bootstrap when:
 
 ## Model Selection Policy
 
-**Default:** `auto` for all agents (flexibility, latest capabilities).
-
-**Fixed models:** Only when justified (repeatable reports, benchmarks, auto unstable).
-
-**Canonical policy:** `docs/agents/model_policy.md`
+**Canonical policy:** `docs/agents/model_policy.md` owns inherited native
+dispatch and the explicitly enabled Astra/Sol mode. Frontmatter `model: auto`
+does not select a Codex model or guarantee deterministic outputs.
 
 **Per-agent rationale:** Each agent file contains "Model Selection Rationale" section (2-5 bullets).
 
@@ -130,10 +133,10 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 
 **Summary (authoritative source: root `AGENTS.md`):**
 
-- `make verify` (lint → typecheck → test-fast → diff-cov ≥97%)
-- Guard tests pass (architectural invariants)
-- Coverage ≥97% (total + diff-coverage)
-- Security scans pass (bandit/pip-audit)
+- Follow the local narrow bundle and current-head CI/security requirements in
+  root `AGENTS.md` → Hard Gates and `RUNBOOK_AGENT.md` → Quality Gates.
+- Root owns coverage thresholds, failure interpretation and the local budget;
+  role invocation does not authorize full local verification or broad reruns.
 
 ---
 

@@ -14,11 +14,11 @@ readonly: true
 - **Model:** `auto`
 - **Why auto:** Operator tasks are execution-heavy and need adaptive troubleshooting across backend, frontend, and CI utilities.
 - **Work type:** command orchestration, failure triage, evidence extraction, rerun planning.
-- **Determinism:** Enforced by strict command allowlist and required output structure.
+- **Evidence:** Retain exact commands, outputs and exit codes; model selection does not make external services deterministic. Follow `docs/agents/model_policy.md`.
 
 ## Mission
 
-Execute safe terminal workflows end-to-end and report deterministic diagnostics:
+Execute approved terminal workflows and report observed diagnostics:
 
 - run gates,
 - isolate failures,
@@ -34,12 +34,8 @@ Before doing any work:
 
 ## Allowed command sets (MVP)
 
-- Backend gates:
-  - `make lint`
-  - `make typecheck`
-  - `make test-fast`
-  - `make diff-cov`
-  - `make verify`
+- Backend gates: use the root local narrow bundle in `AGENTS.md` → Hard Gates
+  and `RUNBOOK_AGENT.md` → Quality Gates; current-head CI supplies heavy evidence.
 - Guard checks:
   - `pytest -q tests/test_repo_policy_guards.py`
   - additional guard suites as required
@@ -56,14 +52,15 @@ After MVP command sets are stable, operator can run controlled browser E2E via P
 - Scope: browser automation only (web app flows).
 - Entry skill: `tools/codex_skills/pulseplate-playwright-e2e/SKILL.md`
 - Required output: flow matrix, failing step evidence, rerun commands.
-- Keep this as additive signal; it does not replace hard gates like `make verify`.
+- Keep this as additive signal; it does not replace the root required gates.
 
 ## Output contract
 
 For every run provide:
 
 - `Command`: exact command.
-- `Status`: pass/fail + exit code.
+- `Status`: observed result and exit code; distinguish required failure,
+  diagnostic no-match, tool/service failure and pending under root `AGENTS.md`.
 - `Evidence`: raw failing lines if failed.
 - `Pointers`: `file:line:error` extracted from output.
 - `Fix plan`: minimal remediation sequence.
@@ -73,7 +70,7 @@ For every run provide:
 
 - No GUI control, no desktop RPA, no Accessibility automation.
 - No clipboard scraping or app-driving on user desktop.
-- No "green/ready/mergeable" wording unless required local gates pass with shown evidence.
+- Readiness wording requires the complete root local/current-head/review evidence.
 
 ## Guardrails
 
@@ -81,6 +78,8 @@ For every run provide:
 - Do not run destructive git commands unless explicitly requested.
 - Do not expose secrets from `.env` or runtime environment.
 - Keep command scope minimal and relevant to the task.
+- A role invocation is not authorization for broad reruns, recurring work, or
+  repairs in another owner's lane. Follow root failure scope and validation budget.
 
 ## SoT links
 
