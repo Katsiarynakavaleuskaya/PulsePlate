@@ -94,9 +94,9 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   validates metadata but must never source, print, archive, or independently
   parse the value; semantic validation stays in
   `app/security/production_invariants.py`.
-- Staging deploy contract version `4` cross-binds the deploy script, staging
-  Compose, Prometheus config/image manifest, PostgreSQL image manifest,
-  Caddyfile, and backup helper.
+- The staging contract version comes from `scripts/deploy.sh`; version `5`
+  uses the finite bundle in `.github/workflows/cd.yml` staging fingerprint
+  and admission steps. Keep that existing bundle as the file inventory owner.
   Merge does not synchronize a host or enable
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
@@ -135,6 +135,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   scanner/database and subject identity, and keep newly revealed blocking
   findings open until remediated. Matching build digests do not prove a current
   clean scan or the later trusted publication path.
+- In CD, `staging-postgres-native-integration` is a prerequisite of both the
+  PostgreSQL publisher and backend build/deploy job. Keep their literal `needs`
+  and success predicates aligned; regression tests must reject a failed,
+  cancelled or unexpectedly skipped prerequisite. A successful non-material
+  classifier may intentionally skip the expensive step. An independent passing
+  check does not gate publication unless the consumer depends on it.
 - The final image adds one and only one compatibility mountpoint layer:
   `/var/lib/postgresql/data` is an empty real directory, owner `70:70`, mode
   `0700`, copied from one verified empty builder directory. This lets the
@@ -148,6 +154,93 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   `PGDATA` to that legacy-compatible target, select `linux/amd64`, and publish
   no database port. Managed production remains external and has no Compose
   `postgres` service.
+
+### PostgreSQL publication and protected staging
+
+- PostgreSQL image admission requires native GitHub SLSA provenance, the
+  distinct `https://pulseplate.app/attestations/postgres-pgvector-materials/v1`
+  predicate and SPDX together. Use `scripts/ci/check_pgvector_attestations.py`
+  for original certificate source/workflow/run/attempt binding, exact material
+  comparison and the entire original SPDX predicate hash. Use the declared
+  sorted compact UTF-8 JSON encoding with no ASCII escapes or non-finite
+  values; preserve array order and every field. Read-only reuse retains the
+  original signed document, with a fresh image scan separately required.
+  Do not compare regenerated SPDX by expanding ignored fields. Reuse never claims a
+  new build. An actual rebuilt image may complete its own execution tuple;
+  retain historical proofs and reject conflicts within an execution.
+- The same helper owns the finite existing CI PostgreSQL compatibility rules
+  plus its explicit deployment/test owners. Compare both Git trees, including
+  additions and deletions, at classification and terminal promotion/reuse.
+  Do not recreate independent inline material lists or generic glob semantics.
+- After the workflow definition is registered on the default branch, run the
+  synthetic probe by manual dispatch on an explicit same-repository
+  `refs/heads/*` ref. Supply the full source SHA equal to that run's exact
+  `GITHUB_SHA`. It builds a synthetic subject and uses only a test tag; it
+  receives no DHI credentials and has no runtime promotion or deploy path.
+  Main-only manual reuse is read-only.
+- Initialize credentials for the pinned `actions/attest` JavaScript publisher:
+  its OCI SDK reads inline GHCR auth from `$HOME/.docker/config.json`, independently
+  of the private publisher's `DOCKER_CONFIG`. Use the bounded
+  `ghcr_attestation_credentials.py` adapter to install native-generated
+  GHCR-only auth in a fresh `0700` directory with a `0600` config. Preserve the
+  entire pre-existing default directory as an opaque object in a private sibling
+  holder; do not read its children or require its original UID/GID/mode to match
+  newly authored credentials. Restore the same original directory before deleting
+  authored files or the recovery journal. All four directory moves use the native
+  no-replace primitive; unsupported or ambiguous state is HOLD, with the original
+  and journal retained. Journal/topology recovery can continue in a fresh process
+  while the filesystem remains available; it does not promise recovery of a lost
+  hosted VM. One placement at a time is supported in the isolated job HOME, with
+  no other writer or consumer requiring the original default context during that
+  interval. Kernel no-replace protects occupied destinations, not source exclusion.
+  Keep `HOME` and the private DHI/Buildx/Scout context unchanged. Successful
+  ordinary `gh` authentication or Docker push does not prove this OCI reader
+  received credentials; diagnose each consumer at its real boundary. The
+  separate Go `gh attestation verify` reader honors inherited `DOCKER_CONFIG`;
+  authenticate that private directory before verification without extending
+  the JavaScript publisher's HOME bridge to the Go reader.
+- Execute deployment file-admission negatives through the actual shell.
+  Under `set -e`, a failed first command in `check_a && check_b` does not stop
+  the script. Use standalone rejecting checks for symlink/type admission,
+  and verify rejection before hashing or invoking protected helpers.
+- Staging contract v5 uses PostgreSQL TLS >=1.2, SCRAM, and passwordless
+  `postgresql+psycopg` URLs with `verify-full`, the exact CA and libpq passfile.
+  Derive database identity from the selected rendered Compose, never ambient
+  host variables. Real PostgreSQL session proof remains required in addition
+  to configuration/certificate checks.
+- The selected DHI PostgreSQL entrypoint executes `postgres "$@"` itself.
+  Compose passes only the admitted `-c` arguments, without another executable
+  name. Native integration must exercise that actual entrypoint and retain
+  bounded redacted container diagnostics before cleaning up failed probes.
+- Staging storage receipt `.staging-storage.json` is a root-owned local
+  provisioning record, never a committed artifact. Authenticate the selected
+  DigitalOcean Volume separately; native device/UUID/mount/directory checks
+  then bind PostgreSQL, Prometheus, backups and credential files to it.
+  Docker and backup systemd lifecycles must depend on that mount, with live
+  restore disabled. A missing mount must stop writers instead of creating
+  unencrypted root-disk directories. Do not silently rebind existing named
+  volumes or initialize discovered data.
+- Staging admission checks the installed backup service/timer bytes against the
+  admitted bundle and the manager's loaded systemd properties, including exact
+  commands, environment-file identity, mount dependencies and persistent daily
+  timer. A staged example alone is insufficient. The timer must be enabled and
+  active; stale loaded state or extra drop-ins holds deployment.
+- Before Prometheus recreation, census the existing Compose service and its
+  actual v5 data-volume mount. Retained legacy history requires a manual first
+  copy and verified v5 service before automatic deploy; preserve the old volume
+  for rollback. Only absent legacy/v5 objects plus an empty backing directory
+  admit a fresh installation. Run preflight promtool against the exact image
+  with only config/credential mounts, so validation cannot create a service
+  data volume. Repeat the history census immediately before recreation.
+- For an existing staging Droplet, bind its provider ID to the retained
+  provisioning record and inventory dedicated SSH/known-hosts carriers first.
+  Verify the recorded operator login with strict saved-host-key checking
+  before requesting new access details or proposing credential changes.
+- Backups validate the complete native archive and substantive table inventory
+  before publishing/pruning. Restore requires an explicit mode; verification
+  creates a distinct `pulseplate_restore_check_*` database and never replaces
+  a pre-existing target. A successful listing is not restore/data proof.
+
 - Pull-request execution is DHI-secret-free and registry-write-free. Only an
   exact trusted push to `refs/heads/main` may read `DHI_USERNAME` and
   `DHI_ACCESS_TOKEN`, reproduce the frozen digest twice, scan exact bases,
@@ -193,12 +286,17 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   normal PostgreSQL initialization. This is bounded Docker-engine evidence,
   not universal runtime or existing-volume evidence.
 - A fresh PostgreSQL transition must prove the rendered named volume absent
+  and its admitted backing directory ordinary, readable and exactly empty
   twice: once before product quiesce and once immediately before the single
   no-pull Compose start. The second census is the declared fresh-volume
-  handoff boundary; any appearance, malformed listing, or listing error leaves
+  handoff boundary; hidden entries, populated copied data, replacement links,
+  any volume appearance, malformed listing, or listing error leave
   captured writers quiesced and returns `HOLD`. Do not add further same-step
   polling or rollback writes; concurrent manual Compose/Docker mutation is
   outside the admitted transition and requires a separate host-lock design.
+  The exact retained legacy PostgreSQL volume also blocks fresh admission,
+  even with no current service and an empty destination. Keep that old volume
+  only alongside the verified existing-v5 transition after manual migration.
 - The `postgres-pgvector-publish` canonical-tag write is provisional until an
   immediate exact-main revalidation of the closed PostgreSQL material set
   gates `runtime_ref` output and admission. If that post-write check detects a

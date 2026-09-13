@@ -65,16 +65,35 @@ POSTGRES_USER=... POSTGRES_DB=... \
   /srv/pulseplate/scripts/ops/postgres_backup.sh
 ```
 
-**Restore** (operator adjusts paths and dump file):
+**Verify a trusted backup** (restore into a new isolated database):
 
 ```bash
 PROJECT_DIR=/srv/pulseplate/deploy \
 COMPOSE_FILE=docker-compose.production.selfhosted.yaml \
 POSTGRES_USER=... POSTGRES_DB=... \
-  scripts/ops/postgres_restore.sh /absolute/path/to/file.dump
+  /srv/pulseplate/scripts/ops/postgres_restore.sh --verify-into pulseplate_restore_check_01 /absolute/path/to/file.dump
 ```
 
-**Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory` / paths).
+The helper accepts only `--verify-into` and creates a fresh verification-prefixed
+database from `template0`, using `POSTGRES_DB` as the maintenance connection.
+Existing targets are refused by native `createdb`; role and source database names
+may differ. Inspect substantive restored rows and objects before removing the
+owned test database. Use a trusted archive and admitted cluster with template0
+intact; a separate database does not isolate arbitrary malicious archive SQL.
+
+Earlier versions reset the source database's `public` schema. That destructive
+recovery behavior and the subsequent `--replace-existing` interface are removed.
+This helper verifies backups; it does not perform in-place recovery, cutover or a
+production connection switch. Preserve the original data, stop writers before
+storage transitions, and retain verified backups throughout such operations.
+
+The complete archive must decode before target creation. Restore SQL executes in
+one transaction, so a late SQL failure rolls back that transaction. Creation is
+outside it, and the table-inventory check follows restore commit. Any failure
+returns nonzero without a success receipt; the new database may remain empty or
+populated for diagnosis and is never automatically deleted.
+
+**Scheduled backups:** examples under `deploy/systemd/pulseplate-postgres-backup.service.example` and `deploy/systemd/pulseplate-postgres-backup.timer.example` (install to `/etc/systemd/system/` and adjust `WorkingDirectory`, `EnvironmentFile`, `PROJECT_DIR`, `ENV_FILE`, `COMPOSE_FILE` and script paths). The generic service selects the self-hosted production Compose contract and does not require staging receipts/mounts. Staging uses the separate `pulseplate-staging-postgres-backup.service.example` source.
 
 ### Environment contract
 

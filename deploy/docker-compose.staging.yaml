@@ -10,26 +10,54 @@ networks:
     external: false
   observability:
     internal: true
+  database:
+    internal: true
 
 secrets:
   pulseplate_metrics_scrape_key:
     file: ./secrets/pulseplate_metrics_scrape_key
+  postgres_ca:
+    file: ./secrets/postgres_ca
+  postgres_server_crt:
+    file: ./secrets/postgres_server_crt
+  postgres_server_key:
+    file: ./secrets/postgres_server_key
+  postgres_password:
+    file: ./secrets/postgres_password
+  postgres_pgpass:
+    file: ./secrets/postgres_pgpass
 
 services:
   postgres:
     image: ghcr.io/katsiarynakavaleuskaya/pulseplate:postgres-15.19-pgvector0.8.6-alpine3.23@sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380
     platform: linux/amd64
-    env_file:
-      - ${STAGING_ENV_FILE:-/srv/pulseplate-staging/.env}
     restart: always
-    networks: [web]
+    networks: [database]
     environment:
       - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
       - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - PGDATA=/var/lib/postgresql/data
+    secrets:
+      - postgres_password
+      - postgres_server_crt
+      - postgres_server_key
+    command:
+      - -c
+      - ssl=on
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - ssl_cert_file=/run/secrets/postgres_server_crt
+      - -c
+      - ssl_key_file=/run/secrets/postgres_server_key
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-pgvector/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -41,14 +69,18 @@ services:
     env_file:
       - ${STAGING_ENV_FILE:-/srv/pulseplate-staging/.env}   # server-local secrets
     restart: always
-    networks: [web, observability]
+    networks: [web, observability, database]
     secrets:
       - pulseplate_metrics_scrape_key
+      - postgres_ca
+      - postgres_pgpass
     expose:
       - "8000"
     environment:
       - ENVIRONMENT=staging
-      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:?POSTGRES_USER is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca&passfile=/run/secrets/postgres_pgpass
+      - PGSSLMODE=verify-full
+      - PGPASSFILE=/run/secrets/postgres_pgpass
       - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
     depends_on:
       postgres:
@@ -77,10 +109,15 @@ services:
     image: ${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}
     profiles: ["scheduler-external"]
     restart: unless-stopped
-    networks: [web]
+    networks: [web, database]
+    secrets:
+      - postgres_ca
+      - postgres_pgpass
     environment:
       - ENVIRONMENT=staging
-      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:?POSTGRES_USER is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca&passfile=/run/secrets/postgres_pgpass
+      - PGSSLMODE=verify-full
+      - PGPASSFILE=/run/secrets/postgres_pgpass
       - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
     command: python -m core.food_apis.scheduler --serve
     depends_on:
@@ -140,7 +177,19 @@ services:
 
 volumes:
   postgres_data:
+    name: pulseplate-staging_postgres_data_v5
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/pulseplate-staging-data/postgres
   food_db_cache:
   caddy_data:
   caddy_config:
   prometheus_data:
+    name: pulseplate-staging_prometheus_data_v5
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/pulseplate-staging-data/prometheus

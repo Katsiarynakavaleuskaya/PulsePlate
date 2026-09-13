@@ -165,7 +165,7 @@ def test_production_tag_workflow_includes_release_control_plane_evidence_gate() 
     )
 
     assert production_job["if"] == (
-        "startsWith(github.ref, 'refs/tags/v') && "
+        "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && "
         "needs.production-deploy-config.outputs.should_deploy == 'true'"
     )
     assert production_job["needs"] == ["build-production", "production-deploy-config"]

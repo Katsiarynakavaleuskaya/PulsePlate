@@ -2465,6 +2465,15 @@ Surrounding or adjacent prose cannot redefine its fields.
 
 ## CI: GitHub Container Registry (GHCR) Policy
 
+**Bounded PR integration exception:** the isolated
+`staging-postgres-native-integration` job in `.github/workflows/cd.yml` pulls
+only the selected immutable image from the existing public PulsePlate package.
+It uses `packages: read`, owner-username login and the short-lived built-in
+`GITHUB_TOKEN` in a private temporary Docker config. It must not receive static
+`GHCR_READ_TOKEN`, DHI, staging or production credentials, or forward registry
+credentials to test containers. All remaining GHCR consumers follow the policy
+below. Native TLS/crash tests do not grant publication or deployment authority.
+
 **Required for workflows that pull from GHCR:**
 
 1. **Permissions:** Job must have `packages: read` permission
@@ -2685,6 +2694,10 @@ Do not remove this exclusion without a product decision and a separate PR
 
 **iOS CI debugging (finding real errors in logs):**
 
+- **Test-host crashes:** inspect the unit job's retained native `.xcresult`
+  bundle for the faulting stack and the aborted case's terminal result. Passing
+  totals after an automatic test-host restart do not prove that case completed.
+  Preserve the original failure and distinguish local from pinned-CI toolchains.
 - **SwiftPM compilation noise:** SPM packages (e.g., Lottie) produce verbose compilation logs. This is normal and not an error.
 - **Finding real errors:** In GitHub Actions logs, search for:
   - `error:` (first occurrence is usually root cause)

@@ -782,7 +782,7 @@ final class AppNavigationShellTests: XCTestCase {
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         )
         let previousKeyWindow = scene.windows.first(where: \.isKeyWindow)
-        var controller: UIHostingController<Content>? = UIHostingController(rootView: content)
+        var controller: AppearingHostingController<Content>? = AppearingHostingController(rootView: content)
         var window: UIWindow? = UIWindow(windowScene: scene)
         let releaseProbe = HostedViewReleaseProbe(controller: controller, window: window)
         window?.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
@@ -790,6 +790,7 @@ final class AppNavigationShellTests: XCTestCase {
         window?.rootViewController = controller
         window?.makeKeyAndVisible()
 
+        var observedAppearance = false
         var observedCount = 0
         var observedTitle: String?
         var observedStyle: UIUserInterfaceStyle?
@@ -807,7 +808,8 @@ final class AppNavigationShellTests: XCTestCase {
                 observedCount = bars.count
                 observedTitle = bars.first?.topItem?.title
                 observedStyle = bars.first?.traitCollection.userInterfaceStyle
-                if observedCount == 1, observedTitle == title,
+                observedAppearance = controller?.hasAppeared == true
+                if observedAppearance, observedCount == 1, observedTitle == title,
                     navigationStyle == nil || observedStyle == navigationStyle {
                     break
                 }
@@ -820,9 +822,7 @@ final class AppNavigationShellTests: XCTestCase {
         window?.isHidden = true
         window?.rootViewController = nil
         previousKeyWindow?.makeKey()
-        // Retain the controller while UIKit drains its after-CA-commit ownership.
-        // The last release then occurs inside this Swift task, not a UIKit callback.
-        // https://github.com/swiftlang/swift/issues/85663
+        // Keep local ownership during the existing bounded UIKit cleanup turns.
         await finishHostedWindowTurn()
         window = nil
         controller = nil
@@ -831,6 +831,7 @@ final class AppNavigationShellTests: XCTestCase {
         XCTAssertNil(releaseProbe.controller, "The test must release its hosting controller")
         if let observationError { throw observationError }
 
+        XCTAssertTrue(observedAppearance, "The hosted destination must finish appearing before teardown")
         XCTAssertEqual(observedCount, 1, "The actual destination must host one navigation bar")
         XCTAssertEqual(observedTitle, title)
         if let navigationStyle {
@@ -981,6 +982,16 @@ final class AppNavigationShellTests: XCTestCase {
 
     private func removingWhitespace(from source: String) -> String {
         String(source.filter { !$0.isWhitespace })
+    }
+}
+
+@MainActor
+private final class AppearingHostingController<Content: View>: UIHostingController<Content> {
+    private(set) var hasAppeared = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        hasAppeared = true
     }
 }
 
