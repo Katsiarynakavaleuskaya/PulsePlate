@@ -13,6 +13,7 @@ import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import qoder_dispatch_bridge
+from scripts.orchestration import check_preflight
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.evidence_rail_applicability as rail_applicability
 import scripts.orchestration.task_bootstrap as task_bootstrap
@@ -706,6 +707,37 @@ def test_packet_prompt_uses_packet_dispatch_command_runtime_owner_flags() -> Non
     ) in prompt
 
 
+def test_packet_execute_preflight_preserves_scope_and_routing() -> None:
+    """The rendered command must satisfy the real execute-preflight CLI contract."""
+
+    paths = ["scripts/orchestration/render_codex_start_prompt.py", "tests/owner's scope.py"]
+    packet = task_bootstrap.build_task_packet(
+        goal="Repair the governed startup command",
+        task_class="Security",
+        candidate_paths=paths,
+        requested_agents=["security-auditor"],
+        invariant_change_classes=["validator"],
+    )
+    prompt = render_packet_prompt(packet, packet_path="artifacts/task packet.json")
+    prefix = "Execute preflight before owner-capable preparation: "
+    command = next(
+        line.removeprefix(prefix) for line in prompt.splitlines() if line.startswith(prefix)
+    )
+    tokens = shlex.split(command)
+    assert tokens[:2] == ["$VENV_PYTHON", "scripts/orchestration/check_preflight.py"]
+    mode, scope, primary, secondary, reviewer, evidence = check_preflight._parse_args(tokens[2:])
+    assert mode == "execute"
+    assert scope == packet["candidate_paths"]
+    assert primary == packet["primary_agent"]
+    assert len(packet["secondary_agents"]) > 2
+    assert secondary == []
+    assert "Do not forward packet.secondary_agents" in prompt
+    assert reviewer == packet["reviewer"]
+    assert evidence == []
+    assert check_preflight.check_routing_readiness(primary, secondary, reviewer)
+    assert prompt.index(prefix) < prompt.index("Next role-agent dispatch command:")
+
+
 def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     """The local helper prompt must not masquerade as task_bootstrap output."""
 
@@ -735,7 +767,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "substitute the actual packet path and repo Python" in prompt
     assert "execute the manifest `dispatch_sequence` in order" in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
-    assert "check_preflight.py --mode execute" in prompt
+    assert "render_codex_start_prompt.py packet --packet '<bootstrap-packet>'" in prompt
+    assert "check_preflight.py --mode execute" not in prompt
     assert "No tracked writes during preparation, including readonly=false owners" in prompt
     assert "only a separate coordinator handoff" in prompt
     assert "one active eligible role/occurrence and exact files admits implementation" in prompt
