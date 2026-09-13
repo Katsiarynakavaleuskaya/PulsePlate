@@ -48,7 +48,15 @@ EXPERIMENT_RUNNER_ENV_GUIDANCE = (
     "infra blockers, not `Not applicable`."
 )
 ROLE_DISPATCH_GUIDANCE = (
-    "Role-agent dispatch is a required post-bootstrap step: copy the packet's "
+    "Role-agent dispatch is a required post-bootstrap step. Follow "
+    "docs/orchestration/workflow.md#admit-tracked-implementation: before "
+    "owner-capable preparation, run `$VENV_PYTHON "
+    "scripts/orchestration/check_preflight.py --mode execute` with the declared "
+    "path scope and coordinator routing inputs; require exit 0. "
+    "No tracked writes during preparation, including readonly=false owners. "
+    "After all required preparation, only a separate coordinator handoff naming "
+    "one active eligible role/occurrence and exact files admits implementation. "
+    "For manifest generation, copy the packet's "
     "`role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace "
     "`<packet>` with the actual packet path, use repo Python per RUNBOOK, then "
     "run each `dispatch_sequence` role in order. Do not reconstruct a generic "

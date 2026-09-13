@@ -550,6 +550,10 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
         "artifacts/orchestration/task_packets/demo.json --pretty"
     ) in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "check_preflight.py --mode execute" in prompt
+    assert "No tracked writes during preparation, including readonly=false owners" in prompt
+    assert "only a separate coordinator handoff" in prompt
+    assert "one active eligible role/occurrence and exact files admits implementation" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "for every non-trivial PR, create oracle-only evidence by default" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
@@ -731,6 +735,10 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "substitute the actual packet path and repo Python" in prompt
     assert "execute the manifest `dispatch_sequence` in order" in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "check_preflight.py --mode execute" in prompt
+    assert "No tracked writes during preparation, including readonly=false owners" in prompt
+    assert "only a separate coordinator handoff" in prompt
+    assert "one active eligible role/occurrence and exact files admits implementation" in prompt
     assert "Do not reconstruct a generic bridge command" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "exact static provider no-claim pair" in prompt
