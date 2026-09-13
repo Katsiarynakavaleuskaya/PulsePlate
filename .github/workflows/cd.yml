@@ -44,7 +44,7 @@ on:
   schedule:
     - cron: '17 4 * * 1'
   push:
-    branches: [main, 'codex/attestation-probe/*']
+    branches: [main]
     tags: ['v*']
 
 permissions:
@@ -143,9 +143,8 @@ jobs:
 
   postgres-synthetic-attestation-probe:
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.postgres_mode == 'synthetic-probe')
-      || (github.event_name == 'push' && !github.event.deleted
-          && startsWith(github.ref, 'refs/heads/codex/attestation-probe/'))
+      github.event_name == 'workflow_dispatch' && inputs.postgres_mode == 'synthetic-probe'
+      && startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -157,32 +156,29 @@ jobs:
       - name: Authenticate exact same-repository probe source
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
-          PROBE_PUSH_DELETED: ${{ github.event.deleted }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = Katsiarynakavaleuskaya/PulsePlate
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$SOURCE_SHA" = "$GITHUB_SHA"
           case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
-            push:refs/heads/codex/attestation-probe/*)
-              test "$PROBE_PUSH_DELETED" = false
-              test "${GITHUB_REF#refs/heads/codex/attestation-probe/}" = "$SOURCE_SHA"
+            workflow_dispatch:refs/heads/*)
+              test -n "${GITHUB_REF#refs/heads/}"
               ;;
-            workflow_dispatch:*) ;;
             *) echo "Unapproved synthetic probe trigger" >&2; exit 1 ;;
           esac
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq .sha)" = "$SOURCE_SHA"
       - name: Checkout authenticated probe source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          ref: ${{ inputs.source_sha }}
           persist-credentials: false
       - name: Build and push tiny synthetic image
         id: probe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
           umask 077
@@ -242,7 +238,7 @@ jobs:
       - name: Reject the exact current incomplete native and materials tuple before SPDX
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY_INCOMPLETE_CONTROL'
@@ -304,7 +300,7 @@ jobs:
       - name: Fresh-process external pullback repeat and source-rejection probe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
           PROBE_REF: ${{ steps.probe.outputs.ref }}
         run: |
           set -euo pipefail
@@ -324,7 +320,7 @@ jobs:
       - name: Verify original reject damaged signature and reverify original native materials bundle
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SOURCE_SHA: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
           PROBE_REF: ${{ steps.probe.outputs.ref }}
           MATERIALS_BUNDLE_PATH: ${{ steps.attest-probe-materials.outputs.bundle-path }}
         run: |
@@ -919,7 +915,6 @@ jobs:
           fi
 
   postgres-pgvector-contract:
-    if: github.event_name != 'push' || !startsWith(github.ref, 'refs/heads/codex/attestation-probe/')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

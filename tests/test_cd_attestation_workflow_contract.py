@@ -873,7 +873,17 @@ def test_pgvector_spdx_generated_once_digest_only_then_content_bound_and_never_r
 def test_synthetic_probe_and_manual_reuse_have_closed_authority() -> None:
     workflow = _load_cd_workflow()
     probe = workflow["jobs"]["postgres-synthetic-attestation-probe"]
-    assert "workflow_dispatch" in probe["if"] and "synthetic-probe" in probe["if"]
+    assert probe["if"] == (
+        "github.event_name == 'workflow_dispatch' && inputs.postgres_mode == 'synthetic-probe' "
+        "&& startsWith(github.ref, 'refs/heads/')"
+    )
+    triggers = workflow[True]
+    assert triggers["push"]["branches"] == ["main"]
+    assert triggers["workflow_dispatch"]["inputs"]["postgres_mode"]["options"] == [
+        "disabled",
+        "synthetic-probe",
+        "reuse",
+    ]
     assert "environment" not in probe and "needs" not in probe
     text = str(probe)
     for prohibited in ("DHI_", "SSH_", "canonical_tag", "deploy.sh", "pgvector-publish"):
@@ -882,10 +892,10 @@ def test_synthetic_probe_and_manual_reuse_have_closed_authority() -> None:
     auth = steps[0]["run"]
     assert 'test "$SOURCE_SHA" = "$GITHUB_SHA"' in auth
     assert "commits/$SOURCE_SHA" in auth
-    assert (
-        steps[1]["with"]["ref"]
-        == "${{ github.event_name == 'push' && github.sha || inputs.source_sha }}"
-    )
+    assert steps[1]["with"]["ref"] == "${{ inputs.source_sha }}"
+    for step in steps:
+        if "SOURCE_SHA" in step.get("env", {}):
+            assert step["env"]["SOURCE_SHA"] == "${{ inputs.source_sha }}"
     assert "FROM scratch" in steps[2]["run"] and "docker build --file" in steps[2]["run"]
     roundtrip = next(
         step["run"]
@@ -902,60 +912,72 @@ def test_synthetic_probe_and_manual_reuse_have_closed_authority() -> None:
 
 
 @pytest.mark.parametrize(
-    "suffix,sha,deleted,success",
+    "fault",
     [
-        ("a" * 40, "a" * 40, "false", True),
-        ("b" * 40, "a" * 40, "false", False),
-        ("", "a" * 40, "false", False),
-        ("a" * 40, "", "false", False),
-        ("a" * 40, "a" * 40, "true", False),
-        ("a" * 40 + "/extra", "a" * 40, "false", False),
+        None,
+        "push",
+        "pull_request",
+        "tag_ref",
+        "pull_ref",
+        "detached_ref",
+        "empty_ref",
+        "empty_branch",
+        "mismatched_sha",
+        "empty_sha",
+        "malformed_sha",
+        "uppercase_sha",
+        "other_repository",
+        "non_repository_commit",
+        "commit_api_failure",
     ],
 )
-def test_premerge_probe_push_requires_exact_sha_named_nondelete_ref(
-    suffix: str, sha: str, deleted: str, success: bool
+def test_manual_probe_requires_selected_branch_and_exact_repository_commit(
+    fault: str | None,
 ) -> None:
     workflow = _load_cd_workflow()
     probe = workflow["jobs"]["postgres-synthetic-attestation-probe"]
-    assert "!github.event.deleted" in probe["if"]
     auth = probe["steps"][0]["run"]
     shell = shutil.which("bash")
     assert shell is not None
-    program = 'gh() { printf "%s\\n" "$SOURCE_SHA"; }\n' + auth
+    env = {
+        **os.environ,
+        "SOURCE_SHA": "a" * 40,
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REF": "refs/heads/codex/selected-probe-source",
+        "RESOLVED_SHA": "a" * 40,
+    }
+    mutations = {
+        "push": ("GITHUB_EVENT_NAME", "push"),
+        "pull_request": ("GITHUB_EVENT_NAME", "pull_request"),
+        "tag_ref": ("GITHUB_REF", "refs/tags/v1.0.0"),
+        "pull_ref": ("GITHUB_REF", "refs/pull/2393/merge"),
+        "detached_ref": ("GITHUB_REF", "a" * 40),
+        "empty_ref": ("GITHUB_REF", ""),
+        "empty_branch": ("GITHUB_REF", "refs/heads/"),
+        "mismatched_sha": ("SOURCE_SHA", "b" * 40),
+        "empty_sha": ("SOURCE_SHA", ""),
+        "malformed_sha": ("SOURCE_SHA", "not-a-full-sha"),
+        "uppercase_sha": ("SOURCE_SHA", "A" * 40),
+        "other_repository": ("GITHUB_REPOSITORY", "other/PulsePlate"),
+        "non_repository_commit": ("RESOLVED_SHA", "b" * 40),
+    }
+    if fault is not None and fault in mutations:
+        key, value = mutations[fault]
+        env[key] = value
+    gh_stub = 'gh() { printf "%s\\n" "$RESOLVED_SHA"; }\n'
+    if fault == "commit_api_failure":
+        gh_stub = "gh() { return 1; }\n"
     completed = subprocess.run(
-        [shell, "-c", program],
-        env={
-            **os.environ,
-            "SOURCE_SHA": sha,
-            "GITHUB_SHA": "a" * 40,
-            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
-            "GITHUB_EVENT_NAME": "push",
-            "PROBE_PUSH_DELETED": deleted,
-            "GITHUB_REF": "refs/heads/codex/attestation-probe/" + suffix,
-        },
+        [shell, "-c", gh_stub + auth],
+        env=env,
         capture_output=True,
         text=True,
         check=False,
     )
-    assert (completed.returncode == 0) is success
-    unrelated = subprocess.run(
-        [shell, "-c", program],
-        env={
-            **os.environ,
-            "SOURCE_SHA": "a" * 40,
-            "GITHUB_SHA": "a" * 40,
-            "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
-            "GITHUB_EVENT_NAME": "push",
-            "PROBE_PUSH_DELETED": "false",
-            "GITHUB_REF": "refs/heads/codex/unrelated",
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert unrelated.returncode != 0
-    contract = workflow["jobs"]["postgres-pgvector-contract"]
-    assert "!startsWith(github.ref, 'refs/heads/codex/attestation-probe/')" in contract["if"]
+    assert (completed.returncode == 0) is (fault is None)
+    assert "if" not in workflow["jobs"]["postgres-pgvector-contract"]
     for name in (
         "main-push-admission",
         "postgres-pgvector-material-change",
@@ -1116,7 +1138,7 @@ def test_pre_spdx_control_requires_official_current_two_record_positive_proof(
         < steps.index(_step_by_name(steps, "Attest synthetic SPDX"))
     )
     repo = "Katsiarynakavaleuskaya/PulsePlate"
-    ref = "refs/heads/codex/attestation-probe/" + "a" * 40
+    ref = "refs/heads/codex/selected-probe-source"
     identity = {
         "repository": repo,
         "source_sha": "a" * 40,

@@ -94,9 +94,9 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   validates metadata but must never source, print, archive, or independently
   parse the value; semantic validation stays in
   `app/security/production_invariants.py`.
-- Staging deploy contract version `4` cross-binds the deploy script, staging
-  Compose, Prometheus config/image manifest, PostgreSQL image manifest,
-  Caddyfile, and backup helper.
+- The staging contract version comes from `scripts/deploy.sh`; version `5`
+  uses the finite bundle in `.github/workflows/cd.yml` staging fingerprint
+  and admission steps. Keep that existing bundle as the file inventory owner.
   Merge does not synchronize a host or enable
   `STAGING_ATTESTED_DIGEST_READY`; secret bootstrap and staging/production
   activation remain human actions. Follow
@@ -166,11 +166,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   plus its explicit deployment/test owners. Compare both Git trees, including
   additions and deletions, at classification and terminal promotion/reuse.
   Do not recreate independent inline material lists or generic glob semantics.
-- The synthetic premerge probe is limited to an explicit push of the exact SHA
-  to `codex/attestation-probe/<same-full-sha>` in this repository. It builds a
-  synthetic subject and uses only a test tag; it receives no DHI credentials
-  and has no runtime promotion or deploy path. Later manual dispatch retains
-  the same boundary. Main-only manual reuse is read-only.
+- After the workflow definition is registered on the default branch, run the
+  synthetic probe by manual dispatch on an explicit same-repository
+  `refs/heads/*` ref. Supply the full source SHA equal to that run's exact
+  `GITHUB_SHA`. It builds a synthetic subject and uses only a test tag; it
+  receives no DHI credentials and has no runtime promotion or deploy path.
+  Main-only manual reuse is read-only.
 - Initialize credentials for the pinned `actions/attest` JavaScript publisher:
   its OCI SDK reads inline GHCR auth from `$HOME/.docker/config.json`, independently
   of the private publisher's `DOCKER_CONFIG`. Use the bounded

@@ -42,15 +42,16 @@ checks compare the same finite compatibility rules over both Git trees.
 Evidence anchors: `scripts/ci/check_pgvector_attestations.py:1`,
 `tests/test_pgvector_attestations.py:1`, `.github/workflows/cd.yml:1`.
 
-The premerge integration transport uses an explicit same-repository push to
-`codex/attestation-probe/<exact-full-sha>` because a new `workflow_dispatch`
-trigger is not dispatchable before it exists on the default branch. This is a
-temporary synthetic-only branch, not another PR or a direct push to main.
-The checked-out SHA and ref suffix must equal the event SHA. The job receives
-no DHI credentials and cannot promote a runtime tag or enter a deploy job.
-The resulting native signer/ref identity stays literal; it is not rewritten as
-main. The probe exercises external persistence and OCI verification only;
-actual merged-main PostgreSQL publication/reuse remains independently required.
+Once the workflow definition is registered on the default branch, invoke
+`workflow_dispatch` in `synthetic-probe` mode on an explicit same-repository
+`refs/heads/*` ref. The supplied full source SHA, checked-out SHA and run's
+`GITHUB_SHA` must agree; tags, non-head refs and mismatched commits are rejected.
+The job receives no DHI credentials and cannot promote a runtime tag or enter
+a deploy job. The resulting native signer/ref identity stays literal; it is
+not rewritten as main. The probe exercises external persistence and OCI
+verification only; actual merged-main PostgreSQL publication/reuse remains
+independently required. The temporary premerge push carrier is removed from
+the final workflow; its historical run evidence does not authorize new pushes.
 
 PR #2393's first external probe
 [34712970847](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34712970847)
