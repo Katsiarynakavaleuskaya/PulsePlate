@@ -47,6 +47,8 @@ Canonical operator entrypoint:
   PR `head.ref`; the standalone link's decoded URL may occur only once, and
   repo-relative or raw HTML/code examples do not count. It skips thread-resolution,
   current-head-CI, and wait-window gates and is never merge-readiness evidence.
+  Root `AGENTS.md` rule 11 also requires structural mapping coverage of every
+  unresolved conversation root, independently of author and prose.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
 ## 4. Phase 2 Contract (Canonical Artifact)
@@ -232,6 +234,8 @@ retry.
 - Before publishing the one closeout commit, the pre-closeout gate must require
   the mapping artifact to be the only dirty path and validate the local sealed
   artifact against the complete live actionable bot inventory.
+  Apply root `AGENTS.md` rule 11 to the unresolved conversation-root inventory
+  as well; its existing GHAS exclusion and final disposition checks remain.
   In this pre-commit mode an actionable top-level review requires its own
   mapping even when all actionable child comments are mapped. The PR body must
   contain exactly one rendered same-repository blob Markdown link whose ref is

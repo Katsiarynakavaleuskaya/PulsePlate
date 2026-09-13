@@ -416,6 +416,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     the link must occupy its own bullet line, the decoded canonical URL must
     occur exactly once, and repo-relative or non-rendered HTML/code examples are
     invalid in PR-body context.
+    Also require the first comment URL of every unresolved conversation review
+    thread in the authenticated validated inventory to appear in the canonical
+    mapping, preserving the existing GHAS exclusion. This structural coverage
+    check is independent of author and prose; a mapped reply cannot substitute
+    for its root. It neither classifies a finding nor permits thread resolution.
+    Mapped unresolved threads still block final merge readiness.
     The canonical mapping artifact must be the only dirty path both before and
     after the live validation calls. Child inline mappings do not substitute
     for an actionable top-level review in this pre-commit pass. A PASS
