@@ -155,13 +155,43 @@ collect_git_diff() {
     cleanup_diff_output
 }
 
+reference_exists() {
+    local reference="$1"
+    local discovery_status
+    # Native --verify accepts the exact optional refs below and the HEAD pseudoref.
+    if git show-ref --verify --quiet "$reference"; then
+        return 0
+    else
+        discovery_status=$?
+        if [ "$discovery_status" -eq 1 ]; then return 1; fi
+        echo "❌ git show-ref failed for $reference (exit ${discovery_status})" >&2
+        fail_discovery "$discovery_status"
+    fi
+}
+
 resolve_branch_diff_from_base() {
     local mode="${1:-replace}"
     local base_branch
     local base_sha=""
+    local discovery_status
     log_debug "Trying merge-base branch diff against main/master candidates..."
-    for base_branch in origin/main origin/master main master; do
-        base_sha=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
+    for base_branch in refs/remotes/origin/main refs/remotes/origin/master refs/heads/main refs/heads/master; do
+        # merge-base uses 128 both for absent names and operational errors.
+        # Query exact optional refs first: show-ref's exit 1 means absent.
+        if reference_exists "$base_branch"; then
+            :
+        else
+            continue
+        fi
+        if base_sha=$(git merge-base HEAD "$base_branch"); then
+            :
+        else
+            discovery_status=$?
+            # Existing disjoint histories are a legitimate next-candidate case.
+            if [ "$discovery_status" -eq 1 ]; then continue; fi
+            echo "❌ git merge-base failed for $base_branch (exit ${discovery_status})" >&2
+            fail_discovery "$discovery_status"
+        fi
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
@@ -198,19 +228,25 @@ else
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
     # Try to get remote tracking branch from git config
-    REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo "")
+    # Native upstream formatting succeeds with empty output when unconfigured.
+    if REMOTE_BRANCH=$(git for-each-ref --format='%(upstream)' -- "refs/heads/${CURRENT_BRANCH}"); then
+        :
+    else
+        fail_discovery "$?"
+    fi
     log_debug "Current branch: $CURRENT_BRANCH"
     log_debug "Upstream branch: ${REMOTE_BRANCH:-<not set>}"
 
-    if [ -n "$REMOTE_BRANCH" ]; then
-        # Get the remote branch SHA (what's currently on remote)
-        REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
-        log_debug "Upstream SHA: ${REMOTE_SHA:-<not found>}"
-        if [ -n "$REMOTE_SHA" ]; then
-            # Compare local HEAD with remote branch (files that will be pushed)
-            collect_git_diff replace "$REMOTE_SHA" HEAD
-            log_debug "Python change count (via upstream): ${#PYTHON_CHANGES[@]}"
+    if [ -n "$REMOTE_BRANCH" ] && reference_exists "$REMOTE_BRANCH"; then
+        # An observed ref must resolve to a real commit; errors cannot mean absent.
+        if REMOTE_SHA=$(git rev-parse --verify "${REMOTE_BRANCH}^{commit}"); then
+            :
+        else
+            fail_discovery "$?"
         fi
+        log_debug "Upstream SHA: $REMOTE_SHA"
+        collect_git_diff replace "$REMOTE_SHA" HEAD
+        log_debug "Python change count (via upstream): ${#PYTHON_CHANGES[@]}"
     fi
 
     # Fallback: if we couldn't determine remote branch, try common patterns.
@@ -218,10 +254,14 @@ else
     # governance tests are not lost just because no Python files changed.
     if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
         # Try origin/current_branch
-        REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
-        REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
-        log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: ${REMOTE_SHA:-<not found>})"
-        if [ -n "$REMOTE_SHA" ]; then
+        REMOTE_BRANCH="refs/remotes/origin/${CURRENT_BRANCH}"
+        if reference_exists "$REMOTE_BRANCH"; then
+            if REMOTE_SHA=$(git rev-parse --verify "${REMOTE_BRANCH}^{commit}"); then
+                :
+            else
+                fail_discovery "$?"
+            fi
+            log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: $REMOTE_SHA)"
             collect_git_diff replace "$REMOTE_SHA" HEAD
             log_debug "Python change count (via fallback remote): ${#PYTHON_CHANGES[@]}"
         fi
@@ -378,9 +418,19 @@ if [ ${#PYTHON_CHANGES[@]} -eq 0 ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
             exit 1
         fi
 
-        COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+        COMMIT_COUNT=0
+        # A valid unborn HEAD has no history. A failed query of present history
+        # is an error, including output that cannot safely enter arithmetic.
+        if reference_exists HEAD; then
+            if COMMIT_COUNT=$(git rev-list --count HEAD); then
+                :
+            else
+                fail_discovery "$?"
+            fi
+        fi
         if ! [[ "$COMMIT_COUNT" =~ ^[0-9]+$ ]]; then
-            COMMIT_COUNT="0"
+            echo "❌ git rev-list returned an invalid commit count" >&2
+            fail_discovery 1
         fi
         MAX_DEPTH=$((COMMIT_COUNT > 0 ? COMMIT_COUNT - 1 : 0))
         FALLBACK_DEPTH="$RECENT_COMMITS_FALLBACK"

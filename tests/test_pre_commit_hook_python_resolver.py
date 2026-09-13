@@ -2484,3 +2484,320 @@ def test_backend_hook_supported_shell_interrupts_discovery(
     assert "Backend tests passed" not in result.stdout
     assert "No Python or cross-surface" not in result.stdout
     assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
+@pytest.mark.parametrize("operation", ("merge-base", "show-ref"))
+@pytest.mark.parametrize("failure_status", (42, 128))
+@pytest.mark.parametrize("mode", ("branch", "staged", "make"))
+def test_backend_merge_base_operational_failure_cannot_become_empty_success(
+    tmp_path: Path,
+    backend_shell: str,
+    operation: str,
+    failure_status: int,
+    mode: str,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    target = "tests/test_selected.py"
+    (repo / target).write_text("# selected change\n", encoding="utf-8")
+    _git(repo, "add", target)
+    _git(repo, "commit", "--quiet", "-m", "change selected surface")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["PRE_COMMIT" if mode == "staged" else "BRANCH_DIFF_MODE"] = "1"
+    real_git = shutil.which("git")
+    assert real_git is not None
+    valid_sha = _git(repo, "rev-parse", "main").stdout.strip()
+    git_wrapper = tmp_path / "selected-tools/git"
+    git_wrapper.write_text(
+        textwrap.dedent(f"""\
+            #!/bin/sh
+            if [ "$1" = {shlex.quote(operation)} ]; then
+                echo 'deterministic {operation} operational failure' >&2
+                printf '%s\\n' {shlex.quote(valid_sha)}
+                exit {failure_status}
+            fi
+            exec {shlex.quote(real_git)} "$@"
+            """),
+        encoding="utf-8",
+    )
+    git_wrapper.chmod(0o755)
+    command = [backend_shell, "scripts/run-backend-tests-pre-commit.sh"]
+    if mode == "make":
+        make = shutil.which("make")
+        assert make is not None
+        command = [make, "--no-print-directory", "validate-changed"]
+
+    result = subprocess.run(command, cwd=repo, env=env, text=True, capture_output=True, check=False)
+
+    assert result.returncode == (2 if mode == "make" else failure_status), (
+        result.stdout + result.stderr
+    )
+    assert f"deterministic {operation} operational failure" in result.stderr
+    assert not calls.exists()
+    assert "Backend tests passed" not in result.stdout
+    assert "No Python or cross-surface" not in result.stdout
+    assert "Diff-based validation completed" not in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("candidate_case", "expected_tests"),
+    (
+        ("absent-remote-local-main", ["tests/test_first.py", "tests/test_second.py"]),
+        ("absent-remote-local-master", ["tests/test_first.py", "tests/test_second.py"]),
+        ("disjoint-remote-local-main", ["tests/test_first.py", "tests/test_second.py"]),
+        ("all-absent-recent-fallback", ["tests/test_first.py", "tests/test_second.py"]),
+        ("all-disjoint-recent-fallback", ["tests/test_first.py", "tests/test_second.py"]),
+        ("remote-main-priority", ["tests/test_second.py"]),
+        ("remote-master-priority", ["tests/test_second.py"]),
+        ("tag-is-not-remote-candidate", ["tests/test_first.py", "tests/test_second.py"]),
+    ),
+)
+def test_backend_merge_base_preserves_native_absence_disjoint_and_candidate_priority(
+    tmp_path: Path,
+    backend_shell: str,
+    candidate_case: str,
+    expected_tests: list[str],
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    if candidate_case.startswith("all-disjoint") or candidate_case.startswith("disjoint"):
+        tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+        disjoint = _git(repo, "commit-tree", tree, "-m", "unrelated candidate root").stdout.strip()
+        _git(repo, "update-ref", "refs/remotes/origin/main", disjoint)
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    for name in ("first", "second"):
+        target = f"tests/test_{name}.py"
+        (repo / target).write_text("# selected change\n", encoding="utf-8")
+        _git(repo, "add", target)
+        _git(repo, "commit", "--quiet", "-m", "add " + name)
+        if name == "first" and candidate_case.startswith("remote-"):
+            ref = "refs/remotes/origin/" + (
+                "main" if candidate_case == "remote-main-priority" else "master"
+            )
+            _git(repo, "update-ref", ref, "HEAD")
+            if candidate_case == "remote-main-priority":
+                _git(repo, "update-ref", "refs/remotes/origin/master", base)
+    if candidate_case == "absent-remote-local-master":
+        _git(repo, "branch", "master", base)
+        _git(repo, "branch", "-D", "main")
+    elif candidate_case.startswith("all-"):
+        _git(repo, "branch", "-D", "main")
+    elif candidate_case == "tag-is-not-remote-candidate":
+        _git(repo, "tag", "origin/main", "HEAD")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["BRANCH_DIFF_MODE"] = "1"
+
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stderr == ""
+    assert _recorded_pytest_arguments(calls) == ["-q", "--tb=short", *expected_tests]
+    assert "Backend tests passed" in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "upstream-name",
+        "upstream-sha",
+        "upstream-ref",
+        "fallback-sha",
+        "fallback-ref",
+        "recent-count",
+        "head-ref",
+    ),
+)
+@pytest.mark.parametrize("failure_status", (42, 128))
+def test_backend_optional_discovery_failure_cannot_omit_older_python_changes(
+    tmp_path: Path, backend_shell: str, fault: str, failure_status: int
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    target = "tests/test_selected.py"
+    (repo / target).write_text("# older Python change\n", encoding="utf-8")
+    _git(repo, "add", target)
+    _git(repo, "commit", "--quiet", "-m", "older Python change")
+    (repo / "README.md").write_text("later documentation only\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "later documentation only")
+    _git(repo, "update-ref", "refs/heads/main", "HEAD")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["RECENT_COMMITS_FALLBACK"] = "1"
+    if fault.startswith("upstream"):
+        _git(repo, "config", "remote.origin.url", ".")
+        _git(repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+        _git(repo, "config", "branch.selection.remote", "origin")
+        _git(repo, "config", "branch.selection.merge", "refs/heads/deployed")
+        _git(repo, "update-ref", "refs/remotes/origin/deployed", base)
+    elif fault.startswith("fallback"):
+        _git(repo, "update-ref", "refs/remotes/origin/selection", base)
+    else:
+        _git(repo, "branch", "-D", "main")
+        env["RECENT_COMMITS_FALLBACK"] = "10"
+    command = [backend_shell, "scripts/run-backend-tests-pre-commit.sh"]
+    control = subprocess.run(
+        command, cwd=repo, env=env, text=True, capture_output=True, check=False
+    )
+    assert control.returncode == 0, control.stdout + control.stderr
+    assert _recorded_pytest_arguments(calls) == ["-q", "--tb=short", target]
+    calls.unlink()
+    native_query = {
+        "upstream-name": "for-each-ref --format=%(upstream) -- refs/heads/selection",
+        "upstream-sha": "rev-parse --verify refs/remotes/origin/deployed^{commit}",
+        "upstream-ref": "show-ref --verify --quiet refs/remotes/origin/deployed",
+        "fallback-sha": "rev-parse --verify refs/remotes/origin/selection^{commit}",
+        "fallback-ref": "show-ref --verify --quiet refs/remotes/origin/selection",
+        "recent-count": "rev-list --count HEAD",
+        "head-ref": "show-ref --verify --quiet HEAD",
+    }[fault]
+    real_git = shutil.which("git")
+    assert real_git is not None
+    git_wrapper = tmp_path / "selected-tools/git"
+    git_wrapper.write_text(
+        textwrap.dedent(f"""\
+            #!/bin/sh
+            if [ "$*" = {shlex.quote(native_query)} ]; then
+                echo 'deterministic optional discovery failure' >&2
+                exit {failure_status}
+            fi
+            exec {shlex.quote(real_git)} "$@"
+            """),
+        encoding="utf-8",
+    )
+    git_wrapper.chmod(0o755)
+
+    result = subprocess.run(command, cwd=repo, env=env, text=True, capture_output=True, check=False)
+
+    assert result.returncode == failure_status, result.stdout + result.stderr
+    assert "deterministic optional discovery failure" in result.stderr
+    assert not calls.exists()
+    assert "Backend tests passed" not in result.stdout
+    assert "skipping backend tests" not in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
+@pytest.mark.parametrize("bad_count", ("", "not-a-count", "-1", "1\n2"))
+@pytest.mark.parametrize("consumer", ("hook", "make"))
+def test_backend_recent_count_malformed_output_stops_the_actual_consumer(
+    tmp_path: Path, backend_shell: str, bad_count: str, consumer: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    _git(repo, "branch", "-D", "main")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["BRANCH_DIFF_MODE"] = "1"
+    real_git = shutil.which("git")
+    assert real_git is not None
+    wrapper = tmp_path / "selected-tools/git"
+    wrapper.write_text(
+        f'#!/bin/sh\nif [ "$*" = "rev-list --count HEAD" ]; then\n'
+        f"  printf '%s\\n' {shlex.quote(bad_count)}\n  exit 0\nfi\n"
+        f'exec {shlex.quote(real_git)} "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    command = [backend_shell, "scripts/run-backend-tests-pre-commit.sh"]
+    if consumer == "make":
+        make = shutil.which("make")
+        assert make is not None
+        command = [make, "--no-print-directory", "validate-changed"]
+
+    result = subprocess.run(command, cwd=repo, env=env, text=True, capture_output=True, check=False)
+
+    assert result.returncode == (2 if consumer == "make" else 1)
+    assert "invalid commit count" in result.stderr
+    assert not calls.exists()
+    assert "Diff-based validation completed" not in result.stdout
+    assert "skipping backend tests" not in result.stdout
+
+
+@pytest.mark.parametrize("position", ("base", "upstream", "fallback", "head"))
+def test_backend_native_corrupt_reference_is_not_optional_absence(
+    tmp_path: Path, backend_shell: str, position: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    if position == "base":
+        env["BRANCH_DIFF_MODE"] = "1"
+        ref = "refs/remotes/origin/main"
+    elif position == "upstream":
+        _git(repo, "config", "remote.origin.url", ".")
+        _git(repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+        _git(repo, "config", "branch.selection.remote", "origin")
+        _git(repo, "config", "branch.selection.merge", "refs/heads/deployed")
+        ref = "refs/remotes/origin/deployed"
+    elif position == "fallback":
+        ref = "refs/remotes/origin/selection"
+    else:
+        env["BRANCH_DIFF_MODE"] = "1"
+        _git(repo, "branch", "-D", "main")
+        ref = "HEAD"
+    # Real malformed repository evidence: a present ref to an unavailable object.
+    # The native Git error remains authoritative; no mocked return classification.
+    path = repo / ".git" / ref
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("f" * 40 + "\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 128, result.stdout + result.stderr
+    assert "git show-ref failed" in result.stderr
+    assert not calls.exists()
+    assert "No Python or cross-surface" not in result.stdout
+    assert "skipping backend tests" not in result.stdout
+
+
+@pytest.mark.parametrize("state", ("unborn", "single-commit", "detached", "missing-upstream"))
+def test_backend_native_optional_absence_retains_valid_empty_history_behaviour(
+    tmp_path: Path, backend_shell: str, state: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    _git(repo, "branch", "-D", "main")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    if state == "unborn":
+        _git(repo, "update-ref", "-d", "refs/heads/selection")
+        env["BRANCH_DIFF_MODE"] = "1"
+    elif state == "detached":
+        _git(repo, "checkout", "--quiet", "--detach", "HEAD")
+        _git(repo, "branch", "-D", "selection")
+    elif state == "missing-upstream":
+        _git(repo, "config", "remote.origin.url", ".")
+        _git(repo, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+        _git(repo, "config", "branch.selection.remote", "origin")
+        _git(repo, "config", "branch.selection.merge", "refs/heads/missing")
+
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stderr == ""
+    assert "insufficient history" in result.stdout
+    assert not calls.exists()
+    assert "Backend tests passed" not in result.stdout
