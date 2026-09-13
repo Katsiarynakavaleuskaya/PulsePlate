@@ -306,6 +306,9 @@ add_extra_tests_for_changed_files() {
                 ;;
         esac
         case "$file" in
+            scripts/run-backend-tests-pre-commit.sh)
+                EXTRA_TEST_FILES+=("tests/test_pre_commit_hook_python_resolver.py")
+                ;;
             frontend/package.json | frontend/package-lock.json)
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")

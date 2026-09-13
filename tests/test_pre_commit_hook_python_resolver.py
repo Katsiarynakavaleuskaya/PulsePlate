@@ -2238,6 +2238,45 @@ def test_backend_hook_supported_shell_selection(
     assert list(Path(env["TMPDIR"]).iterdir()) == []
 
 
+@pytest.mark.parametrize("mode", ("branch", "staged", "make"))
+def test_backend_hook_only_change_selects_its_behavioral_tests(
+    tmp_path: Path, backend_shell: str, mode: str
+) -> None:
+    """A shell-only edit must run the native-shell regression suite automatically."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    shutil.copy2(REPO_ROOT / "Makefile", repo / "Makefile")
+    _git(repo, "switch", "--quiet", "-c", "selection")
+    hook = "scripts/run-backend-tests-pre-commit.sh"
+    with (repo / hook).open("a", encoding="utf-8") as output:
+        output.write("\n# isolated hook-only change\n")
+    _git(repo, "add", hook)
+    if mode != "staged":
+        _git(repo, "commit", "--quiet", "-m", "change hook only")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["PRE_COMMIT" if mode == "staged" else "BRANCH_DIFF_MODE"] = "1"
+    command = [backend_shell, hook]
+    if mode == "make":
+        make = shutil.which("make")
+        assert make is not None
+        command = [make, "--no-print-directory", "validate-changed"]
+
+    result = subprocess.run(command, cwd=repo, env=env, text=True, capture_output=True, check=False)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    flags = ["-q", "--tb=short"] + (["-x"] if mode == "staged" else [])
+    assert _recorded_pytest_arguments(calls) == flags + [
+        "tests/test_pre_commit_hook_python_resolver.py",
+        "tests/guards/test_review_source_quota_policy_guard.py",
+        "tests/test_review_source_status.py",
+        "tests/test_pr_review_material_seal.py",
+        "tests/test_pr_merge_readiness_gate.py",
+    ]
+    assert "Backend tests passed" in result.stdout
+    if mode == "make":
+        assert "Diff-based validation completed" in result.stdout
+    assert list(Path(env["TMPDIR"]).iterdir()) == []
+
+
 @pytest.mark.parametrize(
     "mode", ("append", "staged_empty", "upstream", "origin_fallback", "recent_fallback")
 )
