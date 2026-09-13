@@ -1082,20 +1082,33 @@ def test_main_rejects_missing_packet_path(capsys: pytest.CaptureFixture[str]) ->
     assert "Paste into Codex now:" not in captured.out
 
 
+@pytest.mark.parametrize("malformed_command", [False, True])
 def test_main_rejects_malformed_packet_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    malformed_command: bool, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Malformed packet JSON should fail closed before rendering."""
+    """Malformed input must fail without printing an ownerless fallback prompt."""
 
     packet_path = tmp_path / "packet.json"
-    packet_path.write_text("{not-json", encoding="utf-8")
+    payload = "{not-json"
+    expected_error = "task packet is not valid JSON"
+    if malformed_command:
+        packet = _packet()
+        packet["role_agent_dispatch_contract"] = {
+            "dispatch_manifest_command": (
+                "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+                "--mode runtime --implementation-owner 'frontend-engineer"
+            )
+        }
+        payload = json.dumps(packet)
+        expected_error = "invalid dispatch_manifest_command: shell syntax"
+    packet_path.write_text(payload, encoding="utf-8")
 
     result = main(["packet", "--packet", str(packet_path)])
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "task packet is not valid JSON" in captured.err
-    assert "Paste into Codex now:" not in captured.out
+    assert expected_error in captured.err
+    assert captured.out == ""
 
 
 def test_main_rejects_non_object_packet_json(

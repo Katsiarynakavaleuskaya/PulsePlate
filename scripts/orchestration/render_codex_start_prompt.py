@@ -216,14 +216,8 @@ def _render_dispatch_command(
         )
     try:
         tokens = shlex.split(raw_command)
-    except ValueError:
-        tokens = [
-            "python3",
-            "scripts/orchestration/role_dispatch_bridge.py",
-            "--packet",
-            "<packet>",
-            "--pretty",
-        ]
+    except ValueError as exc:
+        raise PromptError("invalid dispatch_manifest_command: shell syntax") from exc
 
     rendered_tokens: list[str] = []
     for index, token in enumerate(tokens):
