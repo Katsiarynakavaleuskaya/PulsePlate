@@ -5,7 +5,10 @@
 #
 # Never commit real API keys, tokens, or personal absolute paths as “the one true” config.
 
-model = "gpt-5-codex"
+# Preserve your host-selected model and effort by default.
+# Optional explicit host choice: model = "<available-model-id>"
+# Native child routing guidance: docs/agents/model_policy.md.
+# This example does not enable Astra/Sol routing or override active tasks.
 
 # approval_policy = "untrusted"
 # sandbox_mode = "workspace-write"

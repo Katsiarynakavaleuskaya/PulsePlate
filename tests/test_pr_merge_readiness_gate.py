@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -610,6 +611,58 @@ def test_pre_closeout_fails_when_review_thread_inventory_changes_during_validati
 
     assert merge_gate.main() == 1
     assert "review-thread inventory changed during validation" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("mapped_comment", ["unrelated", "reply", "root"])
+def test_pre_closeout_requires_unresolved_root_mapping_without_actionable_markers(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mapped_comment: str,
+) -> None:
+    thread = _review_thread()
+    root = thread.comments[0]
+    reply = replace(root, url=root.url + "2", body="Acknowledged.")
+    thread = replace(thread, comments=(root, reply))
+    mapped_url = {
+        "unrelated": "https://github.com/owner/repo/pull/42#issuecomment-previous",
+        "reply": reply.url,
+        "root": root.url,
+    }[mapped_comment]
+    assert _is_actionable(root.body) is False
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(mapped_url),
+        actionable_items=[],
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: (thread,))
+
+    assert merge_gate.main() == (0 if mapped_comment == "root" else 1)
+    output = capsys.readouterr().out
+    if mapped_comment == "root":
+        assert "pre-closeout-review-governance: passed" in output
+    else:
+        assert "Unmapped unresolved review-thread roots: " + root.url in output
+
+
+def test_pre_closeout_preserves_ghas_thread_exclusion(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    thread = _review_thread()
+    thread = replace(
+        thread,
+        comments=(replace(thread.comments[0], author_login="github-advanced-security"),),
+    )
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: (thread,))
+
+    assert merge_gate.main() == 0
+    assert "pre-closeout-review-governance: passed" in capsys.readouterr().out
 
 
 def test_pre_closeout_accepts_stable_review_thread_inventory(

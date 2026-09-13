@@ -15,9 +15,23 @@ Read these in order:
    and paste its `Paste into Codex now` block into the Codex session before
    implementation
 6. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
-7. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
-8. role dispatch: run the task packet's `role_agent_dispatch_contract.dispatch_manifest_command` with the actual packet path and execute every `dispatch_sequence` role in order
+7. manual alternative when no governing packet exists: coordinator analysis,
+   `scripts/orchestration/check_preflight.py`, then `scripts/orchestration/task_bootstrap.py`
+   (or the helper's printed recipe). Reuse a starter/launcher packet instead of
+   running both paths.
+8. role dispatch:
+   MUST follow the [canonical admission sequence](../orchestration/workflow.md#admit-tracked-implementation):
+   execute preflight before owner-capable preparation, complete no-write preparation,
+   and use the later scoped implementation handoff. Run the packet's
+   `role_agent_dispatch_contract.dispatch_manifest_command` with the actual path
+   and all emitted flags; execute every required occurrence in order.
 9. this guide for tool-specific setup notes
+
+Follow the staged checklist in `docs/orchestration/workflow.md`: analyze and
+route first, then admit tracked implementation, then publish/close out if the
+task calls for a PR. Checklist actions create each stage's outputs; they are not
+prerequisites for entering that same stage. Required preparatory roles still
+complete before tracked implementation. Analysis-only work may end in its report.
 
 ## Cursor
 
@@ -51,9 +65,12 @@ This creates the isolated worktree, runs analyze preflight, runs
 `task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist, the
 bootstrap packet summary, and a Codex-ready coordinator-start prompt. It does
 not push, open a PR, install host plugins, or auto-start a raw Codex session.
-The printed role-dispatch command is mandatory for non-trivial PR lanes:
-execute every bootstrap-requested/custom role in order, then run premortem and
-Experiment Runner oracle-only evidence before opening the PR.
+The printed role-dispatch recipe MUST follow the
+[canonical admission sequence](../orchestration/workflow.md#admit-tracked-implementation):
+execute preflight before owner-capable preparation, complete no-write preparation,
+and use the later scoped implementation handoff. Preserve every emitted flag and
+required occurrence. Run premortem and Experiment Runner oracle-only evidence
+before opening the PR under the root lifecycle.
 When the branch is ready to publish, open the PR non-draft by default so bot
 review and current-head checks run; draft mode is an explicit operator
 exception.
@@ -95,6 +112,11 @@ scripts/install_codex_skills.sh --no-cybersec
   bridge into coordinator-first sequencing.
 - Host-only `~/.codex/config.toml` is outside repo SoT; optional template:
   [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml)
+- Native model/effort inheritance and the explicitly enabled Astra/Sol mode are
+  governed by [`docs/agents/model_policy.md`](../agents/model_policy.md).
+  Frontmatter `model: auto` and a template do not change active host settings.
+  Use the packet's native binding, preserve role authority, and load full required
+  context even when a new child uses a bounded/no-history fork.
 - Skills stay passive/discovery-only. They do not auto-start coordinator bootstrap and must not change Cursor/custom orchestration behavior.
 - `Computer Use` is a bundled plugin, not a checked-in repo MCP server. If it fails with
   `Apple event error -10000`, fix macOS `Accessibility` and `Screen Recording`

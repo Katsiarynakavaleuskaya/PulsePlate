@@ -24,6 +24,27 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-production-readiness-timeout-evidence"></a>
+- [ ] P1: Bound the production-readiness HTTP probe and overall wait
+  - Owner: dev-operator / agent-coordinator follow-up owner
+  - Priority: P1 (release viability and recovery evidence)
+  - Target PR: TBD dedicated bounded production-readiness timeout PR, unless an existing owner explicitly absorbs this exact scope
+  - Reason for deferral: Instruction/dispatch corrections cannot repair deployment behavior. This HTTP timeout gap is independent of the existing image-admission recovery and is not assigned to that owner without its explicit handoff.
+  - Evidence: `scripts/deploy_production.sh:2024` calls `urllib.request.urlopen('http://localhost:8000/ready').read()` without a request timeout; the surrounding retry counter cannot bound an accepted connection that stalls. This is a code-level gap, not proof of a live production outage.
+  - Links: [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication), `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`, `RUNBOOK_AGENT.md`.
+  - DoD: Record exact image/head/config identity and deterministic success, HTTP 503 and accepted-but-stalled-connection cases; enforce per-request and overall wait bounds; preserve bounded diagnostics and the original nonzero failure status; prove timeout prevents worker/Caddy promotion. Retain current-head gates and separate deployment approval without weakening readiness checks.
+  - Separate reference: [main CD run 34704810352](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34704810352) at `b0eecb29160129be961a7038cd08084293759fc3` reported PostgreSQL reuse-admission timeout. That publication failure belongs to [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication); it is not this HTTP gap's root cause. No recovery monitoring or deployment change is authorized by this ledger entry.
+
+<a id="ledger-p1-disposable-stack-recovery-integration"></a>
+- [ ] P1: Complete disposable whole-stack failure and recovery integration evidence
+  - Owner: agent-coordinator / qa-engineer-agent / dev-operator for gap reconciliation; existing secure-staging owner retains its crash/restore implementation
+  - Priority: P1 (stack integration and recovery correctness)
+  - Target PR: TBD after reconciling the existing secure-staging task's scope (worktree `main-recovery-secure-staging`); use its evidence and obtain explicit ownership for any additional cases
+  - Reason for deferral: Unit/role checks and instruction edits do not establish backend, PostgreSQL/pgvector and proxy behavior together. Crash/restore implementation is already owned by the secure-staging task and must not be duplicated here.
+  - Links: [production-readiness HTTP gap](#ledger-p1-production-readiness-timeout-evidence), [MAIN-RECOVERY-1](#ledger-p1-main-recovery-1-image-publication), `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`, `docs/deploy/README.md`.
+  - DoD: Reconcile the owner's existing crash/restore scenarios first without claiming it accepted extra scope; run only the remaining explicitly owned cases against one disposable backend/PostgreSQL/pgvector/proxy stack with exact images and synthetic data. Prove happy-path routing, dependency loss, bounded readiness failure, crash during an open transaction with committed data retained and uncommitted data absent, restart/same-volume continuity, valid restore and corrupt-dump rejection before promotion. Verify cleanup and retain raw results plus explicit untested cases. Close only after merged owning changes and observed scenario evidence; production deployment/fault injection requires separate authorization.
+  - Boundary: Ledger-only coordination in the instruction lane; no deploy code, production fault injection, new stack runner or duplicate recovery implementation.
+
 <a id="ledger-p1-ios-iphone-duo-native-validation"></a>
 - [ ] P1: Validate iPhone Duo adaptive navigation with official simulator support
   - Owner: iOS lane owner / qa-engineer-agent
@@ -2192,8 +2213,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1516 (`codex/main-ci-py313-timeout-prevention`)
   - Area: CI / tooling / governance
-  - Status note: Active follow-up in `codex/main-ci-py313-timeout-prevention` narrows this item to the machine-heavy agent-local execution contract. Full local `make verify` stays canonical for normal PRs, while operator-approved CI/tooling lanes may document deferral and use narrow local gates plus canonical current-head CI parity as the heavy signal. The pre-push hook bug remains tracked here for a separate follow-up and is not closed by the Python 3.13 timeout-prevention lane.
-  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Status note: The repo-wide local default is the required narrow bundle plus canonical current-head hosted heavy parity. Full local `make verify` is allowed only by an explicit operator exception for one invocation. The recorded pre-push hook defect remains open for its owned fix and verification; this instruction correction does not close the hook implementation or establish completion of PR #1516.
+  - Reason: The former full-local verification default was too broad for routine PR iteration. The recorded `scripts/run-backend-tests-pre-commit.sh` failure (`FOUND_FOR_FILE[@]: unbound variable`) on merge-commit paths still requires its bounded follow-up under the current local validation budget, without weakening strict current-head merge readiness.
   - Evidence:
     - `AGENTS.md:5-8`
     - `AGENTS.md:27-30`
@@ -2209,8 +2230,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.pre-commit-config.yaml`
     - `scripts/run-backend-tests-pre-commit.sh`
   - DoD:
-    - Repo docs distinguish normal full local `make verify` from the operator-approved machine-heavy deferral path
-    - Agent/runbook guidance points at the correct narrow validation path for machine-heavy PR iteration
+    - Repo docs preserve the repo-wide narrow local default plus hosted heavy parity; full local `make verify` requires an explicit single-invocation operator exception
+    - Agent/runbook guidance points at the required narrow local bundle and canonical current-head CI evidence for PR iteration
     - Deterministic tests cover the promoted validation contract
     - Follow-up PR fixes the pre-push backend test hook failure shape (`FOUND_FOR_FILE[@]: unbound variable`)
 

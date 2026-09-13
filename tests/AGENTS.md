@@ -7,9 +7,11 @@
 
 ## Commands (run from repo root)
 
-- Test: `make test`, `make test-fast`
-- Coverage: `make cov`, `make cov-check`
-- Targeted: `pytest tests/<path> -q`, `pytest -k "<pattern>" -q`
+- Local validation: root `AGENTS.md` → Hard Gates and
+  `RUNBOOK_AGENT.md` → Quality Gates own the narrow bundle and machine budget.
+- Targeted: run `pytest tests/<path> -q` through repo-approved Python/activation.
+- Heavy test and coverage evidence comes from canonical current-head CI under
+  the root contract; this section does not authorize a full local suite.
 
 ## Conventions
 
@@ -144,11 +146,18 @@ module references and CI-only flakes if a test patches a module object captured 
 
 ### SQLite test bootstrap rule (xdist / nightly)
 
-Any test touching DB must ensure full schema initialization (`import models` + `Base.metadata.create_all`) before execution. Teardown must be idempotent and tolerate missing tables (e.g. catch `OperationalError` and rollback instead of failing). This prevents "no such table" and thread-safety issues under `pytest -n auto`.
+Schema-creating test consumers must call `core.db.load_canonical_orm_metadata()`
+before `Base.metadata.create_all`, using the existing shared fixtures where
+applicable. Root `AGENTS.md` → Mapped schema-creation registration owns the
+exact mapped set and fail-closed registration/configuration contract. Do not
+replace the loader with ad-hoc model imports or copy its table inventory here.
+Teardown must be idempotent and preserve the original failure; cleanup must not
+turn missing required schema into a passing test.
 
 - Schema-missing failures must use `pytest.fail()` (not `RuntimeError`).
 - Expected schema must be derived from SoT (`Base.metadata` or shared constant), never hardcoded in fixtures.
-- When using `Base.metadata` as schema SoT, ensure all ORM models are imported before `create_all()` / table checks.
+- Use the canonical loader before mapped schema creation; do not infer complete
+  registration from whichever model modules a previous test happened to import.
 
 ### SQLite threading and engine SoT (xdist)
 
@@ -175,7 +184,8 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 
 ## Coverage / diff-cover (process invariant)
 
-- CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
+- CI coverage thresholds are owned by root `AGENTS.md`: diff coverage must be
+  at least 97%. Prefer focused behavioral tests; no competing 100% threshold.
 - If CI reports diff-cover gaps, add focused `*_diff_coverage.py` tests rather than weakening production checks.
   Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
   Example: `tests/vip/test_pdf_export_diff_coverage.py`.
@@ -216,30 +226,12 @@ A standalone new test file may not be included in diff-cover's comparison, causi
 
 **Problem**: diff-cover may show "missing lines" if coverage.xml is stale or from wrong test session.
 
-**Reliable ritual** (run from repo root):
-
-```bash
-# 1. Update main and ensure clean working tree
-git fetch origin main
-git status --short
-
-# 2. Rebuild coverage from scratch in correct environment
-rm -f .coverage coverage.xml
-make cov
-# Or equivalent:
-# . .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
-
-# 3. Run diff-cover against actual base
-diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
-```
-
-**Sanity check** (if diff-cover still shows missing lines):
-
-```bash
-# Verify coverage.xml matches current code
-ls -la coverage.xml
-grep "pipeline.py" coverage.xml | head
-```
+**Evidence procedure:** use the canonical current-head CI coverage artifact and
+verify its head/base and selected test scope. For local diagnosis, generate only
+the admitted focused coverage evidence with repo-approved Python and retain the
+command and output. Do not delete or overwrite another run's artifacts or start
+full local coverage because a report is stale. Thresholds, readiness meaning and
+the local budget remain in root `AGENTS.md` and `RUNBOOK_AGENT.md`.
 
 **Why this works**:
 
@@ -433,7 +425,8 @@ To verify:
 
 ## CI red rule (enforced)
 
-If CI is red:
+For failed required CI on the current PR (see root `AGENTS.md` → Command results
+and failure scope for pending, diagnostic no-match and other-owned lanes):
 
 - ❌ Do NOT push additional unrelated refactors.
 - ❌ Do NOT claim "tests are wrong" or "CI issue" without committing the fixing patch.
@@ -442,7 +435,7 @@ If CI is red:
   1) Identify failing test(s) and reproduce locally.
   2) Fix code or tests in the same PR.
   3) Update AGENTS.md if the fix changes/clarifies a contract.
-  4) Re-run: `make test-fast` and `make cov-check`.
+  4) Re-run the relevant failed gate and root local narrow bundle.
 - **No green, no merge, no exceptions.**
 
 **Red CI means unfinished work. You either fix it in this PR or you don't push. "Tests are wrong" is only acceptable with a patch that updates the tests + documents the contract change.**
@@ -450,7 +443,8 @@ If CI is red:
 ## Workflow rules (global)
 
 Global workflow rules (CI recovery, Definition of Done, canonical commands) live in root `AGENTS.md`.
-Use: `make verify`, `make cov-check`, and `git push` as described there (force push is forbidden).
+Follow its local narrow bundle, current-head CI/review evidence and push policy
+(force push is forbidden). This scope file grants no full local verification budget.
 See canonical "Local-only artifacts (hard rule)" in root `AGENTS.md`.
 
 This file (`tests/AGENTS.md`) contains ONLY test-specific rules (diff coverage, mocking constraints, forbidden patterns).

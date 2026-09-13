@@ -48,7 +48,14 @@ EXPERIMENT_RUNNER_ENV_GUIDANCE = (
     "infra blockers, not `Not applicable`."
 )
 ROLE_DISPATCH_GUIDANCE = (
-    "Role-agent dispatch is a required post-bootstrap step: copy the packet's "
+    "Role-agent dispatch is a required post-bootstrap step. Follow "
+    "docs/orchestration/workflow.md#admit-tracked-implementation: before "
+    "owner-capable preparation, run the packet-rendered execute preflight "
+    "with the declared path scope and coordinator routing inputs; require exit 0. "
+    "No tracked writes during preparation, including readonly=false owners. "
+    "After all required preparation, only a separate coordinator handoff naming "
+    "one active eligible role/occurrence and exact files admits implementation. "
+    "For manifest generation, copy the packet's "
     "`role_agent_dispatch_contract.dispatch_manifest_command` verbatim, replace "
     "`<packet>` with the actual packet path, use repo Python per RUNBOOK, then "
     "run each `dispatch_sequence` role in order. Do not reconstruct a generic "
@@ -166,7 +173,7 @@ def _recipe_bootstrap_command(
         pr_phase,
     ]
     for path in paths:
-        tokens.extend(("--path", path))
+        tokens.append(f"--path={path}")
     for change_class in _unique(invariant_change_classes):
         tokens.extend(("--invariant-change-class", change_class))
     for agent in _unique(requested_agents):
@@ -208,14 +215,8 @@ def _render_dispatch_command(
         )
     try:
         tokens = shlex.split(raw_command)
-    except ValueError:
-        tokens = [
-            "python3",
-            "scripts/orchestration/role_dispatch_bridge.py",
-            "--packet",
-            "<packet>",
-            "--pretty",
-        ]
+    except ValueError as exc:
+        raise PromptError("invalid dispatch_manifest_command: shell syntax") from exc
 
     rendered_tokens: list[str] = []
     for index, token in enumerate(tokens):
@@ -226,6 +227,17 @@ def _render_dispatch_command(
         else:
             rendered_tokens.append(_shell_quote(token))
     return " ".join(rendered_tokens)
+
+
+def _render_execute_preflight_command(packet: dict[str, Any]) -> str:
+    """Project existing packet scope/routing into the preflight CLI, without rerouting."""
+
+    tokens = ["scripts/orchestration/check_preflight.py", "--mode", "execute"]
+    for path in _as_string_list(packet.get("candidate_paths")) or ["<packet.candidate_paths item>"]:
+        tokens.append(f"--path={path}")
+    tokens.extend(("--primary", str(packet.get("primary_agent") or "<packet.primary_agent>")))
+    tokens.extend(("--reviewer", str(packet.get("reviewer") or "<packet.reviewer>")))
+    return "$VENV_PYTHON " + " ".join(_shell_quote(token) for token in tokens)
 
 
 def _prompt_list(items: list[str], fallback: str) -> str:
@@ -541,6 +553,15 @@ def render_packet_prompt(
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
             "Experiment Runner joins after coordinator bootstrap as oracle-only evidence; it must not replace agent-coordinator or become the lane-start authority.",
             f"Packet role dispatch contract: packet_creation_executes_roles={packet_creation_executes_roles}; role_agent_dispatch_required={role_agent_dispatch_required}.",
+            "If a legacy packet lacks scope/routing fields, obtain those fields from "
+            "the coordinator before running the command; quoted <packet.*> placeholders "
+            "are not admitted inputs.",
+            "Coordinator: confirm the primary/reviewer assignment below and add at most "
+            "two applicable --secondary slots from the separate preflight assignment. "
+            "Do not forward packet.secondary_agents; that expanded inventory still "
+            "executes in the unchanged dispatch_sequence.",
+            "Execute preflight before owner-capable preparation: "
+            + _render_execute_preflight_command(packet),
             f"Next role-agent dispatch command: {dispatch_command}",
             ROLE_DISPATCH_GUIDANCE,
             POST_OPEN_REVIEW_GUIDANCE,
@@ -627,6 +648,9 @@ def render_recipe_prompt(
             ),
             "",
             f"Next required repo command: {bootstrap_command}",
+            "Then render the returned packet to obtain its populated execute-preflight "
+            "command: $VENV_PYTHON scripts/orchestration/render_codex_start_prompt.py "
+            "packet --packet '<bootstrap-packet>'",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",

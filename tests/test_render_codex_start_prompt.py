@@ -13,6 +13,7 @@ import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import qoder_dispatch_bridge
+from scripts.orchestration import check_preflight
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.evidence_rail_applicability as rail_applicability
 import scripts.orchestration.task_bootstrap as task_bootstrap
@@ -550,6 +551,10 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
         "artifacts/orchestration/task_packets/demo.json --pretty"
     ) in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "check_preflight.py --mode execute" in prompt
+    assert "No tracked writes during preparation, including readonly=false owners" in prompt
+    assert "only a separate coordinator handoff" in prompt
+    assert "one active eligible role/occurrence and exact files admits implementation" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "for every non-trivial PR, create oracle-only evidence by default" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
@@ -702,6 +707,42 @@ def test_packet_prompt_uses_packet_dispatch_command_runtime_owner_flags() -> Non
     ) in prompt
 
 
+def test_packet_execute_preflight_preserves_scope_and_routing() -> None:
+    """The rendered command must satisfy the real execute-preflight CLI contract."""
+
+    paths = [
+        "scripts/orchestration/render_codex_start_prompt.py",
+        "tests/owner's scope.py",
+        "-x",
+        "--mode",
+    ]
+    packet = task_bootstrap.build_task_packet(
+        goal="Repair the governed startup command",
+        task_class="Security",
+        candidate_paths=paths,
+        requested_agents=["security-auditor"],
+        invariant_change_classes=["validator"],
+    )
+    prompt = render_packet_prompt(packet, packet_path="artifacts/task packet.json")
+    prefix = "Execute preflight before owner-capable preparation: "
+    command = next(
+        line.removeprefix(prefix) for line in prompt.splitlines() if line.startswith(prefix)
+    )
+    tokens = shlex.split(command)
+    assert tokens[:2] == ["$VENV_PYTHON", "scripts/orchestration/check_preflight.py"]
+    mode, scope, primary, secondary, reviewer, evidence = check_preflight._parse_args(tokens[2:])
+    assert mode == "execute"
+    assert scope == packet["candidate_paths"]
+    assert primary == packet["primary_agent"]
+    assert len(packet["secondary_agents"]) > 2
+    assert secondary == []
+    assert "Do not forward packet.secondary_agents" in prompt
+    assert reviewer == packet["reviewer"]
+    assert evidence == []
+    assert check_preflight.check_routing_readiness(primary, secondary, reviewer)
+    assert prompt.index(prefix) < prompt.index("Next role-agent dispatch command:")
+
+
 def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     """The local helper prompt must not masquerade as task_bootstrap output."""
 
@@ -724,13 +765,18 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
         "Next required repo command: $VENV_PYTHON "
         "scripts/orchestration/task_bootstrap.py --goal 'Harden Codex bridge' "
         "--task-class pr_governance --pr-phase pre_open "
-        "--path docs/dev/CODEX_SKILLS.md --requested-agent qa-engineer-agent"
+        "--path=docs/dev/CODEX_SKILLS.md --requested-agent qa-engineer-agent"
     ) in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in prompt
     assert "substitute the actual packet path and repo Python" in prompt
     assert "execute the manifest `dispatch_sequence` in order" in prompt
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
+    assert "render_codex_start_prompt.py packet --packet '<bootstrap-packet>'" in prompt
+    assert "check_preflight.py --mode execute" not in prompt
+    assert "No tracked writes during preparation, including readonly=false owners" in prompt
+    assert "only a separate coordinator handoff" in prompt
+    assert "one active eligible role/occurrence and exact files admits implementation" in prompt
     assert "Do not reconstruct a generic bridge command" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
     assert "exact static provider no-claim pair" in prompt
@@ -750,6 +796,25 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "interpreter path printed by the starter/bootstrap scripts" in prompt
     assert "or `$PWD/.venv/bin/python` in isolated worktrees" in prompt
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
+
+
+def test_recipe_bootstrap_preserves_option_like_paths() -> None:
+    paths = ["-x", "--mode", "docs/owner's scope.md"]
+    prompt = render_recipe_prompt(
+        goal="Preserve literal path values",
+        task_class="Infrastructure",
+        pr_phase="pre_open",
+        paths=paths,
+        requested_agents=[],
+    )
+    prefix = "Next required repo command: "
+    command = next(
+        line.removeprefix(prefix) for line in prompt.splitlines() if line.startswith(prefix)
+    )
+    tokens = shlex.split(command)
+    args = task_bootstrap._parse_args(tokens[2:])
+    assert args.path == paths
+    assert args.goal == "Preserve literal path values"
 
 
 def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
@@ -794,7 +859,7 @@ def test_recipe_prompt_preserves_typed_design_inputs_in_bootstrap_command() -> N
     bootstrap = next(
         line for line in prompt.splitlines() if line.startswith("Next required repo command:")
     )
-    assert "--path 'docs/design/hero brief.md'" in bootstrap
+    assert "'--path=docs/design/hero brief.md'" in bootstrap
     assert "--design-source figma_design" in bootstrap
     assert "--source-url 'https://www.figma.com/design/example?node-id=42-7'" in bootstrap
     assert "--task-mode sync" in bootstrap
@@ -1074,20 +1139,33 @@ def test_main_rejects_missing_packet_path(capsys: pytest.CaptureFixture[str]) ->
     assert "Paste into Codex now:" not in captured.out
 
 
+@pytest.mark.parametrize("malformed_command", [False, True])
 def test_main_rejects_malformed_packet_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    malformed_command: bool, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Malformed packet JSON should fail closed before rendering."""
+    """Malformed input must fail without printing an ownerless fallback prompt."""
 
     packet_path = tmp_path / "packet.json"
-    packet_path.write_text("{not-json", encoding="utf-8")
+    payload = "{not-json"
+    expected_error = "task packet is not valid JSON"
+    if malformed_command:
+        packet = _packet()
+        packet["role_agent_dispatch_contract"] = {
+            "dispatch_manifest_command": (
+                "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> "
+                "--mode runtime --implementation-owner 'frontend-engineer"
+            )
+        }
+        payload = json.dumps(packet)
+        expected_error = "invalid dispatch_manifest_command: shell syntax"
+    packet_path.write_text(payload, encoding="utf-8")
 
     result = main(["packet", "--packet", str(packet_path)])
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "task packet is not valid JSON" in captured.err
-    assert "Paste into Codex now:" not in captured.out
+    assert expected_error in captured.err
+    assert captured.out == ""
 
 
 def test_main_rejects_non_object_packet_json(
