@@ -173,7 +173,7 @@ def _recipe_bootstrap_command(
         pr_phase,
     ]
     for path in paths:
-        tokens.extend(("--path", path))
+        tokens.append(f"--path={path}")
     for change_class in _unique(invariant_change_classes):
         tokens.extend(("--invariant-change-class", change_class))
     for agent in _unique(requested_agents):
@@ -234,7 +234,7 @@ def _render_execute_preflight_command(packet: dict[str, Any]) -> str:
 
     tokens = ["scripts/orchestration/check_preflight.py", "--mode", "execute"]
     for path in _as_string_list(packet.get("candidate_paths")) or ["<packet.candidate_paths item>"]:
-        tokens.extend(("--path", path))
+        tokens.append(f"--path={path}")
     tokens.extend(("--primary", str(packet.get("primary_agent") or "<packet.primary_agent>")))
     tokens.extend(("--reviewer", str(packet.get("reviewer") or "<packet.reviewer>")))
     return "$VENV_PYTHON " + " ".join(_shell_quote(token) for token in tokens)

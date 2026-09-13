@@ -710,7 +710,12 @@ def test_packet_prompt_uses_packet_dispatch_command_runtime_owner_flags() -> Non
 def test_packet_execute_preflight_preserves_scope_and_routing() -> None:
     """The rendered command must satisfy the real execute-preflight CLI contract."""
 
-    paths = ["scripts/orchestration/render_codex_start_prompt.py", "tests/owner's scope.py"]
+    paths = [
+        "scripts/orchestration/render_codex_start_prompt.py",
+        "tests/owner's scope.py",
+        "-x",
+        "--mode",
+    ]
     packet = task_bootstrap.build_task_packet(
         goal="Repair the governed startup command",
         task_class="Security",
@@ -760,7 +765,7 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
         "Next required repo command: $VENV_PYTHON "
         "scripts/orchestration/task_bootstrap.py --goal 'Harden Codex bridge' "
         "--task-class pr_governance --pr-phase pre_open "
-        "--path docs/dev/CODEX_SKILLS.md --requested-agent qa-engineer-agent"
+        "--path=docs/dev/CODEX_SKILLS.md --requested-agent qa-engineer-agent"
     ) in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in prompt
@@ -791,6 +796,25 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "interpreter path printed by the starter/bootstrap scripts" in prompt
     assert "or `$PWD/.venv/bin/python` in isolated worktrees" in prompt
     assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
+
+
+def test_recipe_bootstrap_preserves_option_like_paths() -> None:
+    paths = ["-x", "--mode", "docs/owner's scope.md"]
+    prompt = render_recipe_prompt(
+        goal="Preserve literal path values",
+        task_class="Infrastructure",
+        pr_phase="pre_open",
+        paths=paths,
+        requested_agents=[],
+    )
+    prefix = "Next required repo command: "
+    command = next(
+        line.removeprefix(prefix) for line in prompt.splitlines() if line.startswith(prefix)
+    )
+    tokens = shlex.split(command)
+    args = task_bootstrap._parse_args(tokens[2:])
+    assert args.path == paths
+    assert args.goal == "Preserve literal path values"
 
 
 def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
@@ -835,7 +859,7 @@ def test_recipe_prompt_preserves_typed_design_inputs_in_bootstrap_command() -> N
     bootstrap = next(
         line for line in prompt.splitlines() if line.startswith("Next required repo command:")
     )
-    assert "--path 'docs/design/hero brief.md'" in bootstrap
+    assert "'--path=docs/design/hero brief.md'" in bootstrap
     assert "--design-source figma_design" in bootstrap
     assert "--source-url 'https://www.figma.com/design/example?node-id=42-7'" in bootstrap
     assert "--task-mode sync" in bootstrap
