@@ -434,8 +434,11 @@ single line byte-for-byte:
 
 Both placeholders are distinct lowercase 40-character SHAs selected only by
 the OWNER reply. GraphQL and REST evidence must cross-bind the same repository,
-PR, comment URL and numeric ID, canonical path, byte-identical unedited root
-body and timestamps, trusted connector identity, and `originalCommit=S`.
+PR, comment URL and numeric ID, canonical path, byte-identical current root
+body and creation timestamp, trusted connector identity, and `originalCommit=S`.
+For this fifth class, apply the root revision interval and same-revision OWNER
+inspection/recheck procedure in [root Review Governance rule 10](../../AGENTS.md#review-governance).
+The other OWNER-only classes retain their unedited-root requirement.
 Authenticated GitHub and local Git evidence must prove that `S` and `R` are
 real current-PR commits reachable from the live head, `S` matches exactly one
 member of the closed disjoint union `LINEAR_MATERIAL ∪ BASE_SYNC`, and `R` is
