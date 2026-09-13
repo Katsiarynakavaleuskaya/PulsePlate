@@ -219,6 +219,7 @@ def check_tls(
     metadata = secrets.lstat()
     _directory(secrets, 0, 0, 0o700, metadata.st_dev)
     owners = {
+        "pulseplate_metrics_scrape_key": (0, 0, 0o444),
         "postgres_ca": (0, 0, 0o444),
         "postgres_server_crt": (0, 0, 0o444),
         "postgres_server_key": (0, 70, 0o640),
@@ -342,6 +343,7 @@ def validate_compose(value: object, project_dir: Path) -> None:
             raise SecurityError(f"{name} must bind the admitted encrypted storage directory")
     secrets = _object(document.get("secrets"), "Compose secrets")
     for name in (
+        "pulseplate_metrics_scrape_key",
         "postgres_ca",
         "postgres_server_crt",
         "postgres_server_key",

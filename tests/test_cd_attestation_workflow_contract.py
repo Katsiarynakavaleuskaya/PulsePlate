@@ -811,6 +811,71 @@ def test_native_job_declares_and_checks_compose_minimum_before_runtime(
     assert (result.returncode == 0) is success
 
 
+@pytest.mark.parametrize(
+    "event,ref,changed,native_result,publish,build",
+    [
+        ("push", "refs/heads/main", True, "success", True, True),
+        ("push", "refs/heads/main", False, "success", False, True),
+        ("push", "refs/heads/main", True, "failure", False, False),
+        ("push", "refs/heads/main", False, "failure", False, False),
+        ("push", "refs/heads/main", True, "cancelled", False, False),
+        ("push", "refs/heads/main", True, "skipped", False, False),
+        ("push", "refs/heads/main", True, "", False, False),
+        ("pull_request", "refs/pull/2393/merge", True, "success", False, False),
+        ("push", "refs/tags/v1.0.0", True, "success", False, False),
+        ("workflow_dispatch", "refs/heads/main", True, "skipped", False, False),
+        ("workflow_dispatch", "refs/heads/main", True, "success", False, False),
+    ],
+)
+def test_native_integration_is_a_required_publication_and_deploy_dependency(
+    event: str, ref: str, changed: bool, native_result: str, publish: bool, build: bool
+) -> None:
+    jobs = _load_cd_workflow()["jobs"]
+    native_name = "staging-postgres-native-integration"
+    publisher = jobs["postgres-pgvector-publish"]
+    builder = jobs["build"]
+    assert publisher["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-contract",
+        "postgres-pgvector-material-change",
+        "postgres-pgvector-ci-admission",
+        native_name,
+    ]
+    assert builder["needs"] == ["prometheus-image-security", "main-push-admission", native_name]
+    assert " ".join(publisher["if"].split()) == (
+        "github.event_name == 'push' && github.ref == 'refs/heads/main' "
+        "&& needs.postgres-pgvector-material-change.outputs.changed == 'true' "
+        "&& needs.postgres-pgvector-ci-admission.result == 'success' "
+        "&& needs.staging-postgres-native-integration.result == 'success'"
+    )
+    assert builder["if"] == (
+        "github.ref == 'refs/heads/main' && "
+        "needs.staging-postgres-native-integration.result == 'success'"
+    )
+    assert jobs["main-push-admission"]["if"] == (
+        "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    )
+    native_job = jobs[native_name]
+    assert native_job["if"] == (
+        "github.event_name == 'pull_request' || "
+        "(github.event_name == 'push' && github.ref == 'refs/heads/main')"
+    )
+    runtime_step = _step_by_name(
+        native_job["steps"],
+        "Execute real isolated PostgreSQL TLS crash restart and restore checks",
+    )
+    assert runtime_step["if"] == "steps.native-material.outputs.changed == 'true'"
+    assert not native_job.get("continue-on-error", False)
+    assert not runtime_step.get("continue-on-error", False)
+    # Closed projection of the exact expressions/needs above, not an Actions
+    # expression interpreter. Other prerequisites are successful in this matrix.
+    # Default success() also blocks jobs when main-push-admission is skipped.
+    admitted_main = event == "push" and ref == "refs/heads/main"
+    native_succeeded = native_result == "success"
+    assert (admitted_main and native_succeeded and changed) is publish
+    assert (admitted_main and native_succeeded) is build
+
+
 def test_pgvector_native_and_distinct_materials_producers_are_conjunctive() -> None:
     workflow = _load_cd_workflow()
     steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]

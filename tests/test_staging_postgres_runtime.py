@@ -702,22 +702,51 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
                 return completed(args, (output + "\n").encode())
             assert args[1].endswith("postgres_restore.sh")
             mode, target, archive = args[2], args[3], Path(args[4]).read_bytes()
-            if mode == "--verify-into":
-                if target in state["targets"]:
-                    if fault == "verify-accepts-existing":
-                        return completed(args)
-                    if fault == "verify-mutates-existing":
-                        state["targets"][target]["mutated"] = True
-                    return completed(args, code=1, error=b"database already exists")
-                state["targets"][target] = {"old": False, "private": False, "mutated": False}
-                return completed(args)
-            assert mode == "--replace-existing"
-            database = state["targets"][target]
+            assert mode == "--verify-into" and target.startswith("pulseplate_restore_check_")
+            if target in state["targets"]:
+                if fault == "verify-mutates-existing":
+                    state["targets"][target]["mutated"] = True
+                kind = next(
+                    (
+                        kind
+                        for kind in ("ordinary", "publication", "nonpublic", "global")
+                        if "occupied_" + kind in target
+                    ),
+                    None,
+                )
+                if kind and fault == "occupied-" + kind + "-mutates":
+                    state["targets"][target]["mutated"] = True
+                return completed(
+                    args,
+                    b"Restore completed" if fault == "occupied-success-output" and kind else b"",
+                    (
+                        0
+                        if fault == "verify-accepts-existing"
+                        or fault == "occupied-" + str(kind) + "-accepts"
+                        else 1
+                    ),
+                    (
+                        b"connection failed"
+                        if fault == "occupied-other-rejection" and kind
+                        else b"database already exists"
+                    ),
+                )
+            database = {
+                "old": False,
+                "private": archive == b"nonpublic",
+                "mutated": False,
+                "archive": archive,
+            }
+            state["targets"][target] = database
             if archive == b"failing":
-                if fault == "rollback-mutates":
-                    database["mutated"] = True
-                if fault == "rollback-residue":
-                    (Path(env["BACKUP_DIR"]) / ".pulseplate-restore.residue").mkdir()
+                database["empty"] = fault != "rollback-partial-target"
+                if fault == "rollback-original-mutates":
+                    original = next(name for name in state["targets"] if "check_original_" in name)
+                    state["targets"][original]["mutated"] = True
+                if fault == "rollback-source-mutates":
+                    state["source_mutated"] = True
+                if fault == "rollback-source-layout-mutates":
+                    state["source_layout_mutated"] = True
                 return completed(
                     args,
                     b"Restore completed" if fault == "rollback-success-output" else b"",
@@ -728,29 +757,6 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
                         else b"synthetic restore index failure"
                     ),
                 )
-            if archive == b"nonpublic" or database["private"]:
-                rail = "source" if archive == b"nonpublic" else "target"
-                if fault == rail + "-hold-mutates":
-                    database["mutated"] = True
-                if fault == "target-private-lost" and rail == "target":
-                    database["private"] = False
-                reason = (
-                    b"archive contains unsupported"
-                    if rail == "source"
-                    else b"target contains unsupported"
-                )
-                return completed(
-                    args,
-                    code=0 if fault == rail + "-hold-accepts" else 1,
-                    error=(
-                        b"unrelated network error"
-                        if fault == rail + "-hold-other-rejection"
-                        else reason
-                    ),
-                )
-            database["old"] = False
-            if fault == "replacement-retains-extra":
-                database["extra"] = True
             return completed(args)
         assert args[:2] == ["docker", "exec"]
         if "createdb" in args:
@@ -805,9 +811,30 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
             if state["cleanup_fault"] == "exception":
                 raise runtime.ProbeError("Cleanup adapter raised")
             return completed([], code=7 if state["cleanup_fault"] == "exit" else 0)
+        if database_name == "template1":
+            if sql.startswith("CREATE TABLE public.wrapper_template1_only"):
+                state["template1_contaminated"] = True
+            elif sql.startswith("DROP TABLE IF EXISTS public.wrapper_template1_only"):
+                state["template1_cleaned"] = True
+            else:
+                raise AssertionError(sql)
+            return completed([])
         if database_name == runtime.DATABASE:
+            if "SELECT coalesce(obj_description" in sql:
+                return completed([], b"native public comment")
+            if "SELECT tablename" in sql:
+                return completed(
+                    [],
+                    (
+                        b"staging_probe\nt|t"
+                        if not state.get("source_layout_mutated")
+                        else b"extra\nstaging_probe\nf|t"
+                    ),
+                )
             if "FROM public.staging_probe" in sql:
-                return completed([], b"1:source-sentinel")
+                return completed(
+                    [], b"0:missing" if state.get("source_mutated") else b"1:source-sentinel"
+                )
             if "FROM pg_database" in sql:
                 assert "datname=:'role'" in sql
                 assert kwargs["variables"] == {"role": runtime.USER}
@@ -822,8 +849,10 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
                 state["bad_sql"] = False
             elif sql.startswith("CREATE SCHEMA private_wrapper"):
                 state["private_source"] = True
-            elif sql.startswith("DROP SCHEMA private_wrapper"):
-                state["private_source"] = False
+            elif sql == "SELECT id FROM private_wrapper.hidden;":
+                return completed([], b"9" if state["private_source"] else b"lost")
+            elif "WHERE pubname='wrapper_source_all'" in sql:
+                return completed([], b"t" if state["private_source"] else b"f")
             return completed([])
         database = state["targets"][database_name]
         if sql.startswith("CREATE TABLE public.wrapper_original"):
@@ -833,29 +862,61 @@ def wrapper_adapter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str
         if sql.startswith("CREATE SCHEMA private_wrapper"):
             database["private"] = True
             return completed([])
+        if sql.startswith("CREATE PUBLICATION"):
+            database["publication"] = True
+            return completed([])
+        if sql.startswith("CREATE FOREIGN DATA WRAPPER"):
+            database["global"] = True
+            return completed([])
+        if sql == "SELECT 1;":
+            return completed([], b"1")
+        if "SELECT nspname FROM" in sql:
+            return completed(
+                [],
+                str(
+                    (database.get("private"), database.get("publication"), database.get("global"))
+                ).encode(),
+            )
         if "SELECT id FROM private_wrapper.hidden" in sql:
-            return completed([], b"9" if database["private"] else b"lost")
+            return completed(
+                [],
+                (
+                    b"9"
+                    if database["private"]
+                    and (fault != "full-private-lost" or "occupied" in database_name)
+                    else b"lost"
+                ),
+            )
+        if "WHERE pubname='wrapper_source_all'" in sql:
+            return completed([], b"f" if fault == "full-publication-lost" else b"t")
         if "FROM public.wrapper_original" in sql:
             return completed(
                 [], b"original-data-and-objects" if not database["mutated"] else b"mutated-data"
             )
         if "FROM public.staging_probe" in sql:
-            if (
-                database["mutated"]
-                or fault == "verification-missing"
-                and database_name.startswith("pulseplate_restore_check")
-            ):
+            if database["mutated"] or fault == "verification-missing":
                 return completed([], b"0:missing")
             return completed([], b"1:source-sentinel")
+        if "SELECT count(*) FROM pg_catalog.pg_tables" in sql:
+            if fault == "rollback-function-retained":
+                return completed([], b"0\nf|t")
+            return completed([], b"0\nt|t" if database.get("empty") else b"1\nt|t")
+        if "SELECT coalesce(obj_description" in sql:
+            return completed(
+                [],
+                b"wrong metadata" if fault == "verification-metadata" else b"native public comment",
+            )
+        if "SELECT pg_get_userbyid(nspowner)" in sql:
+            owner = "pg_database_owner" if database["archive"] == b"default" else runtime.USER
+            return completed(
+                [], ("wrong-owner" if fault == "verification-owner" else owner).encode()
+            )
+        if "wrapper_template1_only" in sql:
+            assert state["template1_contaminated"]
+            return completed([], b"f" if fault == "template1-inherited" else b"t")
         assert "SELECT tablename" in sql
-        return completed(
-            [],
-            (
-                b"t|t|t|t\nstaging_probe"
-                if not database["mutated"] and not database.get("extra", False)
-                else b"f|t|t|t\nstaging_probe\nextra"
-            ),
-        )
+        tables = {"verification-extra": b"extra\nstaging_probe", "verification-no-tables": b""}
+        return completed([], tables.get(fault, b"staging_probe"))
 
     monkeypatch.setattr(runtime, "native", native)
     monkeypatch.setattr(runtime, "query", query)
@@ -871,9 +932,9 @@ def test_wrapper_helper_adapter_accepts_only_complete_observed_controls(
     monkeypatch.setenv("PGHOST", "unrelated-host")
     monkeypatch.setenv("COMPOSE_PROJECT_NAME", "unrelated-project")
     results = wrapper_adapter["run"]()
-    assert len(results) == 9 and all(value is True for value in results.values())
+    assert len(results) == 13 and all(value is True for value in results.values())
     assert all(
-        results["wrapper_replacement_schema_" + shape]
+        results["wrapper_fresh_restore_schema_" + shape]
         for shape in ("omitted", "metadata_only", "definition")
     )
     assert b"failing" in wrapper_adapter["decoded"]
@@ -883,7 +944,9 @@ def test_wrapper_helper_adapter_accepts_only_complete_observed_controls(
         for args, _ in wrapper_adapter["calls"]
         if args[0] == "bash" and args[1].endswith("postgres_restore.sh")
     ]
-    assert sum(args[2] == "--replace-existing" for args in restores) == 6
+    assert all(args[2] == "--verify-into" for args in restores)
+    assert len(restores) == 12
+    assert wrapper_adapter["template1_contaminated"] and wrapper_adapter["template1_cleaned"]
     assert runtime.USER != runtime.DATABASE
 
 
@@ -930,9 +993,12 @@ def test_wrapper_helper_rejects_misclassified_native_schema_shapes(
     [
         "rollback-accepts",
         "rollback-other-rejection",
-        "rollback-mutates",
+        "rollback-partial-target",
+        "rollback-original-mutates",
+        "rollback-source-mutates",
+        "rollback-source-layout-mutates",
+        "rollback-function-retained",
         "rollback-success-output",
-        "rollback-residue",
     ],
 )
 def test_wrapper_helper_requires_expected_late_sql_failure_and_exact_retention(
@@ -948,20 +1014,30 @@ def test_wrapper_helper_requires_expected_late_sql_failure_and_exact_retention(
 @pytest.mark.parametrize(
     "fault",
     [
-        "source-hold-accepts",
-        "source-hold-other-rejection",
-        "source-hold-mutates",
-        "target-hold-accepts",
-        "target-hold-other-rejection",
-        "target-hold-mutates",
-        "target-private-lost",
+        *[
+            "occupied-" + kind + "-" + action
+            for kind in ("ordinary", "publication", "nonpublic", "global")
+            for action in ("accepts", "mutates")
+        ],
+        "occupied-other-rejection",
+        "occupied-success-output",
     ],
 )
-def test_wrapper_helper_requires_correct_layout_hold_with_all_original_data_retained(
+def test_wrapper_helper_requires_occupied_target_refusal_and_preservation(
     wrapper_adapter: dict[str, Any], fault: str
 ) -> None:
     wrapper_adapter["fault"] = fault
-    with pytest.raises(runtime.ProbeError, match="non-public"):
+    with pytest.raises(runtime.ProbeError, match="occupied"):
+        wrapper_adapter["run"]()
+    assert wrapper_adapter["cleaned"]
+
+
+@pytest.mark.parametrize("fault", ["full-private-lost", "full-publication-lost"])
+def test_wrapper_helper_requires_full_archive_represented_objects(
+    wrapper_adapter: dict[str, Any], fault: str
+) -> None:
+    wrapper_adapter["fault"] = fault
+    with pytest.raises(runtime.ProbeError, match="full archive"):
         wrapper_adapter["run"]()
     assert wrapper_adapter["cleaned"]
 
@@ -973,10 +1049,14 @@ def test_wrapper_helper_requires_correct_layout_hold_with_all_original_data_reta
         "verify-accepts-existing",
         "verify-mutates-existing",
         "verification-missing",
-        "replacement-retains-extra",
+        "verification-extra",
+        "verification-no-tables",
+        "verification-owner",
+        "verification-metadata",
+        "template1-inherited",
     ],
 )
-def test_wrapper_helper_rejects_missing_maintenance_or_replacement_evidence(
+def test_wrapper_helper_rejects_missing_maintenance_or_fresh_restore_evidence(
     wrapper_adapter: dict[str, Any], fault: str
 ) -> None:
     wrapper_adapter["fault"] = fault

@@ -650,23 +650,52 @@ def wrapper_restore_checks(
             "to_regclass('public.staging_probe') IS NULL;",
         )
 
-    def assert_replaced(target: str) -> None:
+    metadata_select = "SELECT coalesce(obj_description(oid, 'pg_namespace'), '') FROM pg_catalog.pg_namespace WHERE nspname='public';"
+    public_metadata_expected = target_query(DATABASE, metadata_select)
+    source_layout_select = (
+        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename; "
+        "SELECT to_regprocedure('public.wrapper_restore_key(text)') IS NULL, "
+        "to_regclass('public.wrapper_restore_failure_idx') IS NULL;"
+    )
+
+    def assert_restored(target: str, schema_owner: str) -> None:
         if target_query(target, source_select) != source_expected:
-            raise ProbeError("Actual replacement lost the source sentinel")
+            raise ProbeError("Actual fresh restore lost the source sentinel")
         if (
             target_query(
                 target,
-                "SELECT to_regclass('public.wrapper_original') IS NULL, "
-                "to_regclass('public.wrapper_extra') IS NULL, "
-                "to_regclass('public.wrapper_stale_view') IS NULL, "
-                "to_regprocedure('public.wrapper_stale_fn()') IS NULL; "
                 "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;",
             )
-            != "t|t|t|t\nstaging_probe"
+            != "staging_probe"
         ):
-            raise ProbeError("Actual replacement retained stale public objects or wrong tables")
-        if list(backups.glob(".pulseplate-restore.*")):
-            raise ProbeError("Actual replacement left private temporary SQL residue")
+            raise ProbeError("Actual fresh restore has an incorrect public table inventory")
+        if (
+            target_query(
+                target,
+                "SELECT pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='public';",
+            )
+            != schema_owner
+        ):
+            raise ProbeError("Actual fresh restore has incorrect public schema ownership")
+        if target_query(target, metadata_select) != public_metadata_expected:
+            raise ProbeError("Actual fresh restore has incorrect public schema metadata")
+        if (
+            target_query(target, "SELECT to_regclass('public.wrapper_template1_only') IS NULL;")
+            != "t"
+        ):
+            raise ProbeError("Actual fresh restore inherited template1 additions")
+
+    def occupied_snapshot(target: str) -> str:
+        return (
+            old_snapshot(target)
+            + "\n"
+            + target_query(
+                target,
+                "SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname='private_wrapper'; "
+                "SELECT pubname, puballtables FROM pg_catalog.pg_publication ORDER BY pubname; "
+                "SELECT fdwname FROM pg_catalog.pg_foreign_data_wrapper ORDER BY fdwname;",
+            )
+        )
 
     def schema_shape(path: Path, expected: str) -> None:
         contents = native(
@@ -707,16 +736,13 @@ def wrapper_restore_checks(
             raise ProbeError(
                 "Role-name database exists; maintenance negative boundary not exercised"
             )
-        verify_target = "pulseplate_restore_check_wrapper_" + suffix
-        restore("--verify-into", verify_target, default_dump)
-        if target_query(verify_target, source_select) != source_expected:
-            raise ProbeError("Actual isolated wrapper restore sentinel mismatch")
-        if restore("--verify-into", verify_target, default_dump, required=False).returncode == 0:
-            raise ProbeError("Actual verification wrapper replaced its pre-existing target")
-        if target_query(verify_target, source_select) != source_expected:
-            raise ProbeError("Rejected duplicate verification mutated the target")
-        results["wrapper_verify_maintenance_distinct_role"] = True
-
+        # This fixture owns the disposable cluster. Poison only its ordinary
+        # template1 to prove that the real wrapper explicitly selects template0.
+        target_query(
+            "template1",
+            "CREATE TABLE public.wrapper_template1_only(id integer); "
+            "INSERT INTO public.wrapper_template1_only VALUES(17);",
+        )
         query(container, "ALTER SCHEMA public OWNER TO " + USER + ";")
         metadata_dump = backup()
         schema_shape(metadata_dump, "metadata-only")
@@ -747,12 +773,55 @@ def wrapper_restore_checks(
             ("metadata-only", metadata_dump),
             ("definition", explicit_dump),
         ):
-            target = "pulseplate_wrapper_" + shape.replace("-", "_") + "_" + suffix
-            create_old_target(target)
-            restore("--replace-existing", target, archive)
-            assert_replaced(target)
-            results["wrapper_replacement_schema_" + shape.replace("-", "_")] = True
-        results["wrapper_replacement_stale_public_objects_removed"] = True
+            target = "pulseplate_restore_check_" + shape.replace("-", "_") + "_" + suffix
+            restore("--verify-into", target, archive)
+            schema_owner = "pg_database_owner" if shape == "omitted" else USER
+            assert_restored(target, schema_owner)
+            duplicate = restore("--verify-into", target, archive, required=False)
+            if duplicate.returncode == 0 or b"already exists" not in duplicate.stderr:
+                raise ProbeError("Actual verification wrapper failed to refuse its occupied target")
+            assert_restored(target, schema_owner)
+            results["wrapper_fresh_restore_schema_" + shape.replace("-", "_")] = True
+        results["wrapper_template0_excludes_template1_additions"] = True
+        results["wrapper_verify_maintenance_distinct_role"] = True
+
+        # Occupied targets are refused by createdb independently of their object
+        # classes. These native fixtures are counterexamples, not a catalogue
+        # admission classifier or a claim about every global object.
+        sentinel_target = "pulseplate_restore_check_original_" + suffix
+        create_old_target(sentinel_target)
+        for kind, setup in (
+            ("ordinary", "SELECT 1;"),
+            ("publication", "CREATE PUBLICATION retained_all FOR ALL TABLES;"),
+            (
+                "nonpublic",
+                "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); INSERT INTO private_wrapper.hidden VALUES(9);",
+            ),
+            ("global", "CREATE FOREIGN DATA WRAPPER retained_fdw NO HANDLER NO VALIDATOR;"),
+        ):
+            occupied = "pulseplate_restore_check_occupied_" + kind + "_" + suffix
+            create_old_target(occupied)
+            target_query(occupied, setup)
+            before = occupied_snapshot(occupied)
+            private_before = (
+                target_query(occupied, "SELECT id FROM private_wrapper.hidden;")
+                if kind == "nonpublic"
+                else None
+            )
+            refused = restore("--verify-into", occupied, default_dump, required=False)
+            if (
+                refused.returncode == 0
+                or b"already exists" not in refused.stderr
+                or b"Restore completed" in refused.stdout
+                or occupied_snapshot(occupied) != before
+                or (
+                    kind == "nonpublic"
+                    and target_query(occupied, "SELECT id FROM private_wrapper.hidden;")
+                    != private_before
+                )
+            ):
+                raise ProbeError("Actual occupied " + kind + " target was not preserved on refusal")
+            results["wrapper_occupied_" + kind + "_preserved"] = True
 
         # Build an index while the immutable function succeeds, then change its
         # body. The complete archive decodes; rebuilding the post-data index
@@ -770,55 +839,59 @@ def wrapper_restore_checks(
             container,
             "DROP INDEX public.wrapper_restore_failure_idx; DROP FUNCTION public.wrapper_restore_key(text);",
         )
-        rollback_target = "pulseplate_wrapper_rollback_" + suffix
-        create_old_target(rollback_target)
-        before = old_snapshot(rollback_target)
-        failed = restore("--replace-existing", rollback_target, failing_dump, required=False)
+        rollback_target = "pulseplate_restore_check_rollback_" + suffix
+        original_before = old_snapshot(sentinel_target)
+        source_before = (
+            target_query(DATABASE, source_select),
+            target_query(DATABASE, source_layout_select),
+        )
+        failed = restore("--verify-into", rollback_target, failing_dump, required=False)
         if (
             failed.returncode == 0
             or b"synthetic restore index failure" not in failed.stderr
             or b"Restore completed" in failed.stdout
-            or old_snapshot(rollback_target) != before
-            or list(backups.glob(".pulseplate-restore.*"))
+            or target_query(
+                rollback_target,
+                "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public'; "
+                "SELECT to_regprocedure('public.wrapper_restore_key(text)') IS NULL, "
+                "to_regclass('public.wrapper_restore_failure_idx') IS NULL;",
+            )
+            != "0\nt|t"
+            or old_snapshot(sentinel_target) != original_before
+            or (target_query(DATABASE, source_select), target_query(DATABASE, source_layout_select))
+            != source_before
         ):
-            raise ProbeError("Actual late SQL failure did not roll the replacement back exactly")
-        results["wrapper_replacement_late_sql_failure_rolled_back"] = True
+            raise ProbeError(
+                "Actual late SQL failure did not roll back fresh-target data and preserve originals"
+            )
+        results["wrapper_fresh_restore_late_sql_transaction_rolled_back"] = True
+        results["wrapper_failed_restore_original_databases_preserved"] = True
 
+        # Full trusted dumps are consumed without pretending they are public-only.
+        # Prove represented publication and non-public rows survive fresh restore.
         query(
             container,
-            "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); INSERT INTO private_wrapper.hidden VALUES(9);",
+            "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); "
+            "INSERT INTO private_wrapper.hidden VALUES(9); "
+            "CREATE PUBLICATION wrapper_source_all FOR ALL TABLES;",
         )
         nonpublic_dump = backup()
-        query(container, "DROP SCHEMA private_wrapper CASCADE;")
-        hold_target = "pulseplate_wrapper_hold_" + suffix
-        create_old_target(hold_target)
-        before = old_snapshot(hold_target)
-        held = restore("--replace-existing", hold_target, nonpublic_dump, required=False)
-        if (
-            held.returncode == 0
-            or b"archive contains unsupported" not in held.stderr
-            or old_snapshot(hold_target) != before
-        ):
-            raise ProbeError(
-                "Actual non-public source archive was not rejected before target mutation"
-            )
-        results["wrapper_nonpublic_source_hold"] = True
-        target_query(
-            hold_target,
-            "CREATE SCHEMA private_wrapper; CREATE TABLE private_wrapper.hidden(id integer); INSERT INTO private_wrapper.hidden VALUES(9);",
-        )
-        held = restore("--replace-existing", hold_target, default_dump, required=False)
-        if (
-            held.returncode == 0
-            or b"target contains unsupported" not in held.stderr
-            or old_snapshot(hold_target) != before
-            or target_query(hold_target, "SELECT id FROM private_wrapper.hidden;") != "9"
-            or list(backups.glob(".pulseplate-restore.*"))
-        ):
-            raise ProbeError(
-                "Actual non-public target was not held with all original data retained"
-            )
-        results["wrapper_nonpublic_target_hold"] = True
+        full_target = "pulseplate_restore_check_full_" + suffix
+        restore("--verify-into", full_target, nonpublic_dump)
+        for database in (DATABASE, full_target):
+            if (
+                target_query(database, source_select) != source_expected
+                or target_query(database, "SELECT id FROM private_wrapper.hidden;") != "9"
+                or target_query(
+                    database,
+                    "SELECT puballtables FROM pg_catalog.pg_publication WHERE pubname='wrapper_source_all';",
+                )
+                != "t"
+            ):
+                raise ProbeError(
+                    "Actual full archive restore lost represented objects or source data"
+                )
+        results["wrapper_full_archive_nonpublic_and_publication_restored"] = True
     except BaseException as error:
         primary = error
     finally:
@@ -829,10 +902,17 @@ def wrapper_restore_checks(
                 "DROP INDEX IF EXISTS public.wrapper_restore_failure_idx; "
                 "DROP FUNCTION IF EXISTS public.wrapper_restore_key(text); "
                 "DROP SCHEMA IF EXISTS private_wrapper CASCADE; "
+                "DROP PUBLICATION IF EXISTS wrapper_source_all; "
                 "ALTER SCHEMA public OWNER TO pg_database_owner;",
                 required=False,
             )
-            if repaired.returncode:
+            template_cleanup = query(
+                container,
+                "DROP TABLE IF EXISTS public.wrapper_template1_only;",
+                connection("template1"),
+                required=False,
+            )
+            if repaired.returncode or template_cleanup.returncode:
                 cleanup_error = ProbeError("Owned wrapper source cleanup failed")
         except (ValueError, OSError, subprocess.SubprocessError) as error:
             cleanup_error = error
@@ -1058,7 +1138,9 @@ def experiment(root: Path, contract: dict[str, Any], manifest: dict[str, Any]) -
         )
         if query(container, select, connection(target)).stdout.decode().strip() != expected:
             raise ProbeError("Isolated native restore sentinel/count differs from source")
-        print("native-staging phase=actual-backup-replacement-and-rollback", flush=True)
+        print(
+            "native-staging phase=actual-backup-fresh-restore-and-transaction-rollback", flush=True
+        )
         wrapper_results = wrapper_restore_checks(
             root, Path(directory), container, owner, compose_file
         )

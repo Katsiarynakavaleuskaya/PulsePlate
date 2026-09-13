@@ -2656,6 +2656,10 @@ Do not remove this exclusion without a product decision and a separate PR
 
 **iOS CI debugging (finding real errors in logs):**
 
+- **Test-host crashes:** inspect the unit job's retained native `.xcresult`
+  bundle for the faulting stack and the aborted case's terminal result. Passing
+  totals after an automatic test-host restart do not prove that case completed.
+  Preserve the original failure and distinguish local from pinned-CI toolchains.
 - **SwiftPM compilation noise:** SPM packages (e.g., Lottie) produce verbose compilation logs. This is normal and not an error.
 - **Finding real errors:** In GitHub Actions logs, search for:
   - `error:` (first occurrence is usually root cause)

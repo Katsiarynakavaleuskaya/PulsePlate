@@ -68,6 +68,15 @@ Evidence: `scripts/ci/ghcr_attestation_credentials.py:1`,
 `.github/workflows/cd.yml:1` and
 [pinned native credential reader](https://github.com/sigstore/sigstore-js/blob/21dd66d041593ad5d9fc2fe461131d8db868ad6f/packages/oci/src/credentials.ts).
 
+The corrected synthetic run
+[34753628428](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34753628428)
+at `e7bfbca10546c15d002d659132106748dbe57592` completed native GitHub and OCI
+publication of provenance, materials and SPDX. Fresh-process verification
+accepted the complete tuple and rejected the incomplete tuple, wrong source
+SHA and an actually corrupted signature; cleanup restored the prior credential
+directory. This proves that exact synthetic protocol execution. It does not
+prove later-head CI, full PostgreSQL publication on main or staging activation.
+
 The first native PostgreSQL experiment
 [34713145671](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34713145671)
 timed out without preserving its failed-query/container diagnostics. Inspection
@@ -76,12 +85,19 @@ it already executes PostgreSQL; a leading `postgres` in Compose duplicated
 that executable argument. The corrected contract passes only the admitted TLS
 options and retains bounded sanitized diagnostics before cleanup. PostgreSQL
 15.19's native dump formats also distinguish omitted public schema records,
-metadata-only records and actual schema definitions. Transactional replacement
-must handle all three without inferring SQL creation from TOC presence. The
-real-wrapper CI probe includes those positive controls, stale-object removal
-and a valid archive whose late index creation fails and must preserve the
-target through rollback. These source fixes require successful native execution
-before any runtime outcome claim.
+metadata-only records and actual schema definitions. The verification helper
+restores all three into fresh databases created from `template0`; native
+`createdb` refuses occupied names independently of their object classes.
+The old destructive recovery and subsequent `--replace-existing` interface
+are removed because a public-schema reset cannot replace database-level state.
+The real-wrapper probe checks represented rows, schema ownership and metadata,
+template1 contamination exclusion, occupied publication/global/schema targets,
+and a valid archive whose late index failure rolls back the new target's SQL
+transaction while preserving the original databases. Database creation precedes
+that transaction, and subsequent inventory validation follows its commit;
+failed new targets may remain for inspection. Trusted cluster and backup inputs
+are required. Updated native execution remains necessary before claiming these
+new outcomes; historical replacement receipts do not prove them.
 Evidence: `scripts/ci/check_staging_postgres_runtime.py:1`,
 `scripts/ops/postgres_restore.sh:1`, `deploy/docker-compose.staging.yaml:45`.
 

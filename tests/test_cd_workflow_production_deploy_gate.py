@@ -371,10 +371,14 @@ def test_prometheus_security_job_owns_only_pr_and_schedule_execution() -> None:
         assert isinstance(condition, str)
         assert "refs/tags/v" in condition
 
-    assert jobs["build"]["if"] == "github.ref == 'refs/heads/main'"
+    assert jobs["build"]["if"] == (
+        "github.ref == 'refs/heads/main' && "
+        "needs.staging-postgres-native-integration.result == 'success'"
+    )
     assert set(jobs["build"]["needs"]) == {
         "prometheus-image-security",
         "main-push-admission",
+        "staging-postgres-native-integration",
     }
     admission = jobs["main-push-admission"]
     assert admission["permissions"] == {}

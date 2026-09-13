@@ -773,11 +773,13 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     publish_text = json.dumps(publish, sort_keys=True)
     assert "needs.postgres-pgvector-material-change.outputs.changed == 'true'" in publish["if"]
     assert "needs.postgres-pgvector-ci-admission.result == 'success'" in publish["if"]
+    assert "needs.staging-postgres-native-integration.result == 'success'" in publish["if"]
     assert publish["needs"] == [
         "main-push-admission",
         "postgres-pgvector-contract",
         "postgres-pgvector-material-change",
         "postgres-pgvector-ci-admission",
+        "staging-postgres-native-integration",
     ]
     assert "DHI_USERNAME" in publish_text
     assert "DHI_ACCESS_TOKEN" in publish_text
@@ -905,6 +907,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert jobs["build"]["needs"] == [
         "prometheus-image-security",
         "main-push-admission",
+        "staging-postgres-native-integration",
     ]
     assert jobs["production-gates"]["needs"] == "prometheus-image-security"
 
@@ -3399,6 +3402,7 @@ def _staging_compose_fixture_json(project_dir: Path = Path("/srv/pulseplate-stag
             "postgres_server_key",
             "postgres_password",
             "postgres_pgpass",
+            "pulseplate_metrics_scrape_key",
         )
     }
     return json.dumps(payload, separators=(",", ":"))
@@ -3410,9 +3414,6 @@ FAKE_STAGING_COMPOSE_JSON = _staging_compose_fixture_json()
 def _write_executable(path: Path, content: str) -> None:
     if path.name == "docker":
         contract_responses = f"""case \"$*\" in
-  *pg_restore\\ --list\\ --exclude-schema=public*)
-    printf '%s\\n' "${{STUB_ARCHIVE_OUTSIDE_PUBLIC:-}}"
-    ;;
   *pg_restore\\ --list*)
     if [ "${{STUB_PG_RESTORE_LIST_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_LIST_STATUS}}"; fi
     printf '%s\\n' "${{STUB_ARCHIVE_LIST:-214; 1259 16387 TABLE public items user}}"
@@ -3420,16 +3421,6 @@ def _write_executable(path: Path, content: str) -> None:
   *pg_restore\\ --file=/dev/null*)
     if [ "${{STUB_PG_RESTORE_BODY_STATUS:-0}}" -ne 0 ]; then exit "${{STUB_PG_RESTORE_BODY_STATUS}}"; fi
     cat >/dev/null
-    ;;
-  *pg_restore\\ --clean\\ --if-exists\\ --file=-*)
-    printf '%s\\n' "${{STUB_RESTORE_SQL:-CREATE TABLE public.items(id integer);}}"
-    exit "${{STUB_RESTORE_RENDER_STATUS:-0}}"
-    ;;
-  *psql*pg_largeobject_metadata*) printf '%s\\n' "${{STUB_TARGET_PUBLIC_ONLY:-t}}" ;;
-  *psql*--single-transaction*)
-    if [ -n "${{STUB_RESTORE_TRANSACTION_CALLS:-}}" ]; then printf '%s\\n' "$*" >> "$STUB_RESTORE_TRANSACTION_CALLS"; fi
-    cat > "$STUB_RESTORE_TRANSACTION_SQL"
-    exit "${{STUB_RESTORE_TRANSACTION_STATUS:-0}}"
     ;;
   *pg_catalog.pg_tables*) printf '1\\n' ;;
   run\\ --rm\\ --network\\ none\\ --entrypoint\\ python\\ *) printf '%s\\n' "${{STUB_BACKEND_IDS:-1000:1000}}" ;;
@@ -4990,7 +4981,8 @@ fi
     assert "pg_restore --list" in docker_calls[0]
     assert "pg_restore --file=/dev/null" in docker_calls[1]
     assert (
-        "createdb -U pulseplate --maintenance-db pulseplate --owner pulseplate" in docker_calls[2]
+        "createdb -U pulseplate --maintenance-db pulseplate --owner pulseplate --template=template0 pulseplate_restore_check_fixture"
+        in docker_calls[2]
     )
     assert (
         "pg_restore -U pulseplate -d pulseplate_restore_check_fixture --exit-on-error --single-transaction --clean --if-exists"
@@ -8572,6 +8564,13 @@ def test_staging_backup_full_archive_failure_preserves_old_dump_and_no_publicati
         ("file.dump",),
         ("--verify-into", "pulseplate", "file.dump"),
         ("--verify-into", "arbitrary_target", "file.dump"),
+        ("--replace-existing", "pulseplate", "file.dump"),
+        *[
+            ("--replace-existing", "pulseplate_restore_check_" + kind, "file.dump")
+            for kind in ("ordinary", "publication", "nonpublic", "global")
+        ],
+        ("--unknown", "pulseplate_restore_check_01", "file.dump"),
+        ("--verify-into", "pulseplate_restore_check_bad-name", "file.dump"),
     ],
 )
 def test_restore_requires_explicit_isolated_target_before_native_mutation(
@@ -8687,44 +8686,70 @@ def test_verification_restore_selects_source_database_when_role_name_differs(
     assert result.returncode == 0, result.stderr
     create = next(call for call in calls.read_text().splitlines() if "createdb" in call)
     assert (
-        "createdb -U application_role --maintenance-db application_database --owner application_role"
+        "createdb -U application_role --maintenance-db application_database --owner application_role --template=template0 pulseplate_restore_check_distinct"
         in create
     )
 
 
-@pytest.mark.parametrize("schema_shape", ["omitted", "metadata-only", "definition"])
-@pytest.mark.parametrize("transaction_status", [0, 3])
-def test_replacement_restore_clears_public_objects_and_asserts_inventory_in_one_transaction(
-    tmp_path: Path, schema_shape: str, transaction_status: int
+@pytest.mark.parametrize(
+    ("failure", "expected_status", "last_operation"),
+    [
+        ("none", 0, "psql"),
+        ("unreadable-list", 41, "list"),
+        ("empty-inventory", 1, "list"),
+        ("unreadable-body", 42, "decode"),
+        ("existing-target", 43, "createdb"),
+        ("late-sql", 44, "restore"),
+        ("extra-table", 1, "psql"),
+        ("missing-table", 1, "psql"),
+    ],
+)
+def test_verification_restore_rejects_each_failed_stage_without_deletion_or_success(
+    tmp_path: Path, failure: str, expected_status: int, last_operation: str
 ) -> None:
     project = tmp_path / "production"
     project.mkdir()
     dump = tmp_path / "input.dump"
     dump.write_text("synthetic archive")
-    docker, calls, sql = tmp_path / "docker", tmp_path / "calls", tmp_path / "transaction.sql"
+    docker, calls = tmp_path / "native-docker", tmp_path / "calls"
     _write_executable(
-        docker, f'#!/usr/bin/env bash\nset -euo pipefail\nprintf "%s\\n" "$*" >> "{calls}"\n'
+        docker,
+        r"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$RESTORE_CALLS"
+case "$*" in
+  *pg_restore\ --list*)
+    [ "$RESTORE_FAILURE" != unreadable-list ] || exit 41
+    if [ "$RESTORE_FAILURE" = empty-inventory ]; then exit 0; fi
+    printf '214; 1259 16387 TABLE public items user\n'
+    ;;
+  *pg_restore\ --file=/dev/null*)
+    [ "$RESTORE_FAILURE" != unreadable-body ] || exit 42
+    cat >/dev/null
+    ;;
+  *createdb*)
+    [ "$RESTORE_FAILURE" != existing-target ] || exit 43
+    ;;
+  *pg_restore*)
+    cat >/dev/null
+    [ "$RESTORE_FAILURE" != late-sql ] || exit 44
+    ;;
+  *psql*)
+    case "$RESTORE_FAILURE" in
+      extra-table) printf '2\n' ;;
+      missing-table) printf '0\n' ;;
+      *) printf '1\n' ;;
+    esac
+    ;;
+  *) exit 99 ;;
+esac
+""",
     )
-    archive_list = "214; 1259 16387 TABLE public items user"
-    restore_sql = "CREATE TABLE public.items(id integer);"
-    if schema_shape != "omitted":
-        archive_list = "5; 2615 2200 SCHEMA - public user\n" + archive_list
-    if schema_shape == "definition":
-        # Explicit pg_dump --schema=public has native DROP/CREATE statements.
-        restore_sql = "DROP SCHEMA IF EXISTS public;\nCREATE SCHEMA public;\n" + restore_sql
-    elif schema_shape == "metadata-only":
-        # PostgreSQL 15.19 ordinary dumps with a non-default public owner have
-        # a SCHEMA entry carrying ownership but no schema creation statement.
-        restore_sql = (
-            "-- *not* dropping schema, since initdb creates it\n"
-            "-- *not* creating schema, since initdb creates it\n"
-            "ALTER SCHEMA public OWNER TO user;\n" + restore_sql
-        )
     result = subprocess.run(
         [
             str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
-            "--replace-existing",
-            "pulseplate",
+            "--verify-into",
+            "pulseplate_restore_check_new",
             str(dump),
         ],
         env={
@@ -8732,90 +8757,74 @@ def test_replacement_restore_clears_public_objects_and_asserts_inventory_in_one_
             "PROJECT_DIR": str(project),
             "DOCKER_BIN": str(docker),
             "POSTGRES_USER": "role",
-            "POSTGRES_DB": "pulseplate",
-            "STUB_ARCHIVE_LIST": archive_list,
-            "STUB_RESTORE_SQL": restore_sql,
-            "STUB_RESTORE_TRANSACTION_SQL": str(sql),
-            "STUB_RESTORE_TRANSACTION_CALLS": str(calls),
-            "STUB_RESTORE_TRANSACTION_STATUS": str(transaction_status),
+            "POSTGRES_DB": "source_database",
+            "COMPOSE_FILE": "selected.yaml",
+            "ENV_FILE": "selected.env",
+            "RESTORE_CALLS": str(calls),
+            "RESTORE_FAILURE": failure,
         },
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == transaction_status, result.stderr
-    rendered = sql.read_text()
-    assert "DO $$ BEGIN IF EXISTS" in rendered
-    assert rendered.index("DROP SCHEMA IF EXISTS public CASCADE;") < rendered.index(
-        "CREATE TABLE public.items"
+    assert result.returncode == expected_status, result.stderr
+    operations = calls.read_text().splitlines()
+    assert all(
+        f"--env-file {project}/selected.env --project-directory {project} -f {project}/selected.yaml exec -T postgres"
+        in call
+        for call in operations
     )
-    assert (
-        "DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n" + restore_sql in rendered
-    )
-    assert rendered.count("CREATE SCHEMA public;") == (2 if schema_shape == "definition" else 1)
-    assert rendered.index("CREATE TABLE public.items") < rendered.index(
-        "Restored inventory differs"
-    )
-    assert "<> 1" in rendered
-    assert "BEGIN;" not in rendered and "COMMIT;" not in rendered
-    assert not list((project / "backups").glob(".pulseplate-restore.*"))
-    if transaction_status:
-        assert "Restore completed" not in result.stdout
-    else:
-        assert "Restore completed into: pulseplate" in result.stdout
-    transaction_calls = [
-        call for call in calls.read_text().splitlines() if "--single-transaction" in call
-    ]
-    assert len(transaction_calls) == 1 and "psql -X -q -v ON_ERROR_STOP=1" in transaction_calls[0]
-    assert "--file=-" in transaction_calls[0]
+    expected_order = ["list", "decode", "createdb", "restore", "psql"]
+    assert len(operations) == expected_order.index(last_operation) + 1
+    assert all("DROP " not in call and "dropdb" not in call for call in operations)
+    if len(operations) >= 3:
+        assert (
+            "createdb -U role --maintenance-db source_database --owner role --template=template0 pulseplate_restore_check_new"
+            in operations[2]
+        )
+    if len(operations) >= 4:
+        assert (
+            "pg_restore -U role -d pulseplate_restore_check_new --exit-on-error --single-transaction --clean --if-exists"
+            in operations[3]
+        )
+    assert ("Restore completed" in result.stdout) is (failure == "none")
 
 
-@pytest.mark.parametrize(
-    "failure", ["archive-schema", "archive-table", "archive-global", "target-schema", "render"]
-)
-def test_replacement_restore_holds_before_target_transaction_for_unsupported_or_failed_input(
-    tmp_path: Path, failure: str
+@pytest.mark.parametrize("archive_kind", ["absent", "empty", "symlink", "directory"])
+def test_verification_restore_rejects_invalid_archive_paths_before_compose(
+    tmp_path: Path, archive_kind: str
 ) -> None:
-    project = tmp_path / "production"
-    project.mkdir()
-    dump = tmp_path / "input.dump"
-    dump.write_text("synthetic archive")
-    docker, sql = tmp_path / "docker", tmp_path / "transaction.sql"
-    _write_executable(docker, "#!/usr/bin/env bash\nset -euo pipefail\n")
-    env = {
-        **os.environ,
-        "PROJECT_DIR": str(project),
-        "DOCKER_BIN": str(docker),
-        "POSTGRES_USER": "role",
-        "POSTGRES_DB": "pulseplate",
-        "STUB_RESTORE_TRANSACTION_SQL": str(sql),
-    }
-    if failure.startswith("archive"):
-        env["STUB_ARCHIVE_OUTSIDE_PUBLIC"] = {
-            "archive-schema": "5; 2615 2200 SCHEMA - private role",
-            "archive-table": "5; 1259 2200 TABLE private history role",
-            "archive-global": "5; 0 2200 BLOB - 1234 role",
-        }[failure]
-    elif failure == "target-schema":
-        env["STUB_TARGET_PUBLIC_ONLY"] = "f"
-    else:
-        env["STUB_RESTORE_RENDER_STATUS"] = "49"
+    dump = tmp_path / "archive"
+    if archive_kind == "empty":
+        dump.touch()
+    elif archive_kind == "directory":
+        dump.mkdir()
+    elif archive_kind == "symlink":
+        real = tmp_path / "real"
+        real.write_text("dump")
+        dump.symlink_to(real)
+    docker, calls = tmp_path / "native-docker", tmp_path / "calls"
+    _write_executable(docker, f"#!/usr/bin/env bash\nprintf 'called' > '{calls}'\n")
     result = subprocess.run(
         [
             str(REPO_ROOT / "scripts/ops/postgres_restore.sh"),
-            "--replace-existing",
-            "pulseplate",
+            "--verify-into",
+            "pulseplate_restore_check_new",
             str(dump),
         ],
-        env=env,
+        env={
+            **os.environ,
+            "DOCKER_BIN": str(docker),
+            "POSTGRES_USER": "role",
+            "POSTGRES_DB": "source",
+        },
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode != 0
-    assert not sql.exists()
-    assert "Restore completed" not in result.stdout
-    assert not list((project / "backups").glob(".pulseplate-restore.*"))
+    assert result.returncode == 1
+    assert "nonempty regular non-symlink" in result.stderr
+    assert not calls.exists()
 
 
 @pytest.mark.parametrize(

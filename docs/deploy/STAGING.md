@@ -286,28 +286,35 @@ POSTGRES_USER=pulseplate POSTGRES_DB=pulseplate_staging \
 ```
 
 Use the actual observed source role/database rather than assuming the example.
-An existing target fails; verification does not drop the source. Inspect the
-restored sentinel/rows before cleaning the owned test database. Ordinary
-replacement recovery now requires the explicit `--replace-existing TARGET_DB`
-mode; do not invoke it as a verification test.
+An existing target fails through native `createdb`; verification never replaces
+it or the source. The target is created from `template0`, avoiding site additions
+in `template1`. This assumes an admitted cluster with its native template0 intact
+and a trusted backup; an isolated database is not a sandbox for arbitrary dump SQL.
+Inspect restored sentinel/rows before cleaning only the owned test database.
 
-Replacement is bounded to the `public` schema. Before mutation, the helper
-rejects archives and targets with non-public user schemas or unsupported global
-objects, including large objects; it does not silently filter archived data.
-It pre-renders complete native SQL into private temporary storage (the admitted
-encrypted backup directory on staging), then resets `public`, restores the
-archive and checks its substantive table inventory in one transaction. SQL or
-inventory failure rolls the whole replacement back. Quiesce writers and verify
-the authorized target before explicit replacement; unsupported schema layouts
-HOLD for a separately verified migration. Verification restore selects the
-configured source database as its maintenance connection, so role and database
-names may differ.
+The helper now accepts only `--verify-into`. Earlier versions reset an existing
+source database's `public` schema; the later `--replace-existing` interface is
+also removed. Neither interface provides current recovery authority. The helper
+verifies backups and performs no in-place recovery, cutover or connection switch.
+Keep the writer-quiescence and source-preservation procedure for any storage
+transition; this verification does not replace its operational checks.
+
+Native archive listing, substantive table inventory and full decoding must pass
+before database creation. Restore SQL runs in one transaction; a late SQL failure
+rolls back that transaction. Database creation precedes it, and the subsequent
+inventory check runs after restore commit. Either failure returns nonzero without
+a success message; a newly created empty or populated failed target may remain
+for diagnosis. The helper never deletes it automatically. Its maintenance
+connection uses the configured source database, so role and database may differ.
 
 Native Linux CI uses disposable PostgreSQL storage/PKI and actual TLS, pgvector,
 dump/restore and process-crash checks. Its temporary Compose project exercises
 the actual backup and restore wrappers, including all three native public-schema
-archive shapes, stale-object removal, and a late SQL failure that must roll back
-the complete replacement. Wrapper commands use their deployed local socket;
+archive shapes, occupied-target refusal (including publication, non-public and
+global objects), template1 contamination, and a late SQL failure that must roll
+back fresh-target SQL while preserving source and pre-existing sentinel data.
+A trusted full dump also restores its represented non-public data and publication;
+these controls do not claim universal reconstruction of omitted cluster state. Wrapper commands use their deployed local socket;
 separate TCP queries verify TLS. The selected DHI entrypoint owns the PostgreSQL
 executable, so Compose supplies only `-c` arguments. On failure, the driver
 retains bounded redacted query and container diagnostics before owned cleanup.

@@ -210,6 +210,7 @@ def compose(project: Path) -> dict[str, Any]:
         "secrets": {
             name: {"file": str(project / "secrets" / name)}
             for name in (
+                "pulseplate_metrics_scrape_key",
                 "postgres_ca",
                 "postgres_server_crt",
                 "postgres_server_key",
@@ -243,6 +244,8 @@ def test_rendered_compose_uses_private_tls_and_file_backed_credentials(tmp_path:
         "bad-passfile",
         "root-volume",
         "secret-source",
+        "metrics-secret-source",
+        "metrics-secret-missing",
     ],
 )
 def test_rendered_compose_cannot_downgrade_security(tmp_path: Path, mutation: str) -> None:
@@ -283,6 +286,10 @@ def test_rendered_compose_cannot_downgrade_security(tmp_path: Path, mutation: st
         value["volumes"]["postgres_data"]["driver_opts"]["device"] = "/var/lib/docker"
     elif mutation == "secret-source":
         value["secrets"]["postgres_ca"]["file"] = "/tmp/other"
+    elif mutation == "metrics-secret-source":
+        value["secrets"]["pulseplate_metrics_scrape_key"]["file"] = "/tmp/other"
+    elif mutation == "metrics-secret-missing":
+        value["secrets"].pop("pulseplate_metrics_scrape_key")
     with pytest.raises(security.SecurityError):
         security.validate_compose(value, tmp_path)
 
@@ -650,6 +657,8 @@ def test_plain_file_cannot_impersonate_a_block_device(
 @pytest.mark.parametrize(
     "file_name",
     [
+        None,
+        "pulseplate_metrics_scrape_key",
         "postgres_ca",
         "postgres_server_crt",
         "postgres_server_key",
@@ -657,12 +666,13 @@ def test_plain_file_cannot_impersonate_a_block_device(
         "postgres_pgpass",
     ],
 )
-def test_each_tls_credential_rejects_a_nested_other_device_mount(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, file_name: str
+def test_declared_credentials_require_same_device_and_prescribed_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, file_name: str | None
 ) -> None:
     secrets = tmp_path / "secrets"
     secrets.mkdir()
     owners = {
+        "pulseplate_metrics_scrape_key": (0, 0, 0o444),
         "postgres_ca": (0, 0, 0o444),
         "postgres_server_crt": (0, 0, 0o444),
         "postgres_server_key": (0, 70, 0o640),
@@ -671,6 +681,15 @@ def test_each_tls_credential_rejects_a_nested_other_device_mount(
     }
     for name in owners:
         (secrets / name).write_text("synthetic metadata-only input")
+    (secrets / "postgres_password").write_text("x" * 40)
+    (secrets / "postgres_pgpass").write_text(
+        "postgres:5432:pulseplate:pulseplate:" + "x" * 40 + "\n"
+    )
+    hba = tmp_path / "postgres-pgvector" / "pg_hba.conf"
+    hba.parent.mkdir()
+    hba.write_text(
+        "local all all trust\nhostnossl all all all reject\nhostssl all all all scram-sha-256\n"
+    )
     native_lstat = Path.lstat
 
     def lstat(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
@@ -681,9 +700,21 @@ def test_each_tls_credential_rejects_a_nested_other_device_mount(
             uid, gid, mode = owners[path.name]
             metadata[0], metadata[2] = stat.S_IFREG | mode, 13 if path.name == file_name else 42
             metadata[4], metadata[5] = uid, gid
+        elif path == hba:
+            metadata[0], metadata[4], metadata[5] = stat.S_IFREG | 0o444, 0, 0
         return os.stat_result(metadata)
 
     monkeypatch.setattr(Path, "lstat", lstat)
+    monkeypatch.setattr(
+        security,
+        "_native",
+        lambda args: "PUBLIC\n" if "-pubkey" in args or "-pubout" in args else "",
+    )
+    if file_name is None:
+        security.check_tls(
+            tmp_path, contract(), {"POSTGRES_USER": "pulseplate", "POSTGRES_DB": "pulseplate"}
+        )
+        return
     with pytest.raises(security.SecurityError, match="device"):
         security.check_tls(
             tmp_path, contract(), {"POSTGRES_USER": "pulseplate", "POSTGRES_DB": "pulseplate"}

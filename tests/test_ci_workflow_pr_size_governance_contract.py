@@ -2990,7 +2990,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "backend-image-sbom.spdx.json",
             },
-            "github.ref == 'refs/heads/main'",
+            "github.ref == 'refs/heads/main' && "
+            "needs.staging-postgres-native-integration.result == 'success'",
             None,
             None,
             None,
@@ -3008,7 +3009,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "caddy-image-sbom.spdx.json",
             },
-            "github.ref == 'refs/heads/main'",
+            "github.ref == 'refs/heads/main' && "
+            "needs.staging-postgres-native-integration.result == 'success'",
             None,
             None,
             None,
@@ -3901,6 +3903,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
         IOS_APPSTORE_VERIFY_STEP_NAME,
         IOS_UNIT_STEP_NAME,
         IOS_RELEASE_BUILD_STEP_NAME,
+        "Retain iOS unit result bundles and crash diagnostics",
     ]
     assert step_names.count(IOS_APPSTORE_VERIFY_STEP_NAME) == 1
     assert step_names.count(IOS_UNIT_STEP_NAME) == 1
@@ -3910,6 +3913,17 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     release_index = step_names.index(IOS_RELEASE_BUILD_STEP_NAME)
     assert validator_index + 1 == unit_index
     assert release_index == unit_index + 1
+    assert steps[release_index + 1] == {
+        "name": "Retain iOS unit result bundles and crash diagnostics",
+        "if": "always()",
+        "uses": f"actions/upload-artifact@{UPLOAD_ARTIFACT_NODE24_SHA}",
+        "with": {
+            "name": "ios-unit-xcresult-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "ios/.derivedData/Logs/Test/*.xcresult",
+            "retention-days": 7,
+            "if-no-files-found": "warn",
+        },
+    }
 
     validator_step = steps[validator_index]
     assert isinstance(validator_step, dict)

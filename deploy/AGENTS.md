@@ -135,6 +135,12 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
   scanner/database and subject identity, and keep newly revealed blocking
   findings open until remediated. Matching build digests do not prove a current
   clean scan or the later trusted publication path.
+- In CD, `staging-postgres-native-integration` is a prerequisite of both the
+  PostgreSQL publisher and backend build/deploy job. Keep their literal `needs`
+  and success predicates aligned; regression tests must reject a failed,
+  cancelled or unexpectedly skipped prerequisite. A successful non-material
+  classifier may intentionally skip the expensive step. An independent passing
+  check does not gate publication unless the consumer depends on it.
 - The final image adds one and only one compatibility mountpoint layer:
   `/var/lib/postgresql/data` is an empty real directory, owner `70:70`, mode
   `0700`, copied from one verified empty builder directory. This lets the
