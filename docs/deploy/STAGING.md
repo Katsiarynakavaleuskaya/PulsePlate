@@ -45,7 +45,14 @@ Copy these paths from the same verified merged revision under
   the existing backup timer example as well.
 
 Use root-owned regular files, mode `0644` for helpers/systemd files and `0755`
-for shell entrypoints; PostgreSQL HBA is `0444`. Keep the current staging marker
+for shell entrypoints; PostgreSQL HBA is `0444`. The staging project directory,
+`scripts`, `scripts/ops`, `scripts/ci` and every other ancestor of a root-executed
+helper must also be root-owned, non-symlink directories without group/world
+write permission. Keep `.env` root-owned at `0600`: systemd imports it before
+running any helper, so a later helper check cannot protect a writable environment
+file. The authenticated `pulseplate-ops` account has passwordless sudo and remains
+a trusted administrator; these ownership controls do not isolate it from root.
+Keep the current staging marker
 and all CD checksum guards. The marker is not a replacement for synchronization.
 Install the official Docker/Compose, Python, OpenSSL and GitHub CLI runtime if
 absent, then record their actual versions. Registry verification uses temporary
@@ -118,6 +125,7 @@ The trusted 2026-09-13 census found PostgreSQL `15.19` with TLS off,
 `postgres` maintenance database. The old PostgreSQL volume uses about
 47,308 KiB; Prometheus and food cache volumes use about 4 KiB each. This is
 an existing cluster to preserve, even though application tables are absent.
+The separately authenticated role/database query returned `pulseplate|pulseplate_staging`.
 Refresh these observations immediately before the operator-selected migration.
 
 Staging keeps its existing Compose project and logical `postgres_data` and
@@ -250,11 +258,11 @@ For an isolated restore, pass the source identity and selected Compose/env
 through the existing helper interface:
 
 ```bash
-PROJECT_DIR=/srv/pulseplate-staging \
+sudo -n /usr/bin/env PROJECT_DIR=/srv/pulseplate-staging \
 COMPOSE_FILE=docker-compose.staging.yaml \
 ENV_FILE=/srv/pulseplate-staging/.env \
-POSTGRES_USER=pulseplate POSTGRES_DB=pulseplate \
-  /srv/pulseplate-staging/scripts/ops/postgres_restore.sh --verify-into pulseplate_restore_check_01 /mnt/pulseplate-staging-data/backups/selected.dump
+POSTGRES_USER=pulseplate POSTGRES_DB=pulseplate_staging \
+  /bin/bash /srv/pulseplate-staging/scripts/ops/postgres_restore.sh --verify-into pulseplate_restore_check_01 /mnt/pulseplate-staging-data/backups/selected.dump
 ```
 
 Use the actual observed source role/database rather than assuming the example.
@@ -357,39 +365,34 @@ docker compose version
 ### 2. Create Staging Directory
 
 ```bash
-# Create staging directory
-sudo mkdir -p /srv/pulseplate-staging
-sudo chown $USER:$USER /srv/pulseplate-staging
+# Create or correct the exact staging directory, without changing data volumes.
+sudo install -d -o root -g root -m 0755 /srv/pulseplate-staging
 ```
 
 ### 3. Copy Deployment Files
 
 ```bash
 # Copy files from your repository
-sudo cp deploy/docker-compose.staging.yaml /srv/pulseplate-staging/
-sudo cp deploy/Caddyfile /srv/pulseplate-staging/
-sudo cp scripts/deploy.sh /srv/pulseplate-staging/
-sudo install -d -m 0755 /srv/pulseplate-staging/scripts/ops /srv/pulseplate-staging/scripts/ci \
+sudo install -o root -g root -m 0644 deploy/docker-compose.staging.yaml /srv/pulseplate-staging/
+sudo install -o root -g root -m 0644 deploy/Caddyfile /srv/pulseplate-staging/
+sudo install -o root -g root -m 0755 scripts/deploy.sh /srv/pulseplate-staging/
+sudo install -d -o root -g root -m 0755 /srv/pulseplate-staging/scripts \
+  /srv/pulseplate-staging/scripts/ops /srv/pulseplate-staging/scripts/ci \
   /srv/pulseplate-staging/postgres-pgvector /srv/pulseplate-staging/prometheus \
   /srv/pulseplate-staging/systemd
-sudo cp scripts/ops/postgres_backup.sh /srv/pulseplate-staging/scripts/ops/
-sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
-sudo install -m 0644 scripts/ops/check_staging_security.py /srv/pulseplate-staging/scripts/ops/
-sudo install -m 0644 scripts/ci/check_pgvector_attestations.py \
+sudo install -o root -g root -m 0755 scripts/ops/postgres_backup.sh /srv/pulseplate-staging/scripts/ops/
+sudo install -o root -g root -m 0755 scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
+sudo install -o root -g root -m 0644 scripts/ops/check_staging_security.py /srv/pulseplate-staging/scripts/ops/
+sudo install -o root -g root -m 0644 scripts/ci/check_pgvector_attestations.py \
   scripts/ci/check_docker_provenance_attestation.py /srv/pulseplate-staging/scripts/ci/
-sudo install -m 0644 deploy/postgres-pgvector/image-manifest.json /srv/pulseplate-staging/postgres-pgvector/
-sudo install -m 0444 deploy/postgres-pgvector/pg_hba.conf /srv/pulseplate-staging/postgres-pgvector/
-sudo install -m 0644 deploy/prometheus/prometheus.yml deploy/prometheus/image-manifest.json \
+sudo install -o root -g root -m 0644 deploy/postgres-pgvector/image-manifest.json /srv/pulseplate-staging/postgres-pgvector/
+sudo install -o root -g root -m 0444 deploy/postgres-pgvector/pg_hba.conf /srv/pulseplate-staging/postgres-pgvector/
+sudo install -o root -g root -m 0644 deploy/prometheus/prometheus.yml deploy/prometheus/image-manifest.json \
   /srv/pulseplate-staging/prometheus/
-sudo install -m 0644 deploy/systemd/pulseplate-staging-storage.conf /srv/pulseplate-staging/systemd/
-sudo install -m 0644 deploy/systemd/pulseplate-staging-postgres-backup.service.example \
+sudo install -o root -g root -m 0644 deploy/systemd/pulseplate-staging-storage.conf /srv/pulseplate-staging/systemd/
+sudo install -o root -g root -m 0644 deploy/systemd/pulseplate-staging-postgres-backup.service.example \
   /srv/pulseplate-staging/systemd/pulseplate-postgres-backup.service.example
-sudo install -m 0644 deploy/systemd/pulseplate-postgres-backup.timer.example /srv/pulseplate-staging/systemd/
-sudo chown root:root /srv/pulseplate-staging/deploy.sh /srv/pulseplate-staging/docker-compose.staging.yaml \
-  /srv/pulseplate-staging/Caddyfile /srv/pulseplate-staging/scripts/ops/*.sh
-sudo chmod +x /srv/pulseplate-staging/deploy.sh
-sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
-sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_restore.sh
+sudo install -o root -g root -m 0644 deploy/systemd/pulseplate-postgres-backup.timer.example /srv/pulseplate-staging/systemd/
 
 # Create this marker only after copying all files from the same merged commit.
 printf '%s' 'pulseplate-staging-attested-digest-v1' | \
@@ -412,24 +415,39 @@ when the later SSH deployment remains optional.
 
 ### 4. Configure Environment
 
+For the retained installation, edit the existing file with
+`sudoedit /srv/pulseplate-staging/.env`, preserving existing application values.
+The sample below is for an absent file only. Its role/database pair comes from
+the authenticated census; recheck it before a cluster migration. Root owns the
+environment and all executable ancestors before enabling the backup timer or
+Docker storage drop-in.
+The new-file example deliberately leaves `SECRET_KEY` empty. Generate a fresh
+cryptographically random application secret on the server and populate the
+protected file before deployment; never use a documented example value or
+include it in Git, CI logs or this evidence record.
+
 ```bash
-# Create environment file
+# Create a new environment file only; do not overwrite retained configuration.
+set -euo pipefail
+sudo test ! -e /srv/pulseplate-staging/.env
+sudo test ! -L /srv/pulseplate-staging/.env
+sudo install -o root -g root -m 0600 /dev/null /srv/pulseplate-staging/.env
 sudo tee /srv/pulseplate-staging/.env > /dev/null << 'EOF'
 # Application Configuration
-STAGING_DOMAIN=staging.yourdomain.com
-POSTGRES_DB=pulseplate
+STAGING_DOMAIN=staging.pulseplate.app
+POSTGRES_DB=pulseplate_staging
 POSTGRES_USER=pulseplate
 # Database credentials use the protected files from contract v5 above.
 SUBSCRIPTION_DB_ENABLED=true
 ALLOW_DEV_API_KEY=false
 API_KEY_REQUIRED=true
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=
 DEBUG=false
 
 # Add your application-specific variables here
 EOF
 
-sudo chown $USER:$USER /srv/pulseplate-staging/.env
+sudo chown root:root /srv/pulseplate-staging/.env
 sudo chmod 0600 /srv/pulseplate-staging/.env
 ```
 
@@ -625,12 +643,13 @@ Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.ya
 cd /srv/pulseplate-staging
 read -rsp "GHCR read token: " GHCR_TOKEN
 printf '\n'
-STAGING_DOMAIN=staging.yourdomain.com \
-GHCR_USER=<read-only-ghcr-user> \
+STAGING_DOMAIN=staging.pulseplate.app \
+GHCR_USER='<read-only-ghcr-user>' \
 GHCR_TOKEN="$GHCR_TOKEN" \
-./deploy.sh \
-  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest> \
-  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>
+sudo -n --preserve-env=GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN -- \
+  /bin/bash /srv/pulseplate-staging/deploy.sh \
+  'ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest>' \
+  'ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>'
 unset GHCR_TOKEN
 ```
 

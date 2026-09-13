@@ -393,7 +393,15 @@ def test_cd_has_no_prometheus_candidate_publication_carrier() -> None:
     assert isinstance(triggers, dict)
     assert isinstance(jobs, dict)
 
-    assert "workflow_dispatch" not in triggers
+    dispatch = triggers["workflow_dispatch"]
+    assert set(dispatch) == {"inputs"}
+    assert set(dispatch["inputs"]) == {"postgres_mode", "source_sha"}
+    assert dispatch["inputs"]["postgres_mode"]["options"] == [
+        "disabled",
+        "synthetic-probe",
+        "reuse",
+    ]
+    assert dispatch["inputs"]["postgres_mode"]["default"] == "disabled"
     assert "prometheus-grpc-candidate-publish" not in jobs
     assert workflow["permissions"] == {
         "actions": "read",

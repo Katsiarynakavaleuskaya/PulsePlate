@@ -3086,12 +3086,14 @@ jobs:
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
+            echo "restore_helper_sha256=$(sha256sum scripts/ops/postgres_restore.sh | cut -d' ' -f1)"
             echo "staging_security_helper_sha256=$(sha256sum scripts/ops/check_staging_security.py | cut -d' ' -f1)"
             echo "pgvector_attestation_helper_sha256=$(sha256sum scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)"
             echo "native_attestation_helper_sha256=$(sha256sum scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)"
             echo "postgres_hba_sha256=$(sha256sum deploy/postgres-pgvector/pg_hba.conf | cut -d' ' -f1)"
             echo "staging_storage_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)"
             echo "staging_backup_systemd_sha256=$(sha256sum deploy/systemd/pulseplate-staging-postgres-backup.service.example | cut -d' ' -f1)"
+            echo "staging_backup_timer_sha256=$(sha256sum deploy/systemd/pulseplate-postgres-backup.timer.example | cut -d' ' -f1)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify remote staging deploy contract
@@ -3114,50 +3116,75 @@ jobs:
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
+          RESTORE_HELPER_SHA256: ${{ steps.staging-contract.outputs.restore_helper_sha256 }}
           STAGING_SECURITY_HELPER_SHA256: ${{ steps.staging-contract.outputs.staging_security_helper_sha256 }}
           PGVECTOR_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.pgvector_attestation_helper_sha256 }}
           NATIVE_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.native_attestation_helper_sha256 }}
           POSTGRES_HBA_SHA256: ${{ steps.staging-contract.outputs.postgres_hba_sha256 }}
           STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
           STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
+          STAGING_BACKUP_TIMER_SHA256: ${{ steps.staging-contract.outputs.staging_backup_timer_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
             marker=.attested-digest-deploy-v1
-            [ ! -L "$marker" ] && [ -f "$marker" ]
+            [ ! -L "$marker" ]
+            [ -f "$marker" ]
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
+            [ ! -L ./deploy.sh ]
+            [ -f ./deploy.sh ]
             grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ ! -L ./docker-compose.staging.yaml ]
+            [ -f ./docker-compose.staging.yaml ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
+            [ -f ./prometheus/prometheus.yml ]
             [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
             [ ! -L ./prometheus/image-manifest.json ]
+            [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
+            [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./Caddyfile ]
+            [ -f ./Caddyfile ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
+            [ -f ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
-            [ ! -L ./scripts/ops/check_staging_security.py ] && [ -f ./scripts/ops/check_staging_security.py ]
+            [ ! -L ./scripts/ops/postgres_restore.sh ]
+            [ -f ./scripts/ops/postgres_restore.sh ]
+            [ "$(sha256sum ./scripts/ops/postgres_restore.sh | cut -d' ' -f1)" = "$RESTORE_HELPER_SHA256" ]
+            [ ! -L ./scripts/ops/check_staging_security.py ]
+            [ -f ./scripts/ops/check_staging_security.py ]
             [ "$(sha256sum ./scripts/ops/check_staging_security.py | cut -d' ' -f1)" = "$STAGING_SECURITY_HELPER_SHA256" ]
-            [ ! -L ./scripts/ci/check_pgvector_attestations.py ] && [ -f ./scripts/ci/check_pgvector_attestations.py ]
+            [ ! -L ./scripts/ci/check_pgvector_attestations.py ]
+            [ -f ./scripts/ci/check_pgvector_attestations.py ]
             [ "$(sha256sum ./scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)" = "$PGVECTOR_ATTESTATION_HELPER_SHA256" ]
-            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ] && [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
             [ "$(sha256sum ./scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)" = "$NATIVE_ATTESTATION_HELPER_SHA256" ]
-            [ ! -L ./postgres-pgvector/pg_hba.conf ] && [ -f ./postgres-pgvector/pg_hba.conf ]
+            [ ! -L ./postgres-pgvector/pg_hba.conf ]
+            [ -f ./postgres-pgvector/pg_hba.conf ]
             [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
-            [ ! -L ./systemd/pulseplate-staging-storage.conf ] && [ -f ./systemd/pulseplate-staging-storage.conf ]
+            [ ! -L ./systemd/pulseplate-staging-storage.conf ]
+            [ -f ./systemd/pulseplate-staging-storage.conf ]
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
-            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ]
+            [ -f ./systemd/pulseplate-postgres-backup.service.example ]
             [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.timer.example ]
+            [ -f ./systemd/pulseplate-postgres-backup.timer.example ]
+            [ "$(sha256sum ./systemd/pulseplate-postgres-backup.timer.example | cut -d' ' -f1)" = "$STAGING_BACKUP_TIMER_SHA256" ]
             sudo -n --preserve-env=STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
               --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
@@ -3184,50 +3211,75 @@ jobs:
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
+          RESTORE_HELPER_SHA256: ${{ steps.staging-contract.outputs.restore_helper_sha256 }}
           STAGING_SECURITY_HELPER_SHA256: ${{ steps.staging-contract.outputs.staging_security_helper_sha256 }}
           PGVECTOR_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.pgvector_attestation_helper_sha256 }}
           NATIVE_ATTESTATION_HELPER_SHA256: ${{ steps.staging-contract.outputs.native_attestation_helper_sha256 }}
           POSTGRES_HBA_SHA256: ${{ steps.staging-contract.outputs.postgres_hba_sha256 }}
           STAGING_STORAGE_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_storage_systemd_sha256 }}
           STAGING_BACKUP_SYSTEMD_SHA256: ${{ steps.staging-contract.outputs.staging_backup_systemd_sha256 }}
+          STAGING_BACKUP_TIMER_SHA256: ${{ steps.staging-contract.outputs.staging_backup_timer_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
             marker=.attested-digest-deploy-v1
-            [ ! -L "$marker" ] && [ -f "$marker" ]
+            [ ! -L "$marker" ]
+            [ -f "$marker" ]
             [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
             [ "$(stat -c '%s' "$marker")" -eq 37 ]
             [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
+            [ ! -L ./deploy.sh ]
+            [ -f ./deploy.sh ]
             grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="5"' ./deploy.sh
             [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ ! -L ./docker-compose.staging.yaml ]
+            [ -f ./docker-compose.staging.yaml ]
             [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
             [ ! -L ./prometheus/prometheus.yml ]
+            [ -f ./prometheus/prometheus.yml ]
             [ "$(sha256sum ./prometheus/prometheus.yml | cut -d' ' -f1)" = "$PROMETHEUS_CONFIG_SHA256" ]
             [ ! -L ./prometheus/image-manifest.json ]
+            [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
+            [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./Caddyfile ]
+            [ -f ./Caddyfile ]
             [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             [ ! -L ./scripts/ops/postgres_backup.sh ]
+            [ -f ./scripts/ops/postgres_backup.sh ]
             [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
-            [ ! -L ./scripts/ops/check_staging_security.py ] && [ -f ./scripts/ops/check_staging_security.py ]
+            [ ! -L ./scripts/ops/postgres_restore.sh ]
+            [ -f ./scripts/ops/postgres_restore.sh ]
+            [ "$(sha256sum ./scripts/ops/postgres_restore.sh | cut -d' ' -f1)" = "$RESTORE_HELPER_SHA256" ]
+            [ ! -L ./scripts/ops/check_staging_security.py ]
+            [ -f ./scripts/ops/check_staging_security.py ]
             [ "$(sha256sum ./scripts/ops/check_staging_security.py | cut -d' ' -f1)" = "$STAGING_SECURITY_HELPER_SHA256" ]
-            [ ! -L ./scripts/ci/check_pgvector_attestations.py ] && [ -f ./scripts/ci/check_pgvector_attestations.py ]
+            [ ! -L ./scripts/ci/check_pgvector_attestations.py ]
+            [ -f ./scripts/ci/check_pgvector_attestations.py ]
             [ "$(sha256sum ./scripts/ci/check_pgvector_attestations.py | cut -d' ' -f1)" = "$PGVECTOR_ATTESTATION_HELPER_SHA256" ]
-            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ] && [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ ! -L ./scripts/ci/check_docker_provenance_attestation.py ]
+            [ -f ./scripts/ci/check_docker_provenance_attestation.py ]
             [ "$(sha256sum ./scripts/ci/check_docker_provenance_attestation.py | cut -d' ' -f1)" = "$NATIVE_ATTESTATION_HELPER_SHA256" ]
-            [ ! -L ./postgres-pgvector/pg_hba.conf ] && [ -f ./postgres-pgvector/pg_hba.conf ]
+            [ ! -L ./postgres-pgvector/pg_hba.conf ]
+            [ -f ./postgres-pgvector/pg_hba.conf ]
             [ "$(sha256sum ./postgres-pgvector/pg_hba.conf | cut -d' ' -f1)" = "$POSTGRES_HBA_SHA256" ]
-            [ ! -L ./systemd/pulseplate-staging-storage.conf ] && [ -f ./systemd/pulseplate-staging-storage.conf ]
+            [ ! -L ./systemd/pulseplate-staging-storage.conf ]
+            [ -f ./systemd/pulseplate-staging-storage.conf ]
             [ "$(sha256sum ./systemd/pulseplate-staging-storage.conf | cut -d' ' -f1)" = "$STAGING_STORAGE_SYSTEMD_SHA256" ]
-            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ] && [ -f ./systemd/pulseplate-postgres-backup.service.example ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.service.example ]
+            [ -f ./systemd/pulseplate-postgres-backup.service.example ]
             [ "$(sha256sum ./systemd/pulseplate-postgres-backup.service.example | cut -d' ' -f1)" = "$STAGING_BACKUP_SYSTEMD_SHA256" ]
+            [ ! -L ./systemd/pulseplate-postgres-backup.timer.example ]
+            [ -f ./systemd/pulseplate-postgres-backup.timer.example ]
+            [ "$(sha256sum ./systemd/pulseplate-postgres-backup.timer.example | cut -d' ' -f1)" = "$STAGING_BACKUP_TIMER_SHA256" ]
             sudo -n --preserve-env=GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN -- /bin/bash /srv/pulseplate-staging/deploy.sh \
               "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 

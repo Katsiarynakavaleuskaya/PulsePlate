@@ -25,6 +25,7 @@ import base64
 import copy
 import json
 import sys
+import stat
 
 import pytest
 
@@ -82,7 +83,9 @@ def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_restores_or
     assert json.loads((default / "config.json").read_text())["auths"] == {
         "ghcr.io": {"auth": "nonsecret-native-login"}
     }
-    assert "dhi.io" in (private / "config.json").read_text()
+    assert json.loads((private / "config.json").read_text()) == {
+        "auths": {"dhi.io": {"auth": "private-dhi"}}
+    }
     nested = private / "buildx" / "instances"
     nested.mkdir(parents=True)
     (nested / "native-metadata").write_text("owned")
@@ -96,6 +99,63 @@ def test_native_ghcr_default_reader_bridge_preserves_private_dhi_and_restores_or
         assert (default / "config.json").stat().st_mode & 0o777 == 0o600
     else:
         assert not default.exists()
+
+
+@pytest.mark.parametrize(
+    "object_role",
+    [
+        "generated_ghcr_directory",
+        "generated_ghcr_config",
+        "default_docker_directory",
+        "default_docker_config",
+    ],
+)
+def test_native_install_rejection_identifies_only_object_metadata(
+    tmp_path: Path, object_role: str
+) -> None:
+    runner = tmp_path / "runner"
+    runner.mkdir()
+    private = runner / "pulseplate-attestation-probe-auth.metadata"
+    private.mkdir(mode=0o700)
+    credentials.capture(private, runner)
+    login = credentials.ghcr_directory(private) / "config.json"
+    login.write_text('{"auths":{"ghcr.io":{"auth":"fixture-login-value"}}}')
+    login.chmod(0o600)
+    default = tmp_path / ".docker"
+    default.mkdir(mode=0o700)
+    original = default / "config.json"
+    original.write_text("original-value-must-not-be-logged")
+    original.chmod(0o600)
+    selected = {
+        "generated_ghcr_directory": login.parent,
+        "generated_ghcr_config": login,
+        "default_docker_directory": default,
+        "default_docker_config": original,
+    }[object_role]
+    selected.chmod(0o770 if selected.is_dir() else 0o660)
+    before = selected.lstat()
+    with pytest.raises(ValueError, match="ownership/type/links/permissions changed") as error:
+        credentials.install(private, login, default)
+    message = str(error.value)
+    observed = json.loads(message.split(": ", 1)[1])
+    assert observed == {
+        "object_role": object_role,
+        "expected_directory": selected.is_dir(),
+        "expected_uid": os.getuid(),
+        "expected_gid": os.getgid(),
+        "type_mode": stat.S_IFMT(before.st_mode),
+        "uid": before.st_uid,
+        "gid": before.st_gid,
+        "mode": oct(stat.S_IMODE(before.st_mode)),
+        "links": before.st_nlink,
+        "device": before.st_dev,
+        "inode": before.st_ino,
+    }
+    assert str(tmp_path) not in message
+    assert "fixture-login-value" not in message
+    assert "original-value-must-not-be-logged" not in message
+    assert original.read_text() == "original-value-must-not-be-logged"
+    assert not (private / credentials.SDK).exists()
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import re
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -564,13 +566,18 @@ def test_staging_compose_requires_two_digest_references_and_preserves_caddy_stat
     assert "caddy_config:/config" in caddy["volumes"]
     assert caddy["depends_on"]["app"]["condition"] == "service_healthy"
     assert compose["networks"]["observability"] == {"internal": True}
-    assert app["networks"] == ["web", "observability"]
-    assert app["secrets"] == ["pulseplate_metrics_scrape_key"]
+    assert app["networks"] == ["web", "observability", "database"]
+    assert app["secrets"] == ["pulseplate_metrics_scrape_key", "postgres_ca", "postgres_pgpass"]
     assert prometheus["networks"] == ["observability"]
     assert prometheus["secrets"] == ["pulseplate_metrics_scrape_key"]
     assert "ports" not in prometheus
     assert compose["secrets"] == {
-        "pulseplate_metrics_scrape_key": {"file": "./secrets/pulseplate_metrics_scrape_key"}
+        "pulseplate_metrics_scrape_key": {"file": "./secrets/pulseplate_metrics_scrape_key"},
+        "postgres_ca": {"file": "./secrets/postgres_ca"},
+        "postgres_server_crt": {"file": "./secrets/postgres_server_crt"},
+        "postgres_server_key": {"file": "./secrets/postgres_server_key"},
+        "postgres_password": {"file": "./secrets/postgres_password"},
+        "postgres_pgpass": {"file": "./secrets/postgres_pgpass"},
     }
     assert "prometheus_data" in compose["volumes"]
 
@@ -705,7 +712,10 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
-        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
+        "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
+        "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
+        "STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256"
     )
 
     deploy = _named_step(steps, "Deploy to staging over SSH")
@@ -715,14 +725,19 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert "steps.staging-contract-preflight.outcome == 'success'" in deploy_if
     deploy_with = deploy.get("with")
     assert isinstance(deploy_with, dict)
-    assert "GHCR_TOKEN" not in deploy_with["script"]
+    assert "${{ secrets." not in deploy_with["script"]
+    assert "$GHCR_TOKEN" not in deploy_with["script"]
+    assert "GHCR_TOKEN=" not in deploy_with["script"]
     assert "github.sha" not in deploy_with["script"]
     assert deploy_with["envs"] == (
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
-        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
+        "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
+        "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
+        "STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256"
     )
 
     assert build_job["concurrency"]["cancel-in-progress"] is False
@@ -777,12 +792,15 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
-        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
+        "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
+        "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
+        "STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256"
     )
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="4"' in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in script
     for filename in (
         "deploy.sh",
         "docker-compose.staging.yaml",
@@ -791,9 +809,70 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         "postgres-pgvector/image-manifest.json",
         "Caddyfile",
         "scripts/ops/postgres_backup.sh",
+        "scripts/ops/postgres_restore.sh",
+        "scripts/ops/check_staging_security.py",
+        "scripts/ci/check_pgvector_attestations.py",
+        "scripts/ci/check_docker_provenance_attestation.py",
+        "postgres-pgvector/pg_hba.conf",
+        "systemd/pulseplate-staging-storage.conf",
+        "systemd/pulseplate-postgres-backup.service.example",
+        "systemd/pulseplate-postgres-backup.timer.example",
     ):
-        assert filename in script
-    assert "./deploy.sh --preflight-only" in script
+        no_link = f"[ ! -L ./{filename} ]"
+        regular = f"[ -f ./{filename} ]"
+        digest = f"sha256sum ./{filename}"
+        assert script.index(no_link) < script.index(regular) < script.index(digest)
+        assert script.index(digest) < script.index("sudo -n ")
+    assert "/bin/bash /srv/pulseplate-staging/deploy.sh" in script
+    assert '--preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"' in script
+
+
+@pytest.mark.parametrize(
+    "phase", ["Verify remote staging deploy contract", "Deploy to staging over SSH"]
+)
+@pytest.mark.parametrize("fault", ["none", "stale", "absent", "symlink", "directory", "fifo"])
+def test_restore_helper_hash_blocks_stale_remote_bundle(
+    tmp_path: Path, phase: str, fault: str
+) -> None:
+    steps = _steps(_job(_workflow(CD_WORKFLOW), "build"))
+    producer = _named_step(steps, "Prepare staging deploy contract hashes")["run"]
+    assert "restore_helper_sha256=$(sha256sum scripts/ops/postgres_restore.sh" in producer
+    step = _named_step(steps, phase)
+    assert step["env"]["RESTORE_HELPER_SHA256"] == (
+        "${{ steps.staging-contract.outputs.restore_helper_sha256 }}"
+    )
+    script = step["with"]["script"]
+    checks = [line for line in script.splitlines() if "./scripts/ops/postgres_restore.sh" in line]
+    assert len(checks) == 3
+    assert "] && [" not in script
+    assert all(script.index(line) < script.index("sudo -n ") for line in checks)
+    target = tmp_path / "scripts/ops/postgres_restore.sh"
+    target.parent.mkdir(parents=True)
+    admitted = b"reviewed restore fixture\n"
+    if fault == "symlink":
+        external = tmp_path / "external"
+        external.write_bytes(admitted)
+        target.symlink_to(external)
+    elif fault == "directory":
+        target.mkdir()
+    elif fault == "fifo":
+        os.mkfifo(target)
+    elif fault != "absent":
+        target.write_bytes(b"old restore fixture\n" if fault == "stale" else admitted)
+    bash = shutil.which("bash")
+    assert bash is not None
+    completed = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + "\n".join(checks)],
+        cwd=tmp_path,
+        env={**os.environ, "RESTORE_HELPER_SHA256": hashlib.sha256(admitted).hexdigest()},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert (completed.returncode == 0) is (fault == "none"), completed.stderr
+    if fault == "symlink":
+        assert external.read_bytes() == admitted
 
 
 def test_all_staging_ssh_and_health_steps_require_default_false_rollout_gate() -> None:
@@ -845,12 +924,15 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
-        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
+        "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
+        "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
+        "STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256"
     )
     script = with_block["script"]
-    deploy_call = './deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"'
+    deploy_call = "/bin/bash /srv/pulseplate-staging/deploy.sh"
     assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
-    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="4"') < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="5"') < script.index(deploy_call)
     for filename, expected_hash in (
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
@@ -859,8 +941,19 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
         ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),
+        ("scripts/ops/postgres_restore.sh", "RESTORE_HELPER_SHA256"),
+        ("scripts/ops/check_staging_security.py", "STAGING_SECURITY_HELPER_SHA256"),
+        ("scripts/ci/check_pgvector_attestations.py", "PGVECTOR_ATTESTATION_HELPER_SHA256"),
+        ("scripts/ci/check_docker_provenance_attestation.py", "NATIVE_ATTESTATION_HELPER_SHA256"),
+        ("postgres-pgvector/pg_hba.conf", "POSTGRES_HBA_SHA256"),
+        ("systemd/pulseplate-staging-storage.conf", "STAGING_STORAGE_SYSTEMD_SHA256"),
+        ("systemd/pulseplate-postgres-backup.service.example", "STAGING_BACKUP_SYSTEMD_SHA256"),
+        ("systemd/pulseplate-postgres-backup.timer.example", "STAGING_BACKUP_TIMER_SHA256"),
     ):
         hash_check = f"sha256sum ./{filename}"
+        no_link = f"[ ! -L ./{filename} ]"
+        regular = f"[ -f ./{filename} ]"
+        assert script.index(no_link) < script.index(regular) < script.index(hash_check)
         assert hash_check in script
         assert expected_hash in script
         assert script.index(hash_check) < script.index(deploy_call)
@@ -868,7 +961,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
     text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
-    assert 'STAGING_DEPLOY_CONTRACT_VERSION="4"' in text
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="5"' in text
     assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
     assert "0:0:644" in text
     assert "STAGING_IMAGE_REF" in text

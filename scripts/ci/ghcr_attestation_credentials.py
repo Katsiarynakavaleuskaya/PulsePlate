@@ -27,7 +27,7 @@ OWNER = ".native-owned.json"
 SDK = ".ghcr-sdk-restore.json"
 
 
-def identity(path: Path, directory: bool = False) -> dict:
+def identity(path: Path, directory: bool = False, *, role: str = "invocation_object") -> dict:
     info = path.lstat()
     if (
         not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))
@@ -36,7 +36,23 @@ def identity(path: Path, directory: bool = False) -> dict:
         or (not directory and info.st_nlink != 1)
         or stat.S_IMODE(info.st_mode) & 0o022
     ):
-        raise ValueError("Native credential object ownership/type/links/permissions changed")
+        observed = {
+            "object_role": role,
+            "expected_directory": directory,
+            "expected_uid": os.getuid(),
+            "expected_gid": os.getgid(),
+            "type_mode": stat.S_IFMT(info.st_mode),
+            "uid": info.st_uid,
+            "gid": info.st_gid,
+            "mode": oct(stat.S_IMODE(info.st_mode)),
+            "links": info.st_nlink,
+            "device": info.st_dev,
+            "inode": info.st_ino,
+        }
+        raise ValueError(
+            "Native credential object ownership/type/links/permissions changed: "
+            + json.dumps(observed, sort_keys=True)
+        )
     value: dict[str, Any] = {
         "dev": info.st_dev,
         "ino": info.st_ino,
@@ -49,8 +65,8 @@ def identity(path: Path, directory: bool = False) -> dict:
     return value
 
 
-def read(path: Path) -> dict:
-    identity(path)
+def read(path: Path, *, role: str = "invocation_receipt") -> dict:
+    identity(path, role=role)
     value = loads(path.read_bytes())
     if not isinstance(value, dict):
         raise ValueError("Native credential receipt must be an object")
@@ -89,7 +105,7 @@ def owned(directory: Path) -> dict:
     if (
         directory.parent != Path(receipt["runner_temp"])
         or directory.parent.resolve(strict=True) != directory.parent
-        or identity(directory, True) != receipt["root"]
+        or identity(directory, True, role="invocation_root") != receipt["root"]
     ):
         raise ValueError("Invocation-owned native directory identity changed")
     return receipt
@@ -104,9 +120,9 @@ def install(directory: Path, generated: Path, default: Path) -> None:
     owned(directory)
     if generated.parent.parent != directory or generated.parent.is_symlink():
         raise ValueError("GHCR config must come from the invocation private login subdirectory")
-    if identity(generated.parent, True)["mode"] != 0o700:
+    if identity(generated.parent, True, role="generated_ghcr_directory")["mode"] != 0o700:
         raise ValueError("Native GHCR login subdirectory must remain private")
-    config = read(generated)
+    config = read(generated, role="generated_ghcr_config")
     auths = config.get("auths")
     if (
         not isinstance(auths, dict)
@@ -121,9 +137,13 @@ def install(directory: Path, generated: Path, default: Path) -> None:
     created = not default.exists()
     if created:
         default.mkdir(mode=0o700)
-    directory_identity = identity(default, True)
+    directory_identity = identity(default, True, role="default_docker_directory")
     target = default / "config.json"
-    original = identity(target) if target.exists() or target.is_symlink() else None
+    original = (
+        identity(target, role="default_docker_config")
+        if target.exists() or target.is_symlink()
+        else None
+    )
     backup = directory / ".original-docker-config"
     if original is not None:
         fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
