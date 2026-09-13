@@ -27,8 +27,12 @@ native role slots or admit native dispatch.
   and `depends_on_previous` handoff. Repeated names are not duplicate work to
   discard; occurrence identity includes order and the applicable packet slot.
   `--implementation-owner` is role-slug scoped across every eligible matching
-  occurrence. Repeated roles remain valid; stop for coordinator rescoping only
-  when a request needs different manifest ownership rights for those repetitions.
+  occurrence. Preserve repetitions only when the governing packet contract admits
+  them and bridge validation succeeds. Current-schema duplicate-role requests are
+  rejected and require existing coordinator rescoping; legacy parsing or manual
+  manifest construction does not establish current JSON/native admission.
+  Different manifest ownership rights across admitted repetitions also require
+  coordinator rescoping through the existing phase/packet mechanisms.
 - Follow the manifest's serial policy. `parallelizable_groups` hints do not
   override `parallel_execution_allowed=false`.
 - Preserve the selected phase. `post_open_role_gates` describes the later

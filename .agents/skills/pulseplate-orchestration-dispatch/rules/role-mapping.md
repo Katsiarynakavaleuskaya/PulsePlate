@@ -35,9 +35,11 @@ do not make that selection or widen its scope.
 
 The existing override is role-slug scoped: every eligible repetition of that
 slug receives it. `--role-context-order` selects context delivery after manifest
-construction, not permission for one occurrence. Repeated roles are valid.
-Only a mixed-rights request that requires different manifest ownership across
-those repetitions must stop for coordinator rescoping through existing
+construction, not permission for one occurrence. Repetition preservation applies
+only after the governing packet contract admits those occurrences and bridge
+validation succeeds; see `packet-parsing.md` for the current-schema rejection
+boundary. A mixed-rights request that requires different manifest ownership across
+admitted repetitions must also stop for coordinator rescoping through existing
 phase/packet mechanisms; do not invent occurrence-level bridge enforcement.
 
 Before dispatching an owner occurrence, complete the workflow's executable
