@@ -2184,7 +2184,8 @@ jobs:
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
           test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
-          docker run --rm --platform linux/amd64 "$RUNTIME_REF" postgres --version | \
+          docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres \
+            "$RUNTIME_REF" --version | \
             grep -Fx 'postgres (PostgreSQL) 15.19'
 
       - name: Recheck public GHCR package identity after candidate admission
