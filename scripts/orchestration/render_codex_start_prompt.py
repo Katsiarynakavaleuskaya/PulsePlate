@@ -453,6 +453,65 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
     ]
 
 
+def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:
+    """Render required boundary analysis and conditional, non-executing recipes."""
+
+    common = [
+        "Euler required boundary review: instructions only; analysis remains pending until performed.",
+        "Procedure: docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md#required-euler-preflight-and-supervision-handoff.",
+        "Before the first implementation edit, coordinator records entities, states, rule owner, "
+        "allowed behavior, a concrete counterexample, findings, dispositions, required evidence, "
+        "deep-review applicability and next step in the existing Task Analysis or lane runbook.",
+        "Ordinary reviewer: assess that substantive result and evidence closing each finding in "
+        "Work Review. Startup text, selected treatment and receipts do not prove analysis or closure.",
+        "Frontend/iOS: check button availability and purpose, an existing destination, return "
+        "navigation, loading/error states, and backend ownership of entitlement and DTO truth.",
+        "Use the existing selector for depth; a small PR needs a compact substantive analysis. "
+        "Docs-only explains the actual change; Markdown contract changes use existing rescope.",
+        "Recheck the affected boundary on material change or a new counterexample. A push alone "
+        "does not restart the full cycle or mandatory role chain.",
+        "Engineering preflight creates no formal enrollment. Existing admission and paused-cohort "
+        "conditions remain; preserve immutable J, historical receipts and all sixteen false grants. "
+        "Missing evidence stays unknown/null; no new execution, provider, store or merge authority.",
+    ]
+    if treatment is None:
+        return common + [
+            "Euler depth: pending validated applicability projection; do not infer it from prose.",
+        ]
+    if treatment is RailTreatment.FINITE_REVIEW:
+        return common + [
+            "Euler depth: finite_review selected; perform the applicable finite review through "
+            "the assigned roles. Selection does not mean enrollment or a completed joint pass.",
+            "Conditional supervision only for a genuinely admitted episode: accepted enrollment "
+            "-> performed joint pass -> checkpoint J -> further observations -> actual terminal "
+            "event -> explicit complete input -> complete -> read-only status.",
+            "Caller sets EULER_WORKTREE to the absolute owning worktree and VENV_PYTHON to a "
+            "repo-approved interpreter; the module path owns the fixed store, not the interpreter. "
+            "Each *_INPUT_JSON names an explicit original JSON input file matching the existing "
+            "episode contract. Missing admission, J or terminal inputs remain pending.",
+            'After accepted enrollment and the actual joint pass: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'checkpoint < "$EULER_CHECKPOINT_INPUT_JSON"',
+            'Only after a real merged/closed_unmerged terminal event: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'complete < "$EULER_COMPLETE_INPUT_JSON"',
+            'Read-only inspection: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'status < "$EULER_STATUS_INPUT_JSON"',
+            "Do not run these recipes during rendering. Complete is not a premerge gate. "
+            "For lost acknowledgements use status and exact replay; never reconstruct J, "
+            "timestamps or outcomes. Complete can resume partial terminal/report publication.",
+        ]
+    if treatment is RailTreatment.NOT_APPLICABLE:
+        return common + [
+            "Euler depth: not_applicable for the deep rail; retain a concrete scope-based "
+            "explanation in the compact analysis. Do not create an episode or supervision inputs.",
+        ]
+    return common + [
+        "Euler depth: pending supported Euler treatment; obtain the validated selector projection.",
+    ]
+
+
 def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
     """Render selection-only treatments before any role-order instruction."""
 
@@ -471,6 +530,8 @@ def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
         lines.append(f"  {title[rail]}: {treatment.value}; reasons={','.join(reasons)}.")
         if rail == "teleology":
             lines.extend(_teleology_prompt_lines(treatment))
+        if rail == "euler":
+            lines.extend(_euler_prompt_lines(treatment))
     lines.append(
         "Applicable PR evidence sidecar rails: " + ", ".join(value.applicable_sidecar_rails)
     )
@@ -540,6 +601,8 @@ def render_packet_prompt(
     lines.extend(packet_details)
     if evidence_rail_applicability is not None:
         lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
+    else:
+        lines.extend(_euler_prompt_lines(None))
     lines.extend(
         [
             f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
@@ -665,6 +728,7 @@ def render_recipe_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
+    lines.extend(_euler_prompt_lines(None))
     return "\n".join(lines)
 
 
