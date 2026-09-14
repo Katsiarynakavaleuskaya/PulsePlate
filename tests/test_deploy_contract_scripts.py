@@ -6134,11 +6134,13 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
 
     docker_stub = "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n"
     _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\necho unexpected-curl >&2\nexit 97\n")
 
     env = os.environ.copy()
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -6156,6 +6158,7 @@ def test_deploy_production_rejects_compose_local_postgres_dsn(
     )
 
     assert completed.returncode == 1
+    assert "unexpected-curl" not in completed.stderr
     assert "external managed PostgreSQL" in completed.stderr
 
 
@@ -6183,11 +6186,13 @@ case "$*" in
 esac
 """
     _write_executable(bin_dir / "docker", docker_stub)
+    _write_executable(bin_dir / "curl", "#!/usr/bin/env bash\necho unexpected-curl >&2\nexit 97\n")
 
     env = os.environ.copy()
     env["PYTHON_BIN"] = sys.executable
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DOCKER_BIN"] = str(bin_dir / "docker")
+    env["CURL_BIN"] = str(bin_dir / "curl")
     env["DEPLOY_DIR"] = str(project_dir)
     env["ENV_FILE"] = str(project_dir / ".env")
     env["COMPOSE_FILE"] = CANONICAL_MANAGED_COMPOSE
@@ -6205,6 +6210,7 @@ esac
     )
 
     assert completed.returncode == 1
+    assert "unexpected-curl" not in completed.stderr
     assert "Managed production Compose must not contain a local postgres service" in (
         completed.stderr
     )
