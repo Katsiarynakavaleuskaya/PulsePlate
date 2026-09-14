@@ -1421,6 +1421,22 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     assert '--run-invocation-uri "$ORIGINAL_RUN_INVOCATION_URI"' in verify_run
     assert "--sbom postgres-pgvector-image-sbom.spdx.json" in verify_run
     assert "scripts/ci/check_pgvector_attestations.py verify" in verify_run
+    normalized_verify_run = " ".join(verify_run.replace("\\\n", " ").split())
+    assert (
+        "docker run --rm --platform linux/amd64 --entrypoint /usr/bin/postgres "
+        "\"$RUNTIME_REF\" --version | grep -Fx 'postgres (PostgreSQL) 15.19'"
+        in normalized_verify_run
+    )
+    assert '"$RUNTIME_REF" postgres --version' not in normalized_verify_run
+    for forbidden_version_probe_workaround in (
+        "POSTGRES_PASSWORD",
+        "POSTGRES_PASSWORD_FILE",
+        "POSTGRES_HOST_AUTH_METHOD",
+        "PGDATA",
+        "docker-entrypoint.sh",
+        "initdb",
+    ):
+        assert forbidden_version_probe_workaround not in verify_run
 
     runtime_step = next(
         step

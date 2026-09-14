@@ -138,6 +138,27 @@ CD and repeat/reuse, trusted staging deployment, TLS negative controls,
 backup/restore and Prometheus persistence, plus same-ID readback of the four
 existing Drive continuity records. No main/staging completion is claimed here.
 
+## Post-merge candidate version-probe stabilization
+
+After PR #2393 merged, exact-main CD run `34784541339` at
+`a35a0eafb17d2b13383dfd9e7cf2b61707e6254d` pulled candidate digest
+`sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380`
+and verified its native SLSA v1, exact materials/v1 and SPDX predicates. The
+subsequent PostgreSQL version probe retained the image's
+`/usr/local/bin/docker-entrypoint.sh`, entered database initialization and
+failed because no superuser password was configured. Direct execution of the
+same immutable image's `/usr/bin/postgres --version` returned
+`postgres (PostgreSQL) 15.19` without initialization. The bounded correction
+therefore overrides only this metadata probe's entrypoint and passes only
+`--version`; it adds no password, trust authentication or alternate `PGDATA`.
+Evidence anchors: `.github/workflows/cd.yml:2187`,
+`tests/test_deploy_contract_scripts.py:1424`.
+
+The failed run did not promote the canonical tag. The direct diagnostic proves
+the selected binary invocation only; canonical publication/reuse, staging
+activation and overall MAIN-RECOVERY-1 completion remain unproved and require
+their separate current-main operational receipts.
+
 ## Native command security dispositions
 
 The complete pre-commit hook checks low-severity findings as well as higher
