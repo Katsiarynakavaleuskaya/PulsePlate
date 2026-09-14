@@ -242,6 +242,27 @@ This map reduces “missing context” failures by making required inputs explic
 - Allowlist command execution only (terminal-first, no GUI/RPA in MVP)
 - Evidence contract: raw failing lines + `file:line:error` + rerun commands
 
+
+**Finite operational catalogue (both environments):**
+
+- `docs/deploy/OPS_CONTEXT_SOURCES.json`
+- `deploy/PRODUCTION.md`
+- `deploy/docker-compose.production.selfhosted.yaml`
+- `deploy/docker-compose.production.yaml`
+- `deploy/docker-compose.staging.yaml`
+- `deploy/postgres-pgvector/image-manifest.json`
+- `deploy/prometheus/image-manifest.json`
+- `deploy/prometheus/prometheus.yml`
+- `docs/DEPENDENCY_MANAGEMENT.md`
+- `docs/deploy/OPERATIONAL_SIGNALS.md`
+- `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
+- `docs/deploy/STAGING.md`
+- `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`
+
+The role bridge delivers this bounded static catalogue, including production alternatives.
+Report environment/service selection is separate. Supplied local observations are not reusable
+role context. Delivered runbook instructions grant no execution or deployment authority.
+
 ---
 
 ### QA Engineer (`qa-engineer-agent`)

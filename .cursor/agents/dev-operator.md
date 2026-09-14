@@ -45,6 +45,23 @@ Before doing any work:
 - PR metadata check:
   - `python scripts/ci/check_pr_body_phase2_gates.py --body "<...>"`
 
+## Offline operational context
+
+Use `scripts/ops/ops_context_report.py` with an explicit `--environment production|staging`
+and required `--format json`, plus optional `--service app|database|prometheus|packages`. Omitted service selects all four.
+`--sources` defaults to `docs/deploy/OPS_CONTEXT_SOURCES.json`; an alternate index must use
+that same closed schema. Both index and optional `--observed` inputs must be canonical
+repository-relative paths. Observations additionally require positive `--max-observation-age-seconds`.
+See `docs/deploy/OPERATIONAL_SIGNALS.md` for schemas and interpretation.
+
+The context map delivers the finite static catalogue for both environments through the
+existing role bridge. It does not filter a report or ingest local observation files.
+Keep supplied identifiers in local evidence; public examples use synthetic identifiers.
+Source references and fingerprints describe acquired repository bytes. Supplied provenance,
+freshness and revision equality do not authenticate a provider or verify live configuration.
+Conflicting claims remain unresolved across production alternatives. Report success does
+not authorize commands, deployment, resource selection, or readiness claims.
+
 ## Step 3 extension (optional): Playwright browser E2E
 
 After MVP command sets are stable, operator can run controlled browser E2E via Playwright workflows for web journeys.
@@ -65,6 +82,15 @@ For every run provide:
 - `Pointers`: `file:line:error` extracted from output.
 - `Fix plan`: minimal remediation sequence.
 - `Rerun`: exact next commands.
+
+## Synthetic Git fixture isolation
+
+Every synthetic Git init, commit and other setup subprocess must receive an explicit
+minimal environment that excludes inherited repository, index and configuration overrides.
+Disable host template, hook and signing defaults for disposable setup. In hostile-hook
+regressions, point injected Git variables only at disposable metadata and assert that its
+configuration and index remain unchanged. Never use the active checkout's Git metadata as
+the target of a synthetic mutation or rely on invocation outside a hook for isolation.
 
 ## Explicit non-goals
 
