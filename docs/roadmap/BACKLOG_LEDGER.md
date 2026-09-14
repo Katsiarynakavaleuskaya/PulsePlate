@@ -13339,6 +13339,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
     - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
     - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
+  - Retention boundary: the episode CLI has no archive/retention command; durable preservation requires separate authority and scope under the [retention contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#retention-and-rollback). Without independently authorized preservation, an enrolled episode's sole owning worktree/store remains retained with cleanup pending, even after complete/current status. This PR does not implement archive or store transfer.
   - Rollback: Reviewed revert of the new renderer handoff and associated coordinator/instruction changes; preserve the core CLI and all immutable local evidence.
   - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 

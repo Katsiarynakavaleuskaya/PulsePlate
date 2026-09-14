@@ -1333,7 +1333,10 @@ def test_euler_validated_startup_requires_substantive_review(
     compact: bool,
 ) -> None:
     _packet_value, packet_path, projection = _write_packet_for_applicability(
-        tmp_path, monkeypatch, compact=compact
+        tmp_path,
+        monkeypatch,
+        compact=compact,
+        goal="Tiny one-line validator/security change" if not compact else "Small docs edit",
     )
     before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
     monkeypatch.setattr(
@@ -1351,6 +1354,11 @@ def test_euler_validated_startup_requires_substantive_review(
     assert "receipts do not prove analysis or closure" in prompt
     assert "backend ownership of entitlement and DTO truth" in prompt
     assert "A push alone does not restart" in prompt
+    assert "Use the existing selector alone for review depth" in prompt
+    assert "record never replaces or downshifts selected finite_review or assigned roles" in prompt
+    assert "including one-line validator/security changes" in prompt
+    assert "PR size is not a depth selector" in prompt
+    assert "a small PR needs a compact substantive analysis" not in prompt
     assert "Engineering preflight creates no formal enrollment" in prompt
     assert "Missing evidence stays unknown/null" in prompt
     assert "analysis remains pending until performed" in prompt
@@ -1387,12 +1395,15 @@ def test_euler_validated_startup_requires_substantive_review(
             in prompt
         )
         assert "verify read-only status has lifecycle=complete and report_status=current" in prompt
-        assert "preserve its evidence through the existing governed retention procedure" in prompt
+        assert "The CLI provides no archive or retention command" in prompt
+        assert "preservation requires separate authority and scope" in prompt
+        assert "If independently authorized preservation is unavailable" in prompt
+        assert "retain the sole owning worktree and store and mark cleanup pending" in prompt
         assert (
-            "If completion, status or preservation remains pending, retain the owning worktree and store"
-            in prompt
+            "Complete/current status does not authorize deleting the only evidence copy" in prompt
         )
-        assert "never fabricate J or erase ignored evidence" in prompt
+        assert "never fabricate J or claim an archive succeeded" in prompt
+        assert "existing governed retention procedure" not in prompt
         assert "never reconstruct J, timestamps or outcomes" in prompt
 
 
@@ -1515,3 +1526,22 @@ def test_recipe_followup_executes_validated_packet_projection(
         assert target.read_bytes() == before
     finally:
         target.unlink()
+
+
+def test_euler_canonical_guidance_preserves_depth_and_retention_boundaries() -> None:
+    document = (REPO_ROOT / "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md").read_text("utf-8")
+    normalized = " ".join(document.split())
+    assert (
+        "compact substantive record never replaces or downshifts selected `finite_review`"
+        in normalized
+    )
+    assert "PR size is not a selector input" in normalized
+    assert "one-line validator or security changes" in normalized
+    assert "The CLI provides no archive or retention command" in normalized
+    assert "If no independently authorized preservation is available" in normalized
+    assert "retain the sole owning worktree and store" in normalized
+    assert "**cleanup pending**" in document
+    assert "#retention-and-rollback" in document
+    assert "#post-merge-sync-and-cleanup-before-the-next-pr" in document
+    assert "this PR does not implement a durable archive or store-transfer procedure" in normalized
+    assert "existing governed retention/closeout procedure" not in normalized

@@ -466,8 +466,10 @@ def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:
         "Work Review. Startup text, selected treatment and receipts do not prove analysis or closure.",
         "Frontend/iOS: check button availability and purpose, an existing destination, return "
         "navigation, loading/error states, and backend ownership of entitlement and DTO truth.",
-        "Use the existing selector for depth; a small PR needs a compact substantive analysis. "
-        "Docs-only explains the actual change; Markdown contract changes use existing rescope.",
+        "Use the existing selector alone for review depth. The universal compact substantive "
+        "record never replaces or downshifts selected finite_review or assigned roles, including "
+        "one-line validator/security changes. PR size is not a depth selector. Docs-only explains "
+        "the actual change; Markdown contract changes use existing rescope.",
         "Recheck the affected boundary on material change or a new counterexample. A push alone "
         "does not restart the full cycle or mandatory role chain.",
         "Engineering preflight creates no formal enrollment. Existing admission and paused-cohort "
@@ -502,10 +504,13 @@ def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:
             "For lost acknowledgements use status and exact replay; never reconstruct J, "
             "timestamps or outcomes. Complete can resume partial terminal/report publication.",
             "Before removing the owning worktree, finish enrolled-episode completion or recovery, "
-            "verify read-only status has lifecycle=complete and report_status=current, and "
-            "preserve its evidence through the existing governed "
-            "retention procedure. If completion, status or preservation remains pending, retain "
-            "the owning worktree and store; never fabricate J or erase ignored evidence.",
+            "verify read-only status has lifecycle=complete and report_status=current. The CLI "
+            "provides no archive or retention command; preservation requires separate authority "
+            "and scope under the episode contract's retention-and-rollback section.",
+            "If independently authorized preservation is unavailable or completion, status or "
+            "preservation remains pending, retain the sole owning worktree and store and mark "
+            "cleanup pending. Complete/current status does not authorize deleting the only "
+            "evidence copy; never fabricate J or claim an archive succeeded.",
         ]
     if treatment is RailTreatment.NOT_APPLICABLE:
         return common + [

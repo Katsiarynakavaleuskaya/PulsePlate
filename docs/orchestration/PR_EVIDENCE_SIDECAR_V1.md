@@ -178,9 +178,11 @@ in Work Review. A startup block, selected treatment, role label or receipt is
 not proof that this analysis occurred. Unresolved findings retain their existing
 fix/disposition obligations. Missing evidence remains unknown.
 
-Use the existing packet-bound selector above for depth. Small changes receive a
-compact substantive analysis; applicable architecture and contract changes use
-finite review with the assigned roles. Docs-only `not_applicable` describes the
+Use the existing packet-bound selector above as the sole review-depth owner.
+The universal compact substantive record never replaces or downshifts selected
+`finite_review` or its assigned roles, including one-line validator or security
+changes. PR size is not a selector input and introduces no separate classifier.
+Docs-only `not_applicable` describes the
 deep rail only: explain the actual change and its boundary. A contract changed
 inside Markdown uses the existing declarations/rescope, without another
 classifier. New material, a changed boundary or a new counterexample requires
@@ -239,17 +241,25 @@ is current only relative to the validated whole-store manifest at observation;
 it does not establish healthy main, causal benefit or quantified efficiency.
 
 **Owning-worktree cleanup ordering:** for an enrolled episode, finish terminal
-completion or its exact-input recovery, verify read-only `status` reports
-`lifecycle=complete` and `report_status=current`, and preserve the retained
-evidence through the existing governed retention/closeout procedure
-before removing the owning worktree. Its ignored fixed store can be deleted by
-normal worktree cleanup. If completion, status verification or evidence
-preservation remains pending, retain the owning worktree and store and record
-the pending condition; do not clean them up to finish the PR checklist. Missing J
-or terminal facts must never be invented to unblock cleanup. This orders the
-existing lifecycle before cleanup; it creates no new archive, store-transfer,
-root-override or reconstruction mechanism. The episode contract's retention and
-rollback authority remains unchanged.
+completion or its exact-input recovery and verify read-only `status` reports
+`lifecycle=complete` and `report_status=current` before cleanup. The CLI provides
+no archive or retention command. The
+[existing retention and rollback boundary](contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#retention-and-rollback)
+reserves backup/restore and retention policy for separate authority and scope;
+this PR does not implement a durable archive or store-transfer procedure.
+
+An ignored fixed store can be deleted by normal worktree removal. If no
+independently authorized preservation is available, or completion, status
+verification or preservation remains pending, retain the sole owning worktree
+and store and explicitly record **cleanup pending**. Complete/current status
+alone does not authorize deleting the only evidence copy or prove archival
+success. Before following the
+[post-merge cleanup sequence](../../RUNBOOK_AGENT.md#post-merge-sync-and-cleanup-before-the-next-pr),
+resolve that pending preservation boundary through separately authorized work;
+never fabricate J or terminal facts, invent an archive acknowledgement, or erase
+the store to finish a checklist. The retention boundary remains tracked in the
+[existing Euler handoff item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-euler-supervision-renderer-handoff).
+This ordering adds no archive, transfer, root-override or reconstruction mechanism.
 
 Applicable sidecar rails keep `unknown` plus `null` without the required genuine
 reference; a prepared sidecar, selected treatment or checkpoint fingerprint
