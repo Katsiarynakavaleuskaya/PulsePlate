@@ -13318,26 +13318,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
 
 <a id="ledger-p1-euler-supervision-renderer-handoff"></a>
-- [ ] P1: Euler supervision renderer and sidecar command handoff
+- [ ] P1: EULER-OPS-2 required Euler preflight and supervision handoff
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
-  - Target PR: TBD, after authenticated merge of [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) and [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382)
-  - Status: Deferred by explicit operator scope decision; independent follow-up after both prerequisites merge, not a completion condition for the core PR.
+  - Target PR: EULER-OPS-2 (`codex/euler-required-preflight-handoff`); prerequisites [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378), [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) and overlapping [PR #2392](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2392) are merged.
+  - Status: Implementation in progress; permanent coordinator preflight and reviewer verification are scoped in this follow-up. The owner explicitly admitted this lane on 2026-09-14 despite unstable main; this exception grants no recovery ownership, merge or deployment authority. Keep this item open until merged and acceptance evidence is established.
   - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
   - Scope:
     - `scripts/orchestration/render_codex_start_prompt.py`
     - `tests/test_render_codex_start_prompt.py`
     - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
     - `tests/guards/test_security_devtooling_regression_guards.py` (companion consumer/publisher guard responsibility)
+    - `tests/test_start_pr_lane.py`, `.cursor/agents/agent-coordinator.md`, `scripts/AGENTS.md` and this ledger (required startup, coordinator and instruction integration)
   - Links:
     - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
     - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
   - DoD:
+    - both startup modes require substantive pre-edit Euler Task Analysis and ordinary Work Review verification for every coordinator-owned PR, including docs-only and frontend/iOS navigation boundaries; pending projection remains pending, and the existing selector alone owns depth
     - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
     - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
     - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
     - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
-  - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
+  - Rollback: Reviewed revert of the new renderer handoff and associated coordinator/instruction changes; preserve the core CLI and all immutable local evidence.
   - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>

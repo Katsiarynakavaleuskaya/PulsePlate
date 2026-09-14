@@ -507,6 +507,12 @@
 - Contract and terminal rail truth table:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`.
 
+The renderer delivers the [required Euler preflight and conditional supervision
+handoff](../docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md#required-euler-preflight-and-supervision-handoff)
+as inert instructions in both startup modes. Its helper and owning-test references
+must remain protected by the focused standalone-consumer guard; no rendering-time
+Euler import, execution or store access is permitted.
+
 ## Packet-bound evidence-rail applicability
 
 - `evidence_rail_applicability.py` is the sole owner of the selection-only
