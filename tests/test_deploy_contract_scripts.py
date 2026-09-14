@@ -881,6 +881,7 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "Canonical PostgreSQL tag does not select the frozen digest" in reuse_run
     assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready:$materials_ready"' in reuse_run
     assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') == 3
+    assert reuse_run.count("--bundle-from-oci --deny-self-hosted-runners") == 3
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
     assert "--format spdx-json" not in reuse_run
     assert "postgres-pgvector-reuse-current.spdx.json" not in reuse_run
@@ -949,6 +950,8 @@ def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
         "  return 0\n"
         "}\n"
         "gh() {\n"
+        '  case " $* " in *" --bundle-from-oci "*) ;; *) return 1 ;; esac\n'
+        '  case " $* " in *" --deny-self-hosted-runners "*) ;; *) return 1 ;; esac\n'
         '  [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
         "}\n"
         "sleep() { SECONDS=$((SECONDS + $1)); }\n"
@@ -9078,3 +9081,111 @@ def test_staging_legacy_orphan_or_late_volume_is_not_fresh(tmp_path: Path, when:
     lines = log_file.read_text().splitlines()
     assert all(" up -d --pull never postgres" not in line for line in lines)
     assert any(" stop worker caddy app" in line for line in lines) is (when == "after-quiesce")
+
+
+@pytest.mark.parametrize(
+    "status,build,binding,download,expected",
+    [
+        ("200", True, True, "empty-presence", 0),
+        ("404", True, True, "empty-presence", 0),
+        ("404", False, True, "empty-presence", 1),
+        ("404", True, False, "empty-presence", 1),
+        ("200", False, True, "empty-presence", 1),
+        ("403", True, True, "empty-presence", 1),
+        ("500", True, True, "empty-presence", 1),
+        ("network", True, True, "empty-presence", 7),
+        ("200", True, True, "native", 0),
+        ("200", True, True, "missing", 1),
+        ("200", True, True, "failed", 1),
+    ],
+)
+def test_shared_pgvector_presence_shell_runs_real_inventory_cli(
+    tmp_path: Path, status: str, build: bool, binding: bool, download: str, expected: int
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python3").symlink_to(sys.executable)
+    _write_executable(
+        bin_dir / "curl",
+        f"""#!{sys.executable}
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+if os.environ["CASE_STATUS"] == "network":
+    sys.exit(7)
+Path(args[args.index("--output") + 1]).write_text(json.dumps({{"attestations": [] if os.environ["CASE_DOWNLOAD"] == "empty-presence" else [{{"bundle_url": "opaque"}}]}}))
+print(os.environ["CASE_STATUS"], end="")
+""",
+    )
+    _write_executable(
+        bin_dir / "gh",
+        f"""#!{sys.executable}
+import base64, json, os, sys
+from pathlib import Path
+if sys.argv[1:] == ["--version"]:
+    print("gh version test-native-fixture")
+    sys.exit(0)
+assert sys.argv[1:3] == ["attestation", "download"]
+assert sys.argv[-2:] == ["--limit", "100"]
+Path(os.environ["DOWNLOAD_CALLED"]).write_text("called")
+if os.environ["CASE_DOWNLOAD"] == "failed":
+    sys.exit(1)
+if os.environ["CASE_DOWNLOAD"] == "native":
+    digest = sys.argv[3].split("@", 1)[1]
+    record = {{"dsseEnvelope": {{"payload": base64.b64encode(json.dumps({{"subject": [], "predicateType": "unrelated"}}).encode()).decode()}}}}
+    Path(digest + ".jsonl").write_text(json.dumps(record) + "\\n")
+""",
+    )
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(POSTGRES_MANIFEST_PATH.read_text())
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text('{"spdxVersion":"SPDX-2.3"}')
+    result = tmp_path / "decision.json"
+    repo = "Katsiarynakavaleuskaya/PulsePlate"
+    sha = "a" * 40
+    env = {
+        **os.environ,
+        "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
+        "GH_TOKEN": "synthetic-test-token",
+        "GITHUB_REPOSITORY": repo,
+        "GITHUB_SHA": sha,
+        "GITHUB_RUN_ID": "1",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "RUNNER_TEMP": str(tmp_path),
+        "CASE_STATUS": status,
+        "CASE_DOWNLOAD": download,
+        "DOWNLOAD_CALLED": str(tmp_path / "download-called"),
+    }
+    args = [
+        shutil.which("bash"),
+        str(REPO_ROOT / "scripts/ci/classify_pgvector_attestations.sh"),
+        str(manifest),
+        str(result),
+    ]
+    if build:
+        args += [
+            "--current-build",
+            "--sbom",
+            str(sbom),
+            "--source-sha",
+            sha if binding else "b" * 40,
+            "--run-invocation-uri",
+            "https://github.com/" + repo + "/actions/runs/1/attempts/1",
+        ]
+    completed = subprocess.run(
+        args, cwd=REPO_ROOT, env=env, text=True, capture_output=True, check=False
+    )
+    assert completed.returncode == expected, completed.stderr
+    assert not list(tmp_path.glob("pulseplate-pgvector-attestations.*"))
+    assert (tmp_path / "download-called").exists() == (
+        status == "200" and download != "empty-presence"
+    )
+    if expected == 0:
+        decision = json.loads(result.read_text())
+        assert all(
+            decision[key] == "create"
+            for key in ("mode", "provenance_mode", "materials_mode", "sbom_mode")
+        )
+        assert decision["source_sha"] == sha
+    else:
+        assert not result.exists()
