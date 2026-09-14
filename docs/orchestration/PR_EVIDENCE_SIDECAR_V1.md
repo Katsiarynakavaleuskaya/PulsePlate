@@ -154,6 +154,14 @@ All applicability and sidecar authority fields remain literal `false`.
 Every coordinator-owned PR receives substantive Euler analysis without an owner
 reminder, including architecture, refactoring, backend, frontend, iOS and docs.
 Both packet and recipe startup modes include this obligation exactly once.
+Recipe mode initially remains pending until bootstrap produces its packet. Its
+printed `Next packet-render command` pipes canonical applicability build output
+(including requested additive rails) directly into packet rendering with
+`--evidence-rail-applicability-stdin`. Substitute the returned packet path in both
+quoted placeholders and run from the owning worktree with repo Python; retain
+`pipefail`. This follow-up validates the projection and renders its selected
+depth without a second bootstrap or storing the projection.
+
 This is automatic instruction delivery and coordinator-owned execution, with
 ordinary reviewer verification; it adds no daemon or machine merge gate.
 
@@ -229,6 +237,19 @@ use `status` and exact replay with original inputs; never replace J or historica
 receipts. All sixteen downstream authority grants remain false. A current report
 is current only relative to the validated whole-store manifest at observation;
 it does not establish healthy main, causal benefit or quantified efficiency.
+
+**Owning-worktree cleanup ordering:** for an enrolled episode, finish terminal
+completion or its exact-input recovery, verify read-only `status` reports
+`lifecycle=complete` and `report_status=current`, and preserve the retained
+evidence through the existing governed retention/closeout procedure
+before removing the owning worktree. Its ignored fixed store can be deleted by
+normal worktree cleanup. If completion, status verification or evidence
+preservation remains pending, retain the owning worktree and store and record
+the pending condition; do not clean them up to finish the PR checklist. Missing J
+or terminal facts must never be invented to unblock cleanup. This orders the
+existing lifecycle before cleanup; it creates no new archive, store-transfer,
+root-override or reconstruction mechanism. The episode contract's retention and
+rollback authority remains unchanged.
 
 Applicable sidecar rails keep `unknown` plus `null` without the required genuine
 reference; a prepared sidecar, selected treatment or checkpoint fingerprint

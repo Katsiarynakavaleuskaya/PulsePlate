@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -1379,6 +1382,17 @@ def test_euler_validated_startup_requires_substantive_review(
             in prompt
         )
         assert "Complete is not a premerge gate" in prompt
+        assert (
+            "Before removing the owning worktree, finish enrolled-episode completion or recovery"
+            in prompt
+        )
+        assert "verify read-only status has lifecycle=complete and report_status=current" in prompt
+        assert "preserve its evidence through the existing governed retention procedure" in prompt
+        assert (
+            "If completion, status or preservation remains pending, retain the owning worktree and store"
+            in prompt
+        )
+        assert "never fabricate J or erase ignored evidence" in prompt
         assert "never reconstruct J, timestamps or outcomes" in prompt
 
 
@@ -1418,3 +1432,86 @@ def test_euler_helper_has_only_supported_depth_cases(
     ):
         assert "Euler depth: pending supported Euler treatment" in prompt
         assert "invariant_family_review_episode.py" not in prompt
+
+
+@pytest.mark.parametrize(
+    ("compact", "additive_rails", "expected_depth"),
+    [
+        (False, [], "finite_review"),
+        (True, [], "not_applicable"),
+        (True, ["euler", "euler"], "finite_review"),
+    ],
+)
+def test_recipe_followup_executes_validated_packet_projection(
+    tmp_path: Path,
+    compact: bool,
+    additive_rails: list[str],
+    expected_depth: str,
+) -> None:
+    """Execute the printed pipeline using the real CLI owners and one isolated packet."""
+
+    packet_value = task_bootstrap.build_task_packet(
+        goal=f"Recipe followup regression {tmp_path}",
+        task_class="Documentation" if compact else "Infrastructure",
+        candidate_paths=(
+            ["README.md"] if compact else ["scripts/orchestration/render_codex_start_prompt.py"]
+        ),
+        invariant_change_classes=[] if compact else ["validator"],
+        telemetry_path=tmp_path / "missing-telemetry.json",
+    )
+    packet_path = (
+        "artifacts/orchestration/task_packets/" + str(packet_value["task_packet_id"]) + ".json"
+    )
+    target = REPO_ROOT / packet_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Create-only fixture publication; never overwrite or remove an existing packet.
+    with target.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(packet_value, sort_keys=True, separators=(",", ":")) + "\n")
+    before = target.read_bytes()
+    try:
+        recipe = render_recipe_prompt(
+            goal="Recipe followup regression",
+            task_class="Documentation" if compact else "Infrastructure",
+            pr_phase="pre_open",
+            paths=["README.md"] if compact else ["scripts/AGENTS.md"],
+            requested_agents=[],
+            additive_rails=additive_rails,
+        )
+        assert "Euler depth: pending validated applicability projection" in recipe
+        assert recipe.count("Next required repo command:") == 1
+        prefix = "Next packet-render command: "
+        command = next(
+            line[len(prefix) :] for line in recipe.splitlines() if line.startswith(prefix)
+        )
+        assert "task_bootstrap.py" not in command
+        assert command.count("'<bootstrap-packet>'") == 2
+        assert command.count("--additive-rail euler") == (1 if additive_rails else 0)
+        command = command.replace("'<bootstrap-packet>'", shlex.quote(packet_path))
+        bash = shutil.which("bash")
+        assert bash is not None
+        result = subprocess.run(
+            [bash, "-c", command],
+            cwd=REPO_ROOT,
+            env={**os.environ, "VENV_PYTHON": sys.executable},
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        prompt = result.stdout
+        assert prompt.count("Euler required boundary review:") == 1
+        assert f"Euler depth: {expected_depth}" in prompt
+        assert "Euler depth: pending" not in prompt
+        assert "Next role-agent dispatch command:" in prompt
+        assert "No tracked writes during preparation" in prompt
+        if expected_depth == "finite_review":
+            assert (
+                "actual terminal event -> explicit complete input -> complete -> read-only status"
+                in prompt
+            )
+        else:
+            assert "Do not create an episode or supervision inputs" in prompt
+        assert target.read_bytes() == before
+    finally:
+        target.unlink()

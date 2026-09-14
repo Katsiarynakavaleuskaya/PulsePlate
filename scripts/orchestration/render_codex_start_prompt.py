@@ -501,6 +501,11 @@ def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:
             "Do not run these recipes during rendering. Complete is not a premerge gate. "
             "For lost acknowledgements use status and exact replay; never reconstruct J, "
             "timestamps or outcomes. Complete can resume partial terminal/report publication.",
+            "Before removing the owning worktree, finish enrolled-episode completion or recovery, "
+            "verify read-only status has lifecycle=complete and report_status=current, and "
+            "preserve its evidence through the existing governed "
+            "retention procedure. If completion, status or preservation remains pending, retain "
+            "the owning worktree and store; never fabricate J or erase ignored evidence.",
         ]
     if treatment is RailTreatment.NOT_APPLICABLE:
         return common + [
@@ -687,6 +692,13 @@ def render_recipe_prompt(
         invariant_change_classes=invariant_change_classes or [],
         design_arguments=design_arguments or [],
     )
+    applicability_command = (
+        '"$VENV_PYTHON" scripts/orchestration/evidence_rail_applicability.py build '
+        "--packet '<bootstrap-packet>'"
+        + "".join(
+            f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
+        )
+    )
     lines = _common_prompt_lines(mode_note=mode_note)
     lines.extend(
         [
@@ -703,17 +715,16 @@ def render_recipe_prompt(
             "Evidence rail applicability: pending validated bootstrap packet.",
             "Requested additive evidence rails: "
             f"{_prompt_list(_unique(additive_rails or []), '<none>')}",
-            "After bootstrap, build the decision with: $VENV_PYTHON "
-            "scripts/orchestration/evidence_rail_applicability.py build --packet "
-            "<bootstrap-packet>"
-            + "".join(
-                f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
-            ),
             "",
             f"Next required repo command: {bootstrap_command}",
-            "Then render the returned packet to obtain its populated execute-preflight "
-            "command: $VENV_PYTHON scripts/orchestration/render_codex_start_prompt.py "
-            "packet --packet '<bootstrap-packet>'",
+            "After bootstrap, substitute its actual packet path in both quoted placeholders; "
+            "run this exact follow-up from the owning worktree to validate applicability and "
+            "obtain the populated execute-preflight/dispatch instructions. The pipeline keeps "
+            "the projection on stdin; do not run another bootstrap.",
+            "Next packet-render command: set -o pipefail; "
+            + applicability_command
+            + ' | "$VENV_PYTHON" scripts/orchestration/render_codex_start_prompt.py '
+            "packet --packet '<bootstrap-packet>' --evidence-rail-applicability-stdin",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
