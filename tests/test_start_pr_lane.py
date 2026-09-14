@@ -140,6 +140,8 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "scripts/orchestration/evidence_rail_applicability.py build" in result.stdout
     assert "scripts/orchestration/pr_evidence_sidecar.py prepare" in result.stdout
     assert "applicability: pending validated bootstrap packet" in result.stdout
+    assert result.stdout.count("Euler required boundary review:") == 1
+    assert "Euler depth: pending validated applicability projection" in result.stdout
     assert "<validated-mask-rails>" in result.stdout
     assert "Repo Python:" in result.stdout
     assert "avoid bare python3 -m pytest when .venv exists" in result.stdout
@@ -430,6 +432,8 @@ def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None
 
     assert result.returncode == 0, result.stderr
     assert "Authoritative bootstrap already ran" in result.stdout
+    assert result.stdout.count("Euler required boundary review:") == 1
+    assert "Euler depth: finite_review selected" in result.stdout
     assert "PR evidence sidecar v1: state=prepared" in result.stdout
     assert f"sha256:{'d' * 64}" in result.stdout
     assert "Structural local receipt only; no review, CI, merge" in result.stdout
@@ -613,6 +617,9 @@ def test_start_pr_lane_uses_exact_three_and_two_rail_masks(tmp_path: Path) -> No
         candidate_path="README.md",
     )
     assert docs_result.returncode == 0, docs_result.stderr
+    assert high_result.stdout.count("Euler required boundary review:") == 1
+    assert docs_result.stdout.count("Euler required boundary review:") == 1
+    assert "Euler depth: not_applicable for the deep rail" in docs_result.stdout
     docs_args = (tmp_path / "docs/sidecar-args.txt").read_text(encoding="utf-8")
     assert "--applicable-rail euler" not in docs_args
     assert docs_args.count("--applicable-rail experiment_runner") == 1

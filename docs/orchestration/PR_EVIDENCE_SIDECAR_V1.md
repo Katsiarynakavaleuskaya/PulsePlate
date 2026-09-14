@@ -149,6 +149,123 @@ identity verifier for bootstrap and applicability is tracked as
 [P1 canonical task-packet identity verifier](../roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier).
 All applicability and sidecar authority fields remain literal `false`.
 
+## Required Euler preflight and supervision handoff
+
+Every coordinator-owned PR receives substantive Euler analysis without an owner
+reminder, including architecture, refactoring, backend, frontend, iOS and docs.
+Both packet and recipe startup modes include this obligation exactly once.
+Recipe mode initially remains pending until bootstrap produces its packet. Its
+printed `Next packet-render command` pipes canonical applicability build output
+(including requested additive rails) directly into packet rendering with
+`--evidence-rail-applicability-stdin`. Substitute the returned packet path in both
+quoted placeholders and run from the owning worktree with repo Python; retain
+`pipefail`. This follow-up validates the projection and renders its selected
+depth without a second bootstrap or storing the projection.
+
+This is automatic instruction delivery and coordinator-owned execution, with
+ordinary reviewer verification; it adds no daemon or machine merge gate.
+
+Before the first implementation edit, the coordinator records in the existing
+Task Analysis or lane runbook:
+
+- entities, states and the owner of each relevant rule;
+- allowed behavior and a concrete counterexample;
+- findings, their dispositions and the evidence needed to close them;
+- applicability of deeper review and the next action.
+
+The ordinary reviewer assesses the actual result and evidence closing findings
+in Work Review. A startup block, selected treatment, role label or receipt is
+not proof that this analysis occurred. Unresolved findings retain their existing
+fix/disposition obligations. Missing evidence remains unknown.
+
+Use the existing packet-bound selector above as the sole review-depth owner.
+The universal compact substantive record never replaces or downshifts selected
+`finite_review` or its assigned roles, including one-line validator or security
+changes. PR size is not a selector input and introduces no separate classifier.
+Docs-only `not_applicable` describes the
+deep rail only: explain the actual change and its boundary. A contract changed
+inside Markdown uses the existing declarations/rescope, without another
+classifier. New material, a changed boundary or a new counterexample requires
+a targeted review of the affected scope; a push alone does not restart the whole role chain.
+
+For frontend/iOS, assess button availability and purpose, an existing target
+screen, return navigation, loading/error states and backend-owned entitlement
+and DTO truth. This procedure does not implement or invent product navigation.
+
+### Conditional episode supervision
+
+Engineering preflight does not create formal enrollment or reopen the paused
+cohort. Follow the existing
+[episode admission and supervision contract](contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1).
+Only a genuinely accepted eligible enrollment can proceed through an actual
+joint pass, immutable checkpoint J, later observations, a real terminal event,
+explicit complete input, `complete`, and read-only `status`. An unregistered PR
+retains its engineering analysis without manufacturing an episode. Enrollment
+must precede the actual joint pass; no retrospective enrollment or invented
+identifiers, timestamps, J or outcomes are permitted.
+
+Set `EULER_WORKTREE` to the absolute owning worktree and `VENV_PYTHON` to a
+repo-approved interpreter. The invoked module path selects its fixed store;
+changing the interpreter or current directory does not select another store.
+Each input variable below names a caller-supplied original JSON file following
+the existing contract, passed only through stdin:
+
+- `EULER_CHECKPOINT_INPUT_JSON`: `invariant_family_review_episode.joint_pass_baseline_input.v1`,
+  retaining accepted enrollment and the performed joint-pass baseline;
+- `EULER_COMPLETE_INPUT_JSON`: `invariant_family_review_episode.complete_input.v1`,
+  with explicit terminal and report input after observed `merged` or `closed_unmerged`;
+- `EULER_STATUS_INPUT_JSON`: `invariant_family_review_episode.status_request.v1`,
+  with the real positive PR number.
+
+```bash
+# After accepted enrollment and the actual joint pass:
+"$VENV_PYTHON" "$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" \
+  checkpoint < "$EULER_CHECKPOINT_INPUT_JSON"
+
+# Only after the real terminal event and explicit complete input:
+"$VENV_PYTHON" "$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" \
+  complete < "$EULER_COMPLETE_INPUT_JSON"
+
+# Read-only inspection, including after complete or a lost acknowledgement:
+"$VENV_PYTHON" "$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" \
+  status < "$EULER_STATUS_INPUT_JSON"
+```
+
+These are conditional caller-executed recipes. Rendering neither runs the CLI
+nor imports Euler, reads/writes its store, enrolls a PR or calls a provider.
+Missing lifecycle prerequisites stay pending. `complete` is resumable across
+terminal/report publication and is not a premerge gate. For lost acknowledgements
+use `status` and exact replay with original inputs; never replace J or historical
+receipts. All sixteen downstream authority grants remain false. A current report
+is current only relative to the validated whole-store manifest at observation;
+it does not establish healthy main, causal benefit or quantified efficiency.
+
+**Owning-worktree cleanup ordering:** for an enrolled episode, finish terminal
+completion or its exact-input recovery and verify read-only `status` reports
+`lifecycle=complete` and `report_status=current` before cleanup. The CLI provides
+no archive or retention command. The
+[existing retention and rollback boundary](contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#retention-and-rollback)
+reserves backup/restore and retention policy for separate authority and scope;
+this PR does not implement a durable archive or store-transfer procedure.
+
+An ignored fixed store can be deleted by normal worktree removal. If no
+independently authorized preservation is available, or completion, status
+verification or preservation remains pending, retain the sole owning worktree
+and store and explicitly record **cleanup pending**. Complete/current status
+alone does not authorize deleting the only evidence copy or prove archival
+success. Before following the
+[post-merge cleanup sequence](../../RUNBOOK_AGENT.md#post-merge-sync-and-cleanup-before-the-next-pr),
+resolve that pending preservation boundary through separately authorized work;
+never fabricate J or terminal facts, invent an archive acknowledgement, or erase
+the store to finish a checklist. The retention boundary remains tracked in the
+[existing Euler handoff item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-euler-supervision-renderer-handoff).
+This ordering adds no archive, transfer, root-override or reconstruction mechanism.
+
+Applicable sidecar rails keep `unknown` plus `null` without the required genuine
+reference; a prepared sidecar, selected treatment or checkpoint fingerprint
+cannot be promoted into verified analysis or a successful outcome. Reference
+fingerprints retain the non-verifying meaning in the terminal truth table below.
+
 ## Terminal truth
 
 The exact terminal input records a positive PR number, operator-supplied

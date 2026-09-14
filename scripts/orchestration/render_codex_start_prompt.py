@@ -453,6 +453,75 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
     ]
 
 
+def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:
+    """Render required boundary analysis and conditional, non-executing recipes."""
+
+    common = [
+        "Euler required boundary review: instructions only; analysis remains pending until performed.",
+        "Procedure: docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md#required-euler-preflight-and-supervision-handoff.",
+        "Before the first implementation edit, coordinator records entities, states, rule owner, "
+        "allowed behavior, a concrete counterexample, findings, dispositions, required evidence, "
+        "deep-review applicability and next step in the existing Task Analysis or lane runbook.",
+        "Ordinary reviewer: assess that substantive result and evidence closing each finding in "
+        "Work Review. Startup text, selected treatment and receipts do not prove analysis or closure.",
+        "Frontend/iOS: check button availability and purpose, an existing destination, return "
+        "navigation, loading/error states, and backend ownership of entitlement and DTO truth.",
+        "Use the existing selector alone for review depth. The universal compact substantive "
+        "record never replaces or downshifts selected finite_review or assigned roles, including "
+        "one-line validator/security changes. PR size is not a depth selector. Docs-only explains "
+        "the actual change; Markdown contract changes use existing rescope.",
+        "Recheck the affected boundary on material change or a new counterexample. A push alone "
+        "does not restart the full cycle or mandatory role chain.",
+        "Engineering preflight creates no formal enrollment. Existing admission and paused-cohort "
+        "conditions remain; preserve immutable J, historical receipts and all sixteen false grants. "
+        "Missing evidence stays unknown/null; no new execution, provider, store or merge authority.",
+    ]
+    if treatment is None:
+        return common + [
+            "Euler depth: pending validated applicability projection; do not infer it from prose.",
+        ]
+    if treatment is RailTreatment.FINITE_REVIEW:
+        return common + [
+            "Euler depth: finite_review selected; perform the applicable finite review through "
+            "the assigned roles. Selection does not mean enrollment or a completed joint pass.",
+            "Conditional supervision only for a genuinely admitted episode: accepted enrollment "
+            "-> performed joint pass -> checkpoint J -> further observations -> actual terminal "
+            "event -> explicit complete input -> complete -> read-only status.",
+            "Caller sets EULER_WORKTREE to the absolute owning worktree and VENV_PYTHON to a "
+            "repo-approved interpreter; the module path owns the fixed store, not the interpreter. "
+            "Each *_INPUT_JSON names an explicit original JSON input file matching the existing "
+            "episode contract. Missing admission, J or terminal inputs remain pending.",
+            'After accepted enrollment and the actual joint pass: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'checkpoint < "$EULER_CHECKPOINT_INPUT_JSON"',
+            'Only after a real merged/closed_unmerged terminal event: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'complete < "$EULER_COMPLETE_INPUT_JSON"',
+            'Read-only inspection: "$VENV_PYTHON" '
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" '
+            'status < "$EULER_STATUS_INPUT_JSON"',
+            "Do not run these recipes during rendering. Complete is not a premerge gate. "
+            "For lost acknowledgements use status and exact replay; never reconstruct J, "
+            "timestamps or outcomes. Complete can resume partial terminal/report publication.",
+            "Before removing the owning worktree, finish enrolled-episode completion or recovery, "
+            "verify read-only status has lifecycle=complete and report_status=current. The CLI "
+            "provides no archive or retention command; preservation requires separate authority "
+            "and scope under the episode contract's retention-and-rollback section.",
+            "If independently authorized preservation is unavailable or completion, status or "
+            "preservation remains pending, retain the sole owning worktree and store and mark "
+            "cleanup pending. Complete/current status does not authorize deleting the only "
+            "evidence copy; never fabricate J or claim an archive succeeded.",
+        ]
+    if treatment is RailTreatment.NOT_APPLICABLE:
+        return common + [
+            "Euler depth: not_applicable for the deep rail; retain a concrete scope-based "
+            "explanation in the compact analysis. Do not create an episode or supervision inputs.",
+        ]
+    return common + [
+        "Euler depth: pending supported Euler treatment; obtain the validated selector projection.",
+    ]
+
+
 def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
     """Render selection-only treatments before any role-order instruction."""
 
@@ -471,6 +540,8 @@ def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
         lines.append(f"  {title[rail]}: {treatment.value}; reasons={','.join(reasons)}.")
         if rail == "teleology":
             lines.extend(_teleology_prompt_lines(treatment))
+        if rail == "euler":
+            lines.extend(_euler_prompt_lines(treatment))
     lines.append(
         "Applicable PR evidence sidecar rails: " + ", ".join(value.applicable_sidecar_rails)
     )
@@ -540,6 +611,8 @@ def render_packet_prompt(
     lines.extend(packet_details)
     if evidence_rail_applicability is not None:
         lines.extend(_applicability_prompt_lines(evidence_rail_applicability))
+    else:
+        lines.extend(_euler_prompt_lines(None))
     lines.extend(
         [
             f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
@@ -624,6 +697,13 @@ def render_recipe_prompt(
         invariant_change_classes=invariant_change_classes or [],
         design_arguments=design_arguments or [],
     )
+    applicability_command = (
+        '"$VENV_PYTHON" scripts/orchestration/evidence_rail_applicability.py build '
+        "--packet '<bootstrap-packet>'"
+        + "".join(
+            f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
+        )
+    )
     lines = _common_prompt_lines(mode_note=mode_note)
     lines.extend(
         [
@@ -640,17 +720,16 @@ def render_recipe_prompt(
             "Evidence rail applicability: pending validated bootstrap packet.",
             "Requested additive evidence rails: "
             f"{_prompt_list(_unique(additive_rails or []), '<none>')}",
-            "After bootstrap, build the decision with: $VENV_PYTHON "
-            "scripts/orchestration/evidence_rail_applicability.py build --packet "
-            "<bootstrap-packet>"
-            + "".join(
-                f" --additive-rail {_shell_quote(rail)}" for rail in _unique(additive_rails or [])
-            ),
             "",
             f"Next required repo command: {bootstrap_command}",
-            "Then render the returned packet to obtain its populated execute-preflight "
-            "command: $VENV_PYTHON scripts/orchestration/render_codex_start_prompt.py "
-            "packet --packet '<bootstrap-packet>'",
+            "After bootstrap, substitute its actual packet path in both quoted placeholders; "
+            "run this exact follow-up from the owning worktree to validate applicability and "
+            "obtain the populated execute-preflight/dispatch instructions. The pipeline keeps "
+            "the projection on stdin; do not run another bootstrap.",
+            "Next packet-render command: set -o pipefail; "
+            + applicability_command
+            + ' | "$VENV_PYTHON" scripts/orchestration/render_codex_start_prompt.py '
+            "packet --packet '<bootstrap-packet>' --evidence-rail-applicability-stdin",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
@@ -665,6 +744,7 @@ def render_recipe_prompt(
             EXPERIMENT_RUNNER_ENV_GUIDANCE,
         ]
     )
+    lines.extend(_euler_prompt_lines(None))
     return "\n".join(lines)
 
 

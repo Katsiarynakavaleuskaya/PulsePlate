@@ -21,6 +21,7 @@ import shutil
 import subprocess
 from typing import Any
 
+import pytest
 import yaml
 
 from scripts.ci import ci_risk_profile
@@ -908,6 +909,10 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
         "docs/roadmap/BACKLOG_LEDGER.md",
         "scripts/AGENTS.md",
         "scripts/orchestration/invariant_family_review_episode.py",
+        # EULER-OPS-2: narrowly guarded instruction/expectation references only.
+        "scripts/orchestration/render_codex_start_prompt.py",
+        "tests/test_render_codex_start_prompt.py",
+        "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md",
         "tests/guards/test_security_devtooling_regression_guards.py",
         "tests/test_invariant_family_review_episode.py",
     }
@@ -922,6 +927,188 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
             continue
         consumers.append(relative)
     assert consumers == []
+
+
+class _EulerLiteralLists(ast.NodeTransformer):
+    """Erase only inert string-list contents for one reviewed helper skeleton."""
+
+    def visit_List(self, node: ast.List) -> ast.AST:
+        if (
+            isinstance(node.ctx, ast.Load)
+            and node.elts
+            and all(
+                isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.elts
+            )
+        ):
+            return ast.List(elts=[ast.Constant(value="text")], ctx=ast.Load())
+        return node
+
+
+def _assert_euler_renderer_inert(source: str) -> None:
+    """Closed helper shape; not a semantic analyzer of arbitrary Python programs."""
+
+    tree = ast.parse(source)
+    helpers = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_euler_prompt_lines"
+    ]
+    assert len(helpers) == 1, "Euler helper must be unique"
+    helper = helpers[0]
+    assert helper in tree.body, "Euler helper must be module-owned"
+    assert isinstance(helper, ast.FunctionDef)
+    assert ast.get_docstring(helper), "Euler helper documents its instruction boundary"
+    helper.body = helper.body[1:]  # Only the proven inert docstring is excluded.
+    expected = ast.parse(
+        "def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:\n"
+        "    common = ['text']\n"
+        "    if treatment is None:\n        return common + ['text']\n"
+        "    if treatment is RailTreatment.FINITE_REVIEW:\n        return common + ['text']\n"
+        "    if treatment is RailTreatment.NOT_APPLICABLE:\n        return common + ['text']\n"
+        "    return common + ['text']\n"
+    ).body[0]
+    assert ast.dump(_EulerLiteralLists().visit(helper)) == ast.dump(
+        expected
+    ), "Euler helper must use only the reviewed literal-list/identity-return structure"
+    # Inspect the original tree: normalizing the helper must not erase reference location.
+    original = ast.parse(source)
+    original_helper = next(
+        node
+        for node in original.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_euler_prompt_lines"
+    )
+    parents = {child: node for node in ast.walk(original) for child in ast.iter_child_nodes(node)}
+    callsites: list[tuple[str, str]] = []
+    for node in ast.walk(original):
+        if not isinstance(node, ast.Name) or node.id != "_euler_prompt_lines":
+            continue
+        call = parents.get(node)
+        assert isinstance(call, ast.Call) and call.func is node
+        assert len(call.args) == 1 and not call.keywords
+        extension = parents.get(call)
+        assert isinstance(extension, ast.Call) and extension.args == [call]
+        assert not extension.keywords and isinstance(extension.func, ast.Attribute)
+        assert extension.func.attr == "extend"
+        assert isinstance(extension.func.value, ast.Name) and extension.func.value.id == "lines"
+        statement = parents.get(extension)
+        assert isinstance(statement, ast.Expr)
+        owner = parents.get(statement)
+        while owner is not None and not isinstance(owner, ast.FunctionDef):
+            owner = parents.get(owner)
+        assert isinstance(owner, ast.FunctionDef)
+        callsites.append((owner.name, ast.dump(call.args[0])))
+    assert sorted(callsites) == sorted(
+        [
+            ("_applicability_prompt_lines", ast.dump(ast.Name(id="treatment", ctx=ast.Load()))),
+            ("render_packet_prompt", ast.dump(ast.Constant(value=None))),
+            ("render_recipe_prompt", ast.dump(ast.Constant(value=None))),
+        ]
+    ), "Euler helper output belongs only to the three rendering seams"
+    admitted_nodes = set(ast.walk(original_helper))
+    for node in ast.walk(original):
+        for _field, value in ast.iter_fields(node):
+            if isinstance(value, str) and "invariant_family_review_episode" in value:
+                assert (
+                    isinstance(node, ast.Constant) and node in admitted_nodes
+                ), "Euler renderer references belong only to inert helper literals"
+
+
+def _assert_euler_test_references_inert(source: str) -> None:
+    """Module-name references in the owning test are direct output expectations only."""
+
+    tree = ast.parse(source)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    for node in ast.walk(tree):
+        for _field, value in ast.iter_fields(node):
+            if not isinstance(value, str) or "invariant_family_review_episode" not in value:
+                continue
+            comparison = parents.get(node)
+            assert isinstance(node, ast.Constant) and isinstance(
+                comparison, ast.Compare
+            ), "Euler test reference must be a literal output expectation"
+            assert comparison.left is node and len(comparison.ops) == 1
+            assert isinstance(comparison.ops[0], (ast.In, ast.NotIn))
+            assert isinstance(comparison.comparators[0], ast.Name)
+            assert comparison.comparators[0].id == "prompt"
+            assert isinstance(parents.get(comparison), ast.Assert)
+
+
+def test_euler_new_references_remain_inert() -> None:
+    _assert_euler_renderer_inert(
+        (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    )
+    _assert_euler_test_references_inert(
+        (REPO_ROOT / "tests/test_render_codex_start_prompt.py").read_text("utf-8")
+    )
+    # Bind documented stdin input names to the unchanged CLI owner, not invented schemas.
+    document = (REPO_ROOT / "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md").read_text("utf-8")
+    for schema in (
+        invariant_family_review_episode.BASELINE_INPUT_SCHEMA,
+        invariant_family_review_episode.COMPLETE_INPUT_SCHEMA,
+        invariant_family_review_episode.STATUS_REQUEST_SCHEMA,
+    ):
+        assert f"`{schema}`" in document
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "direct_import",
+        "aliased_call",
+        "store_read",
+        "decorator",
+        "default",
+        "computed_string",
+        "outside_reference",
+        "duplicate_helper",
+        "execute_output",
+        "alias_output",
+    ],
+)
+def test_euler_renderer_rejects_executable_reference_mutations(mutation: str) -> None:
+    source = (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    mutations = {
+        "direct_import": "from scripts.orchestration import invariant_family_review_episode as e\n",
+        "outside_reference": "command = 'invariant_family_review_episode'\n",
+        "execute_output": "exec(_euler_prompt_lines(None)[0])\n",
+        "alias_output": "run = _euler_prompt_lines\n",
+    }
+    if mutation in mutations:
+        changed = source + mutations[mutation]
+    elif mutation == "duplicate_helper":
+        changed = source + "\ndef _euler_prompt_lines(treatment):\n    return []\n"
+    elif mutation == "decorator":
+        changed = source.replace("def _euler_prompt_lines(", "@execute()\ndef _euler_prompt_lines(")
+    elif mutation == "default":
+        changed = source.replace(
+            "treatment: RailTreatment | None)", "treatment: RailTreatment | None = execute())"
+        )
+    else:
+        expression = {
+            "aliased_call": "e.status()",
+            "store_read": "Path('store').read_text()",
+            "computed_string": "'instruction ' + str(treatment)",
+        }[mutation]
+        changed = source.replace("    common = [", f"    common = [{expression},", 1)
+    assert changed != source
+    with pytest.raises(AssertionError):
+        _assert_euler_renderer_inert(changed)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import invariant_family_review_episode as e",
+        "execute('invariant_family_review_episode')",
+        "command = 'invariant_family_review_episode'",
+        "assert 'invariant_family_review_episode' in execute()",
+        "assert 'invariant_family_review_episode' in prompt.read_text()",
+    ],
+)
+def test_euler_test_references_reject_execution_carriers(source: str) -> None:
+    with pytest.raises(AssertionError):
+        _assert_euler_test_references_inert(source)
 
 
 def _episode_function_calls(tree: ast.AST) -> dict[str, set[str]]:
