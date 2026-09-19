@@ -35,11 +35,18 @@ It returned all modes `reuse`, source
 `34784541339/attempts/1` with exit 0. The coordinator retains the JSON/stdout/stderr
 under ignored `artifacts/orchestration/github-contract-research/corrected-native-readonly-inventory.*`.
 This read-only receipt does not prove new publication or deployment.
-Local fixtures do not prove remote signatures or publication. Corrected-head
-synthetic, main publication/reuse, staging activation, all original recovery
-criteria and four same-ID Drive outcomes remain pending. Rollback is an ordinary
-revert of this bounded successor; retain failed-run evidence and HOLD publication
-rather than relaxing identity, storage or scan requirements.
+Local fixtures do not prove remote signatures or publication. The real
+[synthetic run 35435902634](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35435902634)
+passed at `5b816007f1770672f0fe4749da57d5a23f16f2b4`, using gh 2.100.0:
+first and partial publication, complete/repeated/read-only reuse, fresh-process
+pullback, source rejection and damaged-signature rejection all succeeded.
+PR #2398 retains the final exact-material evidence in its canonical review mapping.
+The AnyIO prerequisite from #2395 is integrated and the local audit passed
+without skipping; no publication-only audit exception remains active.
+Actual main publication/reuse, staging activation, all original recovery criteria
+and four same-ID Drive outcomes remain separate pending requirements.
+Rollback is an ordinary revert of this bounded successor; retain failed-run
+evidence and HOLD publication rather than relaxing identity, storage or scans.
 
 ## Current continuation: original-build admission and protected staging
 
