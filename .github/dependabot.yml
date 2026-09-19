@@ -44,6 +44,7 @@ updates:
         patterns:
           - "fastapi"
           - "starlette"
+          - "anyio"
           - "uvicorn"
           - "pydantic*"
           - "httpx"

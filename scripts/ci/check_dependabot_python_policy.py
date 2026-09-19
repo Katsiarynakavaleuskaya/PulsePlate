@@ -70,6 +70,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
         "patterns": (
             "fastapi",
             "starlette",
+            "anyio",
             "uvicorn",
             "pydantic*",
             "httpx",
@@ -1088,7 +1089,6 @@ def _validate_groups(
 def validate_repo(repo_root: Path) -> list[str]:
     """Return deterministic policy violations for ``repo_root``."""
     errors: list[str] = []
-    config_path = repo_root / CONFIG_PATH
     shadow_path = repo_root / SHADOW_CONFIG_PATH
     if shadow_path.exists() or shadow_path.is_symlink():
         errors.append(f"{SHADOW_CONFIG_PATH.as_posix()}:$:shadow Dependabot config is forbidden")
