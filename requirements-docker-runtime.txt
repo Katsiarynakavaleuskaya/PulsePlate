@@ -94,7 +94,7 @@ httpx==0.28.1
     #   -c requirements.txt
     #   -r requirements-docker-runtime.in
     #   openai
-idna==3.15
+idna==3.18
     # via
     #   -c requirements.txt
     #   anyio

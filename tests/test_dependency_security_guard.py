@@ -129,10 +129,16 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "starlette": "1.3.1",
 }
 
-ANYIO_FIXED_FLOOR = Version("4.14.2")
+REMEDIATION_FIXED_FLOORS = {
+    "anyio": Version("4.14.2"),
+    "httpcore2": Version("2.12.0"),
+    "httpx2": Version("2.12.0"),
+}
 
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
-    "anyio": f"<{ANYIO_FIXED_FLOOR}",
+    "anyio": f"<{REMEDIATION_FIXED_FLOORS['anyio']}",
+    "httpcore2": f"<{REMEDIATION_FIXED_FLOORS['httpcore2']}",
+    "httpx2": f"<{REMEDIATION_FIXED_FLOORS['httpx2']}",
     "python-multipart": "<0.0.31",
     "setuptools": "<83.0.0",
 }
@@ -2787,33 +2793,40 @@ ANYIO_REQUIRED_COMPILE_PROFILES = frozenset(
 )
 
 
-def _assert_anyio_surface(path: Path, *, required: bool, pinned: bool) -> None:
-    """Enforce comparable current AnyIO carriers with the existing parser."""
+def _assert_remediated_dependency_surface(
+    path: Path, *, required: bool, pinned: bool, package: str = "anyio", forbidden: bool = False
+) -> None:
+    """Enforce finite admitted package floors using the existing parser."""
+    floor = REMEDIATION_FIXED_FLOORS[package]
+    label = "AnyIO" if package == "anyio" else package
     _minima, carriers = _requirement_evidence_per_package(path)
-    occurrences = carriers.get("anyio", ())
+    occurrences = carriers.get(package, ())
+    if forbidden:
+        assert not occurrences, f"{path.name}: {label} is outside its owned profiles"
+        return
     if not required and not occurrences:
         return
-    assert len(occurrences) == 1, f"{path.name}: expected exactly one AnyIO carrier"
+    assert len(occurrences) == 1, f"{path.name}: expected exactly one {label} carrier"
     requirement = occurrences[0]
-    assert requirement.marker is None, f"{path.name}: AnyIO carrier must be unconditional"
-    assert not requirement.extras, f"{path.name}: AnyIO carrier must not declare extras"
+    assert requirement.marker is None, f"{path.name}: {label} carrier must be unconditional"
+    assert not requirement.extras, f"{path.name}: {label} carrier must not declare extras"
     specifiers = tuple(requirement.specifier)
     if pinned:
         assert (
             len(specifiers) == 1 and specifiers[0].operator == "=="
-        ), f"{path.name}: AnyIO lock requires exactly one == pin"
-    candidate = _min_version_for_pkg(requirement, "anyio", pinned=pinned)
-    assert candidate is not None, f"{path.name}: AnyIO requires a comparable floor or pin"
+        ), f"{path.name}: {label} lock requires exactly one == pin"
+    candidate = _min_version_for_pkg(requirement, package, pinned=pinned)
+    assert candidate is not None, f"{path.name}: {label} requires a comparable floor or pin"
     version = Version(candidate)
     assert requirement.specifier.contains(
         version, prereleases=True
-    ), f"{path.name}: AnyIO carrier excludes its comparable floor or pin"
-    for blocked in _load_schema(SCHEMA_PATH)["blocked_versions"]["anyio"]:
+    ), f"{path.name}: {label} carrier excludes its comparable floor or pin"
+    for blocked in _load_schema(SCHEMA_PATH)["blocked_versions"][package]:
         assert not SpecifierSet(blocked).contains(
             version, prereleases=True
-        ), f"{path.name}: AnyIO {version} matches blocked range {blocked}"
+        ), f"{path.name}: {label} {version} matches blocked range {blocked}"
     # PEP 440's exclusive < range excludes prereleases of its boundary version.
-    assert version >= ANYIO_FIXED_FLOOR, f"{path.name}: version is below fixed AnyIO floor"
+    assert version >= floor, f"{path.name}: version is below fixed {label} floor"
 
 
 def test_anyio_current_governed_surfaces_are_safe() -> None:
@@ -2833,7 +2846,9 @@ def test_anyio_current_governed_surfaces_are_safe() -> None:
     }
     assert required <= discovered, "AnyIO required carrier is missing from inventory"
     for name in sorted(discovered):
-        _assert_anyio_surface(REPO_ROOT / name, required=name in required, pinned=name in locks)
+        _assert_remediated_dependency_surface(
+            REPO_ROOT / name, required=name in required, pinned=name in locks
+        )
 
 
 @pytest.mark.parametrize(
@@ -2860,7 +2875,7 @@ def test_anyio_surface_rejects_missing_duplicate_or_unsafe_carriers(
     surface = tmp_path / name
     surface.write_text(text, encoding="utf-8")
     with pytest.raises(AssertionError, match=error):
-        _assert_anyio_surface(surface, required=True, pinned=name.endswith(".txt"))
+        _assert_remediated_dependency_surface(surface, required=True, pinned=name.endswith(".txt"))
 
 
 @pytest.mark.parametrize(
@@ -2871,12 +2886,14 @@ def test_anyio_surface_rejects_malformed_or_url_carriers(tmp_path: Path, text: s
     surface = tmp_path / "requirements.txt"
     surface.write_text(text, encoding="utf-8")
     with pytest.raises(pytest.fail.Exception):
-        _assert_anyio_surface(surface, required=True, pinned=True)
+        _assert_remediated_dependency_surface(surface, required=True, pinned=True)
 
 
 def test_anyio_surface_rejects_missing_file(tmp_path: Path) -> None:
     with pytest.raises(pytest.fail.Exception, match="Missing requirement surface"):
-        _assert_anyio_surface(tmp_path / "requirements.txt", required=True, pinned=True)
+        _assert_remediated_dependency_surface(
+            tmp_path / "requirements.txt", required=True, pinned=True
+        )
 
 
 @pytest.mark.parametrize(
@@ -2892,7 +2909,7 @@ def test_anyio_surface_allows_safe_future_pins_and_optional_absence(
 ) -> None:
     surface = tmp_path / name
     surface.write_text(text, encoding="utf-8")
-    _assert_anyio_surface(surface, required=required, pinned=pinned)
+    _assert_remediated_dependency_surface(surface, required=required, pinned=pinned)
 
 
 def test_anyio_inventory_rejects_unregistered_alias(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2923,3 +2940,111 @@ def test_anyio_inventory_rejects_missing_source(monkeypatch: pytest.MonkeyPatch)
     )
     with pytest.raises(AssertionError, match="required carrier is missing"):
         test_anyio_current_governed_surfaces_are_safe()
+
+
+HTTP_CLIENT_REQUIRED_COMPILE_PROFILES = frozenset({"dev", "test", "aggregate"})
+HTTP_CLIENT_SOURCE_NAMES = frozenset({"requirements-dev.in", "requirements-test.in"})
+
+
+def test_http_client_current_governed_surfaces_are_safe() -> None:
+    """Keep the admitted pair safe and confined to its existing test/dev owners."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "HTTP-client carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    assert HTTP_CLIENT_REQUIRED_COMPILE_PROFILES <= {
+        s.compile_profile for s in compiled
+    }, "HTTP-client required compile profile is missing from registry"
+    locks = {s.lockfile for s in compiled}
+    required = HTTP_CLIENT_SOURCE_NAMES | {
+        s.lockfile for s in compiled if s.compile_profile in HTTP_CLIENT_REQUIRED_COMPILE_PROFILES
+    }
+    assert required <= discovered, "HTTP-client required carrier is missing from inventory"
+    for name in sorted(discovered):
+        for package in ("httpx2", "httpcore2"):
+            _assert_remediated_dependency_surface(
+                REPO_ROOT / name,
+                package=package,
+                required=name in required,
+                forbidden=name not in required,
+                pinned=name in locks,
+            )
+
+
+def test_http_client_idna_runtime_constraints_are_compatible() -> None:
+    """HTTPX2 metadata requires this resolver closure, not a new authored identity."""
+    compiled = compiled_dependency_surfaces()
+    assert ANYIO_REQUIRED_COMPILE_PROFILES <= {s.compile_profile for s in compiled}
+    for surface in compiled:
+        if surface.compile_profile not in ANYIO_REQUIRED_COMPILE_PROFILES:
+            continue
+        _assert_http_client_idna_compatible(REPO_ROOT / surface.lockfile)
+
+
+def _assert_http_client_idna_compatible(path: Path) -> None:
+    """Check the exact comparable idna pin required by current HTTPX2 metadata."""
+    _minima, carriers = _requirement_evidence_per_package(path)
+    occurrences = carriers.get("idna", ())
+    assert len(occurrences) == 1, f"{path.name}: expected exactly one idna carrier"
+    requirement = occurrences[0]
+    assert requirement.marker is None and not requirement.extras
+    specifiers = tuple(requirement.specifier)
+    assert len(specifiers) == 1 and specifiers[0].operator == "=="
+    assert Version(specifiers[0].version) >= Version(
+        "3.18"
+    ), f"{path.name}: idna must satisfy HTTPX2 metadata floor 3.18"
+
+
+@pytest.mark.parametrize("package", ("httpx2", "httpcore2"))
+@pytest.mark.parametrize("version", ("2.3.0", "2.12.0rc1", "2.12.0.dev1"))
+def test_http_client_surface_rejects_affected_and_prefixed_versions(
+    tmp_path: Path, package: str, version: str
+) -> None:
+    path = tmp_path / "requirements-test.txt"
+    path.write_text(f"{package}=={version}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="blocked range|below fixed"):
+        _assert_remediated_dependency_surface(path, package=package, required=True, pinned=True)
+
+
+@pytest.mark.parametrize("package", ("httpx2", "httpcore2"))
+def test_http_client_surface_rejects_runtime_exposure(tmp_path: Path, package: str) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(f"{package}==2.12.0\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="outside its owned profiles"):
+        _assert_remediated_dependency_surface(
+            path, package=package, required=False, forbidden=True, pinned=True
+        )
+
+
+@pytest.mark.parametrize("package", ("httpx2", "httpcore2"))
+@pytest.mark.parametrize("carrier", ("{package}==2.13.0", "{package}>=2.12.0,<3.0.0"))
+def test_http_client_surface_allows_later_stable_pins_and_source_floors(
+    tmp_path: Path, package: str, carrier: str
+) -> None:
+    pinned = "==" in carrier
+    path = tmp_path / ("requirements-test.txt" if pinned else "requirements-test.in")
+    path.write_text(carrier.format(package=package) + "\n", encoding="utf-8")
+    _assert_remediated_dependency_surface(path, package=package, required=True, pinned=pinned)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "idna==3.15\n",
+        "idna==3.18rc1\n",
+        "idna==3.18.dev1\n",
+        "# missing\n",
+        "idna==3.18\nidna==3.18\n",
+    ],
+)
+def test_http_client_idna_rejects_incompatible_or_missing_pins(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError):
+        _assert_http_client_idna_compatible(path)
+
+
+def test_http_client_idna_accepts_later_compatible_pin(tmp_path: Path) -> None:
+    path = tmp_path / "requirements.txt"
+    path.write_text("idna==3.19\n", encoding="utf-8")
+    _assert_http_client_idna_compatible(path)
