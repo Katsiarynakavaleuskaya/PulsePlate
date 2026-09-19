@@ -1067,7 +1067,8 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
 
     assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
-    assert observed_commands[0][0] == sys.executable
+    expected_python = Path(sys.executable).parent.resolve() / Path(sys.executable).name
+    assert observed_commands[0][0] == str(expected_python)
     assert observed_names == ["python"]
 
 
