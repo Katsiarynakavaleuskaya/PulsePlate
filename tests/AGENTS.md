@@ -520,6 +520,16 @@ pytest -q tests/test_repo_policy_guards.py
 ```
 
 - **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
+  - **Ownership:** Current dependency floors and profile inventories belong to
+    this canonical guard. Consumer and installer tests retain their own behavior
+    and fallback assertions; do not duplicate historical remediation pins as
+    current-version equality checks or maintain a second floor inventory.
+    Historical pins belong in transition evidence. Run the owning suites
+    independently; consumer/installer tests must not import or invoke the
+    dependency-security tests as delegated assertions.
+    Before retiring a duplicate check, preserve its complete carrier coverage
+    at the canonical owner: optional absence must not exempt present optional
+    carriers from the retained validation rules.
   - **What it enforces**:
     - `cryptography` must stay at or above the current floor (`50.0.0`) across
       the canonical closed inventory declared by
