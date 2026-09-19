@@ -848,14 +848,18 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
         "&& needs.postgres-pgvector-ci-admission.result == 'success' "
         "&& needs.staging-postgres-native-integration.result == 'success'"
     )
-    assert builder["if"] == (
-        "github.ref == 'refs/heads/main' && "
+    assert " ".join(builder["if"].split()) == (
+        "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
+        "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.main-push-admission.result == 'success' && "
         "needs.staging-postgres-native-integration.result == 'success'"
     )
     assert jobs["main-push-admission"]["if"] == (
         "github.event_name == 'push' && github.ref == 'refs/heads/main'"
     )
     native_job = jobs[native_name]
+    assert native_job["needs"] == "postgres-pgvector-contract"
+    assert "needs" not in jobs["postgres-pgvector-contract"]
     assert native_job["if"] == (
         "github.event_name == 'pull_request' || "
         "(github.event_name == 'push' && github.ref == 'refs/heads/main')"
@@ -868,12 +872,169 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
     assert not native_job.get("continue-on-error", False)
     assert not runtime_step.get("continue-on-error", False)
     # Closed projection of the exact expressions/needs above, not an Actions
-    # expression interpreter. Other prerequisites are successful in this matrix.
-    # Default success() also blocks jobs when main-push-admission is skipped.
+    # expression interpreter. Other prerequisites are successful and workflow
+    # cancellation is false in this matrix.
     admitted_main = event == "push" and ref == "refs/heads/main"
     native_succeeded = native_result == "success"
     assert (admitted_main and native_succeeded and changed) is publish
     assert (admitted_main and native_succeeded) is build
+
+
+def test_build_admission_requires_all_direct_successes_without_implicit_status() -> None:
+    jobs = _load_cd_workflow()["jobs"]
+    builder = jobs["build"]
+    assert builder["needs"] == [
+        "prometheus-image-security",
+        "main-push-admission",
+        "staging-postgres-native-integration",
+    ]
+    assert " ".join(builder["if"].split()) == (
+        "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
+        "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.main-push-admission.result == 'success' "
+        "&& needs.staging-postgres-native-integration.result == 'success'"
+    )
+    # Closed projection bound to the complete expression above. GitHub owns
+    # scheduling; these finite cases do not implement an Actions interpreter.
+    results = ("success", "failure", "cancelled", "skipped", "", "unknown")
+    events = (
+        ("push", "refs/heads/main"),
+        ("push", "refs/heads/other"),
+        ("push", "refs/tags/v1.0.0"),
+        ("pull_request", "refs/heads/main"),
+        ("workflow_dispatch", "refs/heads/main"),
+        ("schedule", "refs/heads/main"),
+    )
+    cases: list[tuple[bool, tuple[str, str], tuple[str, ...], bool]] = [
+        (False, events[0], ("success",) * 3, True)
+    ]
+    for dependency in range(3):
+        for result in results[1:]:
+            direct = ["success"] * 3
+            direct[dependency] = result
+            cases.append((False, events[0], tuple(direct), False))
+    cases.append((True, events[0], ("success",) * 3, False))
+    cases.extend((False, event, ("success",) * 3, False) for event in events[1:])
+    for cancelled, (event, ref), direct, expected in cases:
+        admitted = (
+            not cancelled
+            and event == "push"
+            and ref == "refs/heads/main"
+            and direct[0] == "success"
+            and direct[1] == "success"
+            and direct[2] == "success"
+        )
+        assert admitted is expected
+    join = jobs["postgres-pgvector-admission"]["steps"][0]["run"]
+    assert "true:success:skipped | false:skipped:success" in join
+    for publish, reuse in (("success", "skipped"), ("skipped", "success")):
+        assert "skipped" in (publish, reuse)
+        assert "postgres-pgvector-publish" not in builder["needs"]
+        assert "postgres-pgvector-reuse" not in builder["needs"]
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+@pytest.mark.parametrize(
+    "event,ref,mode,changed,eligible",
+    [
+        ("schedule", "refs/heads/main", "", "", True),
+        ("schedule", "refs/heads/other", "", "", True),
+        ("workflow_dispatch", "refs/heads/main", "reuse", "", True),
+        ("workflow_dispatch", "refs/heads/main", "disabled", "", False),
+        ("workflow_dispatch", "refs/heads/other", "reuse", "", False),
+        ("push", "refs/tags/v1.2.3", "", "", True),
+        ("push", "refs/tags/v-not-semver", "", "", True),
+        ("push", "refs/tags/other", "", "", False),
+        ("push", "refs/heads/main", "", "false", True),
+        ("push", "refs/heads/main", "", "true", False),
+        ("push", "refs/heads/main", "", "", False),
+        ("pull_request", "refs/heads/main", "reuse", "false", False),
+    ],
+)
+def test_reuse_job_cancellation_preserves_existing_coarse_eligibility(
+    cancelled: bool, event: str, ref: str, mode: str, changed: str, eligible: bool
+) -> None:
+    job = _load_cd_workflow()["jobs"]["postgres-pgvector-reuse"]
+    assert job["needs"] == [
+        "main-push-admission",
+        "postgres-pgvector-contract",
+        "postgres-pgvector-material-change",
+    ]
+    assert " ".join(job["if"].split()) == (
+        "!cancelled() && ( github.event_name == 'schedule' "
+        "|| (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' "
+        "&& inputs.postgres_mode == 'reuse') "
+        "|| ( github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ) "
+        "|| ( github.event_name == 'push' && github.ref == 'refs/heads/main' "
+        "&& needs.postgres-pgvector-material-change.outputs.changed == 'false' ) )"
+    )
+    actual = not cancelled and (
+        event == "schedule"
+        or (event == "workflow_dispatch" and ref == "refs/heads/main" and mode == "reuse")
+        or (event == "push" and ref.startswith("refs/tags/v"))
+        or (event == "push" and ref == "refs/heads/main" and changed == "false")
+    )
+    assert actual is (eligible and not cancelled)
+
+
+@pytest.mark.parametrize(
+    "manifest_exit,missing_identity", [(0, ""), (37, ""), (0, "REPOSITORY"), (0, "PLATFORM_DIGEST")]
+)
+def test_native_integration_executes_digest_inspection_before_runtime(
+    manifest_exit: int, missing_identity: str
+) -> None:
+    job = _load_cd_workflow()["jobs"]["staging-postgres-native-integration"]
+    assert job["needs"] == "postgres-pgvector-contract"
+    assert job["permissions"] == {"contents": "read", "packages": "read"}
+    steps = job["steps"]
+    names = [step["name"] for step in steps]
+    inspect_name = "Inspect the exact PostgreSQL platform manifest with native Docker"
+    step = _step_by_name(steps, inspect_name)
+    assert not step.get("continue-on-error", False)
+    assert (
+        names.index("Authenticate public package read with ephemeral repository token")
+        < names.index(inspect_name)
+        < names.index("Execute real isolated PostgreSQL TLS crash restart and restore checks")
+    )
+    assert step["if"] == "steps.native-material.outputs.changed == 'true'"
+    assert step["env"] == {
+        "REPOSITORY": "${{ needs.postgres-pgvector-contract.outputs.repository }}",
+        "PLATFORM_DIGEST": "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}",
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    digest = "sha256:" + "a" * 64
+    program = """docker() {
+      if [ "$#" -eq 1 ] && [ "$1" = --version ]; then
+        printf 'Docker test client\\n'; return 0
+      fi
+      [ "$#" -eq 3 ] && [ "$1 $2" = "manifest inspect" ] &&
+        [ "$3" = "$EXPECTED_SUBJECT" ] || return 99
+      return "$MANIFEST_EXIT"
+    }
+    """ + step["run"]
+    environment = {
+        **os.environ,
+        "REPOSITORY": repository,
+        "PLATFORM_DIGEST": digest,
+        "EXPECTED_SUBJECT": f"{repository}@{digest}",
+        "MANIFEST_EXIT": str(manifest_exit),
+    }
+    if missing_identity:
+        environment[missing_identity] = ""
+    result = subprocess.run(
+        [bash, "-c", program],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    expected_exit = 1 if missing_identity else manifest_exit
+    assert result.returncode == expected_exit, result.stderr
+    assert ("Native PostgreSQL manifest inspection passed" in result.stdout) is (expected_exit == 0)
+    if missing_identity:
+        assert "Docker test client" not in result.stdout
 
 
 def test_pgvector_native_and_distinct_materials_producers_are_conjunctive() -> None:

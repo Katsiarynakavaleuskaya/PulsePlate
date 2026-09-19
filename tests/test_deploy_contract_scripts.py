@@ -875,12 +875,22 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
     assert "--scanners vuln,secret" in reuse_run
     assert "--severity CRITICAL,HIGH" in reuse_run
     assert "visibility" in reuse_run and "public" in reuse_run
-    assert 'docker manifest inspect "$RUNTIME_REF"' in reuse_run
-    assert 'canonical_tag_ref="${RUNTIME_REF%@*}"' in reuse_run
+    assert reuse_run.count('docker manifest inspect "$immutable_ref"') == 2
+    assert 'immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"' in reuse_run
+    assert 'canonical_tag_ref="${REPOSITORY}:${CANONICAL_TAG:?}"' in reuse_run
+    assert "RUNTIME_REF" not in reuse_run
+    for name, output in (
+        ("REPOSITORY", "repository"),
+        ("CANONICAL_TAG", "tag"),
+        ("PLATFORM_DIGEST", "platform_manifest_digest"),
+    ):
+        assert reuse["steps"][1]["env"][name] == (
+            "${{ needs.postgres-pgvector-contract.outputs." + output + " }}"
+        )
     assert 'docker buildx imagetools inspect --raw "$canonical_tag_ref"' in reuse_run
     assert "Canonical PostgreSQL tag does not select the frozen digest" in reuse_run
     assert '"$tag_ready:$image_ready:$provenance_ready:$spdx_ready:$materials_ready"' in reuse_run
-    assert reuse_run.count('gh attestation verify "oci://${RUNTIME_REF}"') == 3
+    assert reuse_run.count('gh attestation verify "oci://${immutable_ref}"') == 3
     assert reuse_run.count("--bundle-from-oci --deny-self-hosted-runners") == 3
     assert "Exact PostgreSQL reuse admission did not become complete before timeout" in reuse_run
     assert "--format spdx-json" not in reuse_run
@@ -914,71 +924,203 @@ def test_cd_postgres_pgvector_main_event_state_machine_is_closed_and_terminal() 
 
 
 @pytest.mark.parametrize(
-    ("ready_after", "expected_returncode"),
-    (("2", 0), ("0", 1)),
+    "fault",
+    [
+        "none",
+        "not_ready",
+        "tag_and_digest",
+        "mutable_tag",
+        "wrong_repository",
+        "wrong_digest",
+        "tag_drift",
+        "missing_platform",
+        "duplicate_platform",
+        "wrong_platform",
+        "provenance",
+        "materials",
+        "spdx",
+    ],
 )
 def test_cd_postgres_reuse_waits_without_evicting_pending_publisher(
-    tmp_path: Path,
-    ready_after: str,
-    expected_returncode: int,
+    tmp_path: Path, fault: str
 ) -> None:
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
     reuse_run = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]["run"]
     start = reuse_run.index('if [[ ! "$PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS"')
-    end = reuse_run.index('\ndocker pull --platform linux/amd64 "$RUNTIME_REF"', start)
+    end = reuse_run.index('\ndocker pull --platform linux/amd64 "$immutable_ref"', start)
     wait_program = reuse_run[start:end]
-    bash_bin = shutil.which("bash")
-    assert bash_bin is not None
-    program = (
-        "set -euo pipefail\n"
-        "ATTEMPT=0\n"
-        "docker() {\n"
-        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
-        "    ATTEMPT=$((ATTEMPT + 1))\n"
-        '    [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
-        "    return\n"
-        "  fi\n"
-        '  if [ "$1 $2 $3" = "buildx imagetools inspect" ]; then\n'
-        '    expected_digest="${RUNTIME_REF##*@}"\n'
-        "    printf "
-        '\'{"mediaType":"application/vnd.oci.image.index.v1+json",'
-        '"manifests":[{"digest":"%s","platform":{'
-        '"architecture":"amd64","os":"linux"}}]}\\n\' '
-        '"$expected_digest"\n'
-        "    return\n"
-        "  fi\n"
-        "  return 0\n"
-        "}\n"
-        "gh() {\n"
-        '  case " $* " in *" --bundle-from-oci "*) ;; *) return 1 ;; esac\n'
-        '  case " $* " in *" --deny-self-hosted-runners "*) ;; *) return 1 ;; esac\n'
-        '  [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]\n'
-        "}\n"
-        "sleep() { SECONDS=$((SECONDS + $1)); }\n"
-        + wait_program
-        + '\nprintf "ATTEMPTS=%s\\n" "$ATTEMPT"\n'
-    )
-    completed = subprocess.run(
-        [bash_bin, "-c", program],
+    repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    canonical_tag = POSTGRES_RUNTIME_REF.split("@", 1)[0]
+    subject = f"{repository}@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
+    rejected = {
+        "tag_and_digest": POSTGRES_RUNTIME_REF,
+        "mutable_tag": canonical_tag,
+        "wrong_repository": f"ghcr.io/other/image@{POSTGRES_PLATFORM_MANIFEST_DIGEST}",
+        "wrong_digest": f"{repository}@sha256:{'a' * 64}",
+    }
+    if fault in rejected:
+        # Mutation control: the actual legacy command must fail this native argv oracle.
+        wait_program = wait_program.replace(
+            'immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"',
+            'immutable_ref="$REJECTED_REF"',
+        )
+    descriptor = {
+        "digest": POSTGRES_PLATFORM_MANIFEST_DIGEST,
+        "platform": {"architecture": "amd64", "os": "linux"},
+    }
+    if fault == "tag_drift":
+        descriptor["digest"] = "sha256:" + "b" * 64
+    if fault == "wrong_platform":
+        descriptor["platform"] = {"architecture": "arm64", "os": "linux"}
+    manifests = [] if fault == "missing_platform" else [descriptor]
+    if fault == "duplicate_platform":
+        manifests.append(descriptor)
+    predicates = {
+        "provenance": "https://slsa.dev/provenance/v1",
+        "materials": "https://pulseplate.app/attestations/postgres-pgvector-materials/v1",
+        "spdx": "https://spdx.dev/Document/v2.3",
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    program = """set -euo pipefail
+    ATTEMPT=0
+    docker() {
+      if [ "$#" -eq 3 ] && [ "$1 $2" = "manifest inspect" ]; then
+        ATTEMPT=$((ATTEMPT + 1))
+        [ "$3" = "$EXPECTED_SUBJECT" ] || return 99
+        [ "$STUB_READY_AFTER" -gt 0 ] && [ "$ATTEMPT" -ge "$STUB_READY_AFTER" ]
+        return
+      fi
+      if [ "$#" -eq 5 ] && [ "$1 $2 $3 $4" = "buildx imagetools inspect --raw" ]; then
+        [ "$5" = "$EXPECTED_TAG" ] || return 99
+        printf '%s\\n' "$STUB_CANONICAL_JSON"
+        return 0
+      fi
+      return 99
+    }
+    gh() {
+      [ "$#" -eq 13 ] || return 99
+      case "$7" in
+        https://slsa.dev/provenance/v1|https://pulseplate.app/attestations/postgres-pgvector-materials/v1|https://spdx.dev/Document/v2.3) ;;
+        *) return 99 ;;
+      esac
+      [ "$*" = "attestation verify oci://${EXPECTED_SUBJECT} --repo Katsiarynakavaleuskaya/PulsePlate --predicate-type $7 --signer-workflow Katsiarynakavaleuskaya/PulsePlate/.github/workflows/cd.yml --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners" ] || return 99
+      printf '%s\\n' "$7" >> "$PREDICATE_RECORD"
+      [ "$7" != "$MISSING_PREDICATE" ]
+    }
+    sleep() { SECONDS=$((SECONDS + $1)); }
+    """ + wait_program + '\nprintf "ATTEMPTS=%s\\n" "$ATTEMPT"\n'
+    record = tmp_path / "predicates.txt"
+    result = subprocess.run(
+        [bash, "-c", program],
         env={
             **os.environ,
             "GITHUB_REPOSITORY": "Katsiarynakavaleuskaya/PulsePlate",
             "PGVECTOR_REUSE_ADMISSION_POLL_SECONDS": "1",
-            "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "2",
+            "PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS": "3",
             "RUNNER_TEMP": str(tmp_path),
-            "RUNTIME_REF": POSTGRES_RUNTIME_REF,
-            "STUB_READY_AFTER": ready_after,
+            "REPOSITORY": repository,
+            "CANONICAL_TAG": canonical_tag.split(":", 1)[1],
+            "PLATFORM_DIGEST": POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            "EXPECTED_SUBJECT": subject,
+            "EXPECTED_TAG": canonical_tag,
+            "REJECTED_REF": rejected.get(fault, ""),
+            "STUB_READY_AFTER": "0" if fault == "not_ready" else "2",
+            "STUB_CANONICAL_JSON": json.dumps(
+                {"mediaType": "application/vnd.oci.image.index.v1+json", "manifests": manifests}
+            ),
+            "MISSING_PREDICATE": predicates.get(fault, ""),
+            "PREDICATE_RECORD": str(record),
         },
         text=True,
         capture_output=True,
         check=False,
     )
-
-    assert completed.returncode == expected_returncode
-    if expected_returncode == 0:
-        assert completed.stdout.strip() == "ATTEMPTS=2"
+    assert result.returncode == (0 if fault == "none" else 1), result.stderr
+    pending = [
+        line for line in result.stdout.splitlines() if line.startswith("PostgreSQL reuse pending:")
+    ]
+    assert pending == [
+        "PostgreSQL reuse pending: tag=false image=false provenance=false spdx=false materials=false"
+    ]
+    if fault == "none":
+        assert result.stdout.splitlines()[-1] == "ATTEMPTS=2"
+        assert record.read_text().splitlines() == list(predicates.values())
     else:
-        assert "did not become complete before timeout" in completed.stderr
+        timeout = [line for line in result.stderr.splitlines() if "before timeout:" in line]
+        assert len(timeout) == 1 and "materials=" in timeout[0]
+        for state in ("tag=", "image=", "provenance=", "spdx="):
+            assert state in timeout[0]
+        if fault in predicates:
+            assert f"{fault}=false" in timeout[0]
+
+
+@pytest.mark.parametrize("scan_exit", [0, 1])
+def test_cd_postgres_reuse_scans_and_inspects_the_same_immutable_subject(
+    tmp_path: Path, scan_exit: int
+) -> None:
+    workflow = yaml.safe_load(CD_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    run = workflow["jobs"]["postgres-pgvector-reuse"]["steps"][1]["run"]
+    program = run[
+        run.index('docker pull --platform linux/amd64 "$immutable_ref"') : run.index(
+            "# Final read-only transaction boundary."
+        )
+    ]
+    bash = shutil.which("bash")
+    assert bash is not None
+    subject = "ghcr.io/katsiarynakavaleuskaya/pulseplate@" + POSTGRES_PLATFORM_MANIFEST_DIGEST
+    scanner = tmp_path / "trivy"
+    scanner.write_text(
+        f"#!{bash}\n"
+        'test "$*" = "image --scanners vuln,secret --format table --pkg-types os,library '
+        "--severity CRITICAL,HIGH --exit-code 1 --timeout 15m --ignorefile "
+        "${STUB_INSTALL_DIR}/empty.trivyignore --cache-dir "
+        '${RUNNER_TEMP}/trivy-cache-pgvector-reuse ${EXPECTED_SUBJECT}" || exit 99\n'
+        'exit "$STUB_SCAN_EXIT"\n'
+    )
+    scanner.chmod(0o700)
+    marker = tmp_path / "verified"
+    shell = """
+    docker() {
+      if [ "$*" = "pull --platform linux/amd64 $EXPECTED_SUBJECT" ]; then return 0; fi
+      [ "$#" -eq 5 ] && [ "$1 $2" = "image inspect" ] &&
+        [ "$3" = "$EXPECTED_SUBJECT" ] && [ "$4" = --format ] || return 99
+      case "$5" in
+        '{{.Os}}/{{.Architecture}}') printf 'linux/amd64\\n' ;;
+        '{{.Config.User}}') printf '70\\n' ;;
+        '{{json .Config.Entrypoint}}') printf '["/usr/local/bin/docker-entrypoint.sh"]\\n' ;;
+        '{{index .Config.Labels "com.pulseplate.pgvector.version"}}') printf '0.8.6\\n' ;;
+        *) return 99 ;;
+      esac
+    }
+    mktemp() { printf '%s\\n' "$STUB_INSTALL_DIR"; }
+    curl() { return 0; }
+    sha256sum() { cat >/dev/null; }
+    tar() { return 0; }
+    python3() {
+      [ "$*" = "scripts/ci/check_pgvector_attestations.py verify --json-out postgres-pgvector-reuse-attestation-check.json" ] || return 99
+      printf 'called\\n' > "$VERIFIER_MARKER"
+    }
+    """
+    result = subprocess.run(
+        [bash, "-c", "set -euo pipefail\n" + shell + program],
+        env={
+            **os.environ,
+            "immutable_ref": subject,
+            "EXPECTED_SUBJECT": subject,
+            "STUB_INSTALL_DIR": str(tmp_path),
+            "RUNNER_TEMP": str(tmp_path),
+            "TRIVY_VERSION": "0.74.0",
+            "TRIVY_ARCHIVE_SHA256": "a" * 64,
+            "STUB_SCAN_EXIT": str(scan_exit),
+            "VERIFIER_MARKER": str(marker),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == scan_exit, result.stderr
+    assert marker.exists() is (scan_exit == 0)
 
 
 def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
@@ -1083,20 +1225,30 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     git(tmp_path, "clone", "-q", str(remote), str(runner))
     git(runner, "checkout", "-q", "--detach", base_sha)
 
-    program = (
-        "set -euo pipefail\n"
-        "docker() {\n"
-        '  if [ "$1 $2" = "manifest inspect" ]; then\n'
-        '    [ "$STUB_TAG_READY" = "1" ]\n'
-        "    return\n"
-        "  fi\n"
-        "  return 0\n"
-        "}\n"
-        'canonical_tag_selects_expected_digest() { [ "$STUB_TAG_READY" = "1" ]; }\n'
-        + terminal_program
-    )
+    canonical_program = reuse_run[
+        reuse_run.index("canonical_tag_selects_expected_digest() {") : reuse_run.index(
+            "admission_deadline="
+        )
+    ]
+    subject = f"ghcr.io/katsiarynakavaleuskaya/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
+    canonical_tag = POSTGRES_RUNTIME_REF.split("@", 1)[0]
+    program = """set -euo pipefail
+    docker() {
+      if [ "$#" -eq 3 ] && [ "$1 $2" = "manifest inspect" ]; then
+        [ "$3" = "$EXPECTED_SUBJECT" ]; return
+      fi
+      if [ "$#" -eq 5 ] && [ "$1 $2 $3 $4" = "buildx imagetools inspect --raw" ]; then
+        [ "$5" = "$EXPECTED_TAG" ] || return 99
+        printf '%s\\n' "$STUB_CANONICAL_JSON"; return 0
+      fi
+      return 99
+    }
+    """ + canonical_program + terminal_program
 
-    def terminal_recheck(tag_ready: str) -> subprocess.CompletedProcess[str]:
+    def terminal_recheck(
+        tag_ready: str, image_ref: str = subject
+    ) -> subprocess.CompletedProcess[str]:
+        digest = POSTGRES_PLATFORM_MANIFEST_DIGEST if tag_ready == "1" else "sha256:" + "b" * 64
         return subprocess.run(
             [bash_bin, "-c", program],
             cwd=runner,
@@ -1105,8 +1257,20 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
                 "GITHUB_EVENT_NAME": "push",
                 "GITHUB_REF": "refs/heads/main",
                 "GITHUB_SHA": base_sha,
-                "RUNTIME_REF": POSTGRES_RUNTIME_REF,
-                "STUB_TAG_READY": tag_ready,
+                "immutable_ref": image_ref,
+                "EXPECTED_SUBJECT": subject,
+                "EXPECTED_TAG": canonical_tag,
+                "canonical_tag_ref": canonical_tag,
+                "expected_platform_digest": POSTGRES_PLATFORM_MANIFEST_DIGEST,
+                "canonical_raw": str(tmp_path / "terminal-canonical.json"),
+                "STUB_CANONICAL_JSON": json.dumps(
+                    {
+                        "mediaType": "application/vnd.oci.image.index.v1+json",
+                        "manifests": [
+                            {"digest": digest, "platform": {"architecture": "amd64", "os": "linux"}}
+                        ],
+                    }
+                ),
             },
             text=True,
             capture_output=True,
@@ -1123,6 +1287,10 @@ def test_cd_postgres_reuse_terminally_rechecks_current_main_and_canonical_tag(
     tag_drift = terminal_recheck("0")
     assert tag_drift.returncode != 0
     assert "tag or immutable digest drifted" in tag_drift.stderr
+
+    old_reference = terminal_recheck("1", POSTGRES_RUNTIME_REF)
+    assert old_reference.returncode != 0
+    assert "tag or immutable digest drifted" in old_reference.stderr
 
     (source / "requirements-test.txt").write_text("superseding\n", encoding="utf-8")
     git(source, "add", ".")
@@ -1295,20 +1463,27 @@ def test_cd_postgres_material_classifier_and_terminal_admission_execute_exact_pr
 
 
 @pytest.mark.parametrize(
-    ("event_name", "git_ref", "material_changed", "expected_success"),
+    ("event_name", "git_ref", "material_changed", "mode", "expected_success"),
     (
-        ("push", "refs/heads/main", "false", True),
-        ("schedule", "refs/heads/main", "", True),
-        ("push", "refs/tags/v1.2.3", "", True),
-        ("push", "refs/tags/not-semver", "", False),
-        ("push", "refs/heads/feature", "false", False),
-        ("pull_request", "refs/pull/1/merge", "", False),
+        ("push", "refs/heads/main", "false", "", True),
+        ("push", "refs/heads/main", "true", "", False),
+        ("schedule", "refs/heads/main", "", "", True),
+        ("schedule", "refs/heads/other", "", "", False),
+        ("workflow_dispatch", "refs/heads/main", "", "reuse", True),
+        ("workflow_dispatch", "refs/heads/main", "", "disabled", False),
+        ("workflow_dispatch", "refs/heads/other", "", "reuse", False),
+        ("push", "refs/tags/v1.2.3", "", "", True),
+        ("push", "refs/tags/v-not-semver", "", "", False),
+        ("push", "refs/tags/not-semver", "", "", False),
+        ("push", "refs/heads/feature", "false", "", False),
+        ("pull_request", "refs/pull/1/merge", "", "", False),
     ),
 )
 def test_cd_postgres_reuse_event_admission_executes_exact_prefix(
     event_name: str,
     git_ref: str,
     material_changed: str,
+    mode: str,
     expected_success: bool,
 ) -> None:
     workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8"))
@@ -1324,6 +1499,7 @@ def test_cd_postgres_reuse_event_admission_executes_exact_prefix(
             "GITHUB_EVENT_NAME": event_name,
             "GITHUB_REF": git_ref,
             "MATERIAL_CHANGED": material_changed,
+            "PGVECTOR_MANUAL_MODE": mode,
         },
         text=True,
         capture_output=True,
