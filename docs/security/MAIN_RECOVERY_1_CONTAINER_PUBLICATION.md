@@ -1,5 +1,54 @@
 # MAIN-RECOVERY-1: image security and publication recovery
 
+## Downstream build admission and read-only reuse continuation
+
+PR #2398 merged as `c9261d628282adac3e6e90d9694d5d2ede2d4bc6`.
+Its [main CD run 35453372545](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35453372545)
+successfully published PostgreSQL and passed image admission and Prometheus
+security. However, downstream `build` was skipped with zero steps even though
+its three direct dependencies succeeded. The aggregate green run did not prove
+execution of the complete intended CD path. The separately requested
+[reuse run 35454001601](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35454001601)
+was cancelled; it is not a successful or naturally completed reuse receipt.
+
+The build condition now explicitly requires a non-cancelled push to main and
+success from every existing direct dependency: Prometheus security, main-push
+admission and native PostgreSQL integration. This preserves both successful
+publication/reuse joins despite their intentionally skipped alternative branch.
+GitHub otherwise applies a default status check; the native zero-step observation
+and documented semantics support this diagnosis, without claiming a captured
+scheduler evaluation trace. Only read-only reuse changes its status predicate
+to `!cancelled()`; its existing event eligibility, stronger shell authorization,
+cleanup, timeouts and deployment readiness controls remain intact.
+See [GitHub status-check semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#status-check-functions).
+
+Local Docker 29.6.2 rejected manifest inspection of the stored tag-and-digest
+reference, while inspection of `repository@platform_manifest_digest` succeeded.
+Local gh 2.83.2 accepted all three predicates, so this is not evidence of a gh
+reference-parser defect. Reuse now constructs the immutable reference from the
+existing validated contract outputs for inspection, pull, OCI verification,
+fresh strict scan and runtime metadata. Canonical tag selection remains a
+separate initial and terminal digest check. Compose's stored runtime reference,
+all three signed predicates, original execution/material/full-SPDX binding,
+approved A5 and terminal main freshness checks remain unchanged.
+
+The existing native integration job consumes the same contract outputs and runs
+real Docker manifest inspection after ephemeral package-read login and before
+TLS/crash checks. It adds no publication credentials or authority. Deterministic
+tests reject the old argument and missing proofs; they do not substitute for
+the subsequent hosted command or a complete reuse scan. Poll diagnostics expose
+only five Boolean states, at most once when pending and once at timeout.
+Evidence anchors: `.github/workflows/cd.yml:103`,
+`.github/workflows/cd.yml:2508`, `.github/workflows/cd.yml:2801`,
+`tests/test_cd_attestation_workflow_contract.py:883`.
+
+Corrected hosted native inspection, naturally completed hosted reuse and actual
+main build execution remain pending. PR #2398's carrier closeout and four Drive
+readbacks are retained historical results; they do not close protected staging,
+backup/restore, Prometheus continuity or the original MAIN-RECOVERY criteria.
+Rollback is a reviewed revert of this bounded continuation, retaining failed
+evidence and all signature, scan and deployment gates.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
@@ -25,7 +74,7 @@ negative controls and records the installed gh version.
 
 Evidence anchors: `scripts/ci/check_pgvector_attestations.py:500`,
 `scripts/ci/classify_pgvector_attestations.sh:1`,
-`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2173`.
+`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2186`.
 Native output contract: [observed gh 2.83.2 download implementation](https://github.com/cli/cli/blob/v2.83.2/pkg/cmd/attestation/download/download.go).
 The corrected local read-only consumer also completed native download and all
 three OCI verifications for the frozen digest
@@ -43,8 +92,9 @@ pullback, source rejection and damaged-signature rejection all succeeded.
 PR #2398 retains the final exact-material evidence in its canonical review mapping.
 The AnyIO prerequisite from #2395 is integrated and the local audit passed
 without skipping; no publication-only audit exception remains active.
-Actual main publication/reuse, staging activation, all original recovery criteria
-and four same-ID Drive outcomes remain separate pending requirements.
+The post-merge publication and carrier-closeout results are recorded above;
+complete hosted reuse, staging activation and the original recovery outcome
+remain separate pending requirements.
 Rollback is an ordinary revert of this bounded successor; retain failed-run
 evidence and HOLD publication rather than relaxing identity, storage or scans.
 
@@ -199,8 +249,8 @@ same immutable image's `/usr/bin/postgres --version` returned
 `postgres (PostgreSQL) 15.19` without initialization. The bounded correction
 therefore overrides only this metadata probe's entrypoint and passes only
 `--version`; it adds no password, trust authentication or alternate `PGDATA`.
-Evidence anchors: `.github/workflows/cd.yml:2187`,
-`tests/test_deploy_contract_scripts.py:1424`.
+Evidence anchors: `.github/workflows/cd.yml:2268`,
+`tests/test_deploy_contract_scripts.py:1605`.
 
 The failed run did not promote the canonical tag. The direct diagnostic proves
 the selected binary invocation only; canonical publication/reuse, staging
