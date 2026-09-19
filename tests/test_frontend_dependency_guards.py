@@ -50,7 +50,7 @@ EXACT_NPM_SEMVER_RE = re.compile(
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 )
 MIN_DOMPURIFY_VERSION = Version("3.4.13")
-MIN_JS_YAML_VERSION = Version("4.3.1")
+MIN_JS_YAML_VERSION = Version("4.3.2")
 MIN_POSTCSS_VERSION = Version("8.5.23")
 MIN_STYLE_DICTIONARY_VERSION = Version("5.4.4")
 MIN_UNDICI_VERSION = Version("7.29.0")
@@ -338,12 +338,22 @@ FRONTEND_SECURITY_TARGETS = {
     },
     "js-yaml": {
         "manifest_path": ("overrides", "js-yaml"),
-        "manifest_value": "4.3.1",
+        "manifest_value": "4.3.2",
         "floor": str(MIN_JS_YAML_VERSION),
-        "selected": "4.3.1",
+        "selected": "4.3.2",
+        # Full reconciled GAD cutoff: 2026-09-14T10:30:42Z, including non-base branches.
         "advisories": {
+            "GHSA-2883-xcg3-v3hh": (">=4.0.0,<4.3.2", ">=3.0.0,<3.15.2"),
+            "GHSA-5p4m-2wfm-xmqj": (">=4.0.0,<4.3.1", ">=3.0.0,<3.15.1"),
+            "GHSA-pm4m-ph32-ghv5": (">=5.0.0,<=5.2.1",),
+            "GHSA-g796-fgmg-93mv": (">=5.0.0,<=5.1.0",),
             "GHSA-52cp-r559-cp3m": (">=3.0.0,<3.15.0", ">=4.0.0,<4.3.0"),
-            "GHSA-5p4m-2wfm-xmqj": (">=3.0.0,<3.15.1", ">=4.0.0,<4.3.1"),
+            "GHSA-724g-mxrg-4qvm": (">=5.0.0,<=5.2.0",),
+            "GHSA-h67p-54hq-rp68": (">=4.0.0,<=4.1.1", "<3.15.0"),
+            "GHSA-mh29-5h37-fv8m": (">=4.0.0,<4.1.1", "<3.14.2"),
+            "GHSA-2pr6-76vf-7546": ("<3.13.0",),
+            "GHSA-8j8c-7jfh-h6hx": ("<3.13.1",),
+            "GHSA-xxvw-45rp-3mj2": ("<2.0.5",),
         },
     },
     "postcss": {
@@ -383,9 +393,9 @@ FRONTEND_SECURITY_BOUNDARY_CASES = (
     ("dompurify-below", "dompurify", "3.4.12", False),
     ("dompurify-floor", "dompurify", "3.4.13", True),
     ("dompurify-selected", "dompurify", "3.4.13", True),
-    ("js-yaml-below", "js-yaml", "4.3.0", False),
-    ("js-yaml-floor", "js-yaml", "4.3.1", True),
-    ("js-yaml-selected", "js-yaml", "4.3.1", True),
+    ("js-yaml-below", "js-yaml", "4.3.1", False),
+    ("js-yaml-floor", "js-yaml", "4.3.2", True),
+    ("js-yaml-selected", "js-yaml", "4.3.2", True),
     ("postcss-below", "postcss", "8.5.22", False),
     ("postcss-floor", "postcss", "8.5.23", True),
     ("postcss-selected", "postcss", "8.5.26", True),
@@ -1764,12 +1774,25 @@ def _extract_transitive_npm_batch_receipt(document: str) -> dict[str, object]:
     return receipt
 
 
-def _assert_frontend_security_targets() -> None:
-    """Validate the five non-brace targets across every tracked npm surface."""
+def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
+    """Validate the declared non-brace targets across every tracked npm surface."""
 
     surfaces = {
-        relative: _load_json(REPO_ROOT / relative) for relative in _enumerate_repo_npm_surfaces()
+        relative: _load_transitive_npm_surface(root / relative)
+        for relative in _enumerate_repo_npm_surfaces(root=root)
     }
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name == "package.json":
+            _assert_manifest_dependency_container_shapes(document=document, surface=relative)
+        else:
+            _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+            for path, package in document["packages"].items():
+                assert isinstance(
+                    package, dict
+                ), f"{relative}:{path}: package entry must be an object"
+                _assert_manifest_dependency_container_shapes(
+                    document=package, surface=f"{relative}:{path}"
+                )
     for target, policy in FRONTEND_SECURITY_TARGETS.items():
         manifest_occurrences: dict[tuple[str, ...], object] = {}
         lock_occurrences: dict[tuple[str, str], dict] = {}
@@ -1818,10 +1841,12 @@ def _assert_frontend_security_targets() -> None:
             assert (
                 package.get("resolved") == expected_resolved
             ), f"{relative}:{path}: {target} canonical provenance mismatch"
-            integrity = package.get("integrity")
-            assert (
-                isinstance(integrity, str) and integrity.strip()
-            ), f"{relative}:{path}: integrity missing"
+            source = f"{relative}:{path}"
+            assert "link" not in package, f"{source}: symbolic link lock occurrence is forbidden"
+            in_bundle = package.get("inBundle", False)
+            assert type(in_bundle) is bool, f"{source}: inBundle must be boolean when present"
+            assert not in_bundle, f"{source}: bundled lock occurrence is forbidden"
+            _assert_sha512_integrity(value=package.get("integrity"), source=source)
             lock_versions.add(parsed_version)
         assert lock_versions == {Version(selected)}, f"{target}: manifest/lock target disagreement"
 
@@ -4178,6 +4203,248 @@ def test_frontend_security_targets_reject_prerelease_false_green(target: str) ->
 
     with pytest.raises(AssertionError, match="prerelease output is not approved"):
         _assert_frontend_security_target_version(target=target, raw_version="99.0.0-rc.1")
+
+
+# Independent expected GAD rows and boundary witnesses, not generated from the policy.
+# Historical transition/base hashes belong to the security owner document, not this oracle.
+JS_YAML_ADVISORY_BOUNDARIES = (
+    ("GHSA-2883-xcg3-v3hh", ">=4.0.0,<4.3.2", ("4.0.0", "4.3.1"), ("3.99.99", "4.3.2")),
+    ("GHSA-2883-xcg3-v3hh", ">=3.0.0,<3.15.2", ("3.0.0", "3.15.1"), ("2.99.99", "3.15.2")),
+    ("GHSA-5p4m-2wfm-xmqj", ">=4.0.0,<4.3.1", ("4.0.0", "4.3.0"), ("3.99.99", "4.3.1")),
+    ("GHSA-5p4m-2wfm-xmqj", ">=3.0.0,<3.15.1", ("3.0.0", "3.15.0"), ("2.99.99", "3.15.1")),
+    ("GHSA-pm4m-ph32-ghv5", ">=5.0.0,<=5.2.1", ("5.0.0", "5.2.1"), ("4.99.99", "5.2.2")),
+    ("GHSA-g796-fgmg-93mv", ">=5.0.0,<=5.1.0", ("5.0.0", "5.1.0"), ("4.99.99", "5.1.1", "5.2.0")),
+    ("GHSA-52cp-r559-cp3m", ">=3.0.0,<3.15.0", ("3.0.0", "3.14.99"), ("2.99.99", "3.15.0")),
+    ("GHSA-52cp-r559-cp3m", ">=4.0.0,<4.3.0", ("4.0.0", "4.2.99"), ("3.99.99", "4.3.0")),
+    ("GHSA-724g-mxrg-4qvm", ">=5.0.0,<=5.2.0", ("5.0.0", "5.2.0"), ("4.99.99", "5.2.1")),
+    ("GHSA-h67p-54hq-rp68", ">=4.0.0,<=4.1.1", ("4.0.0", "4.1.1"), ("3.99.99", "4.1.2", "4.2.0")),
+    ("GHSA-h67p-54hq-rp68", "<3.15.0", ("0.0.0", "3.14.99"), ("3.15.0",)),
+    ("GHSA-mh29-5h37-fv8m", ">=4.0.0,<4.1.1", ("4.0.0", "4.1.0"), ("3.99.99", "4.1.1")),
+    ("GHSA-mh29-5h37-fv8m", "<3.14.2", ("0.0.0", "3.14.1"), ("3.14.2",)),
+    ("GHSA-2pr6-76vf-7546", "<3.13.0", ("0.0.0", "3.12.99"), ("3.13.0",)),
+    ("GHSA-8j8c-7jfh-h6hx", "<3.13.1", ("0.0.0", "3.13.0"), ("3.13.1",)),
+    ("GHSA-xxvw-45rp-3mj2", "<2.0.5", ("0.0.0", "2.0.4"), ("2.0.5",)),
+)
+
+
+def test_js_yaml_advisory_inventory_keeps_every_cutoff_range() -> None:
+    """Deleting a non-base advisory or one branch cannot silently narrow the guard."""
+
+    expected: dict[str, set[str]] = {}
+    for advisory, raw_range, _, _ in JS_YAML_ADVISORY_BOUNDARIES:
+        expected.setdefault(advisory, set()).add(raw_range)
+    actual = FRONTEND_SECURITY_TARGETS["js-yaml"]["advisories"]
+    assert {advisory: set(ranges) for advisory, ranges in actual.items()} == expected
+    assert all(len(ranges) == len(set(ranges)) for ranges in actual.values())
+
+
+@pytest.mark.parametrize(
+    ("advisory", "raw_range", "affected", "unaffected"),
+    JS_YAML_ADVISORY_BOUNDARIES,
+)
+def test_js_yaml_each_advisory_range_boundary(
+    advisory: str,
+    raw_range: str,
+    affected: tuple[str, ...],
+    unaffected: tuple[str, ...],
+) -> None:
+    """Range semantics are tested without the floor masking historical 3.x branches."""
+
+    ranges = FRONTEND_SECURITY_TARGETS["js-yaml"]["advisories"][advisory]
+    assert raw_range in ranges
+    predicate = SpecifierSet(ranges[ranges.index(raw_range)])
+    for version in affected:
+        assert _parse_version(value=version, source=advisory) in predicate
+    for version in (*unaffected, "4.3.2"):
+        assert _parse_version(value=version, source=advisory) not in predicate
+
+
+@pytest.fixture
+def frontend_security_repo(tmp_path: Path) -> Path:
+    """Exercise the ordinary guard against independently tracked fixture surfaces."""
+
+    manifest: dict = {"name": "frontend-security-fixture", "version": "1.0.0"}
+    packages: dict = {}
+    for target, policy in FRONTEND_SECURITY_TARGETS.items():
+        field, name = policy["manifest_path"]
+        manifest.setdefault(field, {})[name] = policy["manifest_value"]
+        packages[f"node_modules/{target}"] = _transitive_npm_entry(
+            target=target, version=policy["selected"]
+        )
+    packages[""] = {key: value for key, value in manifest.items() if key != "overrides"}
+    _write_browserslist_repo(
+        tmp_path,
+        package_json=manifest,
+        package_lock={"lockfileVersion": 3, "packages": packages},
+    )
+    _assert_frontend_security_targets(root=tmp_path)
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("nested-vulnerable", "below security floor"),
+        ("top-vulnerable", "below security floor"),
+        ("safe-unselected", "selected target drift"),
+        ("alias", "alias/noncanonical"),
+        ("wrong-source", "canonical npm registry tarball"),
+        ("source-version", "tarball version must equal"),
+        ("name-conflict", "resolved identity must equal"),
+        ("missing-version", "version must be text"),
+        ("malformed-entry", "package entry must be an object"),
+        ("malformed-packages", "packages.*must be a dict"),
+        ("malformed-container", "dependencies must be an object"),
+        ("root-malformed", "package entry must be an object"),
+        ("missing-target", "governed lock occurrence missing"),
+        ("link", "symbolic link lock occurrence"),
+        ("bundled", "bundled lock occurrence"),
+        ("bundle-type", "inBundle must be boolean"),
+        ("integrity-format", "integrity must use sha512"),
+        ("integrity-base64", "valid base64"),
+        ("integrity-length", "digest must be 64 bytes"),
+        ("manifest-drift", "manifest carriers disagree"),
+        ("manifest-alias", "manifest carriers disagree"),
+        ("manifest-container", "overrides must be an object"),
+    ),
+)
+def test_js_yaml_guard_rejects_invalid_occurrences(
+    frontend_security_repo: Path, case: str, message: str
+) -> None:
+    """Reject vulnerable, misidentified or malformed occurrences through the ordinary guard."""
+    root = frontend_security_repo
+    manifest_path = root / "frontend/package.json"
+    lock_path = root / "frontend/package-lock.json"
+    manifest = _load_json(manifest_path)
+    lock = _load_json(lock_path)
+    packages = lock["packages"]
+    target_path = "node_modules/js-yaml"
+    package = packages[target_path]
+    if case == "nested-vulnerable":
+        packages["node_modules/parent/node_modules/js-yaml"] = _transitive_npm_entry(
+            target="js-yaml", version="4.3.1"
+        )
+    elif case in {"top-vulnerable", "safe-unselected"}:
+        packages[target_path] = _transitive_npm_entry(
+            target="js-yaml", version="4.3.1" if case == "top-vulnerable" else "4.3.3"
+        )
+    elif case == "alias":
+        package["name"] = "js-yaml"
+        packages["node_modules/renamed"] = packages.pop(target_path)
+    elif case == "wrong-source":
+        package["resolved"] = "https://example.invalid/js-yaml/-/js-yaml-4.3.2.tgz"
+    elif case == "source-version":
+        package["resolved"] = "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.1.tgz"
+    elif case == "name-conflict":
+        package["name"] = "other-package"
+    elif case == "missing-version":
+        del package["version"]
+    elif case == "malformed-entry":
+        packages[target_path] = []
+    elif case == "malformed-packages":
+        lock["packages"] = []
+    elif case == "malformed-container":
+        package["dependencies"] = []
+    elif case == "root-malformed":
+        packages[""] = []
+    elif case == "missing-target":
+        del packages[target_path]
+    elif case == "link":
+        package["link"] = True
+    elif case == "bundled":
+        package["inBundle"] = True
+    elif case == "bundle-type":
+        package["inBundle"] = "false"
+    elif case == "integrity-format":
+        package["integrity"] = "not-an-integrity"
+    elif case == "integrity-base64":
+        package["integrity"] = "sha512-***"
+    elif case == "integrity-length":
+        package["integrity"] = "sha512-YQ=="
+    elif case == "manifest-drift":
+        manifest["overrides"]["js-yaml"] = "4.3.1"
+    elif case == "manifest-alias":
+        manifest["overrides"]["renamed"] = "npm:js-yaml@4.3.1"
+    elif case == "manifest-container":
+        manifest["overrides"] = []
+    else:
+        raise AssertionError(f"unhandled invalid js-yaml case: {case}")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    lock_path.write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(AssertionError, match=message):
+        _assert_frontend_security_targets(root=root)
+
+
+@pytest.mark.parametrize(
+    "version", (None, 40302, "", "4.03.2", "4.3", "4.3.2rc1", "4.3.2-rc.1", "４.3.2")
+)
+def test_js_yaml_guard_rejects_incomparable_lock_version(
+    frontend_security_repo: Path, version: object
+) -> None:
+    """Reject versions that cannot satisfy stable advisory and selected-version comparisons."""
+    path = frontend_security_repo / "frontend/package-lock.json"
+    lock = _load_json(path)
+    lock["packages"]["node_modules/js-yaml"]["version"] = version
+    path.write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(AssertionError, match="version|SemVer|prerelease"):
+        _assert_frontend_security_targets(root=frontend_security_repo)
+
+
+@pytest.mark.parametrize("basename", ("package.json", "package-lock.json"))
+def test_js_yaml_guard_rejects_duplicate_json_members(
+    frontend_security_repo: Path, basename: str
+) -> None:
+    """Reject duplicate JSON members before an apparently safe value can mask a duplicate."""
+    path = frontend_security_repo / "frontend" / basename
+    source = path.read_text(encoding="utf-8")
+    if basename == "package.json":
+        source = source.replace('"js-yaml": "4.3.2"', '"js-yaml": "4.3.1", "js-yaml": "4.3.2"')
+    else:
+        source = source.replace('"version": "4.3.2"', '"version": "4.3.1", "version": "4.3.2"')
+    path.write_text(source, encoding="utf-8")
+    with pytest.raises(AssertionError, match="duplicate JSON key"):
+        _assert_frontend_security_targets(root=frontend_security_repo)
+
+
+@pytest.mark.parametrize("basename", ("package.json", "package-lock.json", "npm-shrinkwrap.json"))
+def test_js_yaml_guard_discovers_additional_tracked_surface(
+    frontend_security_repo: Path, basename: str
+) -> None:
+    """Discover newly tracked npm owners and reject an ungoverned vulnerable carrier."""
+    root = frontend_security_repo
+    relative = f"future/nested/{basename}"
+    path = root / relative
+    path.parent.mkdir(parents=True)
+    if basename == "package.json":
+        document = {"dependencies": {"js-yaml": "4.3.1"}}
+        message = "manifest carriers disagree"
+    else:
+        document = {
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/js-yaml": _transitive_npm_entry(target="js-yaml", version="4.3.1")
+            },
+        }
+        message = "unexpected tracked lock owner"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    _git_stdout("add", "--", relative, repo_root=root)
+    assert relative in _enumerate_repo_npm_surfaces(root=root)
+    with pytest.raises(AssertionError, match=message):
+        _assert_frontend_security_targets(root=root)
+
+
+@pytest.mark.parametrize("state", ("missing", "symlink"))
+def test_js_yaml_guard_rejects_unreadable_tracked_surface(
+    frontend_security_repo: Path, state: str
+) -> None:
+    """Fail closed when a tracked npm surface is missing or replaced by a symlink."""
+    root = frontend_security_repo
+    path = root / "frontend/package-lock.json"
+    path.unlink()
+    if state == "symlink":
+        path.symlink_to("package.json")
+    with pytest.raises(AssertionError, match="tracked npm surface"):
+        _assert_frontend_security_targets(root=root)
 
 
 def test_frontend_package_has_ws_override_floor() -> None:
