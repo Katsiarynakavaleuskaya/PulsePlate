@@ -21,6 +21,7 @@ import shutil
 import subprocess
 from typing import Any
 
+import pytest
 import yaml
 
 from scripts.ci import ci_risk_profile
@@ -241,6 +242,12 @@ def _docs_diff_base_candidates() -> tuple[str, ...]:
 
 
 def _changed_docs_diff() -> str:
+    if (
+        os.environ.get("PRE_COMMIT") == "1"
+        and not os.environ.get("CI")
+        and not os.environ.get("GITHUB_ACTIONS")
+    ):
+        return _changed_index_docs_diff()
     candidates = _docs_diff_base_candidates()
     attempted: list[str] = []
     for base_ref in candidates:
@@ -259,6 +266,30 @@ def _changed_docs_diff() -> str:
     raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
 
 
+def _changed_index_docs_diff() -> str:
+    merge_base = subprocess.run(
+        [_binary("git"), "merge-base", "--all", "origin/main", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert merge_base.returncode == 0 and re.fullmatch(
+        r"[0-9a-f]{40}\n?", merge_base.stdout
+    ), "docs leakage guard requires one real origin/main merge-base for index mode"
+    unmerged = subprocess.run(
+        [_binary("git"), "ls-files", "--unmerged"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert (
+        unmerged.returncode == 0 and not unmerged.stdout
+    ), "docs leakage guard cannot inspect an unreadable or unmerged Git index"
+    result = _run_docs_diff(merge_base.stdout.strip(), cached=True)
+    assert result.returncode == 0, "docs leakage guard cannot read proposed Git index diff"
+    return result.stdout
+
+
 def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
     three_dot = _run_docs_diff(f"{base_ref}...HEAD")
     if three_dot.returncode == 0:
@@ -275,9 +306,20 @@ def _docs_diff_error_allows_two_dot_fallback(stderr: str) -> bool:
     )
 
 
-def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
+def _run_docs_diff(
+    revision_range: str, *, cached: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [_binary("git"), "diff", "--unified=0", revision_range, "--", "docs", "docs/review"],
+        [
+            _binary("git"),
+            "diff",
+            *(["--cached"] if cached else []),
+            "--unified=0",
+            revision_range,
+            "--",
+            "docs",
+            "docs/review",
+        ],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -908,6 +950,10 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
         "docs/roadmap/BACKLOG_LEDGER.md",
         "scripts/AGENTS.md",
         "scripts/orchestration/invariant_family_review_episode.py",
+        # EULER-OPS-2: narrowly guarded instruction/expectation references only.
+        "scripts/orchestration/render_codex_start_prompt.py",
+        "tests/test_render_codex_start_prompt.py",
+        "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md",
         "tests/guards/test_security_devtooling_regression_guards.py",
         "tests/test_invariant_family_review_episode.py",
     }
@@ -922,6 +968,213 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
             continue
         consumers.append(relative)
     assert consumers == []
+
+
+class _EulerLiteralLists(ast.NodeTransformer):
+    """Erase only inert string-list contents for one reviewed helper skeleton."""
+
+    def visit_List(self, node: ast.List) -> ast.AST:
+        if (
+            isinstance(node.ctx, ast.Load)
+            and node.elts
+            and all(
+                isinstance(item, ast.Constant) and isinstance(item.value, str) for item in node.elts
+            )
+        ):
+            return ast.List(elts=[ast.Constant(value="text")], ctx=ast.Load())
+        return node
+
+
+def _assert_euler_renderer_inert(source: str) -> None:
+    """Closed helper shape; not a semantic analyzer of arbitrary Python programs."""
+
+    tree = ast.parse(source)
+    helpers = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_euler_prompt_lines"
+    ]
+    assert len(helpers) == 1, "Euler helper must be unique"
+    helper = helpers[0]
+    assert helper in tree.body, "Euler helper must be module-owned"
+    assert isinstance(helper, ast.FunctionDef)
+    assert ast.get_docstring(helper), "Euler helper documents its instruction boundary"
+    helper.body = helper.body[1:]  # Only the proven inert docstring is excluded.
+    expected = ast.parse(
+        "def _euler_prompt_lines(treatment: RailTreatment | None) -> list[str]:\n"
+        "    common = ['text']\n"
+        "    if treatment is None:\n        return common + ['text']\n"
+        "    if treatment is RailTreatment.FINITE_REVIEW:\n        return common + ['text']\n"
+        "    if treatment is RailTreatment.NOT_APPLICABLE:\n        return common + ['text']\n"
+        "    return common + ['text']\n"
+    ).body[0]
+    assert ast.dump(_EulerLiteralLists().visit(helper)) == ast.dump(
+        expected
+    ), "Euler helper must use only the reviewed literal-list/identity-return structure"
+    # Inspect the original tree: normalizing the helper must not erase reference location.
+    original = ast.parse(source)
+    original_helper = next(
+        node
+        for node in original.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_euler_prompt_lines"
+    )
+    parents = {child: node for node in ast.walk(original) for child in ast.iter_child_nodes(node)}
+    callsites: list[tuple[str, str]] = []
+    for node in ast.walk(original):
+        if not isinstance(node, ast.Name) or node.id != "_euler_prompt_lines":
+            continue
+        call = parents.get(node)
+        assert isinstance(call, ast.Call) and call.func is node
+        assert len(call.args) == 1 and not call.keywords
+        extension = parents.get(call)
+        assert isinstance(extension, ast.Call) and extension.args == [call]
+        assert not extension.keywords and isinstance(extension.func, ast.Attribute)
+        assert extension.func.attr == "extend"
+        assert isinstance(extension.func.value, ast.Name) and extension.func.value.id == "lines"
+        statement = parents.get(extension)
+        assert isinstance(statement, ast.Expr)
+        owner = parents.get(statement)
+        while owner is not None and not isinstance(owner, ast.FunctionDef):
+            owner = parents.get(owner)
+        assert isinstance(owner, ast.FunctionDef)
+        callsites.append((owner.name, ast.dump(call.args[0])))
+    assert sorted(callsites) == sorted(
+        [
+            ("_applicability_prompt_lines", ast.dump(ast.Name(id="treatment", ctx=ast.Load()))),
+            ("render_packet_prompt", ast.dump(ast.Constant(value=None))),
+            ("render_recipe_prompt", ast.dump(ast.Constant(value=None))),
+        ]
+    ), "Euler helper output belongs only to the three rendering seams"
+    admitted_nodes = set(ast.walk(original_helper))
+    # Explicit fixed-root and named owner API references only. This does not
+    # infer arbitrary paths, aliases or filesystem behavior from Python programs.
+    store_api_names = {"STORE_COMPONENTS", "_StoreSession", "_scan_store", "_manifest_from_store"}
+    for node in ast.walk(original):
+        for _field, value in ast.iter_fields(node):
+            if isinstance(value, str):
+                assert (
+                    "review_invariant_family_episodes" not in value and value not in store_api_names
+                ), "Euler renderer must not reference its fixed store or named store APIs"
+            if isinstance(value, str) and "invariant_family_review_episode" in value:
+                assert (
+                    isinstance(node, ast.Constant) and node in admitted_nodes
+                ), "Euler renderer references belong only to inert helper literals"
+
+
+def _assert_euler_test_references_inert(source: str) -> None:
+    """Module-name references in the owning test are direct output expectations only."""
+
+    tree = ast.parse(source)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    for node in ast.walk(tree):
+        for _field, value in ast.iter_fields(node):
+            if not isinstance(value, str) or "invariant_family_review_episode" not in value:
+                continue
+            comparison = parents.get(node)
+            assert isinstance(node, ast.Constant) and isinstance(
+                comparison, ast.Compare
+            ), "Euler test reference must be a literal output expectation"
+            assert comparison.left is node and len(comparison.ops) == 1
+            assert isinstance(comparison.ops[0], (ast.In, ast.NotIn))
+            assert isinstance(comparison.comparators[0], ast.Name)
+            assert comparison.comparators[0].id == "prompt"
+            assert isinstance(parents.get(comparison), ast.Assert)
+
+
+def test_euler_new_references_remain_inert() -> None:
+    _assert_euler_renderer_inert(
+        (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    )
+    _assert_euler_test_references_inert(
+        (REPO_ROOT / "tests/test_render_codex_start_prompt.py").read_text("utf-8")
+    )
+    # Bind documented stdin input names to the unchanged CLI owner, not invented schemas.
+    document = (REPO_ROOT / "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md").read_text("utf-8")
+    for schema in (
+        invariant_family_review_episode.BASELINE_INPUT_SCHEMA,
+        invariant_family_review_episode.COMPLETE_INPUT_SCHEMA,
+        invariant_family_review_episode.STATUS_REQUEST_SCHEMA,
+    ):
+        assert f"`{schema}`" in document
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "direct_import",
+        "aliased_call",
+        "store_read",
+        "decorator",
+        "default",
+        "computed_string",
+        "outside_reference",
+        "duplicate_helper",
+        "execute_output",
+        "alias_output",
+    ],
+)
+def test_euler_renderer_rejects_executable_reference_mutations(mutation: str) -> None:
+    source = (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    mutations = {
+        "direct_import": "from scripts.orchestration import invariant_family_review_episode as e\n",
+        "outside_reference": "command = 'invariant_family_review_episode'\n",
+        "execute_output": "exec(_euler_prompt_lines(None)[0])\n",
+        "alias_output": "run = _euler_prompt_lines\n",
+    }
+    if mutation in mutations:
+        changed = source + mutations[mutation]
+    elif mutation == "duplicate_helper":
+        changed = source + "\ndef _euler_prompt_lines(treatment):\n    return []\n"
+    elif mutation == "decorator":
+        changed = source.replace("def _euler_prompt_lines(", "@execute()\ndef _euler_prompt_lines(")
+    elif mutation == "default":
+        changed = source.replace(
+            "treatment: RailTreatment | None)", "treatment: RailTreatment | None = execute())"
+        )
+    else:
+        expression = {
+            "aliased_call": "e.status()",
+            "store_read": "Path('store').read_text()",
+            "computed_string": "'instruction ' + str(treatment)",
+        }[mutation]
+        changed = source.replace("    common = [", f"    common = [{expression},", 1)
+    assert changed != source
+    with pytest.raises(AssertionError):
+        _assert_euler_renderer_inert(changed)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        'Path("artifacts/orchestration/review_invariant_family_episodes").read_text()',
+        '(Path("artifacts") / "orchestration" / "review_invariant_family_episodes").iterdir()',
+        "Path(*STORE_COMPONENTS).read_text()",
+        "_StoreSession(anchor, exclusive=False, create=False)",
+        "_scan_store(session)",
+        "_manifest_from_store(enrollments, terminals)",
+    ],
+)
+def test_euler_renderer_rejects_explicit_fixed_store_references(statement: str) -> None:
+    source = (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    # These named references are forbidden even outside the constrained helper.
+    with pytest.raises(AssertionError, match="Euler renderer must not reference its fixed store"):
+        _assert_euler_renderer_inert(source + "\n" + statement + "\n")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import invariant_family_review_episode as e",
+        "execute('invariant_family_review_episode')",
+        "command = 'invariant_family_review_episode'",
+        "assert 'invariant_family_review_episode' in execute()",
+        "assert 'invariant_family_review_episode' in prompt.read_text()",
+    ],
+)
+def test_euler_test_references_reject_execution_carriers(source: str) -> None:
+    with pytest.raises(AssertionError):
+        _assert_euler_test_references_inert(source)
 
 
 def _episode_function_calls(tree: ast.AST) -> dict[str, set[str]]:
@@ -1169,3 +1422,160 @@ def test_docs_diff_falls_back_when_shallow_checkout_lacks_merge_base() -> None:
 def test_judgment_validity_module_exports_expected_sidecar_filenames() -> None:
     assert judgment_validity.JUDGMENT_VALIDITY_ITEMS_FILENAME == "judgment_validity_items.jsonl"
     assert judgment_validity.JUDGMENT_VALIDITY_REPORT_FILENAME == "judgment_validity_report.json"
+
+
+def _docs_fixture_git(
+    repo: Path, *args: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Use only a disposable fixture repository, without host commit hooks/config."""
+    return subprocess.run(
+        [
+            _binary("git"),
+            "-c",
+            "user.name=Docs Guard Fixture",
+            "-c",
+            "user.email=docs-guard@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            *args,
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=check,
+    )
+
+
+@pytest.fixture
+def docs_diff_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
+    for name in (
+        "CI",
+        "GITHUB_ACTIONS",
+        "GITHUB_BASE_REF",
+        "GITHUB_EVENT_PATH",
+        DOCS_LEAKAGE_GUARD_BASE_ENV,
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PRE_COMMIT", "1")
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    _docs_fixture_git(tmp_path, "init", "--initial-branch=main")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/note.md").write_text("Clean base\n", encoding="utf-8")
+    _docs_fixture_git(tmp_path, "add", "docs/note.md")
+    _docs_fixture_git(tmp_path, "commit", "-m", "Fixture base")
+    _docs_fixture_git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _docs_fixture_git(tmp_path, "checkout", "-b", "feature")
+    return tmp_path
+
+
+def _stage_docs_fixture(repo: Path, text: str, *, commit: bool = False) -> None:
+    (repo / "docs/note.md").write_text(text, encoding="utf-8")
+    _docs_fixture_git(repo, "add", "docs/note.md")
+    if commit:
+        _docs_fixture_git(repo, "commit", "-m", "Fixture candidate")
+
+
+@pytest.mark.parametrize(
+    ("state", "leaks"),
+    [
+        ("committed-leak-staged-repair", False),
+        ("staged-leak-unstaged-repair", True),
+        ("staged-repair-unstaged-leak", False),
+        ("unchanged-index-committed-leak", True),
+    ],
+)
+def test_local_docs_guard_checks_real_index_candidate(
+    docs_diff_repo: Path, state: str, leaks: bool
+) -> None:
+    leak = "Local path /Users/fixture/private\n"
+    clean = "Corrected documentation\n"
+    if state == "staged-leak-unstaged-repair":
+        _stage_docs_fixture(docs_diff_repo, leak)
+        (docs_diff_repo / "docs/note.md").write_text(clean, encoding="utf-8")
+    else:
+        _stage_docs_fixture(docs_diff_repo, leak, commit=True)
+        if state != "unchanged-index-committed-leak":
+            _stage_docs_fixture(docs_diff_repo, clean)
+        if state == "staged-repair-unstaged-leak":
+            (docs_diff_repo / "docs/note.md").write_text(leak, encoding="utf-8")
+    if leaks:
+        with pytest.raises(AssertionError):
+            test_changed_docs_do_not_add_local_users_absolute_paths()
+    else:
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("CI", "true"), ("CI", "0"), ("GITHUB_ACTIONS", "true"), ("GITHUB_ACTIONS", "false")],
+)
+def test_docs_guard_ci_precedence_keeps_committed_head(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    _stage_docs_fixture(docs_diff_repo, "Corrected documentation\n")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+@pytest.mark.parametrize("marker", ("", "0", "true"))
+def test_docs_guard_nonexact_hook_marker_keeps_committed_head(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch, marker: str
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    _stage_docs_fixture(docs_diff_repo, "Corrected documentation\n")
+    monkeypatch.setenv("PRE_COMMIT", marker)
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+def test_index_docs_guard_ignores_shorter_environment_base(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    monkeypatch.setenv(DOCS_LEAKAGE_GUARD_BASE_ENV, "HEAD")
+    monkeypatch.setenv("GITHUB_BASE_REF", "feature")
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+def test_index_docs_guard_rejects_missing_origin_base(docs_diff_repo: Path) -> None:
+    _docs_fixture_git(docs_diff_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    with pytest.raises(AssertionError, match="requires one real origin/main merge-base"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_conflicting_index(docs_diff_repo: Path) -> None:
+    _docs_fixture_git(docs_diff_repo, "checkout", "-b", "other", "origin/main")
+    _stage_docs_fixture(docs_diff_repo, "Other branch\n", commit=True)
+    _docs_fixture_git(docs_diff_repo, "checkout", "feature")
+    _stage_docs_fixture(docs_diff_repo, "Feature branch\n", commit=True)
+    result = _docs_fixture_git(docs_diff_repo, "merge", "other", check=False)
+    assert result.returncode == 1
+    with pytest.raises(AssertionError, match="unreadable or unmerged Git index"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_unreadable_index(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A missing index file represents empty state to Git, so use a directory to
+    # trigger a real unreadable-index failure without fabricating tool output.
+    monkeypatch.setenv("GIT_INDEX_FILE", str(docs_diff_repo / "docs"))
+    with pytest.raises(AssertionError, match="unreadable or unmerged Git index"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_unreadable_staged_blob(docs_diff_repo: Path) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Unique staged candidate\n")
+    blob = _docs_fixture_git(docs_diff_repo, "rev-parse", ":docs/note.md").stdout.strip()
+    (docs_diff_repo / ".git/objects" / blob[:2] / blob[2:]).unlink()
+    (docs_diff_repo / "docs/note.md").write_text("Different unstaged content\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="cannot read proposed Git index diff"):
+        _changed_docs_diff()

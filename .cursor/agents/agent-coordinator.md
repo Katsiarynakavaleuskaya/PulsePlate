@@ -125,6 +125,8 @@ When a task is created:
    - What's the complexity? (Single-agent vs multi-agent)
    - What's the priority? (P0/P1/P2)
    - What's the expected outcome?
+   - Enforce the [required Euler procedure](../../docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md#required-euler-preflight-and-supervision-handoff)
+     for every coordinator-owned PR through the assigned analysis and review roles.
 
 2. **Map to agent capabilities**:
    - See "Available Agents" section below for capabilities and canonical docs

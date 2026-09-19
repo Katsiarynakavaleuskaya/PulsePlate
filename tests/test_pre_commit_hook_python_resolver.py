@@ -33,8 +33,16 @@ def _write_fake_pytest_python(
     pytest_exit: int = 0,
     available: bool = True,
     nul_output: bool = False,
+    delegate_probe: Path | None = None,
 ) -> None:
     separator = "\\0" if nul_output else "\\n"
+    pytest_result = (
+        f"exec {shlex.quote(sys.executable)} -P -m pytest -q -c /dev/null "
+        f"--rootdir={shlex.quote(str(delegate_probe.parent))} "
+        f"--confcutdir={shlex.quote(str(delegate_probe.parent))} {shlex.quote(str(delegate_probe))}"
+        if delegate_probe is not None
+        else f"exit {pytest_exit}"
+    )
     path.write_text(
         textwrap.dedent(f"""\
             #!/usr/bin/env bash
@@ -46,7 +54,7 @@ def _write_fake_pytest_python(
             if [[ "$1" == "-m" && "$2" == "pytest" ]]; then
                 shift 2
                 printf '%s{separator}' "$@" > {shlex.quote(str(calls_file))}
-                exit {pytest_exit}
+                {pytest_result}
             fi
             echo "unexpected fake python args: $*" >&2
             exit 2
@@ -1144,9 +1152,8 @@ def test_backend_hook_skips_unrelated_staged_changes_without_repo_python(
     (repo / "README.md").write_text("init\n", encoding="utf-8")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "init")
-    (repo / "docs").mkdir()
-    (repo / "docs" / "note.md").write_text("docs-only\n", encoding="utf-8")
-    _git(repo, "add", "docs/note.md")
+    (repo / "README.md").write_text("unrelated root documentation\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
     env = _clean_hook_env()
     env["PRE_COMMIT"] = "1"
 
@@ -1276,9 +1283,8 @@ def test_backend_hook_all_files_keeps_branch_manifest_delta_with_unrelated_stage
     )
     _git(repo, "add", "frontend/package-lock.json")
     _git(repo, "commit", "--quiet", "-m", "update frontend lockfile")
-    (repo / "docs").mkdir()
-    (repo / "docs" / "note.md").write_text("docs-only\n", encoding="utf-8")
-    _git(repo, "add", "docs/note.md")
+    (repo / "README.md").write_text("unrelated root documentation\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
     calls_file = tmp_path / "pytest-all-files-staged-args.txt"
     fake_python = tmp_path / "fake-python-all-files-staged"
     _write_fake_pytest_python(fake_python, calls_file)
@@ -2192,6 +2198,33 @@ def _recorded_pytest_arguments(calls: Path) -> list[str]:
         ("unmapped.py", []),
         ("tests/conftest.py", []),
         (".github/dependabot.yml", ["tests/test_check_dependabot_python_policy.py"]),
+        (
+            "docs/note.md",
+            [
+                "tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths"
+            ],
+        ),
+        (
+            "docs/nested/space \n\r\tname.md",
+            [
+                "tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths"
+            ],
+        ),
+        (
+            "requirements.txt",
+            [
+                "tests/test_check_dependabot_python_policy.py",
+                "tests/test_dependency_security_guard.py",
+            ],
+        ),
+        (
+            "nested/space \n\r\tname.in",
+            [
+                "tests/test_check_dependabot_python_policy.py",
+                "tests/test_dependency_security_guard.py",
+            ],
+        ),
+        ("nested/deeper/requirements.in", []),
     ),
 )
 @pytest.mark.parametrize("mode", ("branch", "staged"))
@@ -2209,6 +2242,7 @@ def test_backend_hook_supported_shell_selection(
     _git(repo, "commit", "--quiet", "-m", "seed test owner")
     _git(repo, "switch", "--quiet", "-c", "selection")
     if changed_path is not None:
+        (repo / changed_path).parent.mkdir(parents=True, exist_ok=True)
         (repo / changed_path).write_text("# selected change\n", encoding="utf-8")
         _git(repo, "add", changed_path)
         if mode == "branch":
@@ -2801,3 +2835,160 @@ def test_backend_native_optional_absence_retains_valid_empty_history_behaviour(
     assert "insufficient history" in result.stdout
     assert not calls.exists()
     assert "Backend tests passed" not in result.stdout
+
+
+@pytest.mark.parametrize("mode", ("branch", "staged"))
+def test_backend_hook_deduplicates_docs_and_dependency_routes(
+    tmp_path: Path, backend_shell: str, mode: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "isolated-governance")
+    for name in ("docs/note.md", "docs/nested/space \nname.md", "extra.txt", "nested/extra.in"):
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Changed surface\n", encoding="utf-8")
+        _git(repo, "add", name)
+    if mode == "branch":
+        _git(repo, "commit", "--quiet", "-m", "isolated governance changes")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["BRANCH_DIFF_MODE" if mode == "branch" else "PRE_COMMIT"] = "1"
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    args = _recorded_pytest_arguments(calls)
+    assert (
+        args.count(
+            "tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths"
+        )
+        == 1
+    )
+    assert args.count("tests/test_dependency_security_guard.py") == 1
+    assert args.count("tests/test_check_dependabot_python_policy.py") == 1
+    assert "tests/guards/test_security_devtooling_regression_guards.py" not in args
+
+
+@pytest.mark.parametrize("mode", ("branch", "staged"))
+def test_backend_hook_docs_dependency_contract_keeps_existing_routes(
+    tmp_path: Path, backend_shell: str, mode: str
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "dependency-docs")
+    path = repo / "docs/DEPENDENCY_MANAGEMENT.md"
+    path.parent.mkdir()
+    path.write_text("Changed dependency guidance\n", encoding="utf-8")
+    _git(repo, "add", "docs/DEPENDENCY_MANAGEMENT.md")
+    if mode == "branch":
+        _git(repo, "commit", "--quiet", "-m", "change dependency guidance")
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    env["BRANCH_DIFF_MODE" if mode == "branch" else "PRE_COMMIT"] = "1"
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    args = _recorded_pytest_arguments(calls)
+    assert "tests/test_check_dependabot_python_policy.py" in args
+    assert "tests/test_python_dependency_surfaces.py" in args
+    assert "tests/test_python_supply_chain_controls.py" in args
+    assert "tests/test_httpx_testclient_compat_guard.py" in args
+    assert (
+        args.count(
+            "tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths"
+        )
+        == 1
+    )
+
+
+@pytest.mark.parametrize("mode", ("branch", "staged"))
+@pytest.mark.parametrize("surface", ("docs", "requirements", "requirements-source"))
+@pytest.mark.parametrize("unsafe", (False, True))
+def test_backend_hook_reaches_actual_guard_on_isolated_surface(
+    tmp_path: Path, backend_shell: str, mode: str, surface: str, unsafe: bool
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "switch", "--quiet", "-c", "guard-integration")
+    if surface == "docs":
+        name = "docs/isolated note.md"
+        text = "Unsafe /Users/fixture/private\n" if unsafe else "Safe public documentation\n"
+        import_line = "from tests.guards import test_security_devtooling_regression_guards as owner"
+        invocation = (
+            f"monkeypatch.setattr(owner, 'REPO_ROOT', Path({str(repo)!r}))\n"
+            "    owner.test_changed_docs_do_not_add_local_users_absolute_paths()"
+        )
+        expected = (
+            "tests/guards/test_security_devtooling_regression_guards.py"
+            "::test_changed_docs_do_not_add_local_users_absolute_paths"
+        )
+        failure = "test_changed_docs_do_not_add_local_users_absolute_paths"
+    elif surface == "requirements":
+        name = "requirements.txt"
+        text = "anyio==4.12.0\n" if unsafe else "anyio==4.14.2\n"
+        import_line = "from tests import test_dependency_security_guard as owner"
+        invocation = (
+            "owner.test_dependency_security_guard_enforces_blocked_versions("
+            f"Path({str(repo / name)!r}))"
+        )
+        expected = "tests/test_dependency_security_guard.py"
+        failure = "matches blocked specifier"
+    else:
+        name = "requirements.in"
+        text = "anyio>=4.12.0,<5\n" if unsafe else "anyio>=4.14.2,<5\n"
+        import_line = "from tests import test_dependency_security_guard as owner"
+        invocation = (
+            "owner._assert_remediated_dependency_surface("
+            f"Path({str(repo / name)!r}), required=True, pinned=False)"
+        )
+        expected = "tests/test_dependency_security_guard.py"
+        failure = "matches blocked range"
+    path = repo / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    _git(repo, "add", name)
+    if mode == "branch":
+        _git(repo, "commit", "--quiet", "-m", "isolated guarded change")
+    probe = tmp_path / "selected_guard_probe.py"
+    probe.write_text(
+        f"from pathlib import Path\nimport pytest\n{import_line}\n\n"
+        f"def test_selected_guard(monkeypatch: pytest.MonkeyPatch) -> None:\n    {invocation}\n",
+        encoding="utf-8",
+    )
+    env, calls = _backend_selection_env(tmp_path, backend_shell)
+    _write_fake_pytest_python(
+        Path(env["VENV_PYTHON"]), calls, nul_output=True, delegate_probe=probe
+    )
+    # This fixture explicitly exercises local candidate-index mode; real CI
+    # retains HEAD precedence in the production guard's separate mode tests.
+    env.pop("CI", None)
+    env.pop("GITHUB_ACTIONS", None)
+    for key in ("GITHUB_BASE_REF", "GITHUB_EVENT_PATH", "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"):
+        env.pop(key, None)
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env.pop("PYTEST_ADDOPTS", None)
+    env["BRANCH_DIFF_MODE" if mode == "branch" else "PRE_COMMIT"] = "1"
+    result = subprocess.run(
+        [backend_shell, "scripts/run-backend-tests-pre-commit.sh"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert _recorded_pytest_arguments(calls).count(expected) == 1
+    assert result.returncode == (1 if unsafe else 0), result.stdout + result.stderr
+    if unsafe:
+        assert failure in result.stdout
+        assert "Backend tests failed" in result.stdout
+    else:
+        assert "1 passed" in result.stdout
+        assert "Backend tests passed" in result.stdout
