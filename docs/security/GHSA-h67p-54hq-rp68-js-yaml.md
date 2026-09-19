@@ -23,7 +23,9 @@ No standalone docs-only closeout PR is authorized for this dependency lane.
 ## D and S — identity and independently enumerated surfaces
 
 - D: `npm:js-yaml`.
-- Exact base B: `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
+- Original admitted base B0: `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
+- Current base B: `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1`; the new-base
+  reconciliation below proves the same npm surface hashes and complete delta.
 - Candidate dependency material: the complete base/head hashes below; the eventual
   PR material-head SHA will be bound by its ordinary exact-head review/seal.
 - Base census command: `git ls-tree -r --name-only -z b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
@@ -415,11 +417,56 @@ content was preserved exactly; the Markdown files received new versions.
 Terminal/post-merge Drive checkpoints, alert #291 observation, archive and owned
 cleanup are still required. These statements do not close the Dependency Epic.
 
+## New-base reconciliation — 2026-09-19
+
+The mandatory pre-push audit initially blocked the unpublished review corrections
+because base B0 pinned AnyIO 4.12.0. The separately owned
+[PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395) merged
+at 13:28:21 UTC as B, supplying AnyIO 4.14.2 and its independently approved Python
+HTTP-client batch. This branch incorporated B with an ancestry-preserving merge;
+the sole ledger conflict retained both lanes' records. No Python dependency
+action, hook bypass or suppression was authored by DEP-SEC-01.
+
+Two clean detached states at exact B independently repeated the canonical command
+under the same Node 24.18.1 / npm 11.16.0 configuration recorded above:
+
+```bash
+scripts/frontend_npm.sh --prefix frontend install --package-lock-only --ignore-scripts --no-audit --no-fund
+```
+
+Observed at 2026-09-19T13:42:31Z: both exit codes were 0, with raw stdout
+`up to date in 1s` and `up to date in 289ms`. Every full npm surface was identical
+between B0 and B before the authored override; both new outputs equal the current
+head bytes and original head hashes in the table. The complete four-field JSON
+delta is unchanged: one I_R override and three C_R lock fields. The retained
+`new-base-resolver-replay.json` has SHA-256
+`a76edfc1f6ecbd4dc59d6cd49bbe5540da4169885ecc74db1928219370d7e3f9`.
+Thus the original per-advisory base witnesses also apply to B.
+
+A fresh fully paginated GAD query confirmed identical advisory IDs, revisions,
+withdrawal state and every affected range; F_cutoff remains the original 11/16
+inventory. Its refresh SHA-256 is
+`8712ee5ef2d80dbb24c3be10a6694010b55d6e0af53fef8ee97908b5565b5939`.
+The fresh authenticated open-alert census contains four npm identities: js-yaml,
+smol-toml, vitest and @vitest/mocker (SHA-256
+`2fa5604a0d5edd950723e4a0e567a344477c40b06595b982863e54ae9142507e`).
+This is an observed census, not a dismissal or closure of the parent epic.
+
+The targeted mandatory gate `pre-commit run pip-audit --hook-stage pre-push
+--all-files` now exits 0 (`pip-audit (pip vulns) ... Passed`). The repo interpreter
+has AnyIO 4.14.2, httpx2/httpcore2 2.12.0 and idna 3.18. A bounded Euler review
+independently confirmed unchanged npm bytes, guard/helper sources and executable
+guard AST, retaining selected finite-review depth and the completed pre-fix
+Logic/Philosophy proof. No formal episode or second post-open role chain was
+created. Exact final-head checks, self-review/seal, dispositions, readiness,
+human merge decision and post-merge outcomes remain required.
+
 ## Remaining debt and rollback
 
-The retained repository census has 16 open alerts over six identities. This PR
-addresses js-yaml only; smol-toml, Vitest/@vitest/mocker, httpx2 and httpcore2 remain
-separate sequential work. PYDEP-1A remains deferred after the security sequence.
+The original retained census had 16 open alerts over six identities. The fresh
+post-#2395 census below has four npm alerts; this PR addresses js-yaml only.
+smol-toml and Vitest/@vitest/mocker remain separate sequential work.
+PYDEP-1A remains deferred after the security sequence.
 See [dependency checkpoint](../roadmap/BACKLOG_LEDGER.md#ledger-p1-dependency-alerts-after-main-recovery)
 and [Dependency Epic](../roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure).
 
