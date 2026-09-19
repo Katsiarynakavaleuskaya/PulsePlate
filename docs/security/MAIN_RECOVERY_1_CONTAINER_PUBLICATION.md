@@ -1,5 +1,53 @@
 # MAIN-RECOVERY-1: image security and publication recovery
 
+## Native attestation inventory continuation
+
+PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
+Its main CD run [34830372738](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34830372738)
+then exposed the inventory consumer's obsolete embedded `bundle` assumption.
+The bounded successor `codex/fix-main-attestation-inventory` uses the existing
+structured REST presence observation and official `gh attestation download`
+JSONL in a fresh owned directory. It does not decode storage URLs or compression.
+Explicit limit 100 applies before filtering; exhaustion, malformed output,
+a failed download, or populated presence without a native file is HOLD.
+HTTP 404 permits only an independently bound actual build to author; it is
+neither proof of absence nor permission for read-only reuse.
+
+Complete reuse retains the original three-predicate identity and entire signed
+SPDX hash. A regenerated document may differ; candidate verification compares
+it only for create mode. Partial current-execution conflicts, original identity
+binding, native OCI verification and the fresh strict image scan remain hard.
+GitHub persistence without the required OCI proof is HOLD, with no automatic
+restoration. Publisher and synthetic probe share the same acquisition/classifier.
+The probe preserves its original SPDX and separately regenerates metadata to
+exercise complete, repeated and read-only reuse. It retains source/signature
+negative controls and records the installed gh version.
+
+Evidence anchors: `scripts/ci/check_pgvector_attestations.py:500`,
+`scripts/ci/classify_pgvector_attestations.sh:1`,
+`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2173`.
+Native output contract: [observed gh 2.83.2 download implementation](https://github.com/cli/cli/blob/v2.83.2/pkg/cmd/attestation/download/download.go).
+The corrected local read-only consumer also completed native download and all
+three OCI verifications for the frozen digest
+`sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380`.
+It returned all modes `reuse`, source
+`a35a0eafb17d2b13383dfd9e7cf2b61707e6254d` and original run
+`34784541339/attempts/1` with exit 0. The coordinator retains the JSON/stdout/stderr
+under ignored `artifacts/orchestration/github-contract-research/corrected-native-readonly-inventory.*`.
+This read-only receipt does not prove new publication or deployment.
+Local fixtures do not prove remote signatures or publication. The real
+[synthetic run 35435902634](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35435902634)
+passed at `5b816007f1770672f0fe4749da57d5a23f16f2b4`, using gh 2.100.0:
+first and partial publication, complete/repeated/read-only reuse, fresh-process
+pullback, source rejection and damaged-signature rejection all succeeded.
+PR #2398 retains the final exact-material evidence in its canonical review mapping.
+The AnyIO prerequisite from #2395 is integrated and the local audit passed
+without skipping; no publication-only audit exception remains active.
+Actual main publication/reuse, staging activation, all original recovery criteria
+and four same-ID Drive outcomes remain separate pending requirements.
+Rollback is an ordinary revert of this bounded successor; retain failed-run
+evidence and HOLD publication rather than relaxing identity, storage or scans.
+
 ## Current continuation: original-build admission and protected staging
 
 The owner accepted one new implementation carrier,

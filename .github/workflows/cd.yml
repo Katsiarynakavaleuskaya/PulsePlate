@@ -220,13 +220,33 @@ jobs:
           ghcr_dir="$(python3 -m scripts.ci.ghcr_attestation_credentials ghcr-directory --directory "$DOCKER_CONFIG")"
           printf '%s' "$GHCR_TOKEN_VALUE" | docker --config "$ghcr_dir" login ghcr.io --username "$GHCR_USER" --password-stdin
           python3 -m scripts.ci.ghcr_attestation_credentials install --directory "$DOCKER_CONFIG" --ghcr-config "$ghcr_dir/config.json"
+      - name: Classify synthetic tuple before native authoring
+        id: probe-inventory-before
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/classify_pgvector_attestations.sh probe-manifest.json probe-inventory-before.json \
+            --source-ref "$GITHUB_REF" --current-build --source-sha "$GITHUB_SHA" --sbom probe.spdx.json \
+            --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+          python3 - <<'PY_INITIAL'
+          import json, os
+          from pathlib import Path
+          initial = json.loads(Path("probe-inventory-before.json").read_text())
+          if any(initial[key] != "create" for key in ("mode", "provenance_mode", "materials_mode", "sbom_mode")):
+              raise SystemExit("Synthetic initial digest already has proof; fresh authoring probe HOLD")
+          if initial["source_sha"] != os.environ["GITHUB_SHA"]:
+              raise SystemExit("Synthetic initial authoring identity mismatch")
+          PY_INITIAL
       - name: Attest actual synthetic build
+        if: steps.probe-inventory-before.outputs.provenance_mode == 'create'
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
         with:
           subject-name: ${{ steps.probe.outputs.repository }}
           subject-digest: ${{ steps.probe.outputs.digest }}
           push-to-registry: true
       - name: Attest synthetic exact materials
+        if: steps.probe-inventory-before.outputs.materials_mode == 'create'
         id: attest-probe-materials
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
@@ -235,7 +255,27 @@ jobs:
           predicate-type: https://pulseplate.app/attestations/postgres-pgvector-materials/v1
           predicate-path: probe-materials.json
           push-to-registry: true
+      - name: Classify synthetic tuple before SPDX completion
+        id: probe-inventory-partial
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/classify_pgvector_attestations.sh probe-manifest.json probe-inventory-partial.json \
+            --source-ref "$GITHUB_REF" --current-build --source-sha "$GITHUB_SHA" --sbom probe.spdx.json \
+            --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
+          python3 - <<'PY_PARTIAL'
+          import json, os
+          from pathlib import Path
+          partial = json.loads(Path("probe-inventory-partial.json").read_text())
+          expected = {"mode": "create", "provenance_mode": "reuse", "materials_mode": "reuse", "sbom_mode": "create",
+              "source_sha": os.environ["GITHUB_SHA"],
+              "run_invocation_uri": "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["GITHUB_RUN_ID"] + "/attempts/" + os.environ["GITHUB_RUN_ATTEMPT"]}
+          if partial != expected:
+              raise SystemExit("Synthetic partial decision did not preserve exact native/material proofs")
+          PY_PARTIAL
       - name: Reject the exact current incomplete native and materials tuple before SPDX
+        if: steps.probe-inventory-partial.outputs.sbom_mode == 'create'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -290,6 +330,7 @@ jobs:
             exit 1
           fi
       - name: Attest synthetic SPDX
+        if: steps.probe-inventory-partial.outputs.sbom_mode == 'create'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ steps.probe.outputs.repository }}
@@ -297,6 +338,41 @@ jobs:
           predicate-type: https://spdx.dev/Document/v2.3
           predicate-path: probe.spdx.json
           push-to-registry: true
+      - name: Classify complete repeated and read-only original synthetic tuple
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY_REGENERATED'
+          import json
+          from pathlib import Path
+          document = json.loads(Path("probe.spdx.json").read_text())
+          document["creationInfo"]["created"] = "2026-09-14T00:00:00Z"
+          Path("probe-regenerated.spdx.json").write_text(json.dumps(document))
+          PY_REGENERATED
+          for stage in complete repeat readonly; do
+            build_args=()
+            if [ "$stage" != readonly ]; then
+              build_args=(--current-build --source-sha "$GITHUB_SHA" --sbom probe-regenerated.spdx.json
+                --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT")
+            fi
+            bash scripts/ci/classify_pgvector_attestations.sh probe-manifest.json "probe-inventory-$stage.json" \
+              --source-ref "$GITHUB_REF" "${build_args[@]}"
+          done
+          python3 - <<'PY_REUSE'
+          import json, os
+          from pathlib import Path
+          results = [json.loads(Path("probe-inventory-" + stage + ".json").read_text())
+                     for stage in ("complete", "repeat", "readonly")]
+          for result in results:
+              if any(result[key] != "reuse" for key in ("mode", "provenance_mode", "materials_mode", "sbom_mode")):
+                  raise SystemExit("Complete synthetic tuple was not reused")
+              expected = "https://github.com/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["GITHUB_RUN_ID"] + "/attempts/" + os.environ["GITHUB_RUN_ATTEMPT"]
+              if result["source_sha"] != os.environ["GITHUB_SHA"] or result["run_invocation_uri"] != expected:
+                  raise SystemExit("Original synthetic identity changed")
+          if results[1:] != results[:-1]:
+              raise SystemExit("Repeated synthetic inventory decision changed")
+          PY_REUSE
       - name: Fresh-process external pullback repeat and source-rejection probe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -406,7 +482,10 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
           name: postgres-synthetic-attestation-probe
-          path: probe*.json
+          path: |
+            probe*.json
+            probe*-gh-version.txt
+            probe*-presence-status.txt
       - name: Logout probe registry
         if: always()
         env:
@@ -2099,28 +2178,11 @@ jobs:
           REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
         run: |
           set -euo pipefail
-          response_path="$(mktemp "${RUNNER_TEMP}/pulseplate-pgvector-attestations.XXXXXX")"
-          http_status="$(curl --silent --show-error --location \
-            --proto '=https' --tlsv1.2 \
-            --header 'Accept: application/vnd.github+json' \
-            --header "Authorization: Bearer ${GH_TOKEN}" \
-            --header 'X-GitHub-Api-Version: 2026-03-10' \
-            --output "$response_path" \
-            --write-out '%{http_code}' \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/attestations/${PLATFORM_DIGEST}?per_page=100")"
-          case "$http_status" in
-            200) ;;
-            404) printf '{"attestations":[]}\n' > "$response_path" ;;
-            *)
-              echo "Unable to classify existing exact-digest attestations (HTTP ${http_status})" >&2
-              exit 1
-              ;;
-          esac
-          python3 scripts/ci/check_pgvector_attestations.py inventory \
-            --inventory "$response_path" --current-build --source-sha "$GITHUB_SHA" \
+          bash scripts/ci/classify_pgvector_attestations.sh \
+            deploy/postgres-pgvector/image-manifest.json postgres-pgvector-inventory.json \
+            --current-build --source-sha "$GITHUB_SHA" \
             --sbom postgres-pgvector-image-sbom.spdx.json \
-            --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
-            --json-out postgres-pgvector-inventory.json
+            --run-invocation-uri "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
 
       - name: Initialize the pinned native SDK GHCR reader for PostgreSQL writes
         env:
@@ -2173,8 +2235,14 @@ jobs:
         run: |
           set -euo pipefail
           docker pull --platform linux/amd64 "$RUNTIME_REF"
+          sbom_args=()
+          case "$ATTESTATION_MODE" in
+            create) sbom_args=(--sbom postgres-pgvector-image-sbom.spdx.json) ;;
+            reuse) ;;
+            *) echo "Unknown attestation mode" >&2; exit 1 ;;
+          esac
           python3 scripts/ci/check_pgvector_attestations.py verify \
-            --sbom postgres-pgvector-image-sbom.spdx.json --source-sha "$ORIGINAL_SOURCE_SHA" \
+            "${sbom_args[@]}" --source-sha "$ORIGINAL_SOURCE_SHA" \
             --run-invocation-uri "$ORIGINAL_RUN_INVOCATION_URI" \
             --json-out postgres-pgvector-provenance-attestation-check.json
           inspected_digest="$(docker image inspect "$RUNTIME_REF" \
@@ -2277,6 +2345,8 @@ jobs:
             postgres-pgvector-image-sbom.spdx.json
             postgres-pgvector-materials.json
             postgres-pgvector-inventory.json
+            postgres-pgvector-inventory-gh-version.txt
+            postgres-pgvector-inventory-presence-status.txt
             postgres-pgvector-provenance-verified.json
             postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
@@ -2615,7 +2685,7 @@ jobs:
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://slsa.dev/provenance/v1 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-                  --source-ref refs/heads/main >/dev/null 2>&1; then
+                  --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners >/dev/null 2>&1; then
                 provenance_ready=true
               fi
               if gh attestation verify "oci://${RUNTIME_REF}" \
@@ -2629,7 +2699,7 @@ jobs:
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://spdx.dev/Document/v2.3 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
-                  --source-ref refs/heads/main >/dev/null 2>&1; then
+                  --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners >/dev/null 2>&1; then
                 spdx_ready=true
               fi
             fi

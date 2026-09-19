@@ -98,17 +98,18 @@ def _gh_timeout_seconds() -> int:
     return timeout_seconds
 
 
-def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_gh(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     """Run gh with a resolved binary path and strict timeout/error handling."""
 
     timeout_seconds = _gh_timeout_seconds()
     try:
-        return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed attestation-verification subcommands only (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
+        return subprocess.run(  # nosec B603: argv uses a resolved gh path with fixed attestation verify/download subcommands only (remove-by: 2026-09-30, ref: PR-docker-signed-provenance)
             [_gh_path(), *args],
             check=True,
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
+            cwd=cwd,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
@@ -117,8 +118,14 @@ def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip()
         stdout = exc.stdout.strip()
-        detail = _trim_for_error(stderr or stdout or str(exc))
-        raise RuntimeError(f"gh attestation verify failed: {detail}") from exc
+        raw_detail = stderr or stdout or str(exc)
+        operation = "verify"
+        if args[:2] == ["attestation", "download"]:
+            operation = "download"
+            # Native storage transport errors can include temporary signed bundle URLs.
+            raw_detail = re.sub(r"(https?://[^\s?#]+)\?[^\s]+", r"\1?[redacted-query]", raw_detail)
+        detail = _trim_for_error(raw_detail)
+        raise RuntimeError(f"gh attestation {operation} failed: {detail}") from exc
 
 
 def _parse_verification_output(
