@@ -21,17 +21,6 @@ DEVPI_SIMPLE_TOKEN = "token-123"
 DEVPI_SIMPLE_URL = "https://packages.pulseplate.app/root/pulseplate/+simple/"
 DEVPI_ROOT_USER = "root"
 REPO_ROOT = Path(__file__).resolve().parents[1]
-IDNA_SECURITY_FLOOR = "3.15"
-IDNA_PREVIOUS_VULNERABLE_PIN = "3.11"
-IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
-    "requirements.txt",
-    "requirements-dev.txt",
-    "requirements-ci-lite.txt",
-    "requirements-lock.txt",
-    "requirements-docker-runtime.txt",
-    "requirements-rag-vector.txt",
-    "requirements-rag-vector-cpu.txt",
-)
 RAG_VECTOR_EXPECTED_FASTEMBED_VERSION = "0.8.0"
 MAIN_PREFLIGHT_TESTS = {
     "test_main_preflight_only_skips_requirements_file_resolution",
@@ -1051,6 +1040,7 @@ def test_resolve_python_executable_rejects_invalid_targets(tmp_path: Path) -> No
 def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Resolve the Python alias while preserving the canonical invocation path."""
     observed_commands: list[list[str]] = []
     observed_names: list[str] = []
 
@@ -1058,6 +1048,7 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
         command: list[str],
         **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
+        """Capture probe arguments and return wheel tags without launching Python."""
         observed_commands.append(command)
         payload = {
             "tags": ["py3-none-any"],
@@ -1071,6 +1062,7 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
 
     def fake_which(name: str) -> str:
+        """Record the requested alias and expose the current interpreter spelling."""
         observed_names.append(name)
         return sys.executable
 
@@ -1078,7 +1070,8 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
 
     assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
-    assert observed_commands[0][0] == sys.executable
+    expected_python = Path(sys.executable).parent.resolve() / Path(sys.executable).name
+    assert observed_commands[0][0] == str(expected_python)
     assert observed_names == ["python"]
 
 
@@ -1235,19 +1228,8 @@ def test_emergency_artifact_filter_dedupes_exact_filename_digest_and_rejects_con
         )
 
 
-def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
-    requirement_files = set(IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES)
-
-    repo_requirement_files = {path.name: path for path in REPO_ROOT.glob("requirements*.txt")}
-    assert repo_requirement_files
-    assert requirement_files <= set(repo_requirement_files)
-
-    for requirement_file, path in repo_requirement_files.items():
-        pairs = _exact_requirement_pairs(path.read_text(encoding="utf-8"))
-        assert ("idna", IDNA_PREVIOUS_VULNERABLE_PIN) not in pairs
-        if requirement_file in requirement_files:
-            assert ("idna", IDNA_SECURITY_FLOOR) in pairs
-
+def test_repo_idna_has_no_active_emergency_fallback() -> None:
+    """Exclude idna from the real loader's active emergency fallback artifacts."""
     artifact_packages = {item["package"] for item in _repo_active_emergency_artifacts()}
     assert "idna" not in artifact_packages
 

@@ -24,6 +24,7 @@ from packaging.version import InvalidVersion
 from packaging.version import Version
 
 from scripts.ci.check_python_dependency_surfaces import (
+    DEPENDENCY_SURFACES,
     compiled_dependency_surfaces,
     registered_dependabot_requirement_carriers,
 )
@@ -2972,27 +2973,53 @@ def test_http_client_current_governed_surfaces_are_safe() -> None:
 
 
 def test_http_client_idna_runtime_constraints_are_compatible() -> None:
-    """HTTPX2 metadata requires this resolver closure, not a new authored identity."""
-    compiled = compiled_dependency_surfaces()
-    assert ANYIO_REQUIRED_COMPILE_PROFILES <= {s.compile_profile for s in compiled}
-    for surface in compiled:
-        if surface.compile_profile not in ANYIO_REQUIRED_COMPILE_PROFILES:
-            continue
-        _assert_http_client_idna_compatible(REPO_ROOT / surface.lockfile)
+    """Inspect every registry lockfile field using its compiled or flexible contract."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert registered == discovered, "idna carrier inventory differs from registry"
+    lockfiles = {surface.lockfile for surface in DEPENDENCY_SURFACES}
+    assert lockfiles and lockfiles <= registered, "idna registry lockfile inventory is incomplete"
+    assert ANYIO_REQUIRED_COMPILE_PROFILES <= {s.compile_profile for s in DEPENDENCY_SURFACES}
+    for surface in DEPENDENCY_SURFACES:
+        _assert_http_client_idna_compatible(
+            REPO_ROOT / surface.lockfile,
+            required=surface.compile_profile in ANYIO_REQUIRED_COMPILE_PROFILES,
+            pinned=surface.compile_profile is not None,
+        )
 
 
-def _assert_http_client_idna_compatible(path: Path) -> None:
-    """Check the exact comparable idna pin required by current HTTPX2 metadata."""
-    _minima, carriers = _requirement_evidence_per_package(path)
-    occurrences = carriers.get("idna", ())
+def _assert_http_client_idna_compatible(
+    path: Path, *, required: bool = True, pinned: bool = True
+) -> None:
+    """Validate idna under the registry's exact-pin or flexible exclusion contract."""
+    occurrences: list[Requirement] = []
+    for line in _iter_requirement_lines(path):
+        requirement = _parse_requirement(line, path)
+        if requirement is not None and _normalized_package_name(requirement.name) == "idna":
+            occurrences.append(requirement)
+    if not occurrences:
+        assert not required, f"{path.name}: expected exactly one idna carrier"
+        return
+    if not pinned:
+        for requirement in occurrences:
+            assert all(
+                spec.operator != "===" for spec in requirement.specifier
+            ), f"{path.name}: arbitrary equality cannot establish comparable idna exclusion"
+            assert not requirement.specifier.contains(
+                Version("3.11"), prereleases=True
+            ), f"{path.name}: flexible requirement admits retained excluded idna version 3.11"
+        return
     assert len(occurrences) == 1, f"{path.name}: expected exactly one idna carrier"
     requirement = occurrences[0]
     assert requirement.marker is None and not requirement.extras
     specifiers = tuple(requirement.specifier)
     assert len(specifiers) == 1 and specifiers[0].operator == "=="
-    assert Version(specifiers[0].version) >= Version(
-        "3.18"
-    ), f"{path.name}: idna must satisfy HTTPX2 metadata floor 3.18"
+    version = Version(specifiers[0].version)
+    assert version != Version("3.11"), f"{path.name}: retained excluded idna version 3.11"
+    if required:
+        assert version >= Version(
+            "3.18"
+        ), f"{path.name}: idna must satisfy HTTPX2 metadata floor 3.18"
 
 
 @pytest.mark.parametrize("package", ("httpx2", "httpcore2"))
@@ -3048,3 +3075,133 @@ def test_http_client_idna_accepts_later_compatible_pin(tmp_path: Path) -> None:
     path = tmp_path / "requirements.txt"
     path.write_text("idna==3.19\n", encoding="utf-8")
     _assert_http_client_idna_compatible(path)
+
+
+@pytest.fixture
+def idna_consumer_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Track copied canonical carriers so real registry discovery governs each test."""
+    for name in registered_dependabot_requirement_carriers():
+        destination = tmp_path / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO_ROOT / name, destination)
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    _git_command(["init", "--quiet"])
+    _git_command(["add", "."])
+    return tmp_path
+
+
+@pytest.mark.parametrize("lockfile", ("requirements-data.txt", "requirements-evals.txt"))
+@pytest.mark.parametrize("version", ("3.11", "3.11.0"))
+def test_idna_consumer_rejects_known_excluded_optional_pins(
+    idna_consumer_repo: Path, lockfile: str, version: str
+) -> None:
+    """Reject excluded idna versions through each optional lock consumer."""
+    (idna_consumer_repo / lockfile).write_text(f"idna=={version}\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="retained excluded idna version"):
+        test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize("lockfile", ("requirements-data.txt", "requirements-evals.txt"))
+@pytest.mark.parametrize("text", ("# optional absence\n", "idna==3.15\n", "idna==3.19\n"))
+def test_idna_consumer_allows_optional_absence_and_other_exact_versions(
+    idna_consumer_repo: Path, lockfile: str, text: str
+) -> None:
+    """Permit optional absence and pins without imposing the required-profile floor."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize("lockfile", ("requirements-data.txt", "requirements-evals.txt"))
+@pytest.mark.parametrize(
+    ("text", "error_type"),
+    [
+        ("idna==3.15\nidna==3.19\n", AssertionError),
+        ('idna==3.19; python_version >= "3.10"\n', AssertionError),
+        ("idna[extra]==3.19\n", AssertionError),
+        ("idna>=3.19\n", AssertionError),
+        ("idna==3..19\n", pytest.fail.Exception),
+        ("idna @ https://example.invalid/idna.whl\n", pytest.fail.Exception),
+    ],
+)
+def test_idna_consumer_rejects_noncanonical_present_optional_carriers(
+    idna_consumer_repo: Path, lockfile: str, text: str, error_type: type[BaseException]
+) -> None:
+    """Reject malformed or noncanonical idna carriers in each optional profile."""
+    (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
+    with pytest.raises(error_type):
+        test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "idna==3.11\n",
+        "idna==3.11.0\n",
+        "idna>=3.0\n",
+        "idna==3.*\n",
+        "idna\n",
+        "idna===3.19\n",
+        "idna===opaque\n",
+        'idna==3.11; python_version < "0"\n',
+        "idna[extra]==3.11\n",
+        "idna>=3.15\nidna==3.11\n",
+    ],
+)
+def test_idna_consumer_rejects_flexible_known_bad_or_incomparable_sets(
+    idna_consumer_repo: Path, text: str
+) -> None:
+    """Exercise the registered noncompiled carrier so compiled-only iteration fails."""
+    (idna_consumer_repo / "requirements-all.txt").write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match="retained excluded idna version|arbitrary equality"):
+        test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "-r requirements.txt\n",
+        "idna>=3.15\n",
+        "idna>=3.19\n",
+        "idna>=3.0,!=3.11\n",
+        "idna==3.15.*\n",
+        "idna>=3.15\nidna>=3.19\n",
+        'idna>=3.15; python_version >= "3.10"\n',
+        "idna[extra]>=3.15\n",
+    ],
+)
+def test_idna_consumer_accepts_flexible_absence_and_excluding_sets(
+    idna_consumer_repo: Path, text: str
+) -> None:
+    """Accept valid flexible sets without imposing a compiled pin or metadata floor."""
+    (idna_consumer_repo / "requirements-all.txt").write_text(text, encoding="utf-8")
+    test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize(
+    ("text", "error_type"),
+    [
+        ("idna==3..15\n", pytest.fail.Exception),
+        ("idna @ https://example.invalid/idna.whl\n", pytest.fail.Exception),
+    ],
+)
+def test_idna_consumer_rejects_noncanonical_flexible_carriers(
+    idna_consumer_repo: Path, text: str, error_type: type[BaseException]
+) -> None:
+    """Reject malformed or URL-based flexible declarations through the owning parser."""
+    (idna_consumer_repo / "requirements-all.txt").write_text(text, encoding="utf-8")
+    with pytest.raises(error_type):
+        test_http_client_idna_runtime_constraints_are_compatible()
+
+
+@pytest.mark.parametrize("mutation", ("omit-registered", "add-unregistered"))
+def test_idna_consumer_requires_real_registry_discovery_parity(
+    idna_consumer_repo: Path, mutation: str
+) -> None:
+    """Reject omitted or unregistered indexed carriers through canonical discovery."""
+    if mutation == "omit-registered":
+        _git_command(["rm", "--cached", "requirements-all.txt"])
+    else:
+        (idna_consumer_repo / "requirements-extra.txt").write_text("idna==3.11\n", encoding="utf-8")
+        _git_command(["add", "requirements-extra.txt"])
+    with pytest.raises(AssertionError, match="idna carrier inventory differs from registry"):
+        test_http_client_idna_runtime_constraints_are_compatible()

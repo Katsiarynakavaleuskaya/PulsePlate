@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess  # nosec B404: native Git owns tracked-tree semantics; no safer bounded replacement (remove-by: 2026-10-12, ref: ledger-p1-native-cli-subprocess-review)
 import sys
+import tempfile
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -27,6 +28,7 @@ MANIFEST = Path("deploy/postgres-pgvector/image-manifest.json")
 HELPER_PATHS = (
     ".github/workflows/cd.yml",
     "scripts/ci/check_pgvector_attestations.py",
+    "scripts/ci/classify_pgvector_attestations.sh",
     "scripts/ci/check_docker_provenance_attestation.py",
     "tests/test_pgvector_attestations.py",
     "tests/test_cd_attestation_workflow_contract.py",
@@ -193,6 +195,25 @@ def verified_statement(
     return statement["predicate"], identity_from_certificate(result, repo, workflow, ref)
 
 
+def validate_material_subject(manifest: dict) -> tuple[str, str]:
+    """Validate the same closed subject contract before every admission path."""
+    if manifest.get("schema") not in (
+        "pulseplate.postgres_pgvector_image_manifest.v1",
+        "pulseplate.synthetic_attestation_probe.v1",
+    ):
+        raise ValueError("Unsupported material manifest schema")
+    repository = manifest.get("repository")
+    digest = manifest.get("platform_manifest_digest")
+    if (
+        not isinstance(repository, str)
+        or re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+", repository) is None
+        or not isinstance(digest, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+    ):
+        raise ValueError("Material subject identity malformed")
+    return repository, digest
+
+
 def validate_one_triple(
     payloads: dict,
     manifest: dict,
@@ -202,22 +223,11 @@ def validate_one_triple(
     source_sha: str | None = None,
     sbom: dict | None = None,
 ) -> dict:
-    if manifest.get("schema") not in (
-        "pulseplate.postgres_pgvector_image_manifest.v1",
-        "pulseplate.synthetic_attestation_probe.v1",
-    ):
-        raise ValueError("Unsupported material manifest schema")
-    if (
-        not isinstance(manifest.get("repository"), str)
-        or re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+", manifest["repository"]) is None
-        or not isinstance(manifest.get("platform_manifest_digest"), str)
-        or re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]) is None
-    ):
-        raise ValueError("Material subject identity malformed")
+    repository, digest = validate_material_subject(manifest)
     subject = [
         {
-            "name": manifest["repository"],
-            "digest": {"sha256": manifest["platform_manifest_digest"].removeprefix("sha256:")},
+            "name": repository,
+            "digest": {"sha256": digest.removeprefix("sha256:")},
         }
     ]
     records = [
@@ -487,6 +497,53 @@ def material_changes(base: str, head: str) -> list[str]:
     return sorted(path for path in universe & changed if selected(path, rules))
 
 
+def inventory_kinds(
+    manifest: dict, repo: str, inventory: Path, http_status: str
+) -> tuple[str, ...]:
+    """Use REST only for presence, and official download for native bundle acquisition."""
+    repository, digest = validate_material_subject(manifest)
+    if http_status == "404":
+        return ()  # Authoring authority is checked independently by the caller.
+    if http_status != "200":
+        raise ValueError("Attestation presence request failed; inventory HOLD")
+    records = read_json(inventory).get("attestations")
+    if (
+        not isinstance(records, list)
+        or len(records) >= 100
+        or any(not isinstance(record, dict) for record in records)
+    ):
+        raise ValueError("Attestation inventory malformed/pagination ambiguous")
+    if not records:
+        return ()
+    uri = native.build_artifact_uri(repository, digest)
+    with tempfile.TemporaryDirectory(prefix="pulseplate-attestation-download-") as directory:
+        root = Path(directory)
+        native._run_gh(["attestation", "download", uri, "--repo", repo, "--limit", "100"], cwd=root)
+        path = root / (digest + ".jsonl")
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Populated GitHub inventory lacks regular native download; HOLD")
+        lines = [line for line in path.read_bytes().splitlines() if line.strip()]
+        if not lines or len(lines) >= 100:
+            raise ValueError("Native inventory empty or bounded limit exhausted; HOLD")
+        kinds = []
+        for line in lines:
+            record = loads(line)
+            envelope = record.get("dsseEnvelope") if isinstance(record, dict) else None
+            if not isinstance(envelope, dict) or not isinstance(envelope.get("payload"), str):
+                raise ValueError("Native inventory bundle malformed")
+            statement = loads(base64.b64decode(envelope["payload"], validate=True))
+            if not isinstance(statement, dict):
+                raise ValueError("Inventory statement malformed")
+            if statement.get("subject") == [
+                {
+                    "name": manifest["repository"],
+                    "digest": {"sha256": digest.removeprefix("sha256:")},
+                }
+            ]:
+                kinds.append(statement.get("predicateType"))
+        return tuple(kind for kind in TYPES if kind in kinds)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("generate", "verify", "inventory", "changes", "unchanged"))
@@ -505,6 +562,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--sbom", type=Path)
     parser.add_argument("--inventory", type=Path)
+    parser.add_argument("--inventory-http-status", default="200")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--base")
     parser.add_argument("--head")
@@ -545,34 +603,20 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError(
                         "Current actual-build inventory requires its one generated --sbom"
                     )
-                inventory = read_json(args.inventory).get("attestations")
-                if not isinstance(inventory, list) or len(inventory) >= 100:
-                    raise ValueError("Attestation inventory malformed/pagination ambiguous")
-                kinds = []
-                for record in inventory:
-                    statement = loads(
-                        base64.b64decode(record["bundle"]["dsseEnvelope"]["payload"], validate=True)
-                    )
-                    if not isinstance(statement, dict):
-                        raise ValueError("Inventory statement malformed")
-                    if statement.get("subject") == [
-                        {
-                            "name": manifest["repository"],
-                            "digest": {
-                                "sha256": manifest["platform_manifest_digest"].removeprefix(
-                                    "sha256:"
-                                )
-                            },
-                        }
-                    ]:
-                        kinds.append(statement.get("predicateType"))
+                if args.inventory_http_status == "404" and not args.current_build:
+                    raise ValueError("HTTP 404 does not authorize read-only reuse")
+                kinds = inventory_kinds(
+                    manifest, args.repo, args.inventory, args.inventory_http_status
+                )
                 payloads = verified_payloads(
                     manifest,
                     args.repo,
                     args.signer_workflow,
                     args.source_ref,
-                    tuple(kind for kind in TYPES if kind in kinds),
+                    kinds,
                 )
+                if any(not payloads[kind] for kind in kinds):
+                    raise ValueError("GitHub-present predicate lacks OCI proof; HOLD")
                 groups = tuple_records(
                     payloads, manifest, args.repo, args.signer_workflow, args.source_ref
                 )
@@ -583,7 +627,6 @@ def main(argv: list[str] | None = None) -> int:
                         args.repo,
                         args.signer_workflow,
                         args.source_ref,
-                        sbom=current_sbom,
                     )
                 except ValueError:
                     admitted = None

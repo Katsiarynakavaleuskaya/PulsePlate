@@ -306,9 +306,9 @@ def test_shared_material_rules_cover_recursive_added_deleted_owners() -> None:
     assert not verifier.selected("frontend/irrelevant.ts", rules)
 
 
-@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("existing,status", [(False, "200"), (False, "404"), (True, "200")])
 def test_inventory_uses_official_triple_before_reuse_selection(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool, status: str
 ) -> None:
     manifest, payloads = packet()
     manifest_path = tmp_path / "manifest.json"
@@ -317,6 +317,10 @@ def test_inventory_uses_official_triple_before_reuse_selection(
     sbom_path.write_text(
         json.dumps(payloads[verifier.TYPES[2]][0]["verificationResult"]["statement"]["predicate"])
     )
+    if existing:
+        regenerated = json.loads(sbom_path.read_text())
+        regenerated["creationInfo"]["created"] = "2026-09-14T00:00:00Z"
+        sbom_path.write_text(json.dumps(regenerated))
     records = []
     if existing:
         records = [
@@ -334,11 +338,23 @@ def test_inventory_uses_official_triple_before_reuse_selection(
             for kind in verifier.TYPES
         ]
     inventory = tmp_path / "inventory.json"
-    inventory.write_text(json.dumps({"attestations": records}))
+    inventory.write_text(
+        json.dumps(
+            {"attestations": [{"bundle_url": "https://example.invalid/native"} for _ in records]}
+        )
+    )
     calls = []
 
-    def run(args: list[str]) -> subprocess.CompletedProcess[str]:
+    def run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         calls.append(args)
+        if args[1] == "download":
+            assert cwd is not None
+            (cwd / (manifest["platform_manifest_digest"] + ".jsonl")).write_text(
+                "\n".join(json.dumps(record["bundle"]) for record in records)
+            )
+            return subprocess.CompletedProcess(
+                args, 0, "native CLI output is not a path contract", ""
+            )
         kind = args[args.index("--predicate-type") + 1]
         return subprocess.CompletedProcess(args, 0, json.dumps(payloads[kind]), "")
 
@@ -353,6 +369,8 @@ def test_inventory_uses_official_triple_before_reuse_selection(
                 "inventory",
                 "--manifest",
                 str(manifest_path),
+                "--inventory-http-status",
+                status,
                 "--inventory",
                 str(inventory),
                 "--json-out",
@@ -369,8 +387,37 @@ def test_inventory_uses_official_triple_before_reuse_selection(
         == 0
     )
     assert json.loads(result.read_text())["mode"] == ("reuse" if existing else "create")
-    assert len(calls) == (3 if existing else 0)
+    assert len(calls) == (4 if existing else 0)
     if existing:
+        readonly = [
+            "inventory",
+            "--manifest",
+            str(manifest_path),
+            "--inventory",
+            str(inventory),
+            "--json-out",
+            str(result),
+        ]
+        assert verifier.main(readonly) == 0
+        assert json.loads(result.read_text())["source_sha"] == SHA
+        monkeypatch.setenv("GITHUB_SHA", "b" * 40)
+        monkeypatch.setenv("GITHUB_RUN_ID", "34700002577")
+        assert (
+            verifier.main(
+                readonly
+                + [
+                    "--current-build",
+                    "--sbom",
+                    str(sbom_path),
+                    "--source-sha",
+                    "b" * 40,
+                    "--run-invocation-uri",
+                    "https://github.com/" + REPO + "/actions/runs/34700002577/attempts/1",
+                ]
+            )
+            == 0
+        )
+        assert json.loads(result.read_text())["run_invocation_uri"] == INVOCATION
         payloads[verifier.MATERIALS_TYPE] = []
         assert (
             verifier.main(
@@ -401,7 +448,7 @@ def test_material_changes_union_includes_added_and_deleted_descendants(
     ]
 
 
-@pytest.mark.parametrize("present", [(), (0,), (0, 1), (0, 2)])
+@pytest.mark.parametrize("present", [(), (0,), (1,), (2,), (0, 1), (0, 2), (1, 2)])
 def test_interrupted_current_actual_build_resumes_only_its_missing_predicates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, present: tuple[int, ...]
 ) -> None:
@@ -427,9 +474,19 @@ def test_interrupted_current_actual_build_resumes_only_its_missing_predicates(
         for index in present
     ]
     inventory = tmp_path / "inventory.json"
-    inventory.write_text(json.dumps({"attestations": records}))
+    inventory.write_text(
+        json.dumps(
+            {"attestations": [{"bundle_url": "https://example.invalid/native"} for _ in records]}
+        )
+    )
 
-    def run(args: list[str]) -> subprocess.CompletedProcess[str]:
+    def run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        if args[1] == "download":
+            assert cwd is not None
+            (cwd / (manifest["platform_manifest_digest"] + ".jsonl")).write_text(
+                "\n".join(json.dumps(record["bundle"]) for record in records)
+            )
+            return subprocess.CompletedProcess(args, 0, "", "")
         kind = args[args.index("--predicate-type") + 1]
         return subprocess.CompletedProcess(args, 0, json.dumps(payloads[kind]), "")
 
@@ -467,6 +524,19 @@ def test_interrupted_current_actual_build_resumes_only_its_missing_predicates(
     for index, field in enumerate(("provenance_mode", "materials_mode", "sbom_mode")):
         assert result[field] == ("reuse" if index in present else "create")
     assert result["run_invocation_uri"] == INVOCATION
+    if 1 in present or 2 in present:
+        original_document = sbom_path.read_text()
+        changed_document = json.loads(original_document)
+        changed_document["creationInfo"]["created"] = "2026-09-14T00:00:00Z"
+        sbom_path.write_text(json.dumps(changed_document))
+        assert (
+            verifier.main(
+                arguments
+                + ["--current-build", "--source-sha", SHA, "--run-invocation-uri", INVOCATION]
+            )
+            == 1
+        )
+        sbom_path.write_text(original_document)
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
     new_invocation = INVOCATION[:-1] + "2"
     assert (
@@ -660,3 +730,194 @@ def test_first_creation_base_is_changed_only_after_addressable_full_head(
     assert calls[0] == ["cat-file", "-e", "a" * 40 + "^{commit}"]
     with pytest.raises(ValueError, match="full SHA"):
         verifier.material_changes("0" * 40, "malformed")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "empty",
+        "symlink",
+        "directory",
+        "failed",
+        "malformed",
+        "duplicate",
+        "nonobject",
+        "base64",
+        "cap",
+    ],
+)
+def test_native_download_failures_never_become_empty_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    manifest, _ = packet()
+    metadata = tmp_path / "presence.json"
+    metadata.write_text('{"attestations":[{"bundle_url":"opaque"}]}')
+    roots = []
+
+    def run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        assert args == [
+            "attestation",
+            "download",
+            verifier.native.build_artifact_uri(
+                manifest["repository"], manifest["platform_manifest_digest"]
+            ),
+            "--repo",
+            REPO,
+            "--limit",
+            "100",
+        ]
+        assert cwd is not None and not list(cwd.iterdir())
+        roots.append(cwd)
+        output = cwd / (manifest["platform_manifest_digest"] + ".jsonl")
+        if failure == "symlink":
+            output.symlink_to(metadata)
+        elif failure == "directory":
+            output.mkdir()
+        elif failure != "missing":
+            values = {
+                "empty": "\n",
+                "malformed": "{",
+                "duplicate": '{"dsseEnvelope":{},"dsseEnvelope":{}}',
+                "nonobject": "[]",
+                "base64": '{"dsseEnvelope":{"payload":"!"}}',
+                "cap": "{}\n" * 100,
+                "failed": "{}",
+            }
+            output.write_text(values[failure])
+        if failure == "failed":
+            raise RuntimeError("native download failed")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", run)
+    with pytest.raises((ValueError, RuntimeError)):
+        verifier.inventory_kinds(manifest, REPO, metadata, "200")
+    assert roots and all(not root.exists() for root in roots)
+
+
+@pytest.mark.parametrize("count", [1, 99, 100])
+def test_native_inventory_counts_before_foreign_subject_filter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, count: int
+) -> None:
+    manifest, _ = packet()
+    metadata = tmp_path / "presence.json"
+    metadata.write_text('{"attestations":[{}]}')
+    record = {
+        "dsseEnvelope": {
+            "payload": base64.b64encode(
+                json.dumps(
+                    {"subject": [], "predicateType": "https://example.invalid/unrelated"}
+                ).encode()
+            ).decode()
+        }
+    }
+
+    def run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+        assert cwd is not None
+        (cwd / (manifest["platform_manifest_digest"] + ".jsonl")).write_text(
+            "\n".join(json.dumps(record) for _ in range(count))
+        )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", run)
+    if count == 100:
+        with pytest.raises(ValueError, match="limit"):
+            verifier.inventory_kinds(manifest, REPO, metadata, "200")
+    else:
+        assert verifier.inventory_kinds(manifest, REPO, metadata, "200") == ()
+
+
+@pytest.mark.parametrize("status", ["200", "404", "401", "403", "429", "500"])
+def test_presence_status_is_not_readonly_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    manifest, _ = packet()
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    metadata = tmp_path / "presence.json"
+    metadata.write_text('{"attestations":[]}')
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("Empty/error presence must not download or verify")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", forbidden)
+    assert (
+        verifier.main(
+            [
+                "inventory",
+                "--manifest",
+                str(manifest_path),
+                "--inventory",
+                str(metadata),
+                "--inventory-http-status",
+                status,
+            ]
+        )
+        == 1
+    )
+
+
+@pytest.mark.parametrize("status", ["200", "404"])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("schema", "unsupported"),
+        ("repository", None),
+        ("repository", "not-a-registry"),
+        ("platform_manifest_digest", None),
+        ("platform_manifest_digest", "sha256:invalid"),
+    ],
+)
+def test_empty_inventory_rejects_invalid_subject_before_create_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    field: str,
+    value: str | None,
+) -> None:
+    manifest, payloads = packet()
+    manifest[field] = value
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text('{"attestations":[]}')
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(
+        json.dumps(payloads[verifier.TYPES[2]][0]["verificationResult"]["statement"]["predicate"])
+    )
+    result = tmp_path / "decision.json"
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_SHA", SHA)
+    monkeypatch.setenv("GITHUB_RUN_ID", "34700002576")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("Invalid subject must be rejected before native calls")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", forbidden)
+    assert (
+        verifier.main(
+            [
+                "inventory",
+                "--manifest",
+                str(manifest_path),
+                "--inventory",
+                str(inventory),
+                "--inventory-http-status",
+                status,
+                "--current-build",
+                "--source-sha",
+                SHA,
+                "--run-invocation-uri",
+                INVOCATION,
+                "--sbom",
+                str(sbom),
+                "--json-out",
+                str(result),
+            ]
+        )
+        == 1
+    )
+    assert not result.exists()
+    assert not output.exists()
