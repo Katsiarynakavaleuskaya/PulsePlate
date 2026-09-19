@@ -195,6 +195,25 @@ def verified_statement(
     return statement["predicate"], identity_from_certificate(result, repo, workflow, ref)
 
 
+def validate_material_subject(manifest: dict) -> tuple[str, str]:
+    """Validate the same closed subject contract before every admission path."""
+    if manifest.get("schema") not in (
+        "pulseplate.postgres_pgvector_image_manifest.v1",
+        "pulseplate.synthetic_attestation_probe.v1",
+    ):
+        raise ValueError("Unsupported material manifest schema")
+    repository = manifest.get("repository")
+    digest = manifest.get("platform_manifest_digest")
+    if (
+        not isinstance(repository, str)
+        or re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+", repository) is None
+        or not isinstance(digest, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+    ):
+        raise ValueError("Material subject identity malformed")
+    return repository, digest
+
+
 def validate_one_triple(
     payloads: dict,
     manifest: dict,
@@ -204,22 +223,11 @@ def validate_one_triple(
     source_sha: str | None = None,
     sbom: dict | None = None,
 ) -> dict:
-    if manifest.get("schema") not in (
-        "pulseplate.postgres_pgvector_image_manifest.v1",
-        "pulseplate.synthetic_attestation_probe.v1",
-    ):
-        raise ValueError("Unsupported material manifest schema")
-    if (
-        not isinstance(manifest.get("repository"), str)
-        or re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/[a-z0-9_.-]+", manifest["repository"]) is None
-        or not isinstance(manifest.get("platform_manifest_digest"), str)
-        or re.fullmatch(r"sha256:[0-9a-f]{64}", manifest["platform_manifest_digest"]) is None
-    ):
-        raise ValueError("Material subject identity malformed")
+    repository, digest = validate_material_subject(manifest)
     subject = [
         {
-            "name": manifest["repository"],
-            "digest": {"sha256": manifest["platform_manifest_digest"].removeprefix("sha256:")},
+            "name": repository,
+            "digest": {"sha256": digest.removeprefix("sha256:")},
         }
     ]
     records = [
@@ -493,6 +501,7 @@ def inventory_kinds(
     manifest: dict, repo: str, inventory: Path, http_status: str
 ) -> tuple[str, ...]:
     """Use REST only for presence, and official download for native bundle acquisition."""
+    repository, digest = validate_material_subject(manifest)
     if http_status == "404":
         return ()  # Authoring authority is checked independently by the caller.
     if http_status != "200":
@@ -506,10 +515,7 @@ def inventory_kinds(
         raise ValueError("Attestation inventory malformed/pagination ambiguous")
     if not records:
         return ()
-    digest = manifest.get("platform_manifest_digest")
-    if not isinstance(digest, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
-        raise ValueError("Material subject digest malformed")
-    uri = native.build_artifact_uri(manifest["repository"], digest)
+    uri = native.build_artifact_uri(repository, digest)
     with tempfile.TemporaryDirectory(prefix="pulseplate-attestation-download-") as directory:
         root = Path(directory)
         native._run_gh(["attestation", "download", uri, "--repo", repo, "--limit", "100"], cwd=root)

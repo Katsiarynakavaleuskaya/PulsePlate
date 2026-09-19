@@ -855,3 +855,69 @@ def test_presence_status_is_not_readonly_authority(
         )
         == 1
     )
+
+
+@pytest.mark.parametrize("status", ["200", "404"])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("schema", "unsupported"),
+        ("repository", None),
+        ("repository", "not-a-registry"),
+        ("platform_manifest_digest", None),
+        ("platform_manifest_digest", "sha256:invalid"),
+    ],
+)
+def test_empty_inventory_rejects_invalid_subject_before_create_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    field: str,
+    value: str | None,
+) -> None:
+    manifest, payloads = packet()
+    manifest[field] = value
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text('{"attestations":[]}')
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(
+        json.dumps(payloads[verifier.TYPES[2]][0]["verificationResult"]["statement"]["predicate"])
+    )
+    result = tmp_path / "decision.json"
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_SHA", SHA)
+    monkeypatch.setenv("GITHUB_RUN_ID", "34700002576")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("Invalid subject must be rejected before native calls")
+
+    monkeypatch.setattr(verifier.native, "_run_gh", forbidden)
+    assert (
+        verifier.main(
+            [
+                "inventory",
+                "--manifest",
+                str(manifest_path),
+                "--inventory",
+                str(inventory),
+                "--inventory-http-status",
+                status,
+                "--current-build",
+                "--source-sha",
+                SHA,
+                "--run-invocation-uri",
+                INVOCATION,
+                "--sbom",
+                str(sbom),
+                "--json-out",
+                str(result),
+            ]
+        )
+        == 1
+    )
+    assert not result.exists()
+    assert not output.exists()

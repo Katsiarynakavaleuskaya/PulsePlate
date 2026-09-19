@@ -23,9 +23,9 @@ The probe preserves its original SPDX and separately regenerates metadata to
 exercise complete, repeated and read-only reuse. It retains source/signature
 negative controls and records the installed gh version.
 
-Evidence anchors: `scripts/ci/check_pgvector_attestations.py:194`,
+Evidence anchors: `scripts/ci/check_pgvector_attestations.py:500`,
 `scripts/ci/classify_pgvector_attestations.sh:1`,
-`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:144`.
+`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2173`.
 Native output contract: [observed gh 2.83.2 download implementation](https://github.com/cli/cli/blob/v2.83.2/pkg/cmd/attestation/download/download.go).
 The corrected local read-only consumer also completed native download and all
 three OCI verifications for the frozen digest
