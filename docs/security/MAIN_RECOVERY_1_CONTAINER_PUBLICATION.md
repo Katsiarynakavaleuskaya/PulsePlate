@@ -42,9 +42,13 @@ Evidence anchors: `.github/workflows/cd.yml:103`,
 `.github/workflows/cd.yml:2508`, `.github/workflows/cd.yml:2801`,
 `tests/test_cd_attestation_workflow_contract.py:883`.
 
-Corrected hosted native inspection, naturally completed hosted reuse and actual
-main build execution remain pending. PR #2398's carrier closeout and four Drive
-readbacks are retained historical results; they do not close protected staging,
+PR #2400's [hosted CD run 35460114941](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35460114941)
+at `4558386635f65aa537bd8891f4a117170dd85704` passed native immutable manifest
+inspection with Docker 28.0.4 and the isolated PostgreSQL TLS, crash, restart
+and backup/restore checks. This is hosted disposable-container evidence;
+naturally completed full hosted reuse and actual main build execution remain
+pending. PR #2398's carrier closeout and four Drive readbacks remain historical
+results. Neither receipt closes protected DigitalOcean staging, its real
 backup/restore, Prometheus continuity or the original MAIN-RECOVERY criteria.
 Rollback is a reviewed revert of this bounded continuation, retaining failed
 evidence and all signature, scan and deployment gates.
