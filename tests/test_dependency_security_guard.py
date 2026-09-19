@@ -3070,6 +3070,7 @@ def idna_consumer_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_idna_consumer_rejects_known_excluded_optional_pins(
     idna_consumer_repo: Path, lockfile: str, version: str
 ) -> None:
+    """Reject excluded idna versions through each optional lock consumer."""
     (idna_consumer_repo / lockfile).write_text(f"idna=={version}\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="retained excluded idna version"):
         test_http_client_idna_runtime_constraints_are_compatible()
@@ -3080,6 +3081,7 @@ def test_idna_consumer_rejects_known_excluded_optional_pins(
 def test_idna_consumer_allows_optional_absence_and_other_exact_versions(
     idna_consumer_repo: Path, lockfile: str, text: str
 ) -> None:
+    """Permit optional absence and pins without imposing the required-profile floor."""
     (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
     test_http_client_idna_runtime_constraints_are_compatible()
 
@@ -3099,6 +3101,7 @@ def test_idna_consumer_allows_optional_absence_and_other_exact_versions(
 def test_idna_consumer_rejects_noncanonical_present_optional_carriers(
     idna_consumer_repo: Path, lockfile: str, text: str, error_type: type[BaseException]
 ) -> None:
+    """Reject malformed or noncanonical idna carriers in each optional profile."""
     (idna_consumer_repo / lockfile).write_text(text, encoding="utf-8")
     with pytest.raises(error_type):
         test_http_client_idna_runtime_constraints_are_compatible()

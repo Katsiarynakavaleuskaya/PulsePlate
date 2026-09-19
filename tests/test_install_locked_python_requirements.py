@@ -1040,6 +1040,7 @@ def test_resolve_python_executable_rejects_invalid_targets(tmp_path: Path) -> No
 def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Resolve the Python alias while preserving the canonical invocation path."""
     observed_commands: list[list[str]] = []
     observed_names: list[str] = []
 
@@ -1047,6 +1048,7 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
         command: list[str],
         **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
+        """Capture probe arguments and return wheel tags without launching Python."""
         observed_commands.append(command)
         payload = {
             "tags": ["py3-none-any"],
@@ -1060,6 +1062,7 @@ def test_supported_wheel_tags_resolves_current_python_alias_through_which(
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
 
     def fake_which(name: str) -> str:
+        """Record the requested alias and expose the current interpreter spelling."""
         observed_names.append(name)
         return sys.executable
 
@@ -1226,6 +1229,7 @@ def test_emergency_artifact_filter_dedupes_exact_filename_digest_and_rejects_con
 
 
 def test_repo_idna_has_no_active_emergency_fallback() -> None:
+    """Exclude idna from the real loader's active emergency fallback artifacts."""
     artifact_packages = {item["package"] for item in _repo_active_emergency_artifacts()}
     assert "idna" not in artifact_packages
 
