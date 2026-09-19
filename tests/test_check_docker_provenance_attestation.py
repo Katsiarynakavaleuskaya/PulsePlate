@@ -431,3 +431,46 @@ def test_main_writes_failure_artifacts_for_invalid_artifact_uri(
     failure_payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert failure_payload["artifact_uri"] is None
     assert "Passed: `false`" in markdown_out.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("supplied", [False, True])
+def test_run_gh_preserves_default_and_explicit_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, supplied: bool
+) -> None:
+    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert args == ["/approved/gh", "attestation", "download", "oci://example@sha256:abc"]
+        assert kwargs == {
+            "check": True,
+            "capture_output": True,
+            "text": True,
+            "timeout": 180,
+            "cwd": tmp_path if supplied else None,
+        }
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(verifier, "_gh_path", lambda: "/approved/gh")
+    monkeypatch.delenv(verifier.GH_TIMEOUT_SECONDS_ENV, raising=False)
+    monkeypatch.setattr(verifier.subprocess, "run", run)
+    args = ["attestation", "download", "oci://example@sha256:abc"]
+    result = verifier._run_gh(args, cwd=tmp_path) if supplied else verifier._run_gh(args)
+    assert result.returncode == 0
+
+
+def test_download_transport_error_does_not_expose_signed_bundle_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(
+            1,
+            ["gh"],
+            output="",
+            stderr="GET https://storage.example/bundle?sig=opaque-signature&expiry=tomorrow: transport failed",
+        )
+
+    monkeypatch.setattr(verifier, "_gh_path", lambda: "/approved/gh")
+    monkeypatch.setattr(verifier.subprocess, "run", fail)
+    with pytest.raises(RuntimeError, match="gh attestation download failed") as error:
+        verifier._run_gh(["attestation", "download", "oci://example@sha256:abc"])
+    assert "opaque-signature" not in str(error.value)
+    assert "expiry=tomorrow" not in str(error.value)
+    assert "https://storage.example/bundle?[redacted-query]" in str(error.value)
