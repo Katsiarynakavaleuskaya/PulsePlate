@@ -87,6 +87,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "constraints.txt",
     "docs/DEPENDENCY_MANAGEMENT.md",
     "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
+    "docs/deploy/OPS_CONTEXT_SOURCES.json",
     "legacy_app.py",
     *ROOT_BACKEND_SHARED_MODULES,
     "mcp_pulseplate_server.py",
@@ -112,6 +113,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-test.in",
     "requirements-test.txt",
     "scripts/ci_pip_audit.sh",
+    "scripts/ops/ops_context_report.py",
     "requirements.txt",
 )
 # Provider implementations can change auth, network, or model routing behavior,

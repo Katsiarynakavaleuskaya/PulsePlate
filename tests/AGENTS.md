@@ -235,6 +235,9 @@ configuration and Codecov's application report remain separate. The owning
 workflow contract tests live in `test_ci_workflow_pr_size_governance_contract.py`.
 This measurement is neither a per-file readiness threshold nor proof of overall
 application total coverage.
+The selector regressions in `test_ci_risk_profile.py` must exercise each authoritative
+OPS input as an isolated change, so companion changes cannot mask a missing route
+to the required coverage jobs.
 
 **Tier 1 `test-pr` routing** (`.github/workflows/ci.yml`): PRs that select route or LLM contract groups must include the relevant route, OpenAPI, helper, and contract tests so `coverage.xml` used by the `diff-coverage` job covers touched backend surfaces. The canonical group membership lives in `.github/workflows/ci.yml`; keep this file focused on the invariant instead of duplicating workflow test lists.
 
