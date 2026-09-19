@@ -11,9 +11,16 @@ execution of the complete intended CD path. The separately requested
 [reuse run 35454001601](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35454001601)
 was cancelled; it is not a successful or naturally completed reuse receipt.
 
+Later [main CD run 35463278351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35463278351)
+at `127348e4e499497a0d622b0f90233ebf5cc9aeed` reached the old reuse timeout
+at 20:06 UTC on 2026-09-19 with `tag=false image=false provenance=false spdx=false`.
+The following admission failed as incomplete. Its inner signature checks were
+not reached, so these flags do not establish a signature failure; the run still
+used the old tag-and-platform-digest manifest inspection path.
+
 The build condition now explicitly requires a non-cancelled push to main and
 success from every existing direct dependency: Prometheus security, main-push
-admission and native PostgreSQL integration. This preserves both successful
+admission and PostgreSQL configuration admission. This preserves both successful
 publication/reuse joins despite their intentionally skipped alternative branch.
 GitHub otherwise applies a default status check; the native zero-step observation
 and documented semantics support this diagnosis, without claiming a captured
@@ -32,20 +39,37 @@ separate initial and terminal digest check. Compose's stored runtime reference,
 all three signed predicates, original execution/material/full-SPDX binding,
 approved A5 and terminal main freshness checks remain unchanged.
 
-The existing native integration job consumes the same contract outputs and runs
-real Docker manifest inspection after ephemeral package-read login and before
-TLS/crash checks. It adds no publication credentials or authority. Deterministic
-tests reject the old argument and missing proofs; they do not substitute for
-the subsequent hosted command or a complete reuse scan. Poll diagnostics expose
-only five Boolean states, at most once when pending and once at timeout.
-Evidence anchors: `.github/workflows/cd.yml:103`,
-`.github/workflows/cd.yml:2508`, `.github/workflows/cd.yml:2801`,
-`tests/test_cd_attestation_workflow_contract.py:883`.
+The predecessor retains job ID `staging-postgres-native-integration` but now
+validates configuration only, using the existing `--configure-only` mode without
+registry permissions, credentials or image probes. Requiring an already
+published image here would block first publication and recovery after a failed
+initial publication, even when the manifest stayed unchanged. No registry
+availability or manifest-change classifier selects the mode.
+
+Full native manifest inspection and TLS/crash/restart/restore checks now run in
+the trusted publisher after candidate three-proof pullback and before canonical
+promotion, on every admitted publication path. They use its existing Docker
+configuration; test containers receive only explicit synthetic environment and
+owned mounts. Host checker subprocesses remain trusted workflow code with host
+configuration access. Full native failure prevents promotion. Lost image objects
+may reach candidate creation, but missing OCI proofs against retained GitHub
+records still HOLD; there is no automatic attestation repair. Only the full
+result JSON joins the existing publisher evidence allowlist.
+
+This reduces automatic premerge runtime evidence: configuration success does
+not prove TLS, crash recovery or restore. Actual current-candidate runtime proof
+must be observed in trusted main publication before canonical promotion.
+Deterministic step-order and command tests do not replace that native result.
+Poll diagnostics remain five Boolean states, once when pending and once at
+timeout. Evidence anchors: `.github/workflows/cd.yml:61`,
+`.github/workflows/cd.yml:2220`, `.github/workflows/cd.yml:2484`,
+`.github/workflows/cd.yml:2777`.
 
 PR #2400's [hosted CD run 35460114941](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35460114941)
 at `4558386635f65aa537bd8891f4a117170dd85704` passed native immutable manifest
 inspection with Docker 28.0.4 and the isolated PostgreSQL TLS, crash, restart
-and backup/restore checks. This is hosted disposable-container evidence;
+and backup/restore checks. This historical hosted disposable-container evidence
+belongs to that earlier execution path and does not prove the new placement;
 naturally completed full hosted reuse and actual main build execution remain
 pending. PR #2398's carrier closeout and four Drive readbacks remain historical
 results. Neither receipt closes protected DigitalOcean staging, its real
@@ -78,7 +102,7 @@ negative controls and records the installed gh version.
 
 Evidence anchors: `scripts/ci/check_pgvector_attestations.py:500`,
 `scripts/ci/classify_pgvector_attestations.sh:1`,
-`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2186`.
+`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2134`.
 Native output contract: [observed gh 2.83.2 download implementation](https://github.com/cli/cli/blob/v2.83.2/pkg/cmd/attestation/download/download.go).
 The corrected local read-only consumer also completed native download and all
 three OCI verifications for the frozen digest
@@ -253,8 +277,7 @@ same immutable image's `/usr/bin/postgres --version` returned
 `postgres (PostgreSQL) 15.19` without initialization. The bounded correction
 therefore overrides only this metadata probe's entrypoint and passes only
 `--version`; it adds no password, trust authentication or alternate `PGDATA`.
-Evidence anchors: `.github/workflows/cd.yml:2268`,
-`tests/test_deploy_contract_scripts.py:1605`.
+Evidence anchor: `.github/workflows/cd.yml:2216`.
 
 The failed run did not promote the canonical tag. The direct diagnostic proves
 the selected binary invocation only; canonical publication/reuse, staging

@@ -59,15 +59,15 @@ env:
 
 jobs:
   staging-postgres-native-integration:
+    name: PostgreSQL configuration admission
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: postgres-pgvector-contract
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
       contents: read
-      packages: read
     steps:
-      - name: Checkout native staging integration source
+      - name: Checkout staging configuration source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
@@ -87,72 +87,20 @@ jobs:
           material = json.loads(Path("native-staging-material.json").read_text())
           print("changed=" + str(material["changed"]).lower())
           PY
-      - name: Authenticate public package read with ephemeral repository token
-        if: steps.native-material.outputs.changed == 'true'
-        env:
-          GHCR_EPHEMERAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          umask 077
-          config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-staging-native-auth.XXXXXXXX")"
-          printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
-          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
-          printf '%s' "$GHCR_EPHEMERAL_TOKEN" | docker --config "$config_dir" login ghcr.io \
-            --username "$GHCR_OWNER" --password-stdin
-      - name: Inspect the exact PostgreSQL platform manifest with native Docker
-        if: steps.native-material.outputs.changed == 'true'
-        env:
-          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
-          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
-        run: |
-          set -euo pipefail
-          immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"
-          docker --version
-          printf 'Inspecting immutable PostgreSQL subject: %s\n' "$immutable_ref"
-          docker manifest inspect "$immutable_ref" >/dev/null
-          printf 'Native PostgreSQL manifest inspection passed\n'
-      - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
+      - name: Validate PostgreSQL configuration without a published image
         if: steps.native-material.outputs.changed == 'true'
         run: |
           set -euo pipefail
           umask 077
-          python3 - <<'PY_COMPOSE_VERSION'
-          import json, subprocess, shutil
-          binary = shutil.which("docker")
-          if binary is None: raise SystemExit("Docker is required")
-          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
-          parts = version.split(".")
-          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
-              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
-          PY_COMPOSE_VERSION
-          python3 -m scripts.ci.check_staging_postgres_runtime \
-            --json-out staging-postgres-native-result.json
-      - name: Retain public native experiment metadata without private PKI or dumps
+          python3 -m scripts.ci.check_staging_postgres_runtime --configure-only \
+            --json-out staging-postgres-configuration-result.json
+      - name: Retain PostgreSQL configuration validation metadata
         if: always() && steps.native-material.outputs.changed == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: staging-postgres-native-integration
-          path: staging-postgres-native-result.json
+          name: staging-postgres-configuration
+          path: staging-postgres-configuration-result.json
           if-no-files-found: warn
-      - name: Remove the exact ephemeral public-package Docker credentials
-        if: always()
-        env:
-          PRIMARY_JOB_STATUS: ${{ job.status }}
-        run: |
-          set -u
-          cleanup_failed=0
-          if [ -n "${DOCKER_CONFIG:-}" ]; then
-            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
-            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
-          fi
-          case "$PRIMARY_JOB_STATUS" in
-            success) exit "$cleanup_failed" ;;
-            failure | cancelled)
-              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
-              exit 0 ;;
-            *) exit 1 ;;
-          esac
 
   postgres-synthetic-attestation-probe:
     if: >-
@@ -2269,6 +2217,33 @@ jobs:
             "$RUNTIME_REF" --version | \
             grep -Fx 'postgres (PostgreSQL) 15.19'
 
+      - name: Inspect the exact PostgreSQL platform manifest with native Docker
+        env:
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+        run: |
+          set -euo pipefail
+          immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"
+          docker --version
+          printf 'Inspecting immutable PostgreSQL subject: %s\n' "$immutable_ref"
+          docker manifest inspect "$immutable_ref" >/dev/null
+          printf 'Native PostgreSQL manifest inspection passed\n'
+      - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY_COMPOSE_VERSION'
+          import json, subprocess, shutil
+          binary = shutil.which("docker")
+          if binary is None: raise SystemExit("Docker is required")
+          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
+          parts = version.split(".")
+          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
+              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
+          PY_COMPOSE_VERSION
+          python3 -m scripts.ci.check_staging_postgres_runtime \
+            --json-out staging-postgres-native-result.json
+
       - name: Recheck public GHCR package identity after candidate admission
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2364,6 +2339,7 @@ jobs:
             postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
             postgres-pgvector-build-engine.txt
+            staging-postgres-native-result.json
             postgres-pgvector-provenance-attestation-check.md
             dhi-postgres-runtime-provenance.json
             dhi-postgres-builder-provenance.json

@@ -790,7 +790,7 @@ def test_native_job_declares_and_checks_compose_minimum_before_runtime(
     version: str, success: bool
 ) -> None:
     workflow = _load_cd_workflow()
-    steps = workflow["jobs"]["staging-postgres-native-integration"]["steps"]
+    steps = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
     step = _step_by_name(
         steps, "Execute real isolated PostgreSQL TLS crash restart and restore checks"
     )
@@ -809,6 +809,52 @@ def test_native_job_declares_and_checks_compose_minimum_before_runtime(
         [sys.executable, "-c", fake + code], capture_output=True, text=True, check=False
     )
     assert (result.returncode == 0) is success
+
+
+@pytest.mark.parametrize("configuration_exit", [0, 31])
+def test_postgres_prepublication_configuration_has_no_registry_dependency(
+    configuration_exit: int,
+) -> None:
+    job = _load_cd_workflow()["jobs"]["staging-postgres-native-integration"]
+    assert job["name"] == "PostgreSQL configuration admission"
+    assert job["permissions"] == {"contents": "read"}
+    assert job["needs"] == "postgres-pgvector-contract"
+    step = _step_by_name(
+        job["steps"], "Validate PostgreSQL configuration without a published image"
+    )
+    assert step["if"] == "steps.native-material.outputs.changed == 'true'"
+    assert "env" not in step and "continue-on-error" not in step
+    for forbidden in (
+        "secrets.",
+        "docker login",
+        "manifest inspect",
+        "docker pull",
+        "ghcr_attestation_credentials",
+        "--password-stdin",
+    ):
+        assert forbidden not in str(job)
+    artifact = job["steps"][-1]
+    assert artifact["with"] == {
+        "name": "staging-postgres-configuration",
+        "path": "staging-postgres-configuration-result.json",
+        "if-no-files-found": "warn",
+    }
+    bash = shutil.which("bash")
+    assert bash is not None
+    program = """python3() {
+      [ "$*" = "-m scripts.ci.check_staging_postgres_runtime --configure-only --json-out staging-postgres-configuration-result.json" ] || return 99
+      return "$CONFIGURATION_EXIT"
+    }
+    """ + step["run"] + '\nprintf "configuration admitted\\n"\n'
+    result = subprocess.run(
+        [bash, "-c", program],
+        env={**os.environ, "CONFIGURATION_EXIT": str(configuration_exit)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == configuration_exit
+    assert ("configuration admitted" in result.stdout) is (configuration_exit == 0)
 
 
 @pytest.mark.parametrize(
@@ -866,7 +912,7 @@ def test_native_integration_is_a_required_publication_and_deploy_dependency(
     )
     runtime_step = _step_by_name(
         native_job["steps"],
-        "Execute real isolated PostgreSQL TLS crash restart and restore checks",
+        "Validate PostgreSQL configuration without a published image",
     )
     assert runtime_step["if"] == "steps.native-material.outputs.changed == 'true'"
     assert not native_job.get("continue-on-error", False)
@@ -983,20 +1029,24 @@ def test_reuse_job_cancellation_preserves_existing_coarse_eligibility(
 def test_native_integration_executes_digest_inspection_before_runtime(
     manifest_exit: int, missing_identity: str
 ) -> None:
-    job = _load_cd_workflow()["jobs"]["staging-postgres-native-integration"]
-    assert job["needs"] == "postgres-pgvector-contract"
-    assert job["permissions"] == {"contents": "read", "packages": "read"}
+    job = _load_cd_workflow()["jobs"]["postgres-pgvector-publish"]
     steps = job["steps"]
     names = [step["name"] for step in steps]
     inspect_name = "Inspect the exact PostgreSQL platform manifest with native Docker"
     step = _step_by_name(steps, inspect_name)
-    assert not step.get("continue-on-error", False)
-    assert (
-        names.index("Authenticate public package read with ephemeral repository token")
-        < names.index(inspect_name)
-        < names.index("Execute real isolated PostgreSQL TLS crash restart and restore checks")
+    runtime = _step_by_name(
+        steps, "Execute real isolated PostgreSQL TLS crash restart and restore checks"
     )
-    assert step["if"] == "steps.native-material.outputs.changed == 'true'"
+    for required in (step, runtime):
+        assert "if" not in required and "continue-on-error" not in required
+    assert "env" not in runtime
+    assert "--configure-only" not in runtime["run"]
+    assert (
+        names.index("Verify candidate pullback, material provenance, SBOM, and runtime identity")
+        < names.index(inspect_name)
+        < names.index(runtime["name"])
+        < names.index("Promote verified candidate digest to canonical tag without rebuild")
+    )
     assert step["env"] == {
         "REPOSITORY": "${{ needs.postgres-pgvector-contract.outputs.repository }}",
         "PLATFORM_DIGEST": "${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}",

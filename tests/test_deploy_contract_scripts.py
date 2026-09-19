@@ -1527,6 +1527,8 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
     provenance = position("Attest actual PostgreSQL pgvector build provenance")
     spdx = position("Attest PostgreSQL pgvector SPDX SBOM")
     verify = position("Verify candidate pullback, material provenance, SBOM, and runtime identity")
+    inspect = position("Inspect the exact PostgreSQL platform manifest with native Docker")
+    native = position("Execute real isolated PostgreSQL TLS crash restart and restore checks")
     visibility = position("Recheck public GHCR package identity after candidate admission")
     promote = position("Promote verified candidate digest to canonical tag without rebuild")
     canonical = position("Verify canonical pullback and unchanged public package visibility")
@@ -1539,6 +1541,8 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
         < provenance
         < spdx
         < verify
+        < inspect
+        < native
         < visibility
         < promote
         < canonical
@@ -1637,6 +1641,170 @@ def test_cd_postgres_candidate_is_verified_before_canonical_promotion() -> None:
         "Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity"
     )
     assert position("Prove PostgreSQL 15 pgvector 0.8.6 and same-volume continuity") < candidate
+
+
+@pytest.mark.parametrize(
+    "prior_state,fault,expected_exit",
+    [
+        ("first_absent", "none", 0),
+        ("failed_candidate_unchanged_manifest", "none", 0),
+        ("lost_object", "missing_oci", 42),
+        ("already_available", "none", 0),
+        ("first_absent", "manifest", 43),
+        ("first_absent", "runtime", 44),
+    ],
+)
+def test_candidate_runtime_proof_precedes_actual_promotion(
+    tmp_path: Path, prior_state: str, fault: str, expected_exit: int
+) -> None:
+    """Execute actual step bodies; simulated registry state is not native publication proof."""
+    jobs = yaml.safe_load(CD_WORKFLOW_PATH.read_text())["jobs"]
+    predecessor = jobs["staging-postgres-native-integration"]
+    configure = next(
+        step for step in predecessor["steps"] if "--configure-only" in step.get("run", "")
+    )
+    steps = jobs["postgres-pgvector-publish"]["steps"]
+    names = [step["name"] for step in steps]
+    selected = [
+        "Publish reproduced manifest under one unadmitted candidate tag",
+        "Verify candidate pullback, material provenance, SBOM, and runtime identity",
+        "Inspect the exact PostgreSQL platform manifest with native Docker",
+        "Execute real isolated PostgreSQL TLS crash restart and restore checks",
+        "Promote verified candidate digest to canonical tag without rebuild",
+    ]
+    assert [names.index(name) for name in selected] == sorted(
+        names.index(name) for name in selected
+    )
+    by_name = {step["name"]: step for step in steps}
+    for name in selected:
+        assert "if" not in by_name[name] and "continue-on-error" not in by_name[name]
+    full = by_name[selected[3]]
+    assert "--configure-only" not in full["run"] and "env" not in full
+    assert CD_WORKFLOW_PATH.read_text().count("python3 - <<'PY_COMPOSE_VERSION'") == 1
+    upload = by_name["Upload PostgreSQL pgvector admission evidence"]["with"]["path"].splitlines()
+    assert upload.count("staging-postgres-native-result.json") == 1
+    assert "staging-postgres-configuration-result.json" not in upload
+    bash = shutil.which("bash")
+    assert bash is not None
+    binary_dir = tmp_path / "bin"
+    binary_dir.mkdir()
+    events = tmp_path / "events"
+    exists = tmp_path / "candidate-exists"
+    if prior_state == "already_available":
+        exists.touch()
+    docker = binary_dir / "docker"
+    docker.write_text(f"#!{sys.executable}\n" + """import json, os, sys
+from pathlib import Path
+a = sys.argv[1:]
+subject = os.environ["REPOSITORY"] + "@" + os.environ["PLATFORM_DIGEST"]
+exists = Path(os.environ["CANDIDATE_EXISTS"])
+def event(value):
+    with open(os.environ["EVENTS"], "a") as f: f.write(value + "\\n")
+if a == ["--version"]: print("Docker oracle"); sys.exit(0)
+if a == ["compose", "version", "--short"]: print("2.35.0"); sys.exit(0)
+if a[:2] == ["buildx", "build"]:
+    assert "--tag" in a and "--output" in a and a[a.index("--output")+1] == "type=registry,rewrite-timestamp=true"
+    assert "-candidate-" in a[a.index("--tag")+1]
+    event("candidate-write"); exists.touch(); sys.exit(0)
+if a[:3] == ["buildx", "imagetools", "inspect"]:
+    assert a[3] == "--raw" and len(a) == 5 and exists.exists()
+    print(json.dumps({"mediaType":"application/vnd.oci.image.index.v1+json", "manifests":[{"digest":os.environ["PLATFORM_DIGEST"], "platform":{"architecture":"amd64","os":"linux"}}]})); sys.exit(0)
+if a[:3] == ["pull", "--platform", "linux/amd64"]:
+    assert len(a) == 4 and exists.exists(); sys.exit(0)
+if a[:2] == ["manifest", "inspect"]:
+    assert a == ["manifest", "inspect", subject] and exists.exists()
+    event("manifest"); sys.exit(43 if os.environ["FAULT"] == "manifest" else 0)
+if a[:2] == ["image", "inspect"]:
+    assert len(a) == 5 and a[3] == "--format" and exists.exists()
+    values = {'{{join .RepoDigests "\\\\n"}}':subject, '{{.Os}}/{{.Architecture}}':'linux/amd64', '{{.Config.User}}':'70'}
+    assert a[4] in values; print(values[a[4]]); sys.exit(0)
+if a[:2] == ["run", "--rm"]:
+    assert a[-1] == "--version" and "/usr/bin/postgres" in a
+    print("postgres (PostgreSQL) 15.19"); sys.exit(0)
+if a[:3] == ["buildx", "imagetools", "create"]:
+    assert a == ["buildx", "imagetools", "create", "--tag", os.environ["CANONICAL_TAG_REF"], os.environ["CANDIDATE_RUNTIME_REF"]]
+    event("canonical-promotion"); sys.exit(0)
+raise SystemExit(99)
+""")
+    docker.chmod(0o700)
+    repository = "ghcr.io/katsiarynakavaleuskaya/pulseplate"
+    tag = "postgres-15.19-pgvector0.8.6-alpine3.23"
+    sha = "a" * 40
+    candidate = f"{repository}:{tag}-candidate-{sha}-1-1@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"
+    oracle = """python3() {
+      if [ "$1" = - ]; then "$REAL_PYTHON" "$@"; return; fi
+      case "$*" in
+        '-m scripts.ci.check_staging_postgres_runtime --configure-only --json-out staging-postgres-configuration-result.json') printf 'configuration\\n' >> "$EVENTS" ;;
+        '-m scripts.ci.check_staging_postgres_runtime --json-out staging-postgres-native-result.json')
+          printf 'runtime\\n' >> "$EVENTS"
+          [ "$FAULT" != runtime ] || return 44 ;;
+        'scripts/ci/check_pgvector_attestations.py verify '*)
+          printf 'three-proof-verification\\n' >> "$EVENTS"
+          [ "$FAULT" != missing_oci ] || return 42 ;;
+        'scripts/ci/check_pgvector_attestations.py unchanged '*) ;;
+        *) return 99 ;;
+      esac
+    }
+    git() {
+      case "$1" in
+        fetch) return 0 ;;
+        rev-parse) printf '%s\\n' "$GITHUB_SHA" ;;
+        *) return 99 ;;
+      esac
+    }
+    """
+    program = (
+        oracle + configure["run"] + "\n" + "\n".join(by_name[name]["run"] for name in selected)
+    )
+    result = subprocess.run(
+        [bash, "-c", program],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": str(binary_dir) + os.pathsep + os.environ["PATH"],
+            "REAL_PYTHON": sys.executable,
+            "EVENTS": str(events),
+            "CANDIDATE_EXISTS": str(exists),
+            "FAULT": fault,
+            "REPOSITORY": repository,
+            "PLATFORM_DIGEST": POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            "IMAGE_REPOSITORY": repository,
+            "IMAGE_TAG": tag,
+            "EXPECTED_PLATFORM_DIGEST": POSTGRES_PLATFORM_MANIFEST_DIGEST,
+            "RUNNER_TEMP": str(tmp_path),
+            "PGVECTOR_CONTEXT_DIR": str(tmp_path),
+            "SOURCE_DATE_EPOCH": "1",
+            "GITHUB_SHA": sha,
+            "GITHUB_RUN_ID": "1",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_OUTPUT": str(tmp_path / "output"),
+            "RUNTIME_REF": candidate,
+            "ATTESTATION_MODE": "reuse" if prior_state == "lost_object" else "create",
+            "ORIGINAL_SOURCE_SHA": sha,
+            "ORIGINAL_RUN_INVOCATION_URI": "https://github.com/example/run/1",
+            "CANONICAL_TAG_REF": f"{repository}:{tag}",
+            "CANDIDATE_RUNTIME_REF": candidate,
+            "EXPECTED_RUNTIME_REF": f"{repository}:{tag}@{POSTGRES_PLATFORM_MANIFEST_DIGEST}",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == expected_exit, result.stderr
+    observed = events.read_text().splitlines()
+    assert observed[:3] == ["configuration", "candidate-write", "three-proof-verification"]
+    assert ("canonical-promotion" in observed) is (expected_exit == 0)
+    if expected_exit == 0:
+        assert observed == [
+            "configuration",
+            "candidate-write",
+            "three-proof-verification",
+            "manifest",
+            "runtime",
+            "canonical-promotion",
+        ]
+    if fault == "missing_oci":
+        assert "manifest" not in observed and "runtime" not in observed
 
 
 def test_cd_postgres_canonical_promotion_executes_current_main_material_freshness(

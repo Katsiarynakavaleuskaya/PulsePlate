@@ -162,34 +162,56 @@ def test_primary_failure_is_preserved_when_cleanup_also_fails(
     assert observed.value is failure
 
 
-def test_real_integration_job_is_unprivileged_pr_capable_and_not_configure_only() -> None:
+def test_configuration_precedes_publication_and_full_native_proof_precedes_promotion() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/cd.yml").read_text())
     job = workflow["jobs"]["staging-postgres-native-integration"]
-    assert "pull_request" in job["if"] and "refs/heads/main" in job["if"]
-    assert job["permissions"] == {"contents": "read", "packages": "read"}
-    assert "environment" not in job and "needs" not in job
+    assert job["name"] == "PostgreSQL configuration admission"
+    assert job["if"] == (
+        "github.event_name == 'pull_request' || "
+        "(github.event_name == 'push' && github.ref == 'refs/heads/main')"
+    )
+    assert job["permissions"] == {"contents": "read"}
+    assert "environment" not in job
+    assert job["needs"] == "postgres-pgvector-contract"
     text = json.dumps(job)
     for forbidden in (
         "DHI_",
         "SSH_",
-        "--configure-only",
+        "secrets.",
+        "GHCR_READ_TOKEN",
+        "docker login",
+        "manifest inspect",
+        "docker pull",
         "continue-on-error",
         "--publish",
     ):
         assert forbidden not in text
     assert "scripts.ci.check_pgvector_attestations changes" in text
-    assert "scripts.ci.check_staging_postgres_runtime" in text
+    config = next(step for step in job["steps"] if "--configure-only" in step.get("run", ""))
+    assert config["if"] == "steps.native-material.outputs.changed == 'true'"
+    assert "scripts.ci.check_staging_postgres_runtime --configure-only" in config["run"]
     artifact = next(step for step in job["steps"] if "with" in step and "path" in step["with"])
-    assert artifact["with"]["path"] == "staging-postgres-native-result.json"
-    login = next(
-        step
-        for step in job["steps"]
-        if step.get("name") == "Authenticate public package read with ephemeral repository token"
+    assert artifact["with"]["path"] == "staging-postgres-configuration-result.json"
+    publisher = workflow["jobs"]["postgres-pgvector-publish"]
+    assert "staging-postgres-native-integration" in publisher["needs"]
+    assert "needs.staging-postgres-native-integration.result == 'success'" in publisher["if"]
+    steps = publisher["steps"]
+    names = [step["name"] for step in steps]
+    proof = "Execute real isolated PostgreSQL TLS crash restart and restore checks"
+    assert (
+        names.index("Verify candidate pullback, material provenance, SBOM, and runtime identity")
+        < names.index(proof)
+        < names.index("Promote verified candidate digest to canonical tag without rebuild")
     )
-    assert login["env"]["GHCR_EPHEMERAL_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
-    assert login["env"]["GHCR_OWNER"] == "${{ github.repository_owner }}"
-    assert text.count("secrets.") == 1 and "GHCR_READ_TOKEN" not in text
-    assert "--password-stdin" in login["run"] and "DOCKER_CONFIG=" in login["run"]
+    native = steps[names.index(proof)]
+    assert "if" not in native and "continue-on-error" not in native and "env" not in native
+    assert "--configure-only" not in native["run"]
+    assert "scripts.ci.check_staging_postgres_runtime" in native["run"]
+    assert "--json-out staging-postgres-native-result.json" in native["run"]
+    evidence = next(
+        step for step in steps if step["name"] == "Upload PostgreSQL pgvector admission evidence"
+    )
+    assert "staging-postgres-native-result.json" in evidence["with"]["path"].splitlines()
 
 
 def test_external_current_incomplete_tuple_control_precedes_spdx_and_complete_probe() -> None:
