@@ -24,7 +24,7 @@ No standalone docs-only closeout PR is authorized for this dependency lane.
 
 - D: `npm:js-yaml`.
 - Original admitted base B0: `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
-- Current base B: `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1`; the new-base
+- Current base B: `127348e4e499497a0d622b0f90233ebf5cc9aeed`; the new-base
   reconciliation below proves the same npm surface hashes and complete delta.
 - Candidate dependency material: the complete base/head hashes below; the eventual
   PR material-head SHA will be bound by its ordinary exact-head review/seal.
@@ -460,6 +460,31 @@ guard AST, retaining selected finite-review depth and the completed pre-fix
 Logic/Philosophy proof. No formal episode or second post-open role chain was
 created. Exact final-head checks, self-review/seal, dispositions, readiness,
 human merge decision and post-merge outcomes remain required.
+
+### Final base refresh after main test recovery
+
+[PR #2399](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2399) merged
+at 2026-09-19T19:06:01Z as current B
+`127348e4e499497a0d622b0f90233ebf5cc9aeed`, after the separately owned CD recovery
+#2398. It retired the historical installer idna equality assertion while keeping
+the current dependency policy at its canonical owner. Neither repair is authored
+by DEP-SEC-01; the branch incorporates the merged base without rewriting history.
+The preceding September 19 reconciliation refers to intermediate base
+`8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1` and is retained as historical evidence.
+
+At 2026-09-19T19:17:57Z two fresh, clean detached states at current B repeated
+the same canonical npm command and configuration. Both exited 0: raw stdout
+`up to date in 2s` and `up to date in 277ms`. All five base npm blobs, the native
+wrapper and both npm guard sources are unchanged from the intermediate base;
+both resolved outputs equal the current head and the original head hashes.
+The complete one-I_R/three-C_R delta remains unchanged. Retained receipt
+`base2399-resolver-replay.json` has SHA-256
+`d5955f0088b1a9a14cb1305de8afa180c6bf97806db4e7c0e716ae16f0be7ea6`.
+The independently verified base witnesses and full F_cutoff therefore still
+apply. The targeted base-boundary review preserves finite-review depth and the
+completed Logic/Philosophy and post-open passes; no mechanism change or new
+formal episode is introduced. Final-head validation and human merge authority
+remain separate requirements.
 
 ## Remaining debt and rollback
 
