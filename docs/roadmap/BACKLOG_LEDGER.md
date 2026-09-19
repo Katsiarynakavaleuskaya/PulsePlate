@@ -172,6 +172,8 @@ If it is not recorded here — it does not exist.
   - Carryover (EN): Repository evidence and ledger updates belong in the substantive implementation PR. Unavoidable post-merge receipts are reconciled in the next substantive PR under the owner's explicit decision; do not create a standalone docs-only closeout PR. Four existing Drive documents must receive same-ID plan/open/terminal/post-merge checkpoints; do not mark closure before observed merge and post-merge evidence.
   - Links: `docs/security/GHSA-h67p-54hq-rp68-js-yaml.md`; `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-depsec2-multi-ecosystem-dependency-closure`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/291`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34311002924`
   - DoD: For each admitted identity, reconcile complete exact-base/head surfaces and immutable advisory inventory, prove nonempty applicability and universal head safety, reproduce the complete native resolver delta, and enforce negative regressions. Obtain focused/narrow local gates, exact-head canonical CI/security/diff coverage, actual-diff premortem/Runner, post-open role review, native self-review/provider-neutral seal, strict authenticated readiness/wait and separate human merge decision. Observe merged-main sanity and alert indexing without dismissal, four same-ID Drive readbacks, archive and owned cleanup. Separately diagnose the updater failure without weakening external-code protections; no partial identity result closes the entire epic.
+  - Implementation (EN, 2026-09-19): The owner explicitly admitted the exact httpx2/httpcore2 scanner batch in PR #2395. Both are now 2.12.0 with metadata-required idna 3.18 closure; eight locks replay byte-for-byte and all ten Python-profile audits pass, clearing the four observed dev/test/aggregate findings. Repository merge, hosted checks and broader npm/updater work remain pending; keep this item open. [Per-identity proof and scope](../security/PR_2395_ANYIO_REMEDIATION.md#scanner-batch--httpx2-and-httpcore2).
+  - Prerequisite reconciliation (EN, 2026-09-19): PR #2395 merged at 13:28:21 UTC as `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1`, delivering AnyIO 4.14.2 and the separately owner-approved httpx2/httpcore2 batch. DEP-SEC-01 retains only its npm:js-yaml authored change; these Python changes enter through the merged base. The new base removes the observed AnyIO pre-push prerequisite, subject to fresh audit. Earlier pending-merge and Python-debt wording above is historical; remaining npm/updater work and this epic stay open.
 
 <a id="ledger-p1-cve-2026-16742-systemd-main-image"></a>
 - [x] P1: Remediate CVE-2026-16742 in the canonical backend container image
@@ -13323,26 +13325,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
 
 <a id="ledger-p1-euler-supervision-renderer-handoff"></a>
-- [ ] P1: Euler supervision renderer and sidecar command handoff
+- [ ] P1: EULER-OPS-2 required Euler preflight and supervision handoff
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
-  - Target PR: TBD, after authenticated merge of [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378) and [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382)
-  - Status: Deferred by explicit operator scope decision; independent follow-up after both prerequisites merge, not a completion condition for the core PR.
+  - Target PR: EULER-OPS-2 (`codex/euler-required-preflight-handoff`); prerequisites [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378), [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) and overlapping [PR #2392](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2392) are merged.
+  - Status: Implementation in progress; permanent coordinator preflight and reviewer verification are scoped in this follow-up. The owner explicitly admitted this lane on 2026-09-14 despite unstable main; this exception grants no recovery ownership, merge or deployment authority. Keep this item open until merged and acceptance evidence is established.
   - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
+  - Owner scope amendment (EN, 2026-09-19): The operator authorized AnyIO remediation and then the exact httpx2/httpcore2 scanner batch inside [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395), including proven idna solver closure, canonical ownership registration and postcondition guards. These explicit exceptions preserve the original Euler outcome; the current PR body records the live path count and owner-approved privileged-scope justification under existing PR size governance. [Separate transition evidence](../security/PR_2395_ANYIO_REMEDIATION.md); main/CD recovery remains separately owned and merge/acceptance remain pending.
   - Scope:
     - `scripts/orchestration/render_codex_start_prompt.py`
     - `tests/test_render_codex_start_prompt.py`
     - `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`
     - `tests/guards/test_security_devtooling_regression_guards.py` (companion consumer/publisher guard responsibility)
+    - `tests/test_start_pr_lane.py`, `.cursor/agents/agent-coordinator.md`, `scripts/AGENTS.md` and this ledger (required startup, coordinator and instruction integration)
   - Links:
     - [Core lifecycle item](#ledger-p1-euler-ops-1-lifecycle-supervision)
     - [Episode supervision contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#optional-lifecycle-supervision-euler-ops-1)
   - DoD:
+    - both startup modes require substantive pre-edit Euler Task Analysis and ordinary Work Review verification for every coordinator-owned PR, including docs-only and frontend/iOS navigation boundaries; pending projection remains pending, and the existing selector alone owns depth
     - reuse the merged applicability projection and render explicit owning-worktree checkpoint/status/complete command recipes; selection, prepared sidecars and fingerprints never assert enrollment, role execution, validated receipts or current reports
     - unavailable or invalid context remains explicit; renderer imports or execution of Euler, automatic enrollment, provider/network calls and new authority are absent
     - the companion guard may admit only the exact renderer, owning renderer-test and sidecar-document paths above as inert references; retain runtime import/execution prohibitions and the sole publisher, without unrelated or wildcard reference allowances
     - focused renderer, sidecar, applicability/starter and existing publisher/consumer guards preserve packet bytes, dispatch order, v1 compatibility and sixteen false grants; complete normal local and current-head PR gates
-  - Rollback: Revert only the renderer and sidecar guidance changes; preserve the core CLI and all immutable local evidence.
+  - Retention boundary: the episode CLI has no archive/retention command; durable preservation requires separate authority and scope under the [retention contract](../orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md#retention-and-rollback). Without independently authorized preservation, an enrolled episode's sole owning worktree/store remains retained with cleanup pending, even after complete/current status. This PR does not implement archive or store transfer.
+  - Rollback: Reviewed revert of the new renderer handoff and associated coordinator/instruction changes; preserve the core CLI and all immutable local evidence.
   - Out of scope: Lifecycle semantics, new publisher/root override, scheduler, automatic operations, provider or product runtime, empirical effectiveness claims and L3.
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
