@@ -24,6 +24,18 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-main-idna-installer-regression"></a>
+- [ ] P1: Retire the installer test's historical idna pin assertion
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1 (current-main test regression)
+  - Target PR: current `codex/fix-main-idna-floor-regression` implementation PR; number assigned on opening
+  - Status: Implementation in progress; not merged. Corrected focused tests and current-head CI evidence remain pending.
+  - Reason (EN): After merged PR #2395 advanced idna through approved resolver closure, an installer test still required the historical exact 3.15 pin. Replacing it with another exact pin would repeat the failure on a later compatible update. The owner requested this separate bounded test repair; CD remains separately owned.
+  - Evidence: [main CI run 35445864227](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35445864227) at `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1` reported the installer assertion failure on Python 3.11/3.12/3.13. Current compatibility ownership: `tests/test_dependency_security_guard.py::test_http_client_idna_runtime_constraints_are_compatible`; retained installer ownership: `tests/test_install_locked_python_requirements.py::test_repo_idna_has_no_active_emergency_fallback`.
+  - Links: [merged Euler handoff](#ledger-p1-euler-supervision-renderer-handoff), [dependency transition proof](../security/PR_2395_ANYIO_REMEDIATION.md), `tests/AGENTS.md`.
+  - DoD: Remove only the duplicate historical equality/inventory and unused constants; preserve real-loader active-emergency idna exclusion, shared installer helpers and the unchanged canonical eight-profile guard with negative/later-compatible controls. Observe installer and canonical-guard results on approved Python 3.12/3.13 environments, required narrow gates, relevant current-head main-test diagnostics, review and merge readiness. Keep main-test recovery distinct from CD and previously cancelled shards.
+  - Rollback: Reviewed revert of the test/instruction repair; no dependency downgrade, new exact-value freeze or guard bypass.
+
 <a id="ledger-p1-production-readiness-timeout-evidence"></a>
 - [ ] P1: Bound the production-readiness HTTP probe and overall wait
   - Owner: dev-operator / agent-coordinator follow-up owner
@@ -13276,7 +13288,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
   - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 [PR #2291](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2291) (`codex/euler-l2-eval-v1`); lifecycle supervision is tracked in [EULER-OPS-1](#ledger-p1-euler-ops-1-lifecycle-supervision); L3 requires a separate reviewed target PR
-  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. See the [EULER-OPS-1 core implementation/closure record](#ledger-p1-euler-ops-1-lifecycle-supervision) and [open renderer follow-up](#ledger-p1-euler-supervision-renderer-handoff); no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
+  - Status: L1, bounded L2 and L2-EVAL v1 are merged; PR #2291 merged at `c57d34df028068c37fe792efb0f58d6a982181de`. See the [EULER-OPS-1 core implementation/closure record](#ledger-p1-euler-ops-1-lifecycle-supervision) and [merged renderer handoff](#ledger-p1-euler-supervision-renderer-handoff); no empirical counts are inferred from implementation evidence. L3 remains closed and is not authorized by L1, L2, L2-EVAL or lifecycle supervision.
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
@@ -13319,13 +13331,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Out of scope: [Renderer/test/sidecar handoff](#ledger-p1-euler-supervision-renderer-handoff), scheduler, automatic enrollment, store federation/root override, new publisher, empirical effectiveness claims, public/product runtime, provider/network calls, semantic cache, L3 and any expansion of the sixteen false authority grants.
 
 <a id="ledger-p1-euler-supervision-renderer-handoff"></a>
-- [ ] P1: EULER-OPS-2 required Euler preflight and supervision handoff
+- [x] P1: EULER-OPS-2 required Euler preflight and supervision handoff
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1 (make accepted local lifecycle operations discoverable without execution authority)
-  - Target PR: EULER-OPS-2 (`codex/euler-required-preflight-handoff`); prerequisites [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378), [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) and overlapping [PR #2392](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2392) are merged.
-  - Status: Implementation in progress; permanent coordinator preflight and reviewer verification are scoped in this follow-up. The owner explicitly admitted this lane on 2026-09-14 despite unstable main; this exception grants no recovery ownership, merge or deployment authority. Keep this item open until merged and acceptance evidence is established.
+  - Target PR: [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395) (`codex/euler-required-preflight-handoff`); prerequisites [PR #2378](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2378), [PR #2382](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2382) and overlapping [PR #2392](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2392) are merged.
+  - Status: CLOSED by merged [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395) at `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1`; required PR checks and review/merge-readiness proof passed before merge ([canonical review record](../review/PR_2395_FIXED_MAPPING.md)). Permanent coordinator Euler preflight, reviewer verification and conditional supervision handoff are delivered. This bounded closure does not claim healthy main/CD, formal episode enrollment or measured efficiency; the subsequent installer-test regression is tracked [separately](#ledger-p1-main-idna-installer-regression). The 2026-09-14 owner exception admitted this lane despite unstable main and granted no general recovery or deployment authority.
   - Reason (EN): The operator split renderer integration from PR #2382 to finish the bounded lifecycle core without changing dependencies or CI; the follow-up must consume the current merged applicability and supervision contracts together.
-  - Owner scope amendment (EN, 2026-09-19): The operator authorized AnyIO remediation and then the exact httpx2/httpcore2 scanner batch inside [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395), including proven idna solver closure, canonical ownership registration and postcondition guards. These explicit exceptions preserve the original Euler outcome; the current PR body records the live path count and owner-approved privileged-scope justification under existing PR size governance. [Separate transition evidence](../security/PR_2395_ANYIO_REMEDIATION.md); main/CD recovery remains separately owned and merge/acceptance remain pending.
+  - Owner scope amendment (EN, 2026-09-19): The operator authorized AnyIO remediation and then the exact httpx2/httpcore2 scanner batch inside [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395), including proven idna solver closure, canonical ownership registration and postcondition guards. These explicit exceptions preserve the original Euler outcome; the current PR body records the live path count and owner-approved privileged-scope justification under existing PR size governance. [Separate transition evidence](../security/PR_2395_ANYIO_REMEDIATION.md) is retained with the merged implementation; this is not a main/CD recovery claim, and the post-merge installer-test failure remains under its separate repair item.
   - Scope:
     - `scripts/orchestration/render_codex_start_prompt.py`
     - `tests/test_render_codex_start_prompt.py`
