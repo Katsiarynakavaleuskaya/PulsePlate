@@ -52,7 +52,7 @@
     {
       "environment": "production",
       "service": "database",
-      "configuration": "shared",
+      "configuration": "selfhosted_alternative",
       "path": "deploy/postgres-pgvector/image-manifest.json"
     },
     {
@@ -144,6 +144,12 @@
       "service": "database",
       "configuration": "staging",
       "path": "deploy/docker-compose.staging.yaml"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "staging",
+      "path": "deploy/postgres-pgvector/pg_hba.conf"
     },
     {
       "environment": "staging",

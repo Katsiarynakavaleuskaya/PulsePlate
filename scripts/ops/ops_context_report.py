@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 import shutil
-import subprocess  # nosec B404: # native Git identity has no safer bounded stdlib replacement (remove-by: 2026-10-14, ref: ledger-p1-ops-context-inventory)
+import subprocess  # nosec B404: # native Git identity has no safer bounded stdlib replacement (remove-by: 2026-10-14, ref: PR-2397)
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -218,7 +218,7 @@ def git_revision(root: Path) -> str:
     if binary is None or not Path(binary).is_absolute():
         raise ReportError("GIT_UNAVAILABLE")
     try:
-        result = subprocess.run(  # nosec B603: # resolved fixed Git argv, explicit cwd/env, no shell, 5s bound and SHA validation (remove-by: 2026-10-14, ref: ledger-p1-ops-context-inventory)
+        result = subprocess.run(  # nosec B603: # resolved fixed Git argv, explicit cwd/env, no shell, 5s bound and SHA validation (remove-by: 2026-10-14, ref: PR-2397)
             [binary, "--no-replace-objects", "rev-parse", "--verify", "HEAD"],
             cwd=root,
             env={

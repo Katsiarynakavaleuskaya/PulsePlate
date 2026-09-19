@@ -55,7 +55,9 @@ repository-relative paths. Observations additionally require positive `--max-obs
 See `docs/deploy/OPERATIONAL_SIGNALS.md` for schemas and interpretation.
 
 The context map delivers the finite static catalogue for both environments through the
-existing role bridge. It does not filter a report or ingest local observation files.
+existing role bridge. Keep each service's owning access-policy sources in the catalogue
+and preserve the distinction between production configuration alternatives. The bridge
+does not filter a report or ingest local observation files.
 Keep supplied identifiers in local evidence; public examples use synthetic identifiers.
 Source references and fingerprints describe acquired repository bytes. Supplied provenance,
 freshness and revision equality do not authenticate a provider or verify live configuration.

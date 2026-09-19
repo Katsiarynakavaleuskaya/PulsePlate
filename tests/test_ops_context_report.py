@@ -141,17 +141,49 @@ def test_conflicts_cross_alternatives_and_are_order_independent(repository: Path
         ("unexpected", "secret-marker"),
     ],
 )
-def test_whole_observed_input_validated(repository: Path, field: str, value: object) -> None:
-    path = write_observed(
-        repository,
-        (
-            [observation(environment="staging", **{field: value})]
-            if field != "environment"
-            else [observation(environment=value)]
-        ),
-    )
+def test_whole_observed_input_validated(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    value: object,
+) -> None:
+    baseline = observation(environment="staging", selected_config="staging")
+    path = write_observed(repository, [observation(), baseline])
+    positive = report(repository, observed=path, max_age_seconds=60)
+    assert len(positive["observations"]) == 1
+    assert positive["observations"][0]["environment"] == "production"
+    changed = {**baseline, field: value}
+    assert {key for key in changed if changed[key] != baseline.get(key)} == {field}
+    write_observed(repository, [observation(), changed])
     with pytest.raises(ops.ReportError):
         report(repository, observed=path, max_age_seconds=60)
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
+    original = ops.build_report
+
+    def fixed_clock(root: Path, **kwargs: object) -> dict:
+        return original(root, now=NOW, **kwargs)
+
+    monkeypatch.setattr(ops, "build_report", fixed_clock)
+    assert (
+        ops.main(
+            [
+                "--environment",
+                "production",
+                "--observed",
+                path,
+                "--max-observation-age-seconds",
+                "60",
+                "--format",
+                "json",
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "ops-context-report: INVALID_REQUEST\n"
 
 
 @pytest.mark.parametrize("window", [None, 0, -1, True, float("inf")])
@@ -332,7 +364,6 @@ def test_missing_selected_source_fatal_unselected_source_not_read(repository: Pa
 @pytest.mark.parametrize(
     "raw",
     [
-        b'{"schema_version":1,"schema_version":2}',
         b'{"x":NaN}',
         b'{"x":Infinity}',
         b'{"x":-Infinity}',
@@ -371,6 +402,52 @@ def test_bad_json_never_leaks(
         )
         == 2
     )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "ops-context-report: INVALID_REQUEST\n"
+
+
+@pytest.mark.parametrize("duplicate_scope", ["root", "record"])
+def test_duplicate_keys_only_rejected_with_valid_controls(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    duplicate_scope: str,
+) -> None:
+    record = json.dumps(observation(resource_id="synthetic-secret-marker"))
+    raw = '{"schema_version":"ops-observed.v1","observations":[' + record + "]}"
+    target = repository / "observed.json"
+    target.write_text(raw, encoding="utf-8")
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
+    original = ops.build_report
+
+    def fixed_clock(root: Path, **kwargs: object) -> dict:
+        return original(root, now=NOW, **kwargs)
+
+    monkeypatch.setattr(ops, "build_report", fixed_clock)
+    args = [
+        "--environment",
+        "production",
+        "--observed",
+        "observed.json",
+        "--max-observation-age-seconds",
+        "60",
+        "--format",
+        "json",
+    ]
+    assert ops.main(args) == 0
+    positive = capsys.readouterr()
+    assert positive.err == ""
+    assert len(json.loads(positive.out)["observations"]) == 1
+    duplicate = (
+        '"schema_version":"ops-observed.v1"'
+        if duplicate_scope == "root"
+        else '"resource_id": "synthetic-secret-marker"'
+    )
+    assert raw.count(duplicate) == 1
+    target.write_text(raw.replace(duplicate, duplicate + "," + duplicate), encoding="utf-8")
+    assert ops.main(args) == 2
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "ops-context-report: INVALID_REQUEST\n"
@@ -627,6 +704,57 @@ def test_real_catalogue_prometheus_compose_owners(environment: str) -> None:
         if environment == "production"
         else {"deploy/docker-compose.staging.yaml"}
     )
+
+
+def test_real_catalogue_staging_access_policy_fingerprint(tmp_path: Path) -> None:
+    import hashlib
+
+    root = Path(__file__).resolve().parents[1]
+    hba = "deploy/postgres-pgvector/pg_hba.conf"
+    before = ops.build_report(
+        root, environment="staging", service="database", repo_sha=SHA, now=NOW
+    )
+    fingerprints = {item["path"]: item["sha256"] for item in before["sources"]}
+    assert fingerprints[hba] == hashlib.sha256((root / hba).read_bytes()).hexdigest()
+    assert {
+        row["configuration"] for row in before["surfaces"][0]["references"] if row["path"] == hba
+    } == {"staging"}
+    production = report(root)
+    assert hba not in {item["path"] for item in production["sources"]}
+    for path in fingerprints:
+        copied = tmp_path / path
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        copied.write_bytes((root / path).read_bytes())
+    (tmp_path / hba).write_bytes((tmp_path / hba).read_bytes() + b"# synthetic policy revision\n")
+    after = ops.build_report(
+        tmp_path, environment="staging", service="database", repo_sha=SHA, now=NOW
+    )
+    changed = {item["path"]: item["sha256"] for item in after["sources"]}
+    assert before["repo_sha"] == after["repo_sha"] == SHA
+    assert {path for path in changed if changed[path] != fingerprints[path]} == {hba}
+    assert before["surfaces"] == after["surfaces"]
+
+
+def test_real_catalogue_production_image_only_selfhosted() -> None:
+    root = Path(__file__).resolve().parents[1]
+    result = report(root, service="database")
+    surface = result["surfaces"][0]
+    assert [
+        row
+        for row in surface["references"]
+        if row["path"] == "deploy/postgres-pgvector/image-manifest.json"
+    ] == [
+        {
+            "environment": "production",
+            "service": "database",
+            "configuration": "selfhosted_alternative",
+            "path": "deploy/postgres-pgvector/image-manifest.json",
+        }
+    ]
+    assert {"managed_default", "selfhosted_alternative"} <= {
+        row["configuration"] for row in surface["references"]
+    }
+    assert surface["selected_configuration"] == "unknown"
 
 
 def test_synthetic_packet_delivers_finite_ops_catalogue_bytes(

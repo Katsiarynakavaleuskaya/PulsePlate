@@ -413,7 +413,9 @@ reference relationships. Canonical production instructions remain in `deploy/PRO
 staging in `docs/deploy/STAGING.md`; deployment configuration and package/image owners
 retain their own truth. Production managed PostgreSQL is the documented default;
 self-hosted PostgreSQL is a maintained alternative. `PROD_DEPLOY_MODE` describes a deployment
-transport choice and cannot select database topology in this report.
+transport choice and cannot select database topology in this report. The staging database
+references include the mounted PostgreSQL HBA access-policy file; the production local-image
+manifest belongs to the self-hosted alternative. Neither reference proves host activation.
 
 A supplied observation file has this closed shape (synthetic example only):
 

@@ -251,6 +251,7 @@ This map reduces “missing context” failures by making required inputs explic
 - `deploy/docker-compose.production.yaml`
 - `deploy/docker-compose.staging.yaml`
 - `deploy/postgres-pgvector/image-manifest.json`
+- `deploy/postgres-pgvector/pg_hba.conf`
 - `deploy/prometheus/image-manifest.json`
 - `deploy/prometheus/prometheus.yml`
 - `docs/DEPENDENCY_MANAGEMENT.md`
