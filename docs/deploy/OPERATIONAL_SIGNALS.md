@@ -414,7 +414,13 @@ The index is a reference catalogue: root keys are `schema_version` (exactly
 `ops-context-sources.v1`) and `sources`. Each source has exactly `environment`, `service`,
 `configuration` and `path`. Both environments and all four services must be represented;
 no duplicate row is admitted. Production configuration labels are `managed_default`,
-`selfhosted_alternative` or `shared`; staging uses `staging` or `shared`. Labels describe
+`selfhosted_alternative` or `shared`; staging uses `staging` or `shared`.
+Production app, database and prometheus each require both `managed_default` and
+`selfhosted_alternative` reference classes; `shared` cannot replace either class.
+Packages and staging retain their existing configuration grammar without that dual-class
+requirement. These finite bindings are required for the whole index before report selection,
+including alternate indexes; they neither require distinct source paths nor verify live
+topology. Labels describe
 reference relationships. Canonical production instructions remain in `deploy/PRODUCTION.md`,
 staging in `docs/deploy/STAGING.md`; deployment configuration and package/image owners
 retain their own truth. Production managed PostgreSQL is the documented default;

@@ -149,12 +149,12 @@ def _index(raw: bytes) -> list[dict[str, str]]:
         )
     _require(bindings == {(env, service) for env in ENVIRONMENTS for service in SERVICES})
     _require(
-        {"managed_default", "selfhosted_alternative"}
-        <= {
-            row["configuration"]
-            for row in rows
-            if row["environment"] == "production" and row["service"] == "database"
+        {
+            ("production", service, configuration)
+            for service in ("app", "database", "prometheus")
+            for configuration in ("managed_default", "selfhosted_alternative")
         }
+        <= {(row["environment"], row["service"], row["configuration"]) for row in validated}
     )
     return validated
 

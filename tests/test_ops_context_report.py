@@ -33,14 +33,15 @@ def repository(tmp_path: Path) -> Path:
                     "path": path,
                 }
             )
-    sources.append(
-        {
-            "environment": "production",
-            "service": "database",
-            "configuration": "selfhosted_alternative",
-            "path": "docs/production-database.md",
-        }
-    )
+    for service in ("app", "database", "prometheus"):
+        sources.append(
+            {
+                "environment": "production",
+                "service": service,
+                "configuration": "selfhosted_alternative",
+                "path": f"docs/production-{service}.md",
+            }
+        )
     index = tmp_path / "docs/deploy/OPS_CONTEXT_SOURCES.json"
     index.parent.mkdir(parents=True)
     index.write_text(
@@ -871,14 +872,105 @@ def test_real_catalogue_caddy_policy_selection_and_fingerprint(
     assert captured.err == "ops-context-report: INVALID_REQUEST\n"
 
 
-def test_alternate_index_requires_database_alternative(repository: Path) -> None:
+@pytest.mark.parametrize("service", ["app", "database", "prometheus"])
+@pytest.mark.parametrize("configuration", ["managed_default", "selfhosted_alternative"])
+def test_alternate_index_requires_each_production_configuration(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    service: str,
+    configuration: str,
+) -> None:
     data = json.loads((repository / ops.DEFAULT_SOURCES).read_text())
+    data["sources"].extend(
+        {
+            "environment": "production",
+            "service": name,
+            "configuration": "shared",
+            "path": f"docs/production-{name}.md",
+        }
+        for name in ("app", "database", "prometheus")
+    )
+    alternate = repository / "docs/alternate.json"
+    alternate.write_text(json.dumps(data))
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
+    selections = [("production", service), ("production", "packages"), ("staging", "packages")]
+    for environment, selected in selections:
+        assert (
+            ops.main(
+                [
+                    "--sources",
+                    "docs/alternate.json",
+                    "--environment",
+                    environment,
+                    "--service",
+                    selected,
+                    "--format",
+                    "json",
+                ]
+            )
+            == 0
+        )
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert json.loads(captured.out)["surfaces"][0]["selected_configuration"] == "unknown"
+    before = {(row["environment"], row["service"], row["configuration"]) for row in data["sources"]}
+    removed = ("production", service, configuration)
     data["sources"] = [
-        item for item in data["sources"] if item["configuration"] != "selfhosted_alternative"
+        row
+        for row in data["sources"]
+        if (row["environment"], row["service"], row["configuration"]) != removed
     ]
-    (repository / "docs/alternate.json").write_text(json.dumps(data))
-    with pytest.raises(ops.ReportError):
-        report(repository, sources="docs/alternate.json")
+    after = {(row["environment"], row["service"], row["configuration"]) for row in data["sources"]}
+    assert before - after == {removed}
+    assert {(row["environment"], row["service"]) for row in data["sources"]} == {
+        (env, name) for env in ops.ENVIRONMENTS for name in ops.SERVICES
+    }
+    assert ("production", service, "shared") in after
+    alternate.write_text(json.dumps(data))
+    for environment, selected in selections:
+        assert (
+            ops.main(
+                [
+                    "--sources",
+                    "docs/alternate.json",
+                    "--environment",
+                    environment,
+                    "--service",
+                    selected,
+                    "--format",
+                    "json",
+                ]
+            )
+            == 2
+        )
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "ops-context-report: INVALID_REQUEST\n"
+
+
+def test_real_catalogue_finite_production_alternatives() -> None:
+    root = Path(__file__).resolve().parents[1]
+    required = {
+        ("production", name, config)
+        for name in ("app", "database", "prometheus")
+        for config in ("managed_default", "selfhosted_alternative")
+    }
+    data = json.loads((root / ops.DEFAULT_SOURCES).read_text())
+    triples = {
+        (row["environment"], row["service"], row["configuration"]) for row in data["sources"]
+    }
+    assert required <= triples
+    assert ("production", "packages", "selfhosted_alternative") not in triples
+    assert not any(
+        env == "staging" and config in {"managed_default", "selfhosted_alternative"}
+        for env, _, config in triples
+    )
+    for environment in ops.ENVIRONMENTS:
+        result = ops.build_report(root, environment=environment, repo_sha=SHA, now=NOW)
+        assert {surface["service"] for surface in result["surfaces"]} == set(ops.SERVICES)
+        assert all(surface["selected_configuration"] == "unknown" for surface in result["surfaces"])
 
 
 @pytest.mark.parametrize("environment", ["production", "staging"])
