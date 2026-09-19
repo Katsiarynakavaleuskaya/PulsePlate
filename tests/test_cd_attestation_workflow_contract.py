@@ -1420,3 +1420,116 @@ def test_synthetic_probe_signature_corruption_mutates_one_decoded_byte_only(
     damaged["dsseEnvelope"]["signatures"][0]["sig"] = bundle["dsseEnvelope"]["signatures"][0]["sig"]
     assert damaged == bundle
     assert json.loads(original_file.read_text()) == bundle
+
+
+def test_pgvector_probe_shares_publisher_classifier_and_gates_authoring() -> None:
+    workflow = _load_cd_workflow()
+    probe = workflow["jobs"]["postgres-synthetic-attestation-probe"]["steps"]
+    publisher = workflow["jobs"]["postgres-pgvector-publish"]["steps"]
+    shared = "bash scripts/ci/classify_pgvector_attestations.sh"
+    before = _step_by_name(probe, "Classify synthetic tuple before native authoring")
+    partial = _step_by_name(probe, "Classify synthetic tuple before SPDX completion")
+    complete = _step_by_name(
+        probe, "Classify complete repeated and read-only original synthetic tuple"
+    )
+    actual = _step_by_name(publisher, "Classify existing exact-digest PostgreSQL attestations")
+    assert all(shared in step["run"] for step in (before, partial, complete, actual))
+    for name, decision, field in (
+        ("Attest actual synthetic build", "before", "provenance_mode"),
+        ("Attest synthetic exact materials", "before", "materials_mode"),
+        ("Attest synthetic SPDX", "partial", "sbom_mode"),
+    ):
+        assert (
+            _step_by_name(probe, name)["if"]
+            == f"steps.probe-inventory-{decision}.outputs.{field} == 'create'"
+        )
+    assert probe.index(before) < probe.index(_step_by_name(probe, "Attest actual synthetic build"))
+    assert (
+        probe.index(partial)
+        < probe.index(_step_by_name(probe, "Attest synthetic SPDX"))
+        < probe.index(complete)
+    )
+    assert "for stage in complete repeat readonly" in complete["run"]
+    assert "--sbom probe-regenerated.spdx.json" in complete["run"]
+    assert 'Path("probe.spdx.json").read_text()' in complete["run"]
+
+
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("create", ["--sbom", "postgres-pgvector-image-sbom.spdx.json"]),
+        ("reuse", []),
+        ("unknown", None),
+    ],
+)
+def test_candidate_sbom_arguments_follow_explicit_mode(
+    tmp_path: Path, mode: str, expected: list[str] | None
+) -> None:
+    steps = _load_cd_workflow()["jobs"]["postgres-pgvector-publish"]["steps"]
+    run = _step_by_name(
+        steps, "Verify candidate pullback, material provenance, SBOM, and runtime identity"
+    )["run"]
+    snippet = run[
+        run.index("sbom_args=()") : run.index(
+            "python3 scripts/ci/check_pgvector_attestations.py verify"
+        )
+    ]
+    completed = subprocess.run(
+        [shutil.which("bash"), "-c", snippet + '\nprintf "%s\\n" "${sbom_args[@]}"'],
+        env={**os.environ, "ATTESTATION_MODE": mode},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if expected is None:
+        assert completed.returncode != 0
+    else:
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout.split() == expected
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        None,
+        "mode",
+        "provenance_mode",
+        "materials_mode",
+        "sbom_mode",
+        "source_sha",
+        "run_invocation_uri",
+    ],
+)
+def test_native_partial_probe_asserts_exact_decision_and_identity(
+    tmp_path: Path, changed: str | None
+) -> None:
+    steps = _load_cd_workflow()["jobs"]["postgres-synthetic-attestation-probe"]["steps"]
+    run = _step_by_name(steps, "Classify synthetic tuple before SPDX completion")["run"]
+    code = run.split("<<'PY_PARTIAL'\n", 1)[1].split("\nPY_PARTIAL", 1)[0]
+    repo = "Katsiarynakavaleuskaya/PulsePlate"
+    decision = {
+        "mode": "create",
+        "provenance_mode": "reuse",
+        "materials_mode": "reuse",
+        "sbom_mode": "create",
+        "source_sha": "a" * 40,
+        "run_invocation_uri": "https://github.com/" + repo + "/actions/runs/1/attempts/1",
+    }
+    if changed is not None:
+        decision[changed] = "wrong"
+    (tmp_path / "probe-inventory-partial.json").write_text(json.dumps(decision))
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "GITHUB_REPOSITORY": repo,
+            "GITHUB_SHA": "a" * 40,
+            "GITHUB_RUN_ID": "1",
+            "GITHUB_RUN_ATTEMPT": "1",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == (0 if changed is None else 1), completed.stderr
