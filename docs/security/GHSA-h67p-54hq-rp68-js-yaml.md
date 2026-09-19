@@ -337,9 +337,14 @@ mismatch, additional tracked manifests/locks/shrinkwraps and missing/symlinked f
 Validation commands retained from the 2026-09-14 pre-open checkpoint:
 
 ```bash
-python -m pytest -q tests/test_frontend_dependency_guards.py tests/test_root_npm_dependency_guards.py
-python scripts/ci/check_docs_phase1_gates.py --files docs/security/GHSA-h67p-54hq-rp68-js-yaml.md
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" -m pytest -q tests/test_frontend_dependency_guards.py tests/test_root_npm_dependency_guards.py
+"$VENV_PYTHON" scripts/ci/check_docs_phase1_gates.py --files docs/security/GHSA-h67p-54hq-rp68-js-yaml.md
 ```
+
+Run this block from the repository root in Bash or zsh. The approved resolver
+also supports this isolated worktree through the primary checkout environment;
+bare system Python is not the validation interpreter.
 
 The full focused frontend/root dependency guard suites exited 0. Initial retained
 failures were an expected-message mismatch in the malformed-packages fixture and
