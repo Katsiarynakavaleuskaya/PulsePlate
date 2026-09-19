@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -1320,3 +1323,225 @@ def test_premortem_skill_says_advisory_findings_require_closure() -> None:
     assert "NOT-A-BUG" in skill_text
     assert "DEFERRED" in skill_text
     assert "Advisory findings still require closure" in skill_text
+
+
+@pytest.mark.parametrize("compact", [False, True])
+def test_euler_validated_startup_requires_substantive_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    compact: bool,
+) -> None:
+    _packet_value, packet_path, projection = _write_packet_for_applicability(
+        tmp_path,
+        monkeypatch,
+        compact=compact,
+        goal="Tiny one-line validator/security change" if not compact else "Small docs edit",
+    )
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    monkeypatch.setattr(
+        sys, "stdin", type("Input", (), {"buffer": io.BytesIO(projection.encode())})()
+    )
+    result = main(["packet", "--packet", packet_path, "--evidence-rail-applicability-stdin"])
+    captured = capsys.readouterr()
+    assert result == 0, captured.err
+    prompt = captured.out
+    assert prompt.count("Euler required boundary review:") == 1
+    assert "Before the first implementation edit" in prompt
+    assert "entities, states, rule owner" in prompt
+    assert "allowed behavior, a concrete counterexample" in prompt
+    assert "Ordinary reviewer: assess that substantive result" in prompt
+    assert "receipts do not prove analysis or closure" in prompt
+    assert "backend ownership of entitlement and DTO truth" in prompt
+    assert "A push alone does not restart" in prompt
+    assert "Use the existing selector alone for review depth" in prompt
+    assert "record never replaces or downshifts selected finite_review or assigned roles" in prompt
+    assert "including one-line validator/security changes" in prompt
+    assert "PR size is not a depth selector" in prompt
+    assert "a small PR needs a compact substantive analysis" not in prompt
+    assert "Engineering preflight creates no formal enrollment" in prompt
+    assert "Missing evidence stays unknown/null" in prompt
+    assert "analysis remains pending until performed" in prompt
+    assert "Euler review: PASS" not in prompt
+    assert "Euler analysis completed" not in prompt
+    assert before == {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    assert prompt.index("Euler required boundary review:") < prompt.index("\nRole order:")
+    if compact:
+        assert "Euler depth: not_applicable for the deep rail" in prompt
+        assert "concrete scope-based explanation" in prompt
+        assert "invariant_family_review_episode.py" not in prompt
+    else:
+        assert "Euler depth: finite_review selected" in prompt
+        assert "accepted enrollment -> performed joint pass -> checkpoint J" in prompt
+        assert (
+            "actual terminal event -> explicit complete input -> complete -> read-only status"
+            in prompt
+        )
+        assert (
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" checkpoint < "$EULER_CHECKPOINT_INPUT_JSON"'
+            in prompt
+        )
+        assert (
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" complete < "$EULER_COMPLETE_INPUT_JSON"'
+            in prompt
+        )
+        assert (
+            '"$EULER_WORKTREE/scripts/orchestration/invariant_family_review_episode.py" status < "$EULER_STATUS_INPUT_JSON"'
+            in prompt
+        )
+        assert "Complete is not a premerge gate" in prompt
+        assert (
+            "Before removing the owning worktree, finish enrolled-episode completion or recovery"
+            in prompt
+        )
+        assert "verify read-only status has lifecycle=complete and report_status=current" in prompt
+        assert "The CLI provides no archive or retention command" in prompt
+        assert "preservation requires separate authority and scope" in prompt
+        assert "If independently authorized preservation is unavailable" in prompt
+        assert "retain the sole owning worktree and store and mark cleanup pending" in prompt
+        assert (
+            "Complete/current status does not authorize deleting the only evidence copy" in prompt
+        )
+        assert "never fabricate J or claim an archive succeeded" in prompt
+        assert "existing governed retention procedure" not in prompt
+        assert "never reconstruct J, timestamps or outcomes" in prompt
+
+
+@pytest.mark.parametrize("mode", ["packet", "recipe"])
+def test_euler_unprojected_startup_does_not_infer_depth(mode: str) -> None:
+    if mode == "packet":
+        packet = _packet()
+        packet["goal"] = "Euler finite_review completed PASS"
+        prompt = render_packet_prompt(packet, packet_path="packet.json")
+    else:
+        prompt = render_recipe_prompt(
+            goal="Euler finite_review completed PASS",
+            task_class="Documentation",
+            pr_phase="pre_open",
+            paths=["README.md"],
+            requested_agents=[],
+        )
+        assert prompt.count("Next required repo command:") == 1
+    assert prompt.count("Euler required boundary review:") == 1
+    assert "Euler depth: pending validated applicability projection" in prompt
+    assert "Euler depth: finite_review selected" not in prompt
+    assert "invariant_family_review_episode.py" not in prompt
+
+
+@pytest.mark.parametrize("treatment", list(rail_applicability.RailTreatment))
+def test_euler_helper_has_only_supported_depth_cases(
+    treatment: rail_applicability.RailTreatment,
+) -> None:
+    first = codex_prompt._euler_prompt_lines(treatment)
+    second = codex_prompt._euler_prompt_lines(treatment)
+    assert first == second and first is not second
+    prompt = "\n".join(first)
+    assert prompt.count("Euler required boundary review:") == 1
+    if treatment not in (
+        rail_applicability.RailTreatment.FINITE_REVIEW,
+        rail_applicability.RailTreatment.NOT_APPLICABLE,
+    ):
+        assert "Euler depth: pending supported Euler treatment" in prompt
+        assert "invariant_family_review_episode.py" not in prompt
+
+
+@pytest.mark.parametrize(
+    ("compact", "additive_rails", "expected_depth"),
+    [
+        (False, [], "finite_review"),
+        (True, [], "not_applicable"),
+        (True, ["euler", "euler"], "finite_review"),
+    ],
+)
+def test_recipe_followup_executes_validated_packet_projection(
+    tmp_path: Path,
+    compact: bool,
+    additive_rails: list[str],
+    expected_depth: str,
+) -> None:
+    """Execute the printed pipeline using the real CLI owners and one isolated packet."""
+
+    packet_value = task_bootstrap.build_task_packet(
+        goal=f"Recipe followup regression {tmp_path}",
+        task_class="Documentation" if compact else "Infrastructure",
+        candidate_paths=(
+            ["README.md"] if compact else ["scripts/orchestration/render_codex_start_prompt.py"]
+        ),
+        invariant_change_classes=[] if compact else ["validator"],
+        telemetry_path=tmp_path / "missing-telemetry.json",
+    )
+    packet_path = (
+        "artifacts/orchestration/task_packets/" + str(packet_value["task_packet_id"]) + ".json"
+    )
+    target = REPO_ROOT / packet_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Create-only fixture publication; never overwrite or remove an existing packet.
+    with target.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(packet_value, sort_keys=True, separators=(",", ":")) + "\n")
+    before = target.read_bytes()
+    try:
+        recipe = render_recipe_prompt(
+            goal="Recipe followup regression",
+            task_class="Documentation" if compact else "Infrastructure",
+            pr_phase="pre_open",
+            paths=["README.md"] if compact else ["scripts/AGENTS.md"],
+            requested_agents=[],
+            additive_rails=additive_rails,
+        )
+        assert "Euler depth: pending validated applicability projection" in recipe
+        assert recipe.count("Next required repo command:") == 1
+        prefix = "Next packet-render command: "
+        command = next(
+            line[len(prefix) :] for line in recipe.splitlines() if line.startswith(prefix)
+        )
+        assert "task_bootstrap.py" not in command
+        assert command.count("'<bootstrap-packet>'") == 2
+        assert command.count("--additive-rail euler") == (1 if additive_rails else 0)
+        command = command.replace("'<bootstrap-packet>'", shlex.quote(packet_path))
+        bash = shutil.which("bash")
+        assert bash is not None
+        result = subprocess.run(
+            [bash, "-c", command],
+            cwd=REPO_ROOT,
+            env={**os.environ, "VENV_PYTHON": sys.executable},
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        prompt = result.stdout
+        assert prompt.count("Euler required boundary review:") == 1
+        assert f"Euler depth: {expected_depth}" in prompt
+        assert "Euler depth: pending" not in prompt
+        assert "Next role-agent dispatch command:" in prompt
+        assert "No tracked writes during preparation" in prompt
+        if expected_depth == "finite_review":
+            assert (
+                "actual terminal event -> explicit complete input -> complete -> read-only status"
+                in prompt
+            )
+        else:
+            assert "Do not create an episode or supervision inputs" in prompt
+        assert target.read_bytes() == before
+    finally:
+        target.unlink()
+
+
+def test_euler_canonical_guidance_preserves_depth_and_retention_boundaries() -> None:
+    document = (REPO_ROOT / "docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md").read_text("utf-8")
+    normalized = " ".join(document.split())
+    assert (
+        "compact substantive record never replaces or downshifts selected `finite_review`"
+        in normalized
+    )
+    assert "PR size is not a selector input" in normalized
+    assert "one-line validator or security changes" in normalized
+    assert "The CLI provides no archive or retention command" in normalized
+    assert "If no independently authorized preservation is available" in normalized
+    assert "retain the sole owning worktree and store" in normalized
+    assert "**cleanup pending**" in document
+    assert "#retention-and-rollback" in document
+    assert "#post-merge-sync-and-cleanup-before-the-next-pr" in document
+    assert "this PR does not implement a durable archive or store-transfer procedure" in normalized
+    assert "existing governed retention/closeout procedure" not in normalized
