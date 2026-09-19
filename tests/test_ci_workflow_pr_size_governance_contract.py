@@ -2101,7 +2101,7 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     """Guard remaining Node 20 action migrations against tag-object drift."""
 
     download_workflows = {
-        CI_WORKFLOW_PATH: 6,
+        CI_WORKFLOW_PATH: 7,
         CODECOV_UPLOAD_WORKFLOW_PATH: 1,
         IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
         NIGHTLY_WORKFLOW_PATH: 1,
@@ -3387,6 +3387,16 @@ def test_node24_artifact_migration_preserves_download_contracts() -> None:
             "diff-coverage",
             "Download coverage artifact (Python ${{ env.PYTHON_VERSION }})",
             {"name": "coverage-xml-${{ env.PYTHON_VERSION }}", "path": "./coverage-artifacts"},
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download OPS context coverage artifact",
+            {
+                "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
+                "path": "./ops-context-coverage",
+            },
             None,
         ),
         (
@@ -4764,3 +4774,86 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
         assert frontend_step["uses"] == "./.github/actions/npm-ci-with-retry"
         assert frontend_step["with"]["working-directory"] == "frontend"
         assert root_index < frontend_index < clean_index
+
+
+def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
+    """Tooling omission cannot leave this CLI's canonical diff gate unmeasured."""
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure OPS context CLI coverage"
+    )
+    run = str(measure["run"])
+    assert "--rcfile=/dev/null --branch" in run
+    assert "--include='scripts/ops/ops_context_report.py'" in run
+    assert "--data-file=.coverage.ops-context -m pytest -q -p no:xdist" in run
+    assert "tests/test_ops_context_report.py" in run
+    assert "--data-file=.coverage.ops-context -o coverage-ops-context.xml" in run
+    assert "--append" not in run
+    assert "continue-on-error" not in measure and "if" not in measure
+    upload = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Upload OPS context coverage artifact"
+    )
+    assert upload["with"] == {
+        "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
+        "path": "coverage-ops-context.xml",
+        "if-no-files-found": "error",
+        "retention-days": 7,
+    }
+    assert "continue-on-error" not in upload and "if" not in upload
+    download = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Download OPS context coverage artifact"
+    )
+    assert download["with"] == {
+        "name": "coverage-ops-context-${{ env.PYTHON_VERSION }}",
+        "path": "./ops-context-coverage",
+    }
+    assert "continue-on-error" not in download and "if" not in download
+    gate = _job_step_by_name(
+        workflow, job_id="diff-coverage", step_name="Enforce diff coverage >= 97%"
+    )
+    assert gate["env"] == {"COVERAGE_THRESHOLD": 97}
+    gate_run = str(gate["run"])
+    assert "diff-cover ./coverage-artifacts/coverage.xml" in gate_run
+    assert "./ops-context-coverage/coverage-ops-context.xml" in gate_run
+    assert '--fail-under "${{ env.COVERAGE_THRESHOLD }}"' in gate_run
+    assert "--exclude 'scripts" not in gate_run
+    upload_application = _job_step_by_name(
+        workflow, job_id="coverage-pr", step_name="Upload to Codecov"
+    )
+    application_with = upload_application["with"]
+    assert isinstance(application_with, dict)
+    assert application_with["files"] == "./coverage-artifacts/coverage.xml"
+
+
+@pytest.mark.parametrize(
+    "case", ["valid", "zero_hit", "missing", "malformed", "empty", "no_class", "wrong", "duplicate"]
+)
+def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, case: str) -> None:
+    """Execute the workflow's actual producer check with controlled XML documents."""
+    import subprocess
+    import sys
+
+    workflow = _load_ci_workflow()
+    measure = _job_step_by_name(
+        workflow, job_id="test-pr", step_name="Measure OPS context CLI coverage"
+    )
+    run = str(measure["run"])
+    marker = "python - <<'PY'\n"
+    assert run.count(marker) == 1
+    check = run.split(marker, 1)[1].rsplit("\nPY", 1)[0]
+    filename = "other.py" if case == "wrong" else "scripts/ops/ops_context_report.py"
+    hits = "0" if case == "zero_hit" else "1"
+    lines = "" if case == "empty" else f'<line number="1" hits="{hits}"/>'
+    cls = f'<class filename="{filename}"><lines>{lines}</lines></class>'
+    raw = "<coverage><packages><package><classes>" + ("" if case == "no_class" else cls)
+    if case == "duplicate":
+        raw += cls
+    raw += "</classes></package></packages></coverage>"
+    if case == "malformed":
+        raw = "<coverage"
+    if case != "missing":
+        (tmp_path / "coverage-ops-context.xml").write_text(raw, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-c", check], cwd=tmp_path, capture_output=True, timeout=5, check=False
+    )
+    assert (result.returncode == 0) is (case in {"valid", "zero_hit"})

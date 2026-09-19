@@ -225,6 +225,17 @@ A standalone new test file may not be included in diff-cover's comparison, causi
 
 **Example (PR-490B)**: Coverage-tail tests for `core/bmi/engine.py` were moved from a standalone file into `tests/test_bmi_visualization_spec.py` (already modified in the PR) to ensure diff-cover correctly detects coverage.
 
+**OPS context tooling coverage:** the canonical `test-pr` job measures
+`scripts/ops/ops_context_report.py` with its focused tests in a separate coverage
+data file/XML, outside the application runtime omission list. The producer must
+prove that the XML contains the intended source with a nonempty executable-line
+inventory. `diff-coverage` consumes both XML reports under the existing 97%
+changed-line threshold; missing tooling evidence fails. Application coverage
+configuration and Codecov's application report remain separate. The owning
+workflow contract tests live in `test_ci_workflow_pr_size_governance_contract.py`.
+This measurement is neither a per-file readiness threshold nor proof of overall
+application total coverage.
+
 **Tier 1 `test-pr` routing** (`.github/workflows/ci.yml`): PRs that select route or LLM contract groups must include the relevant route, OpenAPI, helper, and contract tests so `coverage.xml` used by the `diff-coverage` job covers touched backend surfaces. The canonical group membership lives in `.github/workflows/ci.yml`; keep this file focused on the invariant instead of duplicating workflow test lists.
 
 ### Reliable local diff-cover check (prevents phantom gaps)
