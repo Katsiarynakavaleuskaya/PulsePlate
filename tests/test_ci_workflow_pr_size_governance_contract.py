@@ -2990,7 +2990,9 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "backend-image-sbom.spdx.json",
             },
-            "github.ref == 'refs/heads/main' && "
+            "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && "
+            "needs.prometheus-image-security.result == 'success' && "
+            "needs.main-push-admission.result == 'success' && "
             "needs.staging-postgres-native-integration.result == 'success'",
             None,
             None,
@@ -3009,7 +3011,9 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "caddy-image-sbom.spdx.json",
             },
-            "github.ref == 'refs/heads/main' && "
+            "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && "
+            "needs.prometheus-image-security.result == 'success' && "
+            "needs.main-push-admission.result == 'success' && "
             "needs.staging-postgres-native-integration.result == 'success'",
             None,
             None,
