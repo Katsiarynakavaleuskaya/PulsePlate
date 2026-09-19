@@ -554,6 +554,12 @@ Euler import, execution or store access is permitted.
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 
+Changes under `docs/` select the exact docs path-leakage guard node, including
+isolated documentation branches. Root and one-level `.txt`/`.in` carrier
+candidates select the dependency security guard alongside ownership validation;
+these guards must remain reachable without a companion Python-file change.
+The owning selection tests are `tests/test_pre_commit_hook_python_resolver.py`.
+
 Verify this hook on the supported shells from
 [the Bash portability lesson](../docs/ENGINEERING_LESSONS.md#3-bash-scripts-must-be-portable-bash-32),
 including the actual macOS Bash 3.2 executable when validating on macOS.

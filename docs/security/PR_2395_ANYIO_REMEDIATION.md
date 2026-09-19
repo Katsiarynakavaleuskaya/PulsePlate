@@ -5,8 +5,9 @@ AnyIO first, then the exact HTTPX2/HTTPCore2 scanner batch. The latter batch and
 its necessary idna resolver closure have eight matching replay locks and clean
 audits across all ten Python profiles. Compatibility checks and the final expanded local bundle passed; current-head
 CI and review/merge gates remain pending.
-The PR has 25 material paths plus its review mapping (26 total). No
-merge-readiness claim is made.
+The current path count and owner-approved privileged-scope justification are
+recorded in [PR #2395](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2395)
+and checked by the existing PR size governance. No merge-readiness claim is made.
 
 ## AnyIO transition — retained historical proof
 
