@@ -1006,8 +1006,15 @@ def _assert_euler_renderer_inert(source: str) -> None:
         ]
     ), "Euler helper output belongs only to the three rendering seams"
     admitted_nodes = set(ast.walk(original_helper))
+    # Explicit fixed-root and named owner API references only. This does not
+    # infer arbitrary paths, aliases or filesystem behavior from Python programs.
+    store_api_names = {"STORE_COMPONENTS", "_StoreSession", "_scan_store", "_manifest_from_store"}
     for node in ast.walk(original):
         for _field, value in ast.iter_fields(node):
+            if isinstance(value, str):
+                assert (
+                    "review_invariant_family_episodes" not in value and value not in store_api_names
+                ), "Euler renderer must not reference its fixed store or named store APIs"
             if isinstance(value, str) and "invariant_family_review_episode" in value:
                 assert (
                     isinstance(node, ast.Constant) and node in admitted_nodes
@@ -1094,6 +1101,24 @@ def test_euler_renderer_rejects_executable_reference_mutations(mutation: str) ->
     assert changed != source
     with pytest.raises(AssertionError):
         _assert_euler_renderer_inert(changed)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        'Path("artifacts/orchestration/review_invariant_family_episodes").read_text()',
+        '(Path("artifacts") / "orchestration" / "review_invariant_family_episodes").iterdir()',
+        "Path(*STORE_COMPONENTS).read_text()",
+        "_StoreSession(anchor, exclusive=False, create=False)",
+        "_scan_store(session)",
+        "_manifest_from_store(enrollments, terminals)",
+    ],
+)
+def test_euler_renderer_rejects_explicit_fixed_store_references(statement: str) -> None:
+    source = (REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py").read_text("utf-8")
+    # These named references are forbidden even outside the constrained helper.
+    with pytest.raises(AssertionError, match="Euler renderer must not reference its fixed store"):
+        _assert_euler_renderer_inert(source + "\n" + statement + "\n")
 
 
 @pytest.mark.parametrize(
