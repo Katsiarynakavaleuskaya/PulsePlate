@@ -1,6 +1,6 @@
 # js-yaml security remediation — DEP-SEC-01 and historical GHSA-h67p-54hq-rp68
 
-## Current result and authority
+## Accepted scope and dated pre-open checkpoint
 
 DEP-SEC-01 replaces the existing `npm:js-yaml` frontend override **4.3.1 → 4.3.2**
 and requires every governed installed occurrence to resolve to 4.3.2. This existing
@@ -12,7 +12,8 @@ while a colleague owns CD recovery. That decision does not claim healthy CD or
 supply merge approval. The five material files are the frontend manifest/lock,
 existing frontend dependency guard, this document and the existing backlog ledger.
 No other dependency intent, runtime/API/DTO/route change, suppression or CD edit is
-part of DEP-SEC-01. The current PR has not yet opened at this implementation checkpoint.
+part of DEP-SEC-01. At the pre-open checkpoint on 2026-09-14, before 11:34 UTC,
+the PR had not yet opened. The separate current checkpoint below records later progress.
 
 The original accepted DEP-SEC-01 plan v1 and separate owner amendment govern all
 acceptance items. Repository documentation belongs in this substantive PR;
@@ -333,7 +334,7 @@ top-level versions, safe-but-unselected drift, aliases, malformed entries/versio
 duplicate JSON keys, wrong source, link/bundle state, invalid SRI, manifest/lock
 mismatch, additional tracked manifests/locks/shrinkwraps and missing/symlinked files.
 
-Validation commands for this material:
+Validation commands retained from the 2026-09-14 pre-open checkpoint:
 
 ```bash
 python -m pytest -q tests/test_frontend_dependency_guards.py tests/test_root_npm_dependency_guards.py
@@ -358,11 +359,56 @@ An initial concurrent coverage/tokens run raced make openapi's npm ci; the
 coordinator retained failures and reran after installation completed. Build emits
 existing dynamic-import/chunk-size warnings on unchanged frontend source.
 
-Preflight/consistency, inspected make validate-changed and all-file pre-commit
-remain required. Full local make verify is not authorized.
+At that pre-open evidence checkpoint, preflight/consistency, inspected
+make validate-changed and all-file pre-commit remained required.
+Full local make verify is not authorized.
 Premortem/Runner, post-open role review, current-head canonical CI/security/coverage,
-strict seal/readiness/wait, human merge decision and post-merge proof remain pending.
-No PR or Dependency Epic completion is claimed at this checkpoint.
+strict seal/readiness/wait, human merge decision and post-merge proof were pending
+at that checkpoint. It did not claim PR or Dependency Epic completion.
+
+## Current PR checkpoint — 2026-09-14
+
+[PR #2396](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2396) opened
+non-draft at 11:34 UTC on `codex/dep-sec-js-yaml-floor`. The reviewed implementation
+head was `6fd99b402cea2ae653dc9ed9dd024a235fbca3ce`; the canonical mapping will bind
+the final material head after these review corrections.
+
+The full focused suites, analytical preflight, agent consistency and all-file
+pre-commit passed. `make validate-changed` selected and passed 829 tests across
+the frontend/root dependency guards, CI scope contract and Python supply-chain
+controls. Canonical `make tokens-check` passed all 37 controls. No full local
+`make verify` was run.
+
+Actual-diff premortem has no open finding. Accepted Experiment Runner
+`exp-626de9290a4b` ran two oracle-only checks (75 selected guard cases and Docs
+Phase 1), both exit 0, one attempt, zero retries and no tracked mutations.
+Its accepted result materially informed the commit decision and both initial
+commits carry the canonical Runner co-author trailer. The single required
+post-open QA → bug-hunter → security-auditor chain completed on the reviewed
+implementation head without additional executable defects.
+
+Sourcery identified an inaccurate fixed target count in the helper docstring;
+the correction names the declared target set without freezing its cardinality.
+Five new negative-test docstrings now describe their distinct failure modes.
+CodeRabbit's checkpoint finding is addressed by retaining the dated pre-open
+evidence above and recording observed progress separately here.
+Evidence: `tests/test_frontend_dependency_guards.py:1778`,
+`tests/test_frontend_dependency_guards.py:4314`.
+
+The PR scope classifier initially rejected security-document plus frontend paths.
+The owner's already accepted five-file scope was recorded through the existing
+operator/client-mix approval metadata; the next current-head scope check passed.
+No classifier, gate or scope rule was weakened. The existing Phase 2 pending
+literal was corrected separately; its local pre-closeout body check passed.
+Final current-head CI, numeric diff coverage ≥97%, review dispositions,
+self-review/seal, strict readiness/wait, human merge authorization and post-merge
+proof remain pending at this documentation checkpoint.
+
+All four existing Drive documents have verified same-ID plan-start and PR-open
+readbacks, including both tabs of the native Dependency Epic plan. Previous
+content was preserved exactly; the Markdown files received new versions.
+Terminal/post-merge Drive checkpoints, alert #291 observation, archive and owned
+cleanup are still required. These statements do not close the Dependency Epic.
 
 ## Remaining debt and rollback
 

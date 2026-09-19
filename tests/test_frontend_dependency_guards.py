@@ -1775,7 +1775,7 @@ def _extract_transitive_npm_batch_receipt(document: str) -> dict[str, object]:
 
 
 def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
-    """Validate the five non-brace targets across every tracked npm surface."""
+    """Validate the declared non-brace targets across every tracked npm surface."""
 
     surfaces = {
         relative: _load_transitive_npm_surface(root / relative)
@@ -4311,6 +4311,7 @@ def frontend_security_repo(tmp_path: Path) -> Path:
 def test_js_yaml_guard_rejects_invalid_occurrences(
     frontend_security_repo: Path, case: str, message: str
 ) -> None:
+    """Reject vulnerable, misidentified or malformed occurrences through the ordinary guard."""
     root = frontend_security_repo
     manifest_path = root / "frontend/package.json"
     lock_path = root / "frontend/package-lock.json"
@@ -4380,6 +4381,7 @@ def test_js_yaml_guard_rejects_invalid_occurrences(
 def test_js_yaml_guard_rejects_incomparable_lock_version(
     frontend_security_repo: Path, version: object
 ) -> None:
+    """Reject versions that cannot satisfy stable advisory and selected-version comparisons."""
     path = frontend_security_repo / "frontend/package-lock.json"
     lock = _load_json(path)
     lock["packages"]["node_modules/js-yaml"]["version"] = version
@@ -4392,6 +4394,7 @@ def test_js_yaml_guard_rejects_incomparable_lock_version(
 def test_js_yaml_guard_rejects_duplicate_json_members(
     frontend_security_repo: Path, basename: str
 ) -> None:
+    """Reject duplicate JSON members before an apparently safe value can mask a duplicate."""
     path = frontend_security_repo / "frontend" / basename
     source = path.read_text(encoding="utf-8")
     if basename == "package.json":
@@ -4407,6 +4410,7 @@ def test_js_yaml_guard_rejects_duplicate_json_members(
 def test_js_yaml_guard_discovers_additional_tracked_surface(
     frontend_security_repo: Path, basename: str
 ) -> None:
+    """Discover newly tracked npm owners and reject an ungoverned vulnerable carrier."""
     root = frontend_security_repo
     relative = f"future/nested/{basename}"
     path = root / relative
@@ -4433,6 +4437,7 @@ def test_js_yaml_guard_discovers_additional_tracked_surface(
 def test_js_yaml_guard_rejects_unreadable_tracked_surface(
     frontend_security_repo: Path, state: str
 ) -> None:
+    """Fail closed when a tracked npm surface is missing or replaced by a symlink."""
     root = frontend_security_repo
     path = root / "frontend/package-lock.json"
     path.unlink()
