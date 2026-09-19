@@ -74,9 +74,9 @@ upgrade is `UPGRADE_PACKAGES="anyio==4.14.2"`; this parameter is not a second
 identity or action class.
 
 The owning entrypoint is `make requirements-locks` (`Makefile:93`), using the
-approved private proxy, Python 3.13.14 and pip-tools 7.6.0. The approved
-`VENV_PYTHON` is
-`/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`.
+approved private proxy, Python 3.13.14 and pip-tools 7.6.0. The commands use
+`$VENV_PYTHON`, resolved to the approved repository interpreter; its full host
+path is retained only in the local validation-command artifact.
 Runtime compiled first and was committed as
 `fa6507c3b758a34021d45c58348c98ee56509618` before dependent profiles consumed it,
 as required by `scripts/ci/compile_locked_python_requirements.py:2019`.

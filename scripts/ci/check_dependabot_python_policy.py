@@ -107,6 +107,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
             "hypothesis",
             "faker",
             "httpx2",
+            "httpcore2",
             "diff-cover",
             "flake8",
             "marshmallow",

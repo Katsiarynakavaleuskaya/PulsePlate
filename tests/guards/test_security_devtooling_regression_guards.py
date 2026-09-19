@@ -242,6 +242,12 @@ def _docs_diff_base_candidates() -> tuple[str, ...]:
 
 
 def _changed_docs_diff() -> str:
+    if (
+        os.environ.get("PRE_COMMIT") == "1"
+        and not os.environ.get("CI")
+        and not os.environ.get("GITHUB_ACTIONS")
+    ):
+        return _changed_index_docs_diff()
     candidates = _docs_diff_base_candidates()
     attempted: list[str] = []
     for base_ref in candidates:
@@ -260,6 +266,30 @@ def _changed_docs_diff() -> str:
     raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
 
 
+def _changed_index_docs_diff() -> str:
+    merge_base = subprocess.run(
+        [_binary("git"), "merge-base", "--all", "origin/main", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert merge_base.returncode == 0 and re.fullmatch(
+        r"[0-9a-f]{40}\n?", merge_base.stdout
+    ), "docs leakage guard requires one real origin/main merge-base for index mode"
+    unmerged = subprocess.run(
+        [_binary("git"), "ls-files", "--unmerged"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert (
+        unmerged.returncode == 0 and not unmerged.stdout
+    ), "docs leakage guard cannot inspect an unreadable or unmerged Git index"
+    result = _run_docs_diff(merge_base.stdout.strip(), cached=True)
+    assert result.returncode == 0, "docs leakage guard cannot read proposed Git index diff"
+    return result.stdout
+
+
 def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
     three_dot = _run_docs_diff(f"{base_ref}...HEAD")
     if three_dot.returncode == 0:
@@ -276,9 +306,20 @@ def _docs_diff_error_allows_two_dot_fallback(stderr: str) -> bool:
     )
 
 
-def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
+def _run_docs_diff(
+    revision_range: str, *, cached: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [_binary("git"), "diff", "--unified=0", revision_range, "--", "docs", "docs/review"],
+        [
+            _binary("git"),
+            "diff",
+            *(["--cached"] if cached else []),
+            "--unified=0",
+            revision_range,
+            "--",
+            "docs",
+            "docs/review",
+        ],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -1381,3 +1422,160 @@ def test_docs_diff_falls_back_when_shallow_checkout_lacks_merge_base() -> None:
 def test_judgment_validity_module_exports_expected_sidecar_filenames() -> None:
     assert judgment_validity.JUDGMENT_VALIDITY_ITEMS_FILENAME == "judgment_validity_items.jsonl"
     assert judgment_validity.JUDGMENT_VALIDITY_REPORT_FILENAME == "judgment_validity_report.json"
+
+
+def _docs_fixture_git(
+    repo: Path, *args: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Use only a disposable fixture repository, without host commit hooks/config."""
+    return subprocess.run(
+        [
+            _binary("git"),
+            "-c",
+            "user.name=Docs Guard Fixture",
+            "-c",
+            "user.email=docs-guard@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            *args,
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=check,
+    )
+
+
+@pytest.fixture
+def docs_diff_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
+    for name in (
+        "CI",
+        "GITHUB_ACTIONS",
+        "GITHUB_BASE_REF",
+        "GITHUB_EVENT_PATH",
+        DOCS_LEAKAGE_GUARD_BASE_ENV,
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PRE_COMMIT", "1")
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    _docs_fixture_git(tmp_path, "init", "--initial-branch=main")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/note.md").write_text("Clean base\n", encoding="utf-8")
+    _docs_fixture_git(tmp_path, "add", "docs/note.md")
+    _docs_fixture_git(tmp_path, "commit", "-m", "Fixture base")
+    _docs_fixture_git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _docs_fixture_git(tmp_path, "checkout", "-b", "feature")
+    return tmp_path
+
+
+def _stage_docs_fixture(repo: Path, text: str, *, commit: bool = False) -> None:
+    (repo / "docs/note.md").write_text(text, encoding="utf-8")
+    _docs_fixture_git(repo, "add", "docs/note.md")
+    if commit:
+        _docs_fixture_git(repo, "commit", "-m", "Fixture candidate")
+
+
+@pytest.mark.parametrize(
+    ("state", "leaks"),
+    [
+        ("committed-leak-staged-repair", False),
+        ("staged-leak-unstaged-repair", True),
+        ("staged-repair-unstaged-leak", False),
+        ("unchanged-index-committed-leak", True),
+    ],
+)
+def test_local_docs_guard_checks_real_index_candidate(
+    docs_diff_repo: Path, state: str, leaks: bool
+) -> None:
+    leak = "Local path /Users/fixture/private\n"
+    clean = "Corrected documentation\n"
+    if state == "staged-leak-unstaged-repair":
+        _stage_docs_fixture(docs_diff_repo, leak)
+        (docs_diff_repo / "docs/note.md").write_text(clean, encoding="utf-8")
+    else:
+        _stage_docs_fixture(docs_diff_repo, leak, commit=True)
+        if state != "unchanged-index-committed-leak":
+            _stage_docs_fixture(docs_diff_repo, clean)
+        if state == "staged-repair-unstaged-leak":
+            (docs_diff_repo / "docs/note.md").write_text(leak, encoding="utf-8")
+    if leaks:
+        with pytest.raises(AssertionError):
+            test_changed_docs_do_not_add_local_users_absolute_paths()
+    else:
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("CI", "true"), ("CI", "0"), ("GITHUB_ACTIONS", "true"), ("GITHUB_ACTIONS", "false")],
+)
+def test_docs_guard_ci_precedence_keeps_committed_head(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    _stage_docs_fixture(docs_diff_repo, "Corrected documentation\n")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+@pytest.mark.parametrize("marker", ("", "0", "true"))
+def test_docs_guard_nonexact_hook_marker_keeps_committed_head(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch, marker: str
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    _stage_docs_fixture(docs_diff_repo, "Corrected documentation\n")
+    monkeypatch.setenv("PRE_COMMIT", marker)
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+def test_index_docs_guard_ignores_shorter_environment_base(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Local path /Users/fixture/private\n", commit=True)
+    monkeypatch.setenv(DOCS_LEAKAGE_GUARD_BASE_ENV, "HEAD")
+    monkeypatch.setenv("GITHUB_BASE_REF", "feature")
+    with pytest.raises(AssertionError):
+        test_changed_docs_do_not_add_local_users_absolute_paths()
+
+
+def test_index_docs_guard_rejects_missing_origin_base(docs_diff_repo: Path) -> None:
+    _docs_fixture_git(docs_diff_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    with pytest.raises(AssertionError, match="requires one real origin/main merge-base"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_conflicting_index(docs_diff_repo: Path) -> None:
+    _docs_fixture_git(docs_diff_repo, "checkout", "-b", "other", "origin/main")
+    _stage_docs_fixture(docs_diff_repo, "Other branch\n", commit=True)
+    _docs_fixture_git(docs_diff_repo, "checkout", "feature")
+    _stage_docs_fixture(docs_diff_repo, "Feature branch\n", commit=True)
+    result = _docs_fixture_git(docs_diff_repo, "merge", "other", check=False)
+    assert result.returncode == 1
+    with pytest.raises(AssertionError, match="unreadable or unmerged Git index"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_unreadable_index(
+    docs_diff_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A missing index file represents empty state to Git, so use a directory to
+    # trigger a real unreadable-index failure without fabricating tool output.
+    monkeypatch.setenv("GIT_INDEX_FILE", str(docs_diff_repo / "docs"))
+    with pytest.raises(AssertionError, match="unreadable or unmerged Git index"):
+        _changed_docs_diff()
+
+
+def test_index_docs_guard_rejects_unreadable_staged_blob(docs_diff_repo: Path) -> None:
+    _stage_docs_fixture(docs_diff_repo, "Unique staged candidate\n")
+    blob = _docs_fixture_git(docs_diff_repo, "rev-parse", ":docs/note.md").stdout.strip()
+    (docs_diff_repo / ".git/objects" / blob[:2] / blob[2:]).unlink()
+    (docs_diff_repo / "docs/note.md").write_text("Different unstaged content\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="cannot read proposed Git index diff"):
+        _changed_docs_diff()
