@@ -2,6 +2,8 @@
 fastapi>=0.138.1,<1.0.0
 # Security floor: Safety SFTY-20260615-86827/22503/83407/32787 fixed in Starlette 1.3.1.
 starlette>=1.3.1,<2.0.0
+# Security floor: CVE-2026-63374 / CVE-2026-64847 fixed in AnyIO 4.14.2.
+anyio>=4.14.2,<5.0.0
 uvicorn>=0.38.0,<1.0.0
 # Security floor: unsafe editor invocation fixed in Click 8.3.3.
 click>=8.3.3,<9.0.0

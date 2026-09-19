@@ -1,7 +1,8 @@
 -c requirements.txt
 # Starlette TestClient backend; keep out of runtime/Docker/ci-lite profiles.
-# 2.4+ requires a newer idna floor than the current runtime lock.
-httpx2>=2.3.0,<2.4.0
+# Security floors: advisory proof in docs/security/PR_2395_ANYIO_REMEDIATION.md.
+httpx2>=2.12.0,<3.0.0
+httpcore2>=2.12.0,<3.0.0
 pytest~=9.1.1
 pytest-cov~=7.1.0
 pytest-asyncio~=1.4.0

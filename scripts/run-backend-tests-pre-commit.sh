@@ -335,7 +335,10 @@ add_extra_tests_for_changed_files() {
             *.txt | *.in)
                 case "$file" in
                     */*/*) ;;
-                    *) EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py") ;;
+                    *)
+                        EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
+                        EXTRA_TEST_FILES+=("tests/test_dependency_security_guard.py")
+                        ;;
                 esac
                 ;;
         esac
@@ -343,6 +346,11 @@ add_extra_tests_for_changed_files() {
             package.json | package-lock.json | npm-shrinkwrap.json)
                 EXTRA_TEST_FILES+=("tests/test_root_npm_dependency_guards.py")
                 EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
+                ;;
+        esac
+        case "$file" in
+            docs/*)
+                EXTRA_TEST_FILES+=("tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths")
                 ;;
         esac
         case "$file" in

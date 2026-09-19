@@ -16,6 +16,11 @@
 ## Conventions
 
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
+- The [docs path-leakage guard](guards/test_security_devtooling_regression_guards.py)
+  checks the proposed Git index only for local `PRE_COMMIT=1` with empty
+  `CI` and `GITHUB_ACTIONS`; it requires a real `origin/main` merge-base and
+  rejects unreadable or conflicting index state. Ordinary and CI runs retain
+  committed-HEAD checks; unstaged content cannot repair a staged leak.
 - Maintain >=97% total coverage; add tests for new branches.
 - Never mock `builtins.__import__` or `builtins.float`.
 - Preserve xdist DB isolation: each worker gets its own SQLite path.

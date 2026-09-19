@@ -507,6 +507,12 @@
 - Contract and terminal rail truth table:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md`.
 
+The renderer delivers the [required Euler preflight and conditional supervision
+handoff](../docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md#required-euler-preflight-and-supervision-handoff)
+as inert instructions in both startup modes. Its helper and owning-test references
+must remain protected by the focused standalone-consumer guard; no rendering-time
+Euler import, execution or store access is permitted.
+
 ## Packet-bound evidence-rail applicability
 
 - `evidence_rail_applicability.py` is the sole owner of the selection-only
@@ -547,6 +553,12 @@
 ## Pre-push backend tests (smart diff runner)
 
 The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
+
+Changes under `docs/` select the exact docs path-leakage guard node, including
+isolated documentation branches. Root and one-level `.txt`/`.in` carrier
+candidates select the dependency security guard alongside ownership validation;
+these guards must remain reachable without a companion Python-file change.
+The owning selection tests are `tests/test_pre_commit_hook_python_resolver.py`.
 
 Verify this hook on the supported shells from
 [the Bash portability lesson](../docs/ENGINEERING_LESSONS.md#3-bash-scripts-must-be-portable-bash-32),
