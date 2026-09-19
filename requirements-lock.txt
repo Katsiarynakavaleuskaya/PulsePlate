@@ -22,9 +22,10 @@ annotated-types==0.7.0
     # via
     #   -c requirements.txt
     #   pydantic
-anyio==4.12.0
+anyio==4.14.2
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   httpx
     #   httpx2
     #   openai

@@ -23,6 +23,12 @@ from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion
 from packaging.version import Version
 
+from scripts.ci.check_python_dependency_surfaces import (
+    compiled_dependency_surfaces,
+    registered_dependabot_requirement_carriers,
+)
+from scripts.ci.dependabot_requirement_carriers import discover_dependabot_requirement_carriers
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json"
 ADMISSION_DOC_PATH = REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
@@ -123,7 +129,10 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "starlette": "1.3.1",
 }
 
+ANYIO_FIXED_FLOOR = Version("4.14.2")
+
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
+    "anyio": f"<{ANYIO_FIXED_FLOOR}",
     "python-multipart": "<0.0.31",
     "setuptools": "<83.0.0",
 }
@@ -2760,3 +2769,157 @@ def test_repo_managed_lock_surfaces_do_not_pin_pip() -> None:
         "Remove pip==... entries instead of repinning pip. "
         "See docs/security/GHSA-58qw-9mgm-455v-pip.md. Offenders: " + "; ".join(offenders)
     )
+
+
+# These current runtime-consuming profiles require AnyIO; optional data/evals
+# profiles are inspected for occurrences without acquiring a new dependency.
+ANYIO_REQUIRED_COMPILE_PROFILES = frozenset(
+    {
+        "runtime",
+        "docker-runtime",
+        "ci-lite",
+        "test",
+        "dev",
+        "rag-vector",
+        "rag-vector-cpu",
+        "aggregate",
+    }
+)
+
+
+def _assert_anyio_surface(path: Path, *, required: bool, pinned: bool) -> None:
+    """Enforce comparable current AnyIO carriers with the existing parser."""
+    _minima, carriers = _requirement_evidence_per_package(path)
+    occurrences = carriers.get("anyio", ())
+    if not required and not occurrences:
+        return
+    assert len(occurrences) == 1, f"{path.name}: expected exactly one AnyIO carrier"
+    requirement = occurrences[0]
+    assert requirement.marker is None, f"{path.name}: AnyIO carrier must be unconditional"
+    assert not requirement.extras, f"{path.name}: AnyIO carrier must not declare extras"
+    specifiers = tuple(requirement.specifier)
+    if pinned:
+        assert (
+            len(specifiers) == 1 and specifiers[0].operator == "=="
+        ), f"{path.name}: AnyIO lock requires exactly one == pin"
+    candidate = _min_version_for_pkg(requirement, "anyio", pinned=pinned)
+    assert candidate is not None, f"{path.name}: AnyIO requires a comparable floor or pin"
+    version = Version(candidate)
+    assert requirement.specifier.contains(
+        version, prereleases=True
+    ), f"{path.name}: AnyIO carrier excludes its comparable floor or pin"
+    for blocked in _load_schema(SCHEMA_PATH)["blocked_versions"]["anyio"]:
+        assert not SpecifierSet(blocked).contains(
+            version, prereleases=True
+        ), f"{path.name}: AnyIO {version} matches blocked range {blocked}"
+    # PEP 440's exclusive < range excludes prereleases of its boundary version.
+    assert version >= ANYIO_FIXED_FLOOR, f"{path.name}: version is below fixed AnyIO floor"
+
+
+def test_anyio_current_governed_surfaces_are_safe() -> None:
+    """Discover current carriers; do not freeze historical base or resolver state."""
+    registered = registered_dependabot_requirement_carriers()
+    discovered = discover_dependabot_requirement_carriers(REPO_ROOT)
+    assert discovered == registered, "AnyIO requirement carrier inventory differs from registry"
+    compiled = compiled_dependency_surfaces()
+    assert ANYIO_REQUIRED_COMPILE_PROFILES <= {
+        surface.compile_profile for surface in compiled
+    }, "AnyIO required compile profile is missing from registry"
+    locks = {surface.lockfile for surface in compiled}
+    required = {"requirements.in"} | {
+        surface.lockfile
+        for surface in compiled
+        if surface.compile_profile in ANYIO_REQUIRED_COMPILE_PROFILES
+    }
+    assert required <= discovered, "AnyIO required carrier is missing from inventory"
+    for name in sorted(discovered):
+        _assert_anyio_surface(REPO_ROOT / name, required=name in required, pinned=name in locks)
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "error"),
+    [
+        ("requirements.txt", "httpx==0.28.1\n", "exactly one AnyIO"),
+        ("requirements.txt", "anyio==4.14.2\nAnyIO==4.14.2\n", "exactly one AnyIO"),
+        ("requirements.txt", "AnyIO==4.12.0\n", "matches blocked range"),
+        ("requirements.txt", "anyio==4.14.0\n", "matches blocked range"),
+        ("requirements.txt", "anyio==4.14.1\n", "matches blocked range"),
+        ("requirements.txt", "anyio==4.14.2rc1\n", "below fixed AnyIO floor"),
+        ("requirements.txt", "anyio==4.14.2.dev1\n", "below fixed AnyIO floor"),
+        ("requirements.txt", "anyio>=4.14.2\n", "exactly one == pin"),
+        ("requirements.txt", 'anyio==4.14.2; python_version < "0"\n', "unconditional"),
+        ("requirements.txt", "anyio[trio]==4.14.2\n", "must not declare extras"),
+        ("requirements.in", "anyio\n", "comparable floor or pin"),
+        ("requirements.in", "anyio>=4.12.0,<5\n", "matches blocked range"),
+        ("requirements.in", "anyio>=4.14.2,!=4.14.2,<5\n", "excludes its comparable"),
+    ],
+)
+def test_anyio_surface_rejects_missing_duplicate_or_unsafe_carriers(
+    tmp_path: Path, name: str, text: str, error: str
+) -> None:
+    surface = tmp_path / name
+    surface.write_text(text, encoding="utf-8")
+    with pytest.raises(AssertionError, match=error):
+        _assert_anyio_surface(surface, required=True, pinned=name.endswith(".txt"))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["anyio==4..14.2\n", "anyio @ https://example.invalid/anyio.whl\n"],
+)
+def test_anyio_surface_rejects_malformed_or_url_carriers(tmp_path: Path, text: str) -> None:
+    surface = tmp_path / "requirements.txt"
+    surface.write_text(text, encoding="utf-8")
+    with pytest.raises(pytest.fail.Exception):
+        _assert_anyio_surface(surface, required=True, pinned=True)
+
+
+def test_anyio_surface_rejects_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(pytest.fail.Exception, match="Missing requirement surface"):
+        _assert_anyio_surface(tmp_path / "requirements.txt", required=True, pinned=True)
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "required", "pinned"),
+    [
+        ("requirements.txt", "AnyIO==4.15.0\n", True, True),
+        ("requirements.in", "anyio>=4.14.2,<5.0.0\n", True, False),
+        ("requirements-evals.txt", "# No optional dependencies\n", False, True),
+    ],
+)
+def test_anyio_surface_allows_safe_future_pins_and_optional_absence(
+    tmp_path: Path, name: str, text: str, required: bool, pinned: bool
+) -> None:
+    surface = tmp_path / name
+    surface.write_text(text, encoding="utf-8")
+    _assert_anyio_surface(surface, required=required, pinned=pinned)
+
+
+def test_anyio_inventory_rejects_unregistered_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    discovered = registered_dependabot_requirement_carriers() | {"config/requirements-alias.txt"}
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: discovered
+    )
+    with pytest.raises(AssertionError, match="inventory differs from registry"):
+        test_anyio_current_governed_surfaces_are_safe()
+
+
+def test_anyio_inventory_rejects_removed_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    compiled = tuple(
+        surface for surface in compiled_dependency_surfaces() if surface.compile_profile != "test"
+    )
+    monkeypatch.setattr(f"{__name__}.compiled_dependency_surfaces", lambda: compiled)
+    with pytest.raises(AssertionError, match="required compile profile is missing"):
+        test_anyio_current_governed_surfaces_are_safe()
+
+
+def test_anyio_inventory_rejects_missing_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    missing_source = registered_dependabot_requirement_carriers() - {"requirements.in"}
+    monkeypatch.setattr(
+        f"{__name__}.registered_dependabot_requirement_carriers", lambda: missing_source
+    )
+    monkeypatch.setattr(
+        f"{__name__}.discover_dependabot_requirement_carriers", lambda _root: missing_source
+    )
+    with pytest.raises(AssertionError, match="required carrier is missing"):
+        test_anyio_current_governed_surfaces_are_safe()
