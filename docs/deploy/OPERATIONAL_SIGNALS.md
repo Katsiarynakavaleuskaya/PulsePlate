@@ -395,7 +395,13 @@ python scripts/ops/ops_context_report.py --environment staging --service databas
 python scripts/ops/ops_context_report.py --environment production --service database --observed artifacts/ops-observed.json --max-observation-age-seconds 3600 --format json
 ```
 
-The stdlib CLI reads local files and one fixed read-only Git HEAD identity query. It does
+The stdlib CLI reads local files and one fixed read-only Git commit identity query. Git is
+resolved only through the fixed POSIX system search path `/usr/bin:/bin`; caller PATH
+cannot supply it and no user-path fallback is supported. The OS-managed directories and
+their platform-managed symlink targets are trusted assumptions, not executable authenticity
+proof. Missing system Git fails safely. Native Git resolves `HEAD^{commit}`; a blob, tree
+or missing commit cannot become repo identity. This does not prove authorship, a clean
+worktree or deployed revision. The CLI does
 not contact providers, inspect running containers, evaluate configuration, read environment
 credentials, or execute runbook commands. `--sources` defaults to
 `docs/deploy/OPS_CONTEXT_SOURCES.json`; a canonical repository-relative alternate JSON index
@@ -415,7 +421,11 @@ retain their own truth. Production managed PostgreSQL is the documented default;
 self-hosted PostgreSQL is a maintained alternative. `PROD_DEPLOY_MODE` describes a deployment
 transport choice and cannot select database topology in this report. The staging database
 references include the mounted PostgreSQL HBA access-policy file; the production local-image
-manifest belongs to the self-hosted alternative. Neither reference proves host activation.
+manifest belongs to the self-hosted alternative. App references include the selected
+environment's Caddy policy. The finite mounted-policy catalogue covers these two Caddy
+files, staging HBA and Prometheus YAML, not arbitrary application or cloud policy. Secrets,
+.env and certificate payloads stay excluded; named-volume and provider state remain
+unknown. None of these references proves host activation.
 
 A supplied observation file has this closed shape (synthetic example only):
 

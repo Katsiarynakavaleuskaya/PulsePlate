@@ -228,6 +228,18 @@
       "service": "prometheus",
       "configuration": "staging",
       "path": "deploy/docker-compose.staging.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "shared",
+      "path": "deploy/Caddyfile.production"
+    },
+    {
+      "environment": "staging",
+      "service": "app",
+      "configuration": "staging",
+      "path": "deploy/Caddyfile"
     }
   ]
 }

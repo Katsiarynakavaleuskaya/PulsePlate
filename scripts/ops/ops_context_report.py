@@ -27,6 +27,7 @@ SERVICES = ("app", "database", "prometheus", "packages")
 CONFIGURATIONS = ("managed_default", "selfhosted_alternative", "staging", "shared")
 MAX_JSON_BYTES = 65536
 MAX_RECORDS = 128
+SYSTEM_GIT_PATH = "/usr/bin:/bin"
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 
@@ -213,16 +214,16 @@ def _observations(raw: bytes, now: datetime, window: int, repo_sha: str) -> list
 
 
 def git_revision(root: Path) -> str:
-    """Read only this checkout's HEAD, ignoring ambient Git overrides."""
-    binary = shutil.which("git")
+    """Resolve a commit using OS-managed Git, excluding caller PATH and Git overrides."""
+    binary = shutil.which("git", path=SYSTEM_GIT_PATH)
     if binary is None or not Path(binary).is_absolute():
         raise ReportError("GIT_UNAVAILABLE")
     try:
         result = subprocess.run(  # nosec B603: # resolved fixed Git argv, explicit cwd/env, no shell, 5s bound and SHA validation (remove-by: 2026-10-14, ref: PR-2397)
-            [binary, "--no-replace-objects", "rev-parse", "--verify", "HEAD"],
+            [binary, "--no-replace-objects", "rev-parse", "--verify", "HEAD^{commit}"],
             cwd=root,
             env={
-                "PATH": str(Path(binary).parent),
+                "PATH": SYSTEM_GIT_PATH,
                 "LC_ALL": "C",
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": "/dev/null",

@@ -532,7 +532,13 @@ def test_git_fixed_absolute_read_only_query(
 
     monkeypatch.setenv("GIT_DIR", "secret-marker")
     monkeypatch.setenv("GIT_WORK_TREE", "secret-marker")
-    monkeypatch.setattr(ops.shutil, "which", lambda name: "/synthetic/git")
+    lookups = []
+
+    def system_lookup(name: str, *, path: str) -> str:
+        lookups.append((name, path))
+        return "/synthetic/git"
+
+    monkeypatch.setattr(ops.shutil, "which", system_lookup)
     calls = []
 
     def run(args: list[str], **kwargs: object) -> SimpleNamespace:
@@ -541,13 +547,14 @@ def test_git_fixed_absolute_read_only_query(
 
     monkeypatch.setattr(ops.subprocess, "run", run)
     assert ops.git_revision(repository) == SHA
+    assert lookups == [("git", "/usr/bin:/bin")]
     assert calls == [
         (
-            ["/synthetic/git", "--no-replace-objects", "rev-parse", "--verify", "HEAD"],
+            ["/synthetic/git", "--no-replace-objects", "rev-parse", "--verify", "HEAD^{commit}"],
             {
                 "cwd": repository,
                 "env": {
-                    "PATH": "/synthetic",
+                    "PATH": "/usr/bin:/bin",
                     "LC_ALL": "C",
                     "GIT_CONFIG_NOSYSTEM": "1",
                     "GIT_CONFIG_GLOBAL": "/dev/null",
@@ -576,7 +583,7 @@ def test_git_failure_sanitized(
     monkeypatch.setattr(
         ops.shutil,
         "which",
-        lambda name: (
+        lambda name, *, path: (
             None
             if failure == "missing"
             else "relative/git" if failure == "relative" else "/synthetic/git"
@@ -607,7 +614,7 @@ def test_ambient_git_override_cannot_select_second_repo(
     import shutil
     import subprocess
 
-    git = shutil.which("git")
+    git = shutil.which("git", path="/usr/bin:/bin")
     assert git is not None
     # Native hooks export repository/index/config state before invoking pytest.
     # Exercise that setup boundary using only disposable paths.
@@ -678,6 +685,190 @@ def test_ambient_git_override_cannot_select_second_repo(
     monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.worktree")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(second))
     assert ops.git_revision(repository) == expected
+
+
+@pytest.fixture
+def native_commit(repository: Path) -> tuple[str, dict[str, str], str]:
+    import shutil
+    import subprocess
+
+    git = shutil.which("git", path="/usr/bin:/bin")
+    assert git is not None
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_AUTHOR_NAME": "Synthetic",
+        "GIT_AUTHOR_EMAIL": "synthetic@example.invalid",
+        "GIT_COMMITTER_NAME": "Synthetic",
+        "GIT_COMMITTER_EMAIL": "synthetic@example.invalid",
+    }
+    prefix = [
+        git,
+        "-c",
+        "init.templateDir=",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "commit.gpgsign=false",
+    ]
+    for args in (["init", "--quiet"], ["commit", "--allow-empty", "--quiet", "-m", "synthetic"]):
+        subprocess.run(
+            prefix + args, cwd=repository, env=env, check=True, capture_output=True, timeout=5
+        )
+    result = subprocess.run(
+        prefix + ["rev-parse", "--verify", "HEAD^{commit}"],
+        cwd=repository,
+        env=env,
+        check=True,
+        capture_output=True,
+        timeout=5,
+    )
+    return git, env, result.stdout.decode("ascii").strip()
+
+
+@pytest.mark.parametrize(
+    "head_kind", ["attached", "detached", "blob", "tree", "unborn", "missing", "dangling"]
+)
+def test_native_git_requires_commit_head(
+    repository: Path,
+    native_commit: tuple[str, dict[str, str], str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    head_kind: str,
+) -> None:
+    import subprocess
+
+    git, env, commit = native_commit
+    head = repository / ".git/HEAD"
+    if head_kind in {"blob", "tree"}:
+        args = ["hash-object", "-w", "--stdin"] if head_kind == "blob" else ["mktree"]
+        result = subprocess.run(
+            [git, "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false"] + args,
+            input=b"synthetic\n" if head_kind == "blob" else b"",
+            cwd=repository,
+            env=env,
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+        head.write_bytes(result.stdout)
+    elif head_kind == "detached":
+        head.write_text(commit + "\n", encoding="ascii")
+    elif head_kind == "unborn":
+        head.write_text("ref: refs/heads/unborn\n", encoding="ascii")
+    elif head_kind == "missing":
+        head.unlink()
+    elif head_kind == "dangling":
+        head.write_text("b" * 40 + "\n", encoding="ascii")
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    result_code = ops.main(["--environment", "production", "--format", "json"])
+    captured = capsys.readouterr()
+    if head_kind in {"attached", "detached"}:
+        assert result_code == 0
+        assert captured.err == ""
+        assert json.loads(captured.out)["repo_sha"] == commit
+    else:
+        assert result_code == 2
+        assert captured.out == ""
+        assert captured.err == "ops-context-report: INVALID_REQUEST\n"
+
+
+def test_caller_path_cannot_supply_git(
+    repository: Path,
+    native_commit: tuple[str, dict[str, str], str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import shlex
+
+    _, _, commit = native_commit
+    fake_bin = repository / "fake-bin"
+    fake_bin.mkdir()
+    marker = fake_bin / "executed"
+    fake = fake_bin / "git"
+    fake.write_text(
+        "#!/bin/sh\n: > " + shlex.quote(str(marker)) + "\nprintf '%s\\n' " + "b" * 40 + "\n",
+        encoding="ascii",
+    )
+    fake.chmod(0o700)
+    monkeypatch.setenv("PATH", str(fake_bin))
+    assert ops.git_revision(repository) == commit
+    assert not marker.exists()
+
+
+def test_missing_system_git_never_falls_back(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    lookups = []
+
+    def missing(name: str, *, path: str) -> None:
+        lookups.append((name, path))
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("missing system Git must not execute a subprocess")
+
+    monkeypatch.setenv("PATH", str(repository / "caller-secret-marker"))
+    monkeypatch.setattr(ops.shutil, "which", missing)
+    monkeypatch.setattr(ops.subprocess, "run", forbidden)
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    assert ops.main(["--environment", "production", "--format", "json"]) == 2
+    captured = capsys.readouterr()
+    assert lookups == [("git", "/usr/bin:/bin")]
+    assert captured.out == ""
+    assert captured.err == "ops-context-report: INVALID_REQUEST\n"
+
+
+@pytest.mark.parametrize("environment", ["production", "staging"])
+def test_real_catalogue_caddy_policy_selection_and_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    environment: str,
+) -> None:
+    import hashlib
+
+    root = Path(__file__).resolve().parents[1]
+    caddy = "deploy/Caddyfile.production" if environment == "production" else "deploy/Caddyfile"
+    expected = {ops.DEFAULT_SOURCES, "docs/deploy/OPERATIONAL_SIGNALS.md", caddy}
+    expected |= (
+        {
+            "deploy/PRODUCTION.md",
+            "deploy/docker-compose.production.yaml",
+            "deploy/docker-compose.production.selfhosted.yaml",
+        }
+        if environment == "production"
+        else {"docs/deploy/STAGING.md", "deploy/docker-compose.staging.yaml"}
+    )
+    before = ops.build_report(root, environment=environment, service="app", repo_sha=SHA, now=NOW)
+    fingerprints = {row["path"]: row["sha256"] for row in before["sources"]}
+    assert set(fingerprints) == expected
+    assert fingerprints[caddy] == hashlib.sha256((root / caddy).read_bytes()).hexdigest()
+    assert [
+        row["configuration"] for row in before["surfaces"][0]["references"] if row["path"] == caddy
+    ] == ["shared" if environment == "production" else "staging"]
+    for path in expected:
+        copied = tmp_path / path
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        copied.write_bytes((root / path).read_bytes())
+    policy = tmp_path / caddy
+    policy.write_bytes(policy.read_bytes() + b"\n# synthetic policy revision\n")
+    after = ops.build_report(
+        tmp_path, environment=environment, service="app", repo_sha=SHA, now=NOW
+    )
+    assert before["repo_sha"] == after["repo_sha"] == SHA
+    assert {
+        row["path"] for row in after["sources"] if row["sha256"] != fingerprints[row["path"]]
+    } == {caddy}
+    policy.unlink()
+    monkeypatch.setattr(ops, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
+    assert ops.main(["--environment", environment, "--service", "app", "--format", "json"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "ops-context-report: INVALID_REQUEST\n"
 
 
 def test_alternate_index_requires_database_alternative(repository: Path) -> None:
@@ -869,11 +1060,17 @@ def test_whole_report_offline_deterministic(
 
     monkeypatch.setattr(socket, "socket", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
-    monkeypatch.setattr(ops.shutil, "which", lambda name: "/synthetic/git")
+    monkeypatch.setattr(ops.shutil, "which", lambda name, *, path: "/synthetic/git")
     calls = []
 
     def run(args: list[str], **kwargs: object) -> SimpleNamespace:
-        assert args == ["/synthetic/git", "--no-replace-objects", "rev-parse", "--verify", "HEAD"]
+        assert args == [
+            "/synthetic/git",
+            "--no-replace-objects",
+            "rev-parse",
+            "--verify",
+            "HEAD^{commit}",
+        ]
         assert kwargs["cwd"] == repository
         assert kwargs["timeout"] == 5
         assert "shell" not in kwargs

@@ -55,9 +55,11 @@ repository-relative paths. Observations additionally require positive `--max-obs
 See `docs/deploy/OPERATIONAL_SIGNALS.md` for schemas and interpretation.
 
 The context map delivers the finite static catalogue for both environments through the
-existing role bridge. Keep each service's owning access-policy sources in the catalogue
-and preserve the distinction between production configuration alternatives. The bridge
-does not filter a report or ingest local observation files.
+existing role bridge. Its finite mounted-policy references are the two environment-specific
+Caddy files, staging PostgreSQL HBA policy and Prometheus YAML; preserve their environment
+and production-alternative relationships. This does not discover arbitrary application or
+cloud policies. Secrets, .env and certificate payloads remain excluded; named-volume and
+provider state remain unknown. The bridge does not filter a report or ingest observations.
 Keep supplied identifiers in local evidence; public examples use synthetic identifiers.
 Source references and fingerprints describe acquired repository bytes. Supplied provenance,
 freshness and revision equality do not authenticate a provider or verify live configuration.

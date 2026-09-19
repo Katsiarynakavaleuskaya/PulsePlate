@@ -247,6 +247,8 @@ This map reduces “missing context” failures by making required inputs explic
 
 - `docs/deploy/OPS_CONTEXT_SOURCES.json`
 - `deploy/PRODUCTION.md`
+- `deploy/Caddyfile.production`
+- `deploy/Caddyfile`
 - `deploy/docker-compose.production.selfhosted.yaml`
 - `deploy/docker-compose.production.yaml`
 - `deploy/docker-compose.staging.yaml`
