@@ -2465,14 +2465,14 @@ Surrounding or adjacent prose cannot redefine its fields.
 
 ## CI: GitHub Container Registry (GHCR) Policy
 
-**Bounded PR integration exception:** the isolated
-`staging-postgres-native-integration` job in `.github/workflows/cd.yml` pulls
-only the selected immutable image from the existing public PulsePlate package.
-It uses `packages: read`, owner-username login and the short-lived built-in
-`GITHUB_TOKEN` in a private temporary Docker config. It must not receive static
-`GHCR_READ_TOKEN`, DHI, staging or production credentials, or forward registry
-credentials to test containers. All remaining GHCR consumers follow the policy
-below. Native TLS/crash tests do not grant publication or deployment authority.
+**Bounded PostgreSQL validation boundary:** the
+`staging-postgres-native-integration` job in `.github/workflows/cd.yml` validates
+configuration only, without registry credentials, package permissions or image
+availability probes. Full native checks use the trusted publisher's existing
+owned Docker configuration. Test containers receive only explicit synthetic
+environment and temporary mounts, never registry credentials, Docker config or
+sockets. Host checker subprocesses remain trusted workflow code; this is not
+host-process secret isolation. These checks grant no deployment authority.
 
 **Required for workflows that pull from GHCR:**
 

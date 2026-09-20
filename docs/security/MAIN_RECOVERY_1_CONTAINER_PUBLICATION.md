@@ -1,5 +1,138 @@
 # MAIN-RECOVERY-1: image security and publication recovery
 
+## Downstream build admission and read-only reuse continuation
+
+PR #2398 merged as `c9261d628282adac3e6e90d9694d5d2ede2d4bc6`.
+Its [main CD run 35453372545](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35453372545)
+successfully published PostgreSQL and passed image admission and Prometheus
+security. However, downstream `build` was skipped with zero steps even though
+its three direct dependencies succeeded. The aggregate green run did not prove
+execution of the complete intended CD path. The separately requested
+[reuse run 35454001601](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35454001601)
+was cancelled; it is not a successful or naturally completed reuse receipt.
+
+Later [main CD run 35463278351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35463278351)
+at `127348e4e499497a0d622b0f90233ebf5cc9aeed` reached the old reuse timeout
+at 20:06 UTC on 2026-09-19 with `tag=false image=false provenance=false spdx=false`.
+The following admission failed as incomplete. Its inner signature checks were
+not reached, so these flags do not establish a signature failure; the run still
+used the old tag-and-platform-digest manifest inspection path.
+
+The build condition now explicitly requires a non-cancelled push to main and
+success from every existing direct dependency: Prometheus security, main-push
+admission and PostgreSQL configuration admission. This preserves both successful
+publication/reuse joins despite their intentionally skipped alternative branch.
+GitHub otherwise applies a default status check; the native zero-step observation
+and documented semantics support this diagnosis, without claiming a captured
+scheduler evaluation trace. Only read-only reuse changes its status predicate
+to `!cancelled()`; its existing event eligibility, stronger shell authorization,
+cleanup, timeouts and deployment readiness controls remain intact.
+See [GitHub status-check semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#status-check-functions).
+
+Local Docker 29.6.2 rejected manifest inspection of the stored tag-and-digest
+reference, while inspection of `repository@platform_manifest_digest` succeeded.
+Local gh 2.83.2 accepted all three predicates, so this is not evidence of a gh
+reference-parser defect. Reuse now constructs the immutable reference from the
+existing validated contract outputs for inspection, pull, OCI verification,
+fresh strict scan and runtime metadata. Canonical tag selection remains a
+separate initial and terminal digest check. Compose's stored runtime reference,
+all three signed predicates, original execution/material/full-SPDX binding,
+approved A5 and terminal main freshness checks remain unchanged.
+
+The predecessor retains job ID `staging-postgres-native-integration` but now
+validates configuration only, using the existing `--configure-only` mode without
+registry permissions, credentials or image probes. Requiring an already
+published image here would block first publication and recovery after a failed
+initial publication, even when the manifest stayed unchanged. No registry
+availability or manifest-change classifier selects the mode.
+
+Full native manifest inspection and TLS/crash/restart/restore checks now run in
+the trusted publisher after candidate three-proof pullback and before canonical
+promotion, on every admitted publication path. They use its existing Docker
+configuration; test containers receive only explicit synthetic environment and
+owned mounts. Host checker subprocesses remain trusted workflow code with host
+configuration access. Full native failure prevents promotion. Lost image objects
+may reach candidate creation, but missing OCI proofs against retained GitHub
+records still HOLD; there is no automatic attestation repair. Only the full
+result JSON joins the existing publisher evidence allowlist.
+
+This reduces automatic premerge runtime evidence: configuration success does
+not prove TLS, crash recovery or restore. Actual current-candidate runtime proof
+must be observed in trusted main publication before canonical promotion.
+Deterministic step-order and command tests do not replace that native result.
+Poll diagnostics remain five Boolean states, once when pending and once at
+timeout. Evidence anchors: `.github/workflows/cd.yml:61`,
+`.github/workflows/cd.yml:2220`, `.github/workflows/cd.yml:2484`,
+`.github/workflows/cd.yml:2777`.
+
+PR #2400's [hosted CD run 35460114941](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35460114941)
+at `4558386635f65aa537bd8891f4a117170dd85704` passed native immutable manifest
+inspection with Docker 28.0.4 and the isolated PostgreSQL TLS, crash, restart
+and backup/restore checks. This historical hosted disposable-container evidence
+belongs to that earlier execution path and does not prove the new placement;
+naturally completed full hosted reuse and actual main build execution remain
+pending. PR #2398's carrier closeout and four Drive readbacks remain historical
+results. Neither receipt closes protected DigitalOcean staging, its real
+backup/restore, Prometheus continuity or the original MAIN-RECOVERY criteria.
+Rollback is a reviewed revert of this bounded continuation, retaining failed
+evidence and all signature, scan and deployment gates.
+
+## Bounded Trivy review checkpoint — 2026-09-20
+
+The owner included the four stale September 19 review deadlines in PR #2400.
+Substantive primary-source and complete package-inventory review supports two
+retirements: [CVE-2026-53613](CVE-2026-53613-util-linux.md) because all eight old
+Debian distribution packages are absent from the selected production image,
+and [CVE-2026-14456](CVE-2026-14456-openssl.md) because Debian now marks
+Bookworm/OpenSSL 3.0 not affected. The latter is metadata-correction retirement,
+not an OpenSSL upgrade. Bookworm util-linux remains vulnerable upstream.
+
+[Zlib](CVE-2026-27171-zlib1g.md) and [ncurses](CVE-2025-69720-ncurses.md)
+remain installed and vulnerable/no-dsa. Their executable predicates are unchanged;
+next review is 2026-09-27 and shared hard expiry stays 2026-10-07. This is
+continued bounded residual risk, not remediation of all four CVEs.
+CVE-2026-53615 and shared helpers remain unchanged.
+
+The complete Trivy 0.74.0 production report from
+[run 35470455161](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35470455161),
+created 2026-09-19T21:28:17Z, contains 137 packages and has SHA-256
+`cbe0ff0993215936d22af8329ed0fe6d7117e8498f75e8006fa515d8e368aa55`.
+Its ImageID identifies configuration, not a registry manifest. Its zero finding
+rows were filtered by the old policy, so they do not prove unsuppressed absence.
+The production removal design also feeds staging through `FROM production`;
+that does not replace a real staging scan or establish every consumer's result.
+
+Fresh strict current-head production-image and filesystem scans under the
+reduced policy, merge and subsequent main staging-image scan remain pending.
+New findings must block rather than trigger automatic suppression restoration.
+PostgreSQL, Prometheus and Caddy strict empty-ignore boundaries are unchanged.
+Evidence: `Dockerfile:431`, `Dockerfile:444`, `Dockerfile:644`,
+`trivy/ignore-policy.rego:1`, `scripts/ci/check_trivy_ignore_policy_expiry.py:494`.
+
+## Docker source review checkpoint — 2026-09-20
+
+[Image run 35508753907](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35508753907)
+failed before Docker build because source manifest `review_by: 2026-09-19`
+was stale. Missing image-scan JSON, SARIF and upload results followed from that
+first failure; their requirements remain unchanged.
+
+The September 20 review streamed the existing official SQLite 3.53.2 archive
+(3,279,926 bytes) and util-linux 2.42.3 archive (23,193,616 bytes), without saving
+tarballs. Both matched their approved SHA3-256 pins; util-linux also matched its
+approved SHA-256 pin. The [SQLite release](https://sqlite.org/releaselog/3_53_2.html)
+and [kernel.org release/checksum listing](https://www.kernel.org/pub/linux/utils/util-linux/v2.42/)
+were rechecked. Measured archive hashes establish agreement with the reviewed
+pins, not an independent upstream signature or vulnerability clearance.
+
+Only `generated_at: 2026-09-20` and `review_by: 2026-09-27` change in the existing
+manifest. Artifact names, versions, filenames, URLs, ordering and all digest
+parts remain unchanged. September 27 is inclusive; September 28 fails stale.
+Real current-head image build and strict scans remain pending. This review
+neither claims latest releases nor eliminates future review deadlines.
+Evidence: `scripts/ci/docker_source_artifacts.json:3`,
+`scripts/ci/fetch_docker_source_artifacts.py:81`,
+`tests/test_docker_workflow_build_path_contract.py:371`.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
@@ -25,7 +158,7 @@ negative controls and records the installed gh version.
 
 Evidence anchors: `scripts/ci/check_pgvector_attestations.py:500`,
 `scripts/ci/classify_pgvector_attestations.sh:1`,
-`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2173`.
+`tests/test_pgvector_attestations.py:310` and `.github/workflows/cd.yml:2134`.
 Native output contract: [observed gh 2.83.2 download implementation](https://github.com/cli/cli/blob/v2.83.2/pkg/cmd/attestation/download/download.go).
 The corrected local read-only consumer also completed native download and all
 three OCI verifications for the frozen digest
@@ -43,8 +176,9 @@ pullback, source rejection and damaged-signature rejection all succeeded.
 PR #2398 retains the final exact-material evidence in its canonical review mapping.
 The AnyIO prerequisite from #2395 is integrated and the local audit passed
 without skipping; no publication-only audit exception remains active.
-Actual main publication/reuse, staging activation, all original recovery criteria
-and four same-ID Drive outcomes remain separate pending requirements.
+The post-merge publication and carrier-closeout results are recorded above;
+complete hosted reuse, staging activation and the original recovery outcome
+remain separate pending requirements.
 Rollback is an ordinary revert of this bounded successor; retain failed-run
 evidence and HOLD publication rather than relaxing identity, storage or scans.
 
@@ -199,8 +333,7 @@ same immutable image's `/usr/bin/postgres --version` returned
 `postgres (PostgreSQL) 15.19` without initialization. The bounded correction
 therefore overrides only this metadata probe's entrypoint and passes only
 `--version`; it adds no password, trust authentication or alternate `PGDATA`.
-Evidence anchors: `.github/workflows/cd.yml:2187`,
-`tests/test_deploy_contract_scripts.py:1424`.
+Evidence anchor: `.github/workflows/cd.yml:2216`.
 
 The failed run did not promote the canonical tag. The direct diagnostic proves
 the selected binary invocation only; canonical publication/reuse, staging
@@ -543,10 +676,12 @@ The Caddy scanner now selects 0.74.0 explicitly. Its existing secret/vulnerabili
 scan semantics remain distinct from the backend vulnerability-only contour.
 
 CVE-2026-3184 is removed from candidate policy after exact local image absence
-proof. Shared util-linux helpers remain for other existing rules. Fresh Debian
-evidence still marks Bookworm zlib and ncurses vulnerable/no-dsa; their exact
-predicates remain unchanged and the approved review date is 2026-09-19. The
-single overall expiry remains 2026-10-07. Renewed review is not remediation.
+proof. Shared util-linux helpers remain for other existing rules. At the historical
+2026-09-09 review, Debian evidence marked Bookworm zlib and ncurses
+vulnerable/no-dsa; their predicates were unchanged and the approved review date
+was 2026-09-19. The current decision is recorded in the
+[September 20 checkpoint](#bounded-trivy-review-checkpoint--2026-09-20).
+The single overall expiry remains 2026-10-07. Renewed review is not remediation.
 
 Evidence anchors: `.github/workflows/build.yml:165`,
 `trivy/ignore-policy.rego:17`.

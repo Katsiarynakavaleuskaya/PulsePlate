@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import yaml
+
 from scripts.ci import check_release_control_plane
 from scripts.release import build_equivalence
 from scripts.release import release_manifest
@@ -635,7 +637,12 @@ def test_workflow_integration_enforces_real_evidence_before_production_paths() -
     production_jobs = workflow.split("\n  deploy-production:", 1)[1]
 
     assert "release-control-plane-fixture-gate" in workflow
-    assert "if: github.ref == 'refs/heads/main'" in workflow
+    assert " ".join(yaml.safe_load(workflow)["jobs"]["build"]["if"].split()) == (
+        "!cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' "
+        "&& needs.prometheus-image-security.result == 'success' "
+        "&& needs.main-push-admission.result == 'success' "
+        "&& needs.staging-postgres-native-integration.result == 'success'"
+    )
     assert "release-control-plane-fixture-gate" not in production_jobs
     assert "tests/fixtures" not in gate_job
     assert "gh run download" in gate_job

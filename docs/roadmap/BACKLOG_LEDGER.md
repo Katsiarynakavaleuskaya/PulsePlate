@@ -144,11 +144,12 @@ If it is not recorded here — it does not exist.
 - [ ] P1: MAIN-RECOVERY-1 restore exact-main image and publication checks
   - Owner: @katsiaryna_kavaleuskaya (Dependency / CI security recovery)
   - Priority: P1 (current-main CI/CD recovery)
-  - Target PR: #2393 (`codex/main-recovery-secure-staging`) merged; PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`; current bounded successor is #2398 (`codex/fix-main-attestation-inventory`); original MAIN-RECOVERY-1 v2 DoD and owner-added TLS/encrypted staging criteria remain open
+  - Target PR: #2393 (`codex/main-recovery-secure-staging`) merged; PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`; #2398 merged as `c9261d628282adac3e6e90d9694d5d2ede2d4bc6`; current bounded successor is `codex/fix-cd-admission-and-reuse-reference`; original MAIN-RECOVERY-1 v2 DoD and owner-added TLS/encrypted staging criteria remain open
   - Current continuation (EN): #2390 merged as `5b384c91708f774c025b0b19edc1c8c83d11266b`; exact-main CD `34700002720` reached derived attestation persistence and rejected the custom SLSA build type. The owner accepted native GitHub provenance plus separate exact-material/SPDX admission, recoverable repeated publication/reuse, and protected PostgreSQL/Prometheus staging on existing Droplet `594869239` with one 50 GiB encrypted Volume at $5/month. Repository, actual main, host activation and four same-ID Drive outcomes remain separate; no completion or production activation is claimed.
   - Status: PR #2387 merged as `28f518b1e44715c28597f51d9ded78346abaa824`; PR #2389 then merged the pinned DHI Statement/v0.1 consumer as `48b416ac9f6723c540a85ea1139e2c996a7dbb0c`. Exact-main CD `34469999154` passed that consumer and exposed the next bounded blocker: the live APK resolver changed transitive `libcurl`, so the recorded builder closure no longer matched. The current continuation freezes all 41 APK archive bytes plus the supplier-signed index, pins Buildx/BuildKit, refreshes vulnerable same-version DHI bases and retains every original exact-main acceptance requirement.
   - Current checkpoint (EN): After merged #2393, exact-main CD `34784541339` at `a35a0eafb17d2b13383dfd9e7cf2b61707e6254d` verified the immutable PostgreSQL candidate and its three attestation predicates, then the metadata-only version probe entered the image initialization path and failed before canonical promotion. The bounded successor directly invokes the observed `/usr/bin/postgres --version`; publication/reuse, staging activation, Drive continuity and overall MAIN-RECOVERY-1 completion remain open.
   - Native inventory checkpoint (EN): Main CD `34830372738` then failed on the obsolete embedded `bundle` consumer. The successor delegates JSONL acquisition to official gh, shares structured presence/classification between publisher and synthetic probe, preserves full original signed SPDX reuse and fresh strict image scans, and holds on missing OCI proofs. Corrected native/main evidence, protected staging activation and all original DoD/Drive outcomes remain pending; no enablement or production mutation is included.
+  - Post-#2398 checkpoint (2026-09-19): Main CD `35453372545` published PostgreSQL and passed image admission and Prometheus security, but downstream build was skipped with zero steps. Hosted read-only reuse `35454001601` was cancelled, not passed. Later main CD [35463278351](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35463278351) at `127348e4e499497a0d622b0f90233ebf5cc9aeed` timed out on the old reference path at 20:06 UTC with `tag=false image=false provenance=false spdx=false`, then failed the dependent admission. Inner signature checks were not reached; this is not a signature-failure claim. The bounded successor restores explicit non-cancelled push/main admission with all three direct prerequisites successful and uses validated repository/platform-digest references for native reuse operations, retaining independent canonical tag checks, three signed predicates, complete original SPDX and fresh strict scans. Historical prepublication native hosted inspection completed in [run 35460114941](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35460114941) at `4558386635f65aa537bd8891f4a117170dd85704` and passed again in [run 35464041477](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35464041477) at `77313e2565ecf5fd078e560617e4562d7fd9668c`; those receipts do not prove the revised first-publication path. The predecessor now always validates configuration only for applicable material, without registry access; full native inspection/TLS/crash/restore runs after candidate three-proof pullback and before canonical promotion on every admitted publisher path. No availability classifier or missing-proof repair is added. New-placement native evidence, complete hosted reuse and actual main build execution remain pending. #2398 carrier closeout and four same-ID Drive readbacks are complete; original protected staging and overall recovery DoD remain open. Evidence: [existing recovery owner](../security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md#downstream-build-admission-and-read-only-reuse-continuation).
   - Publication-only audit exception retired (2026-09-19): PR #2395 merged as `8eeccdeed5d07ca7e3fdb42ba2c3905a372688f1`; its AnyIO 4.14.2 remediation is integrated through an ancestry-preserving base sync. `pre-commit run pip-audit --hook-stage pre-push --all-files` passed without skipping. No active audit waiver remains; current-head CI/security and all ordinary merge gates remain required. Evidence: [PR #2395 remediation](../security/PR_2395_ANYIO_REMEDIATION.md); `.pre-commit-config.yaml:126`.
   - Reason (EN): Main `e5d162168a866b64f1750f396e6034643f210cca` passed its Python matrix, security and coverage but failed policy review expiry, backend/Caddy image scans and PostgreSQL publication context/authentication. The operator explicitly joined these finite recovery surfaces in one implementation carrier; a green local or PR subset does not close the main incident.
   - Links: `docs/security/MAIN_RECOVERY_1_CONTAINER_PUBLICATION.md`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992480`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992482`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992504`; `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/34310992523`
@@ -7085,6 +7086,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: TBD (follow-up after upstream fix)
+  - Review checkpoint (PR #2400, 2026-09-20): Bookworm 6.4-4 remains vulnerable/no-dsa and all four tuples remain in the selected production inventory. Existing predicates retained unchanged; Review-by 2026-09-27, hard expiry 2026-10-07. Continued risk acceptance, not remediation; fresh reduced-policy scans remain pending.
   - Reason: Trivy reports Debian bookworm `ncurses` family packages
     (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
     `6.4-4` with no actionable fixed version in the current bookworm image line as
@@ -7182,19 +7184,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove Trivy suppression for util-linux CVE-2026-53613
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: PR-TBD-REMOVE-CVE-2026-53613-SUPPRESSION
-  - Status: Open; review Debian bookworm status by 2026-09-19 and remove no later
-    than the shared 2026-10-07 policy expiry unless a separately reviewed security
-    PR establishes a new bounded disposition
+  - Target PR: PR #2400
+  - Status: Rule and exclusive helpers removed in PR #2400 after 2026-09-20 review; selected final production inventory lacks all eight old Debian util-linux packages; Debian Bookworm remains vulnerable. Reduced-policy current-head image/filesystem scans, merge and terminal main scan remain pending; this item stays open.
   - Area: security / base-image / code-scanning
   - Finding Type: temporary distro CVE risk acceptance
-  - Reason: Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
+  - Historical reason (2026-08-20): Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
     CVE-2026-53613 findings for the Debian bookworm util-linux package family in
     image digest
     `sha256:5d147c66b4999210345f4e1895c6f0129f6b9e90dd25500f712c8e82f42577da`.
     Debian marks bookworm `2.38.1-5+deb12u3` and ordinary trixie `2.41-5` as
-    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The current
-    suppression accepts bounded residual risk; it is not remediation.
+    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The historical
+    suppression accepted bounded residual risk; it is not remediation.
   - Links:
     - `docs/security/CVE-2026-53613-util-linux.md`
     - `trivy/ignore-policy.rego`
@@ -7214,20 +7214,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove Trivy scanner disposition for OpenSSL CVE-2026-14456
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: PR-TBD-REMOVE-CVE-2026-14456-SUPPRESSION
-  - Status: Open; review upstream, Debian, and Trivy metadata by 2026-09-19 and
-    remove no later than the shared 2026-10-07 policy expiry unless a separately
-    reviewed security PR establishes a new bounded disposition
+  - Target PR: PR #2400
+  - Status: Rule and exclusive helpers removed in PR #2400 after 2026-09-20 review; corrected Debian Bookworm metadata now agrees with upstream OpenSSL 3.0 not-affected status; no package upgrade. Reduced-policy current-head image/filesystem scans, merge and terminal main scan remain pending; this item stays open.
   - Area: security / base-image / code-scanning
   - Finding Type: temporary scanner false-positive disposition
-  - Reason: Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
+  - Historical reason (2026-08-20): Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
     and Push run `32368859126`, job `96424915657`, report two HIGH
     CVE-2026-14456 findings for `libssl3` and `openssl` at
     `3.0.20-1~deb12u2` in image digest
     `sha256:bb92cf07ffbdb41bb3ec05dc5014dd5280798cf2a3c01f5119847277a8611298`.
     The upstream OpenSSL advisory assigns Low severity and marks OpenSSL 3.0
     unaffected because the vulnerable QUIC server implementation begins in 3.5,
-    while Debian still marks the Bookworm source-package line vulnerable with no
+    while Debian at that review marked the Bookworm source-package line vulnerable with no
     fixed package. The exact-tuple scanner disposition records that conflict; it
     is not remediation or an OpenSSL upgrade.
   - Links:
@@ -7268,7 +7266,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-08-09**
+  - Current bounded review (PR #2400, 2026-09-20): zlib1g 1:1.2.13.dfsg-1 and ncurses 6.4-4 remain vulnerable/no-dsa. Both unchanged rules retain risk with Review-by 2026-09-27 and hard expiry 2026-10-07; CVE-2026-53615 is unchanged. CVE-2026-53613 package-absence and CVE-2026-14456 metadata-correction retirements have separate open entries above. Fresh reduced-policy scans and main evidence remain pending.
+  - **Historical Rego review: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)

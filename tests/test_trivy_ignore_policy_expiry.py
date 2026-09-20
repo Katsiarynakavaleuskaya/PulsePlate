@@ -87,20 +87,6 @@ _CANONICAL_RSC_RULE_BODY = "\n".join(
         '\tinput.FixedVersion == "8.3.0"',
     )
 )
-_UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS = (
-    ("bsdutils", "1:2.38.1-5+deb12u3"),
-    ("libblkid1", "2.38.1-5+deb12u3"),
-    ("libmount1", "2.38.1-5+deb12u3"),
-    ("libsmartcols1", "2.38.1-5+deb12u3"),
-    ("libuuid1", "2.38.1-5+deb12u3"),
-    ("mount", "2.38.1-5+deb12u3"),
-    ("util-linux", "2.38.1-5+deb12u3"),
-    ("util-linux-extra", "2.38.1-5+deb12u3"),
-)
-_OPENSSL_CVE_2026_14456_PACKAGE_TUPLES = (
-    ("libssl3", "3.0.20-1~deb12u2", "libssl3@3.0.20-1~deb12u2"),
-    ("openssl", "3.0.20-1~deb12u2", "openssl@3.0.20-1~deb12u2"),
-)
 
 
 def _policy_text() -> str:
@@ -177,22 +163,22 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     return sorted(lockfiles)
 
 
-@pytest.mark.parametrize("today", [date(2026, 9, 9), date(2026, 9, 19), date(2026, 9, 20)])
+@pytest.mark.parametrize("today", [date(2026, 9, 20), date(2026, 9, 27), date(2026, 9, 28)])
 def test_current_policy_review_deadline_is_inclusive_and_distinct_from_expiry(today: date) -> None:
     """The approved review boundary expires the records, not the whole October policy."""
     review_lines = [
         number
         for number, line in enumerate(POLICY_PATH.read_text().splitlines(), start=1)
-        if line.startswith("# Review-by: 2026-09-19 ")
+        if line.startswith("# Review-by: 2026-09-27 ")
     ]
-    assert review_lines, "the current reviewed records must be represented"
+    assert len(review_lines) == 2, "both retained reviewed records must be represented"
     expected = (
         [
             f"Stale Trivy suppression review date: {POLICY_PATH}:{number} "
-            f"(review-by 2026-09-19, today {today})"
+            f"(review-by 2026-09-27, today {today})"
             for number in review_lines
         ]
-        if today == date(2026, 9, 20)
+        if today == date(2026, 9, 28)
         else []
     )
     assert evaluate_policy_file(POLICY_PATH, today=today) == expected
@@ -601,40 +587,6 @@ def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> 
     return finding.get("FixedVersion", "") == ""
 
 
-def _cve_2026_53613_rule_matches(finding: dict[str, str]) -> bool:
-    """Mirror the exact conjunction in the CVE-2026-53613 Rego rule."""
-
-    package_versions = {
-        package: version for package, version in _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS
-    }
-
-    package = finding.get("PkgName", "")
-    installed_version = finding.get("InstalledVersion", "")
-    return (
-        finding.get("VulnerabilityID") == "CVE-2026-53613"
-        and package in package_versions
-        and installed_version == package_versions[package]
-        and finding.get("PkgID") == f"{package}@{installed_version}"
-        and _fixed_version_clause_treats_finding_as_unfixed(finding)
-    )
-
-
-def _cve_2026_14456_rule_matches(finding: dict[str, str]) -> bool:
-    """Mirror the exact conjunction in the CVE-2026-14456 Rego rule."""
-
-    observed_tuples = set(_OPENSSL_CVE_2026_14456_PACKAGE_TUPLES)
-    candidate = (
-        finding.get("PkgName", ""),
-        finding.get("InstalledVersion", ""),
-        finding.get("PkgID", ""),
-    )
-    return (
-        finding.get("VulnerabilityID") == "CVE-2026-14456"
-        and candidate in observed_tuples
-        and _fixed_version_clause_treats_finding_as_unfixed(finding)
-    )
-
-
 def test_util_linux_cve_2026_53615_fixed_version_predicate_semantics() -> None:
     assert _fixed_version_clause_treats_finding_as_unfixed({})
     assert _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": ""})
@@ -686,273 +638,24 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region
 
 
-def test_util_linux_cve_2026_53613_suppression_requires_exact_eight_tuple_scope() -> None:
+@pytest.mark.parametrize(
+    "cve,helper",
+    [
+        ("CVE-2026-53613", "cve_2026_53613_pkgid_match"),
+        ("CVE-2026-14456", "cve_2026_14456_pkgid_match"),
+    ],
+)
+def test_retired_util_linux_and_openssl_rules_have_no_policy_or_fallback(
+    cve: str, helper: str
+) -> None:
     policy = _policy_text()
-
-    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-53613"')
-    next_ignore = policy.find("\nignore if {", start + 1)
-    ignore_rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
-    helper_start = policy.index("cve_2026_53613_pkgid_match if {")
-    helper_region = policy[helper_start:start]
-
-    assert "util_linux_bookworm_pkg_match" in ignore_rule
-    assert "util_linux_bookworm_version_match" in ignore_rule
-    assert "cve_2026_53613_pkgid_match" in ignore_rule
-    assert 'object.get(input, "FixedVersion", "") == ""' in ignore_rule
-    assert "contains(" not in helper_region
-    assert "startswith(" not in helper_region
-    assert "*" not in helper_region
-    assert helper_region.count("cve_2026_53613_pkgid_match if {") == len(
-        _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS
-    )
-
-    for package, version in _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS:
-        exact_rule = (
-            f'cve_2026_53613_pkgid_match if {{\n\tinput.PkgName == "{package}"'
-            f'\n\tinput.InstalledVersion == "{version}"'
-            f'\n\tinput.PkgID == "{package}@{version}"\n}}'
-        )
-        assert exact_rule in helper_region
-
-
-@pytest.mark.parametrize(("package", "version"), _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS)
-@pytest.mark.parametrize("fixed_version", (None, ""))
-def test_util_linux_cve_2026_53613_accepts_only_observed_unfixed_tuples(
-    package: str,
-    version: str,
-    fixed_version: str | None,
-) -> None:
-    finding = {
-        "VulnerabilityID": "CVE-2026-53613",
-        "PkgName": package,
-        "InstalledVersion": version,
-        "PkgID": f"{package}@{version}",
-    }
-    if fixed_version is not None:
-        finding["FixedVersion"] = fixed_version
-
-    assert _cve_2026_53613_rule_matches(finding)
-
-
-@pytest.mark.parametrize(
-    "finding",
-    (
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "util-linux",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "prefix-util-linux@2.38.1-5+deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "util-linux",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "util-linux@2.38.1-5+deb12u3-extra",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "util-linux",
-            "InstalledVersion": "2.38.1-5+deb12u30",
-            "PkgID": "util-linux@2.38.1-5+deb12u30",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "bsdutils",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "bsdutils@1:2.38.1-5+deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "util-linux",
-            "InstalledVersion": "1:2.38.1-5+deb12u3",
-            "PkgID": "util-linux@2.38.1-5+deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53615",
-            "PkgName": "util-linux",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "util-linux@2.38.1-5+deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "login",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "login@2.38.1-5+deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "util-linux",
-            "InstalledVersion": "2.38.1-5+deb12u3",
-            "PkgID": "util-linux@2.38.1-5+deb12u3",
-            "FixedVersion": "2.41.5-0+deb13u1",
-        },
-    ),
-    ids=(
-        "pkgid-prefix",
-        "pkgid-suffix",
-        "wrong-version",
-        "bsdutils-non-epoch-installed-version",
-        "non-bsdutils-epoch-installed-version",
-        "wrong-cve",
-        "wrong-package",
-        "non-empty-fixed-version",
-    ),
-)
-def test_util_linux_cve_2026_53613_rejects_out_of_scope_findings(
-    finding: dict[str, str],
-) -> None:
-    assert not _cve_2026_53613_rule_matches(finding)
-
-
-def test_openssl_cve_2026_14456_suppression_requires_exact_two_tuple_scope() -> None:
-    policy = _policy_text()
-
-    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-14456"')
-    ignore_end = policy.index("\n}\n", start) + 2
-    ignore_rule = policy[start:ignore_end]
-    helper_start = policy.index("cve_2026_14456_pkgid_match if {")
-    helper_region = policy[helper_start:start]
-
-    expected_helpers = tuple(
-        "\n".join(
-            (
-                "cve_2026_14456_pkgid_match if {",
-                f'\tinput.PkgName == "{package}"',
-                f'\tinput.InstalledVersion == "{version}"',
-                f'\tinput.PkgID == "{pkgid}"',
-                "}",
-            )
-        )
-        for package, version, pkgid in _OPENSSL_CVE_2026_14456_PACKAGE_TUPLES
-    )
-    actual_helpers = tuple(
-        match.group(0)
-        for match in re.finditer(
-            r"cve_2026_14456_pkgid_match if \{\n(?:\t[^\n]+\n)+\}",
-            policy,
-        )
-    )
-
-    assert actual_helpers == expected_helpers
-    assert policy.count("cve_2026_14456_pkgid_match if {") == 2
-    assert "contains(" not in helper_region
-    assert "startswith(" not in helper_region
-    assert "*" not in helper_region
-    assert "regex." not in helper_region
-    assert ignore_rule.strip() == "\n".join(
-        (
-            "ignore if {",
-            '\tinput.VulnerabilityID == "CVE-2026-14456"',
-            "\tcve_2026_14456_pkgid_match",
-            "\t# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed.",
-            '\tobject.get(input, "FixedVersion", "") == ""',
-            "}",
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    ("package", "version", "pkgid"),
-    _OPENSSL_CVE_2026_14456_PACKAGE_TUPLES,
-)
-@pytest.mark.parametrize("fixed_version", (None, ""), ids=("missing-fixed", "empty-fixed"))
-def test_openssl_cve_2026_14456_accepts_only_observed_unfixed_tuples(
-    package: str,
-    version: str,
-    pkgid: str,
-    fixed_version: str | None,
-) -> None:
-    finding = {
-        "VulnerabilityID": "CVE-2026-14456",
-        "PkgName": package,
-        "InstalledVersion": version,
-        "PkgID": pkgid,
-    }
-    if fixed_version is not None:
-        finding["FixedVersion"] = fixed_version
-
-    assert _cve_2026_14456_rule_matches(finding)
-
-
-@pytest.mark.parametrize(
-    "finding",
-    (
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "libssl3",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "prefix-libssl3@3.0.20-1~deb12u2",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "openssl",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "openssl@3.0.20-1~deb12u2-extra",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "libssl3",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "openssl@3.0.20-1~deb12u2",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-53613",
-            "PkgName": "libssl3",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "libssl3@3.0.20-1~deb12u2",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "libssl1.1",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "libssl1.1@3.0.20-1~deb12u2",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "openssl",
-            "InstalledVersion": "3.0.20-1~deb12u3",
-            "PkgID": "openssl@3.0.20-1~deb12u3",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "openssl",
-            "InstalledVersion": "3.5.4-1",
-            "PkgID": "openssl@3.5.4-1",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "openssl",
-            "InstalledVersion": "3.6.0-1",
-            "PkgID": "openssl@3.6.0-1",
-        },
-        {
-            "VulnerabilityID": "CVE-2026-14456",
-            "PkgName": "openssl",
-            "InstalledVersion": "3.0.20-1~deb12u2",
-            "PkgID": "openssl@3.0.20-1~deb12u2",
-            "FixedVersion": "3.0.21-1~deb12u1",
-        },
-    ),
-    ids=(
-        "pkgid-prefix",
-        "pkgid-suffix",
-        "cross-paired-pkgid",
-        "wrong-cve",
-        "wrong-package",
-        "wrong-version",
-        "upstream-affected-3.5",
-        "newer-3.6",
-        "non-empty-fixed-version",
-    ),
-)
-def test_openssl_cve_2026_14456_rejects_out_of_scope_findings(
-    finding: dict[str, str],
-) -> None:
-    assert not _cve_2026_14456_rule_matches(finding)
-
-
-def test_openssl_cve_2026_14456_is_absent_from_trivyignore() -> None:
-    assert "CVE-2026-14456" not in TRIVYIGNORE_PATH.read_text(encoding="utf-8")
+    assert cve not in policy
+    assert helper not in policy
+    assert cve not in TRIVYIGNORE_PATH.read_text(encoding="utf-8")
+    assert "default ignore := false" in policy
+    assert "cve_2026_53615_pkgid_match" in policy
+    assert "util_linux_bookworm_pkg_match" in policy
+    assert "util_linux_bookworm_version_match" in policy
 
 
 def test_openssl_cve_2026_14456_document_and_removal_ledger_are_coupled() -> None:
@@ -968,19 +671,18 @@ def test_openssl_cve_2026_14456_document_and_removal_ledger_are_coupled() -> Non
         "sha256:bb92cf07ffbdb41bb3ec05dc5014dd5280798cf2a3c01f5119847277a8611298",
         "https://openssl-library.org/news/secadv/20260813.txt",
         "https://security-tracker.debian.org/tracker/CVE-2026-14456",
-        "**Review-by:** 2026-09-19",
+        "metadata-correction retirement",
         "Shared policy expiry:** 2026-10-07",
         "scanner false-positive disposition",
         "not remediation",
     ):
         assert evidence in security_doc
 
-    assert "docs/security/CVE-2026-14456-openssl.md" in policy
-    assert "# Review-by: 2026-09-19 (manual removal)" in policy
+    assert "CVE-2026-14456" not in policy
     assert policy.count("Suppression expires: 2026-10-07") == 1
     assert "Owner: @katsiaryna_kavaleuskaya (Security/SRE)" in ledger_entry
     assert "Priority: P1" in ledger_entry
-    assert "PR-TBD-REMOVE-CVE-2026-14456-SUPPRESSION" in ledger_entry
+    assert "Target PR: PR #2400" in ledger_entry
     assert "docs/security/CVE-2026-14456-openssl.md" in ledger_entry
     assert "Remove only the exact CVE-2026-14456 Rego rule" in ledger_entry
     assert "package tuple changes" in ledger_entry

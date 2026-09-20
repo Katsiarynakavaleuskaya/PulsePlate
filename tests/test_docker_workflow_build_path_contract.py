@@ -343,8 +343,8 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["generated_at"] == "2026-09-09"
-    assert manifest["review_by"] == "2026-09-19"
+    assert manifest["generated_at"] == "2026-09-20"
+    assert manifest["review_by"] == "2026-09-27"
     assert len(artifacts) == 2
 
     artifact = artifacts[0]
@@ -372,9 +372,10 @@ def test_docker_source_artifact_manifest_review_window_is_inclusive() -> None:
     """The checked-in manifest remains valid through its exact review-by date."""
     manifest_path = REPO_ROOT / "scripts/ci/docker_source_artifacts.json"
 
-    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 19))
-    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-19"):
-        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 20))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 20))
+    assert docker_sources.load_manifest(manifest_path, today=date(2026, 9, 27))
+    with pytest.raises(RuntimeError, match="review_by is stale: 2026-09-27"):
+        docker_sources.load_manifest(manifest_path, today=date(2026, 9, 28))
 
 
 def test_libuuid_source_and_production_native_linkage_contract() -> None:
