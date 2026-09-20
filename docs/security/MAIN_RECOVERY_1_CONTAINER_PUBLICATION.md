@@ -109,6 +109,30 @@ PostgreSQL, Prometheus and Caddy strict empty-ignore boundaries are unchanged.
 Evidence: `Dockerfile:431`, `Dockerfile:444`, `Dockerfile:644`,
 `trivy/ignore-policy.rego:1`, `scripts/ci/check_trivy_ignore_policy_expiry.py:494`.
 
+## Docker source review checkpoint — 2026-09-20
+
+[Image run 35508753907](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35508753907)
+failed before Docker build because source manifest `review_by: 2026-09-19`
+was stale. Missing image-scan JSON, SARIF and upload results followed from that
+first failure; their requirements remain unchanged.
+
+The September 20 review streamed the existing official SQLite 3.53.2 archive
+(3,279,926 bytes) and util-linux 2.42.3 archive (23,193,616 bytes), without saving
+tarballs. Both matched their approved SHA3-256 pins; util-linux also matched its
+approved SHA-256 pin. The [SQLite release](https://sqlite.org/releaselog/3_53_2.html)
+and [kernel.org release/checksum listing](https://www.kernel.org/pub/linux/utils/util-linux/v2.42/)
+were rechecked. Measured archive hashes establish agreement with the reviewed
+pins, not an independent upstream signature or vulnerability clearance.
+
+Only `generated_at: 2026-09-20` and `review_by: 2026-09-27` change in the existing
+manifest. Artifact names, versions, filenames, URLs, ordering and all digest
+parts remain unchanged. September 27 is inclusive; September 28 fails stale.
+Real current-head image build and strict scans remain pending. This review
+neither claims latest releases nor eliminates future review deadlines.
+Evidence: `scripts/ci/docker_source_artifacts.json:3`,
+`scripts/ci/fetch_docker_source_artifacts.py:81`,
+`tests/test_docker_workflow_build_path_contract.py:371`.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
