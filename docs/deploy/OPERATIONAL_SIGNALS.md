@@ -408,7 +408,13 @@ credentials, or execute runbook commands. `--sources` defaults to
 is supported. Absolute paths, including paths inside the checkout, traversal, noncanonical
 paths and unsafe filesystem objects are rejected. Static source policy is applied before
 reading the index or any indexed member. Local observations remain separate from static
-context and may use an explicit repository-relative artifact path.
+context and may use an explicit repository-relative artifact path. For index, member and
+observation paths, any ancestor directory component equal to `secrets` after case folding
+is denied before acquisition. All indexed member paths are checked before selection.
+Static filename/suffix exclusions apply to the index and members; observations retain
+their separate dynamic path policy. Callers must sanitize indexes, observations and custom
+sources: the tool cannot detect confidential content under otherwise permitted names,
+and a permitted content fingerprint is not inherently safe to publish.
 
 The index is a reference catalogue: root keys are `schema_version` (exactly
 `ops-context-sources.v1`) and `sources`. Each source has exactly `environment`, `service`,
@@ -417,11 +423,12 @@ no duplicate row is admitted. Production configuration labels are `managed_defau
 `selfhosted_alternative` or `shared`; staging uses `staging` or `shared`.
 Production app, database and prometheus each require both `managed_default` and
 `selfhosted_alternative` reference classes; `shared` cannot replace either class.
-Packages and staging retain their existing configuration grammar without that dual-class
-requirement. These finite bindings are required for the whole index before report selection,
-including alternate indexes; they neither require distinct source paths nor verify live
-topology. Labels describe
-reference relationships. Canonical production instructions remain in `deploy/PRODUCTION.md`,
+Every staging service requires its `staging` reference class; `shared` cannot substitute.
+Production packages retains its existing grammar without a dual-class requirement.
+These ten named relations and eight environment/service bindings are required for the whole
+index before report selection, including alternate indexes; they neither require distinct
+source paths nor verify live topology. Labels describe reference relationships.
+Canonical production instructions remain in `deploy/PRODUCTION.md`,
 staging in `docs/deploy/STAGING.md`; deployment configuration and package/image owners
 retain their own truth. Production managed PostgreSQL is the documented default;
 self-hosted PostgreSQL is a maintained alternative. `PROD_DEPLOY_MODE` describes a deployment
@@ -429,9 +436,10 @@ transport choice and cannot select database topology in this report. The staging
 references include the mounted PostgreSQL HBA access-policy file; the production local-image
 manifest belongs to the self-hosted alternative. App references include the selected
 environment's Caddy policy. The finite mounted-policy catalogue covers these two Caddy
-files, staging HBA and Prometheus YAML, not arbitrary application or cloud policy. Secrets,
-.env and certificate payloads stay excluded; named-volume and provider state remain
-unknown. None of these references proves host activation.
+files, staging HBA and Prometheus YAML, not arbitrary application or cloud policy. Existing
+prohibited static source classes and designated secrets directories are denied before
+acquisition; this is a finite path policy, not content-based secret detection. Named-volume
+and provider state remain unknown. None of these references proves host activation.
 
 A supplied observation file has this closed shape (synthetic example only):
 

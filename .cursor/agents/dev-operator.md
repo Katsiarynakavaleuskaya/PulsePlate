@@ -58,8 +58,11 @@ The context map delivers the finite static catalogue for both environments throu
 existing role bridge. Its finite mounted-policy references are the two environment-specific
 Caddy files, staging PostgreSQL HBA policy and Prometheus YAML; preserve their environment
 and production-alternative relationships. This does not discover arbitrary application or
-cloud policies. Secrets, .env and certificate payloads remain excluded; named-volume and
-provider state remain unknown. The bridge does not filter a report or ingest observations.
+cloud policies. The report denies existing prohibited static source classes and designated
+`secrets` directories before acquisition, while observations retain their separate dynamic
+path policy. Callers must sanitize custom sources, indexes and observations; permitted names and
+fingerprints do not prove content safe to publish. Named-volume and provider state remain
+unknown. The bridge does not filter a report or ingest observations.
 Keep supplied identifiers in local evidence; public examples use synthetic identifiers.
 Source references and fingerprints describe acquired repository bytes. Supplied provenance,
 freshness and revision equality do not authenticate a provider or verify live configuration.

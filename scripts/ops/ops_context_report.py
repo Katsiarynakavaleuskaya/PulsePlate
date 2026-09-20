@@ -91,6 +91,15 @@ def _json(raw: bytes) -> object:
         raise ReportError("INVALID_JSON") from exc
 
 
+def _admit_path(path: str, *, static: bool) -> str:
+    """Reject the designated secret-store namespace before acquiring any file."""
+    admitted: str = reader.canonical_repo_path(path)
+    _require("secrets" not in {part.casefold() for part in admitted.split("/")[:-1]})
+    if static:
+        reader.validate_static_source_path(admitted)
+    return admitted
+
+
 def _read(
     root: Path,
     path: str,
@@ -101,9 +110,7 @@ def _read(
 ) -> reader.SourceSnapshot:
     try:
         # canonical_repo_path intentionally rejects even an absolute path inside root.
-        admitted = reader.canonical_repo_path(path)
-        if static:
-            reader.validate_static_source_path(admitted)
+        admitted = _admit_path(path, static=static)
         return reader.read_repo_source(root, admitted, metrics=metrics, limit=limit)
     except reader.ContextBundleError as exc:
         raise ReportError("SOURCE_UNAVAILABLE") from exc
@@ -131,8 +138,7 @@ def _index(raw: bytes) -> list[dict[str, str]]:
             )
         )
         try:
-            path = reader.canonical_repo_path(item["path"])
-            reader.validate_static_source_path(path)
+            path = _admit_path(item["path"], static=True)
         except reader.ContextBundleError as exc:
             raise ReportError("INVALID_INDEX") from exc
         identity = (environment, service, configuration, path)
@@ -154,6 +160,7 @@ def _index(raw: bytes) -> list[dict[str, str]]:
             for service in ("app", "database", "prometheus")
             for configuration in ("managed_default", "selfhosted_alternative")
         }
+        | {("staging", service, "staging") for service in SERVICES}
         <= {(row["environment"], row["service"], row["configuration"]) for row in validated}
     )
     return validated

@@ -872,30 +872,39 @@ def test_real_catalogue_caddy_policy_selection_and_fingerprint(
     assert captured.err == "ops-context-report: INVALID_REQUEST\n"
 
 
-@pytest.mark.parametrize("service", ["app", "database", "prometheus"])
-@pytest.mark.parametrize("configuration", ["managed_default", "selfhosted_alternative"])
-def test_alternate_index_requires_each_production_configuration(
+@pytest.mark.parametrize(
+    "relation_environment,service,configuration",
+    [
+        ("production", service, configuration)
+        for service in ("app", "database", "prometheus")
+        for configuration in ("managed_default", "selfhosted_alternative")
+    ]
+    + [("staging", service, "staging") for service in ops.SERVICES],
+)
+def test_alternate_index_requires_each_configuration(
     repository: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    relation_environment: str,
     service: str,
     configuration: str,
 ) -> None:
     data = json.loads((repository / ops.DEFAULT_SOURCES).read_text())
     data["sources"].extend(
         {
-            "environment": "production",
+            "environment": environment,
             "service": name,
             "configuration": "shared",
-            "path": f"docs/production-{name}.md",
+            "path": f"docs/{environment}-{name}.md",
         }
-        for name in ("app", "database", "prometheus")
+        for environment in ops.ENVIRONMENTS
+        for name in ops.SERVICES
     )
     alternate = repository / "docs/alternate.json"
     alternate.write_text(json.dumps(data))
     monkeypatch.setattr(ops, "REPO_ROOT", repository)
     monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
-    selections = [("production", service), ("production", "packages"), ("staging", "packages")]
+    selections = [(relation_environment, service), ("production", "packages"), ("staging", "app")]
     for environment, selected in selections:
         assert (
             ops.main(
@@ -916,7 +925,7 @@ def test_alternate_index_requires_each_production_configuration(
         assert captured.err == ""
         assert json.loads(captured.out)["surfaces"][0]["selected_configuration"] == "unknown"
     before = {(row["environment"], row["service"], row["configuration"]) for row in data["sources"]}
-    removed = ("production", service, configuration)
+    removed = (relation_environment, service, configuration)
     data["sources"] = [
         row
         for row in data["sources"]
@@ -927,7 +936,7 @@ def test_alternate_index_requires_each_production_configuration(
     assert {(row["environment"], row["service"]) for row in data["sources"]} == {
         (env, name) for env in ops.ENVIRONMENTS for name in ops.SERVICES
     }
-    assert ("production", service, "shared") in after
+    assert (relation_environment, service, "shared") in after
     alternate.write_text(json.dumps(data))
     for environment, selected in selections:
         assert (
@@ -950,13 +959,99 @@ def test_alternate_index_requires_each_production_configuration(
         assert captured.err == "ops-context-report: INVALID_REQUEST\n"
 
 
+def test_shared_only_staging_rejected(repository: Path) -> None:
+    path = repository / ops.DEFAULT_SOURCES
+    payload = json.loads(path.read_text())
+    assert report(repository)["surfaces"]
+    for row in payload["sources"]:
+        if row["environment"] == "staging":
+            row["configuration"] = "shared"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ops.ReportError):
+        report(repository, service="packages")
+
+
+@pytest.mark.parametrize("ancestor", ["secrets", "deploy/secrets", "docs/SeCrEtS"])
+@pytest.mark.parametrize("kind", ["index", "observed", "selected_member", "unselected_member"])
+def test_designated_secret_store_rejected_before_acquisition(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    ancestor: str,
+    kind: str,
+) -> None:
+    import hashlib
+
+    sentinel = b"synthetic-sensitive-marker"
+    path = f"{ancestor}/synthetic.json"
+    target = repository / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    args = ["--environment", "production", "--service", "app", "--format", "json"]
+    index = repository / ops.DEFAULT_SOURCES
+    if kind == "index":
+        target.write_bytes(index.read_bytes())
+        args += ["--sources", path]
+    elif kind == "observed":
+        target.write_text(
+            json.dumps(
+                {
+                    "schema_version": "ops-observed.v1",
+                    "observations": [observation(resource_id=sentinel.decode())],
+                }
+            )
+        )
+        args += ["--observed", path, "--max-observation-age-seconds", "60"]
+    else:
+        target.write_bytes(sentinel)
+        payload = json.loads(index.read_text())
+        payload["sources"][0 if kind == "selected_member" else 4]["path"] = path
+        index.write_text(json.dumps(payload))
+    reads: list[str] = []
+    original = ops.reader.read_repo_source
+
+    def record_read(root: Path, raw_path: str, **kwargs: object) -> object:
+        reads.append(raw_path)
+        return original(root, raw_path, **kwargs)
+
+    monkeypatch.setattr(ops.reader, "read_repo_source", record_read)
+    monkeypatch.setattr(ops, "REPO_ROOT", repository)
+    monkeypatch.setattr(ops, "git_revision", lambda root: SHA)
+    result = ops.main(args)
+    captured = capsys.readouterr()
+    assert path not in reads
+    if kind == "index":
+        assert reads == []
+    else:
+        assert ops.DEFAULT_SOURCES in reads
+    assert result == 2
+    assert captured.out == ""
+    assert captured.err == "ops-context-report: INVALID_REQUEST\n"
+    assert sentinel.decode() not in captured.out + captured.err
+    assert hashlib.sha256(sentinel).hexdigest() not in captured.out + captured.err
+    assert hashlib.sha256(target.read_bytes()).hexdigest() not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    "path", ["secret-notes.md", "docs/secrets-guide.md", "custom/safe/source.md"]
+)
+def test_secret_near_names_remain_valid_custom_sources(repository: Path, path: str) -> None:
+    target = repository / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("synthetic safe source\n")
+    index = repository / ops.DEFAULT_SOURCES
+    payload = json.loads(index.read_text())
+    payload["sources"][0]["path"] = path
+    index.write_text(json.dumps(payload))
+    assert path in {source["path"] for source in report(repository)["sources"]}
+
+
 def test_real_catalogue_finite_production_alternatives() -> None:
     root = Path(__file__).resolve().parents[1]
     required = {
         ("production", name, config)
         for name in ("app", "database", "prometheus")
         for config in ("managed_default", "selfhosted_alternative")
-    }
+    } | {("staging", service, "staging") for service in ops.SERVICES}
     data = json.loads((root / ops.DEFAULT_SOURCES).read_text())
     triples = {
         (row["environment"], row["service"], row["configuration"]) for row in data["sources"]
