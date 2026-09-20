@@ -569,7 +569,30 @@ def test_native_storage_observation_failures_hold(
 
 
 @pytest.mark.parametrize(
-    "fault", [None, "file-drift", "missing-mount-unit", "live-restore", "unknown-live-restore"]
+    "fault",
+    [
+        None,
+        "extra-unit",
+        "duplicate-unit",
+        "reversed",
+        "file-drift",
+        "missing-mount-unit",
+        "missing-other-unit",
+        "wrong-unit",
+        "empty",
+        "scalar",
+        "object",
+        "null",
+        "mixed",
+        "signature",
+        "malformed-json",
+        "extra-field",
+        "missing-field",
+        "duplicate-field",
+        "native-failure",
+        "live-restore",
+        "unknown-live-restore",
+    ],
 )
 def test_docker_lifecycle_guard_requires_loaded_mount_binding_and_stop_semantics(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str | None
@@ -584,25 +607,64 @@ def test_docker_lifecycle_guard_requires_loaded_mount_binding_and_stop_semantics
         )
 
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    mounts = [
+        r"srv-pulseplate\x2dstaging-secrets.mount",
+        r"mnt-pulseplate\x2dstaging\x2ddata.mount",
+    ]
+    calls: list[list[str]] = []
 
     def native(args: list[str]) -> str:
-        if args[0] == "systemctl":
-            if fault == "missing-mount-unit":
-                return "docker.socket"
+        calls.append(args)
+        if args == ["docker", "info", "--format", "{{.LiveRestoreEnabled}}"]:
             return (
-                r"mnt-pulseplate\x2dstaging\x2ddata.mount srv-pulseplate\x2dstaging-secrets.mount"
+                "true"
+                if fault == "live-restore"
+                else "unknown" if fault == "unknown-live-restore" else "false"
             )
-        return (
-            "true"
-            if fault == "live-restore"
-            else "unknown" if fault == "unknown-live-restore" else "false"
-        )
+        assert args == [
+            "busctl",
+            "--json=short",
+            "get-property",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1/unit/docker_2eservice",
+            "org.freedesktop.systemd1.Unit",
+            "BindsTo",
+        ]
+        if fault == "native-failure":
+            raise security.SecurityError("busctl check failed (exit 1)")
+        if fault == "malformed-json":
+            return "not-json"
+        if fault == "duplicate-field":
+            return '{"type":"as","data":[],"data":[]}'
+        data: object = mounts
+        variants: dict[str, object] = {
+            "extra-unit": mounts + ["docker.socket"],
+            "duplicate-unit": mounts + mounts,
+            "reversed": list(reversed(mounts)),
+            "missing-mount-unit": mounts[:1],
+            "missing-other-unit": mounts[1:],
+            "wrong-unit": [mounts[0], mounts[1] + ".wrong"],
+            "empty": [],
+            "scalar": " ".join(mounts),
+            "object": {"units": mounts},
+            "null": None,
+            "mixed": mounts + [False],
+        }
+        if fault in variants:
+            data = variants[fault]
+        envelope = {"type": "s" if fault == "signature" else "as", "data": data}
+        if fault == "extra-field":
+            envelope["extra"] = 1
+        if fault == "missing-field":
+            envelope.pop("data")
+        return json.dumps(envelope)
 
     monkeypatch.setattr(security, "_native", native)
-    if fault is None:
+    if fault in (None, "extra-unit", "duplicate-unit", "reversed"):
         security.check_daemon_guard(tmp_path)
+        assert len(calls) == 2
     else:
-        with pytest.raises(security.SecurityError):
+        with pytest.raises((security.SecurityError, json.JSONDecodeError)):
             security.check_daemon_guard(tmp_path)
 
 
@@ -1175,6 +1237,22 @@ def backup_observations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict
             return str(output["show_override"].get((suffix, name), expected[name])) + "\n"
         assert args[:4] == ["busctl", "--json=short", "get-property", "org.freedesktop.systemd1"]
         name = args[-1]
+        if name in ("Unit", "Persistent", "TimersCalendar"):
+            suffix, interface = "timer", "Timer"
+        elif name in ("UnitFileState", "ActiveState"):
+            suffix, interface = "timer", "Unit"
+        else:
+            suffix = "service"
+            interface = "Unit" if name in ("BindsTo", "After", "RequiresMountsFor") else "Service"
+        assert args == [
+            "busctl",
+            "--json=short",
+            "get-property",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2e" + suffix,
+            "org.freedesktop.systemd1." + interface,
+            name,
+        ]
         signature, value = properties[name]
         return json.dumps({"type": signature, "data": value})
 
@@ -1331,7 +1409,12 @@ def test_systemd_native_property_envelope_rejects_ambiguity(
 ) -> None:
     monkeypatch.setattr(security, "_native", lambda args: value)
     with pytest.raises(security.SecurityError):
-        security._systemd_property("service", "Service", "User", "s")
+        security._systemd_property(
+            "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2eservice",
+            "Service",
+            "User",
+            "s",
+        )
 
 
 def test_backup_units_require_selected_canonical_project(tmp_path: Path) -> None:
@@ -1354,3 +1437,50 @@ def test_orphan_legacy_postgres_is_never_a_fresh_database(
         security.check_existing_volumes(compose(tmp_path))
     assert len(calls) == 1
     assert list((empty_backing / "postgres").iterdir()) == []
+
+
+@pytest.mark.parametrize("fault", ["unavailable", "nonzero", "timeout"])
+def test_docker_typed_property_native_failure_never_admits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
+) -> None:
+    monkeypatch.setattr(security, "_regular_file", lambda *args: None)
+    monkeypatch.setattr(Path, "read_bytes", lambda path: b"same-reviewed-unit")
+    monkeypatch.setattr(
+        security.shutil,
+        "which",
+        lambda name: None if fault == "unavailable" else "/usr/bin/" + name,
+    )
+    calls: list[list[str]] = []
+
+    def failed(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        assert args == [
+            "/usr/bin/busctl",
+            "--json=short",
+            "get-property",
+            "org.freedesktop.systemd1",
+            "/org/freedesktop/systemd1/unit/docker_2eservice",
+            "org.freedesktop.systemd1.Unit",
+            "BindsTo",
+        ]
+        assert kwargs["timeout"] == 30
+        if fault == "timeout":
+            raise subprocess.TimeoutExpired(args, 30)
+        return subprocess.CompletedProcess(args, 1, "private-output", "private-error")
+
+    monkeypatch.setattr(security.subprocess, "run", failed)
+    with pytest.raises((security.SecurityError, subprocess.TimeoutExpired)) as error:
+        security.check_daemon_guard(tmp_path)
+    assert "private" not in str(error.value)
+    assert len(calls) == (0 if fault == "unavailable" else 1)
+
+
+@pytest.mark.parametrize("fault", ["extra", "duplicate"])
+def test_backup_dependency_set_remains_stricter_than_docker(
+    backup_observations: dict[str, Any], fault: str
+) -> None:
+    observed = backup_observations
+    mounts = observed["properties"]["BindsTo"][1]
+    mounts.append("docker.socket" if fault == "extra" else mounts[0])
+    with pytest.raises(security.SecurityError, match="BindsTo"):
+        security.check_backup_units(observed["project"])
