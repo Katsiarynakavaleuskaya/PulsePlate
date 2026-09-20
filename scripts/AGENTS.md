@@ -14,6 +14,12 @@
   flags, serialization fields and permitted Actions contexts through native
   help, pinned primary source and actionlint. A fixture accepting an invented
   flag, output field or expression context is not execution evidence.
+  For systemd dependencies, use the existing typed D-Bus property reader and
+  bind the exact unit object/interface/property; human display text is not a
+  unit-identity format. Render all declared Compose profiles only for security
+  configuration validation, keeping runtime profile activation separate.
+  Fixtures must distinguish default/all-profile models and reject incorrect
+  native argv, with a real read-only native observation before claiming parity.
 
 ## Native RubyZip/Fastlane guard
 

@@ -3791,11 +3791,25 @@ def _write_executable(path: Path, content: str) -> None:
     if [ \"${{STUB_COMPOSE_CONFIG_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_COMPOSE_CONFIG_STATUS}}\"
     fi
-    if [ -n \"${{STUB_PROMETHEUS_COMPOSE_JSON+x}}\" ]; then
-      printf '%s\\n' \"$STUB_PROMETHEUS_COMPOSE_JSON\"
-    else
-      printf '%s\\n' '{FAKE_STAGING_COMPOSE_JSON}'
-    fi
+    all_profiles=false
+    previous=""
+    for argument in "$@"; do
+      if [ "$previous" = --profile ] && [ "$argument" = '*' ]; then all_profiles=true; fi
+      previous="$argument"
+    done
+    STUB_ALL_PROFILES="$all_profiles" {shlex.quote(sys.executable)} - <<'PY_COMPOSE_MODEL'
+import json, os
+raw = os.environ.get("STUB_PROMETHEUS_COMPOSE_JSON", {FAKE_STAGING_COMPOSE_JSON!r})
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError:
+    print(raw)
+    raise SystemExit(0)
+if os.environ["STUB_ALL_PROFILES"] != "true" and isinstance(payload, dict):
+    services = payload.get("services")
+    if isinstance(services, dict): services.pop("worker", None)
+print(json.dumps(payload))
+PY_COMPOSE_MODEL
     ;;
   run\\ --rm\\ --platform\\ linux/amd64\\ --user\\ 70:70\\ *)
     if [ "${{STUB_POSTGRES_MOUNTPOINT_STATUS:-0}}" -ne 0 ]; then
@@ -7918,10 +7932,14 @@ def test_staging_deploy_matches_bounded_compose_scheduler_mode_syntax(
         assert "FOOD_UPDATE_SCHEDULER_MODE must be exactly external or disabled" in completed.stderr
 
 
+@pytest.mark.parametrize("scheduler_mode", ["external", "disabled"])
 def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     tmp_path: Path,
+    scheduler_mode: str,
 ) -> None:
     env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = scheduler_mode
+    env.pop("COMPOSE_PROFILES", None)
     project_dir = Path(env["PROJECT_DIR"])
     selected_env_file = project_dir / "config" / "selected.env"
     selected_env_file.parent.mkdir()
@@ -7994,6 +8012,21 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         < migration_index
         < app_index
         < caddy_index
+    )
+    worker_starts = [
+        index
+        for index, line in enumerate(log_lines)
+        if " up -d " in line and line.endswith(" worker")
+    ]
+    if scheduler_mode == "external":
+        assert worker_starts and all(index > app_index for index in worker_starts)
+    else:
+        assert not worker_starts
+        assert any(line.endswith(" rm -f worker") for line in log_lines)
+    assert all(
+        line.endswith("--profile * config --format json")
+        for line in log_lines
+        if "--profile" in line
     )
     assert all(" up -d postgres" not in line for line in log_lines)
     assert f"backup docker={env['DOCKER_BIN']}" in log_lines[backup_index]
@@ -9539,3 +9572,117 @@ if os.environ["CASE_DOWNLOAD"] == "native":
         assert decision["source_sha"] == sha
     else:
         assert not result.exists()
+
+
+@pytest.mark.parametrize("scheduler_mode", ["external", "disabled"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        None,
+        "missing-worker",
+        "sslmode",
+        "ca",
+        "passfile",
+        "identity",
+        "password",
+        "config-failure",
+        "malformed",
+    ],
+)
+def test_staging_security_config_includes_profiled_worker_without_activation(
+    tmp_path: Path, scheduler_mode: str, fault: str | None
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["FOOD_UPDATE_SCHEDULER_MODE"] = scheduler_mode
+    env.pop("COMPOSE_PROFILES", None)
+    payload = json.loads(env["STUB_PROMETHEUS_COMPOSE_JSON"])
+    worker = payload["services"]["worker"]["environment"]
+    if fault == "missing-worker":
+        payload["services"].pop("worker")
+    elif fault == "password":
+        worker["PGPASSWORD"] = "test-only"  # pragma: allowlist secret - synthetic rejection fixture
+    elif fault in ("sslmode", "ca", "passfile", "identity"):
+        old, replacement = {
+            "sslmode": ("sslmode=verify-full", "sslmode=require"),
+            "ca": ("sslrootcert=/run/secrets/postgres_ca", "sslrootcert=/wrong/ca"),
+            "passfile": ("passfile=/run/secrets/postgres_pgpass", "passfile=/wrong/passfile"),
+            "identity": ("@postgres:5432/", "@other:5432/"),
+        }[fault]
+        assert old in worker["DATABASE_URL"]
+        worker["DATABASE_URL"] = worker["DATABASE_URL"].replace(old, replacement)
+    env["STUB_PROMETHEUS_COMPOSE_JSON"] = (
+        "not-json" if fault == "malformed" else json.dumps(payload)
+    )
+    if fault == "config-failure":
+        env["STUB_COMPOSE_CONFIG_STATUS"] = "37"
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts/deploy.sh"),
+            "--preflight-only",
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert (result.returncode == 0) is (fault is None), result.stderr
+    log = log_file.read_text().splitlines()
+    profile_commands = [line for line in log if "--profile" in line]
+    if fault not in ("config-failure", "malformed"):
+        assert profile_commands
+        assert all(line.endswith("--profile * config --format json") for line in profile_commands)
+    assert not any(" up " in line or " start " in line or " pull " in line for line in log)
+    assert (
+        "Staging deploy preflight passed" in result.stdout
+        if fault is None
+        else "Staging deploy preflight passed" not in result.stdout
+    )
+
+
+def test_staging_security_caller_uses_exact_config_only_profile_arguments(tmp_path: Path) -> None:
+    source = (REPO_ROOT / "scripts/deploy.sh").read_text()
+    body = source.split("validate_staging_database_binding() {\n", 1)[1].split("\n}\n", 1)[0]
+    bash = shutil.which("bash")
+    assert bash is not None
+    program = (
+        """set -euo pipefail
+fake_docker() {
+  [ "$#" -eq 10 ] && [ "$1" = compose ] && [ "$2" = --env-file ] &&
+  [ "$3" = selected.env ] && [ "$4" = -f ] && [ "$5" = selected.yaml ] &&
+  [ "$6" = --profile ] && [ "$7" = '*' ] && [ "$8" = config ] &&
+  [ "$9" = --format ] && [ "${10}" = json ] || return 99
+  printf '{"services":{"worker":{}}}\\n'
+}
+fake_checker() {
+  [ "$#" -eq 5 ] && [ "$1" = /selected/scripts/ops/check_staging_security.py ] &&
+  [ "$2" = --project-dir ] && [ "$3" = /selected ] &&
+  [ "$4" = --compose-stdin ] && [ "$5" = --storage-only ] || return 98
+  local payload
+  IFS= read -r payload
+  [ "$payload" = '{"services":{"worker":{}}}' ]
+}
+COMPOSE=(fake_docker compose --env-file selected.env -f selected.yaml)
+PYTHON_BIN=fake_checker
+PROJECT_DIR=/selected
+validate_staging_database_binding() {
+"""
+        + body
+        + """
+}
+validate_staging_database_binding --storage-only
+[ "${#COMPOSE[@]}" -eq 6 ]
+[ "${COMPOSE_PROFILES+x}" != x ]
+"""
+    )
+    env = os.environ.copy()
+    env.pop("COMPOSE_PROFILES", None)
+    # These filenames would expand an unquoted '*' and must never become argv.
+    (tmp_path / "one").touch()
+    (tmp_path / "two").touch()
+    result = subprocess.run(
+        [bash, "-c", program], cwd=tmp_path, env=env, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr

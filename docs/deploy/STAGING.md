@@ -274,6 +274,30 @@ timer remain HOLD. The reviewed daily calendar is `02:15` in the host timezone;
 verify that timezone explicitly. These observations do not prove a successful
 backup or restore; retain the separate execution evidence above.
 
+The Docker mount guard reads the native `Unit.BindsTo` string array through
+`busctl --json=short get-property`, using the exact Docker service object. Do
+not split or unescape `systemctl show` presentation text: it may quote and
+escape the same valid unit identities. Existing backup-service checks retain
+their separate exact dependency and loaded-state requirements.
+
+The deployment security renderer uses `docker compose --profile '*' config
+--format json` with its explicitly selected Compose and env files. This includes
+the declared worker even when its runtime scheduler mode is disabled; its TLS
+configuration must still pass. The quoted profile selector applies only to
+read-only configuration validation, not to runtime `up`, `start`, or `pull`.
+Never print or archive the rendered environment, which can contain secrets.
+
+Before merge, a bounded in-memory candidate check may prove the typed Docker
+binding and complete configuration on the current host without replacing its
+installed checker. Report those two boundaries separately: a later disabled
+backup timer, legacy-volume state or other independent HOLD remains a failure
+of full admission. Do not enable a timer against the restored TLS-off legacy
+cluster merely to obtain a passing preflight. After reviewed merge, synchronize
+the exact bundle and refresh writer/data preservation before resuming the
+private first bootstrap. Prepared copied storage is not a fresh empty volume.
+Evidence: `scripts/ops/check_staging_security.py:358`;
+`scripts/deploy.sh:498`.
+
 For an isolated restore, pass the source identity and selected Compose/env
 through the existing helper interface:
 

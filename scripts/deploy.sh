@@ -496,7 +496,7 @@ if type(repo_digests) is not list or expected not in repo_digests:
 }
 
 validate_staging_database_binding() {
-  "${COMPOSE[@]}" config --format json | "$PYTHON_BIN" \
+  "${COMPOSE[@]}" --profile '*' config --format json | "$PYTHON_BIN" \
     "$PROJECT_DIR/scripts/ops/check_staging_security.py" \
     --project-dir "$PROJECT_DIR" --compose-stdin "$@"
 }
