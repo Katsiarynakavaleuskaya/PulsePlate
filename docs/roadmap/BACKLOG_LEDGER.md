@@ -7074,6 +7074,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: TBD (follow-up after upstream fix)
+  - Review checkpoint (PR #2400, 2026-09-20): Bookworm 6.4-4 remains vulnerable/no-dsa and all four tuples remain in the selected production inventory. Existing predicates retained unchanged; Review-by 2026-09-27, hard expiry 2026-10-07. Continued risk acceptance, not remediation; fresh reduced-policy scans remain pending.
   - Reason: Trivy reports Debian bookworm `ncurses` family packages
     (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
     `6.4-4` with no actionable fixed version in the current bookworm image line as
@@ -7171,19 +7172,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove Trivy suppression for util-linux CVE-2026-53613
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: PR-TBD-REMOVE-CVE-2026-53613-SUPPRESSION
-  - Status: Open; review Debian bookworm status by 2026-09-19 and remove no later
-    than the shared 2026-10-07 policy expiry unless a separately reviewed security
-    PR establishes a new bounded disposition
+  - Target PR: PR #2400
+  - Status: Rule and exclusive helpers removed in PR #2400 after 2026-09-20 review; selected final production inventory lacks all eight old Debian util-linux packages; Debian Bookworm remains vulnerable. Reduced-policy current-head image/filesystem scans, merge and terminal main scan remain pending; this item stays open.
   - Area: security / base-image / code-scanning
   - Finding Type: temporary distro CVE risk acceptance
-  - Reason: Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
+  - Historical reason (2026-08-20): Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
     CVE-2026-53613 findings for the Debian bookworm util-linux package family in
     image digest
     `sha256:5d147c66b4999210345f4e1895c6f0129f6b9e90dd25500f712c8e82f42577da`.
     Debian marks bookworm `2.38.1-5+deb12u3` and ordinary trixie `2.41-5` as
-    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The current
-    suppression accepts bounded residual risk; it is not remediation.
+    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The historical
+    suppression accepted bounded residual risk; it is not remediation.
   - Links:
     - `docs/security/CVE-2026-53613-util-linux.md`
     - `trivy/ignore-policy.rego`
@@ -7203,20 +7202,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove Trivy scanner disposition for OpenSSL CVE-2026-14456
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: PR-TBD-REMOVE-CVE-2026-14456-SUPPRESSION
-  - Status: Open; review upstream, Debian, and Trivy metadata by 2026-09-19 and
-    remove no later than the shared 2026-10-07 policy expiry unless a separately
-    reviewed security PR establishes a new bounded disposition
+  - Target PR: PR #2400
+  - Status: Rule and exclusive helpers removed in PR #2400 after 2026-09-20 review; corrected Debian Bookworm metadata now agrees with upstream OpenSSL 3.0 not-affected status; no package upgrade. Reduced-policy current-head image/filesystem scans, merge and terminal main scan remain pending; this item stays open.
   - Area: security / base-image / code-scanning
   - Finding Type: temporary scanner false-positive disposition
-  - Reason: Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
+  - Historical reason (2026-08-20): Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
     and Push run `32368859126`, job `96424915657`, report two HIGH
     CVE-2026-14456 findings for `libssl3` and `openssl` at
     `3.0.20-1~deb12u2` in image digest
     `sha256:bb92cf07ffbdb41bb3ec05dc5014dd5280798cf2a3c01f5119847277a8611298`.
     The upstream OpenSSL advisory assigns Low severity and marks OpenSSL 3.0
     unaffected because the vulnerable QUIC server implementation begins in 3.5,
-    while Debian still marks the Bookworm source-package line vulnerable with no
+    while Debian at that review marked the Bookworm source-package line vulnerable with no
     fixed package. The exact-tuple scanner disposition records that conflict; it
     is not remediation or an OpenSSL upgrade.
   - Links:
@@ -7257,7 +7254,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-08-09**
+  - Current bounded review (PR #2400, 2026-09-20): zlib1g 1:1.2.13.dfsg-1 and ncurses 6.4-4 remain vulnerable/no-dsa. Both unchanged rules retain risk with Review-by 2026-09-27 and hard expiry 2026-10-07; CVE-2026-53615 is unchanged. CVE-2026-53613 package-absence and CVE-2026-14456 metadata-correction retirements have separate open entries above. Fresh reduced-policy scans and main evidence remain pending.
+  - **Historical Rego review: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)

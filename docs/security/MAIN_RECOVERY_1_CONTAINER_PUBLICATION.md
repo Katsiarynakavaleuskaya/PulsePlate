@@ -77,6 +77,38 @@ backup/restore, Prometheus continuity or the original MAIN-RECOVERY criteria.
 Rollback is a reviewed revert of this bounded continuation, retaining failed
 evidence and all signature, scan and deployment gates.
 
+## Bounded Trivy review checkpoint — 2026-09-20
+
+The owner included the four stale September 19 review deadlines in PR #2400.
+Substantive primary-source and complete package-inventory review supports two
+retirements: [CVE-2026-53613](CVE-2026-53613-util-linux.md) because all eight old
+Debian distribution packages are absent from the selected production image,
+and [CVE-2026-14456](CVE-2026-14456-openssl.md) because Debian now marks
+Bookworm/OpenSSL 3.0 not affected. The latter is metadata-correction retirement,
+not an OpenSSL upgrade. Bookworm util-linux remains vulnerable upstream.
+
+[Zlib](CVE-2026-27171-zlib1g.md) and [ncurses](CVE-2025-69720-ncurses.md)
+remain installed and vulnerable/no-dsa. Their executable predicates are unchanged;
+next review is 2026-09-27 and shared hard expiry stays 2026-10-07. This is
+continued bounded residual risk, not remediation of all four CVEs.
+CVE-2026-53615 and shared helpers remain unchanged.
+
+The complete Trivy 0.74.0 production report from
+[run 35470455161](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/35470455161),
+created 2026-09-19T21:28:17Z, contains 137 packages and has SHA-256
+`cbe0ff0993215936d22af8329ed0fe6d7117e8498f75e8006fa515d8e368aa55`.
+Its ImageID identifies configuration, not a registry manifest. Its zero finding
+rows were filtered by the old policy, so they do not prove unsuppressed absence.
+The production removal design also feeds staging through `FROM production`;
+that does not replace a real staging scan or establish every consumer's result.
+
+Fresh strict current-head production-image and filesystem scans under the
+reduced policy, merge and subsequent main staging-image scan remain pending.
+New findings must block rather than trigger automatic suppression restoration.
+PostgreSQL, Prometheus and Caddy strict empty-ignore boundaries are unchanged.
+Evidence: `Dockerfile:431`, `Dockerfile:444`, `Dockerfile:644`,
+`trivy/ignore-policy.rego:1`, `scripts/ci/check_trivy_ignore_policy_expiry.py:494`.
+
 ## Native attestation inventory continuation
 
 PR #2394 merged as `b89e833af752d2b68f8d8b0fa99ab18b59e856e9`.
@@ -620,10 +652,12 @@ The Caddy scanner now selects 0.74.0 explicitly. Its existing secret/vulnerabili
 scan semantics remain distinct from the backend vulnerability-only contour.
 
 CVE-2026-3184 is removed from candidate policy after exact local image absence
-proof. Shared util-linux helpers remain for other existing rules. Fresh Debian
-evidence still marks Bookworm zlib and ncurses vulnerable/no-dsa; their exact
-predicates remain unchanged and the approved review date is 2026-09-19. The
-single overall expiry remains 2026-10-07. Renewed review is not remediation.
+proof. Shared util-linux helpers remain for other existing rules. At the historical
+2026-09-09 review, Debian evidence marked Bookworm zlib and ncurses
+vulnerable/no-dsa; their predicates were unchanged and the approved review date
+was 2026-09-19. The current decision is recorded in the
+[September 20 checkpoint](#bounded-trivy-review-checkpoint--2026-09-20).
+The single overall expiry remains 2026-10-07. Renewed review is not remediation.
 
 Evidence anchors: `.github/workflows/build.yml:165`,
 `trivy/ignore-policy.rego:17`.
