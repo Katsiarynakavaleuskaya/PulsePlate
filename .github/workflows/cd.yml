@@ -59,14 +59,15 @@ env:
 
 jobs:
   staging-postgres-native-integration:
+    name: PostgreSQL configuration admission
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: postgres-pgvector-contract
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
       contents: read
-      packages: read
     steps:
-      - name: Checkout native staging integration source
+      - name: Checkout staging configuration source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
@@ -86,60 +87,20 @@ jobs:
           material = json.loads(Path("native-staging-material.json").read_text())
           print("changed=" + str(material["changed"]).lower())
           PY
-      - name: Authenticate public package read with ephemeral repository token
-        if: steps.native-material.outputs.changed == 'true'
-        env:
-          GHCR_EPHEMERAL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_OWNER: ${{ github.repository_owner }}
-        run: |
-          set -euo pipefail
-          umask 077
-          config_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-staging-native-auth.XXXXXXXX")"
-          printf 'DOCKER_CONFIG=%s\n' "$config_dir" >> "$GITHUB_ENV"
-          python3 -m scripts.ci.ghcr_attestation_credentials capture --directory "$config_dir"
-          printf '%s' "$GHCR_EPHEMERAL_TOKEN" | docker --config "$config_dir" login ghcr.io \
-            --username "$GHCR_OWNER" --password-stdin
-      - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
+      - name: Validate PostgreSQL configuration without a published image
         if: steps.native-material.outputs.changed == 'true'
         run: |
           set -euo pipefail
           umask 077
-          python3 - <<'PY_COMPOSE_VERSION'
-          import json, subprocess, shutil
-          binary = shutil.which("docker")
-          if binary is None: raise SystemExit("Docker is required")
-          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
-          parts = version.split(".")
-          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
-              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
-          PY_COMPOSE_VERSION
-          python3 -m scripts.ci.check_staging_postgres_runtime \
-            --json-out staging-postgres-native-result.json
-      - name: Retain public native experiment metadata without private PKI or dumps
+          python3 -m scripts.ci.check_staging_postgres_runtime --configure-only \
+            --json-out staging-postgres-configuration-result.json
+      - name: Retain PostgreSQL configuration validation metadata
         if: always() && steps.native-material.outputs.changed == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
         with:
-          name: staging-postgres-native-integration
-          path: staging-postgres-native-result.json
+          name: staging-postgres-configuration
+          path: staging-postgres-configuration-result.json
           if-no-files-found: warn
-      - name: Remove the exact ephemeral public-package Docker credentials
-        if: always()
-        env:
-          PRIMARY_JOB_STATUS: ${{ job.status }}
-        run: |
-          set -u
-          cleanup_failed=0
-          if [ -n "${DOCKER_CONFIG:-}" ]; then
-            if ! docker --config "$DOCKER_CONFIG" logout ghcr.io; then cleanup_failed=1; fi
-            if ! python3 -m scripts.ci.ghcr_attestation_credentials cleanup --directory "$DOCKER_CONFIG"; then cleanup_failed=1; fi
-          fi
-          case "$PRIMARY_JOB_STATUS" in
-            success) exit "$cleanup_failed" ;;
-            failure | cancelled)
-              if [ "$cleanup_failed" -ne 0 ]; then echo "Owned credential cleanup also failed; primary job failure retained" >&2; fi
-              exit 0 ;;
-            *) exit 1 ;;
-          esac
 
   postgres-synthetic-attestation-probe:
     if: >-
@@ -2256,6 +2217,33 @@ jobs:
             "$RUNTIME_REF" --version | \
             grep -Fx 'postgres (PostgreSQL) 15.19'
 
+      - name: Inspect the exact PostgreSQL platform manifest with native Docker
+        env:
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
+        run: |
+          set -euo pipefail
+          immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"
+          docker --version
+          printf 'Inspecting immutable PostgreSQL subject: %s\n' "$immutable_ref"
+          docker manifest inspect "$immutable_ref" >/dev/null
+          printf 'Native PostgreSQL manifest inspection passed\n'
+      - name: Execute real isolated PostgreSQL TLS crash restart and restore checks
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY_COMPOSE_VERSION'
+          import json, subprocess, shutil
+          binary = shutil.which("docker")
+          if binary is None: raise SystemExit("Docker is required")
+          version = subprocess.check_output([binary, "compose", "version", "--short"], text=True).strip().removeprefix("v")
+          parts = version.split(".")
+          if len(parts) != 3 or any(not part.isdigit() for part in parts) or tuple(map(int, parts)) < (2,35,0):
+              raise SystemExit("Native staging integration requires Docker Compose >=2.35.0")
+          PY_COMPOSE_VERSION
+          python3 -m scripts.ci.check_staging_postgres_runtime \
+            --json-out staging-postgres-native-result.json
+
       - name: Recheck public GHCR package identity after candidate admission
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2351,6 +2339,7 @@ jobs:
             postgres-pgvector-spdx-verified.json
             postgres-pgvector-provenance-attestation-check.json
             postgres-pgvector-build-engine.txt
+            staging-postgres-native-result.json
             postgres-pgvector-provenance-attestation-check.md
             dhi-postgres-runtime-provenance.json
             dhi-postgres-builder-provenance.json
@@ -2494,7 +2483,7 @@ jobs:
 
   postgres-pgvector-reuse:
     if: >-
-      always()
+      !cancelled()
       && (
         github.event_name == 'schedule'
         || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.postgres_mode == 'reuse')
@@ -2532,7 +2521,9 @@ jobs:
           GHCR_USER: ${{ github.repository_owner }}
           PGVECTOR_MANUAL_MODE: ${{ inputs.postgres_mode }}
           MATERIAL_CHANGED: ${{ needs.postgres-pgvector-material-change.outputs.changed }}
-          RUNTIME_REF: ${{ needs.postgres-pgvector-contract.outputs.runtime_ref }}
+          REPOSITORY: ${{ needs.postgres-pgvector-contract.outputs.repository }}
+          CANONICAL_TAG: ${{ needs.postgres-pgvector-contract.outputs.tag }}
+          PLATFORM_DIGEST: ${{ needs.postgres-pgvector-contract.outputs.platform_manifest_digest }}
           TRIVY_VERSION: ${{ needs.postgres-pgvector-contract.outputs.trivy_version }}
           TRIVY_ARCHIVE_SHA256: ${{ needs.postgres-pgvector-contract.outputs.trivy_archive_sha256 }}
         run: |
@@ -2629,13 +2620,9 @@ jobs:
             echo "PostgreSQL reuse admission poll must be within 1..300 seconds" >&2
             exit 1
           fi
-          canonical_tag_ref="${RUNTIME_REF%@*}"
-          expected_platform_digest="${RUNTIME_REF##*@}"
-          if [ "$canonical_tag_ref" = "$RUNTIME_REF" ] || \
-             [[ ! "$expected_platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "PostgreSQL reuse runtime reference is not canonical-tag and digest bound" >&2
-            exit 1
-          fi
+          immutable_ref="${REPOSITORY:?}@${PLATFORM_DIGEST:?}"
+          canonical_tag_ref="${REPOSITORY}:${CANONICAL_TAG:?}"
+          expected_platform_digest="$PLATFORM_DIGEST"
           canonical_raw="${RUNNER_TEMP}/pulseplate-pgvector-reuse-canonical.json"
           canonical_tag_selects_expected_digest() {
             if ! docker buildx imagetools inspect --raw "$canonical_tag_ref" \
@@ -2670,32 +2657,33 @@ jobs:
           PY
           }
           admission_deadline=$((SECONDS + PGVECTOR_REUSE_ADMISSION_WAIT_SECONDS))
+          pending_reported=false
           while true; do
             tag_ready=false
             image_ready=false
             provenance_ready=false
             spdx_ready=false
             materials_ready=false
-            if docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1; then
+            if docker manifest inspect "$immutable_ref" >/dev/null 2>&1; then
               image_ready=true
               if canonical_tag_selects_expected_digest; then
                 tag_ready=true
               fi
-              if gh attestation verify "oci://${RUNTIME_REF}" \
+              if gh attestation verify "oci://${immutable_ref}" \
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://slsa.dev/provenance/v1 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
                   --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners >/dev/null 2>&1; then
                 provenance_ready=true
               fi
-              if gh attestation verify "oci://${RUNTIME_REF}" \
+              if gh attestation verify "oci://${immutable_ref}" \
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://pulseplate.app/attestations/postgres-pgvector-materials/v1 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
                   --source-ref refs/heads/main --bundle-from-oci --deny-self-hosted-runners >/dev/null 2>&1; then
                 materials_ready=true
               fi
-              if gh attestation verify "oci://${RUNTIME_REF}" \
+              if gh attestation verify "oci://${immutable_ref}" \
                   --repo "$GITHUB_REPOSITORY" \
                   --predicate-type https://spdx.dev/Document/v2.3 \
                   --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/cd.yml" \
@@ -2707,13 +2695,17 @@ jobs:
                  "true:true:true:true:true" ]; then
               break
             fi
+            if [ "$pending_reported" = false ]; then
+              echo "PostgreSQL reuse pending: tag=${tag_ready} image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready} materials=${materials_ready}"
+              pending_reported=true
+            fi
             if [ "$SECONDS" -ge "$admission_deadline" ]; then
-              echo "Exact PostgreSQL reuse admission did not become complete before timeout: tag=${tag_ready} image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready}" >&2
+              echo "Exact PostgreSQL reuse admission did not become complete before timeout: tag=${tag_ready} image=${image_ready} provenance=${provenance_ready} spdx=${spdx_ready} materials=${materials_ready}" >&2
               exit 1
             fi
             sleep "$PGVECTOR_REUSE_ADMISSION_POLL_SECONDS"
           done
-          docker pull --platform linux/amd64 "$RUNTIME_REF"
+          docker pull --platform linux/amd64 "$immutable_ref"
           install_dir="$(mktemp -d "${RUNNER_TEMP}/pulseplate-pgvector-reuse-trivy.XXXXXX")"
           archive_path="$install_dir/trivy.tar.gz"
           curl --fail --location --silent --show-error \
@@ -2733,15 +2725,15 @@ jobs:
             --timeout 15m \
             --ignorefile "$empty_ignore" \
             --cache-dir "${RUNNER_TEMP}/trivy-cache-pgvector-reuse" \
-            "$RUNTIME_REF"
+            "$immutable_ref"
           python3 scripts/ci/check_pgvector_attestations.py verify \
             --json-out postgres-pgvector-reuse-attestation-check.json
-          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Os}}/{{.Architecture}}')" = \
+          test "$(docker image inspect "$immutable_ref" --format '{{.Os}}/{{.Architecture}}')" = \
             "linux/amd64"
-          test "$(docker image inspect "$RUNTIME_REF" --format '{{.Config.User}}')" = "70"
-          test "$(docker image inspect "$RUNTIME_REF" --format '{{json .Config.Entrypoint}}')" = \
+          test "$(docker image inspect "$immutable_ref" --format '{{.Config.User}}')" = "70"
+          test "$(docker image inspect "$immutable_ref" --format '{{json .Config.Entrypoint}}')" = \
             '["/usr/local/bin/docker-entrypoint.sh"]'
-          test "$(docker image inspect "$RUNTIME_REF" \
+          test "$(docker image inspect "$immutable_ref" \
             --format '{{index .Config.Labels "com.pulseplate.pgvector.version"}}')" = "0.8.6"
           # Final read-only transaction boundary. Stronger exclusion requires a separate
           # host-lock/ownership lane rather than another same-job polling loop.
@@ -2753,7 +2745,7 @@ jobs:
             python3 scripts/ci/check_pgvector_attestations.py unchanged \
               --base "$GITHUB_SHA" --head "$reuse_terminal_main_sha"
           fi
-          if ! docker manifest inspect "$RUNTIME_REF" >/dev/null 2>&1 || \
+          if ! docker manifest inspect "$immutable_ref" >/dev/null 2>&1 || \
              ! canonical_tag_selects_expected_digest; then
             echo "Canonical PostgreSQL tag or immutable digest drifted before terminal reuse admission; HOLD" >&2
             exit 1
@@ -2783,7 +2775,13 @@ jobs:
           esac
 
   build:
-    if: github.ref == 'refs/heads/main' && needs.staging-postgres-native-integration.result == 'success'
+    if: >-
+      !cancelled()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.prometheus-image-security.result == 'success'
+      && needs.main-push-admission.result == 'success'
+      && needs.staging-postgres-native-integration.result == 'success'
     needs: [prometheus-image-security, main-push-admission, staging-postgres-native-integration]
     runs-on: ubuntu-latest
     env:
