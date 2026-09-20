@@ -366,17 +366,20 @@ def check_daemon_guard(project_dir: Path) -> None:
         r"mnt-pulseplate\x2dstaging\x2ddata.mount",
         r"srv-pulseplate\x2dstaging-secrets.mount",
     }
-    bound_units = _native(
-        ["systemctl", "show", "docker.service", "--property=BindsTo", "--value"]
-    ).split()
-    if not mount_units.issubset(bound_units):
+    bound_units = _systemd_property(
+        "/org/freedesktop/systemd1/unit/docker_2eservice", "Unit", "BindsTo", "as"
+    )
+    if (
+        not isinstance(bound_units, list)
+        or any(not isinstance(unit, str) for unit in bound_units)
+        or not mount_units.issubset(bound_units)
+    ):
         raise SecurityError("Docker has not loaded its staging mount dependency")
     if _native(["docker", "info", "--format", "{{.LiveRestoreEnabled}}"]).strip() != "false":
         raise SecurityError("Docker live restore would bypass the storage lifecycle boundary")
 
 
-def _systemd_property(unit: str, interface: str, name: str, signature: str) -> object:
-    path = "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2e" + unit
+def _systemd_property(object_path: str, interface: str, name: str, signature: str) -> object:
     envelope = _object(
         _read_json(
             _native(
@@ -385,7 +388,7 @@ def _systemd_property(unit: str, interface: str, name: str, signature: str) -> o
                     "--json=short",
                     "get-property",
                     "org.freedesktop.systemd1",
-                    path,
+                    object_path,
                     "org.freedesktop.systemd1." + interface,
                     name,
                 ]
@@ -402,6 +405,8 @@ def check_backup_units(project_dir: Path) -> None:
     """Compare installed files and the manager's loaded staging backup contract."""
     if project_dir != Path("/srv/pulseplate-staging"):
         raise SecurityError("Backup units require the canonical staging project directory")
+    service_path = "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2eservice"
+    timer_path = "/org/freedesktop/systemd1/unit/pulseplate_2dpostgres_2dbackup_2etimer"
     for suffix in ("service", "timer"):
         name = "pulseplate-postgres-backup." + suffix
         installed = Path("/etc/systemd/system") / name
@@ -429,7 +434,7 @@ def check_backup_units(project_dir: Path) -> None:
         ("WorkingDirectory", "s", str(project_dir)),
         ("EnvironmentFiles", "a(sb)", [[str(project_dir / ".env"), False]]),
     ):
-        actual = _systemd_property("service", "Service", name, signature)
+        actual = _systemd_property(service_path, "Service", name, signature)
         if actual != expected_property or type(actual) is not type(expected_property):
             raise SecurityError(f"Loaded backup service has incorrect {name}")
         if name == "EnvironmentFiles" and (
@@ -440,7 +445,7 @@ def check_backup_units(project_dir: Path) -> None:
             or actual[0][1] is not False
         ):
             raise SecurityError("Loaded backup service has malformed EnvironmentFiles")
-    environment = _systemd_property("service", "Service", "Environment", "as")
+    environment = _systemd_property(service_path, "Service", "Environment", "as")
     expected_environment = [
         "PROJECT_DIR=" + str(project_dir),
         "ENV_FILE=" + str(project_dir / ".env"),
@@ -466,7 +471,7 @@ def check_backup_units(project_dir: Path) -> None:
         ),
         ("ExecStart", ["/usr/bin/bash", str(project_dir / "scripts/ops/postgres_backup.sh")]),
     ):
-        commands = _systemd_property("service", "Service", name, "a(sasbttttuii)")
+        commands = _systemd_property(service_path, "Service", name, "a(sasbttttuii)")
         if not isinstance(commands, list) or len(commands) != 1:
             raise SecurityError(f"Loaded backup service has unexpected {name} commands")
         command = commands[0]
@@ -487,7 +492,7 @@ def check_backup_units(project_dir: Path) -> None:
         ("After", mount_units | {"docker.service", "network-online.target"}),
         ("RequiresMountsFor", {STORAGE_ROOT, str(project_dir / "secrets")}),
     ):
-        actual = _systemd_property("service", "Unit", name, "as")
+        actual = _systemd_property(service_path, "Unit", name, "as")
         if (
             not isinstance(actual, list)
             or any(not isinstance(item, str) for item in actual)
@@ -496,11 +501,11 @@ def check_backup_units(project_dir: Path) -> None:
             or (name == "BindsTo" and set(actual) != required)
         ):
             raise SecurityError(f"Loaded backup service has incorrect {name}")
-    if _systemd_property("timer", "Timer", "Unit", "s") != "pulseplate-postgres-backup.service":
+    if _systemd_property(timer_path, "Timer", "Unit", "s") != "pulseplate-postgres-backup.service":
         raise SecurityError("Backup timer targets a different service")
-    if _systemd_property("timer", "Timer", "Persistent", "b") is not True:
+    if _systemd_property(timer_path, "Timer", "Persistent", "b") is not True:
         raise SecurityError("Backup timer must retain its persistent daily schedule")
-    calendars = _systemd_property("timer", "Timer", "TimersCalendar", "a(sst)")
+    calendars = _systemd_property(timer_path, "Timer", "TimersCalendar", "a(sst)")
     if (
         not isinstance(calendars, list)
         or len(calendars) != 1
@@ -512,7 +517,7 @@ def check_backup_units(project_dir: Path) -> None:
     ):
         raise SecurityError("Backup timer has an unexpected calendar schedule")
     for name, expected_state in (("UnitFileState", "enabled"), ("ActiveState", "active")):
-        if _systemd_property("timer", "Unit", name, "s") != expected_state:
+        if _systemd_property(timer_path, "Unit", name, "s") != expected_state:
             raise SecurityError(f"Backup timer has incorrect {name}")
 
 
