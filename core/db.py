@@ -107,9 +107,10 @@ def _extract_sqlite_path(database_url: str) -> str | None:
     if url.drivername not in {"sqlite", "sqlite+pysqlite", "sqlite+aiosqlite"}:
         return None
     database = url.database
+    if not isinstance(database, str) or not database:
+        return None
     if (
-        not database
-        or database == ":memory:"
+        database == ":memory:"
         or database.startswith("file:")
         or "\x00" in database
         or url.host is not None
