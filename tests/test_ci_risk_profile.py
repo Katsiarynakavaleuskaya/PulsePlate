@@ -756,3 +756,54 @@ def test_cli_fails_cleanly_when_flag_value_is_missing(
 ) -> None:
     with pytest.raises(SystemExit, match=message):
         risk_profile.main(argv)
+
+
+@pytest.mark.parametrize(
+    "changed_file,docs_only",
+    (
+        ("scripts/ops/ops_context_report.py", False),
+        ("docs/deploy/OPS_CONTEXT_SOURCES.json", True),
+        ("tests/test_ops_context_report.py", False),
+    ),
+)
+@pytest.mark.parametrize("companion_docs", [False, True])
+def test_ops_context_inputs_independently_route_backend_coverage(
+    changed_file: str, docs_only: bool, companion_docs: bool
+) -> None:
+    """A source/index-only edit must reach the existing OPS coverage producer and consumer."""
+    files = [changed_file]
+    if companion_docs:
+        files.append("docs/release/notes.md")
+    profile = risk_profile.build_risk_profile(files)
+
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.run_openapi_sync is True
+    assert profile.docs_only is docs_only
+    assert profile.workflow_privileged is False
+    assert profile.run_main_ci_diagnostic is False
+    assert profile.contract_risk_groups == ()
+    assert profile.to_outputs()["run_backend_blocking"] == "true"
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "scripts/ops/unrelated_report.py",
+        "scripts/ops/ops_context_report.py.bak",
+        "docs/deploy/OPS_CONTEXT_SOURCES.example.json",
+        "docs/deploy/unrelated.md",
+    ),
+)
+def test_ops_context_exact_routing_preserves_unrelated_docs_and_tools(changed_file: str) -> None:
+    """The two exact inputs do not promote a whole scripts or docs prefix."""
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is False
+    assert profile.run_backend_blocking is False
+    assert profile.run_security is False
+    assert profile.run_openapi_sync is False
+    assert profile.workflow_privileged is False
+    assert profile.run_main_ci_diagnostic is False
+    assert profile.contract_risk_groups == ()
