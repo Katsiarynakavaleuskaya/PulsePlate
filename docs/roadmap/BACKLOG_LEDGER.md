@@ -905,8 +905,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: TELO-OPS-3 user-impact handoff in the existing PR process
   - Owner: agent-coordinator / security-auditor
   - Priority: P1 (user-outcome clarity and reliable human acceptance)
-  - Target PR: TBD (`codex/teleology-user-impact-handoff`)
-  - Status: In progress; no merge, outcome or effectiveness claim.
+  - Target PR: [PR #2409](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2409) (`codex/teleology-user-impact-handoff`)
+  - Status: Open non-draft; current-head checks and review pending. No merge, outcome or effectiveness claim.
   - Area: orchestration workflow, static prompt guidance and ordinary QA records
   - Reason (EN): The merged goal-to-outcome rail needs a concrete user-path rubric and stage-by-stage recheck so accepted goals, actual behavior and human decisions remain connected without operator reminders.
   - Links: `docs/orchestration/workflow.md#goal-to-outcome-review`, `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383).
