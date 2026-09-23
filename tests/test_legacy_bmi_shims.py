@@ -78,6 +78,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_is_missing_nh3_error",
     "_raise_missing_nh3_http_error",
     "calculate_heuristic_macros",
+    "MANDATORY_MICRO_DEFAULTS",
+    "MAX_DAILY_KCAL",
+    "MICRO_ALIAS_MAP",
+    "MIN_DAILY_KCAL",
+    "_alias_micros",
+    "_clamp_daily_kcal",
+    "_ensure_priority_micros",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -93,6 +100,16 @@ RETIRED_PLATE_HELPER_BINDINGS = (
     "_is_missing_nh3_error",
     "_raise_missing_nh3_http_error",
     "calculate_heuristic_macros",
+)
+
+RETIRED_NUTRITION_UTILITY_BINDINGS = (
+    "MANDATORY_MICRO_DEFAULTS",
+    "MAX_DAILY_KCAL",
+    "MICRO_ALIAS_MAP",
+    "MIN_DAILY_KCAL",
+    "_alias_micros",
+    "_clamp_daily_kcal",
+    "_ensure_priority_micros",
 )
 
 RETIRED_INSIGHT_BINDINGS = (
@@ -201,6 +218,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     import app.services.pro_nutrition_targets as targets_service
     import core.exports as exports
     import core.menu_engine as menu_engine
+    import core.nutrition_utils as nutrition_utils
     import core.plate as plate
     import core.recommendations as recommendations
     import legacy_app
@@ -257,15 +275,41 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_is_missing_nh3_error": plate_service._is_missing_nh3_error,
         "_raise_missing_nh3_http_error": plate_service._raise_missing_nh3_http_error,
         "calculate_heuristic_macros": plate_service.calculate_heuristic_macros,
+        "MANDATORY_MICRO_DEFAULTS": nutrition_utils.MANDATORY_MICRO_DEFAULTS,
+        "MAX_DAILY_KCAL": nutrition_utils.MAX_DAILY_KCAL,
+        "MICRO_ALIAS_MAP": nutrition_utils.MICRO_ALIAS_MAP,
+        "MIN_DAILY_KCAL": nutrition_utils.MIN_DAILY_KCAL,
+        "_alias_micros": nutrition_utils.alias_micros,
+        "_clamp_daily_kcal": nutrition_utils.clamp_daily_kcal,
+        "_ensure_priority_micros": nutrition_utils.ensure_priority_micros,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
         "INSIGHT_TEXT_MAX_LENGTH": insight_schemas.INSIGHT_TEXT_MAX_LENGTH,
         "INSIGHT_TEMP_UNAVAILABLE_MESSAGE": insight_compat.INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
+        "MANDATORY_MICRO_DEFAULTS": nutrition_utils.MANDATORY_MICRO_DEFAULTS,
+        "MAX_DAILY_KCAL": nutrition_utils.MAX_DAILY_KCAL,
+        "MICRO_ALIAS_MAP": nutrition_utils.MICRO_ALIAS_MAP,
+        "MIN_DAILY_KCAL": nutrition_utils.MIN_DAILY_KCAL,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 58
+    assert isinstance(nutrition_utils.MANDATORY_MICRO_DEFAULTS, dict)
+    assert isinstance(nutrition_utils.MICRO_ALIAS_MAP, dict)
+    assert isinstance(nutrition_utils.MIN_DAILY_KCAL, int)
+    assert isinstance(nutrition_utils.MAX_DAILY_KCAL, int)
+    assert nutrition_utils.MIN_DAILY_KCAL == 1200
+    assert nutrition_utils.MAX_DAILY_KCAL == 5000
+    assert nutrition_utils.MANDATORY_MICRO_DEFAULTS == {"iodine_ug": 150.0}
+    assert nutrition_utils.MICRO_ALIAS_MAP == {
+        "iron_mg": ("iron", "fe"),
+        "calcium_mg": ("calcium", "ca"),
+        "magnesium_mg": ("magnesium",),
+        "potassium_mg": ("potassium", "k"),
+        "iodine_ug": ("iodine",),
+    }
     assert RETIRED_LEGACY_PYTHON_BINDINGS.isdisjoint(vars(legacy_app))
     assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
@@ -316,7 +360,7 @@ def test_retained_premium_schema_bindings_remain_importable_in_fresh_process() -
 
 
 def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None:
-    """Prove fresh-import retirement and canonical Plate availability without ambient state."""
+    """Prove fresh-import retirement and canonical helper availability."""
     retired_bindings = tuple(sorted(RETIRED_LEGACY_PYTHON_BINDINGS))
     import_failure_checks = "\n".join(textwrap.dedent(f"""
             try:
@@ -331,9 +375,11 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         import legacy_app
         import app as app_facade
         import app.services.pro_nutrition_plate as plate_service
+        import core.nutrition_utils as nutrition_utils
 
         retired = {retired_bindings!r}
         plate_helpers = {RETIRED_PLATE_HELPER_BINDINGS!r}
+        nutrition_utilities = {RETIRED_NUTRITION_UTILITY_BINDINGS!r}
         assert set(retired).isdisjoint(vars(legacy_app))
         assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
         for binding_name in plate_helpers:
@@ -344,6 +390,18 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
             else:
                 assert callable(canonical_object)
                 assert canonical_object.__module__ == plate_service.__name__
+        for binding_name in nutrition_utilities:
+            canonical_name = binding_name.lstrip("_") if binding_name.startswith("_") else binding_name
+            canonical_object = getattr(nutrition_utils, canonical_name)
+            if binding_name in {{"MANDATORY_MICRO_DEFAULTS", "MICRO_ALIAS_MAP"}}:
+                assert isinstance(canonical_object, dict)
+                assert not callable(canonical_object)
+            elif binding_name in {{"MIN_DAILY_KCAL", "MAX_DAILY_KCAL"}}:
+                assert isinstance(canonical_object, int)
+                assert not callable(canonical_object)
+            else:
+                assert callable(canonical_object)
+                assert canonical_object.__module__ == nutrition_utils.__name__
         for binding_name in retired:
             try:
                 getattr(legacy_app, binding_name)
@@ -359,6 +417,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
             + json.dumps({
                 "absent": list(retired),
                 "canonical_plate_helpers": list(plate_helpers),
+                "canonical_nutrition_utilities": list(nutrition_utilities),
                 "package_macro_identity_preserved": True,
             })
         )
@@ -367,6 +426,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
     assert _run_legacy_retirement_probe(scenario) == {
         "absent": list(retired_bindings),
         "canonical_plate_helpers": list(RETIRED_PLATE_HELPER_BINDINGS),
+        "canonical_nutrition_utilities": list(RETIRED_NUTRITION_UTILITY_BINDINGS),
         "package_macro_identity_preserved": True,
     }
 

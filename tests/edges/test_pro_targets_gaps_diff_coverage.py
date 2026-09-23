@@ -699,6 +699,6 @@ def test_legacy_targets_gaps_and_shared_helpers_are_exact_aliases() -> None:
     assert legacy_app.NutrientGapsResponse is NutrientGapsResponse
     assert legacy_app._generate_who_targets_response is service.generate_who_targets_response
     assert legacy_app._fallback_targets_response is service.fallback_targets_response
-    assert legacy_app._clamp_daily_kcal is clamp_daily_kcal
-    assert legacy_app._alias_micros is alias_micros
-    assert legacy_app._ensure_priority_micros is ensure_priority_micros
+    assert service.clamp_daily_kcal is clamp_daily_kcal
+    assert service.alias_micros is alias_micros
+    assert service.ensure_priority_micros is ensure_priority_micros

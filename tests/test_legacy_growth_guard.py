@@ -62,12 +62,20 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_is_missing_nh3_error",
     "_raise_missing_nh3_http_error",
     "calculate_heuristic_macros",
+    "MANDATORY_MICRO_DEFAULTS",
+    "MAX_DAILY_KCAL",
+    "MICRO_ALIAS_MAP",
+    "MIN_DAILY_KCAL",
+    "_alias_micros",
+    "_clamp_daily_kcal",
+    "_ensure_priority_micros",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
 RETIRED_PLANNING_EXPORT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[20:31]
 RETIRED_INSIGHT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[31:39]
 RETIRED_PLATE_HELPER_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[39:51]
+RETIRED_NUTRITION_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[51:58]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -101,9 +109,24 @@ def test_retired_plate_helper_binding_tail_is_exact_and_disjoint() -> None:
         "_raise_missing_nh3_http_error",
         "calculate_heuristic_macros",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 51
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 51
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:51]) == 51
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:51])) == 51
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:39]).isdisjoint(RETIRED_PLATE_HELPER_BINDINGS)
+
+
+def test_retired_nutrition_utility_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_NUTRITION_UTILITY_BINDINGS == (
+        "MANDATORY_MICRO_DEFAULTS",
+        "MAX_DAILY_KCAL",
+        "MICRO_ALIAS_MAP",
+        "MIN_DAILY_KCAL",
+        "_alias_micros",
+        "_clamp_daily_kcal",
+        "_ensure_priority_micros",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 58
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 58
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:51]).isdisjoint(RETIRED_NUTRITION_UTILITY_BINDINGS)
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -151,6 +174,30 @@ def test_legacy_growth_guard_rejects_each_pro_nutrition_binding_carrier(
     source_template: str,
 ) -> None:
     """Reject each retired nutrition name through the existing recognized carriers."""
+    source = source_template.format(name=binding_name)
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_NUTRITION_UTILITY_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from core.nutrition_utils import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_legacy_growth_guard_rejects_each_nutrition_utility_binding_carrier(
+    binding_name: str,
+    source_template: str,
+) -> None:
     source = source_template.format(name=binding_name)
 
     assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
