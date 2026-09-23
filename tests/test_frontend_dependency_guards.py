@@ -1651,6 +1651,35 @@ def _assert_transitive_npm_occurrence(
     _assert_sha512_integrity(value=package.get("integrity"), source=source)
 
 
+def _assert_no_published_opaque_inner_graph(*, surface: str, document: dict) -> None:
+    """Reject finite npm-v3 inner-graph carriers before target claims."""
+
+    packages = document.get("packages")
+    assert isinstance(packages, dict), f"{surface}: packages must be an object"
+    for package_path, package in packages.items():
+        assert isinstance(package_path, str), f"{surface}: package path must be text"
+        assert isinstance(package, dict), f"{surface}:{package_path}: package must be an object"
+        _assert_manifest_dependency_container_shapes(
+            document=package, surface=f"{surface}:{package_path}"
+        )
+        has_shrinkwrap = package.get("hasShrinkwrap", False)
+        assert (
+            type(has_shrinkwrap) is bool
+        ), f"{surface}:{package_path}: hasShrinkwrap must be an exact boolean"
+        assert (
+            not has_shrinkwrap
+        ), f"{surface}:{package_path}: published nested shrinkwrap blocks batch admission"
+        for field in ("bundleDependencies", "bundledDependencies"):
+            assert not package.get(
+                field, []
+            ), f"{surface}:{package_path}: published bundled dependencies block batch admission"
+        in_bundle = package.get("inBundle", False)
+        assert (
+            type(in_bundle) is bool
+        ), f"{surface}:{package_path}: inBundle must be boolean when present"
+        assert not in_bundle, f"{surface}:{package_path}: bundled lock occurrence is forbidden"
+
+
 def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str, frozenset[str]]:
     """Enforce the exact authorized target batch after shared npm admission."""
 
@@ -1685,33 +1714,7 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             document.get("lockfileVersion") == 3
         ), f"{relative}: transitive batch supports only npm lockfileVersion 3"
         _assert_lock_surface_canonical_provenance(surface=relative, document=document)
-        packages = document.get("packages")
-        assert isinstance(packages, dict), f"{relative}: packages must be an object"
-        for package_path, package in packages.items():
-            assert isinstance(package_path, str), f"{relative}: package path must be text"
-            assert isinstance(
-                package, dict
-            ), f"{relative}:{package_path}: package must be an object"
-            _assert_manifest_dependency_container_shapes(
-                document=package, surface=f"{relative}:{package_path}"
-            )
-            has_shrinkwrap = package.get("hasShrinkwrap", False)
-            assert (
-                type(has_shrinkwrap) is bool
-            ), f"{relative}:{package_path}: hasShrinkwrap must be an exact boolean"
-            assert (
-                not has_shrinkwrap
-            ), f"{relative}:{package_path}: published nested shrinkwrap blocks batch admission"
-            for field in ("bundleDependencies", "bundledDependencies"):
-                assert not package.get(field, []), (
-                    f"{relative}:{package_path}: published bundled dependencies "
-                    "block batch admission"
-                )
-            in_bundle = package.get("inBundle", False)
-            assert (
-                type(in_bundle) is bool
-            ), f"{relative}:{package_path}: inBundle must be boolean when present"
-            assert not in_bundle, f"{relative}:{package_path}: bundled lock occurrence is forbidden"
+        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
         for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
             for path, package in _find_lock_occurrences(
                 document,
@@ -1936,6 +1939,7 @@ def _assert_vitest_security_surfaces(surfaces: dict[str, dict]) -> None:
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES, f"{relative}: unexpected npm surface"
         _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
         for target in VITEST_ADVISORY_RANGES:
             for path, package in _find_lock_occurrences(document, target=target).items():
                 source = f"{relative}:{path}"
@@ -4663,6 +4667,13 @@ def _vitest_guard_fixture() -> dict[str, dict]:
         ("malformed-lock", "packages.*must be a dict"),
         ("missing-integrity", "integrity"),
         ("wrong-provenance", "resolved"),
+        ("nested-shrinkwrap", "published nested shrinkwrap blocks batch admission"),
+        ("malformed-shrinkwrap", "hasShrinkwrap must be an exact boolean"),
+        ("bundled-mocker-carrier", "published bundled dependencies block batch admission"),
+        ("alternate-bundled-carrier", "published bundled dependencies block batch admission"),
+        ("malformed-bundle-carrier", "bundleDependencies must be an array"),
+        ("in-bundle-carrier", "bundled lock occurrence is forbidden"),
+        ("malformed-in-bundle-carrier", "inBundle must be boolean when present"),
         ("prerelease", "prerelease"),
     ),
 )
@@ -4732,6 +4743,20 @@ def test_vitest_batch_guard_rejects_unsafe_or_unprovable_head(case: str, message
         packages["node_modules/@vitest/mocker"][
             "resolved"
         ] = "https://example.invalid/@vitest/mocker/-/mocker-4.1.11.tgz"
+    elif case == "nested-shrinkwrap":
+        packages["node_modules/@vitest/coverage-v8"]["hasShrinkwrap"] = True
+    elif case == "malformed-shrinkwrap":
+        packages["node_modules/@vitest/coverage-v8"]["hasShrinkwrap"] = "false"
+    elif case == "bundled-mocker-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundleDependencies"] = ["@vitest/mocker"]
+    elif case == "alternate-bundled-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundledDependencies"] = ["@vitest/mocker"]
+    elif case == "malformed-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundleDependencies"] = {}
+    elif case == "in-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["inBundle"] = True
+    elif case == "malformed-in-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["inBundle"] = "false"
     elif case == "prerelease":
         packages["node_modules/@vitest/mocker"]["version"] = "5.0.0-beta.1"
         packages["node_modules/@vitest/mocker"][
@@ -4756,6 +4781,40 @@ def test_vitest_batch_guard_accepts_safe_future_cohort() -> None:
         entry["resolved"] = f"https://registry.npmjs.org/{name}/-/{basename}-4.1.12.tgz"
     lock["packages"]["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.12"
     _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_guard_accepts_explicit_empty_inner_graph_metadata() -> None:
+    """Exact empty npm-v3 metadata preserves an ordinary safe lock."""
+
+    surfaces = _vitest_guard_fixture()
+    packages = surfaces["frontend/package-lock.json"]["packages"]
+    carrier = packages["node_modules/@vitest/coverage-v8"]
+    carrier.update(
+        {
+            "hasShrinkwrap": False,
+            "bundleDependencies": [],
+            "bundledDependencies": False,
+            "inBundle": False,
+        }
+    )
+    _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_guard_rejects_opaque_carrier_in_other_tracked_lock() -> None:
+    """A separate tracked lock cannot hide an affected occurrence."""
+
+    surfaces = _vitest_guard_fixture()
+    surfaces["future/package-lock.json"] = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/carrier": {
+                **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                "bundledDependencies": ["vitest"],
+            }
+        },
+    }
+    with pytest.raises(AssertionError, match="published bundled dependencies"):
+        _assert_vitest_security_surfaces(surfaces)
 
 
 def test_vitest_cutoff_keeps_every_advisory_and_prerelease_branch() -> None:
