@@ -1,6 +1,7 @@
 import Foundation
 
-public protocol WeeklyPlanServicing: Sendable {
+nonisolated public protocol WeeklyPlanServicing: Sendable {
+    @MainActor
     func fetchWeeklyPlan(request: WeeklyPlanRequest) async throws -> WeeklyPlanDTO
 }
 

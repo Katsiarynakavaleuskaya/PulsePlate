@@ -1,6 +1,7 @@
 import Foundation
 
-protocol CBTInsightServicing: Sendable {
+nonisolated protocol CBTInsightServicing: Sendable {
+    @MainActor
     func fetchInsight(query: String, apiKey: String) async throws -> CBTInsightResponseDTO
 }
 

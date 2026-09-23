@@ -310,13 +310,13 @@ If it is not recorded here — it does not exist.
     persisted-data repair is required.
 
 <a id="ledger-client-arch-1-cab-03"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
+- [x] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
   - Owner: app-store-release-agent / agent-coordinator
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
   - Target PR: [PR #2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
     (`codex/ios-release-build-appicon-integrity`)
-  - Status: Implementation active in PR #2381; ordered post-open role review and targeted QA
-    completed. Final current-head CI, exact-material closeout, wait window and human merge remain pending.
+  - Status: Merged in PR #2381. The CAB-03 AppIcon and Release-build carrier is closed;
+    CAB-04 actor-isolation work is tracked separately below.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
   - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
@@ -354,9 +354,10 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
-  - Target PR: pending, separate carrier PRs after CAB-03 merge and exact-main proof
-  - Status: Open; no later carrier is implemented or closed by CAB-03. The accepted CAB-03
-    handoff names the reservations below; this record grants no new implementation or release authority.
+  - Target PR: CAB-04 pending PR number (`codex/ios-explicit-actor-boundaries`);
+    CAB-05–CAB-09 remain separate future carriers.
+  - Status: CAB-03 is merged in PR #2381; CAB-04 implementation is active on its own branch
+    and remains unchecked until its separate merge. Later reservations remain open.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -364,7 +365,9 @@ If it is not recorded here — it does not exist.
     - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
     - `ios/AGENTS.md`
   - Open reservations:
-    - [ ] CAB-04: actor-isolation work; exact scope and DoD require its own admission.
+    - [ ] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
+      boundaries explicit in the iOS client without changing behavior; use the separate
+      CAB-04 PR and current-head evidence before closing this item.
     - [ ] CAB-05: warning cleanup / warnings-as-errors, including the unrelated AppIntents
       metadata-extraction warning; no warning-free claim is made by CAB-03.
     - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.

@@ -30,11 +30,11 @@ public final class AIInsightViewModel {
     init(
         service: CBTInsightServicing,
         apiKeyProvider: @escaping @Sendable () -> String? = { nil },
-        consentProvider: AIWellnessConsentProviding = AIWellnessConsentStore()
+        consentProvider: AIWellnessConsentProviding? = nil
     ) {
         self.service = service
         self.apiKeyProvider = apiKeyProvider
-        self.consentProvider = consentProvider
+        self.consentProvider = consentProvider ?? AIWellnessConsentStore()
     }
 
     public var canSubmit: Bool {

@@ -31,11 +31,11 @@ enum AppStoreScreenshotScenario: String, CaseIterable {
 }
 
 enum AppStoreScreenshotContext {
-    private static let enabledArgument = "-appstore-screenshot-mode"
+    nonisolated private static let enabledArgument = "-appstore-screenshot-mode"
     private static let scenarioArgument = "-appstore-screenshot-scenario"
-    private static let enabledEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
+    nonisolated private static let enabledEnvironmentKey = "APPSTORE_SCREENSHOT_MODE"
 
-    static var isEnabled: Bool {
+    nonisolated static var isEnabled: Bool {
         let processInfo = ProcessInfo.processInfo
         return processInfo.arguments.contains(enabledArgument)
             || processInfo.environment[enabledEnvironmentKey] == "1"
@@ -58,9 +58,8 @@ enum AppStoreScreenshotContext {
         return nil
     }
 
-    // RU: nonisolated(unsafe) безопасен для `previewProKey`, потому что getter возвращает только константы.
-    // EN: nonisolated(unsafe) is safe for `previewProKey` because the getter returns constants only.
-    nonisolated(unsafe) static var previewProKey: String? {
+    // Computed from process launch state; no shared mutable state is accessed.
+    nonisolated static var previewProKey: String? {
         guard isEnabled else { return nil }
 
         return "appstore-preview-key"
