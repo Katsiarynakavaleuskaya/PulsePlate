@@ -32,6 +32,12 @@ NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.18"),
     SpecifierSet(">=4,<5.1.16"),
 )
+SMOL_TOML_AFFECTED_RANGES = (
+    SpecifierSet("<=1.8.0"),  # GHSA-r4xh-jqrq-34v2
+    SpecifierSet("<=1.7.0"),  # GHSA-7w5x-hrqm-74c2
+    SpecifierSet("<1.6.1"),  # GHSA-v3rj-xjv7-4jmq
+    SpecifierSet("<=1.3.0"),  # GHSA-pqhp-25j4-6hq9
+)
 REACT_ROUTER_AFFECTED_RANGES = (
     SpecifierSet(">=7.12,<7.18.2"),
     SpecifierSet(">=8,<8.3.0"),
@@ -918,6 +924,33 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
             target="nanoid",
             occurrences=_find_lock_occurrences(document, target="nanoid"),
             affected_ranges=NANOID_AFFECTED_RANGES,
+        )
+
+
+def test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
+    """Every tracked smol-toml carrier stays outside all four advisory ranges."""
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            _assert_manifest_occurrences_outside_ranges(
+                surface=relative,
+                target="smol-toml",
+                occurrences=_find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target="smol-toml",
+                ),
+                affected_ranges=SMOL_TOML_AFFECTED_RANGES,
+            )
+            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
+        _assert_occurrences_outside_ranges(
+            surface=relative,
+            target="smol-toml",
+            occurrences=_find_lock_occurrences(document, target="smol-toml"),
+            affected_ranges=SMOL_TOML_AFFECTED_RANGES,
         )
 
 
@@ -2325,6 +2358,133 @@ def test_nanoid_guard_rejects_affected_manifest_carrier(
 
     with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
         test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    (
+        {"overrides": {"smol-toml": "1.7.1"}},
+        {"overrides": {"smol-toml": "1.8.0"}},
+        {"overrides": {"cspell-config-lib": {"smol-toml": "1.8.0"}}},
+        {"devDependencies": {"renamed-toml": "npm:smol-toml@1.8.0"}},
+    ),
+)
+def test_smol_toml_guard_rejects_affected_manifest_carrier(
+    monkeypatch: pytest.MonkeyPatch, manifest: dict[str, Any]
+) -> None:
+    """An old floor, nested override, or renamed alias cannot hide an affected version."""
+    monkeypatch.setitem(globals(), "_load_tracked_npm_surfaces", lambda: {"package.json": manifest})
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_smol_toml_safe_alias_still_requires_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A renamed manifest alias is opaque even when its target version is safe."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"package.json": {"devDependencies": {"renamed": "npm:smol-toml@1.9.0"}}},
+    )
+
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
+
+
+@pytest.mark.parametrize(
+    ("package_path", "explicit_name"),
+    (
+        ("node_modules/cspell-config-lib/node_modules/smol-toml", None),
+        ("node_modules/renamed-toml", "smol-toml"),
+    ),
+)
+def test_smol_toml_guard_rejects_affected_nested_or_alias_lock_carrier(
+    monkeypatch: pytest.MonkeyPatch, package_path: str, explicit_name: str | None
+) -> None:
+    """Both nested installs and lock aliases remain under the universal postcondition."""
+    entry: dict[str, Any] = {
+        "version": "1.8.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+        "integrity": "sha512-test",
+    }
+    if explicit_name is not None:
+        entry["name"] = explicit_name
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"package-lock.json": {"lockfileVersion": 3, "packages": {package_path: entry}}},
+    )
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("version", "resolved", "message"),
+    (
+        (
+            "1.9",
+            "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.tgz",
+            "version must be exact npm SemVer",
+        ),
+        (
+            "1.9.0",
+            "https://evil.example/smol-toml/-/smol-toml-1.9.0.tgz",
+            "resolved must be the canonical smol-toml registry tarball",
+        ),
+        (
+            "1.9.0",
+            "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+            "resolved tarball version must equal package version",
+        ),
+    ),
+)
+def test_smol_toml_guard_rejects_malformed_or_unproven_lock_carrier(
+    version: str, resolved: str, message: str
+) -> None:
+    """A safe-looking path cannot stand in for comparable, provenanced lock data."""
+    occurrences = {
+        "node_modules/smol-toml": {
+            "version": version,
+            "resolved": resolved,
+            "integrity": "sha512-test",
+        }
+    }
+
+    with pytest.raises(AssertionError, match=message):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="smol-toml",
+            occurrences=occurrences,
+            affected_ranges=SMOL_TOML_AFFECTED_RANGES,
+        )
+
+
+def test_smol_toml_guard_allows_exact_safe_current_carriers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 1.9.0 override and matching canonical lock artifact satisfy the current guard."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "package.json": {"overrides": {"smol-toml": "1.9.0"}},
+            "package-lock.json": {
+                "lockfileVersion": 3,
+                "packages": {
+                    "node_modules/smol-toml": {
+                        "version": "1.9.0",
+                        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+                        "integrity": "sha512-test",
+                    }
+                },
+            },
+        },
+    )
+
+    test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
 def test_react_router_guard_allows_safe_exact_direct_manifest_carrier(
