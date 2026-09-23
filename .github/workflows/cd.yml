@@ -2838,11 +2838,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Bind backend checkout to its revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+
       - name: Build & Push backend image (staging)
         id: build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           secret-envs: |
@@ -2863,6 +2872,21 @@ jobs:
           # Use dedicated staging target which extends production but allows
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
+
+      - name: Verify immutable backend revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+          IMAGE_REPOSITORY: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          BACKEND_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$BACKEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_ref="${IMAGE_REPOSITORY}@${BACKEND_DIGEST}"
+          docker pull --platform linux/amd64 "$image_ref"
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_ref")"
+          test "$revision" = "$EXPECTED_REVISION"
 
       - name: Build & Push Caddy image (staging)
         id: build-caddy
@@ -3637,11 +3661,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Bind backend checkout to its revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+
       - name: Build & Push image (production)
         id: build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt
           secret-envs: |
@@ -3661,6 +3694,21 @@ jobs:
           provenance: mode=min
           sbom: true
           target: production
+
+      - name: Verify immutable backend revision
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+          IMAGE_REPOSITORY: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          BACKEND_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$BACKEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_ref="${IMAGE_REPOSITORY}@${BACKEND_DIGEST}"
+          docker pull --platform linux/amd64 "$image_ref"
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_ref")"
+          test "$revision" = "$EXPECTED_REVISION"
 
       - name: Attest production image provenance
         id: attest-production-provenance

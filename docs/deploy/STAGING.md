@@ -287,6 +287,26 @@ configuration must still pass. The quoted profile selector applies only to
 read-only configuration validation, not to runtime `up`, `start`, or `pull`.
 Never print or archive the rendered environment, which can contain secrets.
 
+The dedicated worker uses the exact backend image with
+`PRIVATE_EXPORTS_ENABLED=false`: it has no HTTP/export responsibility and receives
+neither the API environment file nor the export signing secret. API export
+startup policy remains enabled and fail-closed. Both CD backend publishers set
+and inspect `org.opencontainers.image.revision` against their exact checkout;
+that config assertion supplements the separate signed provenance checks.
+
+The existing Docker validation job executes the real scheduler `--serve` CLI
+under production and staging configurations using synthetic scratch PostgreSQL
+and cache on an internal network. Its explicitly pinned existing CI pgvector image
+is only a semantic fixture, not production image/TLS/security or host-data proof.
+A fixture-only administrator creates the vector extension in the fresh scratch
+database; the actual worker uses a separate non-superuser login.
+The check binds native acquire/unlock evidence to the same still-live idle
+PostgreSQL session, requires complete error-free no-update output, stable worker
+identity/restart0, and graceful SIGTERM. An independent SQL probe or a no-update
+message emitted before unlock cannot replace that conjunction. Native fixture
+or output-shape failures block the check; there is no credential/image fallback.
+Later CD-published image and installed-host observations remain separate.
+
 Before merge, a bounded in-memory candidate check may prove the typed Docker
 binding and complete configuration on the current host without replacing its
 installed checker. Report those two boundaries separately: a later disabled
