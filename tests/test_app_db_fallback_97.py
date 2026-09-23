@@ -107,6 +107,62 @@ def test_fallback_publishes_environment_and_session_generation_together(
     db.init_db()
 
 
+def test_fallback_rejects_generation_replaced_during_retirement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A fallback publisher must not report success after a newer pair wins."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    retirement_started = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        replacement_url = f"sqlite:///{tmp_path / 'replacement.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        dispose = db._dispose_sync_engine
+
+        def pause_retirement(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is primary:
+                retirement_started.set()
+                assert release_retirement.wait(timeout=10)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db, "_dispose_sync_engine", pause_retirement)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    fallback = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        fallback_engine,
+                        False,
+                        fallback_url,
+                        "test",
+                    )
+                    assert retirement_started.wait(timeout=10)
+                    try:
+                        replacement = db.init_db(replacement_url)
+                    finally:
+                        release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB fallback generation changed during activation"
+                    ):
+                        fallback.result(timeout=10)
+            assert db._RAW_ENGINE is replacement
+            with db.get_session_factory()() as session:
+                assert session.bind is replacement
+        finally:
+            release_retirement.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
 def test_raw_getter_cannot_resurrect_primary_after_fallback_publication(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

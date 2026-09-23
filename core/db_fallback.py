@@ -205,6 +205,18 @@ def _configure_session_bindings(
             _redact_database_url(fallback_url),
         )
 
+    # Retirement and optional metrics run outside the publication lock. A new
+    # generation may have won while they ran; do not report stale activation as
+    # successful to the startup caller.
+    with core_db._init_lock:
+        current_factory = core_db.SessionLocal
+        if (
+            core_db._RAW_ENGINE is not engine
+            or current_factory is None
+            or not core_db._session_local_is_bound(current_factory, engine)
+        ):
+            raise RuntimeError("DB fallback generation changed during activation")
+
 
 def _attempt_db_fallback(
     env_name: Optional[str], is_production: bool, db_err: Exception, truthy: set[str]
