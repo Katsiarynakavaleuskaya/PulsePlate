@@ -471,6 +471,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `app.services.pro_nutrition_targets`. Unknown external direct or reflective
   imports remain a compatibility risk and require migration to the canonical
   core module.
+  The three targets/gaps service re-exports `_generate_who_targets_response`,
+  `_fallback_targets_response`, and `analyze_nutrient_gaps_response` are
+  also retired from `legacy_app.py`. Direct callers use
+  `app.services.pro_nutrition_targets.generate_who_targets_response`,
+  `fallback_targets_response`, and `analyze_nutrient_gaps_response`;
+  retained HTTP routes keep their canonical router and service owners.
 - Planning and export direct-call ownership belongs to `core/menu_engine.py`,
   `core/plate.py`, `core/recommendations.py`, and `core/exports.py`. The
   following ordinary `legacy_app.py` bindings are retired and must not be

@@ -27,13 +27,13 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Six bounded Python-binding retirements remove
-only the exact 58 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Seven bounded Python-binding retirements remove
+only the exact 61 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
-twelve-name, or sixth seven-name cohort; it does not prove that no external or
-dynamic Python consumer exists.
+twelve-name, sixth seven-name, or seventh three-name cohort; it does not prove
+that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -138,6 +138,17 @@ supported production consumer of these seven legacy names, but unknown
 external or dynamic Python imports remain a bounded compatibility risk;
 those callers must migrate to `core.nutrition_utils`. This retirement makes no
 claim about HTTP aliases, DTOs, OpenAPI, or `app._macros_to_kcal`.
+
+The three targets/gaps service re-exports `_generate_who_targets_response`,
+`_fallback_targets_response`, and `analyze_nutrient_gaps_response` are also
+retired from `legacy_app.py`. Their canonical callables remain at
+`app/services/pro_nutrition_targets.py:248`,
+`app/services/pro_nutrition_targets.py:118`, and
+`app/services/pro_nutrition_targets.py:360`. Repository-owned behavior tests
+call the canonical service with the existing request schema, inputs, patches,
+and assertions. The retained HTTP aliases, DTOs, OpenAPI, and FastAPI app
+identity are unchanged. Unknown external or dynamic importers of these three
+legacy names must migrate to the canonical service.
 
 The following planning/export direct-call Python bindings are also retired from
 `legacy_app.py`: `analyze_nutrient_gaps`, `make_daily_menu`,
@@ -284,14 +295,20 @@ bounded child, [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/p
 13:11:06 UTC as `c845a7e5e6a8af4c0678608c8d3996dafe1ae323`. It retired
 exactly the twelve Plate helper bindings above, extended the retired-name
 data from 39 to 51, and included the merged #2365 ledger reconciliation.
-The next child, [PR #2402](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2402)
+[PR #2402](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2402)
 (`codex/retire-legacy-nutrition-utils-exports`),
-retires only the seven `core.nutrition_utils` projections above, extending the
-same name set from 51 to 58 without changing its recognizer. The parent Legacy
-epic remains open. All retained
-Insight HTTP routes, all four versioned nutrition aliases, and both root aliases
-remain callable; versioned-alias retirement, root-alias auth/sunset, retained
-Insight HTTP-alias retirement, and final legacy deletion remain separate ordered
+merged on 2026-09-23 at 14:32:10 UTC as
+`ab7da79ce12cbd25537df57551b57b31e69409d0`. It retired only the seven
+`core.nutrition_utils` projections above and extended the same name set from
+51 to 58 without changing its recognizer. The current bounded child,
+[PR #2407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2407)
+(`codex/retire-legacy-targets-gaps-service-exports`) retires only the three
+targets/gaps service projections above, extending the exact-name set from 58 to
+61 without changing its recognizer. The parent Legacy epic remains open.
+All retained Insight HTTP routes, all four versioned nutrition aliases, and
+both root aliases remain callable. Versioned-alias retirement, root-alias
+auth/sunset, retained Insight HTTP-alias retirement, and final legacy deletion
+remain separate ordered
 lanes behind their own evidence
 (canonical route evidence: `app/routers/pro_nutrition_contracts.py:61` and
 `app/routers/pro_nutrition_contracts.py:72`; bounded registrar evidence:
@@ -367,9 +384,9 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-For the 58 retired Python bindings, the guard has a deliberately bounded
+For the 61 retired Python bindings, the guard has a deliberately bounded
 finite mechanical claim over the exact repo-relative `legacy_app.py` source
-only. It freezes the exact 58-name set, uses the existing `_assigned_names`
+only. It freezes the exact 61-name set, uses the existing `_assigned_names`
 collector for statically visible ordinary module-scope `Name` Store/Del
 bindings, rejects explicit `global` declarations for a protected name, rejects
 all star imports, and rejects a statically bound module-level `__getattr__`.
@@ -387,7 +404,7 @@ import hooks, reflection, arbitrary helpers, and external monkeypatching. The
 rule neither accepts nor certifies those families and makes no completeness
 claim about them. Any new or changed dynamic namespace carrier in
 `legacy_app.py`, and any dynamic carrier intended to bind or rebind one of the
-58 protected names, requires manual STOP and review. The existing router-import
+61 protected names, requires manual STOP and review. The existing router-import
 recognizer separately rejects reintroduction of the former exact dynamic
 `app.routers.plan_export -> _plan_mod` fact; this does not widen the ordinary
 binding rule or certify arbitrary namespace mutation.
