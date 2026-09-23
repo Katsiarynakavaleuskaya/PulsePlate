@@ -8939,7 +8939,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) -> [PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365) (`codex/alembic-autogenerate-completeness`) -> [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2388) (`codex/retire-legacy-plate-helper-exports`) -> PR-TBD-FRESH-RESIDUAL-FACADE-CENSUS -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> [PR #2314](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2314) (`codex/pro-nutrition-canonical-cutover`) -> [PR #2317](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2317) (`codex/retire-legacy-admin-bmi-python-shims`) -> [PR #2322](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2322) (`codex/retire-legacy-pro-nutrition-python-shims`) -> [PR #2336](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2336) (`codex/retire-legacy-planning-export-python-shims`) -> [PR #2343](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2343) (`codex/retire-legacy-insight-python-exports`) -> [PR #2349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2349) (`codex/canonical-orm-model-registration`) -> [PR #2355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2355) (`codex/reconcile-postgres-orm-alembic-drift`) -> [PR #2365](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2365) (`codex/alembic-autogenerate-completeness`) -> [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2388) (`codex/retire-legacy-plate-helper-exports`) -> [PR #2402](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2402) (`codex/retire-legacy-nutrition-utils-exports`) -> PR-TBD-FRESH-RESIDUAL-FACADE-CENSUS -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -8969,12 +8969,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     PostgreSQL ORM/Alembic drift reconciliation at `a157d445c98c`. PR #2365 merged
     bounded exact-head admission at `9cf03aba9aa127b3d5f4bbd790c51458721cc202`,
     with the positive claim limited to `bounded_exact_head_autogenerate_admission=PASS`.
-    The current child is [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2388)
-    (`codex/retire-legacy-plate-helper-exports`): retire only the twelve Plate
-    helper re-exports after the fresh residual facade census, preserve canonical
-    service behavior and `app._macros_to_kcal`, and extend the existing retired
-    set from 39 to 51 without recognizer changes. This same implementation PR
-    carries the merged #2365 ledger reconciliation. This parent stays open:
+    [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2388)
+    (`codex/retire-legacy-plate-helper-exports`) merged on
+    2026-09-10T13:11:06Z with squash
+    `c845a7e5e6a8af4c0678608c8d3996dafe1ae323`. It retired exactly twelve
+    Plate helper re-exports, extended the guard from 39 to 51, preserved canonical
+    service behavior and `app._macros_to_kcal`, and included the merged #2365
+    ledger reconciliation. The current child is
+    [PR #2402](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2402)
+    (`codex/retire-legacy-nutrition-utils-exports`): retire
+    only seven `core.nutrition_utils` Python projections from `legacy_app.py`
+    and extend the exact-name guard from 51 to 58. This parent stays open:
     telemetry-admitted versioned aliases, retained Insight HTTP aliases,
     root-alias auth/sunset, residual facade census, and final facade deletion
     remain separate later lanes.

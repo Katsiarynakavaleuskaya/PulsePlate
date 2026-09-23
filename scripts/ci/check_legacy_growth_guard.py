@@ -90,6 +90,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_is_missing_nh3_error",
         "_raise_missing_nh3_http_error",
         "calculate_heuristic_macros",
+        "MANDATORY_MICRO_DEFAULTS",
+        "MAX_DAILY_KCAL",
+        "MICRO_ALIAS_MAP",
+        "MIN_DAILY_KCAL",
+        "_alias_micros",
+        "_clamp_daily_kcal",
+        "_ensure_priority_micros",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
