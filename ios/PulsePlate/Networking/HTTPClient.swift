@@ -1,7 +1,7 @@
 import Foundation
 
 /// Protocol for HTTP client (enables testing via URLProtocol stubs).
-public protocol HTTPClientProtocol: Sendable {
+nonisolated public protocol HTTPClientProtocol: Sendable {
     func send<T: Decodable>(
         _ request: URLRequest,
         responseType: T.Type
@@ -19,7 +19,7 @@ public protocol HTTPClientProtocol: Sendable {
 /// - No BMI/waist/risk logic
 /// - No business rule interpretation
 /// - No i18n localization (error messages are passed through as-is)
-public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
+nonisolated public final class HTTPClient: HTTPClientProtocol, Sendable {
     private let session: URLSession
 
     public init(session: URLSession = .shared) {

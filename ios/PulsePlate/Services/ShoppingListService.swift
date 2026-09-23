@@ -1,6 +1,7 @@
 import Foundation
 
-public protocol ShoppingListServicing: Sendable {
+nonisolated public protocol ShoppingListServicing: Sendable {
+    @MainActor
     func fetchShoppingList(request: ShoppingListRequest) async throws -> ShoppingListDTO
 }
 

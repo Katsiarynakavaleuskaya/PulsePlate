@@ -2,7 +2,7 @@ import Foundation
 
 /// Component of FastAPI/Pydantic `loc` path.
 /// Can be a string ("body", "field") or an int (array index).
-public enum LocationComponent: Codable, Equatable, Sendable {
+nonisolated public enum LocationComponent: Codable, Equatable, Sendable {
     case string(String)
     case int(Int)
 
@@ -37,11 +37,11 @@ public enum LocationComponent: Codable, Equatable, Sendable {
 ///
 /// Format: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}]}`
 /// Note: `msg` is plain English (not i18n keys) per audit contract.
-public struct ValidationErrorResponse: Decodable, Equatable, Sendable {
+nonisolated public struct ValidationErrorResponse: Decodable, Equatable, Sendable {
     public let detail: [ValidationErrorItem]
 }
 
-public struct ValidationErrorItem: Decodable, Equatable, Sendable {
+nonisolated public struct ValidationErrorItem: Decodable, Equatable, Sendable {
     public let loc: [LocationComponent]
     public let msg: String
     public let type: String
@@ -52,6 +52,6 @@ public struct ValidationErrorItem: Decodable, Equatable, Sendable {
 ///
 /// Format: `{"detail": "localized error message"}`
 /// Note: `detail` is localized text via backend `t(lang, key)` per audit contract.
-public struct SimpleErrorResponse: Decodable, Equatable, Sendable {
+nonisolated public struct SimpleErrorResponse: Decodable, Equatable, Sendable {
     public let detail: String
 }

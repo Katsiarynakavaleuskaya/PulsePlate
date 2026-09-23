@@ -153,15 +153,16 @@ class NutritionService: ObservableObject {
   private let dailyService: ProDailyNutritionServicing
 
   init(
-    apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL()),
-    profileProvider: ProfileProviding = DefaultProfileProvider(),
+    apiClient: APIClientProtocol? = nil,
+    profileProvider: ProfileProviding? = nil,
     apiKeyProvider: @escaping @Sendable () -> String? = { AppStoreScreenshotContext.previewProKey ?? ProKeyProvider.value() },
     dailyService: ProDailyNutritionServicing? = nil
   ) {
-    self.apiClient = apiClient
-    self.profileProvider = profileProvider
+    let resolvedAPIClient = apiClient ?? APIClient(baseURL: AppConfig.baseURL())
+    self.apiClient = resolvedAPIClient
+    self.profileProvider = profileProvider ?? DefaultProfileProvider()
     self.apiKeyProvider = apiKeyProvider
-    self.dailyService = dailyService ?? DefaultProDailyNutritionService(apiClient: apiClient)
+    self.dailyService = dailyService ?? DefaultProDailyNutritionService(apiClient: resolvedAPIClient)
   }
 
   func fetchNutritionData(for date: Date = Date()) async {
