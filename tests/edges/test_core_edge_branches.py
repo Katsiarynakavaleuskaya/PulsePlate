@@ -42,10 +42,11 @@ def test_intervention_trigger_engine_invalid_inputs_fail_closed() -> None:
 
 
 def test_who_targets_fallback_response_includes_next_best_action() -> None:
-    """RU/EN: Smoke-cover legacy WHO fallback monetization hint wiring."""
-    import legacy_app
+    """RU/EN: Smoke-cover canonical WHO fallback monetization hint wiring."""
+    from app.schemas.premium_contracts import WHOTargetsRequest
+    from app.services import pro_nutrition_targets as service
 
-    request = legacy_app.WHOTargetsRequest(
+    request = WHOTargetsRequest(
         sex="female",
         age=29,
         height_cm=168,
@@ -56,7 +57,7 @@ def test_who_targets_fallback_response_includes_next_best_action() -> None:
         lang="en",
     )
 
-    response = legacy_app._fallback_targets_response(
+    response = service.fallback_targets_response(
         request,
         reason="Fallback used during smoke coverage.",
     )
@@ -70,7 +71,7 @@ def test_generate_who_targets_response_sets_next_best_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """RU/EN: Smoke-cover canonical WHO-targets post-processing after builder success."""
-    import legacy_app
+    from app.schemas.premium_contracts import WHOTargetsRequest
     from app.services import pro_nutrition_targets as service
 
     targets = SimpleNamespace(
@@ -92,7 +93,7 @@ def test_generate_who_targets_response_sets_next_best_action(
         lambda _targets: [],
     )
 
-    request = legacy_app.WHOTargetsRequest(
+    request = WHOTargetsRequest(
         sex="female",
         age=31,
         height_cm=167,
@@ -103,7 +104,7 @@ def test_generate_who_targets_response_sets_next_best_action(
         lang="en",
     )
 
-    response = legacy_app._generate_who_targets_response(request)
+    response = service.generate_who_targets_response(request)
 
     assert response.kcal_daily == 2150
     assert response.next_best_action is not None
