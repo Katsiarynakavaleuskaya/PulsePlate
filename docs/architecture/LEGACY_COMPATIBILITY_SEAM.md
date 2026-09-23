@@ -284,7 +284,8 @@ bounded child, [PR #2388](https://github.com/Katsiarynakavaleuskaya/PulsePlate/p
 13:11:06 UTC as `c845a7e5e6a8af4c0678608c8d3996dafe1ae323`. It retired
 exactly the twelve Plate helper bindings above, extended the retired-name
 data from 39 to 51, and included the merged #2365 ledger reconciliation.
-The next child (`codex/retire-legacy-nutrition-utils-exports`, PR number pending)
+The next child, [PR #2402](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2402)
+(`codex/retire-legacy-nutrition-utils-exports`),
 retires only the seven `core.nutrition_utils` projections above, extending the
 same name set from 51 to 58 without changing its recognizer. The parent Legacy
 epic remains open. All retained
