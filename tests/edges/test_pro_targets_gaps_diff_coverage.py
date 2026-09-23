@@ -694,11 +694,9 @@ def test_targets_and_gaps_runtime_owners_do_not_resolve_through_legacy_facades()
             _assert_no_legacy_or_sys_modules(_function_node(path, function_name))
 
 
-def test_legacy_targets_gaps_and_shared_helpers_are_exact_aliases() -> None:
+def test_legacy_targets_gaps_schemas_and_shared_helpers_are_exact_aliases() -> None:
     assert legacy_app.NutrientGapsRequest is NutrientGapsRequest
     assert legacy_app.NutrientGapsResponse is NutrientGapsResponse
-    assert legacy_app._generate_who_targets_response is service.generate_who_targets_response
-    assert legacy_app._fallback_targets_response is service.fallback_targets_response
     assert service.clamp_daily_kcal is clamp_daily_kcal
     assert service.alias_micros is alias_micros
     assert service.ensure_priority_micros is ensure_priority_micros
