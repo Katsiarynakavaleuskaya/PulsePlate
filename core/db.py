@@ -887,10 +887,10 @@ def _open_selected_async_session(
                 or _ASYNC_ENGINE is not selected_engine
                 or AsyncSessionLocal is not selected_factory
                 or async_engine is not selected_engine
-                or selected_engine.url != target_url
+                or generation[0].url != target_url
             ):
                 raise RuntimeError("Async DB generation changed during session acquisition")
-            return selected_factory()
+            return generation[1]()
 
 
 # Public async engine accessor (lazy, updated by _get_async_engine())
