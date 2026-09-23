@@ -70,6 +70,7 @@ def test_get_async_session_success_path(monkeypatch: pytest.MonkeyPatch) -> None
             return fake_engine, factory
 
         monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
 
         gen = db_module.get_async_session()
         session = await gen.__anext__()
@@ -110,6 +111,7 @@ def test_session_scope_async_commits_and_closes(monkeypatch: pytest.MonkeyPatch)
             return fake_engine, factory
 
         monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
 
         async with db_module.session_scope_async() as session:
             assert isinstance(session, DummyAsyncSession)
@@ -153,6 +155,7 @@ def test_session_scope_async_rolls_back_on_error(
             return fake_engine, factory
 
         monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
 
         with pytest.raises(RuntimeError, match="boom"):
             async with db_module.session_scope_async() as session:

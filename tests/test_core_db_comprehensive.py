@@ -12,6 +12,61 @@ from sqlalchemy import create_engine, text
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@pytest.mark.parametrize("surface", ["dependency", "scope"])
+def test_async_session_rejects_pair_retired_before_construction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, surface: str
+) -> None:
+    from core import db
+
+    first_url = f"sqlite+aiosqlite:///{tmp_path / 'first.sqlite'}"
+    second_url = f"sqlite+aiosqlite:///{tmp_path / 'second.sqlite'}"
+
+    async def scenario() -> None:
+        original_acquire = db._get_async_engine_and_factory
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        monkeypatch.setenv("DATABASE_ASYNC_URL", first_url)
+        try:
+            first_pair = await original_acquire()
+            assert first_pair is not None
+
+            async def paused_acquire():
+                pair = await original_acquire()
+                entered.set()
+                await release.wait()
+                return pair
+
+            with monkeypatch.context() as racing:
+                racing.setattr(db, "_get_async_engine_and_factory", paused_acquire)
+
+                async def open_session() -> None:
+                    if surface == "dependency":
+                        async for _session in db.get_async_session():
+                            pass
+                    else:
+                        async with db.session_scope_async():
+                            pass
+
+                pending = asyncio.create_task(open_session())
+                await asyncio.wait_for(entered.wait(), timeout=5)
+                try:
+                    racing.setenv("DATABASE_ASYNC_URL", second_url)
+                    second_pair = await original_acquire()
+                    assert second_pair is not None and second_pair[0] is not first_pair[0]
+                finally:
+                    release.set()
+                with pytest.raises(
+                    RuntimeError, match="Async DB generation changed during session acquisition"
+                ):
+                    await asyncio.wait_for(pending, timeout=5)
+        finally:
+            monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+            monkeypatch.setenv("DATABASE_USE_ASYNC", "0")
+            await original_acquire()
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("first_transition", ["replace", "disable"])
 @pytest.mark.parametrize("selector_conflict", [False, True])
 def test_async_acquisition_returns_current_pair_after_concurrent_retirement(

@@ -51,6 +51,71 @@ class _TrackingLock:
         return self.owner == get_ident()
 
 
+@pytest.mark.parametrize("same_retired_path", [False, True])
+def test_fallback_candidate_rejects_newer_generation_and_protects_its_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, same_retired_path: bool
+) -> None:
+    from core import db, db_fallback
+
+    primary_path = tmp_path / "primary.sqlite"
+    primary_url = f"sqlite:///{primary_path}"
+    replacement_url = f"sqlite:///{tmp_path / 'replacement.sqlite'}"
+    fallback_path = primary_path if same_retired_path else tmp_path / "fallback.sqlite"
+    fallback_url = f"sqlite:///{fallback_path}"
+    candidate_ready = Event()
+    release_candidate = Event()
+
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", primary_url)
+        env.setenv("DB_FALLBACK_URL", fallback_url)
+        env.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1" if same_retired_path else "0")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        initialize = db_fallback._initialize_fallback_engine
+        candidates: list[Engine] = []
+
+        def paused_initialize(url: str, error: Exception) -> Engine:
+            candidate = initialize(url, error)
+            candidates.append(candidate)
+            candidate_ready.set()
+            assert release_candidate.wait(timeout=10)
+            return candidate
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db_fallback, "_initialize_fallback_engine", paused_initialize)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    fallback = workers.submit(
+                        db_fallback._attempt_db_fallback,
+                        "test",
+                        False,
+                        OSError("synthetic primary failure"),
+                        {"1", "true", "yes", "on"},
+                    )
+                    assert candidate_ready.wait(timeout=10)
+                    try:
+                        assert db._RAW_ENGINE is primary
+                        selected = db.init_db(replacement_url)
+                        if same_retired_path:
+                            assert primary_path.is_file()
+                    finally:
+                        release_candidate.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during fallback initialization"
+                    ):
+                        fallback.result(timeout=10)
+            assert db._RAW_ENGINE is selected
+            assert candidates and all(candidate is not selected for candidate in candidates)
+            assert db._inflight_sqlite_candidate_paths == {}
+            assert db_fallback.is_fallback_active() is False
+        finally:
+            release_candidate.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
 def test_fallback_publishes_environment_and_session_generation_together(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

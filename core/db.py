@@ -332,6 +332,30 @@ _init_lock = threading.RLock()
 _inflight_sqlite_candidate_paths: dict[str, int] = {}
 
 
+def _register_sqlite_candidate_path(database_url: str) -> str | None:
+    """Protect a prepared ordinary SQLite file until its publication decision."""
+    path = _extract_sqlite_cleanup_path(database_url)
+    if path is None:
+        return None
+    realpath = os.path.realpath(path)
+    with _init_lock:
+        _inflight_sqlite_candidate_paths[realpath] = (
+            _inflight_sqlite_candidate_paths.get(realpath, 0) + 1
+        )
+    return realpath
+
+
+def _unregister_sqlite_candidate_path(realpath: str | None) -> None:
+    if realpath is None:
+        return
+    with _init_lock:
+        remaining = _inflight_sqlite_candidate_paths[realpath] - 1
+        if remaining:
+            _inflight_sqlite_candidate_paths[realpath] = remaining
+        else:
+            del _inflight_sqlite_candidate_paths[realpath]
+
+
 def _get_raw_engine() -> "Engine":
     """Return the singleton SQLAlchemy Engine, creating it lazily on first use.
 
@@ -846,6 +870,29 @@ async def _get_async_engine() -> Optional["AsyncEngine"]:
     return None if generation is None else generation[0]
 
 
+def _open_selected_async_session(
+    generation: tuple["AsyncEngine", "AsyncSessionmaker[AsyncSession]"],
+) -> "AsyncSession":
+    """Create a new session only while its engine/factory pair is current."""
+    selected_engine, selected_factory = generation
+    with _init_lock:
+        try:
+            effective_url = _get_async_database_url()
+            target_url = make_url(effective_url) if effective_url is not None else None
+        except Exception:
+            raise RuntimeError("Async DB generation changed during session acquisition") from None
+        with _ASYNC_INIT_LOCK:
+            if (
+                target_url is None
+                or _ASYNC_ENGINE is not selected_engine
+                or AsyncSessionLocal is not selected_factory
+                or async_engine is not selected_engine
+                or selected_engine.url != target_url
+            ):
+                raise RuntimeError("Async DB generation changed during session acquisition")
+            return selected_factory()
+
+
 # Public async engine accessor (lazy, updated by _get_async_engine())
 # RU: Публичный доступ к async engine. Инициализируется лениво через _get_async_engine().
 # EN: Public access to async engine. Initialized lazily via _get_async_engine().
@@ -964,8 +1011,7 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     if generation is None:
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
-    _, session_factory = generation
-    session = session_factory()
+    session = _open_selected_async_session(generation)
     try:
         yield session
     finally:
@@ -990,8 +1036,7 @@ async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     if generation is None:
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
-    _, session_factory = generation
-    session = session_factory()
+    session = _open_selected_async_session(generation)
     try:
         yield session
         await session.commit()
@@ -1043,12 +1088,7 @@ def init_db(database_url: str | None = None) -> "Engine":
                 SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
             return _RAW_ENGINE
 
-        candidate_path = _extract_sqlite_cleanup_path(db_url)
-        candidate_realpath = os.path.realpath(candidate_path) if candidate_path else None
-        if candidate_realpath is not None:
-            _inflight_sqlite_candidate_paths[candidate_realpath] = (
-                _inflight_sqlite_candidate_paths.get(candidate_realpath, 0) + 1
-            )
+        candidate_realpath = _register_sqlite_candidate_path(db_url)
 
     try:
         # Prepare the replacement completely before exposing it to new sessions.
@@ -1103,13 +1143,7 @@ def init_db(database_url: str | None = None) -> "Engine":
             if candidate_to_dispose is not None:
                 _dispose_sync_engine(candidate_to_dispose)
     finally:
-        if candidate_realpath is not None:
-            with _init_lock:
-                remaining = _inflight_sqlite_candidate_paths[candidate_realpath] - 1
-                if remaining:
-                    _inflight_sqlite_candidate_paths[candidate_realpath] = remaining
-                else:
-                    del _inflight_sqlite_candidate_paths[candidate_realpath]
+        _unregister_sqlite_candidate_path(candidate_realpath)
 
     if retired_engine is not None:
         _dispose_sync_engine(retired_engine)

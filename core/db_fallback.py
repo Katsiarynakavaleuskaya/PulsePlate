@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Module-level flag indicating fallback state
 _db_fallback_active = False
 _fallback_url_identity: URL | None = None
+_EXPECTED_UNSET = object()
 
 
 def _redact_database_url(database_url: str) -> str:
@@ -122,7 +123,13 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
 
 
 def _configure_session_bindings(
-    engine: Engine, is_production: bool, fallback_url: str, env_name: Optional[str]
+    engine: Engine,
+    is_production: bool,
+    fallback_url: str,
+    env_name: Optional[str],
+    *,
+    expected_engine: Engine | None | object = _EXPECTED_UNSET,
+    expected_selector: str | None | object = _EXPECTED_UNSET,
 ) -> None:
     """
     Configure core.db session bindings and environment variables.
@@ -147,18 +154,27 @@ def _configure_session_bindings(
         raise
 
     with core_db._init_lock:
-        retired_engine = core_db._RAW_ENGINE
-        # The local fallback URL and generation become visible together to
-        # accessors that participate in the canonical DB lifecycle lock.
-        if not is_production:
+        stale = (
+            expected_engine is not _EXPECTED_UNSET and core_db._RAW_ENGINE is not expected_engine
+        ) or (
+            expected_selector is not _EXPECTED_UNSET
+            and os.getenv("DATABASE_URL") != expected_selector
+        )
+        if not stale:
+            retired_engine = core_db._RAW_ENGINE
+            # The local fallback URL and generation become visible together to
+            # accessors that participate in the canonical DB lifecycle lock.
             os.environ["DB_FALLBACK_URL"] = fallback_url
-            os.environ["DATABASE_URL"] = fallback_url
-        else:
-            os.environ["DB_FALLBACK_URL"] = fallback_url
-        core_db._RAW_ENGINE, core_db.SessionLocal = engine, candidate_factory
-        core_db.engine = core_db.EngineCompat(core_db._get_raw_engine)
-        _fallback_url_identity = engine.url
-        reconcile_fallback_markers(engine)
+            if not is_production:
+                os.environ["DATABASE_URL"] = fallback_url
+            core_db._RAW_ENGINE, core_db.SessionLocal = engine, candidate_factory
+            core_db.engine = core_db.EngineCompat(core_db._get_raw_engine)
+            _fallback_url_identity = engine.url
+            reconcile_fallback_markers(engine)
+
+    if stale:
+        core_db._dispose_sync_engine(engine, best_effort=True)
+        raise RuntimeError("DB generation changed during fallback initialization")
 
     if retired_engine is not None and retired_engine is not engine:
         core_db._dispose_sync_engine(retired_engine)
@@ -263,8 +279,24 @@ def _attempt_db_fallback(
         )
 
     # Initialize fallback engine and configure bindings
-    fallback_engine = _initialize_fallback_engine(fallback_url, db_err)
-    _configure_session_bindings(fallback_engine, is_production, fallback_url, env_name)
+    from core import db as core_db
+
+    with core_db._init_lock:
+        expected_engine = core_db._RAW_ENGINE
+        expected_selector = os.getenv("DATABASE_URL")
+    candidate_path = core_db._register_sqlite_candidate_path(fallback_url)
+    try:
+        fallback_engine = _initialize_fallback_engine(fallback_url, db_err)
+        _configure_session_bindings(
+            fallback_engine,
+            is_production,
+            fallback_url,
+            env_name,
+            expected_engine=expected_engine,
+            expected_selector=expected_selector,
+        )
+    finally:
+        core_db._unregister_sqlite_candidate_path(candidate_path)
 
 
 def attempt_db_fallback(
