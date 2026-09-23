@@ -81,17 +81,6 @@ from core.log_retention import (
 )
 from core.db import get_session
 from core.i18n import Language, normalize_lang, t
-from core.nutrition_utils import (  # noqa: F401 - compatibility re-exports
-    MANDATORY_MICRO_DEFAULTS,
-    MAX_DAILY_KCAL,
-    MICRO_ALIAS_MAP,
-    MIN_DAILY_KCAL,
-)
-from core.nutrition_utils import (
-    alias_micros as _alias_micros,
-    clamp_daily_kcal as _clamp_daily_kcal,
-    ensure_priority_micros as _ensure_priority_micros,
-)
 from core.targets import FIBER_MIN_G
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
