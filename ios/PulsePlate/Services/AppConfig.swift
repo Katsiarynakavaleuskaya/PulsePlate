@@ -1,6 +1,6 @@
 import Foundation
 
-enum AppConfig {
+nonisolated enum AppConfig {
     // MARK: - Release base URL validation
 
     /// Validates a raw string as a valid release base URL.

@@ -313,13 +313,13 @@ If it is not recorded here — it does not exist.
     persisted-data repair is required.
 
 <a id="ledger-client-arch-1-cab-03"></a>
-- [ ] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
+- [x] P1: CLIENT-ARCH-1 / CAB-03 Release simulator build truth and AppIcon marketing-slot integrity
   - Owner: app-store-release-agent / agent-coordinator
   - Priority: P1 (iOS release build integrity / AppIcon false-green prevention)
   - Target PR: [PR #2381](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2381)
     (`codex/ios-release-build-appicon-integrity`)
-  - Status: Implementation active in PR #2381; ordered post-open role review and targeted QA
-    completed. Final current-head CI, exact-material closeout, wait window and human merge remain pending.
+  - Status: Merged in PR #2381. The CAB-03 AppIcon and Release-build carrier is closed;
+    CAB-04 actor-isolation work is tracked separately below.
   - Area: iOS AppIcon metadata / existing release validator / blocking Release simulator build
   - Dependency: [CLIENT-ARCH-1 / CAB-02](#ledger-client-arch-1-cab-02) is merged and closed.
   - Reason (EN): The current AppIcon guard accepts incomplete marketing-slot metadata, and the
@@ -357,9 +357,11 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
-  - Target PR: pending, separate carrier PRs after CAB-03 merge and exact-main proof
-  - Status: Open; no later carrier is implemented or closed by CAB-03. The accepted CAB-03
-    handoff names the reservations below; this record grants no new implementation or release authority.
+  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
+    (`codex/ios-explicit-actor-boundaries`);
+    CAB-05–CAB-09 remain separate future carriers.
+  - Status: CAB-03 is merged in PR #2381; CAB-04 implementation is active on its own branch
+    and remains unchecked until its separate merge. Later reservations remain open.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -367,7 +369,9 @@ If it is not recorded here — it does not exist.
     - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
     - `ios/AGENTS.md`
   - Open reservations:
-    - [ ] CAB-04: actor-isolation work; exact scope and DoD require its own admission.
+    - [ ] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
+      boundaries explicit in the iOS client without changing behavior; use the separate
+      CAB-04 PR and current-head evidence before closing this item.
     - [ ] CAB-05: warning cleanup / warnings-as-errors, including the unrelated AppIntents
       metadata-extraction warning; no warning-free claim is made by CAB-03.
     - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.
@@ -381,6 +385,27 @@ If it is not recorded here — it does not exist.
       criteria and real Target PR before implementation; no missing scope is inferred from its number
     - each checkbox closes only with that carrier's actual merge/evidence or an explicit owner
       won't-do decision; this tracking group remains open while any reservation is open
+
+<a id="ledger-client-arch-1-cab-04-regression-assertions"></a>
+- [ ] P2: CLIENT-ARCH-1 / CAB-04 additional iOS regression assertions
+  - Owner: qa-engineer-agent / frontend-engineer
+  - Priority: P2 (focused iOS regression coverage)
+  - Target PR: pending focused iOS test-only follow-up after CAB-04
+  - Status: Open; this item grants no production behavior change or merge-readiness authority.
+  - Reason (EN): Three exact regression assertions were omitted to keep the accepted single
+    cross-cutting CAB-04 carrier within 20 files. Its existing behavior checks and full 316-test
+    local run passed, but those results do not prove these specific cases.
+  - Links:
+    - [CAB-04 continuation](#ledger-client-arch-1-continuation)
+    - [CAB-04 PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
+    - `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
+    - `ios/PulsePlateTests/Models/StoreKitManagerCatalogTests.swift`
+    - `ios/PulsePlateTests/HomeExperienceTests.swift`
+  - DoD:
+    - deterministically assert Keychain rotation and read-after-set without a cached key snapshot
+    - assert exact StoreKit `displayName` and `displayPrice` projection in catalog order
+    - assert the injected Home profile provider's exact read count and lazy factory behavior
+    - record passing focused and complete iOS test evidence on the follow-up's current head
 
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo

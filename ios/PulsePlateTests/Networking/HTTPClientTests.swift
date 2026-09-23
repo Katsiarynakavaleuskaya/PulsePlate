@@ -282,6 +282,25 @@ final class HTTPClientTests: XCTestCase {
         }
     }
 
+    func test_URLSessionFailure_remainsTransportError() async throws {
+        let client = HTTPClient(session: makeSession())
+        StubURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+
+        let request = URLRequest(url: URL(string: "https://example.com/api/v1/bmi/calculate")!)
+        do {
+            struct Dummy: Decodable {}
+            _ = try await client.send(request, responseType: Dummy.self)
+            XCTFail("Expected transport failure")
+        } catch let error as APIError {
+            guard case .transport(let message) = error else {
+                return XCTFail("Expected .transport, got \(error)")
+            }
+            XCTAssertTrue(message.contains("(code: -1009)"))
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     // Note: test_invalidResponse is skipped because URLSession.data(for:) always returns
     // HTTPURLResponse for HTTP/HTTPS requests. The guard clause in HTTPClient is defensive
     // programming but difficult to test without mocking URLSession internals.

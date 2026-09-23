@@ -113,11 +113,11 @@ final class SubscriptionManager: ObservableObject {
     init(
         storeKitManager: StoreKitManaging? = nil,
         billingService: SubscriptionBillingServicing? = nil,
-        activationPointerStore: ActivationPointerStoring = UserDefaultsActivationPointerStore(),
+        activationPointerStore: ActivationPointerStoring? = nil,
         apiKeyProvider: @escaping @Sendable () -> String? = { ProKeyProvider.value() }
     ) {
         self.storeKitManager = storeKitManager ?? StoreKitManager()
-        self.activationPointerStore = activationPointerStore
+        self.activationPointerStore = activationPointerStore ?? UserDefaultsActivationPointerStore()
         self.apiKeyProvider = apiKeyProvider
 
         if let billingService {
