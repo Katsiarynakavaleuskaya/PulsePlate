@@ -87,6 +87,7 @@ services:
     restart: unless-stopped
     networks: [web]
     environment:
+      - PRIVATE_EXPORTS_ENABLED=false
       - ENVIRONMENT=production
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}

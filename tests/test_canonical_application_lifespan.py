@@ -1607,6 +1607,9 @@ def test_compose_uses_one_no_ingress_worker_from_exact_backend_image(
 
     worker_environment = set(worker["environment"])
     app_environment = set(app_service["environment"])
+    assert "PRIVATE_EXPORTS_ENABLED=false" in worker_environment
+    assert not any(value.startswith("EXPORT_TOKEN_SECRET=") for value in worker_environment)
+    assert not any(value.startswith("PRIVATE_EXPORTS_ENABLED=") for value in app_environment)
     assert expected_environment in worker_environment
     mode_contract = "FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}"
     assert mode_contract in worker_environment
