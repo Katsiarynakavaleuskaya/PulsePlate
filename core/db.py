@@ -20,6 +20,7 @@ SQLite Pooling Configuration:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import logging
 import os
@@ -323,10 +324,12 @@ def _get_raw_engine() -> "Engine":
     """
     global _RAW_ENGINE, SessionLocal
 
-    db_url = get_database_url()
-    target_url = make_url(db_url)
     retired_engine = None
     with _init_lock:
+        # Resolve the ambient selector in the same critical section used by
+        # fallback to publish DATABASE_URL and its engine/factory generation.
+        db_url = get_database_url()
+        target_url = make_url(db_url)
         if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
             if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
                 SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
@@ -627,6 +630,27 @@ AsyncSessionLocal: Optional["AsyncSessionmaker[AsyncSession]"] = None
 _ASYNC_INIT_LOCK = threading.RLock()
 
 
+async def _dispose_async_engine_to_completion(engine: "AsyncEngine") -> None:
+    """Finish owned pool disposal before surfacing caller cancellation."""
+    disposal = asyncio.create_task(engine.dispose())
+    cancelled = False
+    while True:
+        try:
+            await asyncio.shield(disposal)
+            break
+        except asyncio.CancelledError:
+            cancelled = True
+            if disposal.done():
+                break
+    if disposal.cancelled():
+        raise asyncio.CancelledError()
+    failure = disposal.exception()
+    if failure is not None:
+        raise failure
+    if cancelled:
+        raise asyncio.CancelledError()
+
+
 def _get_pool_config() -> dict[str, Any]:
     """Get pool configuration from environment variables.
 
@@ -671,60 +695,73 @@ async def _get_async_engine_and_factory() -> (
     """Acquire one coherent async engine/session generation."""
     global _ASYNC_ENGINE, AsyncSessionLocal, async_engine
 
-    async_url = _get_async_database_url()
-    if async_url is None:
-        with _ASYNC_INIT_LOCK:
-            retired_engine = _ASYNC_ENGINE
-            _ASYNC_ENGINE = None
-            AsyncSessionLocal = None
-            async_engine = None
-        if retired_engine is not None:
-            await retired_engine.dispose()
-        return None
-    target_url = make_url(async_url)
     retired_engine = None
     candidate = None
     failure = None
-    with _ASYNC_INIT_LOCK:
-        if _ASYNC_ENGINE is not None and _ASYNC_ENGINE.url == target_url:
-            if AsyncSessionLocal is None:
-                if async_sessionmaker is None:
+    generation = None
+    # Fallback publishes the sync selector under _init_lock. Select the async
+    # URL and publish its pair in that same boundary, then await outside it.
+    with _init_lock:
+        async_url = _get_async_database_url()
+        with _ASYNC_INIT_LOCK:
+            if async_url is None:
+                retired_engine = _ASYNC_ENGINE
+                _ASYNC_ENGINE = None
+                AsyncSessionLocal = None
+                async_engine = None
+            else:
+                target_url = make_url(async_url)
+                if _ASYNC_ENGINE is not None and _ASYNC_ENGINE.url == target_url:
+                    if AsyncSessionLocal is None:
+                        if async_sessionmaker is None:
+                            return None
+                        AsyncSessionLocal = async_sessionmaker(
+                            bind=_ASYNC_ENGINE, autoflush=False, expire_on_commit=False
+                        )
+                    return _ASYNC_ENGINE, AsyncSessionLocal
+                if create_async_engine is None or async_sessionmaker is None:
                     return None
-                AsyncSessionLocal = async_sessionmaker(
-                    bind=_ASYNC_ENGINE, autoflush=False, expire_on_commit=False
-                )
-            return _ASYNC_ENGINE, AsyncSessionLocal
-        if create_async_engine is None or async_sessionmaker is None:
-            return None
 
-        async_kwargs: dict[str, Any] = {"echo": False, "future": True}
-        if async_url.startswith("sqlite+aiosqlite"):
-            sqlite_poolclass = _get_sqlite_poolclass(async_url)
-            if sqlite_poolclass is not None:
-                async_kwargs["poolclass"] = sqlite_poolclass
-        else:
-            async_kwargs.update(_get_pool_config())
+                async_kwargs: dict[str, Any] = {"echo": False, "future": True}
+                if async_url.startswith("sqlite+aiosqlite"):
+                    sqlite_poolclass = _get_sqlite_poolclass(async_url)
+                    if sqlite_poolclass is not None:
+                        async_kwargs["poolclass"] = sqlite_poolclass
+                else:
+                    async_kwargs.update(_get_pool_config())
 
-        try:
-            candidate = create_async_engine(async_url, **async_kwargs)
-            candidate_factory = async_sessionmaker(
-                bind=candidate, autoflush=False, expire_on_commit=False
-            )
-        except Exception as exc:
-            failure = exc
-        else:
-            retired_engine = _ASYNC_ENGINE
-            _ASYNC_ENGINE, AsyncSessionLocal, async_engine = (
-                candidate,
-                candidate_factory,
-                candidate,
-            )
-            generation = candidate, candidate_factory
-            candidate = None
+                try:
+                    candidate = create_async_engine(async_url, **async_kwargs)
+                    candidate_factory = async_sessionmaker(
+                        bind=candidate, autoflush=False, expire_on_commit=False
+                    )
+                except Exception as exc:
+                    failure = exc
+                else:
+                    retired_engine = _ASYNC_ENGINE
+                    _ASYNC_ENGINE, AsyncSessionLocal, async_engine = (
+                        candidate,
+                        candidate_factory,
+                        candidate,
+                    )
+                    generation = candidate, candidate_factory
+                    candidate = None
+
+    if async_url is None:
+        if retired_engine is not None:
+            try:
+                await _dispose_async_engine_to_completion(retired_engine)
+            except Exception as exc:
+                logger.error("Async engine dispose failed: %s", type(exc).__name__)
+                raise
+        return None
 
     if candidate is not None:
         try:
-            await candidate.dispose()
+            await _dispose_async_engine_to_completion(candidate)
+        except asyncio.CancelledError:
+            if failure is None:
+                raise
         except Exception as cleanup_exc:
             logger.error("Async candidate disposal failed: %s", type(cleanup_exc).__name__)
             if failure is None:
@@ -735,10 +772,12 @@ async def _get_async_engine_and_factory() -> (
         raise failure
     if retired_engine is not None:
         try:
-            await retired_engine.dispose()
+            await _dispose_async_engine_to_completion(retired_engine)
         except Exception as exc:
             logger.error("Async engine dispose failed: %s", type(exc).__name__)
             raise
+    if generation is None:
+        raise RuntimeError("Async DB generation was not initialized")
     return generation
 
 
@@ -932,14 +971,13 @@ def init_db(database_url: str | None = None) -> "Engine":
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
     # Get current URL from environment or use provided URL
-    db_url = database_url if database_url is not None else get_database_url()
-    target_url = make_url(db_url)
-    env_provided = "DATABASE_URL" in os.environ
-    _ensure_sqlite_directory(db_url, env_provided)
-
     # A reused engine must stay selected while its schema is checked. This is
     # the only path that holds the publication lock across create_all.
     with _init_lock:
+        db_url = database_url if database_url is not None else get_database_url()
+        target_url = make_url(db_url)
+        env_provided = database_url is None and "DATABASE_URL" in os.environ
+        _ensure_sqlite_directory(db_url, env_provided)
         if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
             metadata.create_all(bind=_RAW_ENGINE)
             if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
@@ -959,6 +997,18 @@ def init_db(database_url: str | None = None) -> "Engine":
     candidate_to_dispose: Optional["Engine"] = candidate
     try:
         with _init_lock:
+            current_ambient_url = (
+                make_url(get_database_url()) if database_url is None else target_url
+            )
+            if current_ambient_url != target_url:
+                # A fallback (or another ambient selection) won while this
+                # candidate's schema was prepared. Never resurrect its URL.
+                if _RAW_ENGINE is None or _RAW_ENGINE.url != current_ambient_url:
+                    raise RuntimeError("DATABASE_URL changed during database initialization")
+                metadata.create_all(bind=_RAW_ENGINE)
+                if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
+                    SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+                return _RAW_ENGINE
             if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
                 # Another caller published this URL while our candidate was
                 # prepared. Its engine may be an uninitialized lazy getter.
@@ -979,11 +1029,26 @@ def init_db(database_url: str | None = None) -> "Engine":
         # Preserve the existing test-only old-file cleanup contract.
         if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
             old_sqlite_path = _extract_sqlite_path(retired_engine.url.render_as_string())
-            if old_sqlite_path and os.path.exists(old_sqlite_path):
-                try:
-                    os.remove(old_sqlite_path)
-                except OSError as exc:
-                    logger.warning("Could not remove old SQLite file: %s", type(exc).__name__)
+            if old_sqlite_path:
+                with _init_lock:
+                    selected_path = _extract_sqlite_path(selected_engine.url.render_as_string())
+                    current_path = (
+                        _extract_sqlite_path(_RAW_ENGINE.url.render_as_string())
+                        if _RAW_ENGINE is not None
+                        else None
+                    )
+                    old_realpath = os.path.realpath(old_sqlite_path)
+                    still_selected = any(
+                        path is not None and os.path.realpath(path) == old_realpath
+                        for path in (selected_path, current_path)
+                    )
+                    if not still_selected and os.path.exists(old_sqlite_path):
+                        try:
+                            os.remove(old_sqlite_path)
+                        except OSError as exc:
+                            logger.warning(
+                                "Could not remove old SQLite file: %s", type(exc).__name__
+                            )
 
     return selected_engine
 

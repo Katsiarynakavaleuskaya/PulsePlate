@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
+from types import TracebackType
 from typing import Any
 
 import pytest
@@ -66,7 +68,7 @@ def test_get_async_engine_disposes_old_engine_and_applies_pool_config(
         captured["kwargs"] = kwargs
         return _DummyAsyncEngine(url)
 
-    def _fake_async_sessionmaker(**_kwargs: Any):  # noqa: ANN401 - test stub
+    def _fake_async_sessionmaker(**_kwargs: Any) -> Callable[[], str]:  # noqa: ANN401 - stub
         return lambda: "session"
 
     monkeypatch.setattr(db, "create_async_engine", _fake_create_async_engine, raising=False)
@@ -109,7 +111,7 @@ def test_get_async_engine_dispose_failure_is_logged(
     def _fake_create_async_engine(url: str, **_kwargs: Any) -> _DummyAsyncEngine:
         return _DummyAsyncEngine(url)
 
-    def _fake_async_sessionmaker(**_kwargs: Any):  # noqa: ANN401 - test stub
+    def _fake_async_sessionmaker(**_kwargs: Any) -> Callable[[], str]:  # noqa: ANN401 - stub
         return lambda: "session"
 
     monkeypatch.setattr(db, "create_async_engine", _fake_create_async_engine, raising=False)
@@ -177,6 +179,89 @@ def test_async_candidate_cleanup_failure_preserves_factory_error(
     assert db.async_engine is previous
     assert "Async candidate disposal failed: RuntimeError" in caplog.text
     assert "synthetic cleanup failure" not in caplog.text
+
+
+@pytest.mark.parametrize("transition", ["replace", "disable", "failed_candidate"])
+def test_async_disposal_completes_through_repeated_cancellation(
+    monkeypatch: pytest.MonkeyPatch, transition: str
+) -> None:
+    async def scenario() -> None:
+        class ControlledEngine:
+            def __init__(self, url: str, *, block_disposal: bool) -> None:
+                self.url = db.make_url(url)
+                self.block_disposal = block_disposal
+                self.entered = asyncio.Event()
+                self.release = asyncio.Event()
+                self.complete = False
+                self.dispose_count = 0
+
+            async def dispose(self) -> None:
+                self.dispose_count += 1
+                self.entered.set()
+                if self.block_disposal:
+                    await self.release.wait()
+                self.complete = True
+
+        old_url = "sqlite+aiosqlite:///old.db"
+        next_url = "sqlite+aiosqlite:///next.db"
+        old = ControlledEngine(old_url, block_disposal=transition != "failed_candidate")
+        candidate = ControlledEngine(next_url, block_disposal=transition == "failed_candidate")
+
+        def old_factory() -> object:
+            return object()
+
+        primary = ValueError("synthetic factory failure")
+
+        def make_candidate(_url: str, **_kwargs: object) -> ControlledEngine:
+            return candidate
+
+        def make_factory(**_kwargs: object) -> Callable[[], object]:
+            if transition == "failed_candidate":
+                raise primary
+            return lambda: object()
+
+        monkeypatch.setattr(db, "_ASYNC_ENGINE", old)
+        monkeypatch.setattr(db, "AsyncSessionLocal", old_factory)
+        monkeypatch.setattr(db, "async_engine", old)
+        monkeypatch.setattr(db, "create_async_engine", make_candidate)
+        monkeypatch.setattr(db, "async_sessionmaker", make_factory)
+        if transition == "disable":
+            monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+            monkeypatch.setenv("DATABASE_USE_ASYNC", "0")
+        else:
+            monkeypatch.setenv("DATABASE_ASYNC_URL", next_url)
+
+        task = asyncio.create_task(db._get_async_engine_and_factory())
+        disposal_owner = candidate if transition == "failed_candidate" else old
+        await asyncio.wait_for(disposal_owner.entered.wait(), timeout=5)
+        for _ in range(2):
+            task.cancel()
+            next_tick = asyncio.Event()
+            asyncio.get_running_loop().call_soon(next_tick.set)
+            await next_tick.wait()
+            assert not task.done()
+            assert disposal_owner.complete is False
+
+        disposal_owner.release.set()
+        if transition == "failed_candidate":
+            with pytest.raises(ValueError) as observed:
+                await task
+            assert observed.value is primary
+            assert db._ASYNC_ENGINE is old
+            assert db.AsyncSessionLocal is old_factory
+        else:
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            if transition == "replace":
+                assert db._ASYNC_ENGINE is candidate
+                assert db.AsyncSessionLocal is not old_factory
+            else:
+                assert db._ASYNC_ENGINE is None
+                assert db.AsyncSessionLocal is None
+        assert disposal_owner.dispose_count == 1
+        assert disposal_owner.complete is True
+
+    asyncio.run(scenario())
 
 
 def test_get_async_session_raises_not_available_when_engine_missing(
@@ -411,11 +496,16 @@ def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
 
     class _RaceLock:
         def __enter__(self) -> "_RaceLock":
-            db._ASYNC_ENGINE = new_engine
-            db.AsyncSessionLocal = lambda: "session"
+            monkeypatch.setattr(db, "_ASYNC_ENGINE", new_engine)
+            monkeypatch.setattr(db, "AsyncSessionLocal", lambda: "session")
             return self
 
-        def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001 - test stub
+        def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            tb: TracebackType | None,
+        ) -> None:
             return None
 
     monkeypatch.setenv("DATABASE_ASYNC_URL", async_url)

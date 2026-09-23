@@ -40,8 +40,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: OPS-02 DB engine identity and session lifecycle
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1
-  - Target PR: `codex/ops02-db-engine-lifecycle` (PR number pending)
-  - Status: Implementation in progress; current-head CI, review closeout, merge and post-merge verification are pending.
+  - Target PR: [#2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405) (`codex/ops02-db-engine-lifecycle`)
+  - Status: PR #2405 open; post-open lifecycle remediation in progress. Current-head CI, review closeout, merge and post-merge verification are pending.
   - Carryover (EN): PR #2397 delivered the OPS-01 offline inventory. OPS-02 repairs only repository DB engine identity and session lifecycle; OPS-03 observability, OPS-04 storage/FinOps, host activation and alert delivery remain separate.
   - Reason (EN): The current getter compares a password-masked engine URL with an unmasked configuration and lifecycle paths can expose an engine/factory mismatch or retire an async engine synchronously.
   - Links: `core/db.py`, `core/db_fallback.py`, `docs/deploy/OPERATIONAL_SIGNALS.md`.

@@ -9,10 +9,11 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier, Event
+import shutil
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.engine import URL
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine, URL
 
 import core.db as core_db
 
@@ -157,6 +158,172 @@ def test_init_db_explicit_url_keeps_new_session_factory_selected(
         core_db.init_db()
 
 
+def test_init_db_explicit_sqlite_url_creates_its_missing_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    explicit_path = tmp_path / "new-directory" / "explicit.sqlite"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'unrelated.sqlite'}")
+    core_db.reset_db_for_tests()
+    try:
+        selected = core_db.init_db(f"sqlite:///{explicit_path}")
+        assert selected.url.database == str(explicit_path)
+        assert explicit_path.is_file()
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_same_url_explicit_reinit_restores_missing_sqlite_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "removable-parent" / "selected.sqlite"
+    explicit_url = f"sqlite:///{database_path}"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'unrelated.sqlite'}")
+    core_db.reset_db_for_tests()
+    try:
+        selected = core_db.init_db(explicit_url)
+        selected.dispose()
+        shutil.rmtree(database_path.parent)
+        assert not database_path.parent.exists()
+
+        reused = core_db.init_db(explicit_url)
+        assert reused is selected
+        assert database_path.is_file()
+        assert inspect(reused).has_table("users")
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_query_only_sqlite_replacement_preserves_selected_database_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "shared.sqlite"
+    first_url = f"sqlite:///{database_path}?timeout=5"
+    second_url = f"sqlite:///{database_path}?timeout=6"
+    monkeypatch.setenv("DATABASE_URL", first_url)
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        first = core_db.init_db()
+        assert database_path.is_file()
+        monkeypatch.setenv("DATABASE_URL", second_url)
+        selected = core_db.init_db()
+        assert selected is not first
+        assert database_path.is_file()
+        assert inspect(selected).has_table("users")
+        with core_db.get_session_factory()() as session:
+            assert session.bind is selected
+            assert session.scalar(text("SELECT 1")) == 1
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_sqlite_cleanup_preserves_file_reselected_before_unlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_path = tmp_path / "selected-again.sqlite"
+    first_url = f"sqlite:///{first_path}"
+    second_url = f"sqlite:///{tmp_path / 'temporary.sqlite'}"
+    monkeypatch.setenv("DATABASE_URL", first_url)
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        first_engine = core_db.init_db()
+        retirement_started = Event()
+        release_retirement = Event()
+        original_dispose = core_db._dispose_sync_engine
+
+        def pause_old_disposal(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is first_engine:
+                retirement_started.set()
+                assert release_retirement.wait(timeout=5)
+            original_dispose(engine, best_effort=best_effort)
+
+        with monkeypatch.context() as racing:
+            racing.setattr(core_db, "_dispose_sync_engine", pause_old_disposal)
+            racing.setenv("DATABASE_URL", second_url)
+            with ThreadPoolExecutor(max_workers=1) as workers:
+                future = workers.submit(core_db.init_db)
+                assert retirement_started.wait(timeout=5)
+                try:
+                    racing.setenv("DATABASE_URL", first_url)
+                    selected_again = core_db._get_raw_engine()
+                finally:
+                    release_retirement.set()
+                assert future.result(timeout=5).url == core_db.make_url(second_url)
+
+        assert selected_again is core_db._RAW_ENGINE
+        assert first_path.is_file()
+        assert inspect(selected_again).has_table("users")
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_ambient_init_discards_candidate_after_fallback_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core import db_fallback
+
+    primary_url = f"sqlite:///{tmp_path / 'primary.sqlite'}"
+    stale_url = f"sqlite:///{tmp_path / 'stale.sqlite'}"
+    fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+    schema_ready = Event()
+    release_schema = Event()
+    candidates: list[Engine] = []
+    disposed: list[Engine] = []
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", primary_url)
+        env.delenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", raising=False)
+        core_db.reset_db_for_tests()
+        core_db.init_db()
+        fallback_engine = create_engine(fallback_url)
+        original_create = core_db._create_sync_engine
+
+        def make_candidate(db_url: str) -> Engine:
+            engine = original_create(db_url)
+            candidates.append(engine)
+            original_dispose = engine.dispose
+
+            def dispose() -> None:
+                disposed.append(engine)
+                original_dispose()
+
+            monkeypatch.setattr(engine, "dispose", dispose)
+            return engine
+
+        class PausedMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                if bind.url == core_db.make_url(stale_url):
+                    schema_ready.set()
+                    assert release_schema.wait(timeout=5)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(core_db, "_create_sync_engine", make_candidate)
+                racing.setattr(core_db, "load_canonical_orm_metadata", lambda: PausedMetadata())
+                racing.setenv("DATABASE_URL", stale_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    future = workers.submit(core_db.init_db)
+                    assert schema_ready.wait(timeout=5)
+                    db_fallback._configure_session_bindings(
+                        fallback_engine, False, fallback_url, "test"
+                    )
+                    release_schema.set()
+                    selected = future.result(timeout=5)
+
+            assert selected is fallback_engine
+            assert core_db._RAW_ENGINE is fallback_engine
+            with core_db.get_session_factory()() as session:
+                assert session.bind is fallback_engine
+            assert len(candidates) == 1
+            assert disposed == candidates
+        finally:
+            release_schema.set()
+            core_db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    core_db.init_db()
+
+
 def test_failed_init_candidate_preserves_selected_pair(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -168,10 +335,10 @@ def test_failed_init_candidate_preserves_selected_pair(
         selected = core_db.init_db()
         selected_factory = core_db.get_session_factory()
         original_create = core_db._create_sync_engine
-        candidates = []
-        disposed = []
+        candidates: list[Engine] = []
+        disposed: list[Engine] = []
 
-        def make_candidate(db_url: str):
+        def make_candidate(db_url: str) -> Engine:
             candidate = original_create(db_url)
             candidates.append(candidate)
             original_dispose = candidate.dispose
@@ -225,10 +392,10 @@ def test_concurrent_init_disposes_losing_candidate(
         core_db.init_db()
         rendezvous = Barrier(2)
         original_create = core_db._create_sync_engine
-        candidates = []
-        disposed = []
+        candidates: list[Engine] = []
+        disposed: list[Engine] = []
 
-        def make_candidate(db_url: str):
+        def make_candidate(db_url: str) -> Engine:
             candidate = original_create(db_url)
             candidates.append(candidate)
             original_dispose = candidate.dispose
@@ -276,7 +443,7 @@ def test_concurrent_distinct_url_init_returns_its_own_generation(
         release_first = Event()
         dispose = core_db._dispose_sync_engine
 
-        def paused_dispose(engine, *, best_effort: bool = False) -> None:
+        def paused_dispose(engine: Engine, *, best_effort: bool = False) -> None:
             if engine is original:
                 first_retirement_started.set()
                 assert release_first.wait(timeout=5)

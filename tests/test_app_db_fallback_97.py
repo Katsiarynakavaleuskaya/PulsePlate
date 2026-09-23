@@ -7,17 +7,52 @@ Covers _attempt_db_fallback function branches:
 - Non-production fallback paths
 """
 
+import asyncio
 import os
 import inspect
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from threading import Event
+from pathlib import Path
+from threading import Event, RLock, get_ident
+from types import TracebackType
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import pytest
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+
+class _TrackingLock:
+    """Expose lock ownership to deterministic fallback race tests."""
+
+    def __init__(self) -> None:
+        self.lock = RLock()
+        self.owner: int | None = None
+        self.depth = 0
+
+    def __enter__(self) -> "_TrackingLock":
+        self.lock.acquire()
+        self.owner = get_ident()
+        self.depth += 1
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.depth -= 1
+        if self.depth == 0:
+            self.owner = None
+        self.lock.release()
+
+    def held_by_current(self) -> bool:
+        return self.owner == get_ident()
 
 
 def test_fallback_publishes_environment_and_session_generation_together(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """An acquisition before fallback publication keeps the prior generation."""
     from sqlalchemy import create_engine
@@ -37,7 +72,7 @@ def test_fallback_publishes_environment_and_session_generation_together(
         fallback_engine = create_engine(fallback_url)
         original_sessionmaker = db.sessionmaker
 
-        def waiting_sessionmaker(*args: object, **kwargs: object):
+        def waiting_sessionmaker(*args: object, **kwargs: object) -> sessionmaker[Session]:
             if kwargs.get("bind") is fallback_engine:
                 entered.set()
                 assert release.wait(timeout=5)
@@ -67,6 +102,138 @@ def test_fallback_publishes_environment_and_session_generation_together(
             assert os.environ["DATABASE_URL"] == fallback_url
         finally:
             release.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_raw_getter_cannot_resurrect_primary_after_fallback_publication(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ambient URL read must participate in fallback's publication lock."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    entered = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        original_get_database_url = db.get_database_url
+        publication_lock = _TrackingLock()
+
+        def checked_database_url() -> str:
+            assert publication_lock.held_by_current()
+            return original_get_database_url()
+
+        def acquire_after_signal() -> Engine:
+            entered.set()
+            return db._get_raw_engine()
+
+        try:
+            with monkeypatch.context() as tracked:
+                tracked.setattr(db, "_init_lock", publication_lock)
+                tracked.setattr(db, "get_database_url", checked_database_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    with publication_lock:
+                        future = workers.submit(acquire_after_signal)
+                        assert entered.wait(timeout=5)
+                        db_fallback._configure_session_bindings(
+                            fallback_engine, False, fallback_url, "test"
+                        )
+                    assert future.result(timeout=5) is fallback_engine
+                    assert db._RAW_ENGINE is fallback_engine
+        finally:
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_derived_async_url_cannot_publish_stale_primary_after_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Derived async selection shares fallback's sync publication boundary."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    class AsyncCandidate:
+        def __init__(self, url: str) -> None:
+            self.url = db.make_url(url)
+            self.disposed = False
+
+        async def dispose(self) -> None:
+            self.disposed = True
+
+    created: list[AsyncCandidate] = []
+    entered = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        env.setenv("DATABASE_USE_ASYNC", "1")
+        env.delenv("DATABASE_ASYNC_URL", raising=False)
+        db.reset_db_for_tests()
+        db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        publication_lock = _TrackingLock()
+        original_async_url = db._get_async_database_url
+
+        def checked_async_url() -> str | None:
+            assert publication_lock.held_by_current()
+            return original_async_url()
+
+        def create_candidate(url: str, **_kwargs: object) -> AsyncCandidate:
+            candidate = AsyncCandidate(url)
+            created.append(candidate)
+            return candidate
+
+        def make_factory(**_kwargs: object) -> Callable[[], object]:
+            return lambda: object()
+
+        def acquire_after_signal() -> tuple[object, object] | None:
+            entered.set()
+            return asyncio.run(db._get_async_engine_and_factory())
+
+        async def close_selected() -> None:
+            if db._ASYNC_ENGINE is not None:
+                await db._ASYNC_ENGINE.dispose()
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
+            db.async_engine = None
+
+        try:
+            with monkeypatch.context() as tracked:
+                tracked.setattr(db, "_init_lock", publication_lock)
+                tracked.setattr(db, "_get_async_database_url", checked_async_url)
+                tracked.setattr(db, "create_async_engine", create_candidate)
+                tracked.setattr(db, "async_sessionmaker", make_factory)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    with publication_lock:
+                        future = workers.submit(acquire_after_signal)
+                        assert entered.wait(timeout=5)
+                        db_fallback._configure_session_bindings(
+                            fallback_engine, False, fallback_url, "test"
+                        )
+                    generation = future.result(timeout=5)
+
+                assert generation is not None
+                assert generation[0].url == db.make_url(
+                    fallback_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+                )
+                assert db._RAW_ENGINE is fallback_engine
+
+                explicit_url = f"sqlite+aiosqlite:///{tmp_path / 'explicit.sqlite'}"
+                tracked.setenv("DATABASE_ASYNC_URL", explicit_url)
+                explicit = asyncio.run(db._get_async_engine_and_factory())
+                assert explicit is not None and explicit[0].url == db.make_url(explicit_url)
+                assert created[0].disposed is True
+                asyncio.run(close_selected())
+        finally:
             db.reset_db_for_tests()
             db_fallback.reset_fallback_state()
     db.init_db()
