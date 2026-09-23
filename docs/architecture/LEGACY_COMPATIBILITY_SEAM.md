@@ -142,8 +142,8 @@ claim about HTTP aliases, DTOs, OpenAPI, or `app._macros_to_kcal`.
 The three targets/gaps service re-exports `_generate_who_targets_response`,
 `_fallback_targets_response`, and `analyze_nutrient_gaps_response` are also
 retired from `legacy_app.py`. Their canonical callables remain at
-`app/services/pro_nutrition_targets.py:118`,
-`app/services/pro_nutrition_targets.py:248`, and
+`app/services/pro_nutrition_targets.py:248`,
+`app/services/pro_nutrition_targets.py:118`, and
 `app/services/pro_nutrition_targets.py:360`. Repository-owned behavior tests
 call the canonical service with the existing request schema, inputs, patches,
 and assertions. The retained HTTP aliases, DTOs, OpenAPI, and FastAPI app
