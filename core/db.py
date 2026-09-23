@@ -361,6 +361,9 @@ def _get_raw_engine() -> "Engine":
             raise
         retired_engine = _RAW_ENGINE
         _RAW_ENGINE, SessionLocal = candidate, candidate_factory
+        from core import db_fallback
+
+        db_fallback.reconcile_fallback_markers(candidate)
 
     if retired_engine is not None:
         _dispose_sync_engine(retired_engine)
@@ -1089,6 +1092,9 @@ def init_db(database_url: str | None = None) -> "Engine":
                     _RAW_ENGINE, SessionLocal = candidate, candidate_factory
                     selected_engine = candidate
                     candidate_to_dispose = None
+                    from core import db_fallback
+
+                    db_fallback.reconcile_fallback_markers(candidate)
         except BaseException:
             if candidate_to_dispose is not None:
                 _dispose_sync_engine(candidate_to_dispose, best_effort=True)

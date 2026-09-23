@@ -156,6 +156,75 @@ def test_fallback_rejects_generation_replaced_during_retirement(
             assert db._RAW_ENGINE is replacement
             with db.get_session_factory()() as session:
                 assert session.bind is replacement
+            assert db_fallback.is_fallback_active() is False
+            assert os.environ.get("DB_HEALTH_DEGRADED") is None
+
+            # Fallback had changed the ambient URL before the explicit primary
+            # selection. If that URL is selected again, readiness degrades again.
+            reselected_fallback = db._get_raw_engine()
+            assert reselected_fallback.url == db.make_url(fallback_url)
+            assert db_fallback.is_fallback_active() is True
+            assert os.environ["DB_HEALTH_DEGRADED"] == "1"
+        finally:
+            release_retirement.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_superseded_fallback_preserves_new_fallback_markers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    retirement_started = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        first_url = f"sqlite:///{tmp_path / 'first-fallback.sqlite'}"
+        second_url = f"sqlite:///{tmp_path / 'second-fallback.sqlite'}"
+        first_engine = create_engine(first_url)
+        second_engine = create_engine(second_url)
+        dispose = db._dispose_sync_engine
+
+        def pause_retirement(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is primary:
+                retirement_started.set()
+                assert release_retirement.wait(timeout=10)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db, "_dispose_sync_engine", pause_retirement)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    first = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        first_engine,
+                        False,
+                        first_url,
+                        "test",
+                    )
+                    assert retirement_started.wait(timeout=10)
+                    try:
+                        db_fallback._configure_session_bindings(
+                            second_engine, False, second_url, "test"
+                        )
+                    finally:
+                        release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB fallback generation changed during activation"
+                    ):
+                        first.result(timeout=10)
+            assert db._RAW_ENGINE is second_engine
+            with db.get_session_factory()() as session:
+                assert session.bind is second_engine
+            assert db_fallback.is_fallback_active() is True
+            assert os.environ["DB_HEALTH_DEGRADED"] == "1"
         finally:
             release_retirement.set()
             db.reset_db_for_tests()

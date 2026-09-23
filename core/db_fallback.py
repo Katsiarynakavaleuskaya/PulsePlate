@@ -17,12 +17,13 @@ import os
 from typing import Optional
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, URL
 
 logger = logging.getLogger(__name__)
 
 # Module-level flag indicating fallback state
 _db_fallback_active = False
+_fallback_url_identity: URL | None = None
 
 
 def _redact_database_url(database_url: str) -> str:
@@ -132,6 +133,8 @@ def _configure_session_bindings(
     # core.db is the module core/db.py (no package collision: we use core/db_fallback.py).
     from core import db as core_db
 
+    global _fallback_url_identity
+
     try:
         candidate_factory = core_db.sessionmaker(
             bind=engine, autoflush=False, autocommit=False, future=True
@@ -154,8 +157,8 @@ def _configure_session_bindings(
             os.environ["DB_FALLBACK_URL"] = fallback_url
         core_db._RAW_ENGINE, core_db.SessionLocal = engine, candidate_factory
         core_db.engine = core_db.EngineCompat(core_db._get_raw_engine)
-        set_fallback_active()
-        os.environ["DB_HEALTH_DEGRADED"] = "1"
+        _fallback_url_identity = engine.url
+        reconcile_fallback_markers(engine)
 
     if retired_engine is not None and retired_engine is not engine:
         core_db._dispose_sync_engine(retired_engine)
@@ -294,9 +297,28 @@ def clear_fallback_active() -> None:
     _db_fallback_active = False
 
 
+def reconcile_fallback_markers(selected_engine: Engine) -> None:
+    """Keep degraded markers tied to the selected fallback URL generation.
+
+    Call while holding ``core.db._init_lock`` whenever a DB generation is
+    published. A later ambient selection of the fallback URL is degraded too.
+    """
+    if _fallback_url_identity is None:
+        return
+    if selected_engine.url == _fallback_url_identity:
+        set_fallback_active()
+        os.environ["DB_HEALTH_DEGRADED"] = "1"
+    else:
+        clear_fallback_active()
+        os.environ.pop("DB_HEALTH_DEGRADED", None)
+
+
 def reset_fallback_state() -> None:
     """Reset fallback global state for tests."""
+    global _fallback_url_identity
+
     clear_fallback_active()
+    _fallback_url_identity = None
 
 
 def is_fallback_active() -> bool:
