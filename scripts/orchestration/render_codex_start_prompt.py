@@ -439,13 +439,21 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "Material change or new counterexample: identify affected criteria and stale "
         "evidence; mark stale conclusions unknown and perform a targeted recheck "
         "before completion, even when the accepted goal is unchanged.",
-        "Human decision boundary: show the owner openable proposed visual material "
-        "before implementing a new substantial visual choice; show the actual "
-        "implementation before completion. "
-        "Bind acceptance to the shown state and material version; re-present affected "
-        "changes. Silence, screenshot paths, hashes, agent verdicts and CI are not "
-        "approval. Legally significant decisions need human and, where needed, "
-        "professional review; an agent cannot certify compliance.",
+        "Human decision rule: every required visual, legal or other owner decision "
+        "must be explicitly affirmative for the exact shown state and material "
+        "version. Missing, ambiguous or stale required decisions are unknown; "
+        "explicit rejection is not_achieved; reasoned N/A applies only when no "
+        "decision is required. Needed professional review does not replace owner "
+        "affirmation or other criterion evidence.",
+        "Human visual checkpoints: for a new substantial visual choice requiring "
+        "acceptance, obtain two distinct affirmative version-bound owner decisions "
+        "in order: accept the openable proposal before implementation, then accept "
+        "the actual shown implementation before completion. Final-only approval "
+        "cannot fill the proposal checkpoint. Proven skipped order is "
+        "not_achieved; mere missing record does not prove a skip. "
+        "Silence, screenshot paths, hashes, agent verdicts and CI are not approval. "
+        "Legally significant decisions need human and, where needed, professional "
+        "review; an agent cannot certify compliance.",
         "Overall completion: every original requirement and DoD item must be "
         "explicitly covered by an individually achieved criterion with observed evidence. "
         "Name each covered source item; no materiality filter may exclude required scope. "

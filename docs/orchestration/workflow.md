@@ -113,19 +113,27 @@ Use the existing records at each stage without a new agent, schema or gate:
 | Ordinary QA | QA names its reviewer, exact reviewed material and criteria version, then checks each criterion against observed behavior and records evidence or a gap in Work Review. |
 | Completion | DoD and final response link the current Work Review, cover the complete original DoD, and identify any outstanding human decision. |
 
-For a new substantial visual decision, show the owner an openable design before
-implementing it; show the actual implementation before completion. Record the
-owner's decision against the exact displayed state and material version. An
-affected visual change makes that decision stale and requires targeted
-re-presentation. Silence, a screenshot path, a hash, an agent verdict and CI
-are not human acceptance. When human acceptance is required, a missing or stale
-explicit owner decision leaves the affected criterion `unknown` and prevents a
-completion claim; a reasoned `not applicable` decision remains valid when no
-such acceptance is required.
+For every required owner decision, whether visual, legal or other, require an
+explicit affirmative decision bound to the exact shown state and material
+version. A missing, ambiguous or stale required decision leaves the affected
+criterion `unknown`; an explicit rejection makes it `not_achieved`. Record a
+reasoned `not applicable` only when that decision is not required. Needed
+professional review does not replace owner affirmation or other criterion
+evidence.
 
-For legally significant content or behavior, record the decision requiring
-human and, where needed, professional review. An agent's analysis cannot
-certify legal compliance or replace that decision.
+For a new substantial visual choice requiring owner acceptance, record two
+distinct, ordered affirmative checkpoints: the owner accepts an openable
+proposed state and material version **before implementation**, then accepts the
+actual shown implementation and its version **before completion**. A final-only
+approval cannot substitute for proposal acceptance. An affected change stales
+the relevant checkpoint and requires targeted re-presentation. Silence, a
+screenshot path, a hash, an agent verdict and CI are not human acceptance.
+Evidence that a required chronological checkpoint was skipped makes the
+criterion `not_achieved`; mere absence of a record does not prove a skip.
+
+For legally significant content or behavior, record any needed professional
+review as well as the owner's decision. An agent's analysis cannot certify
+legal compliance or replace either decision.
 
 ### Carry the same criteria into ordinary QA
 

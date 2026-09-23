@@ -33,7 +33,7 @@ its user-path rubric, grouping and untrusted-evidence procedure.
 
 **User Impact / Preserved Semantics:** [Apply the linked rubric to affected UI, backend/user behavior, marketing or other user-facing promise, and policy/legal text; for a mechanical change explain what user-visible meaning is preserved]
 
-**Required Human Acceptance:** [Decision owner, proposed material/state to show before a substantial visual decision, final material/state to show before completion, or not applicable with reason]
+**Required Human Acceptance:** [For every required visual, legal or other owner decision, plan an explicit affirmative decision on the exact shown state/version; an explicit rejection is not_achieved. For a new substantial visual choice, plan two distinct affirmative checkpoints: openable proposal before implementation, then actual shown implementation before completion. Give a reasoned N/A only when a decision is not required. Record needed professional review separately; it cannot replace owner affirmation.]
 
 | Criterion reference | Original requirement / DoD references | Observable acceptance criterion | Planned evidence |
 | --- | --- | --- | --- |

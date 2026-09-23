@@ -55,7 +55,11 @@ boundary and untrusted-evidence procedure.
 
 **Affected-Criteria Recheck:** [Material change or new counterexample, stale prior evidence, targeted recheck and current result; or none]
 
-**Human Acceptance:** [Explicit owner decision linked to shown state/material version and any needed professional review; missing or stale remains unknown]
+**Proposed Visual Checkpoint:** [If required: affirmative owner decision, openable proposal state/version and proof it preceded implementation; otherwise reasoned N/A]
+
+**Implemented Visual Checkpoint:** [If required: separate affirmative owner decision, actual shown implementation state/version and proof it preceded completion; otherwise reasoned N/A]
+
+**Human Decision Assessment:** [For every required visual, legal or other decision, record explicit affirmative owner acceptance of exact shown state/version. Missing, ambiguous or stale required decision → unknown; explicit rejection → not_achieved; reasoned N/A only if no decision is required. For visual checkpoints, proven skipped chronology → not_achieved and final-only approval cannot replace proposal acceptance. Record needed professional review separately; it cannot replace owner affirmation or other criterion evidence.]
 
 - ✅/❌ Original requirements: [status]
 - ✅/❌ Project conventions: [status]

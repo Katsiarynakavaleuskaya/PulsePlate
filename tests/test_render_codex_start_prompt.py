@@ -982,13 +982,22 @@ def test_teleology_cli_delivers_review_instructions_without_assessing_evidence(
     assert "name the reviewer, exact reviewed material and criteria version" in prompt
     assert "Material change or new counterexample:" in prompt
     assert "mark stale conclusions unknown and perform a targeted recheck" in prompt
-    assert "show the owner openable proposed visual material" in prompt
-    assert "before implementing a new substantial visual choice" in prompt
-    assert "implementation before completion" in prompt
-    assert prompt.index("openable proposed visual material") < prompt.index(
-        "implementation before completion"
+    assert "Human decision rule: every required visual, legal or other owner decision" in prompt
+    assert "must be explicitly affirmative for the exact shown state and material version" in prompt
+    assert "Missing, ambiguous or stale required decisions are unknown" in prompt
+    assert "explicit rejection is not_achieved" in prompt
+    assert "reasoned N/A applies only when no decision is required" in prompt
+    assert "Needed professional review does not replace owner affirmation" in prompt
+    assert "Human visual checkpoints:" in prompt
+    assert "two distinct affirmative version-bound owner decisions" in prompt
+    assert "accept the openable proposal before implementation" in prompt
+    assert "accept the actual shown implementation before completion" in prompt
+    assert prompt.index("openable proposal before implementation") < prompt.index(
+        "actual shown implementation before completion"
     )
-    assert "Bind acceptance to the shown state and material version" in prompt
+    assert "Final-only approval cannot fill the proposal checkpoint" in prompt
+    assert "Proven skipped order is not_achieved" in prompt
+    assert "mere missing record does not prove a skip" in prompt
     assert "Silence, screenshot paths, hashes, agent verdicts and CI are not approval" in prompt
     assert "an agent cannot certify compliance" in prompt
     assert "missing evidence remain unknown" in prompt
