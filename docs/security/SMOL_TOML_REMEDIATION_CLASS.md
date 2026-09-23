@@ -27,8 +27,10 @@ at the current base and inspected merge head, respectively. Regular,
 non-symlink worktree reads matched the head npm hashes. Both enumerations
 select every tracked basename `package.json`, `package-lock.json`, or
 `npm-shrinkwrap.json` and contain the same five regular files. The table
-records the inspected head `7f11fc0f`; later documentation commits require
-their own exact-head review and seal.
+records the inspected merge head `7f11fc0f`; all five npm bytes also match the
+published PR head `373ffbd4779835f141fbf0982943ed5914200b56`. This guard
+fix changes material again, so its successor requires a fresh exact-head
+review and seal.
 
 | Surface | Current base SHA-256 | Inspected head SHA-256 |
 | --- | --- | --- |
@@ -45,6 +47,16 @@ carrier. The dependent `^1.4.2` edge in `cspell-config-lib` is a range
 requirement, not a second installed version. The guard discovers direct,
 nested, renamed-alias, override, and canonical-tarball lock identities rather
 than relying on a text search alone.
+
+Post-open review identified the first previously unhandled version-bearing
+carrier: the top-level `dependencies` compatibility tree in npm lock v2. The
+former guard accepted v2 but inspected only `packages`, allowing a safe
+`packages` entry to conceal an affected legacy version. The shared lock-shape
+gate now accepts only exact integer `lockfileVersion: 3`, requires a `packages`
+object, and rejects any top-level `dependencies` key, including an empty one
+on a nominal v3 file. Package-entry dependency edges remain inside `packages`
+and are unaffected. Both current tracked lock files are v3 without a top-level
+legacy tree. This does not claim v2 safety or full v2 compatibility support.
 
 ## F_cutoff and A: advisory reconciliation
 
@@ -121,12 +133,18 @@ in the surface table above; the other three hashes equal their base hashes.
 
 At this inspected head, all recognized `smol-toml` manifest and lock
 occurrences are exact stable `1.9.0`, outside every member of `F_cutoff`.
-`tests/test_root_npm_dependency_guards.py:930` requires every currently
+`tests/test_root_npm_dependency_guards.py:928` requires every currently
 tracked occurrence to be advisory-comparable and checks canonical registry
 tarball identity, version equality, and nonempty integrity. Existing global
 manifest opaque-source and lock provenance guards remain active. New negative
 tests reject `1.7.1`, `1.8.0`, nested/alias carriers, malformed version and
 foreign or mismatched tarballs; a safe `1.9.0` manifest/lock pair passes.
+The same shared shape gate runs before target discovery and global provenance.
+Focused regressions require both callers to reject v2 with a safe
+`packages/smol-toml=1.9.0` but vulnerable legacy
+`dependencies/smol-toml=1.6.1`, v2 even without that tree, malformed version
+types, absent or malformed `packages`, and nominal v3 with any top-level
+legacy tree. A canonical v3 lock passes both callers.
 An opaque future carrier that escapes the bounded recognizer is unresolved,
 not evidence of safety.
 

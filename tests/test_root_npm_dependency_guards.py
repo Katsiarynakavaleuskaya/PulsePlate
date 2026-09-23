@@ -27,7 +27,7 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS = frozenset({2, 3})
+SUPPORTED_NPM_JSON_LOCKFILE_VERSION = 3
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.18"),
     SpecifierSet(">=4,<5.1.16"),
@@ -598,15 +598,19 @@ def _lock_path_package_identity(raw_path: str) -> str | None:
     return None
 
 
-def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
-    """Find installed target entries by path, name, or canonical tarball identity."""
+def _require_supported_lock_packages(document: dict[str, Any], *, surface: str) -> dict[str, Any]:
+    """Admit only v3's complete packages tree, never an unchecked legacy tree."""
     lockfile_version = document.get("lockfileVersion")
     assert (
-        isinstance(lockfile_version, int)
-        and not isinstance(lockfile_version, bool)
-        and (lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS)
-    ), "npm lock surface: lockfileVersion must be supported JSON lock version 2 or 3"
-    packages = _require_dict_field(document, "packages", ctx="npm lock surface")
+        type(lockfile_version) is int and lockfile_version == SUPPORTED_NPM_JSON_LOCKFILE_VERSION
+    ), f"{surface}: lockfileVersion must be exact integer 3"
+    assert "dependencies" not in document, f"{surface}: top-level legacy dependencies are forbidden"
+    return _require_dict_field(document, "packages", ctx=surface)
+
+
+def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
+    """Find installed target entries by path, name, or canonical tarball identity."""
+    packages = _require_supported_lock_packages(document, surface="npm lock surface")
     occurrences: dict[str, dict[str, Any]] = {}
     for raw_path, raw_entry in packages.items():
         assert isinstance(raw_path, str), "npm lock surface: package path must be text"
@@ -623,13 +627,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
 
 def _assert_lock_surface_canonical_provenance(*, surface: str, document: dict[str, Any]) -> None:
     """Require canonical provenance for every non-root package in one npm lock."""
-    lockfile_version = document.get("lockfileVersion")
-    assert (
-        isinstance(lockfile_version, int)
-        and not isinstance(lockfile_version, bool)
-        and lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS
-    ), f"{surface}: lockfileVersion must be supported JSON lock version 2 or 3"
-    packages = _require_dict_field(document, "packages", ctx=surface)
+    packages = _require_supported_lock_packages(document, surface=surface)
     for raw_path, raw_entry in packages.items():
         assert isinstance(raw_path, str), f"{surface}: package path must be text"
         if raw_path == "":
@@ -1727,28 +1725,73 @@ def test_manifest_full_object_without_dot_only_walks_children() -> None:
     }
 
 
-@pytest.mark.parametrize("lockfile_version", (2, 3))
-def test_lock_discovery_accepts_supported_json_lock_versions(lockfile_version: int) -> None:
-    """npm JSON lock v2 and v3 expose the same governed packages map."""
-    entry = {"version": "5.1.16"}
+def test_lock_discovery_and_provenance_accept_canonical_v3() -> None:
+    """The exact v3 packages tree remains the sole admitted lock authority."""
+    entry = {
+        "version": "1.9.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+        "integrity": "sha512-test",
+    }
     document = {
-        "lockfileVersion": lockfile_version,
-        "packages": {"node_modules/nanoid": entry},
+        "lockfileVersion": 3,
+        "packages": {"node_modules/smol-toml": entry},
     }
 
-    assert _find_lock_occurrences(document, target="nanoid") == {"node_modules/nanoid": entry}
+    assert _find_lock_occurrences(document, target="smol-toml") == {"node_modules/smol-toml": entry}
+    _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
-@pytest.mark.parametrize("lockfile_version", (None, 1, 4, "3", 2.0, True))
+@pytest.mark.parametrize(
+    ("lockfile_version", "legacy_dependencies", "message"),
+    (
+        (2, None, "lockfileVersion must be exact integer 3"),
+        (2, {"smol-toml": {"version": "1.6.1"}}, "lockfileVersion must be exact integer 3"),
+        (3, {}, "top-level legacy dependencies are forbidden"),
+        (3, {"smol-toml": {"version": "1.6.1"}}, "top-level legacy dependencies are forbidden"),
+    ),
+)
+def test_lock_shape_rejects_legacy_tree_before_target_or_provenance_check(
+    lockfile_version: int, legacy_dependencies: dict[str, Any] | None, message: str
+) -> None:
+    """A safe packages entry cannot conceal a vulnerable compatibility tree."""
+    entry = {
+        "version": "1.9.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+        "integrity": "sha512-test",
+    }
+    document: dict[str, Any] = {
+        "lockfileVersion": lockfile_version,
+        "packages": {"node_modules/smol-toml": entry},
+    }
+    if legacy_dependencies is not None:
+        document["dependencies"] = legacy_dependencies
+
+    with pytest.raises(AssertionError, match=message):
+        _find_lock_occurrences(document, target="smol-toml")
+    with pytest.raises(AssertionError, match=message):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize("lockfile_version", (None, 1, 2, 4, "3", 2.0, True))
 def test_lock_discovery_rejects_unsupported_json_lock_versions(
     lockfile_version: object,
 ) -> None:
     """Missing, legacy, future, and malformed lock versions fail closed."""
-    with pytest.raises(AssertionError, match="lock version 2 or 3"):
-        _find_lock_occurrences(
-            {"lockfileVersion": lockfile_version, "packages": {}},
-            target="nanoid",
-        )
+    document = {"lockfileVersion": lockfile_version, "packages": {}}
+    with pytest.raises(AssertionError, match="lockfileVersion must be exact integer 3"):
+        _find_lock_occurrences(document, target="nanoid")
+    with pytest.raises(AssertionError, match="lockfileVersion must be exact integer 3"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize("packages", (None, [], "not-an-object"))
+def test_lock_shape_requires_packages_object_for_both_callers(packages: object) -> None:
+    """No alternate packages shape bypasses target discovery or provenance."""
+    document = {"lockfileVersion": 3, "packages": packages}
+    with pytest.raises(AssertionError, match="'packages' must be a dict"):
+        _find_lock_occurrences(document, target="smol-toml")
+    with pytest.raises(AssertionError, match="'packages' must be a dict"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize(
