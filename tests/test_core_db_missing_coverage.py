@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -44,23 +45,19 @@ def test_get_async_engine_returns_none_if_support_disappears_mid_init(
         return "postgresql+asyncpg://user:pass@localhost/db"
 
     monkeypatch.setattr(db, "_get_async_database_url", _fake_async_database_url)
-    assert db._get_async_engine() is None
+    assert asyncio.run(db._get_async_engine()) is None
 
 
 def test_get_async_engine_disposes_old_engine_and_applies_pool_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _DummySyncEngine:
-        def __init__(self) -> None:
-            self.disposed = False
-
-        def dispose(self) -> None:
-            self.disposed = True
-
     class _DummyAsyncEngine:
         def __init__(self, url: str) -> None:
-            self.url = url
-            self.sync_engine = _DummySyncEngine()
+            self.url = db.make_url(url)
+            self.disposed = False
+
+        async def dispose(self) -> None:
+            self.disposed = True
 
     captured: dict[str, Any] = {}
 
@@ -84,9 +81,9 @@ def test_get_async_engine_disposes_old_engine_and_applies_pool_config(
     db.async_engine = None
 
     try:
-        new_engine = db._get_async_engine()
+        new_engine = asyncio.run(db._get_async_engine())
         assert new_engine is not None
-        assert old_engine.sync_engine.disposed is True
+        assert old_engine.disposed is True
         assert captured["url"] == "postgresql+asyncpg://user:pass@localhost/db"
         assert captured["kwargs"]["pool_size"] == 3
         assert captured["kwargs"]["max_overflow"] == 5
@@ -102,14 +99,12 @@ def test_get_async_engine_disposes_old_engine_and_applies_pool_config(
 def test_get_async_engine_dispose_failure_is_logged(
     monkeypatch: pytest.MonkeyPatch, caplog
 ) -> None:
-    class _BadSyncEngine:
-        def dispose(self) -> None:
-            raise RuntimeError("dispose boom")
-
     class _DummyAsyncEngine:
         def __init__(self, url: str) -> None:
-            self.url = url
-            self.sync_engine = _BadSyncEngine()
+            self.url = db.make_url(url)
+
+        async def dispose(self) -> None:
+            raise RuntimeError("dispose boom")
 
     def _fake_create_async_engine(url: str, **_kwargs: Any) -> _DummyAsyncEngine:
         return _DummyAsyncEngine(url)
@@ -127,74 +122,144 @@ def test_get_async_engine_dispose_failure_is_logged(
     db.async_engine = None
 
     try:
-        with caplog.at_level(logging.DEBUG):
-            assert db._get_async_engine() is not None
+        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError, match="dispose boom"):
+            asyncio.run(db._get_async_engine())
         assert "Async engine dispose failed" in caplog.text
+        assert db._ASYNC_ENGINE is not old_engine
     finally:
         db._ASYNC_ENGINE = None
         db.AsyncSessionLocal = None
         db.async_engine = None
 
 
-@pytest.mark.asyncio
-async def test_get_async_session_raises_not_available_when_engine_missing(
+def test_async_candidate_cleanup_failure_preserves_factory_error(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class Candidate:
+        def __init__(self, url: str) -> None:
+            self.url = db.make_url(url)
+            self.dispose_called = False
+
+        async def dispose(self) -> None:
+            self.dispose_called = True
+            raise RuntimeError("synthetic cleanup failure")
+
+    class Previous:
+        url = db.make_url("sqlite+aiosqlite:///previous.db")
+
+    primary = ValueError("synthetic factory failure")
+    candidate: Candidate | None = None
+    previous = Previous()
+    previous_factory = object()
+
+    def create_candidate(url: str, **_kwargs: object) -> Candidate:
+        nonlocal candidate
+        candidate = Candidate(url)
+        return candidate
+
+    def fail_factory(**_kwargs: object) -> None:
+        raise primary
+
+    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///candidate.db")
+    monkeypatch.setattr(db, "create_async_engine", create_candidate)
+    monkeypatch.setattr(db, "async_sessionmaker", fail_factory)
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", previous)
+    monkeypatch.setattr(db, "AsyncSessionLocal", previous_factory)
+    monkeypatch.setattr(db, "async_engine", previous)
+
+    with caplog.at_level(logging.ERROR), pytest.raises(ValueError) as failure:
+        asyncio.run(db._get_async_engine_and_factory())
+
+    assert failure.value is primary
+    assert candidate is not None and candidate.dispose_called
+    assert db._ASYNC_ENGINE is previous
+    assert db.AsyncSessionLocal is previous_factory
+    assert db.async_engine is previous
+    assert "Async candidate disposal failed: RuntimeError" in caplog.text
+    assert "synthetic cleanup failure" not in caplog.text
+
+
+def test_get_async_session_raises_not_available_when_engine_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
-    monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
-    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
-    monkeypatch.setattr(db, "_get_async_engine", lambda: None)
-    monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+    async def scenario() -> None:
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
+        monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
 
-    agen = db.get_async_session()
-    with pytest.raises(db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"):
-        await agen.__anext__()
+        async def unavailable_pair() -> None:
+            return None
+
+        monkeypatch.setattr(db, "_get_async_engine_and_factory", unavailable_pair)
+        monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+
+        agen = db.get_async_session()
+        with pytest.raises(
+            db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"
+        ):
+            await agen.__anext__()
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_get_async_session_raises_not_configured_when_url_missing(
+def test_get_async_session_raises_not_configured_when_url_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
-    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
-    monkeypatch.setattr(db, "_get_async_database_url", lambda: None)
+    async def scenario() -> None:
+        monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
+        monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
+        monkeypatch.setattr(db, "_get_async_database_url", lambda: None)
 
-    agen = db.get_async_session()
-    with pytest.raises(db.AsyncDBNotConfigured, match="Async SQLAlchemy is not configured"):
-        await agen.__anext__()
+        agen = db.get_async_session()
+        with pytest.raises(db.AsyncDBNotConfigured, match="Async SQLAlchemy is not configured"):
+            await agen.__anext__()
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_session_scope_async_raises_not_available_when_async_support_missing(
+def test_session_scope_async_raises_not_available_when_async_support_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(db, "create_async_engine", None, raising=False)
-    monkeypatch.setattr(db, "async_sessionmaker", None, raising=False)
+    async def scenario() -> None:
+        monkeypatch.setattr(db, "create_async_engine", None, raising=False)
+        monkeypatch.setattr(db, "async_sessionmaker", None, raising=False)
 
-    with pytest.raises(db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"):
-        async with db.session_scope_async():
-            pass
+        with pytest.raises(
+            db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"
+        ):
+            async with db.session_scope_async():
+                pass
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_session_scope_async_raises_not_available_when_engine_missing(
+def test_session_scope_async_raises_not_available_when_engine_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
-    monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
-    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
-    monkeypatch.setattr(db, "_get_async_engine", lambda: None)
-    monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+    async def scenario() -> None:
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
+        monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
 
-    with pytest.raises(db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"):
-        async with db.session_scope_async():
-            pass
+        async def unavailable_pair() -> None:
+            return None
+
+        monkeypatch.setattr(db, "_get_async_engine_and_factory", unavailable_pair)
+        monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+
+        with pytest.raises(
+            db.AsyncDBNotAvailable, match="SQLAlchemy async extras are not available"
+        ):
+            async with db.session_scope_async():
+                pass
+
+    asyncio.run(scenario())
 
 
 def test_init_db_sets_sessionlocal_when_engine_precreated() -> None:
     db.reset_db_for_tests()
     _ = db._get_raw_engine()
-    assert db.SessionLocal is None
+    assert db.SessionLocal is not None
 
     db.init_db()
     assert db.SessionLocal is not None
@@ -215,33 +280,38 @@ def test_reset_db_for_tests_handles_dispose_errors(caplog) -> None:
         db.init_db()
 
 
-@pytest.mark.asyncio
-async def test_init_db_async_runs_with_mock_async_engine(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
+def test_init_db_async_runs_with_mock_async_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        calls: list[str] = []
 
-    def _fake_create_all(_bind: Any = None) -> None:  # noqa: ANN401 - test stub
-        calls.append("create_all")
+        def _fake_create_all(_bind: Any = None) -> None:  # noqa: ANN401 - test stub
+            calls.append("create_all")
 
-    class _DummyConn:
-        async def run_sync(self, fn):  # noqa: ANN001, ANN201 - test stub
-            fn("bind")
+        class _DummyConn:
+            async def run_sync(self, fn):  # noqa: ANN001, ANN201 - test stub
+                fn("bind")
 
-    class _DummyBegin:
-        async def __aenter__(self) -> _DummyConn:
-            return _DummyConn()
+        class _DummyBegin:
+            async def __aenter__(self) -> _DummyConn:
+                return _DummyConn()
 
-        async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001 - test stub
-            return None
+            async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001 - test stub
+                return None
 
-    class _DummyAsyncEngine:
-        def begin(self) -> _DummyBegin:
-            return _DummyBegin()
+        class _DummyAsyncEngine:
+            def begin(self) -> _DummyBegin:
+                return _DummyBegin()
 
-    monkeypatch.setattr(db, "_get_async_engine", lambda: _DummyAsyncEngine())
-    monkeypatch.setattr(db.Base.metadata, "create_all", _fake_create_all)
+        async def fake_async_engine() -> _DummyAsyncEngine:
+            return _DummyAsyncEngine()
 
-    await db.init_db_async()
-    assert calls == ["create_all"]
+        monkeypatch.setattr(db, "_get_async_engine", fake_async_engine)
+        monkeypatch.setattr(db.Base.metadata, "create_all", _fake_create_all)
+
+        await db.init_db_async()
+        assert calls == ["create_all"]
+
+    asyncio.run(scenario())
 
 
 def test_finalize_transaction_logs_without_exc_info_in_production(
@@ -309,19 +379,20 @@ def test_get_async_engine_returns_cached_engine_when_url_matches(
 ) -> None:
     class _DummyAsyncEngine:
         def __init__(self, url: str) -> None:
-            self.url = url
+            self.url = db.make_url(url)
 
     cached = _DummyAsyncEngine("postgresql+asyncpg://user:pass@localhost/db")
 
     def _unexpected_create(*_a: Any, **_k: Any) -> None:  # noqa: ANN401 - test stub
         raise AssertionError("create_async_engine should not be called when cache is valid")
 
-    monkeypatch.setenv("DATABASE_ASYNC_URL", cached.url)
+    monkeypatch.setenv("DATABASE_ASYNC_URL", cached.url.render_as_string(hide_password=False))
     monkeypatch.setattr(db, "create_async_engine", _unexpected_create, raising=False)
     monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
     monkeypatch.setattr(db, "_ASYNC_ENGINE", cached, raising=False)
+    monkeypatch.setattr(db, "AsyncSessionLocal", lambda: "session", raising=False)
 
-    assert db._get_async_engine() is cached
+    assert asyncio.run(db._get_async_engine()) is cached
 
 
 def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
@@ -329,7 +400,7 @@ def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
 ) -> None:
     class _DummyAsyncEngine:
         def __init__(self, url: str) -> None:
-            self.url = url
+            self.url = db.make_url(url)
 
     async_url = "postgresql+asyncpg://user:pass@localhost/db"
     old_engine = _DummyAsyncEngine("postgresql+asyncpg://user:pass@localhost/old")
@@ -341,6 +412,7 @@ def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
     class _RaceLock:
         def __enter__(self) -> "_RaceLock":
             db._ASYNC_ENGINE = new_engine
+            db.AsyncSessionLocal = lambda: "session"
             return self
 
         def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001 - test stub
@@ -352,4 +424,4 @@ def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
     monkeypatch.setattr(db, "_ASYNC_ENGINE", old_engine, raising=False)
     monkeypatch.setattr(db, "_ASYNC_INIT_LOCK", _RaceLock(), raising=False)
 
-    assert db._get_async_engine() is new_engine
+    assert asyncio.run(db._get_async_engine()) is new_engine

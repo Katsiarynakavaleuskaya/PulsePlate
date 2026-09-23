@@ -502,3 +502,19 @@ and `ALERT_DELIVERY_TESTED` needs a separately authorized delivery test. OPS-01 
 only the offline reference/report surface. OPS-02 DB lifecycle regression repair with a real-function reproducer and caller coverage,
 OPS-03 minimal host/DB/service observability with tested human alert delivery, and OPS-04
 measured storage/FinOps preserving recovery requirements remain separate backlog-governed lanes.
+
+## DB engine lifecycle (OPS-02)
+
+`core.db` identifies a configured connection by its complete parsed SQLAlchemy URL,
+including credentials and query parameters. The sync getter and `init_db()` publish
+an engine with its bound factory as one generation. `init_db()` prepares the
+candidate schema before publication; failure preserves the prior generation.
+An explicit `init_db(database_url=...)` selection remains current for session
+factory acquisition until a later engine selection. The local/dev fallback
+publishes its URL and generation under the same lifecycle lock for participating
+accessors; independent reads of module globals or `os.environ` are not atomic
+snapshots. Async acquisition returns one
+engine/factory snapshot and awaits disposal of a replaced engine. Callers still
+own already-issued sessions and checked-out connections; pool disposal does
+not close them or assert safe live credential rotation. This repository-level
+contract adds no host activation, pool policy, or deployment claim.

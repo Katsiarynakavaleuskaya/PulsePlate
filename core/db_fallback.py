@@ -94,11 +94,12 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
     from core.db import load_canonical_orm_metadata
 
     metadata = load_canonical_orm_metadata()
+    fallback_engine: Engine | None = None
     try:
         # Create temporary engine with fallback URL
         # Use SQLite-specific connection args when needed
         connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
-        fallback_engine: Engine = create_engine(
+        fallback_engine = create_engine(
             fallback_url, echo=False, future=True, connect_args=connect_args
         )
 
@@ -106,10 +107,15 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Engine:
         metadata.create_all(bind=fallback_engine)
         return fallback_engine
     except Exception as fallback_err:
+        if fallback_engine is not None:
+            try:
+                fallback_engine.dispose()
+            except Exception as cleanup_err:
+                logger.error("Fallback candidate disposal failed: %s", type(cleanup_err).__name__)
         logger.error(
-            "Fallback database init failed (url=%s): %s",
+            "Fallback database init failed (url=%s, error_type=%s)",
             _redact_database_url(fallback_url),
-            fallback_err,
+            type(fallback_err).__name__,
         )
         raise db_err from fallback_err
 
@@ -126,14 +132,33 @@ def _configure_session_bindings(
     # core.db is the module core/db.py (no package collision: we use core/db_fallback.py).
     from core import db as core_db
 
-    # Always recreate sessionmaker; do not use SessionLocal.configure() (core/AGENTS.md).
-    core_db.SessionLocal = core_db.sessionmaker(
-        bind=engine, autoflush=False, autocommit=False, future=True
-    )
-    core_db._RAW_ENGINE = engine
-    core_db.engine = core_db.EngineCompat(engine)
-    set_fallback_active()
-    os.environ["DB_HEALTH_DEGRADED"] = "1"
+    try:
+        candidate_factory = core_db.sessionmaker(
+            bind=engine, autoflush=False, autocommit=False, future=True
+        )
+    except Exception:
+        try:
+            engine.dispose()
+        except Exception as cleanup_err:
+            logger.error("Fallback binding disposal failed: %s", type(cleanup_err).__name__)
+        raise
+
+    with core_db._init_lock:
+        retired_engine = core_db._RAW_ENGINE
+        # The local fallback URL and generation become visible together to
+        # accessors that participate in the canonical DB lifecycle lock.
+        if not is_production:
+            os.environ["DB_FALLBACK_URL"] = fallback_url
+            os.environ["DATABASE_URL"] = fallback_url
+        else:
+            os.environ["DB_FALLBACK_URL"] = fallback_url
+        core_db._RAW_ENGINE, core_db.SessionLocal = engine, candidate_factory
+        core_db.engine = core_db.EngineCompat(core_db._get_raw_engine)
+        set_fallback_active()
+        os.environ["DB_HEALTH_DEGRADED"] = "1"
+
+    if retired_engine is not None and retired_engine is not engine:
+        core_db._dispose_sync_engine(retired_engine)
 
     # Emit an observability metric when DB fallback is activated so dashboards
     # can surface degraded states. This uses a lazy import and silently
@@ -165,10 +190,7 @@ def _configure_session_bindings(
         )
         # Metrics collection is non-critical; failures should not affect application startup
 
-    # Set DB_FALLBACK_URL only if needed for external tools
     if not is_production:
-        os.environ["DB_FALLBACK_URL"] = fallback_url
-        os.environ["DATABASE_URL"] = fallback_url
         logger.warning(
             "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
             "os.environ['DATABASE_URL'] updated for compatibility.",
@@ -176,8 +198,6 @@ def _configure_session_bindings(
             _redact_database_url(fallback_url),
         )
     else:
-        # In production, only set DB_FALLBACK_URL for internal use
-        os.environ["DB_FALLBACK_URL"] = fallback_url
         logger.warning(
             "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
             "Using module-level fallback variable only.",

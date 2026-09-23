@@ -27,9 +27,9 @@ import threading
 from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable, Union
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable, Union, cast
 
-from sqlalchemy import MetaData, create_engine, text
+from sqlalchemy import MetaData, Table, create_engine, text
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -324,24 +324,26 @@ def _get_raw_engine() -> "Engine":
     global _RAW_ENGINE, SessionLocal
 
     db_url = get_database_url()
+    target_url = make_url(db_url)
+    retired_engine = None
+    with _init_lock:
+        if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
+            if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
+                SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+            return _RAW_ENGINE
 
-    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
-        with _init_lock:
-            if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:  # pragma: no branch
-                poolclass = _get_sqlite_poolclass(db_url)
+        candidate = _create_sync_engine(db_url)
+        try:
+            candidate_factory = _make_sync_session_factory(candidate)
+        except Exception:
+            _dispose_sync_engine(candidate, best_effort=True)
+            raise
+        retired_engine = _RAW_ENGINE
+        _RAW_ENGINE, SessionLocal = candidate, candidate_factory
 
-                _RAW_ENGINE = create_engine(
-                    db_url,
-                    echo=False,
-                    future=True,
-                    connect_args=_sqlite_connect_args(db_url),
-                    poolclass=poolclass,
-                )
-                # Clear SessionLocal so next call rebuilds a sessionmaker bound to the new engine,
-                # avoiding sessions tied to a stale URL (e.g., pytest-xdist overrides).
-                SessionLocal = None
-
-    return _RAW_ENGINE
+    if retired_engine is not None:
+        _dispose_sync_engine(retired_engine)
+    return candidate
 
 
 def _get_session_local() -> sessionmaker[Session]:
@@ -351,20 +353,17 @@ def _get_session_local() -> sessionmaker[Session]:
     during concurrent initialization.
     """
     global SessionLocal
-    if SessionLocal is not None and not _session_local_is_bound(SessionLocal):
-        SessionLocal = None
-    if SessionLocal is None:
-        with _init_lock:
-            if SessionLocal is None:  # pragma: no branch
-                engine = _get_raw_engine()
-                SessionLocal = sessionmaker(
-                    bind=engine, autoflush=False, autocommit=False, future=True
-                )
-    return SessionLocal
+    with _init_lock:
+        # A factory lookup uses the selected engine, including an explicit URL
+        # chosen by init_db(database_url=...), without re-reading ambient env.
+        current_engine = _RAW_ENGINE or _get_raw_engine()
+        if SessionLocal is None or not _session_local_is_bound(SessionLocal, current_engine):
+            SessionLocal = _make_sync_session_factory(current_engine)
+        return SessionLocal
 
 
-def _session_local_is_bound(session_local: sessionmaker[Session]) -> bool:
-    """Return True when a sessionmaker has an effective default bind.
+def _session_local_is_bound(session_local: sessionmaker[Session], engine: "Engine") -> bool:
+    """Return True when a sessionmaker is bound to the selected engine.
 
     Avoid relying on ``sessionmaker.kw`` (an internal attribute). The most
     stable signal is whether a session created from the factory has a default
@@ -375,13 +374,37 @@ def _session_local_is_bound(session_local: sessionmaker[Session]) -> bool:
     except Exception:  # pragma: no cover - defensive
         return False
     try:
-        return session.bind is not None
+        return session.bind is engine
     finally:
         # In production this is always a real SQLAlchemy Session, but some
         # tests patch SessionLocal with plain mocks; avoid calling close() on
         # non-Session objects to keep those tests deterministic.
         if isinstance(session, Session):
             session.close()
+
+
+def _create_sync_engine(db_url: str) -> "Engine":
+    """Construct a candidate without publishing it."""
+    return create_engine(
+        db_url,
+        echo=False,
+        future=True,
+        connect_args=_sqlite_connect_args(db_url),
+        poolclass=_get_sqlite_poolclass(db_url),
+    )
+
+
+def _make_sync_session_factory(engine: "Engine") -> sessionmaker[Session]:
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+def _dispose_sync_engine(engine: "Engine", *, best_effort: bool = False) -> None:
+    try:
+        engine.dispose()
+    except Exception as exc:
+        logger.error("Sync engine disposal failed: %s", type(exc).__name__)
+        if not best_effort:
+            raise
 
 
 class _ResultWithConnectionCleanup:
@@ -642,76 +665,87 @@ def _get_async_database_url() -> Optional[str]:
     return async_url
 
 
-def _get_async_engine() -> Optional["AsyncEngine"]:
-    """Return the singleton async SQLAlchemy Engine, creating it lazily on first use.
-
-    RU: Возвращает singleton async engine, создавая его лениво при первом использовании.
-    EN: Returns singleton async engine, creating it lazily on first use.
-
-    Recreates the engine if DATABASE_ASYNC_URL changes (critical for pytest-xdist workers).
-    """
+async def _get_async_engine_and_factory() -> (
+    Optional[tuple["AsyncEngine", "AsyncSessionmaker[AsyncSession]"]]
+):
+    """Acquire one coherent async engine/session generation."""
     global _ASYNC_ENGINE, AsyncSessionLocal, async_engine
 
     async_url = _get_async_database_url()
     if async_url is None:
-        return None
-
-    # Check if engine needs to be recreated (None or URL changed)
-    # Mirror sync engine behavior for xdist safety
-    current_engine = _ASYNC_ENGINE
-    current_url = None if current_engine is None else str(current_engine.url)
-    needs_new = current_engine is None or current_url != async_url
-
-    if needs_new:
         with _ASYNC_INIT_LOCK:
-            # Re-check under lock to prevent race conditions
-            current_engine = _ASYNC_ENGINE
-            current_url = None if current_engine is None else str(current_engine.url)
-            if current_engine is None or current_url != async_url:
-                if create_async_engine is None or async_sessionmaker is None:
+            retired_engine = _ASYNC_ENGINE
+            _ASYNC_ENGINE = None
+            AsyncSessionLocal = None
+            async_engine = None
+        if retired_engine is not None:
+            await retired_engine.dispose()
+        return None
+    target_url = make_url(async_url)
+    retired_engine = None
+    candidate = None
+    failure = None
+    with _ASYNC_INIT_LOCK:
+        if _ASYNC_ENGINE is not None and _ASYNC_ENGINE.url == target_url:
+            if AsyncSessionLocal is None:
+                if async_sessionmaker is None:
                     return None
+                AsyncSessionLocal = async_sessionmaker(
+                    bind=_ASYNC_ENGINE, autoflush=False, expire_on_commit=False
+                )
+            return _ASYNC_ENGINE, AsyncSessionLocal
+        if create_async_engine is None or async_sessionmaker is None:
+            return None
 
-                # Dispose old engine if URL changed (release file locks, connections)
-                if _ASYNC_ENGINE is not None:
-                    try:
-                        # AsyncEngine.dispose() is async, but we're in sync context
-                        # Use sync_engine for disposal in sync context
-                        _ASYNC_ENGINE.sync_engine.dispose()
-                        logger.debug("Disposed old async engine (URL changed)")
-                    except Exception as exc:
-                        logger.debug("Async engine dispose failed: %s", exc)
+        async_kwargs: dict[str, Any] = {"echo": False, "future": True}
+        if async_url.startswith("sqlite+aiosqlite"):
+            sqlite_poolclass = _get_sqlite_poolclass(async_url)
+            if sqlite_poolclass is not None:
+                async_kwargs["poolclass"] = sqlite_poolclass
+        else:
+            async_kwargs.update(_get_pool_config())
 
-                try:
-                    async_kwargs: dict[str, Any] = {
-                        "echo": False,
-                        "future": True,
-                    }
+        try:
+            candidate = create_async_engine(async_url, **async_kwargs)
+            candidate_factory = async_sessionmaker(
+                bind=candidate, autoflush=False, expire_on_commit=False
+            )
+        except Exception as exc:
+            failure = exc
+        else:
+            retired_engine = _ASYNC_ENGINE
+            _ASYNC_ENGINE, AsyncSessionLocal, async_engine = (
+                candidate,
+                candidate_factory,
+                candidate,
+            )
+            generation = candidate, candidate_factory
+            candidate = None
 
-                    # For sqlite+aiosqlite, prefer NullPool/StaticPool semantics where configured
-                    # to avoid cross-thread connection reuse and flaky locks.
-                    if async_url.startswith("sqlite+aiosqlite"):
-                        sqlite_poolclass = _get_sqlite_poolclass(async_url)
-                        if sqlite_poolclass is not None:
-                            async_kwargs["poolclass"] = sqlite_poolclass
-                    else:
-                        async_kwargs.update(_get_pool_config())
+    if candidate is not None:
+        try:
+            await candidate.dispose()
+        except Exception as cleanup_exc:
+            logger.error("Async candidate disposal failed: %s", type(cleanup_exc).__name__)
+            if failure is None:
+                raise
+    if failure is not None:
+        if isinstance(failure, ImportError):
+            return None
+        raise failure
+    if retired_engine is not None:
+        try:
+            await retired_engine.dispose()
+        except Exception as exc:
+            logger.error("Async engine dispose failed: %s", type(exc).__name__)
+            raise
+    return generation
 
-                    _ASYNC_ENGINE = create_async_engine(async_url, **async_kwargs)
 
-                    AsyncSessionLocal = async_sessionmaker(
-                        bind=_ASYNC_ENGINE,
-                        autoflush=False,
-                        expire_on_commit=False,
-                    )
-                    # Update public async_engine variable
-                    async_engine = _ASYNC_ENGINE
-                except ImportError:
-                    # Fallback if async drivers are not available
-                    _ASYNC_ENGINE = None
-                    AsyncSessionLocal = None
-                    async_engine = None
-
-    return _ASYNC_ENGINE
+async def _get_async_engine() -> Optional["AsyncEngine"]:
+    """Return the selected async engine through awaited pair acquisition."""
+    generation = await _get_async_engine_and_factory()
+    return None if generation is None else generation[0]
 
 
 # Public async engine accessor (lazy, updated by _get_async_engine())
@@ -753,7 +787,7 @@ def load_canonical_orm_metadata() -> MetaData:
     }
     mappers = tuple(Base.registry.mappers)
     mapped_classes = {mapper.class_ for mapper in mappers}
-    expected_table_keys = {model.__table__.key for model in expected_classes}
+    expected_table_keys = {cast(Table, model.__table__).key for model in expected_classes}
     actual_table_keys = set(Base.metadata.tables)
     if (
         mapped_classes != expected_classes
@@ -814,11 +848,13 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     # Fast-fail if async SQLAlchemy extras are not available
     if create_async_engine is None or async_sessionmaker is None:
+        await _get_async_engine_and_factory()
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     # Distinguish "not enabled/configured" vs "enabled but driver missing"
     async_url = _get_async_database_url()
     if async_url is None:
+        await _get_async_engine_and_factory()
         raise AsyncDBNotConfigured(
             "Async SQLAlchemy is not configured. "
             "Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1, "
@@ -826,11 +862,12 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
         )
 
     # Lazy initialize async engine if needed
-    async_eng = _get_async_engine()
-    if async_eng is None or AsyncSessionLocal is None:
+    generation = await _get_async_engine_and_factory()
+    if generation is None:
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
-    session = AsyncSessionLocal()
+    _, session_factory = generation
+    session = session_factory()
     try:
         yield session
     finally:
@@ -841,19 +878,22 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
 async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     """Async context manager for atomic DB operations."""
     if create_async_engine is None or async_sessionmaker is None:
+        await _get_async_engine_and_factory()
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     async_url = _get_async_database_url()
     if async_url is None:
+        await _get_async_engine_and_factory()
         raise AsyncDBNotConfigured(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
         )
 
-    async_eng = _get_async_engine()
-    if async_eng is None or AsyncSessionLocal is None:
+    generation = await _get_async_engine_and_factory()
+    if generation is None:
         raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
-    session = AsyncSessionLocal()
+    _, session_factory = generation
+    session = session_factory()
     try:
         yield session
         await session.commit()
@@ -892,79 +932,60 @@ def init_db(database_url: str | None = None) -> "Engine":
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
     # Get current URL from environment or use provided URL
-    db_url = database_url or get_database_url()
+    db_url = database_url if database_url is not None else get_database_url()
+    target_url = make_url(db_url)
     env_provided = "DATABASE_URL" in os.environ
     _ensure_sqlite_directory(db_url, env_provided)
 
-    # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
-    # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    # Build engines outside the lock to avoid holding it during I/O-heavy creation.
-    # Re-check under the lock to prevent race overwrites, and rely on the final
-    # guard below to ensure _RAW_ENGINE is set before create_all runs.
+    # A reused engine must stay selected while its schema is checked. This is
+    # the only path that holds the publication lock across create_all.
     with _init_lock:
-        current_engine = _RAW_ENGINE
-        current_url = None if current_engine is None else str(current_engine.url)
-        needs_new = current_engine is None or current_url != db_url
+        if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
+            metadata.create_all(bind=_RAW_ENGINE)
+            if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
+                SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+            return _RAW_ENGINE
 
-    if needs_new:
-        # Dispose old engine and clean up old SQLite file if URL changed
+    # Prepare the replacement completely before exposing it to new sessions.
+    candidate = _create_sync_engine(db_url)
+    try:
+        candidate_factory = _make_sync_session_factory(candidate)
+        metadata.create_all(bind=candidate)
+    except Exception:
+        _dispose_sync_engine(candidate, best_effort=True)
+        raise
+
+    retired_engine = None
+    candidate_to_dispose: Optional["Engine"] = candidate
+    try:
         with _init_lock:
-            if _RAW_ENGINE is not None:
-                old_url = str(_RAW_ENGINE.url)
-                # Dispose old engine to release file locks
-                _RAW_ENGINE.dispose()
-                # Delete old SQLite file only if explicitly enabled (for test isolation)
-                if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
-                    old_sqlite_path = _extract_sqlite_path(old_url)
-                    if old_sqlite_path and os.path.exists(old_sqlite_path):
-                        try:
-                            os.remove(old_sqlite_path)
-                            logger.debug("Removed old SQLite file: %s", old_sqlite_path)
-                        except OSError as remove_err:
-                            logger.warning(
-                                "Could not remove old SQLite file %s: %s",
-                                old_sqlite_path,
-                                remove_err,
-                            )
+            if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
+                # Another caller published this URL while our candidate was
+                # prepared. Its engine may be an uninitialized lazy getter.
+                metadata.create_all(bind=_RAW_ENGINE)
+                if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
+                    SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+                return _RAW_ENGINE
+            retired_engine = _RAW_ENGINE
+            _RAW_ENGINE, SessionLocal = candidate, candidate_factory
+            selected_engine = candidate
+            candidate_to_dispose = None
+    finally:
+        if candidate_to_dispose is not None:
+            _dispose_sync_engine(candidate_to_dispose)
 
-        # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
-        poolclass = _get_sqlite_poolclass(db_url)
-        new_engine = create_engine(
-            db_url,
-            echo=False,
-            future=True,
-            connect_args=_sqlite_connect_args(db_url),
-            poolclass=poolclass,
-        )
-        new_session_local = sessionmaker(
-            bind=new_engine, autoflush=False, autocommit=False, future=True
-        )
-        # Assign to globals UNDER lock with re-check (prevent race overwrites)
-        with _init_lock:
-            current_engine = _RAW_ENGINE
-            current_url = None if current_engine is None else str(current_engine.url)
-            if current_engine is None or current_url != db_url:
-                _RAW_ENGINE = new_engine
-                SessionLocal = new_session_local
+    if retired_engine is not None:
+        _dispose_sync_engine(retired_engine)
+        # Preserve the existing test-only old-file cleanup contract.
+        if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
+            old_sqlite_path = _extract_sqlite_path(retired_engine.url.render_as_string())
+            if old_sqlite_path and os.path.exists(old_sqlite_path):
+                try:
+                    os.remove(old_sqlite_path)
+                except OSError as exc:
+                    logger.warning("Could not remove old SQLite file: %s", type(exc).__name__)
 
-    # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
-    # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
-    if _RAW_ENGINE is None:
-        raise RuntimeError("Engine must be initialized before creating tables")
-
-    # Ensure SessionLocal is always set after init_db(), even if the engine was created lazily.
-    with _init_lock:
-        if SessionLocal is None:  # pragma: no branch
-            SessionLocal = sessionmaker(
-                bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
-            )
-
-    # RU: create_all() вызываем всегда при init_db(); операция идемпотентна.
-    # EN: Always call create_all() on init_db(); this is idempotent.
-    # This ensures tables are created even if engine was reused from previous init_db() call.
-    metadata.create_all(bind=_RAW_ENGINE)
-
-    return _RAW_ENGINE
+    return selected_engine
 
 
 def reset_db_for_tests() -> None:
@@ -1053,7 +1074,7 @@ async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
     metadata = load_canonical_orm_metadata()
 
-    async_eng = _get_async_engine()
+    async_eng = await _get_async_engine()
     if async_eng is None:
         metadata.create_all(bind=_get_raw_engine())
         return

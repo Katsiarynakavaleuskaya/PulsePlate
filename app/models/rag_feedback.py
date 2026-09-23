@@ -14,7 +14,7 @@ See: docs/contracts/RAG_CONTRACT.md, docs/db/rag_feedback_schema.md
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from datetime import datetime
 import json
 import math
@@ -72,7 +72,7 @@ def _select_vector_type_factory(
 
 
 def _register_vector_type_owner(
-    registry: MutableMapping[str, object],
+    registry: MutableMapping[str, type] | MutableMapping[str, object],
     selected_factory: type[UserDefinedType],
 ) -> type[UserDefinedType]:
     """Register one exact vector owner without replacing another owner."""
@@ -144,12 +144,12 @@ class _VectorText(TypeDecorator[str]):
 
     def __init__(
         self,
-        vector_type_factory: type[UserDefinedType] = _vector_type_factory,
+        vector_type_factory: Callable[..., UserDefinedType] = _vector_type_factory,
     ) -> None:
         super().__init__()
         self._selected_vector_type_factory = vector_type_factory
 
-    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[object]:
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[object] | TypeEngine[str]:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(self._selected_vector_type_factory(self.dimensions))
         return dialect.type_descriptor(Text())

@@ -9,9 +9,121 @@ Covers _attempt_db_fallback function branches:
 
 import os
 import inspect
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import pytest
+
+
+def test_fallback_publishes_environment_and_session_generation_together(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """An acquisition before fallback publication keeps the prior generation."""
+    from sqlalchemy import create_engine
+
+    from core import db
+    from core import db_fallback
+
+    entered = Event()
+    release = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        primary_factory = db.get_session_factory()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        original_sessionmaker = db.sessionmaker
+
+        def waiting_sessionmaker(*args: object, **kwargs: object):
+            if kwargs.get("bind") is fallback_engine:
+                entered.set()
+                assert release.wait(timeout=5)
+            return original_sessionmaker(*args, **kwargs)
+
+        try:
+            with monkeypatch.context() as active:
+                active.setattr(db, "sessionmaker", waiting_sessionmaker)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    future = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        fallback_engine,
+                        False,
+                        fallback_url,
+                        "test",
+                    )
+                    assert entered.wait(timeout=5)
+                    assert db.get_session_factory() is primary_factory
+                    assert db._RAW_ENGINE is primary
+                    assert os.environ["DATABASE_URL"] != fallback_url
+                    release.set()
+                    future.result(timeout=5)
+
+            with db.get_session_factory()() as session:
+                assert session.bind is fallback_engine
+            assert db._RAW_ENGINE is fallback_engine
+            assert os.environ["DATABASE_URL"] == fallback_url
+        finally:
+            release.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+@pytest.mark.parametrize("dispose_fails", [False, True])
+def test_fallback_schema_failure_disposes_unpublished_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    dispose_fails: bool,
+) -> None:
+    from core import db
+    from core import db_fallback
+
+    class Candidate:
+        disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+            if dispose_fails:
+                raise RuntimeError("synthetic disposal failure")
+
+    class FailingMetadata:
+        def create_all(self, *, bind: object) -> None:
+            raise RuntimeError("synthetic schema failure")
+
+    candidate = Candidate()
+    monkeypatch.setattr(db, "load_canonical_orm_metadata", lambda: FailingMetadata())
+    monkeypatch.setattr(db_fallback, "create_engine", lambda *args, **kwargs: candidate)
+    original = OSError("primary failed")
+    with pytest.raises(OSError, match="primary failed") as failure:
+        db_fallback._initialize_fallback_engine("sqlite:///:memory:", original)
+    assert isinstance(failure.value.__cause__, RuntimeError)
+    assert candidate.disposed is True
+
+
+def test_fallback_factory_failure_preserves_original_error_on_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core import db
+    from core import db_fallback
+
+    class Candidate:
+        disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+            raise RuntimeError("synthetic disposal failure")
+
+    candidate = Candidate()
+
+    def fail_sessionmaker(*args: object, **kwargs: object) -> None:
+        raise ValueError("synthetic factory failure")
+
+    monkeypatch.setattr(db, "sessionmaker", fail_sessionmaker)
+    with pytest.raises(ValueError, match="synthetic factory failure"):
+        db_fallback._configure_session_bindings(candidate, False, "sqlite:///:memory:", "test")
+    assert candidate.disposed is True
 
 
 class TestAppDBFallback97:
