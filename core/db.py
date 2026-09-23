@@ -346,7 +346,19 @@ def _get_raw_engine() -> "Engine":
 
     if retired_engine is not None:
         _dispose_sync_engine(retired_engine)
-    return candidate
+    # Disposal releases the lock; another caller may have replaced candidate
+    # before this accessor returns. Return only the generation selected now.
+    with _init_lock:
+        current = _RAW_ENGINE
+        effective_url = make_url(get_database_url())
+        if (
+            current is None
+            or current.url != effective_url
+            or SessionLocal is None
+            or not _session_local_is_bound(SessionLocal, current)
+        ):
+            raise RuntimeError("DB generation changed during acquisition")
+        return current
 
 
 def _get_session_local() -> sessionmaker[Session]:
@@ -689,6 +701,32 @@ def _get_async_database_url() -> Optional[str]:
     return async_url
 
 
+def _current_async_generation() -> (
+    Optional[tuple["AsyncEngine", "AsyncSessionmaker[AsyncSession]"]]
+):
+    """Return the coherent current pair at the final acquisition boundary."""
+    with _init_lock:
+        try:
+            effective_url = _get_async_database_url()
+            selected_url = make_url(effective_url) if effective_url is not None else None
+        except Exception:
+            raise RuntimeError("Async DB generation changed during acquisition") from None
+        with _ASYNC_INIT_LOCK:
+            current = _ASYNC_ENGINE
+            factory = AsyncSessionLocal
+            if selected_url is None:
+                if current is None and factory is None and async_engine is None:
+                    return None
+            elif (
+                current is not None
+                and current.url == selected_url
+                and factory is not None
+                and async_engine is current
+            ):
+                return current, factory
+    raise RuntimeError("Async DB generation changed during acquisition")
+
+
 async def _get_async_engine_and_factory() -> (
     Optional[tuple["AsyncEngine", "AsyncSessionmaker[AsyncSession]"]]
 ):
@@ -754,7 +792,7 @@ async def _get_async_engine_and_factory() -> (
             except Exception as exc:
                 logger.error("Async engine dispose failed: %s", type(exc).__name__)
                 raise
-        return None
+        return _current_async_generation()
 
     if candidate is not None:
         try:
@@ -778,7 +816,7 @@ async def _get_async_engine_and_factory() -> (
             raise
     if generation is None:
         raise RuntimeError("Async DB generation was not initialized")
-    return generation
+    return _current_async_generation()
 
 
 async def _get_async_engine() -> Optional["AsyncEngine"]:
@@ -1008,18 +1046,19 @@ def init_db(database_url: str | None = None) -> "Engine":
                 metadata.create_all(bind=_RAW_ENGINE)
                 if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
                     SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
-                return _RAW_ENGINE
-            if _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
+                selected_engine = _RAW_ENGINE
+            elif _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
                 # Another caller published this URL while our candidate was
                 # prepared. Its engine may be an uninitialized lazy getter.
                 metadata.create_all(bind=_RAW_ENGINE)
                 if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
                     SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
-                return _RAW_ENGINE
-            retired_engine = _RAW_ENGINE
-            _RAW_ENGINE, SessionLocal = candidate, candidate_factory
-            selected_engine = candidate
-            candidate_to_dispose = None
+                selected_engine = _RAW_ENGINE
+            else:
+                retired_engine = _RAW_ENGINE
+                _RAW_ENGINE, SessionLocal = candidate, candidate_factory
+                selected_engine = candidate
+                candidate_to_dispose = None
     finally:
         if candidate_to_dispose is not None:
             _dispose_sync_engine(candidate_to_dispose)
@@ -1050,7 +1089,20 @@ def init_db(database_url: str | None = None) -> "Engine":
                                 "Could not remove old SQLite file: %s", type(exc).__name__
                             )
 
-    return selected_engine
+    # Retiring the prior engine and optional file cleanup both release the
+    # publication lock. Validate the generation at the final return boundary.
+    with _init_lock:
+        current = _RAW_ENGINE
+        effective_url = make_url(get_database_url()) if database_url is None else target_url
+        if (
+            current is None
+            or current is not selected_engine
+            or current.url != effective_url
+            or SessionLocal is None
+            or not _session_local_is_bound(SessionLocal, current)
+        ):
+            raise RuntimeError("DB generation changed during initialization")
+        return current
 
 
 def reset_db_for_tests() -> None:

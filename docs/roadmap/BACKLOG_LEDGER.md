@@ -13340,6 +13340,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Synthetic fixtures are test evidence only; real prospective counts require validated local current-store reports, and interim/target-count labels are not effectiveness or L3 decisions
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
 
+<a id="ledger-p1-euler-l1-l2-explicit-handoff"></a>
+- [ ] P1: Forward an explicitly supplied L1 invariant-family artifact into post-open L2 routing
+  - Owner: agent-coordinator / cursor-specialist-agent
+  - Priority: P1
+  - Target PR: TBD dedicated orchestration PR after OPS-02
+  - Status: Open. PR #2405 used one manual explicit L1 handoff; this item does not change the OPS-02 DB runtime outcome.
+  - Reason (EN): The ordinary post-open packet does not carry an existing L1 artifact unless the caller supplies `--review-invariant-family-relations-input`, so the OPS-02 thematic pass required a manual packet handoff.
+  - Links: [PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405); [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md).
+  - DoD:
+    - Carry one coordinator-approved exact L1 artifact path to the existing `post_open_review` bootstrap; validate it through the canonical L1 reader while preserving explicit-only membership/cardinality, packet identity and six-role order.
+    - With no supplied path, preserve ordinary v1 post-open behavior with no L2 claim. A supplied missing, ambiguous, unsafe, changed or invalid artifact fails closed.
+    - Cover present, absent, invalid, replay and one-pass behavior with deterministic tests. Do not infer families, create L1 automatically or enroll an episode.
+    - Grant no L3, review, implementation or merge authority.
+
 <a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
 - [x] P1: EULER-OPS-1 explicit local episode lifecycle supervision
   - Owner: backend-engineer / agent-coordinator

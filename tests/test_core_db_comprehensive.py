@@ -12,6 +12,97 @@ from sqlalchemy import create_engine, text
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@pytest.mark.parametrize("first_transition", ["replace", "disable"])
+@pytest.mark.parametrize("selector_conflict", [False, True])
+def test_async_acquisition_returns_current_pair_after_concurrent_retirement(
+    monkeypatch: pytest.MonkeyPatch,
+    first_transition: str,
+    selector_conflict: bool,
+) -> None:
+    from core import db
+
+    class FakeEngine:
+        def __init__(self, url: str, *, wait_for_release: bool = False) -> None:
+            self.url = db.make_url(url)
+            self.wait_for_release = wait_for_release
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+            self.dispose_count = 0
+
+        async def dispose(self) -> None:
+            self.dispose_count += 1
+            self.entered.set()
+            if self.wait_for_release:
+                await self.release.wait()
+
+    class FakeFactory:
+        def __init__(self, bind: FakeEngine) -> None:
+            self.bind = bind
+
+        def __call__(self) -> object:
+            return object()
+
+    old_url = "sqlite+aiosqlite:///old.sqlite"
+    first_url = "sqlite+aiosqlite:///first.sqlite"
+    second_url = "sqlite+aiosqlite:///second.sqlite"
+    old = FakeEngine(old_url, wait_for_release=True)
+
+    def create_candidate(url: str, **_kwargs: object) -> FakeEngine:
+        return FakeEngine(url)
+
+    def make_factory(*, bind: FakeEngine, **_kwargs: object) -> FakeFactory:
+        return FakeFactory(bind)
+
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", old)
+    monkeypatch.setattr(db, "AsyncSessionLocal", FakeFactory(old))
+    monkeypatch.setattr(db, "async_engine", old)
+    monkeypatch.setattr(db, "create_async_engine", create_candidate)
+    monkeypatch.setattr(db, "async_sessionmaker", make_factory)
+
+    async def scenario() -> None:
+        if first_transition == "disable":
+            monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+            monkeypatch.setenv("DATABASE_USE_ASYNC", "0")
+        else:
+            monkeypatch.setenv("DATABASE_ASYNC_URL", first_url)
+        first_task = asyncio.create_task(db._get_async_engine_and_factory())
+        await asyncio.wait_for(old.entered.wait(), timeout=5)
+        first_engine = db._ASYNC_ENGINE
+        if first_transition == "disable":
+            assert first_engine is None
+        else:
+            assert first_engine is not old
+
+        monkeypatch.setenv("DATABASE_ASYNC_URL", second_url)
+        second_generation = await db._get_async_engine_and_factory()
+        assert second_generation is not None
+        second_engine, second_factory = second_generation
+        assert second_engine is not first_engine
+
+        if selector_conflict:
+            monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///unpublished.sqlite")
+        old.release.set()
+        if selector_conflict:
+            with pytest.raises(
+                RuntimeError, match="Async DB generation changed during acquisition"
+            ) as conflict:
+                await first_task
+            assert "unpublished.sqlite" not in str(conflict.value)
+            assert db._ASYNC_ENGINE is second_engine
+            return
+
+        first_generation = await first_task
+        assert first_generation is not None
+        assert first_generation[0] is second_engine is db._ASYNC_ENGINE
+        assert first_generation[1] is second_factory is db.AsyncSessionLocal
+        assert first_generation[1].bind is second_engine
+        assert old.dispose_count == 1
+        if first_engine is not None:
+            assert first_engine.dispose_count == 1
+
+    asyncio.run(scenario())
+
+
 def test_async_engine_replacement_closes_owned_sessions_and_awaits_disposal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

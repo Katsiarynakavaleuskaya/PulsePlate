@@ -6,7 +6,7 @@ and _get_sqlite_poolclass() branches (non-SQLite, :memory:) for diff-coverage.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from threading import Barrier, Event
 import shutil
@@ -249,7 +249,10 @@ def test_sqlite_cleanup_preserves_file_reselected_before_unlink(
                     selected_again = core_db._get_raw_engine()
                 finally:
                     release_retirement.set()
-                assert future.result(timeout=5).url == core_db.make_url(second_url)
+                with pytest.raises(
+                    RuntimeError, match="DB generation changed during initialization"
+                ):
+                    future.result(timeout=5)
 
         assert selected_again is core_db._RAW_ENGINE
         assert first_path.is_file()
@@ -429,7 +432,133 @@ def test_concurrent_init_disposes_losing_candidate(
         core_db.init_db()
 
 
-def test_concurrent_distinct_url_init_returns_its_own_generation(
+def test_losing_init_rechecks_after_its_candidate_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initial_url = f"sqlite:///{tmp_path / 'initial.sqlite'}"
+    target_url = f"sqlite:///{tmp_path / 'target.sqlite'}"
+    later_url = f"sqlite:///{tmp_path / 'later.sqlite'}"
+    rendezvous = Barrier(2)
+    loser_cleanup_started = Event()
+    release_loser = Event()
+    with monkeypatch.context() as env:
+        env.setenv("DATABASE_URL", initial_url)
+        core_db.reset_db_for_tests()
+        core_db.init_db()
+        original_create = core_db._create_sync_engine
+        original_dispose = core_db._dispose_sync_engine
+        loser_engine: Engine | None = None
+
+        def make_candidate(db_url: str) -> Engine:
+            candidate = original_create(db_url)
+            if core_db.make_url(db_url) == core_db.make_url(target_url):
+                rendezvous.wait(timeout=5)
+            return candidate
+
+        def pause_loser(engine: Engine, *, best_effort: bool = False) -> None:
+            nonlocal loser_engine
+            if (
+                loser_engine is None
+                and engine.url == core_db.make_url(target_url)
+                and engine is not core_db._RAW_ENGINE
+            ):
+                loser_engine = engine
+                loser_cleanup_started.set()
+                assert release_loser.wait(timeout=5)
+            original_dispose(engine, best_effort=best_effort)
+
+        class NoopMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                return None
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(core_db, "_create_sync_engine", make_candidate)
+                racing.setattr(core_db, "_dispose_sync_engine", pause_loser)
+                racing.setattr(core_db, "load_canonical_orm_metadata", lambda: NoopMetadata())
+                racing.setenv("DATABASE_URL", target_url)
+                with ThreadPoolExecutor(max_workers=2) as workers:
+                    first = workers.submit(core_db.init_db)
+                    second = workers.submit(core_db.init_db)
+                    assert loser_cleanup_started.wait(timeout=5)
+                    completed, pending = wait(
+                        (first, second), timeout=5, return_when=FIRST_COMPLETED
+                    )
+                    assert len(completed) == len(pending) == 1
+                    winner = next(iter(completed))
+                    loser = next(iter(pending))
+                    assert winner.result(timeout=5).url == core_db.make_url(target_url)
+                    try:
+                        racing.setenv("DATABASE_URL", later_url)
+                        current = core_db._get_raw_engine()
+                    finally:
+                        release_loser.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during initialization"
+                    ):
+                        loser.result(timeout=5)
+
+            assert current is core_db._RAW_ENGINE
+            assert current.url == core_db.make_url(later_url)
+        finally:
+            release_loser.set()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
+
+
+@pytest.mark.parametrize("explicit_replacement", [False, True])
+def test_raw_getter_checks_selector_after_concurrent_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit_replacement: bool
+) -> None:
+    initial_url = f"sqlite:///{tmp_path / 'initial.sqlite'}"
+    first_url = f"sqlite:///{tmp_path / 'first.sqlite'}"
+    second_url = f"sqlite:///{tmp_path / 'second.sqlite'}"
+    entered_retirement = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("DATABASE_URL", initial_url)
+        core_db.reset_db_for_tests()
+        original = core_db._get_raw_engine()
+        dispose = core_db._dispose_sync_engine
+
+        def paused_dispose(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is original:
+                entered_retirement.set()
+                assert release_retirement.wait(timeout=5)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(core_db, "_dispose_sync_engine", paused_dispose)
+                racing.setenv("DATABASE_URL", first_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    first = workers.submit(core_db._get_raw_engine)
+                    assert entered_retirement.wait(timeout=5)
+                    try:
+                        if explicit_replacement:
+                            second = core_db.init_db(second_url)
+                        else:
+                            racing.setenv("DATABASE_URL", second_url)
+                            second = core_db._get_raw_engine()
+                    finally:
+                        release_retirement.set()
+                    if explicit_replacement:
+                        with pytest.raises(
+                            RuntimeError, match="DB generation changed during acquisition"
+                        ):
+                            first.result(timeout=5)
+                    else:
+                        assert first.result(timeout=5) is second
+            assert second is core_db._RAW_ENGINE
+            with core_db.get_session_factory()() as session:
+                assert session.bind is second
+        finally:
+            release_retirement.set()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
+
+
+def test_concurrent_explicit_init_rejects_superseded_generation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     initial = f"sqlite:///{tmp_path / 'initial.sqlite'}"
@@ -459,14 +588,60 @@ def test_concurrent_distinct_url_init_returns_its_own_generation(
                     second_result = second.result(timeout=5)
                 finally:
                     release_first.set()
-                first_result = first.result(timeout=5)
+                with pytest.raises(
+                    RuntimeError, match="DB generation changed during initialization"
+                ):
+                    first.result(timeout=5)
 
-        assert first_result.url == core_db.make_url(first_url)
         assert second_result.url == core_db.make_url(second_url)
-        assert first_result is not second_result
         assert core_db._RAW_ENGINE is second_result
         with core_db.get_session_factory()() as session:
             assert session.bind is second_result
     finally:
         core_db.reset_db_for_tests()
         core_db.init_db()
+
+
+def test_ambient_init_rejects_generation_replaced_after_schema_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    initial_url = f"sqlite:///{tmp_path / 'initial.sqlite'}"
+    first_url = f"sqlite:///{tmp_path / 'first.sqlite'}"
+    second_url = f"sqlite:///{tmp_path / 'second.sqlite'}"
+    entered_retirement = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("DATABASE_URL", initial_url)
+        core_db.reset_db_for_tests()
+        original = core_db.init_db()
+        dispose = core_db._dispose_sync_engine
+
+        def paused_dispose(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is original:
+                entered_retirement.set()
+                assert release_retirement.wait(timeout=5)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(core_db, "_dispose_sync_engine", paused_dispose)
+                racing.setenv("DATABASE_URL", first_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    first = workers.submit(core_db.init_db)
+                    assert entered_retirement.wait(timeout=5)
+                    try:
+                        racing.setenv("DATABASE_URL", second_url)
+                        second = core_db.init_db()
+                    finally:
+                        release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during initialization"
+                    ):
+                        first.result(timeout=5)
+            assert second is core_db._RAW_ENGINE
+            with core_db.get_session_factory()() as session:
+                assert session.bind is second
+        finally:
+            release_retirement.set()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
