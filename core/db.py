@@ -82,7 +82,7 @@ def _get_environment() -> str:
 
 
 def _extract_sqlite_path(database_url: str) -> str | None:
-    """Recognize only an ordinary SQLite file path for owned setup and cleanup.
+    """Recognize an ordinary SQLite database path for directory setup.
 
     Args:
         database_url: Database URL (e.g., sqlite:///cache/app.db or sqlite:////absolute/path)
@@ -123,6 +123,17 @@ def _extract_sqlite_path(database_url: str) -> str | None:
     if mode is not None and (not isinstance(mode, str) or mode.lower() == "memory"):
         return None
     return database
+
+
+def _extract_sqlite_cleanup_path(database_url: str) -> str | None:
+    """Return a file identity only when SQLite URI options cannot rename it."""
+    path = _extract_sqlite_path(database_url)
+    if path is None:
+        return None
+    url = make_url(database_url)
+    if any(key.casefold() == "uri" for key in url.query):
+        return None
+    return path
 
 
 def _is_sqlite_database_url(database_url: str) -> bool:
@@ -1071,12 +1082,14 @@ def init_db(database_url: str | None = None) -> "Engine":
         _dispose_sync_engine(retired_engine)
         # Preserve the existing explicitly enabled old-file cleanup contract.
         if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
-            old_sqlite_path = _extract_sqlite_path(retired_engine.url.render_as_string())
+            old_sqlite_path = _extract_sqlite_cleanup_path(retired_engine.url.render_as_string())
             if old_sqlite_path:
                 with _init_lock:
-                    selected_path = _extract_sqlite_path(selected_engine.url.render_as_string())
+                    selected_path = _extract_sqlite_cleanup_path(
+                        selected_engine.url.render_as_string()
+                    )
                     current_path = (
-                        _extract_sqlite_path(_RAW_ENGINE.url.render_as_string())
+                        _extract_sqlite_cleanup_path(_RAW_ENGINE.url.render_as_string())
                         if _RAW_ENGINE is not None
                         else None
                     )

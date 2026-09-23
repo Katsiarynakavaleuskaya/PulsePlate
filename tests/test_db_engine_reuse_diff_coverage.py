@@ -47,6 +47,9 @@ def test_extract_sqlite_path_accepts_known_ordinary_file_urls(driver: str, tmp_p
     assert core_db._extract_sqlite_path(f"{driver}:///{absolute_path}?timeout=5") == str(
         absolute_path
     )
+    assert core_db._extract_sqlite_cleanup_path(f"{driver}:///{absolute_path}?timeout=5") == str(
+        absolute_path
+    )
     assert core_db._extract_sqlite_path(f"{driver}:///relative/owned.sqlite") == (
         "relative/owned.sqlite"
     )
@@ -59,6 +62,13 @@ def test_ordinary_sqlite_uri_option_creates_missing_parent(tmp_path: Path) -> No
     database_path = tmp_path / "new-parent" / "owned.sqlite"
     core_db._ensure_sqlite_directory(f"sqlite:///{database_path}?mode=rwc&uri=true")
     assert database_path.parent.is_dir()
+
+
+@pytest.mark.parametrize("uri_key", ["uri", "URI", "Uri"])
+def test_sqlite_cleanup_path_rejects_casefolded_uri_option(uri_key: str) -> None:
+    database_url = f"sqlite:///ordinary.sqlite?mode=rwc&{uri_key}=true"
+    assert core_db._extract_sqlite_path(database_url) == "ordinary.sqlite"
+    assert core_db._extract_sqlite_cleanup_path(database_url) is None
 
 
 @pytest.mark.parametrize(
@@ -76,6 +86,7 @@ def test_ordinary_sqlite_uri_option_creates_missing_parent(tmp_path: Path) -> No
 )
 def test_extract_sqlite_path_rejects_unknown_or_non_file_identity(database_url: str) -> None:
     assert core_db._extract_sqlite_path(database_url) is None
+    assert core_db._extract_sqlite_cleanup_path(database_url) is None
 
 
 def _reset_engine() -> None:
@@ -274,6 +285,54 @@ def test_sqlite_to_pysqlite_same_file_replacement_preserves_database(
         with core_db.get_session_factory()() as session:
             assert session.bind is selected
             assert session.scalar(text("SELECT 1")) == 1
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_uri_retirement_never_deletes_unsuffixed_decoy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    decoy_path = tmp_path / "ordinary.sqlite"
+    actual_uri_path = Path(f"{decoy_path}?mode=rwc")
+    uri_url = f"sqlite:///{decoy_path}?mode=rwc&uri=true"
+    selected_path = tmp_path / "selected.sqlite"
+    monkeypatch.setenv("DATABASE_URL", uri_url)
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        core_db.init_db()
+        assert actual_uri_path.is_file()
+        decoy_path.write_bytes(b"unrelated decoy")
+
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{selected_path}?timeout=5")
+        selected = core_db.init_db()
+        assert decoy_path.read_bytes() == b"unrelated decoy"
+        assert actual_uri_path.is_file()
+        assert inspect(selected).has_table("users")
+        with core_db.get_session_factory()() as session:
+            assert session.bind is selected
+            assert session.scalar(text("SELECT 1")) == 1
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_uri_selected_generation_withholds_old_file_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_path = tmp_path / "old.sqlite"
+    selected_base = tmp_path / "uri-selected.sqlite"
+    selected_actual = Path(f"{selected_base}?mode=rwc")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{old_path}?timeout=5")
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        core_db.init_db()
+        assert old_path.is_file()
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{selected_base}?mode=rwc&uri=true")
+        selected = core_db.init_db()
+        assert old_path.is_file()
+        assert selected_actual.is_file()
+        assert inspect(selected).has_table("users")
     finally:
         core_db.reset_db_for_tests()
 
