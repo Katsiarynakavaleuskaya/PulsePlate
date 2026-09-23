@@ -58,13 +58,6 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
     LegacyWeekPlanRequest,
     WeeklyMenuResponse,
 )
-from app.services.pro_nutrition_targets import (
-    analyze_nutrient_gaps_response,
-    generate_who_targets_response as _generate_who_targets_response,
-)
-from app.services.pro_nutrition_targets import (  # noqa: F401 - compatibility re-export
-    fallback_targets_response as _fallback_targets_response,
-)
 from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
     get_update_scheduler as get_update_scheduler,
 )
