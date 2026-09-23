@@ -24,6 +24,18 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-ops-context-inventory"></a>
+- [ ] P1: OPS-01 offline operational context inventory and separate operational follow-ups
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2397](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2397)
+  - Status: PR #2397 open; review remediation in progress; no merge, main verification, host activation or alert-delivery claim.
+  - Subprocess reassessment: Owner dev-operator / security-auditor; Priority P1; Target PR dedicated reassessment before 2026-10-14. PR-2397 tracks these two bounded dispositions. Exactly two inline sites in `scripts/ops/ops_context_report.py` are covered: B404 import of subprocess and B603 fixed Git HEAD call. The admitted stdlib-only CLI needs native Git identity; the safe context reader has no Git helper, and importing a broader orchestration process framework would expand this tool's dependencies and trust boundary. The call resolves absolute Git only within the OS-managed /usr/bin:/bin search path, uses fixed read-only HEAD^{commit} argv, explicit owning cwd/minimal environment, no shell, a five-second timeout and exact SHA validation. OS-managed paths and platform-managed symlink targets are trust assumptions, not executable-authenticity proof; absent system Git fails without a user-path fallback. DoD: re-evaluate a smaller safe replacement or the same two bounded sites, retain deterministic process/env/error tests, and remove the dispositions when no longer needed; do not silently extend expiry. No B101 exception, file/rule allowlist or global security-setting change is authorized.
+  - Scope: One finite source-reference index, offline environment/service report, supplied local observations and exact static operator context delivery. Production managed default and self-hosted alternative remain distinct; conflicts and live unknowns never select resources.
+  - Reason for deferral: OPS-02 DB lifecycle regression repair with a real-function reproducer and caller coverage, OPS-03 minimal host/DB/service observability with tested human alert delivery, and OPS-04 measured storage/FinOps preserving recovery requirements require their own admitted scope and any applicable host approval; offline repository evidence cannot authorize them.
+  - Links: `docs/deploy/OPS_CONTEXT_SOURCES.json`, `docs/deploy/OPERATIONAL_SIGNALS.md`, `scripts/ops/ops_context_report.py`.
+  - DoD: Prove both environments/all four services, safe bounded readers, closed observation validation, exact freshness boundaries, cross-alternative conflicts, sanitized errors, no external operational calls and actual role-pack source bytes. Complete current-head repository/PR gates and retain separate MERGED_REPO, MAIN_VERIFIED, HOST_ACTIVATED and ALERT_DELIVERY_TESTED receipts only when observed. Follow-up lanes remain open until their own approved acceptance evidence exists.
+
 <a id="ledger-p1-main-idna-installer-regression"></a>
 - [ ] P1: Retire the installer test's historical idna pin assertion
   - Owner: backend-engineer / agent-coordinator

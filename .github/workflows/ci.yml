@@ -1068,6 +1068,29 @@ jobs:
               -o junit_family=legacy
           done
 
+      - name: Measure OPS context CLI coverage
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+        run: |
+          set -euo pipefail
+          python -m coverage run --rcfile=/dev/null --branch \
+            --include='scripts/ops/ops_context_report.py' \
+            --data-file=.coverage.ops-context -m pytest -q -p no:xdist \
+            tests/test_ops_context_report.py
+          python -m coverage xml --rcfile=/dev/null \
+            --data-file=.coverage.ops-context -o coverage-ops-context.xml
+          python - <<'PY'
+          from xml.etree import ElementTree
+
+          classes = ElementTree.parse("coverage-ops-context.xml").findall(".//class")
+          if (
+              len(classes) != 1
+              or classes[0].get("filename") != "scripts/ops/ops_context_report.py"
+              or not classes[0].findall("./lines/line")
+          ):
+              raise SystemExit("OPS context coverage must contain its nonempty source line inventory")
+          PY
+
       - name: Finalize coverage artifacts
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
@@ -1087,6 +1110,14 @@ jobs:
           name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: coverage.xml
           if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload OPS context coverage artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 / Node 24
+        with:
+          name: coverage-ops-context-${{ env.PYTHON_VERSION }}
+          path: coverage-ops-context.xml
+          if-no-files-found: error
           retention-days: 7
 
       - name: Upload JUnit test report
@@ -1858,6 +1889,12 @@ jobs:
           name: coverage-xml-${{ env.PYTHON_VERSION }}
           path: ./coverage-artifacts
 
+      - name: Download OPS context coverage artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 / Node 24
+        with:
+          name: coverage-ops-context-${{ env.PYTHON_VERSION }}
+          path: ./ops-context-coverage
+
       - name: Fetch base branch
         run: |
           git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}"
@@ -1868,6 +1905,7 @@ jobs:
           COVERAGE_THRESHOLD: 97
         run: |
           diff-cover ./coverage-artifacts/coverage.xml \
+            ./ops-context-coverage/coverage-ops-context.xml \
             --compare-branch "${{ github.base_ref }}" \
             --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
             --exclude 'frontend/**' \
