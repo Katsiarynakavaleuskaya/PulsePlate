@@ -114,6 +114,7 @@ services:
       - postgres_ca
       - postgres_pgpass
     environment:
+      - PRIVATE_EXPORTS_ENABLED=false
       - ENVIRONMENT=staging
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:?POSTGRES_USER is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca&passfile=/run/secrets/postgres_pgpass
       - PGSSLMODE=verify-full
