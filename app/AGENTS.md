@@ -462,6 +462,15 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `app._macros_to_kcal` exact service alias remain unchanged. Repository
   source/runtime absence is not proof that unknown external Python importers
   do not exist.
+  The seven nutrition utility projections are also retired from
+  `legacy_app.py`: `MANDATORY_MICRO_DEFAULTS`, `MAX_DAILY_KCAL`,
+  `MICRO_ALIAS_MAP`, `MIN_DAILY_KCAL`, `_alias_micros`,
+  `_clamp_daily_kcal`, and `_ensure_priority_micros`. Import the four constants
+  and three functions directly from `core.nutrition_utils`; targets/gaps
+  service tests assert the function identities at
+  `app.services.pro_nutrition_targets`. Unknown external direct or reflective
+  imports remain a compatibility risk and require migration to the canonical
+  core module.
 - Planning and export direct-call ownership belongs to `core/menu_engine.py`,
   `core/plate.py`, `core/recommendations.py`, and `core/exports.py`. The
   following ordinary `legacy_app.py` bindings are retired and must not be
