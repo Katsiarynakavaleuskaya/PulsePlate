@@ -1,0 +1,245 @@
+{
+  "schema_version": "ops-context-sources.v1",
+  "sources": [
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "managed_default",
+      "path": "deploy/PRODUCTION.md"
+    },
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "managed_default",
+      "path": "deploy/docker-compose.production.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "selfhosted_alternative",
+      "path": "deploy/docker-compose.production.selfhosted.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "managed_default",
+      "path": "deploy/PRODUCTION.md"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "managed_default",
+      "path": "deploy/docker-compose.production.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "shared",
+      "path": "docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "selfhosted_alternative",
+      "path": "deploy/postgres-pgvector/image-manifest.json"
+    },
+    {
+      "environment": "production",
+      "service": "database",
+      "configuration": "selfhosted_alternative",
+      "path": "deploy/docker-compose.production.selfhosted.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "managed_default",
+      "path": "deploy/PRODUCTION.md"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "deploy/prometheus/prometheus.yml"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "deploy/prometheus/image-manifest.json"
+    },
+    {
+      "environment": "production",
+      "service": "packages",
+      "configuration": "managed_default",
+      "path": "deploy/PRODUCTION.md"
+    },
+    {
+      "environment": "production",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "production",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/DEPENDENCY_MANAGEMENT.md"
+    },
+    {
+      "environment": "production",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md"
+    },
+    {
+      "environment": "staging",
+      "service": "app",
+      "configuration": "staging",
+      "path": "docs/deploy/STAGING.md"
+    },
+    {
+      "environment": "staging",
+      "service": "app",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "staging",
+      "service": "app",
+      "configuration": "staging",
+      "path": "deploy/docker-compose.staging.yaml"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "staging",
+      "path": "docs/deploy/STAGING.md"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "staging",
+      "path": "deploy/docker-compose.staging.yaml"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "staging",
+      "path": "deploy/postgres-pgvector/pg_hba.conf"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "shared",
+      "path": "docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md"
+    },
+    {
+      "environment": "staging",
+      "service": "database",
+      "configuration": "shared",
+      "path": "deploy/postgres-pgvector/image-manifest.json"
+    },
+    {
+      "environment": "staging",
+      "service": "prometheus",
+      "configuration": "staging",
+      "path": "docs/deploy/STAGING.md"
+    },
+    {
+      "environment": "staging",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "staging",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "deploy/prometheus/prometheus.yml"
+    },
+    {
+      "environment": "staging",
+      "service": "prometheus",
+      "configuration": "shared",
+      "path": "deploy/prometheus/image-manifest.json"
+    },
+    {
+      "environment": "staging",
+      "service": "packages",
+      "configuration": "staging",
+      "path": "docs/deploy/STAGING.md"
+    },
+    {
+      "environment": "staging",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/deploy/OPERATIONAL_SIGNALS.md"
+    },
+    {
+      "environment": "staging",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/DEPENDENCY_MANAGEMENT.md"
+    },
+    {
+      "environment": "staging",
+      "service": "packages",
+      "configuration": "shared",
+      "path": "docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "managed_default",
+      "path": "deploy/docker-compose.production.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "prometheus",
+      "configuration": "selfhosted_alternative",
+      "path": "deploy/docker-compose.production.selfhosted.yaml"
+    },
+    {
+      "environment": "staging",
+      "service": "prometheus",
+      "configuration": "staging",
+      "path": "deploy/docker-compose.staging.yaml"
+    },
+    {
+      "environment": "production",
+      "service": "app",
+      "configuration": "shared",
+      "path": "deploy/Caddyfile.production"
+    },
+    {
+      "environment": "staging",
+      "service": "app",
+      "configuration": "staging",
+      "path": "deploy/Caddyfile"
+    }
+  ]
+}
