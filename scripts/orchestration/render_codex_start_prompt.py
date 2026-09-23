@@ -429,7 +429,8 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "storage and deletion changes too; for a mechanical change explain preserved "
         "user semantics without dropping original requirements.",
         "Coordinator: record the goal owner, before/after outcome, accepted criteria "
-        "reference/version, constraints, user impact, required human acceptance, "
+        "reference/version, constraints, user impact, which owner decisions and visual "
+        "checkpoints apply, any needed professional review, "
         "planned evidence and rollback in the existing Task Analysis or lane "
         "runbook before implementation; pass that same reference to ordinary QA.",
         "QA: in the existing Work Review, map each criterion to achieved, partial, "
@@ -451,9 +452,14 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "the actual shown implementation before completion. Final-only approval "
         "cannot fill the proposal checkpoint. Proven skipped order is "
         "not_achieved; mere missing record does not prove a skip. "
+        "A minor existing-visual change may require final acceptance alone with "
+        "reasoned proposal N/A. "
         "Silence, screenshot paths, hashes, agent verdicts and CI are not approval. "
-        "Legally significant decisions need human and, where needed, professional "
-        "review; an agent cannot certify compliance.",
+        "Needed professional review requires recorded completion and outcome for "
+        "current material before achieved: missing or stale is unknown; adverse "
+        "review prevents achieved and requires ordinary not_achieved assessment "
+        "and correction. It cannot replace owner affirmation; an agent cannot "
+        "certify compliance.",
         "Overall completion: every original requirement and DoD item must be "
         "explicitly covered by an individually achieved criterion with observed evidence. "
         "Name each covered source item; no materiality filter may exclude required scope. "

@@ -59,7 +59,9 @@ boundary and untrusted-evidence procedure.
 
 **Implemented Visual Checkpoint:** [If required: separate affirmative owner decision, actual shown implementation state/version and proof it preceded completion; otherwise reasoned N/A]
 
-**Human Decision Assessment:** [For every required visual, legal or other decision, record explicit affirmative owner acceptance of exact shown state/version. Missing, ambiguous or stale required decision → unknown; explicit rejection → not_achieved; reasoned N/A only if no decision is required. For visual checkpoints, proven skipped chronology → not_achieved and final-only approval cannot replace proposal acceptance. Record needed professional review separately; it cannot replace owner affirmation or other criterion evidence.]
+**Human Decision Assessment:** [Use the coordinator's recorded applicability: a new substantial visual choice needs both ordered checkpoints; a minor existing-visual change may need final acceptance alone with reasoned proposal N/A. Every required visual, legal or other owner decision needs explicit affirmative acceptance of exact shown state/version. Missing, ambiguous or stale decision → unknown; rejection → not_achieved; proven skipped required visual chronology → not_achieved.]
+
+**Needed Professional Review:** [If required: reviewer, completion, outcome and exact current material/version; missing or stale → unknown, adverse outcome prevents achieved and requires ordinary not_achieved assessment/correction. Otherwise reasoned N/A. Professional review cannot replace owner affirmation or other criterion evidence.]
 
 - ✅/❌ Original requirements: [status]
 - ✅/❌ Project conventions: [status]

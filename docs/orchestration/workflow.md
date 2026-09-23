@@ -108,7 +108,7 @@ Use the existing records at each stage without a new agent, schema or gate:
 
 | Stage | Required action and record |
 | --- | --- |
-| Before implementation | Coordinator records the accepted requirements, rubric, user impact and required human acceptance in Task Analysis/runbook. |
+| Before implementation | Coordinator records the accepted requirements, rubric, user impact, which owner decisions and visual checkpoints are required or reasoned N/A, and any needed professional review in Task Analysis/runbook. |
 | Material change or new counterexample | Coordinator identifies affected criteria and prior observations, marks stale conclusions `unknown`, and requests targeted recheck in the same runbook and Work Review. |
 | Ordinary QA | QA names its reviewer, exact reviewed material and criteria version, then checks each criterion against observed behavior and records evidence or a gap in Work Review. |
 | Completion | DoD and final response link the current Work Review, cover the complete original DoD, and identify any outstanding human decision. |
@@ -130,10 +130,19 @@ the relevant checkpoint and requires targeted re-presentation. Silence, a
 screenshot path, a hash, an agent verdict and CI are not human acceptance.
 Evidence that a required chronological checkpoint was skipped makes the
 criterion `not_achieved`; mere absence of a record does not prove a skip.
+For a minor change to an existing visual, a required final owner decision may
+be sufficient without a proposal checkpoint; record why the proposal checkpoint
+is not required rather than applying the new-substantial-choice rule to every
+visual edit.
 
 For legally significant content or behavior, record any needed professional
-review as well as the owner's decision. An agent's analysis cannot certify
-legal compliance or replace either decision.
+review as well as the owner's decision. If professional review is needed, its
+recorded completion and outcome must cover the current material before the
+affected criterion can be `achieved`. Missing or stale needed review remains
+`unknown`; an adverse completed review prevents `achieved` and is assessed
+against the criterion as `not_achieved` until corrected and reviewed again.
+Professional review does not replace owner affirmation. An agent's analysis
+cannot certify legal compliance or replace either decision.
 
 ### Carry the same criteria into ordinary QA
 

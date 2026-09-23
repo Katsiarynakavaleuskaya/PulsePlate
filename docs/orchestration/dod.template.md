@@ -28,9 +28,9 @@ Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review).
 - [ ] Every original requirement and DoD item is explicitly covered by an individually achieved criterion with evidence before claiming overall completion
 - [ ] Any partial, unknown or not_achieved criterion prevents an overall completion claim
 - [ ] Material changes and new counterexamples have targeted rechecks; stale evidence is not counted as achieved
-- [ ] Required visual acceptance has two distinct affirmative owner decisions: openable proposal/version before implementation, then actual shown implementation/version before completion; final-only approval cannot replace the first
+- [ ] Coordinator recorded required owner decisions and visual checkpoints before work; a new substantial visual choice has distinct affirmative proposal-before-implementation and actual-before-completion decisions, while a minor existing-visual change may need final acceptance alone with reasoned proposal N/A
 - [ ] Every required visual, legal or other owner decision is explicitly affirmative for the exact shown state/version; missing, ambiguous or stale is unknown, explicit rejection is not_achieved, and reasoned N/A applies only when no decision is required
-- [ ] Proven skipped visual checkpoint order is not_achieved; needed professional review cannot replace owner affirmation or other criterion evidence
+- [ ] Proven skipped required visual order is not_achieved; needed professional review has recorded completion and outcome for current material before achieved, missing/stale review is unknown, adverse review prevents achieved and requires correction; it cannot replace owner affirmation or other criterion evidence
 
 ### Code Quality
 

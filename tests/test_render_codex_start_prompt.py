@@ -971,6 +971,8 @@ def test_teleology_cli_delivers_review_instructions_without_assessing_evidence(
     assert "may revise the accepted goal, requirements or DoD" in prompt
     assert "accepted criteria reference/version" in prompt
     assert "pass that same reference to ordinary QA" in prompt
+    assert "which owner decisions and visual checkpoints apply" in prompt
+    assert "any needed professional review" in prompt
     assert "User-impact rubric:" in prompt
     assert "person and scenario" in prompt
     assert "source of truth, user control" in prompt
@@ -998,6 +1000,13 @@ def test_teleology_cli_delivers_review_instructions_without_assessing_evidence(
     assert "Final-only approval cannot fill the proposal checkpoint" in prompt
     assert "Proven skipped order is not_achieved" in prompt
     assert "mere missing record does not prove a skip" in prompt
+    assert "minor existing-visual change may require final acceptance alone" in prompt
+    assert "reasoned proposal N/A" in prompt
+    assert "Needed professional review requires recorded completion and outcome" in prompt
+    assert "current material before achieved" in prompt
+    assert "missing or stale is unknown" in prompt
+    assert "adverse review prevents achieved" in prompt
+    assert "It cannot replace owner affirmation" in prompt
     assert "Silence, screenshot paths, hashes, agent verdicts and CI are not approval" in prompt
     assert "an agent cannot certify compliance" in prompt
     assert "missing evidence remain unknown" in prompt
