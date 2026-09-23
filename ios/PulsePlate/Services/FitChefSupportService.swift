@@ -1,11 +1,13 @@
 import Foundation
 
-protocol FitChefSupportServicing: Sendable {
+nonisolated protocol FitChefSupportServicing: Sendable {
+    @MainActor
     func requestHandoff(
         for supportNeed: FitChefSupportNeed,
         apiKey: String
     ) async throws -> FitChefSupportHandoffDescriptor
 
+    @MainActor
     func recordOutcome(
         _ attempt: FitChefSupportOutcomeAttempt,
         apiKey: String
@@ -42,6 +44,7 @@ final class DefaultFitChefSupportService: FitChefSupportServicing, Sendable {
                 response,
                 as: FitChefSupportHandoffDescriptor.self
             )
+            try Task.checkCancellation()
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -71,10 +74,12 @@ final class DefaultFitChefSupportService: FitChefSupportServicing, Sendable {
         try Task.checkCancellation()
 
         do {
-            return try Self.recognize(
+            let receipt = try Self.recognize(
                 response,
                 as: FitChefSupportOutcomeReceipt.self
             )
+            try Task.checkCancellation()
+            return receipt
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -82,6 +87,7 @@ final class DefaultFitChefSupportService: FitChefSupportServicing, Sendable {
         }
     }
 
+    @MainActor
     private static func recognize<Value: Decodable>(
         _ response: JSONValue,
         as type: Value.Type

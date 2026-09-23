@@ -1,7 +1,7 @@
 import Foundation
 
 /// Protocol for API client (enables testing via dependency injection).
-public protocol APIClientProtocol: Sendable {
+nonisolated public protocol APIClientProtocol: Sendable {
     func postRaw<Response: Decodable>(
         path: String,
         body: Data,
@@ -54,7 +54,7 @@ extension APIClientProtocol {
 /// Forbidden:
 /// - No business logic
 /// - No endpoint-specific behavior
-public final class APIClient: APIClientProtocol, Sendable {
+nonisolated public final class APIClient: APIClientProtocol, Sendable {
 
     private let baseURL: URL
     private let httpClient: HTTPClientProtocol

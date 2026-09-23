@@ -1,7 +1,7 @@
 import Foundation
 import StoreKit
 
-protocol StoreKitDisplayProduct {
+nonisolated protocol StoreKitDisplayProduct {
     var id: String { get }
     var displayName: String { get }
     var displayPrice: String { get }
@@ -9,25 +9,25 @@ protocol StoreKitDisplayProduct {
 
 extension Product: StoreKitDisplayProduct {}
 
-struct SubscriptionProduct: Identifiable, Equatable, Sendable {
+nonisolated struct SubscriptionProduct: Identifiable, Equatable, Sendable {
     let id: String
     let displayName: String
     let displayPrice: String
 }
 
-struct StoreEntitlementTransaction: Equatable, Sendable {
+nonisolated struct StoreEntitlementTransaction: Equatable, Sendable {
     let transactionID: String
     let originalTransactionID: String?
     let productID: String
 }
 
-enum StorePurchaseResult: Equatable, Sendable {
+nonisolated enum StorePurchaseResult: Equatable, Sendable {
     case success(StoreEntitlementTransaction)
     case pending
     case cancelled
 }
 
-enum StoreKitAdapterError: Error, Equatable, Sendable {
+nonisolated enum StoreKitAdapterError: Error, Equatable, Sendable {
     case missingReceipt
     case productNotFound(String)
     case unverifiedTransaction
@@ -66,9 +66,10 @@ final class StoreKitManager: StoreKitManaging {
     private let productIDs: [String]
     private var cachedProducts: [String: Product] = [:]
 
-    init(catalog: [StoreKitCatalogProduct] = StoreKitProductCatalog.all) {
-        self.catalog = catalog
-        self.productIDs = catalog.map(\.productID)
+    init(catalog: [StoreKitCatalogProduct]? = nil) {
+        let resolvedCatalog = catalog ?? StoreKitProductCatalog.all
+        self.catalog = resolvedCatalog
+        self.productIDs = resolvedCatalog.map(\.productID)
     }
 
     func loadProducts() async throws -> [SubscriptionProduct] {
