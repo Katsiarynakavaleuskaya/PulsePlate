@@ -689,7 +689,51 @@ def test_main_preserves_immutable_fixture_selection_and_two_configurations(
         )
         workers = [args for name, args in runner.created.items() if name.endswith("-worker")]
         assert len(workers) == 2
-        assert "ENVIRONMENT=production" in workers[0] and "ENVIRONMENT=staging" in workers[1]
+        for worker, runtime in zip(workers, ("production", "staging"), strict=True):
+            environment = smoke.environment(
+                [worker[index + 1] for index, argument in enumerate(worker) if argument == "-e"]
+            )
+            assert "APP_ENV" not in environment
+            assert environment["ENVIRONMENT"] == runtime
+
+
+@pytest.mark.parametrize("cleanup_errors", [[], ["owned cleanup failure"]])
+def test_main_interruption_after_registration_cleans_once_and_preserves_interruption(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    cleanup_errors: list[str],
+) -> None:
+    monkeypatch.setattr(smoke.shutil, "which", lambda name: "/usr/bin/docker")
+    runner = _DockerTranscript()
+    monkeypatch.setattr(runner, "account", lambda image, account: ("70", "70"))
+    interruption = KeyboardInterrupt("synthetic interruption after resource registration")
+    cleanup_calls = 0
+    original_cleanup = runner.cleanup
+
+    def interrupt(*args: object) -> None:
+        runner.create("network", "interrupted-network", "--internal")
+        runner.create("volume", "interrupted-cache")
+        runner.create("container", "interrupted-worker", "candidate")
+        raise interruption
+
+    def cleanup() -> list[str]:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        assert len(runner.resources) == 3
+        return original_cleanup() + cleanup_errors
+
+    monkeypatch.setattr(runner, "exercise", interrupt)
+    monkeypatch.setattr(runner, "cleanup", cleanup)
+    monkeypatch.setattr(smoke, "Smoke", lambda: runner)
+    with pytest.raises(KeyboardInterrupt) as captured:
+        smoke.main(["--image", "candidate", "--postgres-image", PG_REF])
+    assert captured.value is interruption
+    assert cleanup_calls == 1
+    removals = [call for call in runner.calls if call[1] == "rm"]
+    assert [call[0] for call in removals] == ["container", "volume", "network"]
+    output = capsys.readouterr().out
+    if cleanup_errors:
+        assert "owned cleanup failure" in output
 
 
 def test_unknown_environment_key_and_owned_cleanup_ambiguity_fail(

@@ -499,7 +499,6 @@ class Smoke:
         sql("CREATE DATABASE workerdb OWNER smoke_worker")
         sql("CREATE EXTENSION vector", database)
         env = {
-            "APP_ENV": runtime,
             "ENVIRONMENT": runtime,
             "FOOD_UPDATE_SCHEDULER_MODE": "external",
             "PRIVATE_EXPORTS_ENABLED": "false",
@@ -671,9 +670,11 @@ def main(argv: list[str] | None = None) -> int:
             smoke.exercise(image, fixture["Id"], runtime, pg_user, worker_user)
     except Exception as exc:
         failure = exc
-    cleanup = smoke.cleanup()
+    finally:
+        cleanup = smoke.cleanup()
+        if failure or cleanup:
+            print(f"Scheduler smoke failed: {failure or 'owned cleanup failed'}; cleanup={cleanup}")
     if failure or cleanup:
-        print(f"Scheduler smoke failed: {failure or 'owned cleanup failed'}; cleanup={cleanup}")
         return 1
     return 0
 
