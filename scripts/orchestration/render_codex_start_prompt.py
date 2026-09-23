@@ -423,12 +423,29 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "Teleology goal-to-outcome review: instructions only, not a completed assessment.",
         "Procedure: docs/orchestration/workflow.md#goal-to-outcome-review.",
         grouping + " Grouping must preserve every original requirement and DoD item.",
+        "User-impact rubric: in that procedure review the person and scenario, "
+        "expected action/result, source of truth, user control, and observed evidence "
+        "plus required human acceptance. Apply to relevant backend consent, access, "
+        "storage and deletion changes too; for a mechanical change explain preserved "
+        "user semantics without dropping original requirements.",
         "Coordinator: record the goal owner, before/after outcome, accepted criteria "
-        "reference/version, constraints, planned evidence and rollback in the existing "
-        "Task Analysis or lane runbook; pass that same reference to ordinary QA.",
+        "reference/version, constraints, user impact, required human acceptance, "
+        "planned evidence and rollback in the existing Task Analysis or lane "
+        "runbook before implementation; pass that same reference to ordinary QA.",
         "QA: in the existing Work Review, map each criterion to achieved, partial, "
-        "unknown or not_achieved, with observed evidence or an explicit evidence gap. "
+        "unknown or not_achieved; name the reviewer, exact reviewed material and "
+        "criteria version, with observed evidence or an explicit evidence gap. "
         "DoD and the final response must reference that review.",
+        "Material change or new counterexample: identify affected criteria and stale "
+        "evidence; mark stale conclusions unknown and perform a targeted recheck "
+        "before completion, even when the accepted goal is unchanged.",
+        "Human decision boundary: show the owner openable proposed visual material "
+        "before implementing a new substantial visual choice; show the actual "
+        "implementation before completion. "
+        "Bind acceptance to the shown state and material version; re-present affected "
+        "changes. Silence, screenshot paths, hashes, agent verdicts and CI are not "
+        "approval. Legally significant decisions need human and, where needed, "
+        "professional review; an agent cannot certify compliance.",
         "Overall completion: every original requirement and DoD item must be "
         "explicitly covered by an individually achieved criterion with observed evidence. "
         "Name each covered source item; no materiality filter may exclude required scope. "

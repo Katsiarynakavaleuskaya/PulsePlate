@@ -29,7 +29,11 @@
 **Review Depth:** [Validated Teleology full/compact, or not supplied]
 
 Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review), including
-its grouping and untrusted-evidence procedure.
+its user-path rubric, grouping and untrusted-evidence procedure.
+
+**User Impact / Preserved Semantics:** [Apply the linked rubric to affected UI, backend/user behavior, marketing or other user-facing promise, and policy/legal text; for a mechanical change explain what user-visible meaning is preserved]
+
+**Required Human Acceptance:** [Decision owner, proposed material/state to show before a substantial visual decision, final material/state to show before completion, or not applicable with reason]
 
 | Criterion reference | Original requirement / DoD references | Observable acceptance criterion | Planned evidence |
 | --- | --- | --- | --- |
@@ -38,6 +42,8 @@ its grouping and untrusted-evidence procedure.
 **Rollback / Recovery:** [Existing reversal or compensation plan]
 
 **Goal Change Record:** [Explicit owner change and previous reference, or none]
+
+**Material / Counterexample Recheck:** [Affected criterion IDs, old evidence made stale, and planned targeted recheck; or none yet]
 
 **Invariants Affected:**
 - [ ] One BMI Engine

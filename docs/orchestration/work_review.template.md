@@ -37,10 +37,13 @@ See canonical Quality Gates: `RUNBOOK_AGENT.md` (Quality Gates section)
 
 **Accepted Criteria Reference / Version:** [Same reference supplied in the QA handoff]
 
-**Reviewed Material:** [Exact commit or artifact/version and observation context]
+**QA Reviewer:** [Named ordinary QA role/person]
+
+**Reviewed Material:** [Exact commit or artifact/version, shown visual state if applicable, and observation context]
 
 Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review), including
-its outcome classifications, evidence gaps and untrusted-evidence procedure.
+its user-path rubric, outcome classifications, evidence gaps, visual acceptance
+boundary and untrusted-evidence procedure.
 
 | Criterion reference | Original requirement / DoD references | Outcome | Observed evidence / freshness | Remaining gap or correction |
 | --- | --- | --- | --- | --- |
@@ -49,6 +52,10 @@ its outcome classifications, evidence gaps and untrusted-evidence procedure.
 **Complete Original DoD Coverage:** [Map every original requirement/DoD item to its criterion; no required source item excluded]
 
 **Owner-Authorized Goal Change:** [Versioned change reference, or none]
+
+**Affected-Criteria Recheck:** [Material change or new counterexample, stale prior evidence, targeted recheck and current result; or none]
+
+**Human Acceptance:** [Explicit owner decision linked to shown state/material version and any needed professional review; missing or stale remains unknown]
 
 - ✅/❌ Original requirements: [status]
 - ✅/❌ Project conventions: [status]

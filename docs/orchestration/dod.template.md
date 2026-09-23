@@ -21,12 +21,14 @@ Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review).
 
 **Accepted Criteria Reference / Version:** [Same reference used by ordinary QA]
 
-**Work Review Reference / Reviewed Material:** [Criterion evidence and outcome assessment]
+**Work Review Reference / Reviewed Material:** [Ordinary QA reviewer, exact current material/version, criterion evidence and outcome assessment]
 
 - [ ] Every original requirement and DoD item is represented in the review
 - [ ] Every criterion has observed evidence or an explicit evidence gap and outcome
 - [ ] Every original requirement and DoD item is explicitly covered by an individually achieved criterion with evidence before claiming overall completion
 - [ ] Any partial, unknown or not_achieved criterion prevents an overall completion claim
+- [ ] Material changes and new counterexamples have targeted rechecks; stale evidence is not counted as achieved
+- [ ] Required human acceptance names the shown state and material version; missing, stale or legally significant decisions remain open
 
 ### Code Quality
 
