@@ -55,6 +55,7 @@ services:
     restart: unless-stopped
     networks: [web]
     environment:
+      - PRIVATE_EXPORTS_ENABLED=false
       - ENVIRONMENT=production
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
