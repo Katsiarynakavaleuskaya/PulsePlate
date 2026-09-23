@@ -82,13 +82,13 @@ def _get_environment() -> str:
 
 
 def _extract_sqlite_path(database_url: str) -> str | None:
-    """Extract filesystem path from SQLite database URL.
+    """Recognize only an ordinary SQLite file path for owned setup and cleanup.
 
     Args:
         database_url: Database URL (e.g., sqlite:///cache/app.db or sqlite:////absolute/path)
 
     Returns:
-        Filesystem path if SQLite file-based DB, None if non-SQLite or :memory:
+        Filesystem path for known file-backed dialects, otherwise None.
 
     Examples:
         >>> _extract_sqlite_path("sqlite:///cache/app.db")
@@ -100,25 +100,28 @@ def _extract_sqlite_path(database_url: str) -> str | None:
         >>> _extract_sqlite_path("postgresql://localhost/db")
         None
     """
-    # Only handle SQLite file-based databases
-    if not database_url.startswith("sqlite:///") or ":memory:" in database_url:
+    try:
+        url = make_url(database_url)
+    except (sa_exc.ArgumentError, TypeError, ValueError):
         return None
-
-    # Parse URL to extract path (urlparse.path excludes query parameters)
-    parsed = urlparse(database_url)
-    sqlite_path = parsed.path
-
-    # Normalize path: handle leading slashes correctly
-    # sqlite:///relative -> /relative -> relative
-    # sqlite:////absolute -> //absolute -> /absolute
-    if sqlite_path.startswith("//"):
-        # Absolute path: sqlite:////absolute -> //absolute -> /absolute
-        sqlite_path = sqlite_path[1:]
-    elif sqlite_path.startswith("/"):
-        # Relative path: sqlite:///relative -> /relative -> relative
-        sqlite_path = sqlite_path[1:]
-
-    return sqlite_path if sqlite_path else None
+    if url.drivername not in {"sqlite", "sqlite+pysqlite", "sqlite+aiosqlite"}:
+        return None
+    database = url.database
+    if (
+        not database
+        or database == ":memory:"
+        or database.startswith("file:")
+        or "\x00" in database
+        or url.host is not None
+        or url.username is not None
+        or url.password is not None
+        or url.port is not None
+    ):
+        return None
+    mode = url.query.get("mode")
+    if mode is not None and (not isinstance(mode, str) or mode.lower() == "memory"):
+        return None
+    return database
 
 
 def _is_sqlite_database_url(database_url: str) -> bool:
@@ -1065,7 +1068,7 @@ def init_db(database_url: str | None = None) -> "Engine":
 
     if retired_engine is not None:
         _dispose_sync_engine(retired_engine)
-        # Preserve the existing test-only old-file cleanup contract.
+        # Preserve the existing explicitly enabled old-file cleanup contract.
         if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
             old_sqlite_path = _extract_sqlite_path(retired_engine.url.render_as_string())
             if old_sqlite_path:
@@ -1076,12 +1079,15 @@ def init_db(database_url: str | None = None) -> "Engine":
                         if _RAW_ENGINE is not None
                         else None
                     )
-                    old_realpath = os.path.realpath(old_sqlite_path)
-                    still_selected = any(
-                        path is not None and os.path.realpath(path) == old_realpath
-                        for path in (selected_path, current_path)
-                    )
-                    if not still_selected and os.path.exists(old_sqlite_path):
+                    if selected_path is None or current_path is None:
+                        delete_old_file = False
+                    else:
+                        old_realpath = os.path.realpath(old_sqlite_path)
+                        delete_old_file = (
+                            os.path.realpath(selected_path) != old_realpath
+                            and os.path.realpath(current_path) != old_realpath
+                        )
+                    if delete_old_file and os.path.exists(old_sqlite_path):
                         try:
                             os.remove(old_sqlite_path)
                         except OSError as exc:

@@ -41,6 +41,43 @@ def test_get_sqlite_poolclass_returns_none_when_not_test_nor_xdist(
     assert result is None
 
 
+@pytest.mark.parametrize("driver", ["sqlite", "sqlite+pysqlite", "sqlite+aiosqlite"])
+def test_extract_sqlite_path_accepts_known_ordinary_file_urls(driver: str, tmp_path: Path) -> None:
+    absolute_path = tmp_path / "owned.sqlite"
+    assert core_db._extract_sqlite_path(f"{driver}:///{absolute_path}?timeout=5") == str(
+        absolute_path
+    )
+    assert core_db._extract_sqlite_path(f"{driver}:///relative/owned.sqlite") == (
+        "relative/owned.sqlite"
+    )
+    assert core_db._extract_sqlite_path(f"{driver}:///{absolute_path}?mode=rwc&uri=true") == str(
+        absolute_path
+    )
+
+
+def test_ordinary_sqlite_uri_option_creates_missing_parent(tmp_path: Path) -> None:
+    database_path = tmp_path / "new-parent" / "owned.sqlite"
+    core_db._ensure_sqlite_directory(f"sqlite:///{database_path}?mode=rwc&uri=true")
+    assert database_path.parent.is_dir()
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "sqlite:///:memory:",
+        "sqlite+aiosqlite:///:memory:",
+        "sqlite:///file:memdb1?mode=memory&uri=true",
+        "sqlite:///file:ambiguous.sqlite",
+        "sqlite:///ordinary.sqlite?mode=memory",
+        "sqlite+unknown:///ordinary.sqlite",
+        "sqlite:///",
+        "not-a-database-url",
+    ],
+)
+def test_extract_sqlite_path_rejects_unknown_or_non_file_identity(database_url: str) -> None:
+    assert core_db._extract_sqlite_path(database_url) is None
+
+
 def _reset_engine() -> None:
     # RU: чистим глобальный singleton engine, иначе он "прилипает" между тестами.
     # EN: clear global singleton engine; otherwise it leaks across tests.
@@ -213,6 +250,50 @@ def test_query_only_sqlite_replacement_preserves_selected_database_file(
         with core_db.get_session_factory()() as session:
             assert session.bind is selected
             assert session.scalar(text("SELECT 1")) == 1
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_sqlite_to_pysqlite_same_file_replacement_preserves_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "shared-dialect.sqlite"
+    original_url = f"sqlite:///{database_path}?timeout=5"
+    selected_url = f"sqlite+pysqlite:///{database_path}?timeout=5"
+    monkeypatch.setenv("DATABASE_URL", original_url)
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        original = core_db.init_db()
+        assert database_path.is_file()
+        monkeypatch.setenv("DATABASE_URL", selected_url)
+        selected = core_db.init_db()
+        assert selected is not original
+        assert database_path.is_file()
+        assert inspect(selected).has_table("users")
+        with core_db.get_session_factory()() as session:
+            assert session.bind is selected
+            assert session.scalar(text("SELECT 1")) == 1
+    finally:
+        core_db.reset_db_for_tests()
+
+
+def test_sqlite_cleanup_removes_distinct_retired_file_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_path = tmp_path / "old.sqlite"
+    selected_path = tmp_path / "selected.sqlite"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{old_path}?timeout=5")
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        core_db.init_db()
+        assert old_path.is_file()
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{selected_path}?timeout=5")
+        selected = core_db.init_db()
+        assert not old_path.exists()
+        assert selected_path.is_file()
+        assert inspect(selected).has_table("users")
     finally:
         core_db.reset_db_for_tests()
 
