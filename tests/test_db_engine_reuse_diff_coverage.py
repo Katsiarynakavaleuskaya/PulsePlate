@@ -7,6 +7,7 @@ and _get_sqlite_poolclass() branches (non-SQLite, :memory:) for diff-coverage.
 from __future__ import annotations
 
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+import logging
 from pathlib import Path
 from threading import Barrier, Event
 import shutil
@@ -96,6 +97,108 @@ def _reset_engine() -> None:
     if engine is not None:
         engine.dispose()
         core_db._RAW_ENGINE = None
+
+
+def test_raw_engine_repairs_missing_factory_without_replacing_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'selected.sqlite'}")
+        core_db.reset_db_for_tests()
+        try:
+            selected = core_db._get_raw_engine()
+            prior_factory = core_db.SessionLocal
+            with monkeypatch.context() as missing:
+                missing.setattr(core_db, "SessionLocal", None)
+                assert core_db._get_raw_engine() is selected
+                assert core_db.SessionLocal is not prior_factory
+                assert core_db.SessionLocal is not None
+                with core_db.SessionLocal() as session:
+                    assert session.bind is selected
+        finally:
+            core_db.reset_db_for_tests()
+    core_db.init_db()
+
+
+def test_raw_engine_factory_failure_preserves_prior_pair_and_primary_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'prior.sqlite'}")
+        core_db.reset_db_for_tests()
+        try:
+            prior = core_db._get_raw_engine()
+            prior_factory = core_db.SessionLocal
+            original_create = core_db._create_sync_engine
+            candidate: Engine | None = None
+            disposal_attempted = False
+            primary = ValueError("synthetic factory failure")
+
+            def create_candidate(db_url: str) -> Engine:
+                nonlocal candidate
+                candidate = original_create(db_url)
+
+                def fail_disposal() -> None:
+                    nonlocal disposal_attempted
+                    disposal_attempted = True
+                    raise RuntimeError("synthetic cleanup failure")
+
+                failing.setattr(candidate, "dispose", fail_disposal)
+                return candidate
+
+            def fail_factory(_engine: Engine) -> None:
+                raise primary
+
+            with monkeypatch.context() as failing:
+                failing.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'candidate.sqlite'}")
+                failing.setattr(core_db, "_create_sync_engine", create_candidate)
+                failing.setattr(core_db, "_make_sync_session_factory", fail_factory)
+                with caplog.at_level(logging.ERROR), pytest.raises(ValueError) as observed:
+                    core_db._get_raw_engine()
+            assert observed.value is primary
+            assert candidate is not None and disposal_attempted
+            assert core_db._RAW_ENGINE is prior
+            assert core_db.SessionLocal is prior_factory
+            assert "Sync engine disposal failed: RuntimeError" in caplog.text
+            assert "synthetic cleanup failure" not in caplog.text
+        finally:
+            if candidate is not None:
+                candidate.dispose()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
+
+
+def test_raw_engine_retirement_disposal_failure_is_visible_without_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'prior.sqlite'}")
+        core_db.reset_db_for_tests()
+        prior = core_db._get_raw_engine()
+        original_dispose = prior.dispose
+        try:
+            with monkeypatch.context() as failing:
+                failing.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'selected.sqlite'}")
+
+                def fail_retirement() -> None:
+                    raise RuntimeError("synthetic retirement failure")
+
+                failing.setattr(prior, "dispose", fail_retirement)
+                with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+                    core_db._get_raw_engine()
+                assert core_db._RAW_ENGINE is not prior
+                assert core_db.SessionLocal is not None
+                with core_db.SessionLocal() as session:
+                    assert session.bind is core_db._RAW_ENGINE
+            assert "Sync engine disposal failed: RuntimeError" in caplog.text
+            assert "synthetic retirement failure" not in caplog.text
+        finally:
+            original_dispose()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
 
 
 def test_raw_engine_uses_full_structured_credentialed_url(
@@ -204,6 +307,87 @@ def test_init_db_explicit_url_keeps_new_session_factory_selected(
     finally:
         core_db.reset_db_for_tests()
         core_db.init_db()
+
+
+def test_reused_init_db_rebinds_missing_factory_to_selected_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    explicit_url = f"sqlite:///{tmp_path / 'selected.sqlite'}"
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'ambient.sqlite'}")
+        core_db.reset_db_for_tests()
+        try:
+            selected = core_db.init_db(explicit_url)
+            with monkeypatch.context() as missing:
+                missing.setattr(core_db, "SessionLocal", None)
+                assert core_db.init_db(explicit_url) is selected
+                assert core_db.SessionLocal is not None
+                with core_db.SessionLocal() as session:
+                    assert session.bind is selected
+        finally:
+            core_db.reset_db_for_tests()
+    core_db.init_db()
+
+
+def test_ambient_init_rejects_unpublished_configuration_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prior_url = f"sqlite:///{tmp_path / 'prior.sqlite'}"
+    candidate_url = f"sqlite:///{tmp_path / 'candidate.sqlite'}"
+    changed_url = f"sqlite:///{tmp_path / 'changed.sqlite'}"
+    entered_schema = Event()
+    release_schema = Event()
+    candidate: Engine | None = None
+    candidate_disposed = False
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", prior_url)
+        core_db.reset_db_for_tests()
+        prior = core_db.init_db()
+        prior_factory = core_db.SessionLocal
+        original_create = core_db._create_sync_engine
+
+        def create_candidate(db_url: str) -> Engine:
+            nonlocal candidate
+            candidate = original_create(db_url)
+            original_dispose = candidate.dispose
+
+            def dispose() -> None:
+                nonlocal candidate_disposed
+                candidate_disposed = True
+                original_dispose()
+
+            racing.setattr(candidate, "dispose", dispose)
+            return candidate
+
+        class PausedMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                if bind.url == core_db.make_url(candidate_url):
+                    entered_schema.set()
+                    assert release_schema.wait(timeout=5)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(core_db, "_create_sync_engine", create_candidate)
+                racing.setattr(core_db, "load_canonical_orm_metadata", lambda: PausedMetadata())
+                racing.setenv("DATABASE_URL", candidate_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    future = workers.submit(core_db.init_db)
+                    assert entered_schema.wait(timeout=5)
+                    racing.setenv("DATABASE_URL", changed_url)
+                    release_schema.set()
+                    with pytest.raises(
+                        RuntimeError, match="DATABASE_URL changed during database initialization"
+                    ):
+                        future.result(timeout=5)
+            assert candidate is not None and candidate_disposed
+            assert core_db._RAW_ENGINE is prior
+            assert core_db.SessionLocal is prior_factory
+        finally:
+            release_schema.set()
+            core_db.reset_db_for_tests()
+    core_db.init_db()
 
 
 def test_init_db_explicit_sqlite_url_creates_its_missing_parent(

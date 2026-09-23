@@ -264,6 +264,74 @@ def test_async_disposal_completes_through_repeated_cancellation(
     asyncio.run(scenario())
 
 
+def test_async_disposal_waits_when_caller_is_cancelled_as_cleanup_finishes() -> None:
+    async def scenario() -> None:
+        caller = asyncio.current_task()
+        assert caller is not None
+
+        class Engine:
+            calls = 0
+
+            async def dispose(self) -> None:
+                self.calls += 1
+                caller.cancel()
+
+        engine = Engine()
+        with pytest.raises(asyncio.CancelledError):
+            await db._dispose_async_engine_to_completion(engine)
+        assert engine.calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_async_disposal_propagates_cleanup_task_cancellation() -> None:
+    async def scenario() -> None:
+        class Engine:
+            calls = 0
+
+            async def dispose(self) -> None:
+                self.calls += 1
+                disposal_task = asyncio.current_task()
+                assert disposal_task is not None
+                disposal_task.cancel()
+                await asyncio.Event().wait()
+
+        engine = Engine()
+        with pytest.raises(asyncio.CancelledError):
+            await db._dispose_async_engine_to_completion(engine)
+        assert engine.calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_async_disable_surfaces_disposal_failure_without_exception_detail(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class RetiredEngine:
+        url = db.make_url("sqlite+aiosqlite:///retired.sqlite")
+
+        async def dispose(self) -> None:
+            raise RuntimeError("synthetic connection detail")
+
+    retired = RetiredEngine()
+
+    def factory() -> object:
+        return object()
+
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", retired)
+    monkeypatch.setattr(db, "AsyncSessionLocal", factory)
+    monkeypatch.setattr(db, "async_engine", retired)
+    monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+    monkeypatch.setenv("DATABASE_USE_ASYNC", "0")
+    with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
+        asyncio.run(db._get_async_engine_and_factory())
+    assert db._ASYNC_ENGINE is None
+    assert db.AsyncSessionLocal is None
+    assert db.async_engine is None
+    assert "Async engine dispose failed: RuntimeError" in caplog.text
+    assert "synthetic connection detail" not in caplog.text
+
+
 def test_get_async_session_raises_not_available_when_engine_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -515,3 +583,83 @@ def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
     monkeypatch.setattr(db, "_ASYNC_INIT_LOCK", _RaceLock(), raising=False)
 
     assert asyncio.run(db._get_async_engine()) is new_engine
+
+
+def test_current_async_generation_sanitizes_invalid_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def invalid_selector() -> str:
+        raise ValueError("synthetic selector detail")
+
+    monkeypatch.setattr(db, "_get_async_database_url", invalid_selector)
+    with pytest.raises(
+        RuntimeError, match="Async DB generation changed during acquisition"
+    ) as error:
+        db._current_async_generation()
+    assert "synthetic selector detail" not in str(error.value)
+    assert error.value.__cause__ is None
+
+
+@pytest.mark.parametrize("factory_available", [False, True])
+def test_cached_async_engine_requires_and_rebuilds_its_factory(
+    monkeypatch: pytest.MonkeyPatch, factory_available: bool
+) -> None:
+    class CachedEngine:
+        url = db.make_url("sqlite+aiosqlite:///cached.db")
+
+    cached = CachedEngine()
+
+    def factory() -> object:
+        return object()
+
+    def selected_url() -> str:
+        return "sqlite+aiosqlite:///cached.db"
+
+    def make_factory(**_kwargs: object) -> Callable[[], object]:
+        return factory
+
+    monkeypatch.setattr(db, "_get_async_database_url", selected_url)
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", cached)
+    monkeypatch.setattr(db, "AsyncSessionLocal", None)
+    monkeypatch.setattr(db, "async_engine", cached)
+    monkeypatch.setattr(db, "async_sessionmaker", make_factory if factory_available else None)
+    result = asyncio.run(db._get_async_engine_and_factory())
+    if factory_available:
+        assert result == (cached, factory)
+        assert db.AsyncSessionLocal is factory
+    else:
+        assert result is None
+        assert db.AsyncSessionLocal is None
+
+
+def test_async_driver_import_error_preserves_prior_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class PriorEngine:
+        url = db.make_url("sqlite+aiosqlite:///prior.db")
+        disposed = False
+
+        async def dispose(self) -> None:
+            self.disposed = True
+
+    prior = PriorEngine()
+
+    def prior_factory() -> object:
+        return object()
+
+    def selected_url() -> str:
+        return "sqlite+aiosqlite:///next.db"
+
+    def missing_driver(_url: str, **_kwargs: object) -> None:
+        raise ImportError("synthetic missing async driver")
+
+    monkeypatch.setattr(db, "_get_async_database_url", selected_url)
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", prior)
+    monkeypatch.setattr(db, "AsyncSessionLocal", prior_factory)
+    monkeypatch.setattr(db, "async_engine", prior)
+    monkeypatch.setattr(db, "create_async_engine", missing_driver)
+    monkeypatch.setattr(db, "async_sessionmaker", object())
+    assert asyncio.run(db._get_async_engine_and_factory()) is None
+    assert db._ASYNC_ENGINE is prior
+    assert db.AsyncSessionLocal is prior_factory
+    assert prior.disposed is False
