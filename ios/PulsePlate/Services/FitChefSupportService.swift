@@ -40,7 +40,7 @@ final class DefaultFitChefSupportService: FitChefSupportServicing, Sendable {
 
         let descriptor: FitChefSupportHandoffDescriptor
         do {
-            descriptor = try await Self.recognize(
+            descriptor = try Self.recognize(
                 response,
                 as: FitChefSupportHandoffDescriptor.self
             )
@@ -74,7 +74,7 @@ final class DefaultFitChefSupportService: FitChefSupportServicing, Sendable {
         try Task.checkCancellation()
 
         do {
-            let receipt = try await Self.recognize(
+            let receipt = try Self.recognize(
                 response,
                 as: FitChefSupportOutcomeReceipt.self
             )
