@@ -1744,3 +1744,102 @@ def test_native_partial_probe_asserts_exact_decision_and_identity(
         check=False,
     )
     assert completed.returncode == (0 if changed is None else 1), completed.stderr
+
+
+def test_every_cd_backend_producer_binds_its_checkout_and_immutable_revision() -> None:
+    workflow = _load_cd_workflow()
+    producers = []
+    for job_id, job in workflow["jobs"].items():
+        steps = job.get("steps", [])
+        for index, step in enumerate(steps):
+            if step.get("uses", "").startswith("docker/build-push-action@") and (
+                step.get("with", {}).get("context") == "."
+                and step["with"].get("target") in {"production", "staging"}
+            ):
+                producers.append((job_id, step["id"]))
+                assert (
+                    step["with"]["labels"]
+                    == "org.opencontainers.image.revision=${{ github.sha }}\n"
+                )
+                assert steps[index - 1]["name"] == "Bind backend checkout to its revision"
+                admission = steps[index + 1]
+                assert admission["name"] == "Verify immutable backend revision"
+                assert admission["env"]["BACKEND_DIGEST"] == "${{ steps.build.outputs.digest }}"
+                assert admission["env"]["EXPECTED_REVISION"] == "${{ github.sha }}"
+                assert "continue-on-error" not in admission and "if" not in admission
+                assert "docker pull --platform linux/amd64" in admission["run"]
+                assert "docker image inspect" in admission["run"]
+                assert 'test "$revision" = "$EXPECTED_REVISION"' in admission["run"]
+    assert sorted(producers) == [("build", "build"), ("build-production", "build")]
+
+
+@pytest.mark.parametrize(
+    "revision,pull_status,inspect_status,checkout,digest,expected",
+    [
+        ("a" * 40, 0, 0, "a" * 40, "sha256:" + "d" * 64, 0),
+        ("", 0, 0, "a" * 40, "sha256:" + "d" * 64, 1),
+        ("b" * 40, 0, 0, "a" * 40, "sha256:" + "d" * 64, 1),
+        ("<no value>", 0, 0, "a" * 40, "sha256:" + "d" * 64, 1),
+        ("a" * 40, 1, 0, "a" * 40, "sha256:" + "d" * 64, 1),
+        ("a" * 40, 0, 1, "a" * 40, "sha256:" + "d" * 64, 1),
+        ("a" * 40, 0, 0, "b" * 40, "sha256:" + "d" * 64, 1),
+        ("a" * 40, 0, 0, "a" * 40, "latest", 1),
+        ("a" * 40, 0, 0, "a" * 40, "sha256:bad", 1),
+    ],
+)
+@pytest.mark.parametrize("job_id", ["build", "build-production"])
+def test_real_cd_revision_admission_rejects_missing_wrong_or_unavailable_config(
+    tmp_path: Path,
+    revision: str,
+    pull_status: int,
+    inspect_status: int,
+    checkout: str,
+    digest: str,
+    expected: int,
+    job_id: str,
+) -> None:
+    steps = _load_cd_workflow()["jobs"][job_id]["steps"]
+    step = next(s for s in steps if s.get("name") == "Verify immutable backend revision")
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    git = binaries / "git"
+    git.write_text("#!/bin/sh\nprintf '%s\\n' \"$CHECKOUT_REVISION\"\n")
+    docker = binaries / "docker"
+    docker.write_text(
+        '#!/bin/sh\nset -eu\ncase "$1" in\n'
+        'pull) test "$#" -eq 4; test "$2" = --platform; test "$3" = linux/amd64; '
+        'test "$4" = "$EXPECTED_IMAGE"; printf "pull\\n" >> "$CALLS"; exit "$PULL_STATUS";;\n'
+        'image) test "$#" -eq 5; test "$2" = inspect; test "$3" = --format; '
+        'test "$4" = \'{{ index .Config.Labels "org.opencontainers.image.revision" }}\'; '
+        'test "$5" = "$EXPECTED_IMAGE"; printf "inspect\\n" >> "$CALLS"; '
+        'printf \'%s\\n\' "$REVISION"; exit "$INSPECT_STATUS";;\n'
+        "*) exit 99;;\nesac\n"
+    )
+    git.chmod(0o755)
+    docker.chmod(0o755)
+    shell = shutil.which("bash")
+    assert shell is not None
+    result = subprocess.run(
+        [shell, "-c", step["run"]],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            "PATH": str(binaries),
+            "EXPECTED_REVISION": "a" * 40,
+            "CHECKOUT_REVISION": checkout,
+            "IMAGE_REPOSITORY": "example/backend",
+            "BACKEND_DIGEST": digest,
+            "EXPECTED_IMAGE": "example/backend@sha256:" + "d" * 64,
+            "CALLS": str(tmp_path / "calls"),
+            "REVISION": revision,
+            "PULL_STATUS": str(pull_status),
+            "INSPECT_STATUS": str(inspect_status),
+        },
+    )
+    assert (result.returncode == 0) == (expected == 0), result.stderr
+    if expected == 0:
+        assert (tmp_path / "calls").read_text() == "pull\ninspect\n"
+    if checkout != "a" * 40 or digest != "sha256:" + "d" * 64:
+        assert not (tmp_path / "calls").exists()
