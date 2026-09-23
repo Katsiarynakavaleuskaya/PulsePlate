@@ -3,8 +3,12 @@
 ## Authority and boundary
 
 The owner-accepted DEP-SEC-02 plan authorizes one npm dependency identity:
-`D = npm:smol-toml`. The exact base is
-`bcaf6d03c1746886e522f2ac24485338b4ec6e92`. The sole authored dependency
+`D = npm:smol-toml`. The original planning base was
+`bcaf6d03c1746886e522f2ac24485338b4ec6e92`. After #2397 advanced main,
+the current implementation base is
+`c2a229de2a0ebad9d99fa05dfe7b35475b10cd3b`; merge commit
+`7f11fc0f9eb59807d99e9f79a8b71b0a0bf986e7` integrates it without
+changing any governed npm surface bytes. The sole authored dependency
 action is replacement of the existing root override from `1.6.1` to `1.9.0`
 at `package.json:28`. Native npm resolution supplies the lock changes at
 `package-lock.json:1285`. CSpell is the consumer, through
@@ -18,14 +22,15 @@ historical base, five-file topology, exact lock hash, or resolver delta.
 
 ## S: independently enumerated npm surfaces
 
-`S_base` came from `git ls-tree -r -z <base>`; `S_head` came independently from
-`git ls-files --cached -z` and regular, non-symlink worktree reads. Both select
-every tracked basename `package.json`, `package-lock.json`, or
-`npm-shrinkwrap.json`. Both sets contain the same five regular files. The
-candidate head below is the working tree before the later PR material commit;
-the canonical review mapping will bind its eventual exact head.
+`S_base` and `S_head` were independently enumerated from `git ls-tree -r -z`
+at the current base and inspected merge head, respectively. Regular,
+non-symlink worktree reads matched the head npm hashes. Both enumerations
+select every tracked basename `package.json`, `package-lock.json`, or
+`npm-shrinkwrap.json` and contain the same five regular files. The table
+records the inspected head `7f11fc0f`; later documentation commits require
+their own exact-head review and seal.
 
-| Surface | Base SHA-256 | Candidate head SHA-256 |
+| Surface | Current base SHA-256 | Inspected head SHA-256 |
 | --- | --- | --- |
 | `frontend/package-lock.json` | `218ce00de53a874d486dd9fbbc275b9f00445435283c93acd1963a9569810423` | `218ce00de53a874d486dd9fbbc275b9f00445435283c93acd1963a9569810423` |
 | `frontend/package.json` | `7d38cb173973ea0cab7ff49b1d2c7af37d6a1bc482b85a4e4c419245b3faba10` | `7d38cb173973ea0cab7ff49b1d2c7af37d6a1bc482b85a4e4c419245b3faba10` |
@@ -33,8 +38,8 @@ the canonical review mapping will bind its eventual exact head.
 | `package.json` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | `466203ec7350daf9bae1971385c01b829b5936b33ced8781feeb2bdb102620c8` |
 | `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45` |
 
-At base, the recognized occurrences are the root manifest override `1.6.1`
-and root lock package `node_modules/smol-toml` at `1.6.1`. At candidate head,
+At the current base, the recognized occurrences are the root manifest override
+`1.6.1` and root lock package `node_modules/smol-toml` at `1.6.1`. At inspected head,
 both are `1.9.0`; the other three surfaces have no recognized `smol-toml`
 carrier. The dependent `^1.4.2` edge in `cspell-config-lib` is a range
 requirement, not a second installed version. The guard discovers direct,
@@ -53,6 +58,10 @@ yet visible in the general database at this cutoff. Its range and patch are
 included conservatively; an independent primary corroboration claim is **not**
 made. The release notes corroborate the selected version, including its
 `null`-prototype object change, but do not replace that source limitation.
+Fresh read-only revalidation at **2026-09-23T09:16:34Z** again found four
+published maintainer advisories, three general database entries, and open
+alert #292 naming only GHSA-7w5x-hrqm-74c2. This confirms no observed
+inventory change; it does not move or replace the original cutoff.
 
 | Advisory | Reconciled affected stable versions | Base `1.6.1` | Head `1.9.0` |
 | --- | --- | --- | --- |
@@ -76,14 +85,15 @@ Retained ignored input SHA-256 values:
 | `github-advisories.json` | `8149bef815fc7a672ca38b002a9d19d4332ad423b9daabaed8d986fb834a995a` |
 | `dependabot-alert-292.json` | `40403e303ff6ed6535c12af9f1d695c48e4178189111f546d08f8634c19b0c18` |
 | `npm-registry-1.9.0.json` | `df5ba24df816b1b448ac5eef78e5e7a05fa8d94c1b7bc0671f3aa3f0c9461b27` |
+| `advisory-revalidation-c2.json` | `a5c604e4099374d55715eea0b0ae322a836e008f7ab6ca5bce0dbbbe9937c69b` |
 
 ## R: one authored action and replay-proven resolver closure
 
 Node `v24.18.1` and npm `11.16.0` ran
 `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`.
-Two independent clean directories were seeded with the exact base manifest
+Two new independent clean directories were seeded with the current exact-base manifest
 and lock bytes, each receiving only the authorized override replacement before
-that command. Both outputs are byte-identical to the candidate files. The
+that command. Both outputs are byte-identical to the inspected head files. The
 complete recursive dependency JSON delta contains exactly four leaves:
 
 | File and JSON pointer | Before | After | Class |
@@ -95,13 +105,21 @@ complete recursive dependency JSON delta contains exactly four leaves:
 
 The new tarball URL and integrity match the retained npm registry metadata.
 No other dependency identity, file, or dependency JSON field changed. The
-ignored `surface-inventory.json` and `resolver-delta.json` retain the complete
-machine-readable comparison; both replay directories retain the actual output
-bytes until archive verification.
+ignored `surface-inventory-c2.json` and `resolver-delta-c2.json` retain the
+complete current-base comparison; `resolver-replay-c2-a/` and
+`resolver-replay-c2-b/` retain the output bytes until archive verification.
+The original planning-base receipts remain historical and are not substituted
+for these new exact-base replays.
+The current inventory receipt SHA-256 is
+`242bfada7b4e4dae34158b6d8ab99c27a2825d3af55d806b120fd4ef61c2a485`;
+the current delta receipt SHA-256 is
+`570c42e4ce91e168f9f7dc4575290da5517a5fc14904ab0e5deddebbb74a1848`.
+Each replay's root manifest and lock hashes equal the inspected-head hashes
+in the surface table above; the other three hashes equal their base hashes.
 
 ## P: current-head safety and consumer compatibility
 
-At this candidate head, all recognized `smol-toml` manifest and lock
+At this inspected head, all recognized `smol-toml` manifest and lock
 occurrences are exact stable `1.9.0`, outside every member of `F_cutoff`.
 `tests/test_root_npm_dependency_guards.py:930` requires every currently
 tracked occurrence to be advisory-comparable and checks canonical registry
