@@ -301,7 +301,8 @@ merged on 2026-09-23 at 14:32:10 UTC as
 `ab7da79ce12cbd25537df57551b57b31e69409d0`. It retired only the seven
 `core.nutrition_utils` projections above and extended the same name set from
 51 to 58 without changing its recognizer. The current bounded child,
-`codex/retire-legacy-targets-gaps-service-exports`, retires only the three
+[PR #2407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2407)
+(`codex/retire-legacy-targets-gaps-service-exports`) retires only the three
 targets/gaps service projections above, extending the exact-name set from 58 to
 61 without changing its recognizer. The parent Legacy epic remains open.
 All retained Insight HTTP routes, all four versioned nutrition aliases, and
