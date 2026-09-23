@@ -354,7 +354,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: CLIENT-ARCH-1 / CAB-04–CAB-09 reserved continuation
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
-  - Target PR: CAB-04 pending PR number (`codex/ios-explicit-actor-boundaries`);
+  - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
+    (`codex/ios-explicit-actor-boundaries`);
     CAB-05–CAB-09 remain separate future carriers.
   - Status: CAB-03 is merged in PR #2381; CAB-04 implementation is active on its own branch
     and remains unchecked until its separate merge. Later reservations remain open.
@@ -393,6 +394,7 @@ If it is not recorded here — it does not exist.
     local run passed, but those results do not prove these specific cases.
   - Links:
     - [CAB-04 continuation](#ledger-client-arch-1-continuation)
+    - [CAB-04 PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
     - `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
     - `ios/PulsePlateTests/Models/StoreKitManagerCatalogTests.swift`
     - `ios/PulsePlateTests/HomeExperienceTests.swift`
