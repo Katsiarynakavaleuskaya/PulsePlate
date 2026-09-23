@@ -358,6 +358,21 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - If the default `github.token` cannot read production-scoped Actions variables, the bridge job may
   retry through `PRODUCTION_ENV_READ_TOKEN`; keep that secret aligned with the deploy runbook.
 
+## Dedicated scheduler worker admission
+
+- Only the three no-ingress `worker` services select literal
+  `PRIVATE_EXPORTS_ENABLED=false`; API production export guards stay enabled and
+  fail closed. Never copy the API env file or signing secret into a worker.
+- The existing Docker validation job runs the actual candidate scheduler CLI
+  through `scripts/ci/check_scheduler_worker_runtime.py` with isolated synthetic
+  PostgreSQL/cache. Independent SQL success or an initial running state is not
+  worker lifecycle proof. Require a leased no-update cycle, correlated live
+  PostgreSQL session after unlock, stable process/restart0 and graceful TERM.
+- Both CD backend producers must author the exact checkout OCI revision and
+  verify it on immutable image pullback. Signed provenance does not supply a
+  missing image-config revision. Keep provenance and runtime observations as
+  separate evidence; neither admits a host deployment or starts production T0.
+
 ## Docker entrypoint invariants
 Docker must run FastAPI as:
 - `app.main:app`

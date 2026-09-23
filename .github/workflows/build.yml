@@ -381,6 +381,14 @@ jobs:
 
           echo "✅ Docker image test completed successfully"
 
+      - name: Check native scheduler worker lifecycle
+        env:
+          POSTGRES_IMAGE: pgvector/pgvector:0.8.6-pg15-trixie@sha256:43904fc138a63f93611a2995cec2566e8ae883c8678cd65c60315fa44308f81f
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_scheduler_worker_runtime.py --image pulseplate:test \
+            --postgres-image "$POSTGRES_IMAGE"
+
       - name: Fail build job when Docker budget check failed
         if: ${{ steps.docker_image_budget.outcome == 'failure' }}
         run: |
