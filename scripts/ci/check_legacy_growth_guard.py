@@ -97,6 +97,9 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_alias_micros",
         "_clamp_daily_kcal",
         "_ensure_priority_micros",
+        "_generate_who_targets_response",
+        "_fallback_targets_response",
+        "analyze_nutrient_gaps_response",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
