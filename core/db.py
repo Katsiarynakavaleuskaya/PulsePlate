@@ -327,6 +327,9 @@ SessionLocal: Optional[sessionmaker[Session]] = None
 # Use RLock to allow reentrant calls (same thread can acquire multiple times)
 # This prevents deadlocks if any SQLAlchemy callback triggers lazy initialization
 _init_lock = threading.RLock()
+# Paths being prepared by init_db() before publication. Counts allow concurrent
+# candidates for the same ordinary SQLite file without an early unprotect.
+_inflight_sqlite_candidate_paths: dict[str, int] = {}
 
 
 def _get_raw_engine() -> "Engine":
@@ -1037,46 +1040,70 @@ def init_db(database_url: str | None = None) -> "Engine":
                 SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
             return _RAW_ENGINE
 
-    # Prepare the replacement completely before exposing it to new sessions.
-    candidate = _create_sync_engine(db_url)
-    try:
-        candidate_factory = _make_sync_session_factory(candidate)
-        metadata.create_all(bind=candidate)
-    except Exception:
-        _dispose_sync_engine(candidate, best_effort=True)
-        raise
-
-    retired_engine = None
-    candidate_to_dispose: Optional["Engine"] = candidate
-    try:
-        with _init_lock:
-            current_ambient_url = (
-                make_url(get_database_url()) if database_url is None else target_url
+        candidate_path = _extract_sqlite_cleanup_path(db_url)
+        candidate_realpath = os.path.realpath(candidate_path) if candidate_path else None
+        if candidate_realpath is not None:
+            _inflight_sqlite_candidate_paths[candidate_realpath] = (
+                _inflight_sqlite_candidate_paths.get(candidate_realpath, 0) + 1
             )
-            if current_ambient_url != target_url:
-                # A fallback (or another ambient selection) won while this
-                # candidate's schema was prepared. Never resurrect its URL.
-                if _RAW_ENGINE is None or _RAW_ENGINE.url != current_ambient_url:
-                    raise RuntimeError("DATABASE_URL changed during database initialization")
-                metadata.create_all(bind=_RAW_ENGINE)
-                if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
-                    SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
-                selected_engine = _RAW_ENGINE
-            elif _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
-                # Another caller published this URL while our candidate was
-                # prepared. Its engine may be an uninitialized lazy getter.
-                metadata.create_all(bind=_RAW_ENGINE)
-                if SessionLocal is None or not _session_local_is_bound(SessionLocal, _RAW_ENGINE):
-                    SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
-                selected_engine = _RAW_ENGINE
-            else:
-                retired_engine = _RAW_ENGINE
-                _RAW_ENGINE, SessionLocal = candidate, candidate_factory
-                selected_engine = candidate
-                candidate_to_dispose = None
+
+    try:
+        # Prepare the replacement completely before exposing it to new sessions.
+        candidate = _create_sync_engine(db_url)
+        try:
+            candidate_factory = _make_sync_session_factory(candidate)
+            metadata.create_all(bind=candidate)
+        except Exception:
+            _dispose_sync_engine(candidate, best_effort=True)
+            raise
+
+        retired_engine = None
+        candidate_to_dispose: Optional["Engine"] = candidate
+        try:
+            with _init_lock:
+                current_ambient_url = (
+                    make_url(get_database_url()) if database_url is None else target_url
+                )
+                if current_ambient_url != target_url:
+                    # A fallback (or another ambient selection) won while this
+                    # candidate's schema was prepared. Never resurrect its URL.
+                    if _RAW_ENGINE is None or _RAW_ENGINE.url != current_ambient_url:
+                        raise RuntimeError("DATABASE_URL changed during database initialization")
+                    metadata.create_all(bind=_RAW_ENGINE)
+                    if SessionLocal is None or not _session_local_is_bound(
+                        SessionLocal, _RAW_ENGINE
+                    ):
+                        SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+                    selected_engine = _RAW_ENGINE
+                elif _RAW_ENGINE is not None and _RAW_ENGINE.url == target_url:
+                    # Another caller published this URL while our candidate was
+                    # prepared. Its engine may be an uninitialized lazy getter.
+                    metadata.create_all(bind=_RAW_ENGINE)
+                    if SessionLocal is None or not _session_local_is_bound(
+                        SessionLocal, _RAW_ENGINE
+                    ):
+                        SessionLocal = _make_sync_session_factory(_RAW_ENGINE)
+                    selected_engine = _RAW_ENGINE
+                else:
+                    retired_engine = _RAW_ENGINE
+                    _RAW_ENGINE, SessionLocal = candidate, candidate_factory
+                    selected_engine = candidate
+                    candidate_to_dispose = None
+        except BaseException:
+            if candidate_to_dispose is not None:
+                _dispose_sync_engine(candidate_to_dispose, best_effort=True)
+            raise
+        else:
+            if candidate_to_dispose is not None:
+                _dispose_sync_engine(candidate_to_dispose)
     finally:
-        if candidate_to_dispose is not None:
-            _dispose_sync_engine(candidate_to_dispose)
+        if candidate_realpath is not None:
+            with _init_lock:
+                remaining = _inflight_sqlite_candidate_paths[candidate_realpath] - 1
+                if remaining:
+                    _inflight_sqlite_candidate_paths[candidate_realpath] = remaining
+                else:
+                    del _inflight_sqlite_candidate_paths[candidate_realpath]
 
     if retired_engine is not None:
         _dispose_sync_engine(retired_engine)
@@ -1093,14 +1120,22 @@ def init_db(database_url: str | None = None) -> "Engine":
                         if _RAW_ENGINE is not None
                         else None
                     )
-                    if selected_path is None or current_path is None:
-                        delete_old_file = False
-                    else:
-                        old_realpath = os.path.realpath(old_sqlite_path)
-                        delete_old_file = (
-                            os.path.realpath(selected_path) != old_realpath
-                            and os.path.realpath(current_path) != old_realpath
+                    old_realpath = os.path.realpath(old_sqlite_path)
+                    selected_known = selected_path is not None or (
+                        selected_engine.url.get_backend_name() != "sqlite"
+                    )
+                    current_known = _RAW_ENGINE is not None and (
+                        current_path is not None or _RAW_ENGINE.url.get_backend_name() != "sqlite"
+                    )
+                    delete_old_file = (
+                        selected_known
+                        and current_known
+                        and (
+                            selected_path is None or os.path.realpath(selected_path) != old_realpath
                         )
+                        and (current_path is None or os.path.realpath(current_path) != old_realpath)
+                        and old_realpath not in _inflight_sqlite_candidate_paths
+                    )
                     if delete_old_file and os.path.exists(old_sqlite_path):
                         try:
                             os.remove(old_sqlite_path)

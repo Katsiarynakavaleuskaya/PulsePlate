@@ -541,6 +541,96 @@ def test_sqlite_cleanup_removes_distinct_retired_file_only(
         core_db.reset_db_for_tests()
 
 
+def test_sqlite_cleanup_waits_for_inflight_candidate_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_path = tmp_path / "original.sqlite"
+    original_url = f"sqlite:///{original_path}"
+    interim_url = f"sqlite:///{tmp_path / 'interim.sqlite'}"
+    retiring = Event()
+    release_retirement = Event()
+    schema_ready = Event()
+    release_schema = Event()
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", original_url)
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        original = core_db.init_db()
+        metadata = core_db.load_canonical_orm_metadata()
+        dispose = core_db._dispose_sync_engine
+
+        class PausedMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                metadata.create_all(bind=bind)
+                if bind.url == core_db.make_url(original_url) and bind is not original:
+                    schema_ready.set()
+                    assert release_schema.wait(timeout=10)
+
+        def pause_retirement(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is original:
+                retiring.set()
+                assert release_retirement.wait(timeout=10)
+            dispose(engine, best_effort=best_effort)
+
+        with monkeypatch.context() as racing:
+            racing.setattr(core_db, "load_canonical_orm_metadata", lambda: PausedMetadata())
+            racing.setattr(core_db, "_dispose_sync_engine", pause_retirement)
+            racing.setenv("DATABASE_URL", interim_url)
+            with ThreadPoolExecutor(max_workers=2) as workers:
+                to_interim = workers.submit(core_db.init_db)
+                assert retiring.wait(timeout=10)
+                try:
+                    racing.setenv("DATABASE_URL", original_url)
+                    back_to_original = workers.submit(core_db.init_db)
+                    assert schema_ready.wait(timeout=10)
+                    release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during initialization"
+                    ):
+                        to_interim.result(timeout=10)
+                    assert original_path.is_file()
+                finally:
+                    release_retirement.set()
+                    release_schema.set()
+                selected = back_to_original.result(timeout=10)
+        assert selected is core_db._RAW_ENGINE
+        assert original_path.is_file()
+        assert inspect(selected).has_table("users")
+        assert core_db._inflight_sqlite_candidate_paths == {}
+    finally:
+        release_retirement.set()
+        release_schema.set()
+        core_db.reset_db_for_tests()
+
+
+def test_sqlite_cleanup_removes_retired_file_for_confirmed_non_sqlite_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_path = tmp_path / "retired.sqlite"
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{original_path}")
+    monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+    core_db.reset_db_for_tests()
+    try:
+        core_db.init_db()
+        assert original_path.is_file()
+
+        class NoConnectionMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                assert bind.url.get_backend_name() == "postgresql"
+
+        with monkeypatch.context() as replacement:
+            replacement.setenv("DATABASE_URL", "postgresql+psycopg://localhost/ops02")
+            replacement.setattr(core_db, "load_canonical_orm_metadata", NoConnectionMetadata)
+            selected = core_db.init_db()
+        assert selected.url.get_backend_name() == "postgresql"
+        assert not original_path.exists()
+        assert core_db._inflight_sqlite_candidate_paths == {}
+    finally:
+        core_db.reset_db_for_tests()
+
+
 def test_sqlite_cleanup_preserves_file_reselected_before_unlink(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -706,6 +796,77 @@ def test_failed_init_candidate_preserves_selected_pair(
     finally:
         core_db.reset_db_for_tests()
         core_db.init_db()
+
+
+@pytest.mark.parametrize("failure", ["ambient_change", "selected_schema"])
+def test_losing_candidate_disposal_preserves_primary_error(
+    failure: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    initial_url = f"sqlite:///{tmp_path / 'initial.sqlite'}"
+    candidate_url = f"sqlite:///{tmp_path / 'candidate.sqlite'}"
+    later_url = f"sqlite:///{tmp_path / 'later.sqlite'}"
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DATABASE_URL", initial_url)
+    core_db.reset_db_for_tests()
+    try:
+        initial = core_db.init_db()
+        initial_factory = core_db.get_session_factory()
+        original_create = core_db._create_sync_engine
+        metadata = core_db.load_canonical_orm_metadata()
+        candidates: list[Engine] = []
+        disposal_attempts: list[Engine] = []
+
+        def make_candidate(db_url: str) -> Engine:
+            engine = original_create(db_url)
+            candidates.append(engine)
+            if len(candidates) == 1:
+
+                def fail_disposal() -> None:
+                    disposal_attempts.append(engine)
+                    raise RuntimeError("synthetic cleanup failure")
+
+                failing.setattr(engine, "dispose", fail_disposal)
+            return engine
+
+        class RacingMetadata:
+            def create_all(self, *, bind: Engine) -> None:
+                metadata.create_all(bind=bind)
+                if bind is candidates[0]:
+                    if failure == "ambient_change":
+                        failing.setenv("DATABASE_URL", later_url)
+                    else:
+                        core_db._get_raw_engine()
+                elif failure == "selected_schema" and bind is core_db._RAW_ENGINE:
+                    raise ValueError("synthetic selected schema failure")
+
+        with monkeypatch.context() as failing:
+            failing.setenv("DATABASE_URL", candidate_url)
+            failing.setattr(core_db, "_create_sync_engine", make_candidate)
+            failing.setattr(core_db, "load_canonical_orm_metadata", lambda: RacingMetadata())
+            with caplog.at_level(logging.ERROR):
+                if failure == "ambient_change":
+                    with pytest.raises(
+                        RuntimeError, match="DATABASE_URL changed during database initialization"
+                    ):
+                        core_db.init_db()
+                else:
+                    with pytest.raises(ValueError, match="synthetic selected schema failure"):
+                        core_db.init_db()
+
+        assert disposal_attempts == candidates[:1]
+        assert "Sync engine disposal failed: RuntimeError" in caplog.text
+        assert "synthetic cleanup failure" not in caplog.text
+        assert core_db._inflight_sqlite_candidate_paths == {}
+        if failure == "ambient_change":
+            assert core_db._RAW_ENGINE is initial
+            assert core_db.get_session_factory() is initial_factory
+        else:
+            assert core_db._RAW_ENGINE is candidates[1]
+    finally:
+        core_db.reset_db_for_tests()
 
 
 def test_concurrent_init_disposes_losing_candidate(
