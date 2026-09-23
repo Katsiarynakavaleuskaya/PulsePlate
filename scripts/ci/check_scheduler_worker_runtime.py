@@ -507,7 +507,7 @@ class Smoke:
             f"?application_name={application}&connect_timeout=5",
         }
         env_args = [item for key, value in env.items() for item in ("-e", key + "=" + value)]
-        versions = {
+        versions: dict[str, dict[str, object]] = {
             source: {
                 "source": source,
                 "version": "synthetic-current",
