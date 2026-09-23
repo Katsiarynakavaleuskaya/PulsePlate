@@ -130,6 +130,7 @@ def _configure_session_bindings(
     *,
     expected_engine: Engine | None | object = _EXPECTED_UNSET,
     expected_selector: str | None | object = _EXPECTED_UNSET,
+    expected_fallback_selector: str | object = _EXPECTED_UNSET,
 ) -> None:
     """
     Configure core.db session bindings and environment variables.
@@ -155,10 +156,15 @@ def _configure_session_bindings(
 
     with core_db._init_lock:
         stale = (
-            expected_engine is not _EXPECTED_UNSET and core_db._RAW_ENGINE is not expected_engine
-        ) or (
-            expected_selector is not _EXPECTED_UNSET
-            and os.getenv("DATABASE_URL") != expected_selector
+            (expected_engine is not _EXPECTED_UNSET and core_db._RAW_ENGINE is not expected_engine)
+            or (
+                expected_selector is not _EXPECTED_UNSET
+                and os.getenv("DATABASE_URL") != expected_selector
+            )
+            or (
+                expected_fallback_selector is not _EXPECTED_UNSET
+                and (os.getenv("DB_FALLBACK_URL") or "").strip() != expected_fallback_selector
+            )
         )
         if not stale:
             retired_engine = core_db._RAW_ENGINE
@@ -254,8 +260,14 @@ def _attempt_db_fallback(
             env_name, (os.getenv("DB_FALLBACK_URL") or "").strip(), truthy, db_err
         )
     else:
-        # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
-        fallback_url = (os.getenv("DB_FALLBACK_URL") or "").strip() or "sqlite:///:memory:"
+        from core import db as core_db
+
+        # Select the candidate and its expected prior generation together.
+        with core_db._init_lock:
+            expected_engine = core_db._RAW_ENGINE
+            expected_selector = os.getenv("DATABASE_URL")
+            expected_fallback_selector = (os.getenv("DB_FALLBACK_URL") or "").strip()
+            fallback_url = expected_fallback_selector or "sqlite:///:memory:"
 
         # Validate fallback URL against non-production constraints
         _validate_fallback_url(env_name, is_production, fallback_url, db_err)
@@ -278,12 +290,7 @@ def _attempt_db_fallback(
             fallback_exception,
         )
 
-    # Initialize fallback engine and configure bindings
-    from core import db as core_db
-
-    with core_db._init_lock:
-        expected_engine = core_db._RAW_ENGINE
-        expected_selector = os.getenv("DATABASE_URL")
+    # Initialize fallback engine and configure bindings.
     candidate_path = core_db._register_sqlite_candidate_path(fallback_url)
     try:
         fallback_engine = _initialize_fallback_engine(fallback_url, db_err)
@@ -294,6 +301,7 @@ def _attempt_db_fallback(
             env_name,
             expected_engine=expected_engine,
             expected_selector=expected_selector,
+            expected_fallback_selector=expected_fallback_selector,
         )
     finally:
         core_db._unregister_sqlite_candidate_path(candidate_path)

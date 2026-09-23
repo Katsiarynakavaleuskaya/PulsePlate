@@ -516,18 +516,19 @@ An explicit `init_db(database_url=...)` selection remains current for session
 factory acquisition until a later engine selection (`core/db.py:409`,
 `tests/test_db_engine_reuse_diff_coverage.py:292`). The local/dev fallback
 publishes its URL and generation under the same lifecycle lock for participating
-accessors (`core/db_fallback.py:125`, `tests/test_app_db_fallback_97.py:175`);
+accessors (`core/db_fallback.py:125`, `tests/test_app_db_fallback_97.py:229`);
 independent reads of module globals or `os.environ` are not atomic snapshots.
-Degraded markers follow the selected fallback generation (`core/db_fallback.py:332`,
-`tests/test_app_db_fallback_97.py:240`). Ambient selectors are rechecked before
+Degraded markers follow the selected fallback generation (`core/db_fallback.py:340`,
+`tests/test_app_db_fallback_97.py:294`). Ambient selectors are rechecked before
 publishing a prepared engine (`core/db.py:1050`). Async acquisition returns one
 engine/factory snapshot; cancellation waits for owned async disposal to finish
-before it propagates (`core/db.py:690`, `core/db.py:775`). New async sessions are constructed while
-the selected generation is validated (`core/db.py:873`,
+before it propagates (`core/db.py:690`, `core/db.py:775`). New async sessions
+are constructed while the selected generation is validated (`core/db.py:873`,
 `tests/test_core_db_comprehensive.py:16`). A fallback candidate must retain its
-prior generation/selector and protect its ordinary SQLite file through schema
-preparation and publication (`core/db_fallback.py:240`, `core/db.py:335`,
-`tests/test_app_db_fallback_97.py:55`). Callers still
+prior generation and both URL selectors and protect its ordinary SQLite file
+through schema preparation and publication (`core/db_fallback.py:246`,
+`core/db.py:335`, `tests/test_app_db_fallback_97.py:55`,
+`tests/test_app_db_fallback_97.py:119`). Callers still
 own already-issued sessions and checked-out connections; pool disposal does
 not close them or assert safe live credential rotation. This repository-level
 contract adds no host activation, pool policy, or deployment claim.
