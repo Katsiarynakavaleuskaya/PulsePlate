@@ -1968,6 +1968,23 @@ def _assert_vitest_security_surfaces(surfaces: dict[str, dict]) -> None:
         )
         assert version == direct_versions[target], f"frontend direct {target} cohort lock drift"
     assert lock_entries["vitest"], "vitest lock occurrence is missing"
+    mocker_path = "node_modules/@vitest/mocker"
+    mocker = packages.get(mocker_path)
+    assert isinstance(mocker, dict), "frontend canonical mocker lock record is missing"
+    assert (
+        lock_entries["@vitest/mocker"].get(f"frontend/package-lock.json:{mocker_path}") is mocker
+    ), "frontend canonical mocker record was not enumerated"
+    mocker_version = _assert_vitest_safe_version(
+        target="@vitest/mocker", value=mocker.get("version"), source=mocker_path
+    )
+    assert mocker_version == direct_versions["vitest"], "frontend mocker cohort lock drift"
+    vitest = packages["node_modules/vitest"]
+    dependencies = vitest.get("dependencies")
+    assert isinstance(dependencies, dict), "frontend Vitest dependencies must be an object"
+    assert "@vitest/mocker" in dependencies, "frontend Vitest mocker dependency edge is missing"
+    assert (
+        dependencies["@vitest/mocker"] == mocker["version"]
+    ), "frontend Vitest mocker dependency selector disagrees with canonical lock version"
 
 
 def test_vitest_current_tracked_npm_surfaces_are_safe() -> None:
@@ -4631,6 +4648,9 @@ def _vitest_guard_fixture() -> dict[str, dict]:
     (
         ("affected-vitest", "affected"),
         ("affected-mocker", "affected"),
+        ("missing-mocker-record-and-edge", "canonical mocker lock record"),
+        ("missing-mocker-edge", "mocker dependency edge"),
+        ("wrong-mocker-edge", "mocker dependency selector"),
         ("nested-mocker", "affected"),
         ("other-lock-mocker", "affected"),
         ("alias-mocker", "alias"),
@@ -4661,6 +4681,13 @@ def test_vitest_batch_guard_rejects_unsafe_or_unprovable_head(case: str, message
         packages["node_modules/@vitest/mocker"][
             "resolved"
         ] = "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.10.tgz"
+    elif case == "missing-mocker-record-and-edge":
+        del packages["node_modules/@vitest/mocker"]
+        del packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"]
+    elif case == "missing-mocker-edge":
+        del packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"]
+    elif case == "wrong-mocker-edge":
+        packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.8"
     elif case == "nested-mocker":
         packages["node_modules/future/node_modules/@vitest/mocker"] = {
             **packages["node_modules/@vitest/mocker"],
@@ -4727,6 +4754,7 @@ def test_vitest_batch_guard_accepts_safe_future_cohort() -> None:
         entry = lock["packages"][f"node_modules/{name}"]
         entry["version"] = "4.1.12"
         entry["resolved"] = f"https://registry.npmjs.org/{name}/-/{basename}-4.1.12.tgz"
+    lock["packages"]["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.12"
     _assert_vitest_security_surfaces(surfaces)
 
 
@@ -4746,14 +4774,14 @@ def test_vitest_cutoff_keeps_every_advisory_and_prerelease_branch() -> None:
         assert SpecifierSet(">=5.0.0b1,<5.0.0rc2") in ranges
 
 
-def test_vitest_guard_rejects_invalid_native_mocker_edge() -> None:
-    """Safe package records cannot mask a broken declared dependency graph."""
+def test_vitest_guard_rejects_invalid_native_expect_edge() -> None:
+    """Other broken Vitest dependency edges remain owned by npm's graph check."""
 
     surfaces = _vitest_guard_fixture()
     _assert_vitest_security_surfaces(surfaces)
     _assert_npm_virtual_lock_graphs(surfaces=surfaces)
     packages = surfaces["frontend/package-lock.json"]["packages"]
-    packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.8"
+    packages["node_modules/vitest"]["dependencies"]["@vitest/expect"] = "4.1.8"
     _assert_vitest_security_surfaces(surfaces)
     with pytest.raises(AssertionError, match="npm virtual graph"):
         _assert_npm_virtual_lock_graphs(surfaces=surfaces)
