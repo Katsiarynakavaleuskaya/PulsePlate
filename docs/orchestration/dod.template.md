@@ -28,7 +28,7 @@ Follow [Goal-to-outcome review](workflow.md#goal-to-outcome-review).
 - [ ] Every original requirement and DoD item is explicitly covered by an individually achieved criterion with evidence before claiming overall completion
 - [ ] Any partial, unknown or not_achieved criterion prevents an overall completion claim
 - [ ] Material changes and new counterexamples have targeted rechecks; stale evidence is not counted as achieved
-- [ ] Required human acceptance names the shown state and material version; missing, stale or legally significant decisions remain open
+- [ ] A completed owner decision bound to the shown state/material version, with needed professional review recorded, may close that decision; missing or stale required decisions stay open, reasoned N/A applies only when acceptance is not required, and other criterion evidence remains necessary
 
 ### Code Quality
 
