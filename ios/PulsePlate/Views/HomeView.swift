@@ -1,12 +1,12 @@
 import Foundation
 import SwiftUI
 
-struct HomeDestinationDependencies: Sendable {
-    let makeAIService: @Sendable (APIClientProtocol) -> any CBTInsightServicing
-    let makeConsentProvider: @Sendable () -> any AIWellnessConsentProviding
-    let makeSupportService: @Sendable (APIClientProtocol) -> any FitChefSupportServicing
-    let makeWeeklyService: @Sendable (APIClientProtocol) -> any WeeklyPlanServicing
-    let makeShoppingService: @Sendable (APIClientProtocol) -> any ShoppingListServicing
+nonisolated struct HomeDestinationDependencies: Sendable {
+    let makeAIService: @MainActor @Sendable (APIClientProtocol) -> any CBTInsightServicing
+    let makeConsentProvider: @MainActor @Sendable () -> any AIWellnessConsentProviding
+    let makeSupportService: @MainActor @Sendable (APIClientProtocol) -> any FitChefSupportServicing
+    let makeWeeklyService: @MainActor @Sendable (APIClientProtocol) -> any WeeklyPlanServicing
+    let makeShoppingService: @MainActor @Sendable (APIClientProtocol) -> any ShoppingListServicing
     let makeClientEventID: @Sendable () -> UUID
 
     static var live: HomeDestinationDependencies {
@@ -32,17 +32,18 @@ struct HomeView: View {
     @State private var profileReadiness: HomeProfileReadiness
 
     init(
-        apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL()),
-        profileProvider: any ProfileProviding = DefaultProfileProvider(),
+        apiClient: APIClientProtocol? = nil,
+        profileProvider: (any ProfileProviding)? = nil,
         destinationDependencies: HomeDestinationDependencies = .live,
         localization: LocalizationManager = .shared
     ) {
-        self.apiClient = apiClient
-        self.profileProvider = profileProvider
+        let resolvedProfileProvider = profileProvider ?? DefaultProfileProvider()
+        self.apiClient = apiClient ?? APIClient(baseURL: AppConfig.baseURL())
+        self.profileProvider = resolvedProfileProvider
         self.destinationDependencies = destinationDependencies
         _localization = ObservedObject(wrappedValue: localization)
         _profileReadiness = State(
-            initialValue: HomeExperience.profileReadiness(using: profileProvider)
+            initialValue: HomeExperience.profileReadiness(using: resolvedProfileProvider)
         )
     }
 

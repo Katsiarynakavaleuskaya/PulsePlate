@@ -5,8 +5,8 @@ import Security
 ///
 /// RU: Обёртка над Keychain для хранения небольших секретов (строк).
 /// We keep this minimal, explicit, and easy to test.
-struct KeychainStore: Sendable {
-    enum KeychainError: Error, Equatable {
+nonisolated struct KeychainStore: Sendable {
+    nonisolated enum KeychainError: Error, Equatable {
         case unexpectedStatus(OSStatus)
         case unexpectedData
     }
