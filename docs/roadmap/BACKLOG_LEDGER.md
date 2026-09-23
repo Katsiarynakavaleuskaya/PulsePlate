@@ -382,6 +382,26 @@ If it is not recorded here — it does not exist.
     - each checkbox closes only with that carrier's actual merge/evidence or an explicit owner
       won't-do decision; this tracking group remains open while any reservation is open
 
+<a id="ledger-client-arch-1-cab-04-regression-assertions"></a>
+- [ ] P2: CLIENT-ARCH-1 / CAB-04 additional iOS regression assertions
+  - Owner: qa-engineer-agent / frontend-engineer
+  - Priority: P2 (focused iOS regression coverage)
+  - Target PR: pending focused iOS test-only follow-up after CAB-04
+  - Status: Open; this item grants no production behavior change or merge-readiness authority.
+  - Reason (EN): Three exact regression assertions were omitted to keep the accepted single
+    cross-cutting CAB-04 carrier within 20 files. Its existing behavior checks and full 316-test
+    local run passed, but those results do not prove these specific cases.
+  - Links:
+    - [CAB-04 continuation](#ledger-client-arch-1-continuation)
+    - `ios/PulsePlateTests/Services/ProKeyProviderTests.swift`
+    - `ios/PulsePlateTests/Models/StoreKitManagerCatalogTests.swift`
+    - `ios/PulsePlateTests/HomeExperienceTests.swift`
+  - DoD:
+    - deterministically assert Keychain rotation and read-after-set without a cached key snapshot
+    - assert exact StoreKit `displayName` and `displayPrice` projection in catalog order
+    - assert the injected Home profile provider's exact read count and lazy factory behavior
+    - record passing focused and complete iOS test evidence on the follow-up's current head
+
 <a id="ledger-p1-fitchef-public-deterministic-marketing-demo"></a>
 - [x] P1: Add the public deterministic FitChef marketing demo
   - Owner: frontend-engineer / agent-coordinator
