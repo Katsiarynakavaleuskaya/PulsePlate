@@ -85,6 +85,9 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_alias_micros",
     "_clamp_daily_kcal",
     "_ensure_priority_micros",
+    "_generate_who_targets_response",
+    "_fallback_targets_response",
+    "analyze_nutrient_gaps_response",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -282,6 +285,9 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_alias_micros": nutrition_utils.alias_micros,
         "_clamp_daily_kcal": nutrition_utils.clamp_daily_kcal,
         "_ensure_priority_micros": nutrition_utils.ensure_priority_micros,
+        "_generate_who_targets_response": targets_service.generate_who_targets_response,
+        "_fallback_targets_response": targets_service.fallback_targets_response,
+        "analyze_nutrient_gaps_response": targets_service.analyze_nutrient_gaps_response,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -295,7 +301,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 58
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 61
     assert isinstance(nutrition_utils.MANDATORY_MICRO_DEFAULTS, dict)
     assert isinstance(nutrition_utils.MICRO_ALIAS_MAP, dict)
     assert isinstance(nutrition_utils.MIN_DAILY_KCAL, int)
@@ -375,11 +381,17 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         import legacy_app
         import app as app_facade
         import app.services.pro_nutrition_plate as plate_service
+        import app.services.pro_nutrition_targets as targets_service
         import core.nutrition_utils as nutrition_utils
 
         retired = {retired_bindings!r}
         plate_helpers = {RETIRED_PLATE_HELPER_BINDINGS!r}
         nutrition_utilities = {RETIRED_NUTRITION_UTILITY_BINDINGS!r}
+        targets_gaps_service = (
+            "generate_who_targets_response",
+            "fallback_targets_response",
+            "analyze_nutrient_gaps_response",
+        )
         assert set(retired).isdisjoint(vars(legacy_app))
         assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
         for binding_name in plate_helpers:
@@ -402,6 +414,10 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
             else:
                 assert callable(canonical_object)
                 assert canonical_object.__module__ == nutrition_utils.__name__
+        for binding_name in targets_gaps_service:
+            canonical_object = getattr(targets_service, binding_name)
+            assert callable(canonical_object)
+            assert canonical_object.__module__ == targets_service.__name__
         for binding_name in retired:
             try:
                 getattr(legacy_app, binding_name)
@@ -418,6 +434,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
                 "absent": list(retired),
                 "canonical_plate_helpers": list(plate_helpers),
                 "canonical_nutrition_utilities": list(nutrition_utilities),
+                "canonical_targets_gaps_service": list(targets_gaps_service),
                 "package_macro_identity_preserved": True,
             })
         )
@@ -427,6 +444,11 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         "absent": list(retired_bindings),
         "canonical_plate_helpers": list(RETIRED_PLATE_HELPER_BINDINGS),
         "canonical_nutrition_utilities": list(RETIRED_NUTRITION_UTILITY_BINDINGS),
+        "canonical_targets_gaps_service": [
+            "generate_who_targets_response",
+            "fallback_targets_response",
+            "analyze_nutrient_gaps_response",
+        ],
         "package_macro_identity_preserved": True,
     }
 
