@@ -383,3 +383,122 @@ cannot establish a production baseline or `T₀`.
 in-process hooks remain separate from the private Prometheus retention
 contour. Centralized error reporting remains follow-up work; its absence does
 not mean health, metrics, tracing, or request telemetry are absent.
+
+
+## Offline operational context report (OPS-01)
+
+Run from the repository checkout:
+
+```bash
+python scripts/ops/ops_context_report.py --environment production --format json
+python scripts/ops/ops_context_report.py --environment staging --service database --format json
+python scripts/ops/ops_context_report.py --environment production --service database --observed artifacts/ops-observed.json --max-observation-age-seconds 3600 --format json
+```
+
+The stdlib CLI reads local files and one fixed read-only Git commit identity query. Git is
+resolved only through the fixed POSIX system search path `/usr/bin:/bin`; caller PATH
+cannot supply it and no user-path fallback is supported. The OS-managed directories and
+their platform-managed symlink targets are trusted assumptions, not executable authenticity
+proof. Missing system Git fails safely. Native Git resolves `HEAD^{commit}`; a blob, tree
+or missing commit cannot become repo identity. This does not prove authorship, a clean
+worktree or deployed revision. The CLI does
+not contact providers, inspect running containers, evaluate configuration, read environment
+credentials, or execute runbook commands. `--sources` defaults to
+`docs/deploy/OPS_CONTEXT_SOURCES.json`; a canonical repository-relative alternate JSON index
+is supported. Absolute paths, including paths inside the checkout, traversal, noncanonical
+paths and unsafe filesystem objects are rejected. Static source policy is applied before
+reading the index or any indexed member. Local observations remain separate from static
+context and may use an explicit repository-relative artifact path. For index, member and
+observation paths, any ancestor directory component equal to `secrets` after case folding
+is denied before acquisition. All indexed member paths are checked before selection.
+Static filename/suffix exclusions apply to the index and members; observations retain
+their separate dynamic path policy. Callers must sanitize indexes, observations and custom
+sources: the tool cannot detect confidential content under otherwise permitted names,
+and a permitted content fingerprint is not inherently safe to publish.
+
+The index is a reference catalogue: root keys are `schema_version` (exactly
+`ops-context-sources.v1`) and `sources`. Each source has exactly `environment`, `service`,
+`configuration` and `path`. Both environments and all four services must be represented;
+no duplicate row is admitted. Production configuration labels are `managed_default`,
+`selfhosted_alternative` or `shared`; staging uses `staging` or `shared`.
+Production app, database and prometheus each require both `managed_default` and
+`selfhosted_alternative` reference classes; `shared` cannot replace either class.
+Every staging service requires its `staging` reference class; `shared` cannot substitute.
+Production packages retains its existing grammar without a dual-class requirement.
+These ten named relations and eight environment/service bindings are required for the whole
+index before report selection, including alternate indexes; they neither require distinct
+source paths nor verify live topology. Labels describe reference relationships.
+Canonical production instructions remain in `deploy/PRODUCTION.md`,
+staging in `docs/deploy/STAGING.md`; deployment configuration and package/image owners
+retain their own truth. Production managed PostgreSQL is the documented default;
+self-hosted PostgreSQL is a maintained alternative. `PROD_DEPLOY_MODE` describes a deployment
+transport choice and cannot select database topology in this report. The staging database
+references include the mounted PostgreSQL HBA access-policy file; the production local-image
+manifest belongs to the self-hosted alternative. App references include the selected
+environment's Caddy policy. The finite mounted-policy catalogue covers these two Caddy
+files, staging HBA and Prometheus YAML, not arbitrary application or cloud policy. Existing
+prohibited static source classes and designated secrets directories are denied before
+acquisition; this is a finite path policy, not content-based secret detection. Named-volume
+and provider state remain unknown. None of these references proves host activation.
+
+A supplied observation file has this closed shape (synthetic example only):
+
+```json
+{
+  "schema_version": "ops-observed.v1",
+  "observations": [
+    {
+      "environment": "production",
+      "service": "database",
+      "resource_id": "synthetic-db-1",
+      "provenance": "operator_entry",
+      "observed_at": "2026-09-14T12:00:00Z",
+      "repo_sha": null,
+      "selected_config": "managed_default"
+    }
+  ]
+}
+```
+
+All record fields above are required except `selected_config`. Provenance is only
+`operator_entry` or `provider_export`, both supplied claims. Resource identifiers are
+1–128 ASCII letters/digits/dots/underscores/hyphens, starting with a letter or digit.
+This syntax cannot recognize every secret; sanitize identifiers before supplying them and
+keep reports local. Do not paste private identifiers or their hashes into public evidence.
+There are no fields for logs, command output, URLs, DSNs, credentials or unrestricted text.
+Revision is null or a lowercase 40-character Git SHA. Timestamps use exact UTC
+`YYYY-MM-DDTHH:MM:SSZ` syntax and cannot be in the future. Input JSON is limited to 64 KiB,
+128 records, six nesting levels and 512 characters per string; duplicate keys, nonfinite
+numbers, unknown fields and non-ASCII/control strings fail. Every record is validated
+before environment/service filtering. An observation window must be a positive integer in seconds. Age equal to the window is fresh; greater age is stale.
+The report records the evaluation time and window. Freshness is not authentication.
+
+The versioned report separates acquired source-byte SHA-256 fingerprints, repository SHA,
+supplied observations, literal `revision_match`, freshness, unknown live identity and
+same-environment/service conflicts. SHA equality does not verify dirty-file contents or
+live configuration; acquired source fingerprints cover actual bytes without claiming an
+atomic repository snapshot. A missing revision gives null equality; a differing revision
+gives false. Both retain unknown live identity. Two different resource IDs or selected
+configuration claims remain conflicting even across maintained alternatives, stale records
+or mismatched revisions. No preferred record or automatic winner is selected. Identical
+records retain multiplicity and provide no independent corroboration. A conflict describes
+supplied bindings, not a broken live topology or authority to remove a resource.
+
+Without observations, useful selected references remain and live identity stays unknown.
+Unknowns and conflicts produce a report with exit 0. Invalid selectors, malformed inputs,
+unsafe or missing selected sources and Git identity failures produce exit 2, a fixed
+sanitized diagnostic and no partial JSON report. Valid output may contain supplied IDs;
+this is not universal data-loss prevention. No output asserts health, readiness, provider
+authenticity, configuration verification or deployment permission.
+
+The operator role context map loads the finite static catalogue for both environments and
+production alternatives through the existing occurrence-selected bridge. This cold-start
+context delivery is separate from report selection and grants no authority to execute
+embedded commands. Local observations never become reusable role context.
+
+Keep progress receipts separate: `MERGED_REPO` needs a merge receipt, `MAIN_VERIFIED` needs
+observed merged-main checks, `HOST_ACTIVATED` needs separately authorized host evidence,
+and `ALERT_DELIVERY_TESTED` needs a separately authorized delivery test. OPS-01 implements
+only the offline reference/report surface. OPS-02 DB lifecycle regression repair with a real-function reproducer and caller coverage,
+OPS-03 minimal host/DB/service observability with tested human alert delivery, and OPS-04
+measured storage/FinOps preserving recovery requirements remain separate backlog-governed lanes.
