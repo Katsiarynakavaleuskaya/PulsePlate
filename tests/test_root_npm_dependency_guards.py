@@ -27,10 +27,16 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS = frozenset({2, 3})
+SUPPORTED_NPM_JSON_LOCKFILE_VERSION = 3
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.18"),
     SpecifierSet(">=4,<5.1.16"),
+)
+SMOL_TOML_AFFECTED_RANGES = (
+    SpecifierSet("<=1.8.0"),  # GHSA-r4xh-jqrq-34v2
+    SpecifierSet("<=1.7.0"),  # GHSA-7w5x-hrqm-74c2
+    SpecifierSet("<1.6.1"),  # GHSA-v3rj-xjv7-4jmq
+    SpecifierSet("<=1.3.0"),  # GHSA-pqhp-25j4-6hq9
 )
 REACT_ROUTER_AFFECTED_RANGES = (
     SpecifierSet(">=7.12,<7.18.2"),
@@ -592,15 +598,19 @@ def _lock_path_package_identity(raw_path: str) -> str | None:
     return None
 
 
-def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
-    """Find installed target entries by path, name, or canonical tarball identity."""
+def _require_supported_lock_packages(document: dict[str, Any], *, surface: str) -> dict[str, Any]:
+    """Admit only v3's complete packages tree, never an unchecked legacy tree."""
     lockfile_version = document.get("lockfileVersion")
     assert (
-        isinstance(lockfile_version, int)
-        and not isinstance(lockfile_version, bool)
-        and (lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS)
-    ), "npm lock surface: lockfileVersion must be supported JSON lock version 2 or 3"
-    packages = _require_dict_field(document, "packages", ctx="npm lock surface")
+        type(lockfile_version) is int and lockfile_version == SUPPORTED_NPM_JSON_LOCKFILE_VERSION
+    ), f"{surface}: lockfileVersion must be exact integer 3"
+    assert "dependencies" not in document, f"{surface}: top-level legacy dependencies are forbidden"
+    return _require_dict_field(document, "packages", ctx=surface)
+
+
+def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
+    """Find installed target entries by path, name, or canonical tarball identity."""
+    packages = _require_supported_lock_packages(document, surface="npm lock surface")
     occurrences: dict[str, dict[str, Any]] = {}
     for raw_path, raw_entry in packages.items():
         assert isinstance(raw_path, str), "npm lock surface: package path must be text"
@@ -617,13 +627,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
 
 def _assert_lock_surface_canonical_provenance(*, surface: str, document: dict[str, Any]) -> None:
     """Require canonical provenance for every non-root package in one npm lock."""
-    lockfile_version = document.get("lockfileVersion")
-    assert (
-        isinstance(lockfile_version, int)
-        and not isinstance(lockfile_version, bool)
-        and lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS
-    ), f"{surface}: lockfileVersion must be supported JSON lock version 2 or 3"
-    packages = _require_dict_field(document, "packages", ctx=surface)
+    packages = _require_supported_lock_packages(document, surface=surface)
     for raw_path, raw_entry in packages.items():
         assert isinstance(raw_path, str), f"{surface}: package path must be text"
         if raw_path == "":
@@ -918,6 +922,33 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
             target="nanoid",
             occurrences=_find_lock_occurrences(document, target="nanoid"),
             affected_ranges=NANOID_AFFECTED_RANGES,
+        )
+
+
+def test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
+    """Every tracked smol-toml carrier stays outside all four advisory ranges."""
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            _assert_manifest_occurrences_outside_ranges(
+                surface=relative,
+                target="smol-toml",
+                occurrences=_find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target="smol-toml",
+                ),
+                affected_ranges=SMOL_TOML_AFFECTED_RANGES,
+            )
+            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
+        _assert_occurrences_outside_ranges(
+            surface=relative,
+            target="smol-toml",
+            occurrences=_find_lock_occurrences(document, target="smol-toml"),
+            affected_ranges=SMOL_TOML_AFFECTED_RANGES,
         )
 
 
@@ -1694,28 +1725,73 @@ def test_manifest_full_object_without_dot_only_walks_children() -> None:
     }
 
 
-@pytest.mark.parametrize("lockfile_version", (2, 3))
-def test_lock_discovery_accepts_supported_json_lock_versions(lockfile_version: int) -> None:
-    """npm JSON lock v2 and v3 expose the same governed packages map."""
-    entry = {"version": "5.1.16"}
+def test_lock_discovery_and_provenance_accept_canonical_v3() -> None:
+    """The exact v3 packages tree remains the sole admitted lock authority."""
+    entry = {
+        "version": "1.9.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+        "integrity": "sha512-test",
+    }
     document = {
-        "lockfileVersion": lockfile_version,
-        "packages": {"node_modules/nanoid": entry},
+        "lockfileVersion": 3,
+        "packages": {"node_modules/smol-toml": entry},
     }
 
-    assert _find_lock_occurrences(document, target="nanoid") == {"node_modules/nanoid": entry}
+    assert _find_lock_occurrences(document, target="smol-toml") == {"node_modules/smol-toml": entry}
+    _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
-@pytest.mark.parametrize("lockfile_version", (None, 1, 4, "3", 2.0, True))
+@pytest.mark.parametrize(
+    ("lockfile_version", "legacy_dependencies", "message"),
+    (
+        (2, None, "lockfileVersion must be exact integer 3"),
+        (2, {"smol-toml": {"version": "1.6.1"}}, "lockfileVersion must be exact integer 3"),
+        (3, {}, "top-level legacy dependencies are forbidden"),
+        (3, {"smol-toml": {"version": "1.6.1"}}, "top-level legacy dependencies are forbidden"),
+    ),
+)
+def test_lock_shape_rejects_legacy_tree_before_target_or_provenance_check(
+    lockfile_version: int, legacy_dependencies: dict[str, Any] | None, message: str
+) -> None:
+    """A safe packages entry cannot conceal a vulnerable compatibility tree."""
+    entry = {
+        "version": "1.9.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+        "integrity": "sha512-test",
+    }
+    document: dict[str, Any] = {
+        "lockfileVersion": lockfile_version,
+        "packages": {"node_modules/smol-toml": entry},
+    }
+    if legacy_dependencies is not None:
+        document["dependencies"] = legacy_dependencies
+
+    with pytest.raises(AssertionError, match=message):
+        _find_lock_occurrences(document, target="smol-toml")
+    with pytest.raises(AssertionError, match=message):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize("lockfile_version", (None, 1, 2, 4, "3", 2.0, True))
 def test_lock_discovery_rejects_unsupported_json_lock_versions(
     lockfile_version: object,
 ) -> None:
     """Missing, legacy, future, and malformed lock versions fail closed."""
-    with pytest.raises(AssertionError, match="lock version 2 or 3"):
-        _find_lock_occurrences(
-            {"lockfileVersion": lockfile_version, "packages": {}},
-            target="nanoid",
-        )
+    document = {"lockfileVersion": lockfile_version, "packages": {}}
+    with pytest.raises(AssertionError, match="lockfileVersion must be exact integer 3"):
+        _find_lock_occurrences(document, target="nanoid")
+    with pytest.raises(AssertionError, match="lockfileVersion must be exact integer 3"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
+
+
+@pytest.mark.parametrize("packages", (None, [], "not-an-object"))
+def test_lock_shape_requires_packages_object_for_both_callers(packages: object) -> None:
+    """No alternate packages shape bypasses target discovery or provenance."""
+    document = {"lockfileVersion": 3, "packages": packages}
+    with pytest.raises(AssertionError, match="'packages' must be a dict"):
+        _find_lock_occurrences(document, target="smol-toml")
+    with pytest.raises(AssertionError, match="'packages' must be a dict"):
+        _assert_lock_surface_canonical_provenance(surface="package-lock.json", document=document)
 
 
 @pytest.mark.parametrize(
@@ -2325,6 +2401,133 @@ def test_nanoid_guard_rejects_affected_manifest_carrier(
 
     with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
         test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    (
+        {"overrides": {"smol-toml": "1.7.1"}},
+        {"overrides": {"smol-toml": "1.8.0"}},
+        {"overrides": {"cspell-config-lib": {"smol-toml": "1.8.0"}}},
+        {"devDependencies": {"renamed-toml": "npm:smol-toml@1.8.0"}},
+    ),
+)
+def test_smol_toml_guard_rejects_affected_manifest_carrier(
+    monkeypatch: pytest.MonkeyPatch, manifest: dict[str, Any]
+) -> None:
+    """An old floor, nested override, or renamed alias cannot hide an affected version."""
+    monkeypatch.setitem(globals(), "_load_tracked_npm_surfaces", lambda: {"package.json": manifest})
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_smol_toml_safe_alias_still_requires_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A renamed manifest alias is opaque even when its target version is safe."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"package.json": {"devDependencies": {"renamed": "npm:smol-toml@1.9.0"}}},
+    )
+
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
+
+
+@pytest.mark.parametrize(
+    ("package_path", "explicit_name"),
+    (
+        ("node_modules/cspell-config-lib/node_modules/smol-toml", None),
+        ("node_modules/renamed-toml", "smol-toml"),
+    ),
+)
+def test_smol_toml_guard_rejects_affected_nested_or_alias_lock_carrier(
+    monkeypatch: pytest.MonkeyPatch, package_path: str, explicit_name: str | None
+) -> None:
+    """Both nested installs and lock aliases remain under the universal postcondition."""
+    entry: dict[str, Any] = {
+        "version": "1.8.0",
+        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+        "integrity": "sha512-test",
+    }
+    if explicit_name is not None:
+        entry["name"] = explicit_name
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"package-lock.json": {"lockfileVersion": 3, "packages": {package_path: entry}}},
+    )
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("version", "resolved", "message"),
+    (
+        (
+            "1.9",
+            "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.tgz",
+            "version must be exact npm SemVer",
+        ),
+        (
+            "1.9.0",
+            "https://evil.example/smol-toml/-/smol-toml-1.9.0.tgz",
+            "resolved must be the canonical smol-toml registry tarball",
+        ),
+        (
+            "1.9.0",
+            "https://registry.npmjs.org/smol-toml/-/smol-toml-1.8.0.tgz",
+            "resolved tarball version must equal package version",
+        ),
+    ),
+)
+def test_smol_toml_guard_rejects_malformed_or_unproven_lock_carrier(
+    version: str, resolved: str, message: str
+) -> None:
+    """A safe-looking path cannot stand in for comparable, provenanced lock data."""
+    occurrences = {
+        "node_modules/smol-toml": {
+            "version": version,
+            "resolved": resolved,
+            "integrity": "sha512-test",
+        }
+    }
+
+    with pytest.raises(AssertionError, match=message):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="smol-toml",
+            occurrences=occurrences,
+            affected_ranges=SMOL_TOML_AFFECTED_RANGES,
+        )
+
+
+def test_smol_toml_guard_allows_exact_safe_current_carriers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 1.9.0 override and matching canonical lock artifact satisfy the current guard."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "package.json": {"overrides": {"smol-toml": "1.9.0"}},
+            "package-lock.json": {
+                "lockfileVersion": 3,
+                "packages": {
+                    "node_modules/smol-toml": {
+                        "version": "1.9.0",
+                        "resolved": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+                        "integrity": "sha512-test",
+                    }
+                },
+            },
+        },
+    )
+
+    test_smol_toml_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
 def test_react_router_guard_allows_safe_exact_direct_manifest_carrier(
