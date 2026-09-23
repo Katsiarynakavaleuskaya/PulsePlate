@@ -113,6 +113,12 @@
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.
+- Npm dependency guards that claim safety for every tracked lock occurrence must
+  inspect opaque inner-graph metadata on **every** lock package record before
+  checking target versions. Reuse the existing shared lock-v3 admission for
+  `hasShrinkwrap`, both bundled-dependency fields, and `inBundle`; test a
+  non-target carrier, malformed values, and valid empty controls. A safe
+  target pin or outer `packages` map alone does not prove the installed graph.
 - `ui_labels` is a required part of `WHOTargetsResponse` contract (SoT: `app/schemas/premium_contracts.py`); assert ES anchor string (`"Calorías diarias"`) in snapshot tests and do not feature-gate this contract after implementation.
 - Any new authenticated, paid-tier, hidden mutating, or object-identifier API route must be registered in `tests/security/_api_authz_contracts.py` with method, path, authentication class, minimum tier, principal source, ownership policy, OpenAPI exposure, and a cross-principal negative test where applicable.
 
