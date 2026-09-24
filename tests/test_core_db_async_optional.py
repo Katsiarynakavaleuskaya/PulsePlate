@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import importlib
 import sys
 
@@ -43,110 +45,125 @@ def test_core_db_handles_missing_async_support(monkeypatch: pytest.MonkeyPatch) 
             core_pkg.db = original_core_db
 
 
-@pytest.mark.asyncio
-async def test_get_async_session_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise get_async_session happy path when AsyncSessionLocal is configured."""
-    if db_module.create_async_engine is None or db_module.async_sessionmaker is None:
-        pytest.skip("sqlalchemy.asyncio not available")
+def test_get_async_session_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        """Exercise get_async_session happy path when AsyncSessionLocal is configured."""
+        if db_module.create_async_engine is None or db_module.async_sessionmaker is None:
+            pytest.skip("sqlalchemy.asyncio not available")
 
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
 
-    class DummyAsyncSession:
-        def __init__(self) -> None:
-            self.closed = False
+        class DummyAsyncSession:
+            def __init__(self) -> None:
+                self.closed = False
 
-        async def close(self) -> None:
-            self.closed = True
+            async def close(self) -> None:
+                self.closed = True
 
-    def factory() -> DummyAsyncSession:
-        return DummyAsyncSession()
+        def factory() -> DummyAsyncSession:
+            return DummyAsyncSession()
 
-    # Patch both AsyncSessionLocal and _get_async_engine to return a mock engine
-    monkeypatch.setattr(db_module, "AsyncSessionLocal", factory)
-    # Mock _get_async_engine to return a fake engine so get_async_session doesn't fail
-    fake_engine = type("FakeEngine", (), {})()
-    monkeypatch.setattr(db_module, "_get_async_engine", lambda: fake_engine)
+        # Return one coherent mocked acquisition, as the production path does.
+        fake_engine = type("FakeEngine", (), {})()
 
-    gen = db_module.get_async_session()
-    session = await gen.__anext__()
-    assert isinstance(session, DummyAsyncSession)
-    await gen.aclose()
-    assert session.closed is True
+        async def acquire_pair():
+            return fake_engine, factory
 
+        monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
 
-@pytest.mark.asyncio
-async def test_session_scope_async_commits_and_closes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Exercise session_scope_async commit and close behavior."""
-
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
-
-    class DummyAsyncSession:
-        def __init__(self) -> None:
-            self.committed = False
-            self.closed = False
-            self.rolled_back = False
-
-        async def commit(self) -> None:
-            self.committed = True
-
-        async def rollback(self) -> None:
-            self.rolled_back = True
-
-        async def close(self) -> None:
-            self.closed = True
-
-    def factory() -> DummyAsyncSession:
-        return DummyAsyncSession()
-
-    # Patch both AsyncSessionLocal and _get_async_engine
-    monkeypatch.setattr(db_module, "AsyncSessionLocal", factory)
-    fake_engine = type("FakeEngine", (), {})()
-    monkeypatch.setattr(db_module, "_get_async_engine", lambda: fake_engine)
-
-    async with db_module.session_scope_async() as session:
+        gen = db_module.get_async_session()
+        session = await gen.__anext__()
         assert isinstance(session, DummyAsyncSession)
-        # No explicit commit; context manager should commit on exit
+        await gen.aclose()
+        assert session.closed is True
 
-    assert session.committed is True
-    assert session.closed is True
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_session_scope_async_rolls_back_on_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Exercise session_scope_async rollback behavior when an error occurs."""
+def test_session_scope_async_commits_and_closes(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        """Exercise session_scope_async commit and close behavior."""
 
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
 
-    class DummyAsyncSession:
-        def __init__(self) -> None:
-            self.committed = False
-            self.closed = False
-            self.rolled_back = False
+        class DummyAsyncSession:
+            def __init__(self) -> None:
+                self.committed = False
+                self.closed = False
+                self.rolled_back = False
 
-        async def commit(self) -> None:
-            self.committed = True
+            async def commit(self) -> None:
+                self.committed = True
 
-        async def rollback(self) -> None:
-            self.rolled_back = True
+            async def rollback(self) -> None:
+                self.rolled_back = True
 
-        async def close(self) -> None:
-            self.closed = True
+            async def close(self) -> None:
+                self.closed = True
 
-    def factory() -> DummyAsyncSession:
-        return DummyAsyncSession()
+        def factory() -> DummyAsyncSession:
+            return DummyAsyncSession()
 
-    # Patch both AsyncSessionLocal and _get_async_engine
-    monkeypatch.setattr(db_module, "AsyncSessionLocal", factory)
-    fake_engine = type("FakeEngine", (), {})()
-    monkeypatch.setattr(db_module, "_get_async_engine", lambda: fake_engine)
+        fake_engine = type("FakeEngine", (), {})()
 
-    with pytest.raises(RuntimeError, match="boom"):
+        async def acquire_pair():
+            return fake_engine, factory
+
+        monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
+
         async with db_module.session_scope_async() as session:
             assert isinstance(session, DummyAsyncSession)
-            raise RuntimeError("boom")
+            # No explicit commit; context manager should commit on exit
 
-    assert session.committed is False
-    assert session.rolled_back is True
-    assert session.closed is True
+        assert session.committed is True
+        assert session.closed is True
+
+    asyncio.run(scenario())
+
+
+def test_session_scope_async_rolls_back_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        """Exercise session_scope_async rollback behavior when an error occurs."""
+
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
+
+        class DummyAsyncSession:
+            def __init__(self) -> None:
+                self.committed = False
+                self.closed = False
+                self.rolled_back = False
+
+            async def commit(self) -> None:
+                self.committed = True
+
+            async def rollback(self) -> None:
+                self.rolled_back = True
+
+            async def close(self) -> None:
+                self.closed = True
+
+        def factory() -> DummyAsyncSession:
+            return DummyAsyncSession()
+
+        fake_engine = type("FakeEngine", (), {})()
+
+        async def acquire_pair():
+            return fake_engine, factory
+
+        monkeypatch.setattr(db_module, "_get_async_engine_and_factory", acquire_pair)
+        monkeypatch.setattr(db_module, "_open_selected_async_session", lambda pair: pair[1]())
+
+        with pytest.raises(RuntimeError, match="boom"):
+            async with db_module.session_scope_async() as session:
+                assert isinstance(session, DummyAsyncSession)
+                raise RuntimeError("boom")
+
+        assert session.committed is False
+        assert session.rolled_back is True
+        assert session.closed is True
+
+    asyncio.run(scenario())

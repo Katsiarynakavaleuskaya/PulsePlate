@@ -7,11 +7,534 @@ Covers _attempt_db_fallback function branches:
 - Non-production fallback paths
 """
 
+import asyncio
 import os
 import inspect
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from threading import Event, RLock, get_ident
+from types import TracebackType
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import pytest
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+
+
+class _TrackingLock:
+    """Expose lock ownership to deterministic fallback race tests."""
+
+    def __init__(self) -> None:
+        self.lock = RLock()
+        self.owner: int | None = None
+        self.depth = 0
+
+    def __enter__(self) -> "_TrackingLock":
+        self.lock.acquire()
+        self.owner = get_ident()
+        self.depth += 1
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.depth -= 1
+        if self.depth == 0:
+            self.owner = None
+        self.lock.release()
+
+    def held_by_current(self) -> bool:
+        return self.owner == get_ident()
+
+
+@pytest.mark.parametrize("same_retired_path", [False, True])
+def test_fallback_candidate_rejects_newer_generation_and_protects_its_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, same_retired_path: bool
+) -> None:
+    from core import db, db_fallback
+
+    primary_path = tmp_path / "primary.sqlite"
+    primary_url = f"sqlite:///{primary_path}"
+    replacement_url = f"sqlite:///{tmp_path / 'replacement.sqlite'}"
+    fallback_path = primary_path if same_retired_path else tmp_path / "fallback.sqlite"
+    fallback_url = f"sqlite:///{fallback_path}"
+    candidate_ready = Event()
+    release_candidate = Event()
+
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", primary_url)
+        env.setenv("DB_FALLBACK_URL", fallback_url)
+        env.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1" if same_retired_path else "0")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        initialize = db_fallback._initialize_fallback_engine
+        candidates: list[Engine] = []
+
+        def paused_initialize(url: str, error: Exception) -> Engine:
+            candidate = initialize(url, error)
+            candidates.append(candidate)
+            candidate_ready.set()
+            assert release_candidate.wait(timeout=10)
+            return candidate
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db_fallback, "_initialize_fallback_engine", paused_initialize)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    fallback = workers.submit(
+                        db_fallback._attempt_db_fallback,
+                        "test",
+                        False,
+                        OSError("synthetic primary failure"),
+                        {"1", "true", "yes", "on"},
+                    )
+                    assert candidate_ready.wait(timeout=10)
+                    try:
+                        assert db._RAW_ENGINE is primary
+                        selected = db.init_db(replacement_url)
+                        if same_retired_path:
+                            assert primary_path.is_file()
+                    finally:
+                        release_candidate.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during fallback initialization"
+                    ):
+                        fallback.result(timeout=10)
+            assert db._RAW_ENGINE is selected
+            assert candidates and all(candidate is not selected for candidate in candidates)
+            assert db._inflight_sqlite_candidate_paths == {}
+            assert db_fallback.is_fallback_active() is False
+        finally:
+            release_candidate.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_fallback_candidate_rejects_changed_fallback_selector(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core import db, db_fallback
+
+    primary_url = f"sqlite:///{tmp_path / 'primary.sqlite'}"
+    first_fallback = f"sqlite:///{tmp_path / 'first.sqlite'}"
+    second_fallback = f"sqlite:///{tmp_path / 'second.sqlite'}"
+    candidate_ready = Event()
+    release_candidate = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", primary_url)
+        env.setenv("DB_FALLBACK_URL", first_fallback)
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        initialize = db_fallback._initialize_fallback_engine
+
+        def paused_initialize(url: str, error: Exception) -> Engine:
+            candidate = initialize(url, error)
+            candidate_ready.set()
+            assert release_candidate.wait(timeout=10)
+            return candidate
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db_fallback, "_initialize_fallback_engine", paused_initialize)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    fallback = workers.submit(
+                        db_fallback._attempt_db_fallback,
+                        "test",
+                        False,
+                        OSError("synthetic primary failure"),
+                        {"1", "true", "yes", "on"},
+                    )
+                    assert candidate_ready.wait(timeout=10)
+                    try:
+                        racing.setenv("DB_FALLBACK_URL", second_fallback)
+                    finally:
+                        release_candidate.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB generation changed during fallback initialization"
+                    ):
+                        fallback.result(timeout=10)
+            assert db._RAW_ENGINE is primary
+            assert db_fallback.is_fallback_active() is False
+            assert db._inflight_sqlite_candidate_paths == {}
+        finally:
+            release_candidate.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_fallback_publishes_environment_and_session_generation_together(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An acquisition before fallback publication keeps the prior generation."""
+    from sqlalchemy import create_engine
+
+    from core import db
+    from core import db_fallback
+
+    entered = Event()
+    release = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        primary_factory = db.get_session_factory()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        original_sessionmaker = db.sessionmaker
+
+        def waiting_sessionmaker(*args: object, **kwargs: object) -> sessionmaker[Session]:
+            if kwargs.get("bind") is fallback_engine:
+                entered.set()
+                assert release.wait(timeout=5)
+            return original_sessionmaker(*args, **kwargs)
+
+        try:
+            with monkeypatch.context() as active:
+                active.setattr(db, "sessionmaker", waiting_sessionmaker)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    future = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        fallback_engine,
+                        False,
+                        fallback_url,
+                        "test",
+                    )
+                    assert entered.wait(timeout=5)
+                    assert db.get_session_factory() is primary_factory
+                    assert db._RAW_ENGINE is primary
+                    assert os.environ["DATABASE_URL"] != fallback_url
+                    release.set()
+                    future.result(timeout=5)
+
+            with db.get_session_factory()() as session:
+                assert session.bind is fallback_engine
+            assert db._RAW_ENGINE is fallback_engine
+            assert os.environ["DATABASE_URL"] == fallback_url
+        finally:
+            release.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_fallback_rejects_generation_replaced_during_retirement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A fallback publisher must not report success after a newer pair wins."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    retirement_started = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        replacement_url = f"sqlite:///{tmp_path / 'replacement.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        dispose = db._dispose_sync_engine
+
+        def pause_retirement(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is primary:
+                retirement_started.set()
+                assert release_retirement.wait(timeout=10)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db, "_dispose_sync_engine", pause_retirement)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    fallback = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        fallback_engine,
+                        False,
+                        fallback_url,
+                        "test",
+                    )
+                    assert retirement_started.wait(timeout=10)
+                    try:
+                        replacement = db.init_db(replacement_url)
+                    finally:
+                        release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB fallback generation changed during activation"
+                    ):
+                        fallback.result(timeout=10)
+            assert db._RAW_ENGINE is replacement
+            with db.get_session_factory()() as session:
+                assert session.bind is replacement
+            assert db_fallback.is_fallback_active() is False
+            assert os.environ.get("DB_HEALTH_DEGRADED") is None
+
+            # Fallback had changed the ambient URL before the explicit primary
+            # selection. If that URL is selected again, readiness degrades again.
+            reselected_fallback = db._get_raw_engine()
+            assert reselected_fallback.url == db.make_url(fallback_url)
+            assert db_fallback.is_fallback_active() is True
+            assert os.environ["DB_HEALTH_DEGRADED"] == "1"
+        finally:
+            release_retirement.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_superseded_fallback_preserves_new_fallback_markers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    retirement_started = Event()
+    release_retirement = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        primary = db.init_db()
+        first_url = f"sqlite:///{tmp_path / 'first-fallback.sqlite'}"
+        second_url = f"sqlite:///{tmp_path / 'second-fallback.sqlite'}"
+        first_engine = create_engine(first_url)
+        second_engine = create_engine(second_url)
+        dispose = db._dispose_sync_engine
+
+        def pause_retirement(engine: Engine, *, best_effort: bool = False) -> None:
+            if engine is primary:
+                retirement_started.set()
+                assert release_retirement.wait(timeout=10)
+            dispose(engine, best_effort=best_effort)
+
+        try:
+            with monkeypatch.context() as racing:
+                racing.setattr(db, "_dispose_sync_engine", pause_retirement)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    first = workers.submit(
+                        db_fallback._configure_session_bindings,
+                        first_engine,
+                        False,
+                        first_url,
+                        "test",
+                    )
+                    assert retirement_started.wait(timeout=10)
+                    try:
+                        db_fallback._configure_session_bindings(
+                            second_engine, False, second_url, "test"
+                        )
+                    finally:
+                        release_retirement.set()
+                    with pytest.raises(
+                        RuntimeError, match="DB fallback generation changed during activation"
+                    ):
+                        first.result(timeout=10)
+            assert db._RAW_ENGINE is second_engine
+            with db.get_session_factory()() as session:
+                assert session.bind is second_engine
+            assert db_fallback.is_fallback_active() is True
+            assert os.environ["DB_HEALTH_DEGRADED"] == "1"
+        finally:
+            release_retirement.set()
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_raw_getter_cannot_resurrect_primary_after_fallback_publication(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ambient URL read must participate in fallback's publication lock."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    entered = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        db.reset_db_for_tests()
+        db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        original_get_database_url = db.get_database_url
+        publication_lock = _TrackingLock()
+
+        def checked_database_url() -> str:
+            assert publication_lock.held_by_current()
+            return original_get_database_url()
+
+        def acquire_after_signal() -> Engine:
+            entered.set()
+            return db._get_raw_engine()
+
+        try:
+            with monkeypatch.context() as tracked:
+                tracked.setattr(db, "_init_lock", publication_lock)
+                tracked.setattr(db, "get_database_url", checked_database_url)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    with publication_lock:
+                        future = workers.submit(acquire_after_signal)
+                        assert entered.wait(timeout=5)
+                        db_fallback._configure_session_bindings(
+                            fallback_engine, False, fallback_url, "test"
+                        )
+                    assert future.result(timeout=5) is fallback_engine
+                    assert db._RAW_ENGINE is fallback_engine
+        finally:
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+def test_derived_async_url_cannot_publish_stale_primary_after_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Derived async selection shares fallback's sync publication boundary."""
+    from sqlalchemy import create_engine
+
+    from core import db, db_fallback
+
+    class AsyncCandidate:
+        def __init__(self, url: str) -> None:
+            self.url = db.make_url(url)
+            self.disposed = False
+
+        async def dispose(self) -> None:
+            self.disposed = True
+
+    created: list[AsyncCandidate] = []
+    entered = Event()
+    with monkeypatch.context() as env:
+        env.setenv("APP_ENV", "test")
+        env.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'primary.sqlite'}")
+        env.setenv("DATABASE_USE_ASYNC", "1")
+        env.delenv("DATABASE_ASYNC_URL", raising=False)
+        db.reset_db_for_tests()
+        db.init_db()
+        fallback_url = f"sqlite:///{tmp_path / 'fallback.sqlite'}"
+        fallback_engine = create_engine(fallback_url)
+        publication_lock = _TrackingLock()
+        original_async_url = db._get_async_database_url
+
+        def checked_async_url() -> str | None:
+            assert publication_lock.held_by_current()
+            return original_async_url()
+
+        def create_candidate(url: str, **_kwargs: object) -> AsyncCandidate:
+            candidate = AsyncCandidate(url)
+            created.append(candidate)
+            return candidate
+
+        def make_factory(**_kwargs: object) -> Callable[[], object]:
+            return lambda: object()
+
+        def acquire_after_signal() -> tuple[object, object] | None:
+            entered.set()
+            return asyncio.run(db._get_async_engine_and_factory())
+
+        async def close_selected() -> None:
+            if db._ASYNC_ENGINE is not None:
+                await db._ASYNC_ENGINE.dispose()
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
+            db.async_engine = None
+
+        try:
+            with monkeypatch.context() as tracked:
+                tracked.setattr(db, "_init_lock", publication_lock)
+                tracked.setattr(db, "_get_async_database_url", checked_async_url)
+                tracked.setattr(db, "create_async_engine", create_candidate)
+                tracked.setattr(db, "async_sessionmaker", make_factory)
+                with ThreadPoolExecutor(max_workers=1) as workers:
+                    with publication_lock:
+                        future = workers.submit(acquire_after_signal)
+                        assert entered.wait(timeout=5)
+                        db_fallback._configure_session_bindings(
+                            fallback_engine, False, fallback_url, "test"
+                        )
+                    generation = future.result(timeout=5)
+
+                assert generation is not None
+                assert generation[0].url == db.make_url(
+                    fallback_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+                )
+                assert db._RAW_ENGINE is fallback_engine
+
+                explicit_url = f"sqlite+aiosqlite:///{tmp_path / 'explicit.sqlite'}"
+                tracked.setenv("DATABASE_ASYNC_URL", explicit_url)
+                explicit = asyncio.run(db._get_async_engine_and_factory())
+                assert explicit is not None and explicit[0].url == db.make_url(explicit_url)
+                assert created[0].disposed is True
+                asyncio.run(close_selected())
+        finally:
+            db.reset_db_for_tests()
+            db_fallback.reset_fallback_state()
+    db.init_db()
+
+
+@pytest.mark.parametrize("dispose_fails", [False, True])
+def test_fallback_schema_failure_disposes_unpublished_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    dispose_fails: bool,
+) -> None:
+    from core import db
+    from core import db_fallback
+
+    class Candidate:
+        disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+            if dispose_fails:
+                raise RuntimeError("synthetic disposal failure")
+
+    class FailingMetadata:
+        def create_all(self, *, bind: object) -> None:
+            raise RuntimeError("synthetic schema failure")
+
+    candidate = Candidate()
+    monkeypatch.setattr(db, "load_canonical_orm_metadata", lambda: FailingMetadata())
+    monkeypatch.setattr(db_fallback, "create_engine", lambda *args, **kwargs: candidate)
+    original = OSError("primary failed")
+    with pytest.raises(OSError, match="primary failed") as failure:
+        db_fallback._initialize_fallback_engine("sqlite:///:memory:", original)
+    assert isinstance(failure.value.__cause__, RuntimeError)
+    assert candidate.disposed is True
+
+
+def test_fallback_factory_failure_preserves_original_error_on_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core import db
+    from core import db_fallback
+
+    class Candidate:
+        disposed = False
+
+        def dispose(self) -> None:
+            self.disposed = True
+            raise RuntimeError("synthetic disposal failure")
+
+    candidate = Candidate()
+
+    def fail_sessionmaker(*args: object, **kwargs: object) -> None:
+        raise ValueError("synthetic factory failure")
+
+    monkeypatch.setattr(db, "sessionmaker", fail_sessionmaker)
+    with pytest.raises(ValueError, match="synthetic factory failure"):
+        db_fallback._configure_session_bindings(candidate, False, "sqlite:///:memory:", "test")
+    assert candidate.disposed is True
 
 
 class TestAppDBFallback97:
