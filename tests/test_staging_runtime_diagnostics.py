@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import json
 import io
+import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import time
 from typing import Any
 from contextlib import redirect_stdout
 from types import ModuleType
@@ -53,6 +57,11 @@ def app_functions(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     source = host_functions()["APP_PROBE"].rsplit("\nprint(json.dumps", 1)[0]
     namespace: dict[str, Any] = {"__name__": "ops03a_app_test"}
     monkeypatch.setattr(sys, "argv", ["probe", "pulseplate", "pulseplate"])
+    for key in tuple(os.environ):
+        if key.startswith("PG"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("PGSSLMODE", "verify-full")
+    monkeypatch.setenv("PGPASSFILE", "/run/secrets/postgres_pgpass")
     exec(compile(source, "<fixed-app-probe>", "exec"), namespace)
     return namespace
 
@@ -268,7 +277,7 @@ def test_t07_host_selection_rejects_duplicate_oneoff_or_absent(ids: list[str], o
     with pytest.raises(
         RuntimeError, match="CONTAINER_SELECTION_FAILED|CONTAINER_IDENTITY_UNTRUSTED"
     ):
-        namespace["selected"]("app", compose_fixture())
+        namespace["selected"]("app", compose_fixture(), "c" * 64)
 
 
 def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
@@ -276,7 +285,7 @@ def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
     selected_count = 0
     compose = compose_fixture()
 
-    def selected(service: str, source: dict[str, Any]) -> dict[str, str]:
+    def selected(service: str, source: dict[str, Any], expected_hash: str) -> dict[str, str]:
         nonlocal selected_count
         selected_count += 1
         return {
@@ -287,6 +296,8 @@ def test_t19_host_rejects_generation_drift_after_app_probe() -> None:
         }
 
     def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        if "--hash" in argv:
+            return 0, (argv[-1] + " " + "c" * 64 + "\n").encode()
         if "compose" in argv:
             return 0, json.dumps(compose).encode()
         if "check_staging_security.py" in " ".join(argv):
@@ -403,9 +414,72 @@ def test_host_selector_accepts_one_exact_container() -> None:
         return 0, json.dumps([selected_container("app")]).encode()
 
     namespace["run"] = run
-    selected = namespace["selected"]("app", compose_fixture())
+    selected = namespace["selected"]("app", compose_fixture(), "c" * 64)
     assert selected["id"] == "a" * 64
     assert selected["started_at"] == "2026-09-24T00:00:00Z"
+
+
+def test_compose_hash_uses_same_selected_config_and_binds_container_label() -> None:
+    namespace = host_functions()
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        calls.append(argv)
+        if "--hash" in argv:
+            return 0, ("app " + "c" * 64 + "\n").encode()
+        if argv[1] == "ps":
+            return 0, ("a" * 64 + "\n").encode()
+        return 0, json.dumps([selected_container("app")]).encode()
+
+    namespace["run"] = run
+    digest = namespace["compose_hash"]("app")
+    assert digest == "c" * 64
+    assert calls[0] == [*namespace["compose_command"](), "--hash", "app"]
+    assert namespace["selected"]("app", compose_fixture(), digest)["config_hash"] == digest
+    with pytest.raises(RuntimeError, match="CONTAINER_IDENTITY_UNTRUSTED"):
+        namespace["selected"]("app", compose_fixture(), "d" * 64)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"",
+        b"app invalid\n",
+        ("app " + "c" * 64 + "\napp " + "c" * 64 + "\n").encode(),
+        ("postgres " + "c" * 64 + "\n").encode(),
+    ],
+)
+def test_compose_hash_rejects_missing_malformed_or_ambiguous_native_output(raw: bytes) -> None:
+    namespace = host_functions()
+    namespace["run"] = lambda argv, **kwargs: (0, raw)
+    with pytest.raises(RuntimeError, match="COMPOSE_HASH_UNTRUSTED"):
+        namespace["compose_hash"]("app")
+
+
+def test_host_rejects_native_compose_hash_change_during_observation() -> None:
+    namespace = host_functions()
+    app_hash_reads = 0
+
+    def run(argv: list[str], **kwargs: Any) -> tuple[int, bytes]:
+        nonlocal app_hash_reads
+        if "--hash" in argv:
+            service = argv[-1]
+            if service == "app":
+                app_hash_reads += 1
+            digest = "d" * 64 if service == "app" and app_hash_reads == 2 else "c" * 64
+            return 0, (service + " " + digest + "\n").encode()
+        if "compose" in argv:
+            return 0, json.dumps(compose_fixture()).encode()
+        if "check_staging_security.py" in " ".join(argv):
+            return 0, b"ok"
+        return 0, json.dumps(observation()).encode()
+
+    namespace["run"] = run
+    namespace["selected"] = lambda service, compose, expected_hash: {"id": "a" * 64}
+    output = io.StringIO()
+    with redirect_stdout(output):
+        namespace["main"]()
+    assert json.loads(output.getvalue())["error"] == "COMPOSE_HASH_CHANGED"
 
 
 @pytest.mark.parametrize(
@@ -524,7 +598,57 @@ def test_t09_http_liveness_and_readiness_are_separate() -> None:
     source = diagnostic.HOST_PROBE
     assert 'http("/health")' in source
     assert 'http("/ready")' in source
-    assert "timeout=3" in source
+    assert "HTTP_TIMEOUT = 3" in source
+
+
+def test_http_probe_uses_local_transport_without_proxy_or_redirect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    namespace = app_functions(monkeypatch)
+    seen: list[str] = []
+    status = {"ready": 503}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args: object) -> None:
+            return None
+
+        def do_GET(self) -> None:
+            seen.append(self.path)
+            if self.path == "/health":
+                self.send_response(200)
+            elif self.path == "/ready" and status["ready"] == 302:
+                self.send_response(302)
+                self.send_header("Location", "/second")
+            elif self.path == "/ready" and status["ready"] == 0:
+                time.sleep(0.2)
+                self.send_response(200)
+            else:
+                self.send_response(status["ready"])
+            self.end_headers()
+            try:
+                self.wfile.write(b"ok")
+            except BrokenPipeError:
+                pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        namespace["HTTP_ORIGIN"] = f"http://127.0.0.1:{server.server_port}"
+        monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+        monkeypatch.setenv("NO_PROXY", "")
+        assert namespace["http"]("/health") == {"status": "response", "code": 200}
+        assert namespace["http"]("/ready") == {"status": "response", "code": 503}
+        status["ready"] = 302
+        assert namespace["http"]("/ready") == {"status": "response", "code": 302}
+        assert "/second" not in seen
+        status["ready"] = 0
+        namespace["HTTP_TIMEOUT"] = 0.02
+        assert namespace["http"]("/ready") == {"status": "unreachable", "code": None}
+        assert seen.count("/health") == 1 and seen.count("/ready") == 3
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 @pytest.mark.parametrize("field,code", [("health", "HEALTH_NOT_OK"), ("ready", "READY_NOT_OK")])
@@ -601,8 +725,7 @@ def test_t13_app_probe_executes_only_read_only_sql_with_file_credentials(
         return Connection()
 
     fake.connect = connect
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
-    result = namespace["database"]()
+    result = namespace["database"](fake)
     assert result["status"] == "response" and result["tls"] is True
     assert credentials[0]["sslmode"] == "verify-full"
     assert credentials[0]["sslrootcert"] == "/run/secrets/postgres_ca"
@@ -626,20 +749,120 @@ def test_t13_app_probe_rejects_duplicate_dsn_keys_before_connect(
     fake = ModuleType("psycopg")
     fake.Error = type("Error", (Exception,), {})
     fake.connect = lambda **kwargs: pytest.fail("duplicate DSN keys reached DB connection")
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
-    assert namespace["database"]() == {
+    assert namespace["database"](fake) == {
         "status": "configuration_rejected",
         "error": "DB_CONFIG_UNTRUSTED",
     }
 
 
-@pytest.mark.parametrize("code", ["DB_CONNECTION_FAILED", "DB_AUTH_FAILED", "DB_TLS_FAILED"])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("PGPASSWORD", "ambient-secret"),
+        ("PGSERVICE", "other"),
+        ("PGHOSTADDR", "192.0.2.10"),
+        ("PGSSLMODE", "disable"),
+        ("PGPASSFILE", "/tmp/other"),
+    ],
+)
+def test_app_db_rejects_ambient_libpq_override_before_connect(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    namespace = app_functions(monkeypatch)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://pulseplate@postgres:5432/pulseplate"
+        "?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca"
+        "&passfile=/run/secrets/postgres_pgpass",
+    )
+    fake = ModuleType("psycopg")
+    fake.Error = type("Error", (Exception,), {})
+    fake.connect = lambda **kwargs: pytest.fail("untrusted libpq environment reached provider")
+    assert namespace["database"](fake) == {
+        "status": "configuration_rejected",
+        "error": "DB_CONFIG_UNTRUSTED",
+    }
+
+
+@pytest.mark.parametrize("code", ["DB_CONNECTION_FAILED", "DB_AUTH_FAILED"])
 def test_t14_t16_db_failures_are_distinct_and_sanitized(code: str) -> None:
     value = observation()
     value["database"] = {"status": "unreachable", "error": code}
     report = diagnostic._report(payload(value))
     assert report["status"] == "degraded"
     assert report["errors"] == [code]
+
+
+@pytest.mark.parametrize(
+    "sqlstate,expected_code",
+    [("28P01", "DB_AUTH_FAILED"), (None, "DB_CONNECTION_FAILED")],
+)
+def test_app_db_connect_failure_classifies_sqlstate_without_provider_prose(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    sqlstate: str | None,
+    expected_code: str,
+) -> None:
+    namespace = app_functions(monkeypatch)
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://pulseplate@postgres:5432/pulseplate"
+        "?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca"
+        "&passfile=/run/secrets/postgres_pgpass",
+    )
+    attempts: list[dict[str, Any]] = []
+    created_sessions: list[object] = []
+    closed_sessions: list[object] = []
+
+    class ConnectError(Exception):
+        def __init__(self) -> None:
+            super().__init__("password=provider-secret; certificate=provider-secret")
+            self.sqlstate = sqlstate
+
+    class NeverReturnedSession:
+        def __init__(self) -> None:
+            created_sessions.append(self)
+
+        def close(self) -> None:
+            closed_sessions.append(self)
+
+    fake = ModuleType("psycopg")
+    fake.Error = ConnectError
+
+    def connect(**kwargs: Any) -> NeverReturnedSession:
+        attempts.append(kwargs)
+        raise ConnectError()
+
+    fake.connect = connect
+    result = namespace["database"](fake)
+    assert result == {"status": "unreachable", "error": expected_code}
+    assert len(attempts) == 1
+    assert created_sessions == closed_sessions == []
+    assert "provider-secret" not in json.dumps(result) + capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "status,error",
+    [
+        ("driver_unavailable", "DB_CONNECTION_FAILED"),
+        ("configuration_rejected", "DB_AUTH_FAILED"),
+        ("unreachable", "DB_CONFIG_UNTRUSTED"),
+        ("unreachable", "DB_TLS_FAILED"),
+    ],
+)
+def test_db_status_error_pairs_fail_closed(status: str, error: str) -> None:
+    value = observation()
+    value["database"] = {"status": status, "error": error}
+    with pytest.raises(ValueError):
+        diagnostic._report(payload(value))
+
+
+def test_tls_true_requires_supported_version() -> None:
+    value = observation()
+    value["database"]["tls_version"] = None
+    with pytest.raises(ValueError, match="tls version"):
+        diagnostic._report(payload(value))
 
 
 def test_t17_db_or_role_mismatch_rejects_trust() -> None:
@@ -679,6 +902,15 @@ def test_t20_malformed_native_output_fails_closed(
 def test_t21_cancellation_or_timeout_never_exposes_native_stderr(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    spawned: list[subprocess.Popen[bytes]] = []
+    real_popen = diagnostic.subprocess.Popen
+
+    def owned_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        child = real_popen(*args, **kwargs)
+        spawned.append(child)
+        return child
+
+    monkeypatch.setattr(diagnostic.subprocess, "Popen", owned_popen)
     monkeypatch.setattr(diagnostic, "SSH_TIMEOUT", 0.1)
     with pytest.raises(RuntimeError, match="SSH_TRANSPORT_FAILED"):
         diagnostic._ssh_observe(
@@ -686,6 +918,49 @@ def test_t21_cancellation_or_timeout_never_exposes_native_stderr(
         )
     captured = capsys.readouterr()
     assert "secret" not in captured.out + captured.err
+    assert len(spawned) == 1 and spawned[0].poll() is not None
+
+
+def test_app_db_forced_error_closes_only_owned_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    namespace = app_functions(monkeypatch)
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://pulseplate@postgres:5432/pulseplate"
+        "?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca"
+        "&passfile=/run/secrets/postgres_pgpass",
+    )
+    closed: list[bool] = []
+    fake = ModuleType("psycopg")
+
+    class QueryError(Exception):
+        sqlstate = "08006"
+
+    class Cursor:
+        def __enter__(self) -> "Cursor":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def execute(self, statement: str) -> None:
+            raise QueryError()
+
+    class Connection:
+        autocommit = False
+
+        def cursor(self) -> Cursor:
+            return Cursor()
+
+        def close(self) -> None:
+            closed.append(True)
+
+    fake.Error = QueryError
+    fake.connect = lambda **kwargs: Connection()
+    assert namespace["database"](fake) == {
+        "status": "unreachable",
+        "error": "DB_CONNECTION_FAILED",
+    }
+    assert closed == [True]
 
 
 def test_t22_remote_output_rejects_extra_fields_and_secrets() -> None:

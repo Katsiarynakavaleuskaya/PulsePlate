@@ -26,10 +26,10 @@ SCHEMA = "pulseplate.staging-runtime-diagnostics.v1"
 PROJECT = "/srv/pulseplate-staging"
 SSH_BINARY = Path("/usr/bin/ssh")
 MAX_OUTPUT = 65536
-# Worst-case remote budget: Compose (15) + checker (25) + eight container
-# census/inspect calls (8*15) + app probe (15) = 175 seconds. Allow a bounded
-# 35-second SSH/scheduling margin without truncating valid slow observations.
-SSH_TIMEOUT = 210
+# Worst-case remote budget: Compose (15) + four native Compose hashes (4*15)
+# + checker (25) + eight container census/inspect calls (8*15) + app (15)
+# = 235 seconds. Allow a bounded 35-second SSH/scheduling margin.
+SSH_TIMEOUT = 270
 REMOTE_ERRORS = frozenset(
     {
         "NATIVE_UNAVAILABLE",
@@ -43,6 +43,9 @@ REMOTE_ERRORS = frozenset(
         "CONTAINER_IDENTITY_UNTRUSTED",
         "CONTAINER_GENERATION_CHANGED",
         "COMPOSE_RENDER_FAILED",
+        "COMPOSE_HASH_FAILED",
+        "COMPOSE_HASH_UNTRUSTED",
+        "COMPOSE_HASH_CHANGED",
         "COMPOSE_IDENTITY_UNTRUSTED",
         "STAGING_RECEIPT_FAILED",
         "APP_PROBE_FAILED",
@@ -76,11 +79,21 @@ import re
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, unquote, urlsplit
-from urllib.request import urlopen
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+
+HTTP_ORIGIN = "http://127.0.0.1:8000"
+HTTP_TIMEOUT = 3
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        return None
 
 def http(path):
+    if path not in ("/health", "/ready"):
+        return {"status": "unreachable", "code": None}
+    opener = build_opener(ProxyHandler({}), NoRedirect())
     try:
-        with urlopen("http://127.0.0.1:8000" + path, timeout=3) as response:
+        with opener.open(Request(HTTP_ORIGIN + path, method="GET"), timeout=HTTP_TIMEOUT) as response:
             response.read(4096)
             return {"status": "response", "code": response.status}
     except HTTPError as error:
@@ -89,13 +102,19 @@ def http(path):
     except (TimeoutError, URLError, OSError):
         return {"status": "unreachable", "code": None}
 
-def database():
-    try:
-        import psycopg
-    except ImportError:
-        return {"status": "driver_unavailable", "error": "DB_DRIVER_UNAVAILABLE"}
+def database(driver=None):
+    if driver is None:
+        try:
+            import psycopg as driver
+        except ImportError:
+            return {"status": "driver_unavailable", "error": "DB_DRIVER_UNAVAILABLE"}
     raw = os.environ.get("DATABASE_URL", "")
     expected_name, expected_user = sys.argv[1:3]
+    if (os.environ.get("PGSSLMODE") != "verify-full"
+        or os.environ.get("PGPASSFILE") != "/run/secrets/postgres_pgpass"
+        or any(key.startswith("PG") and key not in ("PGSSLMODE", "PGPASSFILE")
+               for key in os.environ)):
+        return {"status": "configuration_rejected", "error": "DB_CONFIG_UNTRUSTED"}
     try:
         parsed = urlsplit(raw)
         pairs = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
@@ -115,7 +134,7 @@ def database():
         return {"status": "configuration_rejected", "error": "DB_CONFIG_UNTRUSTED"}
     connection = None
     try:
-        connection = psycopg.connect(host="postgres", port=5432, dbname=name, user=user,
+        connection = driver.connect(host="postgres", port=5432, dbname=name, user=user,
             sslmode="verify-full", sslrootcert="/run/secrets/postgres_ca",
             passfile="/run/secrets/postgres_pgpass", connect_timeout=3,
             options="-c statement_timeout=2000 -c idle_in_transaction_session_timeout=4000")
@@ -133,7 +152,7 @@ def database():
                     hidden, active, waiting, sessions = cursor.fetchone()
                     if hidden == 0:
                         stats = {"visibility": "complete", "active": active, "waiting": waiting, "sessions": sessions}
-                except psycopg.Error:
+                except driver.Error:
                     pass
             finally:
                 cursor.execute("ROLLBACK")
@@ -142,7 +161,7 @@ def database():
             "in_recovery": recovery, "tls": bool(tls_row and tls_row[0]),
             "tls_version": tls_row[1] if tls_row and tls_row[0] else None,
             "activity": stats}
-    except psycopg.Error as error:
+    except driver.Error as error:
         state = error.sqlstate or ""
         if state.startswith("28"):
             code = "DB_AUTH_FAILED"
@@ -225,7 +244,21 @@ def parse_json(raw):
     return json.loads(raw, object_pairs_hook=unique,
         parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
 
-def selected(service, compose):
+def compose_command():
+    return ["docker", "compose", "--project-directory", PROJECT,
+        "-f", COMPOSE, "--env-file", PROJECT + "/.env", "--profile", "*",
+        "config"]
+
+def compose_hash(service):
+    code, raw = run([*compose_command(), "--hash", service])
+    if code:
+        raise RuntimeError("COMPOSE_HASH_FAILED")
+    lines = raw.decode("ascii").splitlines()
+    if len(lines) != 1 or not re.fullmatch(service + r" [a-f0-9]{64}", lines[0]):
+        raise RuntimeError("COMPOSE_HASH_UNTRUSTED")
+    return lines[0].split(" ", 1)[1]
+
+def selected(service, compose, expected_hash):
     code, raw = run(["docker", "ps", "--quiet", "--no-trunc",
         "--filter", "status=running",
         "--filter", "label=com.docker.compose.project=pulseplate-staging",
@@ -257,15 +290,14 @@ def selected(service, compose):
     started = state["StartedAt"]
     if (not re.fullmatch(r"sha256:[a-f0-9]{64}", image)
         or not re.fullmatch(r"[a-f0-9]{64}", config_hash or "")
+        or config_hash != expected_hash
         or not isinstance(started, str) or not started or started.startswith("0001-")):
         raise RuntimeError("CONTAINER_IDENTITY_UNTRUSTED")
     return {"id": ids[0], "image": image, "config_hash": config_hash, "started_at": started}
 
 def main():
     try:
-        code, raw = run(["docker", "compose", "--project-directory", PROJECT,
-            "-f", COMPOSE, "--env-file", PROJECT + "/.env", "--profile", "*",
-            "config", "--format", "json"])
+        code, raw = run([*compose_command(), "--format", "json"])
         if code:
             raise RuntimeError("COMPOSE_RENDER_FAILED")
         compose = parse_json(raw)
@@ -282,15 +314,19 @@ def main():
             "--compose-stdin"], input_data=raw, timeout=25)
         if code:
             raise RuntimeError("STAGING_RECEIPT_FAILED")
-        app_before = selected("app", compose)
-        db_before = selected("postgres", compose)
+        app_hash = compose_hash("app")
+        db_hash = compose_hash("postgres")
+        app_before = selected("app", compose, app_hash)
+        db_before = selected("postgres", compose, db_hash)
         code, raw = run(["docker", "exec", "-i", app_before["id"],
             "python", "-c", APP_PROBE, expected_name, expected_user], timeout=15)
         if code or len(raw) > 65536:
             raise RuntimeError("APP_PROBE_FAILED")
         observation = parse_json(raw)
-        app_after = selected("app", compose)
-        db_after = selected("postgres", compose)
+        if compose_hash("app") != app_hash or compose_hash("postgres") != db_hash:
+            raise RuntimeError("COMPOSE_HASH_CHANGED")
+        app_after = selected("app", compose, app_hash)
+        db_after = selected("postgres", compose, db_hash)
         if app_before != app_after or db_before != db_after:
             raise RuntimeError("CONTAINER_GENERATION_CHANGED")
         identity = json.dumps({"app": app_before, "postgres": db_before},
@@ -305,7 +341,8 @@ def main():
             "NATIVE_FAILED", "CONTAINER_CENSUS_FAILED", "CONTAINER_SELECTION_FAILED",
             "CONTAINER_INSPECT_FAILED", "CONTAINER_INSPECT_UNTRUSTED",
             "CONTAINER_IDENTITY_UNTRUSTED", "CONTAINER_GENERATION_CHANGED",
-            "COMPOSE_RENDER_FAILED", "COMPOSE_IDENTITY_UNTRUSTED",
+            "COMPOSE_RENDER_FAILED", "COMPOSE_HASH_FAILED", "COMPOSE_HASH_UNTRUSTED",
+            "COMPOSE_HASH_CHANGED", "COMPOSE_IDENTITY_UNTRUSTED",
             "STAGING_RECEIPT_FAILED", "APP_PROBE_FAILED"}:
             code = "REMOTE_PROBE_UNTRUSTED"
         print(json.dumps({"schema": "pulseplate.staging-runtime-host.v1", "trust": "rejected",
@@ -511,7 +548,9 @@ def _validate_observation(value: object) -> dict[str, object]:
             r"[0-9]+(?:\.[0-9]+){0,3}", db["server_version"]
         ):
             raise ValueError("server version")
-        if db["tls_version"] is not None and db["tls_version"] not in {"TLSv1.2", "TLSv1.3"}:
+        if (db["tls"] and db["tls_version"] not in {"TLSv1.2", "TLSv1.3"}) or (
+            not db["tls"] and db["tls_version"] is not None
+        ):
             raise ValueError("tls version")
         stats = db["activity"]
         if (
@@ -529,13 +568,12 @@ def _validate_observation(value: object) -> dict[str, object]:
         ):
             raise ValueError("activity counts")
     else:
-        if set(db) != {"status", "error"} or db["error"] not in {
-            "DB_DRIVER_UNAVAILABLE",
-            "DB_CONFIG_UNTRUSTED",
-            "DB_AUTH_FAILED",
-            "DB_TLS_FAILED",
-            "DB_CONNECTION_FAILED",
-        }:
+        error_by_status = {
+            "driver_unavailable": {"DB_DRIVER_UNAVAILABLE"},
+            "configuration_rejected": {"DB_CONFIG_UNTRUSTED"},
+            "unreachable": {"DB_AUTH_FAILED", "DB_CONNECTION_FAILED"},
+        }
+        if set(db) != {"status", "error"} or db["error"] not in error_by_status[db["status"]]:
             raise ValueError("database error")
         if db["status"] == "configuration_rejected":
             raise RuntimeError("DB_CONFIG_UNTRUSTED")

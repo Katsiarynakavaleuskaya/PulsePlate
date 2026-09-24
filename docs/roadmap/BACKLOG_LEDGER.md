@@ -51,7 +51,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: OPS-03A one-shot private staging runtime diagnostics
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
-  - Target PR: current `codex/ops03a-staging-runtime-diagnostics` PR (number assigned on open)
+  - Target PR: [#2415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2415) (`codex/ops03a-staging-runtime-diagnostics`)
   - Status: Implementation in progress; live staging observation, PR closeout and merge remain unproven.
   - Reason for deferral: OPS-01 was offline and OPS-02 repaired repository DB lifecycle. Neither proved the current private staging host, app readiness or authenticated PostgreSQL path. This bounded diagnostic needs its own current-head gates and one authorized read-only post-merge host observation.
   - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.

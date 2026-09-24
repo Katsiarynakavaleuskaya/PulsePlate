@@ -518,10 +518,13 @@ in `docs/deploy/STAGING.md`. The fixed SSH probe calls the installed full
 `check_staging_security.py` on the selected all-profile Compose render, then
 requires one running, non-one-off `app` and `postgres` under exact staging
 Compose labels. It binds their configured images and compares container ID,
-image ID, Compose config hash and start time before and after the observation.
-From the selected app container it requests `/health` and `/ready` separately
+image ID, the native `docker compose config --hash` result for each selected
+service, and start time before and after the observation. A changed or
+ambiguous hash fails closed. From the selected app container it requests
+`/health` and `/ready` separately with redirects and ambient proxies disabled
 and opens a short-lived PostgreSQL read-only session with the existing CA and
-passfile under `sslmode=verify-full`. Only fixed queries observe database/role,
+passfile under `sslmode=verify-full`. Ambient libpq overrides fail closed before
+connection. Only fixed queries observe database/role,
 server version, recovery, own-session TLS and aggregate activity when visible.
 Limited role visibility is `unknown`, never a fabricated zero.
 
