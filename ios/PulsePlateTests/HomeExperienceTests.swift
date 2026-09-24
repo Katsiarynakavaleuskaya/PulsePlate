@@ -362,6 +362,28 @@ final class HomeExperienceTests: XCTestCase {
         )
     }
 
+    func testClientEventIDFactoryCountsConcurrentCallbacks() async throws {
+        let probe = HomeDestinationFactoryProbe()
+        let makeClientEventID = probe.dependencies.makeClientEventID
+        let invocationCount = 64
+
+        let identifiers = await withTaskGroup(of: UUID.self, returning: [UUID].self) { group in
+            for _ in 0..<invocationCount {
+                group.addTask { makeClientEventID() }
+            }
+            var results: [UUID] = []
+            for await identifier in group {
+                results.append(identifier)
+            }
+            return results
+        }
+
+        let expectedID = try XCTUnwrap(UUID(uuidString: "00000000-0000-4000-8000-000000000001"))
+        XCTAssertEqual(identifiers.count, invocationCount)
+        XCTAssertTrue(identifiers.allSatisfy { $0 == expectedID })
+        XCTAssertEqual(probe.clientEventIDCount, invocationCount)
+    }
+
     func testHomeProfileRefreshContractChangesPaidActionAndKeepsFactoriesLazy() async throws {
         let profileProvider = MutableHomeProfileProvider(profile: nil)
         let apiClient = HomeNoCallAPIClient()
