@@ -51,15 +51,11 @@ def _open_pro_client(
         overrides_owner.update(overrides_snapshot)
 
 
-def _reset_async_db_state() -> None:
+async def _reset_async_db_state() -> None:
     """Reset async DB globals to prevent leakage across tests."""
     async_engine = getattr(core_db, "_ASYNC_ENGINE", None)
     if async_engine is not None:
-        try:
-            # Dispose sync side from sync context to release pooled resources.
-            async_engine.sync_engine.dispose()
-        except Exception:
-            pass
+        await async_engine.dispose()
 
     core_db._ASYNC_ENGINE = None
     core_db.AsyncSessionLocal = None
@@ -70,30 +66,23 @@ def _reset_async_db_state() -> None:
 def _async_db_state_isolation(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Isolate env + async DB globals per test to avoid xdist/order pollution."""
     monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
-    _reset_async_db_state()
+    asyncio.run(_reset_async_db_state())
     try:
         yield
     finally:
-        _reset_async_db_state()
+        asyncio.run(_reset_async_db_state())
 
 
-def _get_async_session_local() -> "async_sessionmaker[AsyncSession]":
+async def _get_async_session_local() -> "async_sessionmaker[AsyncSession]":
     """Resolve AsyncSessionLocal after forcing async DB env.
 
     RU: core.db chitaet env dinamicheski, poetomu snachala vystavliaem env, potom initsializiruem engine.
     EN: core.db reads env dynamically, so set env first and then initialize async engine.
     """
     # Force lazy async engine/sessionmaker initialization after env wiring.
-    core_db._get_async_engine()
-    session_local = getattr(core_db, "AsyncSessionLocal", None)
-    async_url = core_db._get_async_database_url()
-    assert session_local is not None, (
-        "AsyncSessionLocal is not configured. Expected core.db to expose AsyncSessionLocal "
-        "when DATABASE_USE_ASYNC=1. "
-        f"Resolved async_url={async_url!r}. "
-        "Fix core.db async wiring or ensure async deps are installed."
-    )
-    return cast("async_sessionmaker[AsyncSession]", session_local)
+    generation = await core_db._get_async_engine_and_factory()
+    assert generation is not None, "AsyncSessionLocal is not configured"
+    return generation[1]
 
 
 def _assert_json_response(response: Response) -> dict[str, object]:
@@ -107,7 +96,7 @@ def _assert_json_response(response: Response) -> dict[str, object]:
 
 async def _create_test_user() -> User:
     """Create and return the deterministic user required by FK constraints."""
-    async_session_local = _get_async_session_local()
+    async_session_local = await _get_async_session_local()
 
     async with async_session_local() as session:
         # Check if user already exists
@@ -130,7 +119,7 @@ async def _create_test_user() -> User:
 
 async def _delete_test_user() -> None:
     """Delete the deterministic user and every plan owned by the fixture."""
-    async_session_local = _get_async_session_local()
+    async_session_local = await _get_async_session_local()
 
     async with async_session_local() as session:
         try:
@@ -219,7 +208,7 @@ def test_fetch_day_plan_when_exists_in_db(
     }
 
     async def seed_day_plan() -> None:
-        async_session_local = _get_async_session_local()
+        async_session_local = await _get_async_session_local()
         async with async_session_local() as session:
             # Create weekly plan first (required for day_plan.weekly_plan_id)
             weekly_plan = WeeklyPlan(
@@ -273,7 +262,7 @@ def test_day_plan_model_creation(test_user: User) -> None:
     test_date = date(2025, 12, 19)
 
     async def create_and_fetch_day_plan() -> None:
-        async_session_local = _get_async_session_local()
+        async_session_local = await _get_async_session_local()
 
         async with async_session_local() as session:
             # Create weekly plan first (required for day_plan.weekly_plan_id)
@@ -318,7 +307,7 @@ def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
     test_date = date(2025, 12, 21)
 
     async def assert_unique_constraint() -> None:
-        async_session_local = _get_async_session_local()
+        async_session_local = await _get_async_session_local()
 
         # Create first day plan
         async with async_session_local() as session:

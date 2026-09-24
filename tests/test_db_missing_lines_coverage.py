@@ -179,17 +179,17 @@ class TestDbMissingLinesCoverage:
             # Verify create_all was called once
             mock_create_all.assert_called_once()
 
-    def test_get_session_lines_90_94(self):
+    def test_get_session_lines_90_94(self) -> None:
         """Test lines 90-94: get_session dependency function"""
         try:
             from core.db import get_session
 
-            # Mock SessionLocal
+            # Patch the acquisition seam while exercising adapter cleanup.
             mock_session_class = Mock()
             mock_session = Mock()
             mock_session_class.return_value = mock_session
 
-            with patch("core.db.SessionLocal", mock_session_class):
+            with patch("core.db._get_session_local", return_value=mock_session_class):
                 # Test the generator function
                 session_generator = get_session()
 
@@ -209,7 +209,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_get_session_with_exception(self):
+    def test_get_session_with_exception(self) -> None:
         """Test get_session with exception during session usage"""
         try:
             from core.db import get_session
@@ -218,7 +218,7 @@ class TestDbMissingLinesCoverage:
             mock_session = Mock()
             mock_session_class.return_value = mock_session
 
-            with patch("core.db.SessionLocal", mock_session_class):
+            with patch("core.db._get_session_local", return_value=mock_session_class):
                 session_gen = get_session()
                 session = next(session_gen)
 
@@ -275,7 +275,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_comprehensive_database_edge_cases(self):
+    def test_comprehensive_database_edge_cases(self) -> None:
         """Test comprehensive database edge cases with faker data"""
         try:
             from core.db import EngineCompat, get_session, session_scope
@@ -286,7 +286,7 @@ class TestDbMissingLinesCoverage:
             mock_session_class.return_value = mock_session
 
             # Test successful session scope
-            with patch("core.db.SessionLocal", mock_session_class):
+            with patch("core.db._get_session_local", return_value=mock_session_class):
                 with session_scope() as session:
                     assert session == mock_session
                     # Simulate some work
@@ -300,7 +300,7 @@ class TestDbMissingLinesCoverage:
             mock_session.reset_mock()
             mock_session.commit.side_effect = Exception("Database error")
 
-            with patch("core.db.SessionLocal", mock_session_class):
+            with patch("core.db._get_session_local", return_value=mock_session_class):
                 with pytest.raises(Exception, match="Database error"):
                     with session_scope() as session:
                         session.query = Mock()
@@ -399,7 +399,7 @@ class TestDbMissingLinesCoverage:
         ):
             _ = core.db.nonexistent_attr
 
-    def test_lazy_engine_initialization(self):
+    def test_lazy_engine_initialization(self) -> None:
         """Test _get_raw_engine lazy initialization and DATABASE_URL awareness."""
         import core.db
 
@@ -424,7 +424,9 @@ class TestDbMissingLinesCoverage:
                 engine3 = core.db._get_raw_engine()
                 assert engine3 is not engine1  # New engine created
                 assert str(engine3.url) == "sqlite:///test_new.db"
-                assert core.db.SessionLocal is None  # Reset after URL change
+                assert core.db.SessionLocal is not None
+                with core.db.SessionLocal() as session:
+                    assert session.bind is engine3
 
         finally:
             core.db._RAW_ENGINE = original_engine
@@ -488,22 +490,6 @@ class TestDbMissingLinesCoverage:
         finally:
             core.db._RAW_ENGINE = original_engine
             core.db.SessionLocal = original_session
-
-    def test_init_db_runtime_error_on_none_engine(self):
-        """Test init_db raises RuntimeError if engine is None after creation logic."""
-        import core.db
-
-        # This is defensive - engine should always be created by init_db logic
-        # But we test the guard just in case
-        original_engine = core.db._RAW_ENGINE
-        try:
-            # Mock create_engine to return None (simulating impossible scenario)
-            with patch("core.db.create_engine", return_value=None):
-                core.db._RAW_ENGINE = None
-                with pytest.raises(RuntimeError, match="Engine must be initialized"):
-                    core.db.init_db()
-        finally:
-            core.db._RAW_ENGINE = original_engine
 
     def test_get_session_factory_returns_current(self):
         """Test get_session_factory() returns current SessionLocal."""

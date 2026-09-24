@@ -626,7 +626,23 @@ def _contract_suite_targets_by_group(
         re.S | re.M,
     ):
         group = match.group("group")
-        targets = tuple(re.findall(r"\btests/[^\s\\]+", match.group("body")))
+        lines = match.group("body").splitlines()
+        suite_starts = [index for index, line in enumerate(lines) if line.strip() == "add_suite \\"]
+        assert len(suite_starts) == 1, f"expected one add_suite command in {group!r} for {job_id!r}"
+        targets_list: list[str] = []
+        for line in lines[suite_starts[0] + 1 :]:
+            argument = line.strip()
+            continued = argument.endswith("\\")
+            target = argument[:-1].strip() if continued else argument
+            assert re.fullmatch(
+                r"tests/[A-Za-z0-9_./-]+\.py", target
+            ), f"non-test or commented add_suite argument in {group!r} for {job_id!r}: {line!r}"
+            targets_list.append(target)
+            if not continued:
+                break
+        else:
+            raise AssertionError(f"unterminated add_suite command in {group!r} for {job_id!r}")
+        targets = tuple(targets_list)
         assert targets, f"contract/risk group {group!r} in {job_id!r} has no test targets"
         blocks[group] = targets
     return blocks
@@ -3630,6 +3646,14 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
         "tests/test_experiment_slack_socket_bridge.py",
         "tests/test_runtime_toolchain_alignment.py",
     )
+    expected_db_targets = (
+        "tests/test_app_db_fallback_97.py",
+        "tests/test_core_db_async_optional.py",
+        "tests/test_core_db_comprehensive.py",
+        "tests/test_core_db_missing_coverage.py",
+        "tests/test_db_engine_reuse_diff_coverage.py",
+        "tests/test_db_missing_lines_coverage.py",
+    )
 
     assert test_pr_groups == test_feature_groups
     for job_id, groups in (
@@ -3647,6 +3671,17 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     assert "tests/test_scheduler_final_coverage.py" in test_feature_groups["food_catalog"]
     assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
+    for groups in (test_pr_groups, test_feature_groups):
+        route_targets = groups["route_contract_safety"]
+        db_targets = tuple(
+            target
+            for target in route_targets
+            if target == "tests/test_app_db_fallback_97.py"
+            or target.startswith(("tests/test_core_db_", "tests/test_db_"))
+        )
+        assert db_targets == expected_db_targets
+        assert "tests/test_pgvector_compat.py" not in route_targets
+        assert "tests/test_core_db_coverage.py" not in route_targets
     assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_api_key_dependency_ownership.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_lenient_mode_warning.py" in test_pr_groups["route_contract_safety"]
@@ -3660,6 +3695,29 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     )
     assert "tests/test_legacy_weekly_plan_alias_api.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_route_family_bootstrap.py" in test_pr_groups["route_contract_safety"]
+
+
+@pytest.mark.parametrize("job_id", ["test-pr", "test-feature"])
+def test_contract_risk_suite_ignores_commented_db_target(job_id: str) -> None:
+    workflow = _load_ci_workflow()
+    step = _job_step_by_name(workflow, job_id=job_id, step_name="Contract and risk suites")
+    run_script = step["run"]
+    assert isinstance(run_script, str)
+    target = "tests/test_core_db_async_optional.py"
+    argument_line = next(
+        line for line in run_script.splitlines(keepends=True) if line.strip() == f"{target} \\"
+    )
+    assert run_script.count(argument_line) == 1
+    commented_script = run_script.replace(argument_line, "", 1)
+    group_header = "route_contract_safety)\n"
+    assert commented_script.count(group_header) == 1
+    step["run"] = commented_script.replace(group_header, f"{group_header}  # {target}\n", 1)
+
+    route_targets = _contract_suite_targets_by_group(workflow, job_id=job_id)[
+        "route_contract_safety"
+    ]
+    assert target in str(step["run"])
+    assert target not in route_targets
 
 
 def test_contract_risk_suites_use_bounded_coverage_batches() -> None:

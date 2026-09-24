@@ -47,6 +47,9 @@ If a test fails due to typing:
   Do NOT use `importlib.reload`, `Base.metadata.clear()`,
   or `SessionLocal.configure()` in `core/`.
   DB lifecycle is controlled by test fixtures and application startup.
+- **DB generation ownership**: Acquire new sessions through `core.db` accessors;
+  publish a replacement engine and bound factory under the lifecycle lock only
+  after initialization succeeds. Retire async engines with awaited disposal.
 
 ## FitChef domain invariants
 
