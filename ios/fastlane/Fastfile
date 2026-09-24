@@ -9,11 +9,8 @@ IOS_SNAPSHOT_RUNTIME_ID = "com.apple.CoreSimulator.SimRuntime.iOS-27-0".freeze
 IPHONE_DEVICE_CANDIDATES = [
   # Capture on the iOS 27.0 simulator for the current 6.9-inch App Store flow.
   "iPhone 18 Pro Max",
-  "iPhone 16 Pro Max",
-  "iPhone 16 Pro",
   "iPhone 17 Pro Max",
-  "iPhone 17 Pro",
-  "iPhone 15 Pro Max",
+  "iPhone 16 Pro Max",
 ].freeze
 IPAD_DEVICE_CANDIDATES = [
   "iPad Pro 13-inch (M4)",

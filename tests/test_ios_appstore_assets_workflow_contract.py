@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -187,7 +188,12 @@ def test_screenshot_jobs_require_exact_xcode27_sdk_and_runtime() -> None:
         assert "Xcode_26" not in run
 
     fastfile = _fastfile_text()
-    assert '"iPhone 18 Pro Max"' in fastfile
+    phone_candidates = fastfile.split("IPHONE_DEVICE_CANDIDATES = [", 1)[1].split("].freeze", 1)[0]
+    assert re.findall(r'"(iPhone [^"]+)"', phone_candidates) == [
+        "iPhone 18 Pro Max",
+        "iPhone 17 Pro Max",
+        "iPhone 16 Pro Max",
+    ]
     assert 'ios_version: "27.0"' in fastfile
 
 
@@ -223,6 +229,21 @@ def test_snapshot_device_resolver_fails_without_ios27_candidate(tmp_path: Path) 
     )
     assert result.returncode != 0
     assert "No available iOS 27.0 simulator found for iPhone" in result.stderr
+
+
+def test_snapshot_device_resolver_prefers_max_over_smaller_pro_on_ios27(tmp_path: Path) -> None:
+    result = _resolve_snapshot_devices_with_inventory(
+        tmp_path,
+        {
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+                {"name": "iPhone 16 Pro", "udid": "small-pro", "isAvailable": True},
+                {"name": "iPhone 17 Pro Max", "udid": "eligible-max", "isAvailable": True},
+                {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},
+            ],
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ["iPhone 17 Pro Max", "iPad Pro 13-inch (M5)"]
 
 
 def test_fastlane_upload_lanes_stay_fail_closed() -> None:
