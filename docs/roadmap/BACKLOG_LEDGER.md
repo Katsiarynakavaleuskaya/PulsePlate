@@ -953,8 +953,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Explicit Euler L1 artifact handoff to post-open L2 bootstrap
   - Owner: agent-coordinator / security-auditor
   - Priority: P1 (reliable explicit review input across the local startup recipe)
-  - Target PR: `codex/euler-explicit-l1-post-open-handoff` (PR number pending)
-  - Status: Implementation in progress; no current-head CI, merge, role-execution or effectiveness claim.
+  - Target PR: [PR #2413](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2413) (`codex/euler-explicit-l1-post-open-handoff`)
+  - Status: OPEN non-draft; current-head CI has failing and pending checks, and reviews are pending. No merge-readiness or effectiveness claim.
   - Reason (EN): The canonical L2 consumer accepts an explicit L1 artifact, but the local-session helper and recipe renderer do not carry that approved path into the printed bootstrap command.
   - Links: [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md), [merged TELO-OPS-3](#ledger-p1-telo-ops-3-user-impact-handoff), [Euler umbrella](#ledger-p1-invariant-family-relations-shadow).
   - DoD: An optional single L1 path is forwarded as an opaque shell-safe argument only for `post_open_review` with concrete goal and task class; absent input retains v1 behavior. Duplicate, missing, option-like, control-character, wrong-phase and incompatible invariant-class inputs fail closed. The canonical `task_bootstrap.py` reader alone validates L1 path/content and owns packet identity; printed commands execute in a disposable test repo and match direct canonical packet/manifest output for repeated and singleton families. Helper and renderer create no role pass or L2-EVAL enrollment. Complete narrow local gates, actual-diff premortem, Runner oracle-only, required role passes, current-head CI, mapping/seal and strict merge readiness before merge.
