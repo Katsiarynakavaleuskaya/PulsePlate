@@ -20,7 +20,7 @@ import stat
 import subprocess  # nosec B404: bounded fixed SSH observer has no stdlib transport replacement (remove-by: 2026-12-31, ref: OPS-03A)
 import sys
 import time
-from typing import BinaryIO, cast
+from typing import BinaryIO, NoReturn, cast
 
 SCHEMA = "pulseplate.staging-runtime-diagnostics.v1"
 PROJECT = "/srv/pulseplate-staging"
@@ -431,23 +431,23 @@ def _ssh_observe(argv: list[str]) -> bytes:
             if remaining <= 0:
                 raise RuntimeError("SSH_TRANSPORT_FAILED")
             for key, _ in selector.select(remaining):
-                if key.fileobj is process.stdout:
-                    chunk = os.read(process.stdout.fileno(), 8192)
+                if key.fileobj is stdout:
+                    chunk = os.read(stdout.fileno(), 8192)
                     if not chunk:
-                        selector.unregister(process.stdout)
+                        selector.unregister(stdout)
                     else:
                         output.extend(chunk)
                         if len(output) > MAX_OUTPUT:
                             raise RuntimeError("SSH_TRANSPORT_FAILED")
                 else:
                     try:
-                        count = os.write(process.stdin.fileno(), source[offset : offset + 8192])
+                        count = os.write(stdin.fileno(), source[offset : offset + 8192])
                     except BrokenPipeError:
                         count = len(source) - offset
                     offset += count
                     if offset >= len(source):
-                        selector.unregister(process.stdin)
-                        process.stdin.close()
+                        selector.unregister(stdin)
+                        stdin.close()
         remaining = deadline - time.monotonic()
         if remaining <= 0 or process.wait(timeout=remaining) != 0 or not output:
             raise RuntimeError("SSH_TRANSPORT_FAILED")
@@ -608,7 +608,7 @@ def _report(
 
 
 class _Parser(argparse.ArgumentParser):
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> NoReturn:
         raise ValueError("INVALID_ARGUMENT")
 
 
