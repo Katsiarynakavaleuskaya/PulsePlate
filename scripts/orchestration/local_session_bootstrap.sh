@@ -110,12 +110,33 @@ normalize_scope_path() {
     printf "%s" "${rel_path}"
 }
 
+# Keep legacy help-anywhere behavior for input-free calls. An actual L1 flag
+# must reach the normal parser so a later --help cannot mask a missing value.
+L1_FLAG_PRESENT=0
+EXPECT_OPTION_VALUE=0
 for arg in "$@"; do
-    if [[ "${arg}" == "-h" || "${arg}" == "--help" ]]; then
-        usage
-        exit 0
+    if [[ "${EXPECT_OPTION_VALUE}" -eq 1 ]]; then
+        EXPECT_OPTION_VALUE=0
+        continue
     fi
+    case "${arg}" in
+        --review-invariant-family-relations-input)
+            L1_FLAG_PRESENT=1
+            EXPECT_OPTION_VALUE=1
+            ;;
+        --goal|--task-class|--path|--invariant-change-class|--pr-phase|--requested-agent)
+            EXPECT_OPTION_VALUE=1
+            ;;
+    esac
 done
+if [[ "${L1_FLAG_PRESENT}" -eq 0 ]]; then
+    for arg in "$@"; do
+        if [[ "${arg}" == "-h" || "${arg}" == "--help" ]]; then
+            usage
+            exit 0
+        fi
+    done
+fi
 
 REPO_PYTHON="$(resolve_repo_python)"
 
@@ -145,12 +166,15 @@ PATH_ARGS=()
 INVARIANT_CLASS_ARGS=()
 REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT=""
 REVIEW_INPUT_SEEN=0
+# Bash 3.2 does not decode \u escapes in ANSI-C strings; use UTF-8 octal bytes.
+L1_NEL=$'\302\205'
+L1_LINE_SEPARATOR=$'\342\200\250'
+L1_PARAGRAPH_SEPARATOR=$'\342\200\251'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)
-            usage
-            exit 0
+            die_usage "--help must be used alone"
             ;;
         --goal)
             if [[ $# -lt 2 ]]; then die_usage "--goal requires a value"; fi
@@ -187,7 +211,10 @@ while [[ $# -gt 0 ]]; do
             if [[ $# -lt 2 ]]; then
                 die_usage "--review-invariant-family-relations-input requires one non-empty path value"
             fi
-            if [[ -z "${2//[[:space:]]/}" || "$2" == -* || "$2" =~ [[:cntrl:]] ]]; then
+            if [[ -z "${2//[[:space:]]/}" || "$2" == -* || "$2" =~ [[:cntrl:]] ||
+                  "$2" == [[:space:]]* || "$2" == *[[:space:]] ||
+                  "$2" == *"${L1_NEL}"* || "$2" == *"${L1_LINE_SEPARATOR}"* ||
+                  "$2" == *"${L1_PARAGRAPH_SEPARATOR}"* ]]; then
                 die_usage "--review-invariant-family-relations-input requires one non-empty path value"
             fi
             REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT="$2"

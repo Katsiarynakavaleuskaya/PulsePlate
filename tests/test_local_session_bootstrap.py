@@ -120,6 +120,50 @@ def test_local_session_bootstrap_help_is_non_mutating() -> None:
     assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
+def test_local_session_bootstrap_short_help_is_non_mutating() -> None:
+    result = run_bootstrap("-h")
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ("--goal", "G", "--help"),
+        ("--goal", L1_FLAG, "--help"),
+    ],
+)
+def test_input_free_legacy_help_anywhere_remains_available(arguments: tuple[str, ...]) -> None:
+    result = run_bootstrap(*arguments)
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
+def test_l1_missing_value_cannot_escape_through_global_help() -> None:
+    result = run_bootstrap(L1_FLAG, "--help")
+    assert result.returncode == 2
+    assert "requires one non-empty path value" in result.stderr
+    assert "Usage:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+    assert "Generate the selected task packet:" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ("--help", L1_FLAG, "input.json"),
+        (L1_FLAG, "input.json", L1_FLAG, "--help"),
+    ],
+)
+def test_l1_flag_never_uses_legacy_help_escape(arguments: tuple[str, ...]) -> None:
+    result = run_bootstrap(*arguments)
+    assert result.returncode == 2
+    assert "Usage:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
 def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     tmp_path: Path,
 ) -> None:
@@ -488,6 +532,11 @@ def test_explicit_l1_printed_command_matches_direct_bootstrap_in_disposable_repo
         ((L1_FLAG, "--path"), "requires one non-empty path"),
         ((L1_FLAG, "bad\nline.json"), "requires one non-empty path"),
         ((L1_FLAG, "bad\tline.json"), "requires one non-empty path"),
+        ((L1_FLAG, f" {L1_ROOT}/leading.json"), "requires one non-empty path"),
+        ((L1_FLAG, f"{L1_ROOT}/trailing.json "), "requires one non-empty path"),
+        ((L1_FLAG, f"{L1_ROOT}/bad\u0085line.json"), "requires one non-empty path"),
+        ((L1_FLAG, f"{L1_ROOT}/bad\u2028line.json"), "requires one non-empty path"),
+        ((L1_FLAG, f"{L1_ROOT}/bad\u2029line.json"), "requires one non-empty path"),
         ((L1_FLAG, "one.json", L1_FLAG, "two.json"), "may be supplied only once"),
     ],
 )

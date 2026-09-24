@@ -721,9 +721,11 @@ def render_recipe_prompt(
         if (
             not isinstance(review_invariant_family_relations_input, str)
             or not review_invariant_family_relations_input.strip()
+            or review_invariant_family_relations_input
+            != review_invariant_family_relations_input.strip()
             or review_invariant_family_relations_input.startswith("-")
             or any(
-                ord(character) < 32 or ord(character) == 127
+                ord(character) < 32 or ord(character) == 127 or character in "\u0085\u2028\u2029"
                 for character in review_invariant_family_relations_input
             )
         ):

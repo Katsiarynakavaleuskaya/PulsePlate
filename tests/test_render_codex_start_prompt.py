@@ -16,6 +16,7 @@ import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import qoder_dispatch_bridge
+from scripts.orchestration import review_invariant_family_relations as relations
 from scripts.orchestration import check_preflight
 import scripts.orchestration.render_codex_start_prompt as codex_prompt
 import scripts.orchestration.evidence_rail_applicability as rail_applicability
@@ -845,6 +846,145 @@ def test_recipe_bootstrap_preserves_explicit_l1_as_separate_shell_quoted_argumen
     assert "touch injected" not in prompt.split("Next required repo command: ", 1)[0]
 
 
+@pytest.mark.parametrize("repeated", [True, False])
+def test_recipe_explicit_l1_command_executes_like_direct_bootstrap(
+    tmp_path: Path, repeated: bool
+) -> None:
+    """Exercise the rendered shell command against a disposable Git repository."""
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for directory in ("scripts", "core", "docs", ".cursor", ".agents"):
+        shutil.copytree(
+            REPO_ROOT / directory,
+            repo / directory,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+    (repo / "tests").mkdir()
+    shutil.copy2(REPO_ROOT / "tests/AGENTS.md", repo / "tests/AGENTS.md")
+    for filename in ("AGENTS.md", "RUNBOOK_AGENT.md", ".gitignore"):
+        shutil.copy2(REPO_ROOT / filename, repo / filename)
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env["VENV_PYTHON"] = sys.executable
+    git = shutil.which("git")
+    assert git is not None
+    initialized = subprocess.run(
+        [git, "init", "-q", str(repo)], env=env, capture_output=True, text=True, check=False
+    )
+    assert initialized.returncode == 0, initialized.stderr
+
+    artifact = (
+        repo
+        / "artifacts/orchestration/review_invariant_family_relations/recipe $(touch injected).json"
+    )
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": relations.SNAPSHOT_SCHEMA_VERSION,
+                "universe_finding_ids": ["finding_a", "finding_b"],
+                "families": [
+                    {
+                        "family_id": "family_alpha",
+                        "finding_ids": ["finding_a", "finding_b"] if repeated else ["finding_a"],
+                    }
+                ],
+                **{field: False for field in relations.AUTHORITY_FIELDS},
+            }
+        ),
+        encoding="utf-8",
+    )
+    l1_path = artifact.relative_to(repo).as_posix()
+    path_scope = "scripts/orchestration/render_codex_start_prompt.py"
+    prompt = render_recipe_prompt(
+        goal="Review explicit membership",
+        task_class="Orchestration",
+        pr_phase="post_open_review",
+        paths=[path_scope],
+        requested_agents=["agent-coordinator"],
+        review_invariant_family_relations_input=l1_path,
+    )
+    command = next(
+        line.removeprefix("Next required repo command: ")
+        for line in prompt.splitlines()
+        if line.startswith("Next required repo command: ")
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    rendered = subprocess.run(
+        [bash, "-c", command],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
+    rendered_ref = json.loads(rendered.stdout)["output"]
+    rendered_packet_path = repo / rendered_ref
+    rendered_packet = json.loads(rendered_packet_path.read_text(encoding="utf-8"))
+    assert not (repo / "injected").exists()
+    assert l1_path not in rendered_packet["candidate_paths"]
+    manifest_cmd = [
+        sys.executable,
+        str(repo / "scripts/orchestration/role_dispatch_bridge.py"),
+        "--packet",
+        rendered_ref,
+        "--mode",
+        "runtime",
+        "--pretty",
+    ]
+    rendered_manifest_result = subprocess.run(
+        manifest_cmd, cwd=repo, env=env, capture_output=True, text=True, check=False, timeout=120
+    )
+    assert rendered_manifest_result.returncode == 0, rendered_manifest_result.stderr
+    rendered_manifest = json.loads(rendered_manifest_result.stdout)
+    rendered_packet_path.unlink()
+
+    direct = subprocess.run(
+        [
+            sys.executable,
+            str(repo / "scripts/orchestration/task_bootstrap.py"),
+            "--goal",
+            "Review explicit membership",
+            "--task-class",
+            "Orchestration",
+            "--pr-phase",
+            "post_open_review",
+            "--path",
+            path_scope,
+            "--requested-agent",
+            "agent-coordinator",
+            "--review-invariant-family-relations-input",
+            l1_path,
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert direct.returncode == 0, direct.stdout + direct.stderr
+    direct_ref = json.loads(direct.stdout)["output"]
+    direct_packet = json.loads((repo / direct_ref).read_text(encoding="utf-8"))
+    direct_manifest_result = subprocess.run(
+        manifest_cmd, cwd=repo, env=env, capture_output=True, text=True, check=False, timeout=120
+    )
+    assert direct_manifest_result.returncode == 0, direct_manifest_result.stderr
+    direct_manifest = json.loads(direct_manifest_result.stdout)
+    rendered_manifest.pop("generated_at")
+    direct_manifest.pop("generated_at")
+    assert rendered_manifest == direct_manifest
+    rendered_packet.pop("orchestration_shadow_reuse_telemetry")
+    direct_packet.pop("orchestration_shadow_reuse_telemetry")
+    assert rendered_packet == direct_packet
+    assert rendered_packet["invariant_review"]["state"] == (
+        "required_pending" if repeated else "not_required"
+    )
+
+
 @pytest.mark.parametrize(
     ("path", "phase", "goal", "task_class", "classes", "message"),
     [
@@ -853,6 +993,11 @@ def test_recipe_bootstrap_preserves_explicit_l1_as_separate_shell_quoted_argumen
         ("--path", "post_open_review", "G", "T", [], "requires one non-empty path"),
         ("bad\nline", "post_open_review", "G", "T", [], "requires one non-empty path"),
         ("bad\tline", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        (" leading.json", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("trailing.json ", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("bad\u0085line", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("bad\u2028line", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("bad\u2029line", "post_open_review", "G", "T", [], "requires one non-empty path"),
         ("input.json", "pre_open", "G", "T", [], "requires --pr-phase post_open_review"),
         ("input.json", "post_open_review", " ", "T", [], "requires concrete"),
         ("input.json", "post_open_review", "G", " ", [], "requires concrete"),
