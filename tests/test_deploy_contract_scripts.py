@@ -23,6 +23,7 @@ PRODUCTION_COMPOSE_TEXT = PRODUCTION_COMPOSE_PATH.read_text(encoding="utf-8")
 SELF_HOSTED_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.production.selfhosted.yaml"
 STAGING_COMPOSE_PATH = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 PROMETHEUS_CONFIG_PATH = REPO_ROOT / "deploy" / "prometheus" / "prometheus.yml"
+PROMETHEUS_RULES_PATH = REPO_ROOT / "deploy" / "prometheus" / "alias-alerts.yml"
 PROMETHEUS_MANIFEST_PATH = REPO_ROOT / "deploy" / "prometheus" / "image-manifest.json"
 POSTGRES_MANIFEST_PATH = REPO_ROOT / "deploy" / "postgres-pgvector" / "image-manifest.json"
 PROMETHEUS_SOURCE_REVISION = "53144df54e01b689bf6c45e811c6230631b132e7"
@@ -159,6 +160,9 @@ def _write_production_host_contract(
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
+    (prometheus_dir / "alias-alerts.yml").write_text(
+        PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -224,6 +228,9 @@ def _write_shell_bundle_contract(
     (prometheus_dir / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
+    (prometheus_dir / "alias-alerts.yml").write_text(
+        PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (prometheus_dir / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -263,6 +270,7 @@ def _write_shell_bundle_archive(
         "deploy/docker-compose.production.selfhosted.yaml",
         "deploy/postgres-pgvector/image-manifest.json",
         "deploy/prometheus/prometheus.yml",
+        "deploy/prometheus/alias-alerts.yml",
         "deploy/prometheus/image-manifest.json",
         "scripts/diagnose_web.sh",
         "scripts/ops/postgres_backup.sh",
@@ -278,6 +286,10 @@ def _write_shell_bundle_archive(
     with tarfile.open(archive_path, "w:gz") as archive:
         for relative_path in required_paths:
             if variant == "missing_manifest" and relative_path.endswith("image-manifest.json"):
+                continue
+            if variant in {"missing_rules", "rules_symlink"} and relative_path == (
+                "deploy/prometheus/alias-alerts.yml"
+            ):
                 continue
             if variant.startswith("backup_helper_") and relative_path == (
                 "scripts/ops/postgres_backup.sh"
@@ -320,6 +332,11 @@ def _write_shell_bundle_archive(
             else:
                 member.type = tarfile.LNKTYPE
                 member.linkname = "scripts/redeploy_caddy.sh"
+            archive.addfile(member)
+        elif variant == "rules_symlink":
+            member = tarfile.TarInfo("deploy/prometheus/alias-alerts.yml")
+            member.type = tarfile.SYMTYPE
+            member.linkname = "prometheus.yml"
             archive.addfile(member)
         elif variant == "backup_helper_wrong_mode":
             payload = b"#!/usr/bin/env bash\nexit 0\n"
@@ -3359,7 +3376,12 @@ def test_prometheus_cd_security_job_cross_binds_v2_digest_and_revision() -> None
 def test_prometheus_config_has_one_private_exact_target() -> None:
     config = yaml.safe_load(PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"))
     assert config == {
-        "global": {"scrape_interval": "30s", "scrape_timeout": "10s"},
+        "global": {
+            "scrape_interval": "30s",
+            "scrape_timeout": "10s",
+            "evaluation_interval": "30s",
+        },
+        "rule_files": ["/etc/prometheus/alias-alerts.yml"],
         "scrape_configs": [
             {
                 "job_name": "pulseplate-api",
@@ -3376,7 +3398,6 @@ def test_prometheus_config_has_one_private_exact_target() -> None:
     for forbidden in (
         "remote_write",
         "remote_read",
-        "rule_files",
         "alerting",
         "storage.tsdb.retention",
         "web.enable-lifecycle",
@@ -3384,6 +3405,54 @@ def test_prometheus_config_has_one_private_exact_target() -> None:
         "otlp",
     ):
         assert forbidden not in config_text
+
+
+def test_alias_alert_rules_bind_the_exact_target_and_closed_routes() -> None:
+    payload = yaml.safe_load(PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"))
+    groups = payload["groups"]
+    assert len(groups) == 1
+    rules = groups[0]["rules"]
+    assert [rule["alert"] for rule in rules] == [
+        "PulsePlateMetricsTargetMissing",
+        "PulsePlateMetricsTargetDown",
+        "PulsePlateAliasBmrSeedMissing",
+        "PulsePlateAliasTargetsSeedMissing",
+        "PulsePlateAliasPlateSeedMissing",
+        "PulsePlateAliasGapsSeedMissing",
+        "PulsePlateAliasRecentPost",
+    ]
+    for rule in rules:
+        assert 'job="pulseplate-api",instance="app:8000"' in rule["expr"]
+    assert [rule["for"] for rule in rules[:6]] == ["2m", "2m", "5m", "5m", "5m", "5m"]
+    assert "for" not in rules[6]
+    for rule, route in zip(rules[2:6], ("bmr", "targets", "plate", "gaps")):
+        assert f'route="/api/v1/premium/{route}",status="200"' in rule["expr"]
+        assert 'up{job="pulseplate-api",instance="app:8000"} == 1' in rule["expr"]
+    recent = rules[6]["expr"]
+    assert 'route=~"/api/v1/premium/(bmr|targets|plate|gaps)"' in recent
+    assert "increase(" in recent and "offset 15m" in recent
+    assert "max_over_time(" not in recent
+
+
+def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> None:
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "check config /etc/prometheus/prometheus.yml" in workflow_text
+    assert "check rules /etc/prometheus/alias-alerts.yml" in workflow_text
+    assert "test rules /etc/prometheus/alias-alerts.test.yml" in workflow_text
+    assert "check config --syntax-only" not in workflow_text
+    assert "prometheus_rules_sha256=$(sha256sum deploy/prometheus/alias-alerts.yml" in workflow_text
+    assert (
+        workflow_text.count(
+            "PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}"
+        )
+        == 2
+    )
+    assert workflow_text.count("[ ! -L ./prometheus/alias-alerts.yml ]") == 2
+    assert workflow_text.count('= "$PROMETHEUS_RULES_SHA256" ]') == 2
+    assert (
+        "deploy/postgres-pgvector/image-manifest.json \\\n"
+        "            deploy/prometheus/alias-alerts.yml\n"
+    ) in workflow_text
 
 
 @pytest.mark.parametrize(
@@ -3451,6 +3520,12 @@ def test_three_compose_contours_normalize_to_one_private_prometheus_contract(
     assert ("bind", "/etc/prometheus/prometheus.yml", str(PROMETHEUS_CONFIG_PATH), True) in (
         volume_projection
     )
+    assert (
+        "bind",
+        "/etc/prometheus/alias-alerts.yml",
+        str(REPO_ROOT / "deploy/prometheus/alias-alerts.yml"),
+        True,
+    ) in volume_projection
     assert ("volume", "/prometheus", "prometheus_data", False) in volume_projection
     assert prometheus["secrets"] == [
         {
@@ -4020,6 +4095,35 @@ esac
     if shell_bundle_dir is not None:
         env["SHELL_BUNDLE_DIR"] = str(shell_bundle_dir)
     return env, project_dir, log_file, shell_bundle_dir
+
+
+@pytest.mark.parametrize("invalid_rules", ("missing", "symlink"))
+def test_production_shell_bundle_rejects_invalid_rules_before_docker(
+    tmp_path: Path, invalid_rules: str
+) -> None:
+    env, _project_dir, log_file, shell_bundle_dir = _production_preflight_fixture(
+        tmp_path, with_bundle=True
+    )
+    assert shell_bundle_dir is not None
+    rules_path = shell_bundle_dir / "deploy/prometheus/alias-alerts.yml"
+    if invalid_rules == "missing":
+        rules_path.unlink()
+    else:
+        target = rules_path.with_suffix(".real")
+        rules_path.rename(target)
+        rules_path.symlink_to(target)
+
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy_production.sh"), "--preflight-only"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Incoming Prometheus rules" in result.stderr
+    assert not log_file.exists()
 
 
 @pytest.mark.parametrize(
@@ -4783,6 +4887,8 @@ def test_production_full_bundle_rejects_hostile_source_before_runtime_mutation(
         ("fifo", 8, 1),
         ("unexpected", 9, 1),
         ("missing_manifest", 10, 1),
+        ("missing_rules", 17, 1),
+        ("rules_symlink", 18, 1),
         ("oversized_archive", 11, 1),
         ("backup_helper_missing", 13, 1),
         ("backup_helper_symlink", 14, 1),
@@ -4900,6 +5006,7 @@ esac
         "compose-leaf-symlink",
         "prometheus-directory-symlink",
         "config-leaf-symlink",
+        "rules-leaf-symlink",
         "manifest-leaf-symlink",
     ),
 )
@@ -4925,6 +5032,7 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
     compose_path = deploy_dir / "docker-compose.production.yaml"
     prometheus_dir = deploy_dir / "prometheus"
     config_path = prometheus_dir / "prometheus.yml"
+    rules_path = prometheus_dir / "alias-alerts.yml"
     manifest_path = prometheus_dir / "image-manifest.json"
     external_referent = tmp_path / f"external-{destination_variant}"
     expected_external_files: dict[str, bytes] = {}
@@ -4939,6 +5047,9 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
         expected_external_files["prometheus.yml"] = (
             external_referent / "prometheus.yml"
         ).read_bytes()
+        expected_external_files["alias-alerts.yml"] = (
+            external_referent / "alias-alerts.yml"
+        ).read_bytes()
         expected_external_files["image-manifest.json"] = (
             external_referent / "image-manifest.json"
         ).read_bytes()
@@ -4949,6 +5060,11 @@ def test_production_contract_publication_rejects_destination_symlinks_before_doc
         expected_external_files[external_referent.name] = external_referent.read_bytes()
         config_path.symlink_to(external_referent)
         symlink_path = config_path
+    elif destination_variant == "rules-leaf-symlink":
+        rules_path.rename(external_referent)
+        expected_external_files[external_referent.name] = external_referent.read_bytes()
+        rules_path.symlink_to(external_referent)
+        symlink_path = rules_path
     else:
         manifest_path.rename(external_referent)
         expected_external_files[external_referent.name] = external_referent.read_bytes()
@@ -5747,11 +5863,15 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
     published_config = project_dir / "deploy" / "prometheus" / "prometheus.yml"
+    published_rules = project_dir / "deploy" / "prometheus" / "alias-alerts.yml"
     published_manifest = project_dir / "deploy" / "prometheus" / "image-manifest.json"
     published_postgres_manifest = (
         project_dir / "deploy" / "postgres-pgvector" / "image-manifest.json"
     )
     assert published_config.read_text(encoding="utf-8") == PROMETHEUS_CONFIG_PATH.read_text(
+        encoding="utf-8"
+    )
+    assert published_rules.read_text(encoding="utf-8") == PROMETHEUS_RULES_PATH.read_text(
         encoding="utf-8"
     )
     assert published_manifest.read_text(encoding="utf-8") == PROMETHEUS_MANIFEST_PATH.read_text(
@@ -5763,6 +5883,7 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
     for published_path in (
         project_dir / "deploy" / "docker-compose.production.yaml",
         published_config,
+        published_rules,
         published_manifest,
         published_postgres_manifest,
         project_dir / "deploy" / "Caddyfile.production",
@@ -5864,9 +5985,11 @@ def test_production_full_sync_cannot_republish_contracts_changed_after_validatio
     )
     assert shell_bundle_dir is not None
     source_manifest = shell_bundle_dir / "deploy" / "prometheus" / "image-manifest.json"
+    source_rules = shell_bundle_dir / "deploy" / "prometheus" / "alias-alerts.yml"
     source_compose = shell_bundle_dir / "deploy" / "docker-compose.production.yaml"
     bin_dir = Path(env["DOCKER_BIN"]).parent
     tampered_manifest = '{"tampered":true}\n'
+    tampered_rules = "groups: []\n"
     tampered_compose = "services:\n  prometheus:\n    image: prom/prometheus:latest\n"
     docker_stub = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -5875,6 +5998,7 @@ case "$*" in
   *"config --services"*) printf 'app\\nworker\\ncaddy\\nprometheus\\n' ;;
   *"run --rm --no-deps app alembic upgrade head"*)
     printf '%s' '{tampered_manifest}' > "{source_manifest}"
+    printf '%s' '{tampered_rules}' > "{source_rules}"
     printf '%s' '{tampered_compose}' > "{source_compose}"
     ;;
   *"ps -q app"*) printf 'app-id\\n' ;;
@@ -5901,10 +6025,14 @@ esac
 
     assert completed.returncode == 0, completed.stderr
     assert source_manifest.read_text(encoding="utf-8") == tampered_manifest
+    assert source_rules.read_text(encoding="utf-8") == tampered_rules
     assert source_compose.read_text(encoding="utf-8") == tampered_compose
     assert (project_dir / "deploy" / "prometheus" / "image-manifest.json").read_text(
         encoding="utf-8"
     ) == PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8")
+    assert (project_dir / "deploy" / "prometheus" / "alias-alerts.yml").read_text(
+        encoding="utf-8"
+    ) == PROMETHEUS_RULES_PATH.read_text(encoding="utf-8")
     assert (project_dir / "deploy" / "docker-compose.production.yaml").read_text(
         encoding="utf-8"
     ) == PRODUCTION_COMPOSE_TEXT
@@ -7672,6 +7800,9 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
     (project_dir / "prometheus" / "prometheus.yml").write_text(
         PROMETHEUS_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
+    (project_dir / "prometheus" / "alias-alerts.yml").write_text(
+        PROMETHEUS_RULES_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (project_dir / "prometheus" / "image-manifest.json").write_text(
         PROMETHEUS_MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8"
     )
@@ -8621,6 +8752,8 @@ def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
         "compose-symlink",
         "caddy-symlink",
         "prometheus-config-symlink",
+        "prometheus-rules-missing",
+        "prometheus-rules-symlink",
         "prometheus-manifest-symlink",
         "secret-dir-symlink",
         "secret-file-symlink",
@@ -8642,6 +8775,7 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
     compose_file = project_dir / "docker-compose.staging.yaml"
     caddyfile = project_dir / "Caddyfile"
     prometheus_config = project_dir / "prometheus" / "prometheus.yml"
+    prometheus_rules = project_dir / "prometheus" / "alias-alerts.yml"
     prometheus_manifest = project_dir / "prometheus" / "image-manifest.json"
     secret_dir = project_dir / "secrets"
     secret_file = secret_dir / "pulseplate_metrics_scrape_key"
@@ -8665,6 +8799,12 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
         real_config = prometheus_config.with_suffix(".real")
         prometheus_config.rename(real_config)
         prometheus_config.symlink_to(real_config)
+    elif invalid_boundary == "prometheus-rules-missing":
+        prometheus_rules.unlink()
+    elif invalid_boundary == "prometheus-rules-symlink":
+        real_rules = prometheus_rules.with_suffix(".real")
+        prometheus_rules.rename(real_rules)
+        prometheus_rules.symlink_to(real_rules)
     elif invalid_boundary == "prometheus-manifest-symlink":
         real_manifest = prometheus_manifest.with_suffix(".real")
         prometheus_manifest.rename(real_manifest)
@@ -9391,25 +9531,30 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_pa
         '"$DOCKER_BIN" run', script.index('echo "Validating the exact Prometheus configuration')
     )
     end = script.index('\necho "Invoking the canonical application', start)
-    argv_file = tmp_path / "argv.json"
+    argv_file = tmp_path / "argv.jsonl"
     docker = tmp_path / "docker-argv-capture"
     _write_executable(
         docker,
-        f"#!{sys.executable}\nimport json, sys\nfrom pathlib import Path\nPath({str(argv_file)!r}).write_text(json.dumps(sys.argv[1:]))\n",
+        f"#!{sys.executable}\nimport json, sys\nfrom pathlib import Path\n"
+        f"with Path({str(argv_file)!r}).open('a') as log: "
+        "log.write(json.dumps(sys.argv[1:]) + '\\n')\n",
     )
     env = {
         **os.environ,
         "DOCKER_BIN": str(docker),
         "PROMETHEUS_RUNTIME_REF": PROMETHEUS_RUNTIME_REF,
         "PROMETHEUS_CONFIG": str(tmp_path / "config.yml"),
+        "PROMETHEUS_RULES": str(tmp_path / "alias-alerts.yml"),
         "METRICS_SECRET_FILE": str(tmp_path / "key"),
     }
     completed = subprocess.run(
         [bash, "-euc", script[start:end]], env=env, capture_output=True, text=True, check=False
     )
     assert completed.returncode == 0, completed.stderr
-    argv = json.loads(argv_file.read_text())
-    assert argv[:10] == [
+    commands = [json.loads(line) for line in argv_file.read_text().splitlines()]
+    assert len(commands) == 2
+    config_argv, rules_argv = commands
+    assert config_argv[:10] == [
         "run",
         "--rm",
         "--pull",
@@ -9421,20 +9566,29 @@ def test_staging_promtool_preflight_does_not_create_a_service_data_volume(tmp_pa
         "--read-only",
         "--user",
     ]
-    assert "compose" not in argv and "--volume" not in argv and "-v" not in argv
-    mounts = [argv[index + 1] for index, arg in enumerate(argv) if arg == "--mount"]
+    for argv in commands:
+        assert "compose" not in argv and "--volume" not in argv and "-v" not in argv
+    mounts = [config_argv[index + 1] for index, arg in enumerate(config_argv) if arg == "--mount"]
     assert mounts == [
         f"type=bind,source={tmp_path}/config.yml,target=/etc/prometheus/prometheus.yml,readonly",
+        f"type=bind,source={tmp_path}/alias-alerts.yml,target=/etc/prometheus/alias-alerts.yml,readonly",
         f"type=bind,source={tmp_path}/key,target=/run/secrets/pulseplate_metrics_scrape_key,readonly",
     ]
-    assert argv[-7:] == [
+    assert config_argv[-6:] == [
         "--entrypoint",
         "/bin/promtool",
         PROMETHEUS_RUNTIME_REF,
         "check",
         "config",
-        "--syntax-only",
         "/etc/prometheus/prometheus.yml",
+    ]
+    assert rules_argv[-6:] == [
+        "--entrypoint",
+        "/bin/promtool",
+        PROMETHEUS_RUNTIME_REF,
+        "check",
+        "rules",
+        "/etc/prometheus/alias-alerts.yml",
     ]
 
 

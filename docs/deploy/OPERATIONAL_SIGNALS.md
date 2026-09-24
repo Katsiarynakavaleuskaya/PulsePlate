@@ -53,6 +53,37 @@ The three repository contours must keep the same Prometheus projection:
 - `deploy/docker-compose.production.yaml`
 - `deploy/docker-compose.production.selfhosted.yaml`
 
+### Alias and target rule activation (OBS2A PR1)
+
+`deploy/prometheus/alias-alerts.yml` is the exact rule source. The three Compose
+contours mount it read-only beside `prometheus.yml`; staging and production
+deployment admit the file before product mutation. The pinned Prometheus image
+must pass full `promtool check config` and `promtool check rules`, and CI runs
+`promtool test rules` on `alias-alerts.test.yml`. The staging CD fingerprint
+checks the rule hash in both remote passes, while the production shell archive
+has an explicit file allowlist and a symlink-safe publication transaction.
+
+Rules distinguish the exact `pulseplate-api` / `app:8000` target being absent
+for 2 minutes, down for 2 minutes, or healthy while any specific seeded
+`status="200"` POST series for `bmr`, `targets`, `plate`, or `gaps` is missing
+for 5 minutes. A separate diagnostic alert reports a sampled any-status POST
+counter increase in the last 15 minutes or a newly observed positive series;
+an old steady positive cumulative value expires and does not keep it firing.
+Temporary disappearance and reappearance of a positive series can also be
+diagnostic, so this alert alone does not prove a request happened in-window.
+Missing series is not zero. These rules do not determine baseline eligibility,
+start `T₀`, authorize alias removal, or send email until the separately reviewed
+Alertmanager lane is activated and actual delivery is verified.
+
+For a monitoring-only host change, take a fresh Compose/secret/TSDB census,
+verify the admitted file hashes and native rules, then recreate only the
+Prometheus service while preserving `prometheus_data`. The general staging
+`deploy.sh` path includes application and database operations and is not the
+monitoring-only activation command. Preserve the previous baseline evidence
+and create a new epoch after the config change; leave eligibility `HOLD` when
+any exact series is absent or positive. No rule-file merge alone proves that
+the host loaded the new rules.
+
 Managed versus colocated PostgreSQL remains product-topology truth. Runner
 transport such as `PROD_DEPLOY_MODE=self-hosted` does not select a database
 contour. Only an exact canonical `COMPOSE_FILE` does so.

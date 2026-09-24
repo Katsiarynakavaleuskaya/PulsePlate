@@ -83,6 +83,7 @@ services:
       - --storage.tsdb.retention.time=45d
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alias-alerts.yml:/etc/prometheus/alias-alerts.yml:ro
       - prometheus_data:/prometheus
     secrets:
       - pulseplate_metrics_scrape_key
