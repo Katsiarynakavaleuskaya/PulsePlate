@@ -158,6 +158,33 @@ tests:
   - interval: 30s
     input_series:
       - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x50'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/targets",status="429"}'
+        values: '5 0+0x49'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/targets
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 14m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/targets
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 20m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
         values: '1+0x40'
       - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/plate",status="500"}'
         values: '5+0x37 0 1+0x1'

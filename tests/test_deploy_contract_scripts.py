@@ -3431,7 +3431,9 @@ def test_alias_alert_rules_bind_the_exact_target_and_closed_routes() -> None:
     recent = rules[6]["expr"]
     assert 'route=~"/api/v1/premium/(bmr|targets|plate|gaps)"' in recent
     assert "increase(" in recent and "offset 15m" in recent
-    assert "max_over_time(" not in recent
+    assert recent.count("max_over_time(") == 1
+    assert "max_over_time(http_requests_total{" in recent
+    assert "}[15m]) > 0)\n  unless" in recent
 
 
 def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> None:
