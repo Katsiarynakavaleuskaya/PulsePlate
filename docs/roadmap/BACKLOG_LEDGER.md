@@ -930,11 +930,11 @@ If it is not recorded here — it does not exist.
   - DoD: Record existing Work Review evidence for the first three eligible product-priority PRs, preserve missing values as unknown, and report observations without a causal or universal-effectiveness claim. No new telemetry system or runtime authority.
 
 <a id="ledger-p1-telo-ops-3-user-impact-handoff"></a>
-- [ ] P1: TELO-OPS-3 user-impact handoff in the existing PR process
+- [x] P1: TELO-OPS-3 user-impact handoff in the existing PR process
   - Owner: agent-coordinator / security-auditor
   - Priority: P1 (user-outcome clarity and reliable human acceptance)
   - Target PR: [PR #2409](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2409) (`codex/teleology-user-impact-handoff`)
-  - Status: Open non-draft; current-head checks and review pending. No merge, outcome or effectiveness claim.
+  - Status: CLOSED by merged [PR #2409](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2409) on 2026-09-24 at `a17a473ef496ebb3a1fcf223a3f0c366d6a3fba7`. This status correction is a Carryover in the explicit Euler L1-to-L2 handoff implementation PR; merge establishes delivery, not measured effectiveness.
   - Area: orchestration workflow, static prompt guidance and ordinary QA records
   - Reason (EN): The merged goal-to-outcome rail needs a concrete user-path rubric and stage-by-stage recheck so accepted goals, actual behavior and human decisions remain connected without operator reminders.
   - Links: `docs/orchestration/workflow.md#goal-to-outcome-review`, `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383).
@@ -946,8 +946,20 @@ If it is not recorded here — it does not exist.
     - current-lane Euler preflight and conditional explicit-L1 repeated-family review, declared pre/post-open roles, actual-diff premortem and oracle-only Experiment Runner are performed without granting new authority or taking over the separate Euler fix
     - focused regression, six synthetic QA cases, required narrow local gates, current-head CI/security and exact-material review/closeout pass before a readiness claim; merge requires separate owner approval
     - after approved merge, verify synchronized clean main and focused sanity, update the existing Teleology Doc and Execution Tracker in place, read back and hash the owned archive, and clean only proven owned resources
-  - Deferred / follow-up (EN): The separate Euler handoff fix recorded in [PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405), N1/N2 research and `#ledger-p1-teleology-three-pr-observation` remain distinct; no semantic classifier or background GitHub service is added here.
+  - Deferred / follow-up (EN): The [explicit Euler L1-to-L2 handoff](#ledger-p1-euler-explicit-l1-l2-handoff), separate [PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405), N1/N2 research and `#ledger-p1-teleology-three-pr-observation` remain distinct; no semantic classifier or background GitHub service is added here.
   - Rollback (EN): Revert the instruction, procedure and matching tests together while retaining historical evidence.
+
+<a id="ledger-p1-euler-explicit-l1-l2-handoff"></a>
+- [ ] P1: Explicit Euler L1 artifact handoff to post-open L2 bootstrap
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1 (reliable explicit review input across the local startup recipe)
+  - Target PR: `codex/euler-explicit-l1-post-open-handoff` (PR number pending)
+  - Status: Implementation in progress; no current-head CI, merge, role-execution or effectiveness claim.
+  - Reason (EN): The canonical L2 consumer accepts an explicit L1 artifact, but the local-session helper and recipe renderer do not carry that approved path into the printed bootstrap command.
+  - Links: [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md), [merged TELO-OPS-3](#ledger-p1-telo-ops-3-user-impact-handoff), [Euler umbrella](#ledger-p1-invariant-family-relations-shadow).
+  - DoD: An optional single L1 path is forwarded as an opaque shell-safe argument only for `post_open_review` with concrete goal and task class; absent input retains v1 behavior. Duplicate, missing, option-like, control-character, wrong-phase and incompatible invariant-class inputs fail closed. The canonical `task_bootstrap.py` reader alone validates L1 path/content and owns packet identity; printed commands execute in a disposable test repo and match direct canonical packet/manifest output for repeated and singleton families. Helper and renderer create no role pass or L2-EVAL enrollment. Complete narrow local gates, actual-diff premortem, Runner oracle-only, required role passes, current-head CI, mapping/seal and strict merge readiness before merge.
+  - Out of scope: L1/L2 semantics, canonical L1 parser/reader changes, automatic role dispatch or Euler episode enrollment, prospective three-PR observation, N1/N2 and measured effectiveness.
+  - Rollback (EN): Revert the transport, focused tests and procedure while preserving historical L1 artifacts and PR evidence.
 
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
