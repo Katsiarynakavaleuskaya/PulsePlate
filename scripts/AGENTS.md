@@ -580,6 +580,7 @@ First-class repo wrappers:
 - `make validate-changed` is the supported repo-root command for this diff-based path and runs the script with the repo `.venv` on `PATH`.
 - `scripts/quick_check.sh` is a separate convenience helper: it runs `make validate-min` first, then staged-file format/import/syntax checks.
 - `scripts/orchestration/local_session_bootstrap.sh` is an **opt-in** raw-session helper: runs `check_preflight.py --mode analyze` from repo root and prints how to invoke `task_bootstrap.py`. It does not replace a machine-local launcher and does not auto-start Codex/Cursor sessions.
+- For an explicitly approved Euler L1 artifact, pass the single `--review-invariant-family-relations-input <repo-relative-json-path>` separately from `--path`, only with `--pr-phase post_open_review`, concrete `--goal`/`--task-class`, and no `--invariant-change-class`. The helper and standalone recipe renderer preserve the argument in shell-safe printed commands; only `task_bootstrap.py` reads and validates it. Follow the [L2 handoff contract](../docs/orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md#input-boundary) before any explicit role dispatch; rendering creates no packet, role execution or episode enrollment.
 
 **Coordinator cold-start precedence (host):**
 
