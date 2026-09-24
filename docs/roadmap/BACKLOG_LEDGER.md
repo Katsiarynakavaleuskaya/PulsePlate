@@ -895,11 +895,11 @@ If it is not recorded here — it does not exist.
       and no-mutation tests plus rollback to recommendation-only treatment
 
 <a id="ledger-p1-teleology-goal-outcome-workflow"></a>
-- [ ] P1: TELO-OPS-2 goal-to-outcome review in the existing coordinator and QA workflow
+- [x] P1: TELO-OPS-2 goal-to-outcome review in the existing coordinator and QA workflow
   - Owner: agent-coordinator / security-auditor
   - Priority: P1 (observable task completion and reduced manual follow-up)
   - Target PR: [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383) (`codex/teleology-goal-outcome-workflow`)
-  - Status: Open non-draft; synchronized with main after PR #2378 merged; post-open findings are being closed before material freeze. Not merged.
+  - Status: Merged on 2026-09-06 as `f91ccf171fde43faadfcec19851f0caefd2ee00d`; this status correction is carried by TELO-OPS-3. The prospective three-PR observation is tracked separately below.
   - Area: orchestration / startup instructions / existing review templates
   - Reason (EN): The existing rail selector names Teleology full/compact but does not carry the accepted goal criteria into ordinary QA and criterion-to-evidence closeout.
   - Links:
@@ -916,8 +916,38 @@ If it is not recorded here — it does not exist.
     - existing packet, role, N1 and sidecar interfaces remain unchanged; no new parser, schema, store, provider, scheduler or CI blocker
     - focused regressions, narrow local gates and applicable current-head PR checks are reported distinctly
   - Dependency / operator decision (EN): The operator explicitly authorized starting from #2378 before its merge and shared-main stabilization. After #2378 merged, the same branch synchronized main without rewriting history; the follow-up PR targets main. A later explicit operator instruction authorizes merging this owned PR only after all required checks and review gates pass, followed by main synchronization, sanity, gitignored evidence retention and a Google Drive documentation update. No authority over #2378 is granted.
-  - Deferred / follow-up (EN): After merge, coordinator/QA observe the first three newly eligible product-priority PRs through existing Work Reviews: criterion/evidence completeness, corrections attributable to the reminder as reviewer observations, and known operator minutes (missing values stay unknown). Target: first three post-merge eligible PRs; no new telemetry tool or causal claim. N1 p1-05 and its GO/DEFER/STOP decision remain separate.
+  - Deferred / follow-up (EN): The prospective observation now has its own item at `#ledger-p1-teleology-three-pr-observation`. N1 p1-05 and its GO/DEFER/STOP decision remain separate.
   - Rollback (EN): Revert the instruction, procedure and template change together; preserve the parent selector and existing receipts/artifacts.
+
+<a id="ledger-p1-teleology-three-pr-observation"></a>
+- [ ] P1: TELO-OPS-2 prospective observation across three eligible product PRs
+  - Owner: agent-coordinator / qa-engineer-agent
+  - Priority: P1 (verify operational usefulness without claiming causality)
+  - Target PR: TBD (observation follow-up after three eligible product-priority PRs)
+  - Status: Prospective; the TELO-OPS-2 merge is complete, but observation is not evidence of effectiveness yet.
+  - Reason (EN): Criterion/evidence completeness, reviewer-observed corrections and known operator minutes need actual post-merge PR observations; missing values stay unknown.
+  - Links: [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383), `docs/orchestration/workflow.md#goal-to-outcome-review`.
+  - DoD: Record existing Work Review evidence for the first three eligible product-priority PRs, preserve missing values as unknown, and report observations without a causal or universal-effectiveness claim. No new telemetry system or runtime authority.
+
+<a id="ledger-p1-telo-ops-3-user-impact-handoff"></a>
+- [ ] P1: TELO-OPS-3 user-impact handoff in the existing PR process
+  - Owner: agent-coordinator / security-auditor
+  - Priority: P1 (user-outcome clarity and reliable human acceptance)
+  - Target PR: [PR #2409](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2409) (`codex/teleology-user-impact-handoff`)
+  - Status: Open non-draft; current-head checks and review pending. No merge, outcome or effectiveness claim.
+  - Area: orchestration workflow, static prompt guidance and ordinary QA records
+  - Reason (EN): The merged goal-to-outcome rail needs a concrete user-path rubric and stage-by-stage recheck so accepted goals, actual behavior and human decisions remain connected without operator reminders.
+  - Links: `docs/orchestration/workflow.md#goal-to-outcome-review`, `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`, [PR #2383](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2383).
+  - DoD:
+    - the one workflow rubric covers person/scenario, expectation/action, source of truth, user control, observed evidence and required human acceptance; backend consent/access/storage/deletion changes are included, while mechanical changes explain preserved semantics
+    - validated `full`/`compact` startup and phase prompts deliver static stage instructions without changing packet, selector, role, sidecar, N1 or Euler interfaces; legacy/pending/stale projections cannot infer treatment, outcome or approval
+    - coordinator records accepted criteria before implementation; ordinary QA reviews the same version and exact material; material changes or counterexamples invalidate affected evidence and trigger a targeted recheck; complete original requirements and DoD remain covered
+    - substantial visual decisions receive explicit owner acceptance of openable proposed and actual material, renewed after affected changes; legally significant decisions retain human and needed professional review
+    - current-lane Euler preflight and conditional explicit-L1 repeated-family review, declared pre/post-open roles, actual-diff premortem and oracle-only Experiment Runner are performed without granting new authority or taking over the separate Euler fix
+    - focused regression, six synthetic QA cases, required narrow local gates, current-head CI/security and exact-material review/closeout pass before a readiness claim; merge requires separate owner approval
+    - after approved merge, verify synchronized clean main and focused sanity, update the existing Teleology Doc and Execution Tracker in place, read back and hash the owned archive, and clean only proven owned resources
+  - Deferred / follow-up (EN): The separate Euler handoff fix recorded in [PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405), N1/N2 research and `#ledger-p1-teleology-three-pr-observation` remain distinct; no semantic classifier or background GitHub service is added here.
+  - Rollback (EN): Revert the instruction, procedure and matching tests together while retaining historical evidence.
 
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
