@@ -2597,7 +2597,17 @@ class TestDbGuardAndFallbackSmokeCoverage:
             is_production: bool,
             fallback_url: str,
             env_name: str | None,
+            **generation_guards: object,
         ) -> None:
+            import core.db as core_db
+
+            assert set(generation_guards) == {
+                "expected_engine",
+                "expected_selector",
+                "expected_fallback_selector",
+            }
+            assert generation_guards["expected_engine"] is core_db._RAW_ENGINE
+            assert generation_guards["expected_fallback_selector"] == ""
             nonproduction_calls.append(
                 ("configure", (engine, is_production, fallback_url, env_name))
             )

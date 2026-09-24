@@ -29,12 +29,23 @@ If it is not recorded here — it does not exist.
   - Owner: dev-operator / agent-coordinator
   - Priority: P1
   - Target PR: [#2397](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2397)
-  - Status: PR #2397 open; review remediation in progress; no merge, main verification, host activation or alert-delivery claim.
+  - Status: PR #2397 merged as `c2a229de2a0ebad9d99fa05dfe7b35475b10cd3b`; focused local post-merge sanity was recorded separately. Canonical current-main CI remains monitored by another owner and is not claimed green here; host activation and alert-delivery testing require their own observed evidence.
   - Subprocess reassessment: Owner dev-operator / security-auditor; Priority P1; Target PR dedicated reassessment before 2026-10-14. PR-2397 tracks these two bounded dispositions. Exactly two inline sites in `scripts/ops/ops_context_report.py` are covered: B404 import of subprocess and B603 fixed Git HEAD call. The admitted stdlib-only CLI needs native Git identity; the safe context reader has no Git helper, and importing a broader orchestration process framework would expand this tool's dependencies and trust boundary. The call resolves absolute Git only within the OS-managed /usr/bin:/bin search path, uses fixed read-only HEAD^{commit} argv, explicit owning cwd/minimal environment, no shell, a five-second timeout and exact SHA validation. OS-managed paths and platform-managed symlink targets are trust assumptions, not executable-authenticity proof; absent system Git fails without a user-path fallback. DoD: re-evaluate a smaller safe replacement or the same two bounded sites, retain deterministic process/env/error tests, and remove the dispositions when no longer needed; do not silently extend expiry. No B101 exception, file/rule allowlist or global security-setting change is authorized.
   - Scope: One finite source-reference index, offline environment/service report, supplied local observations and exact static operator context delivery. Production managed default and self-hosted alternative remain distinct; conflicts and live unknowns never select resources.
   - Reason for deferral: OPS-02 DB lifecycle regression repair with a real-function reproducer and caller coverage, OPS-03 minimal host/DB/service observability with tested human alert delivery, and OPS-04 measured storage/FinOps preserving recovery requirements require their own admitted scope and any applicable host approval; offline repository evidence cannot authorize them.
   - Links: `docs/deploy/OPS_CONTEXT_SOURCES.json`, `docs/deploy/OPERATIONAL_SIGNALS.md`, `scripts/ops/ops_context_report.py`.
   - DoD: Prove both environments/all four services, safe bounded readers, closed observation validation, exact freshness boundaries, cross-alternative conflicts, sanitized errors, no external operational calls and actual role-pack source bytes. Complete current-head repository/PR gates and retain separate MERGED_REPO, MAIN_VERIFIED, HOST_ACTIVATED and ALERT_DELIVERY_TESTED receipts only when observed. Follow-up lanes remain open until their own approved acceptance evidence exists.
+
+<a id="ledger-p1-ops02-db-lifecycle"></a>
+- [ ] P1: OPS-02 DB engine identity and session lifecycle
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405) (`codex/ops02-db-engine-lifecycle`)
+  - Status: PR #2405 open; post-open lifecycle remediation in progress. Current-head CI, review closeout, merge and post-merge verification are pending.
+  - Carryover (EN): PR #2397 delivered the OPS-01 offline inventory. OPS-02 repairs only repository DB engine identity and session lifecycle; OPS-03 observability, OPS-04 storage/FinOps, host activation and alert delivery remain separate.
+  - Reason (EN): The current getter compares a password-masked engine URL with an unmasked configuration and lifecycle paths can expose an engine/factory mismatch or retire an async engine synchronously.
+  - Links: `core/db.py`, `core/db_fallback.py`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
+  - DoD: Same fully parsed URL reuses an engine; candidate failure preserves the prior pair; supported new session acquisitions bind to the selected engine; replacement disposes owned sync or awaited async resources. Prove focused SQLite, native PostgreSQL and current-head PR gates without asserting closure of previously issued sessions.
 
 <a id="ledger-p1-main-idna-installer-regression"></a>
 - [ ] P1: Retire the installer test's historical idna pin assertion
@@ -13404,6 +13415,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
     - Synthetic fixtures are test evidence only; real prospective counts require validated local current-store reports, and interim/target-count labels are not effectiveness or L3 decisions
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
+
+<a id="ledger-p1-euler-l1-l2-explicit-handoff"></a>
+- [ ] P1: Forward an explicitly supplied L1 invariant-family artifact into post-open L2 routing
+  - Owner: agent-coordinator / cursor-specialist-agent
+  - Priority: P1
+  - Target PR: TBD dedicated orchestration PR after OPS-02
+  - Status: Open. PR #2405 used one manual explicit L1 handoff; this item does not change the OPS-02 DB runtime outcome.
+  - Reason (EN): The ordinary post-open packet does not carry an existing L1 artifact unless the caller supplies `--review-invariant-family-relations-input`, so the OPS-02 thematic pass required a manual packet handoff.
+  - Links: [PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405); [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md).
+  - DoD:
+    - Carry one coordinator-approved exact L1 artifact path to the existing `post_open_review` bootstrap; validate it through the canonical L1 reader while preserving explicit-only membership/cardinality, packet identity and six-role order.
+    - With no supplied path, preserve ordinary v1 post-open behavior with no L2 claim. A supplied missing, ambiguous, unsafe, changed or invalid artifact fails closed.
+    - Cover present, absent, invalid, replay and one-pass behavior with deterministic tests. Do not infer families, create L1 automatically or enroll an episode.
+    - Grant no L3, review, implementation or merge authority.
 
 <a id="ledger-p1-euler-ops-1-lifecycle-supervision"></a>
 - [x] P1: EULER-OPS-1 explicit local episode lifecycle supervision
