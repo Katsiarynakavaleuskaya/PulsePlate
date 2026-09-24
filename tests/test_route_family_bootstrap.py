@@ -665,6 +665,7 @@ def test_business_status_route_reports_request_time_flag(
         monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
         enabled_response = client.get("/api/v1/business/status")
         assert enabled_response.status_code == 200
+        assert enabled_response.headers.get("content-type", "").startswith("application/json")
         assert enabled_response.json() == {
             "enabled": True,
             "module": "business_analysis",
@@ -673,6 +674,7 @@ def test_business_status_route_reports_request_time_flag(
         monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
         disabled_response = client.get("/api/v1/business/status")
         assert disabled_response.status_code == 200
+        assert disabled_response.headers.get("content-type", "").startswith("application/json")
         assert disabled_response.json() == {
             "enabled": False,
             "module": "business_analysis",

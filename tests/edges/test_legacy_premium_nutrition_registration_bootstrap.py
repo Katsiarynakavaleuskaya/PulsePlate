@@ -278,6 +278,7 @@ def test_retained_plate_rejects_raw_non_finite_measurement_with_exact_422(
     )
 
     assert response.status_code == 422
+    assert response.headers.get("content-type", "").startswith("application/json")
     detail = response.json()["detail"]
     assert len(detail) == 1
     assert detail[0]["loc"] == ["body", field_name]
