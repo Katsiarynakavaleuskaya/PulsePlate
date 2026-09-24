@@ -11,16 +11,6 @@ from typing import (
 
 from app.application_metadata import build_application_metadata
 from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
-from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
-    _OPENAPI_ALLOWED_EXACT,
-    _OPENAPI_ALLOWED_PREFIXES,
-    _build_canonical_openapi,
-    _collect_schema_refs,
-    _install_openapi_builder,
-    _is_openapi_public_path,
-    _prune_unreferenced_schema_components,
-)
-
 from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
