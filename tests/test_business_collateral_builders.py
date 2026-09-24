@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import posixpath
+import re
 import shutil
 import subprocess
 import zipfile
@@ -10,7 +12,9 @@ from xml.etree import ElementTree
 import pytest
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
-WORDPROCESSING_ML_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
+WORDPROCESSING_ML_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+PACKAGE_REL_NAMESPACE = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+CONTENT_TYPE_NAMESPACE = "{http://schemas.openxmlformats.org/package/2006/content-types}"
 SUBPROCESS_TIMEOUT_SECONDS = 120
 
 
@@ -80,15 +84,74 @@ def _read_office_document_xml(output_path: Path, member_name: str) -> str:
         return archive.read(member_name).decode("utf-8")
 
 
-def _extract_docx_text(document_xml: str) -> str:
-    # RU: Собираем текст из всех text-run, чтобы тест не зависел от внутреннего XML-разбиения DOCX.
-    # EN: Join all DOCX text runs so assertions do not depend on internal XML run splitting.
+def _extract_docx_blocks(document_xml: str, numbering_xml: str) -> list[tuple[str, str]]:
+    # Compare source blocks, not incidental XML run boundaries or DOCX bytes.
     root = ElementTree.fromstring(document_xml)
-    return "".join(node.text or "" for node in root.iter(WORDPROCESSING_ML_NAMESPACE))
+    numbering_root = ElementTree.fromstring(numbering_xml)
+    bullet_abstract_ids = {
+        abstract.get(f"{WORDPROCESSING_ML_NAMESPACE}abstractNumId")
+        for abstract in numbering_root.findall(f"{WORDPROCESSING_ML_NAMESPACE}abstractNum")
+        for level in abstract.findall(f"{WORDPROCESSING_ML_NAMESPACE}lvl")
+        if level.get(f"{WORDPROCESSING_ML_NAMESPACE}ilvl") == "0"
+        and (number_format := level.find(f"{WORDPROCESSING_ML_NAMESPACE}numFmt")) is not None
+        and number_format.get(f"{WORDPROCESSING_ML_NAMESPACE}val") == "bullet"
+    }
+    bullet_number_ids = {
+        number.get(f"{WORDPROCESSING_ML_NAMESPACE}numId")
+        for number in numbering_root.findall(f"{WORDPROCESSING_ML_NAMESPACE}num")
+        if (abstract_id := number.find(f"{WORDPROCESSING_ML_NAMESPACE}abstractNumId")) is not None
+        and abstract_id.get(f"{WORDPROCESSING_ML_NAMESPACE}val") in bullet_abstract_ids
+    }
+    blocks: list[tuple[str, str]] = []
+    for paragraph in root.iter(f"{WORDPROCESSING_ML_NAMESPACE}p"):
+        text = "".join(
+            node.text or "" for node in paragraph.iter(f"{WORDPROCESSING_ML_NAMESPACE}t")
+        )
+        properties = paragraph.find(f"{WORDPROCESSING_ML_NAMESPACE}pPr")
+        style = (
+            properties.find(f"{WORDPROCESSING_ML_NAMESPACE}pStyle")
+            if properties is not None
+            else None
+        )
+        numbering = (
+            properties.find(f"{WORDPROCESSING_ML_NAMESPACE}numPr")
+            if properties is not None
+            else None
+        )
+        style_name = style.get(f"{WORDPROCESSING_ML_NAMESPACE}val") if style is not None else None
+        if numbering is not None:
+            level = numbering.find(f"{WORDPROCESSING_ML_NAMESPACE}ilvl")
+            number_id = numbering.find(f"{WORDPROCESSING_ML_NAMESPACE}numId")
+            assert level is not None and level.get(f"{WORDPROCESSING_ML_NAMESPACE}val") == "0"
+            assert number_id is not None
+            assert number_id.get(f"{WORDPROCESSING_ML_NAMESPACE}val") in bullet_number_ids
+            block_type = "bullet"
+        else:
+            block_type = {
+                "Title": "title",
+                "Heading1": "heading1",
+                "Heading2": "heading2",
+                None: "paragraph",
+            }[style_name]
+        blocks.append((block_type, text))
+    return blocks
 
 
 def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     _node_package_or_skip("docx")
+    source_result = _run_node_eval(
+        'process.stdout.write(JSON.stringify(require("./scripts/business_collateral/content_loader").parseProposalSpec()));'
+    )
+    assert source_result.returncode == 0, source_result.stderr
+    source = json.loads(source_result.stdout)
+    source_path = REPO_ROOT / "docs/audience_pack/B2B_PARTNERSHIP_PROPOSAL_SPEC.md"
+    assert source["sourcePath"] == str(source_path)
+    expected_blocks = [("title", source["title"])] + [
+        (block["type"], block["text"]) for block in source["blocks"]
+    ]
+    placeholders = set(re.findall(r"\[VERIFY_[^\]]+\]", source_path.read_text(encoding="utf-8")))
+    assert placeholders
+
     output_path = tmp_path / "proposal.docx"
     result = _run_builder("scripts/business_collateral/build_b2b_proposal.js", output_path)
 
@@ -97,10 +160,56 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     assert output_path.stat().st_size > 0
     assert str(output_path) in result.stdout
 
-    document_xml = _read_office_document_xml(output_path, "word/document.xml")
-    document_text = _extract_docx_text(document_xml)
+    assert zipfile.is_zipfile(output_path)
+    required_parts = {
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "word/document.xml",
+        "word/_rels/document.xml.rels",
+        "word/styles.xml",
+        "word/numbering.xml",
+    }
+    with zipfile.ZipFile(output_path) as archive:
+        assert archive.testzip() is None
+        assert required_parts <= set(archive.namelist())
 
-    assert "PulsePlate partnership proposal for wellness and nutrition workflows" in document_text
+        content_types = ElementTree.fromstring(archive.read("[Content_Types].xml"))
+        overrides = {
+            item.get("PartName"): item.get("ContentType")
+            for item in content_types.findall(f"{CONTENT_TYPE_NAMESPACE}Override")
+        }
+        assert overrides["/word/document.xml"] == (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+        )
+        assert "/word/numbering.xml" in overrides
+
+        for relationships_path, base_path, required_types in (
+            ("_rels/.rels", "", {"officeDocument": "word/document.xml"}),
+            (
+                "word/_rels/document.xml.rels",
+                "word",
+                {"styles": "word/styles.xml", "numbering": "word/numbering.xml"},
+            ),
+        ):
+            relationships = ElementTree.fromstring(archive.read(relationships_path))
+            targets = {
+                item.get("Type", "").rsplit("/", 1)[-1]: posixpath.normpath(
+                    posixpath.join(base_path, item.get("Target", "").lstrip("/"))
+                )
+                for item in relationships.findall(f"{PACKAGE_REL_NAMESPACE}Relationship")
+                if item.get("TargetMode") != "External"
+            }
+            for relationship_type, target in required_types.items():
+                assert targets[relationship_type] == target
+                assert target in archive.namelist()
+
+    actual_blocks = _extract_docx_blocks(
+        _read_office_document_xml(output_path, "word/document.xml"),
+        _read_office_document_xml(output_path, "word/numbering.xml"),
+    )
+    assert actual_blocks == expected_blocks
+    document_text = " ".join(text for _, text in actual_blocks)
+    assert placeholders <= set(re.findall(r"\[VERIFY_[^\]]+\]", document_text))
     assert "PulsePlate B2B Partnership Proposal Spec" not in document_text
     assert "markdownlint-disable" not in document_text
 
