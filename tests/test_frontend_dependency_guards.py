@@ -1651,6 +1651,35 @@ def _assert_transitive_npm_occurrence(
     _assert_sha512_integrity(value=package.get("integrity"), source=source)
 
 
+def _assert_no_published_opaque_inner_graph(*, surface: str, document: dict) -> None:
+    """Reject finite npm-v3 inner-graph carriers before target claims."""
+
+    packages = document.get("packages")
+    assert isinstance(packages, dict), f"{surface}: packages must be an object"
+    for package_path, package in packages.items():
+        assert isinstance(package_path, str), f"{surface}: package path must be text"
+        assert isinstance(package, dict), f"{surface}:{package_path}: package must be an object"
+        _assert_manifest_dependency_container_shapes(
+            document=package, surface=f"{surface}:{package_path}"
+        )
+        has_shrinkwrap = package.get("hasShrinkwrap", False)
+        assert (
+            type(has_shrinkwrap) is bool
+        ), f"{surface}:{package_path}: hasShrinkwrap must be an exact boolean"
+        assert (
+            not has_shrinkwrap
+        ), f"{surface}:{package_path}: published nested shrinkwrap blocks batch admission"
+        for field in ("bundleDependencies", "bundledDependencies"):
+            assert not package.get(
+                field, []
+            ), f"{surface}:{package_path}: published bundled dependencies block batch admission"
+        in_bundle = package.get("inBundle", False)
+        assert (
+            type(in_bundle) is bool
+        ), f"{surface}:{package_path}: inBundle must be boolean when present"
+        assert not in_bundle, f"{surface}:{package_path}: bundled lock occurrence is forbidden"
+
+
 def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str, frozenset[str]]:
     """Enforce the exact authorized target batch after shared npm admission."""
 
@@ -1685,33 +1714,7 @@ def _assert_transitive_npm_security_batch(*, root: Path = REPO_ROOT) -> dict[str
             document.get("lockfileVersion") == 3
         ), f"{relative}: transitive batch supports only npm lockfileVersion 3"
         _assert_lock_surface_canonical_provenance(surface=relative, document=document)
-        packages = document.get("packages")
-        assert isinstance(packages, dict), f"{relative}: packages must be an object"
-        for package_path, package in packages.items():
-            assert isinstance(package_path, str), f"{relative}: package path must be text"
-            assert isinstance(
-                package, dict
-            ), f"{relative}:{package_path}: package must be an object"
-            _assert_manifest_dependency_container_shapes(
-                document=package, surface=f"{relative}:{package_path}"
-            )
-            has_shrinkwrap = package.get("hasShrinkwrap", False)
-            assert (
-                type(has_shrinkwrap) is bool
-            ), f"{relative}:{package_path}: hasShrinkwrap must be an exact boolean"
-            assert (
-                not has_shrinkwrap
-            ), f"{relative}:{package_path}: published nested shrinkwrap blocks batch admission"
-            for field in ("bundleDependencies", "bundledDependencies"):
-                assert not package.get(field, []), (
-                    f"{relative}:{package_path}: published bundled dependencies "
-                    "block batch admission"
-                )
-            in_bundle = package.get("inBundle", False)
-            assert (
-                type(in_bundle) is bool
-            ), f"{relative}:{package_path}: inBundle must be boolean when present"
-            assert not in_bundle, f"{relative}:{package_path}: bundled lock occurrence is forbidden"
+        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
         for target in AUTHORIZED_TRANSITIVE_NPM_BATCH:
             for path, package in _find_lock_occurrences(
                 document,
@@ -1849,6 +1852,154 @@ def _assert_frontend_security_targets(*, root: Path = REPO_ROOT) -> None:
             _assert_sha512_integrity(value=package.get("integrity"), source=source)
             lock_versions.add(parsed_version)
         assert lock_versions == {Version(selected)}, f"{target}: manifest/lock target disagreement"
+
+
+VITEST_ADVISORY_RANGES: dict[str, dict[str, tuple[SpecifierSet, ...]]] = {
+    "vitest": {
+        "GHSA-82fw-gwwq-j7x9": (
+            SpecifierSet(">=2.1.0,<4.1.11"),
+            SpecifierSet(">=5.0.0b1,<5.0.0rc2"),
+        ),
+        "GHSA-5xrq-8626-4rwp": (SpecifierSet("<3.2.6"), SpecifierSet(">=4,<4.1.0")),
+        "GHSA-9crc-q9x8-hgqq": (
+            SpecifierSet("<=0.0.125"),
+            SpecifierSet(">=1,<1.6.1"),
+            SpecifierSet(">=2,<2.1.9"),
+            SpecifierSet(">=3,<3.0.5"),
+        ),
+    },
+    "@vitest/mocker": {
+        "GHSA-82fw-gwwq-j7x9": (
+            SpecifierSet(">=2.1.0,<4.1.11"),
+            SpecifierSet(">=5.0.0b1,<5.0.0rc2"),
+        ),
+    },
+}
+VITEST_DIRECT_COHORT = frozenset({"vitest", "@vitest/coverage-v8", "@vitest/expect"})
+
+
+def _assert_vitest_safe_version(*, target: str, value: object, source: str) -> Version:
+    """Apply every reconciled advisory after rejecting ambiguous npm versions."""
+
+    version = _parse_version(value=value, source=source)
+    for advisory, ranges in VITEST_ADVISORY_RANGES[target].items():
+        assert all(
+            version not in affected for affected in ranges
+        ), f"{source}: {target}/{advisory} affected version {version}"
+    return version
+
+
+def _assert_vitest_security_surfaces(surfaces: dict[str, dict]) -> None:
+    """Check the two advisory identities and required direct cohort in tracked npm JSON."""
+
+    frontend_manifest = surfaces.get("frontend/package.json")
+    frontend_lock = surfaces.get("frontend/package-lock.json")
+    assert isinstance(frontend_manifest, dict), "frontend Vitest manifest is missing"
+    assert isinstance(frontend_lock, dict), "frontend Vitest lock is missing"
+    declarations = frontend_manifest.get("devDependencies")
+    assert isinstance(declarations, dict), "frontend Vitest devDependencies must be an object"
+    direct_versions: dict[str, Version] = {}
+    for target in VITEST_DIRECT_COHORT:
+        assert target in declarations, f"frontend direct {target} manifest pin is missing"
+        direct_versions[target] = _parse_version(
+            value=declarations[target], source=f"frontend direct {target} manifest"
+        )
+    assert len(set(direct_versions.values())) == 1, "Vitest direct cohort versions differ"
+    _assert_vitest_safe_version(
+        target="vitest", value=declarations["vitest"], source="frontend direct vitest manifest"
+    )
+
+    lock_entries: dict[str, dict[str, dict]] = {target: {} for target in VITEST_ADVISORY_RANGES}
+    for relative, document in surfaces.items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            _assert_manifest_dependency_container_shapes(document=document, surface=relative)
+            for target in VITEST_ADVISORY_RANGES:
+                occurrences = _find_manifest_occurrences(document, target=target)
+                expected = (
+                    {("devDependencies", "vitest"): declarations["vitest"]}
+                    if relative == "frontend/package.json" and target == "vitest"
+                    else {}
+                )
+                assert (
+                    occurrences == expected
+                ), f"{relative}: unexpected {target} manifest carrier {occurrences!r}"
+            for target in VITEST_DIRECT_COHORT - {"vitest"}:
+                occurrences = _find_manifest_occurrences(document, target=target)
+                expected = (
+                    {("devDependencies", target): declarations[target]}
+                    if relative == "frontend/package.json"
+                    else {}
+                )
+                assert (
+                    occurrences == expected
+                ), f"{relative}: unexpected {target} cohort manifest carrier {occurrences!r}"
+            opaque = _find_opaque_npm_dependency_source_occurrences(document)
+            assert not opaque, f"{relative}: opaque npm dependency source {opaque!r}"
+            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES, f"{relative}: unexpected npm surface"
+        _assert_lock_surface_canonical_provenance(surface=relative, document=document)
+        _assert_no_published_opaque_inner_graph(surface=relative, document=document)
+        for target in VITEST_ADVISORY_RANGES:
+            for path, package in _find_lock_occurrences(document, target=target).items():
+                source = f"{relative}:{path}"
+                assert (
+                    _lock_path_package_identity(path) == target
+                ), f"{source}: {target} alias/noncanonical installed path"
+                assert "link" not in package, f"{source}: symbolic link is forbidden"
+                in_bundle = package.get("inBundle", False)
+                assert (
+                    type(in_bundle) is bool and not in_bundle
+                ), f"{source}: bundled or malformed inBundle occurrence is forbidden"
+                _assert_vitest_safe_version(
+                    target=target, value=package.get("version"), source=source
+                )
+                _assert_sha512_integrity(value=package.get("integrity"), source=source)
+                lock_entries[target][source] = package
+
+    packages = frontend_lock.get("packages")
+    assert isinstance(packages, dict), "frontend Vitest packages must be an object"
+    root_entry = packages.get("")
+    assert isinstance(root_entry, dict), "frontend Vitest root lock entry is missing"
+    assert (
+        root_entry.get("devDependencies") == declarations
+    ), "frontend Vitest root lock devDependencies disagree with manifest"
+    for target in VITEST_DIRECT_COHORT:
+        entry = packages.get(f"node_modules/{target}")
+        assert isinstance(entry, dict), f"frontend direct {target} lock entry is missing"
+        version = _parse_version(
+            value=entry.get("version"), source=f"frontend direct {target} lock"
+        )
+        assert version == direct_versions[target], f"frontend direct {target} cohort lock drift"
+    assert lock_entries["vitest"], "vitest lock occurrence is missing"
+    mocker_path = "node_modules/@vitest/mocker"
+    mocker = packages.get(mocker_path)
+    assert isinstance(mocker, dict), "frontend canonical mocker lock record is missing"
+    assert (
+        lock_entries["@vitest/mocker"].get(f"frontend/package-lock.json:{mocker_path}") is mocker
+    ), "frontend canonical mocker record was not enumerated"
+    mocker_version = _assert_vitest_safe_version(
+        target="@vitest/mocker", value=mocker.get("version"), source=mocker_path
+    )
+    assert mocker_version == direct_versions["vitest"], "frontend mocker cohort lock drift"
+    vitest = packages["node_modules/vitest"]
+    dependencies = vitest.get("dependencies")
+    assert isinstance(dependencies, dict), "frontend Vitest dependencies must be an object"
+    assert "@vitest/mocker" in dependencies, "frontend Vitest mocker dependency edge is missing"
+    assert (
+        dependencies["@vitest/mocker"] == mocker["version"]
+    ), "frontend Vitest mocker dependency selector disagrees with canonical lock version"
+
+
+def test_vitest_current_tracked_npm_surfaces_are_safe() -> None:
+    """Current-head safety uses the complete tracked npm inventory and native graph."""
+
+    surfaces = {
+        relative: _load_transitive_npm_surface(REPO_ROOT / relative)
+        for relative in _enumerate_repo_npm_surfaces()
+    }
+    _assert_vitest_security_surfaces(surfaces)
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
 
 
 def test_parse_version_accepts_exact_npm_semver() -> None:
@@ -4466,3 +4617,230 @@ def test_frontend_lock_resolves_ws_to_safe_npm_release() -> None:
     assert isinstance(lock_version, str), "frontend/package-lock.json: ws version missing"
     assert Version(lock_version) >= MIN_WS_VERSION
     _assert_npm_registry_resolution(package_name="ws", resolved=resolved)
+
+
+def _vitest_guard_fixture() -> dict[str, dict]:
+    """A small npm-v3 snapshot for falsifying the admitted Vitest pair."""
+
+    pins = {
+        "@vitest/coverage-v8": "4.1.11",
+        "@vitest/expect": "4.1.11",
+        "vitest": "4.1.11",
+    }
+    manifest = {"name": "vitest-security-fixture", "version": "1.0.0", "devDependencies": pins}
+    packages: dict[str, dict] = {"": deepcopy(manifest)}
+    for target in (*pins, "@vitest/mocker"):
+        version = "4.1.11"
+        basename = target.rsplit("/", maxsplit=1)[-1]
+        packages[f"node_modules/{target}"] = {
+            "version": version,
+            "resolved": f"https://registry.npmjs.org/{target}/-/{basename}-{version}.tgz",
+            "integrity": _transitive_npm_entry(target="vitest", version=version)["integrity"],
+        }
+    packages["node_modules/vitest"]["dependencies"] = {
+        "@vitest/expect": "4.1.11",
+        "@vitest/mocker": "4.1.11",
+    }
+    return {
+        "frontend/package.json": manifest,
+        "frontend/package-lock.json": {"lockfileVersion": 3, "packages": packages},
+    }
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    (
+        ("affected-vitest", "affected"),
+        ("affected-mocker", "affected"),
+        ("missing-mocker-record-and-edge", "canonical mocker lock record"),
+        ("missing-mocker-edge", "mocker dependency edge"),
+        ("wrong-mocker-edge", "mocker dependency selector"),
+        ("nested-mocker", "affected"),
+        ("other-lock-mocker", "affected"),
+        ("alias-mocker", "alias"),
+        ("manifest-alias", "manifest"),
+        ("missing-direct", "manifest pin is missing"),
+        ("malformed-manifest", "devDependencies must be an object"),
+        ("cohort-drift", "cohort"),
+        ("root-lock-drift", "root"),
+        ("legacy-lock", "lockfileVersion"),
+        ("malformed-lock", "packages.*must be a dict"),
+        ("missing-integrity", "integrity"),
+        ("wrong-provenance", "resolved"),
+        ("nested-shrinkwrap", "published nested shrinkwrap blocks batch admission"),
+        ("malformed-shrinkwrap", "hasShrinkwrap must be an exact boolean"),
+        ("bundled-mocker-carrier", "published bundled dependencies block batch admission"),
+        ("alternate-bundled-carrier", "published bundled dependencies block batch admission"),
+        ("malformed-bundle-carrier", "bundleDependencies must be an array"),
+        ("in-bundle-carrier", "bundled lock occurrence is forbidden"),
+        ("malformed-in-bundle-carrier", "inBundle must be boolean when present"),
+        ("prerelease", "prerelease"),
+    ),
+)
+def test_vitest_batch_guard_rejects_unsafe_or_unprovable_head(case: str, message: str) -> None:
+    surfaces = _vitest_guard_fixture()
+    manifest = surfaces["frontend/package.json"]
+    lock = surfaces["frontend/package-lock.json"]
+    packages = lock["packages"]
+    if case == "affected-vitest":
+        packages["node_modules/vitest"]["version"] = "4.1.10"
+        packages["node_modules/vitest"][
+            "resolved"
+        ] = "https://registry.npmjs.org/vitest/-/vitest-4.1.10.tgz"
+    elif case == "affected-mocker":
+        packages["node_modules/@vitest/mocker"]["version"] = "4.1.10"
+        packages["node_modules/@vitest/mocker"][
+            "resolved"
+        ] = "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.10.tgz"
+    elif case == "missing-mocker-record-and-edge":
+        del packages["node_modules/@vitest/mocker"]
+        del packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"]
+    elif case == "missing-mocker-edge":
+        del packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"]
+    elif case == "wrong-mocker-edge":
+        packages["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.8"
+    elif case == "nested-mocker":
+        packages["node_modules/future/node_modules/@vitest/mocker"] = {
+            **packages["node_modules/@vitest/mocker"],
+            "version": "4.1.8",
+            "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.8.tgz",
+        }
+    elif case == "other-lock-mocker":
+        surfaces["future/package-lock.json"] = {
+            "lockfileVersion": 3,
+            "packages": {
+                "node_modules/@vitest/mocker": {
+                    **packages["node_modules/@vitest/mocker"],
+                    "version": "4.1.8",
+                    "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.8.tgz",
+                }
+            },
+        }
+    elif case == "alias-mocker":
+        packages["node_modules/renamed"] = {
+            **packages["node_modules/@vitest/mocker"],
+            "name": "@vitest/mocker",
+        }
+    elif case == "manifest-alias":
+        manifest["devDependencies"]["renamed"] = "npm:@vitest/mocker@4.1.8"
+        packages[""]["devDependencies"]["renamed"] = "npm:@vitest/mocker@4.1.8"
+    elif case == "missing-direct":
+        del manifest["devDependencies"]["vitest"]
+    elif case == "malformed-manifest":
+        manifest["devDependencies"] = []
+    elif case == "cohort-drift":
+        manifest["devDependencies"]["@vitest/coverage-v8"] = "4.1.12"
+        packages[""]["devDependencies"]["@vitest/coverage-v8"] = "4.1.12"
+    elif case == "root-lock-drift":
+        packages[""]["devDependencies"]["vitest"] = "4.1.8"
+    elif case == "legacy-lock":
+        lock["lockfileVersion"] = 2
+    elif case == "malformed-lock":
+        lock["packages"] = []
+    elif case == "missing-integrity":
+        del packages["node_modules/@vitest/mocker"]["integrity"]
+    elif case == "wrong-provenance":
+        packages["node_modules/@vitest/mocker"][
+            "resolved"
+        ] = "https://example.invalid/@vitest/mocker/-/mocker-4.1.11.tgz"
+    elif case == "nested-shrinkwrap":
+        packages["node_modules/@vitest/coverage-v8"]["hasShrinkwrap"] = True
+    elif case == "malformed-shrinkwrap":
+        packages["node_modules/@vitest/coverage-v8"]["hasShrinkwrap"] = "false"
+    elif case == "bundled-mocker-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundleDependencies"] = ["@vitest/mocker"]
+    elif case == "alternate-bundled-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundledDependencies"] = ["@vitest/mocker"]
+    elif case == "malformed-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["bundleDependencies"] = {}
+    elif case == "in-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["inBundle"] = True
+    elif case == "malformed-in-bundle-carrier":
+        packages["node_modules/@vitest/coverage-v8"]["inBundle"] = "false"
+    elif case == "prerelease":
+        packages["node_modules/@vitest/mocker"]["version"] = "5.0.0-beta.1"
+        packages["node_modules/@vitest/mocker"][
+            "resolved"
+        ] = "https://registry.npmjs.org/@vitest/mocker/-/mocker-5.0.0-beta.1.tgz"
+    else:
+        raise AssertionError(f"unhandled Vitest guard case: {case}")
+    with pytest.raises(AssertionError, match=message):
+        _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_batch_guard_accepts_safe_future_cohort() -> None:
+    surfaces = _vitest_guard_fixture()
+    manifest = surfaces["frontend/package.json"]
+    lock = surfaces["frontend/package-lock.json"]
+    manifest["devDependencies"] = {name: "4.1.12" for name in manifest["devDependencies"]}
+    lock["packages"][""]["devDependencies"] = deepcopy(manifest["devDependencies"])
+    for name in ("vitest", "@vitest/mocker", "@vitest/coverage-v8", "@vitest/expect"):
+        basename = name.rsplit("/", maxsplit=1)[-1]
+        entry = lock["packages"][f"node_modules/{name}"]
+        entry["version"] = "4.1.12"
+        entry["resolved"] = f"https://registry.npmjs.org/{name}/-/{basename}-4.1.12.tgz"
+    lock["packages"]["node_modules/vitest"]["dependencies"]["@vitest/mocker"] = "4.1.12"
+    _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_guard_accepts_explicit_empty_inner_graph_metadata() -> None:
+    """Exact empty npm-v3 metadata preserves an ordinary safe lock."""
+
+    surfaces = _vitest_guard_fixture()
+    packages = surfaces["frontend/package-lock.json"]["packages"]
+    carrier = packages["node_modules/@vitest/coverage-v8"]
+    carrier.update(
+        {
+            "hasShrinkwrap": False,
+            "bundleDependencies": [],
+            "bundledDependencies": False,
+            "inBundle": False,
+        }
+    )
+    _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_guard_rejects_opaque_carrier_in_other_tracked_lock() -> None:
+    """A separate tracked lock cannot hide an affected occurrence."""
+
+    surfaces = _vitest_guard_fixture()
+    surfaces["future/package-lock.json"] = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/carrier": {
+                **_transitive_npm_entry(target="carrier", version="1.0.0"),
+                "bundledDependencies": ["vitest"],
+            }
+        },
+    }
+    with pytest.raises(AssertionError, match="published bundled dependencies"):
+        _assert_vitest_security_surfaces(surfaces)
+
+
+def test_vitest_cutoff_keeps_every_advisory_and_prerelease_branch() -> None:
+    """Keep the finite GAD inventory, including its non-base 5.x branch."""
+
+    assert set(VITEST_ADVISORY_RANGES) == {"vitest", "@vitest/mocker"}
+    assert set(VITEST_ADVISORY_RANGES["vitest"]) == {
+        "GHSA-82fw-gwwq-j7x9",
+        "GHSA-5xrq-8626-4rwp",
+        "GHSA-9crc-q9x8-hgqq",
+    }
+    assert set(VITEST_ADVISORY_RANGES["@vitest/mocker"]) == {"GHSA-82fw-gwwq-j7x9"}
+    for target in VITEST_ADVISORY_RANGES:
+        ranges = VITEST_ADVISORY_RANGES[target]["GHSA-82fw-gwwq-j7x9"]
+        assert SpecifierSet(">=2.1.0,<4.1.11") in ranges
+        assert SpecifierSet(">=5.0.0b1,<5.0.0rc2") in ranges
+
+
+def test_vitest_guard_rejects_invalid_native_expect_edge() -> None:
+    """Other broken Vitest dependency edges remain owned by npm's graph check."""
+
+    surfaces = _vitest_guard_fixture()
+    _assert_vitest_security_surfaces(surfaces)
+    _assert_npm_virtual_lock_graphs(surfaces=surfaces)
+    packages = surfaces["frontend/package-lock.json"]["packages"]
+    packages["node_modules/vitest"]["dependencies"]["@vitest/expect"] = "4.1.8"
+    _assert_vitest_security_surfaces(surfaces)
+    with pytest.raises(AssertionError, match="npm virtual graph"):
+        _assert_npm_virtual_lock_graphs(surfaces=surfaces)
