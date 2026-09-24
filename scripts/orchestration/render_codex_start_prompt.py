@@ -652,7 +652,7 @@ def render_packet_prompt(
             f"Closure-only/no-spawn custom roles still require disposition input: {_prompt_list(closure_only_advisory_roles, '<none>')}",
             f"Passive skills from packet: {_prompt_list(recommended_skills, '<none>')}",
             "",
-            "Open the PR non-draft by default so GitHub, CodeRabbit, Cubic, Sourcery, and current-head checks can run; draft requires an explicit operator exception.",
+            "Open the PR non-draft by default so GitHub, CodeRabbit, Sourcery, other configured review bots, and current-head checks can run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Host/Codex preflight is not authoritative lane provenance. Repo custom orchestration remains: check_preflight.py -> task_bootstrap.py -> agent-coordinator.",
             "Experiment Runner joins after coordinator bootstrap as oracle-only evidence; it must not replace agent-coordinator or become the lane-start authority.",

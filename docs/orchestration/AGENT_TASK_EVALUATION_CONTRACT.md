@@ -231,7 +231,9 @@ These gates apply to **all** agent tasks:
 
 1. Check all required CI checks pass
 2. Address bot review comments (map in PR body)
-3. Wait for CodeRabbit/Sourcery/Cubic reviews
+3. Wait for CodeRabbit/Sourcery reviews; inspect authenticated current-head
+   results from other configured reviewers and address every posted actionable
+   comment. Missing optional reviewer output is not a PASS.
 4. Confirm merge readiness gate passes
 
 ### 4.3 Post-Merge

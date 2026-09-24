@@ -204,6 +204,20 @@ def test_packet_prompt_forces_agent_coordinator_first_when_packet_primary_differ
     )
 
 
+def test_packet_prompt_preserves_configured_review_without_cubic_promise() -> None:
+    """A synthetic packet must not promise review from a retired optional provider."""
+
+    prompt = render_packet_prompt(_packet(), packet_path="packet.json")
+
+    assert (
+        "Open the PR non-draft by default so GitHub, CodeRabbit, Sourcery, "
+        "other configured review bots, and current-head checks can run; "
+        "draft requires an explicit operator exception."
+    ) in prompt
+    assert "Cubic" not in prompt
+    assert "cubic-dev-ai" not in prompt
+
+
 @pytest.mark.parametrize(
     "candidate_path",
     (
