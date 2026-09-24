@@ -138,7 +138,10 @@ def test_core_db_init_db_async_uses_async_engine(monkeypatch: pytest.MonkeyPatch
         def begin(self) -> _BeginCtx:
             return _BeginCtx()
 
-    monkeypatch.setattr(core_db, "_ASYNC_ENGINE", _AsyncEngine(), raising=True)
+    async def _get_async_engine() -> _AsyncEngine:
+        return _AsyncEngine()
+
+    monkeypatch.setattr(core_db, "_get_async_engine", _get_async_engine, raising=True)
     asyncio.run(core_db.init_db_async())
     assert called["create_all"] is True
 
