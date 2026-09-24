@@ -407,8 +407,9 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   FastAPI instance. The application bootstrap resolves the runtime environment
   and builds metadata once; compatibility modules alias that value.
 - Public-path filtering, schema-reference pruning, and the custom OpenAPI builder
-  belong in `app/bootstrap/openapi.py`. `legacy_app.py` may temporarily re-export
-  the exact canonical objects, but wrappers or rebinding are forbidden.
+  belong in `app/bootstrap/openapi.py`. The seven former OpenAPI helper Python
+  re-exports are retired from `legacy_app.py`; callers use the canonical module.
+  Do not restore those bindings, wrappers, or rebinding in the legacy facade.
 - Canonical bootstrap order is fail-closed: validate the live builder before any
   mutation, register all routes, apply public OpenAPI input policy, then install
   the canonical builder. `app/__init__.py` must not install or mutate OpenAPI.
