@@ -3438,6 +3438,28 @@ def test_alias_alert_rules_bind_the_exact_target_and_closed_routes() -> None:
 
 def test_cd_alias_rules_use_native_promtool_and_both_staging_hash_passes() -> None:
     workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    security_steps = workflow["jobs"]["prometheus-image-security"]["steps"]
+    config_step = next(
+        step
+        for step in security_steps
+        if step.get("name") == "Check canonical Prometheus config with exact-image promtool"
+    )
+    promtool_runs = config_step["run"].split("docker run --rm")
+    assert len(promtool_runs) == 4
+    tmpfs = "--tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777"
+    assert tmpfs not in promtool_runs[1]
+    assert tmpfs not in promtool_runs[2]
+    assert tmpfs in promtool_runs[3]
+    for required in (
+        "--user 65532:65532",
+        "--network none",
+        "--read-only",
+        "--cap-drop ALL",
+        "--security-opt no-new-privileges:true",
+        "test rules /etc/prometheus/alias-alerts.test.yml",
+    ):
+        assert required in promtool_runs[3]
     assert "check config /etc/prometheus/prometheus.yml" in workflow_text
     assert "check rules /etc/prometheus/alias-alerts.yml" in workflow_text
     assert "test rules /etc/prometheus/alias-alerts.test.yml" in workflow_text

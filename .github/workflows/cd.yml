@@ -766,6 +766,7 @@ jobs:
             "$PROMETHEUS_RUNTIME_REF" check rules /etc/prometheus/alias-alerts.yml
           docker run --rm --platform linux/amd64 --user 65532:65532 --network none \
             --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
             --entrypoint /bin/promtool \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/prometheus/alias-alerts.yml,target=/etc/prometheus/alias-alerts.yml,readonly" \
             --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/prometheus/alias-alerts.test.yml,target=/etc/prometheus/alias-alerts.test.yml,readonly" \
