@@ -33,11 +33,11 @@ def _node_binary_or_skip() -> str:
     return node_binary
 
 
-def _run_subprocess(command: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_subprocess(command: list[str], cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             command,
-            cwd=REPO_ROOT,
+            cwd=cwd,
             capture_output=True,
             text=True,
             check=False,
@@ -53,14 +53,26 @@ def _run_builder(script_relative_path: str, output_path: Path) -> subprocess.Com
     return _run_subprocess([node_binary, str(script_path), "--output", str(output_path)])
 
 
-def _run_node_eval(script: str) -> subprocess.CompletedProcess[str]:
+def _run_node_eval(script: str, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess[str]:
     node_binary = _node_binary_or_skip()
-    return _run_subprocess([node_binary, "-e", script])
+    return _run_subprocess([node_binary, "-e", script], cwd=cwd)
 
 
-def _node_package_or_skip(package_name: str) -> None:
-    result = _run_node_eval(f'require.resolve("{package_name}");')
+def _node_package_or_skip(package_name: str, repo_root: Path = REPO_ROOT) -> None:
+    result = _run_node_eval(
+        f'process.stdout.write(require.resolve("{package_name}"));', cwd=repo_root
+    )
     if result.returncode == 0:
+        package_dir = repo_root.resolve() / "node_modules" / package_name
+        resolved_path = Path(result.stdout).resolve()
+        assert resolved_path.is_relative_to(
+            package_dir
+        ), f"{package_name} resolved outside this worktree: {resolved_path}"
+        if package_name == "docx":
+            lock = json.loads((repo_root / "package-lock.json").read_text(encoding="utf-8"))
+            locked_version = lock["packages"]["node_modules/docx"]["version"]
+            installed = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
+            assert installed["version"] == locked_version
         return
 
     stderr = (result.stderr or "").lower()
@@ -82,6 +94,12 @@ def _node_package_or_skip(package_name: str) -> None:
 def _read_office_document_xml(output_path: Path, member_name: str) -> str:
     with zipfile.ZipFile(output_path) as archive:
         return archive.read(member_name).decode("utf-8")
+
+
+def _resolve_relationship_target(base_path: str, target: str) -> str:
+    if target.startswith("/"):
+        return posixpath.normpath(target.lstrip("/"))
+    return posixpath.normpath(posixpath.join(base_path, target))
 
 
 def _extract_docx_blocks(document_xml: str, numbering_xml: str) -> list[tuple[str, str]]:
@@ -193,8 +211,8 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
         ):
             relationships = ElementTree.fromstring(archive.read(relationships_path))
             targets = {
-                item.get("Type", "").rsplit("/", 1)[-1]: posixpath.normpath(
-                    posixpath.join(base_path, item.get("Target", "").lstrip("/"))
+                item.get("Type", "").rsplit("/", 1)[-1]: _resolve_relationship_target(
+                    base_path, item.get("Target", "")
                 )
                 for item in relationships.findall(f"{PACKAGE_REL_NAMESPACE}Relationship")
                 if item.get("TargetMode") != "External"
@@ -212,6 +230,31 @@ def test_b2b_proposal_builder_creates_docx(tmp_path: Path) -> None:
     assert placeholders <= set(re.findall(r"\[VERIFY_[^\]]+\]", document_text))
     assert "PulsePlate B2B Partnership Proposal Spec" not in document_text
     assert "markdownlint-disable" not in document_text
+
+
+def test_docx_relationship_target_resolves_absolute_and_relative_paths() -> None:
+    assert _resolve_relationship_target("word", "/word/styles.xml") == "word/styles.xml"
+    assert _resolve_relationship_target("word", "styles.xml") == "word/styles.xml"
+
+
+def test_docx_probe_rejects_parent_node_modules_fallback(tmp_path: Path) -> None:
+    parent = tmp_path / "parent"
+    parent_package = parent / "node_modules/docx"
+    parent_package.mkdir(parents=True)
+    (parent_package / "package.json").write_text(
+        json.dumps({"name": "docx", "version": "9.6.1", "main": "index.js"}), encoding="utf-8"
+    )
+    (parent_package / "index.js").write_text("module.exports = {};\n", encoding="utf-8")
+    child_worktree = parent / "worktrees/child"
+    child_worktree.mkdir(parents=True)
+
+    resolution = _run_node_eval(
+        'process.stdout.write(require.resolve("docx"));', cwd=child_worktree
+    )
+    assert resolution.returncode == 0, resolution.stderr
+    assert Path(resolution.stdout).resolve().is_relative_to(parent_package)
+    with pytest.raises(AssertionError, match="docx resolved outside this worktree"):
+        _node_package_or_skip("docx", repo_root=child_worktree)
 
 
 def test_markdown_parser_skips_multiline_html_comments() -> None:
