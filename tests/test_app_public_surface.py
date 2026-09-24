@@ -4,6 +4,8 @@ The package-level ``app`` facade retains its reviewed compatibility exports even
 when the transitional ``legacy_app`` module intentionally shrinks.
 """
 
+import pytest
+
 
 def test_app_public_surface_smoke() -> None:
     """Verify the finite app package facade exports its supported symbols."""
@@ -74,7 +76,7 @@ def test_planning_exports_remain_canonical_only_on_the_app_package_facade() -> N
     assert not hasattr(legacy_app, "build_nutrition_targets")
 
 
-def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
+def test_legacy_openapi_symbols_are_retired_with_canonical_owners_present() -> None:
     import legacy_app
     from app.bootstrap import openapi as canonical_openapi
 
@@ -89,7 +91,16 @@ def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
     )
 
     for symbol_name in symbol_names:
-        assert getattr(legacy_app, symbol_name) is getattr(canonical_openapi, symbol_name)
+        assert symbol_name not in vars(legacy_app)
+        with pytest.raises(AttributeError):
+            getattr(legacy_app, symbol_name)
+        assert getattr(canonical_openapi, symbol_name) is not None
+    assert isinstance(canonical_openapi._OPENAPI_ALLOWED_PREFIXES, tuple)
+    assert isinstance(canonical_openapi._OPENAPI_ALLOWED_EXACT, frozenset)
+    assert (
+        canonical_openapi._install_openapi_builder
+        is canonical_openapi.install_canonical_openapi_builder
+    )
 
 
 def test_app_legacy_facade_has_no_openapi_installation_side_effect() -> None:

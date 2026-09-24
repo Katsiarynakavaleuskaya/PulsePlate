@@ -72,6 +72,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_generate_who_targets_response",
     "_fallback_targets_response",
     "analyze_nutrient_gaps_response",
+    "_OPENAPI_ALLOWED_PREFIXES",
+    "_OPENAPI_ALLOWED_EXACT",
+    "_is_openapi_public_path",
+    "_collect_schema_refs",
+    "_prune_unreferenced_schema_components",
+    "_build_canonical_openapi",
+    "_install_openapi_builder",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -80,6 +87,7 @@ RETIRED_INSIGHT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[31:39]
 RETIRED_PLATE_HELPER_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[39:51]
 RETIRED_NUTRITION_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[51:58]
 RETIRED_TARGETS_GAPS_SERVICE_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[58:61]
+RETIRED_OPENAPI_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[61:68]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -139,11 +147,65 @@ def test_retired_targets_gaps_service_tail_is_exact_and_disjoint() -> None:
         "_fallback_targets_response",
         "analyze_nutrient_gaps_response",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 61
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 61
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:61]) == 61
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:61])) == 61
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:58]).isdisjoint(
         RETIRED_TARGETS_GAPS_SERVICE_BINDINGS
     )
+
+
+def test_retired_openapi_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_OPENAPI_BINDINGS == (
+        "_OPENAPI_ALLOWED_PREFIXES",
+        "_OPENAPI_ALLOWED_EXACT",
+        "_is_openapi_public_path",
+        "_collect_schema_refs",
+        "_prune_unreferenced_schema_components",
+        "_build_canonical_openapi",
+        "_install_openapi_builder",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 68
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 68
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:61]).isdisjoint(RETIRED_OPENAPI_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_OPENAPI_BINDINGS)
+def test_retired_openapi_guard_rejects_exact_canonical_reimport(
+    binding_name: str,
+) -> None:
+    source = f"from app.bootstrap.openapi import {binding_name}\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
+    sources = list(_openapi_ownership_sources())
+    sources[0] += source
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == [
+        f"legacy_app.py: canonical OpenAPI re-export must not be rebound: {binding_name}"
+    ]
+
+
+def test_retired_openapi_reimport_fails_aggregate_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_read = legacy_guard._read
+
+    def read_with_reintroduced_import(path: Path, repo_root: Path, errors: list[str]) -> str | None:
+        source = original_read(path, repo_root, errors)
+        if path == REPO_ROOT / "legacy_app.py" and source is not None:
+            return source + "\nfrom app.bootstrap.openapi import _install_openapi_builder\n"
+        return source
+
+    monkeypatch.setattr(legacy_guard, "_read", read_with_reintroduced_import)
+
+    errors = legacy_guard.validate_repo(REPO_ROOT)
+
+    assert errors == [
+        "legacy_app.py: retired Python compatibility binding is forbidden: "
+        "_install_openapi_builder",
+        "legacy_app.py: canonical OpenAPI re-export must not be rebound: "
+        "_install_openapi_builder",
+    ]
 
 
 def test_current_legacy_app_passes_growth_guard() -> None:
@@ -330,9 +392,10 @@ def test_legacy_growth_guard_rejects_representative_retired_binding_carriers(
 def test_legacy_growth_guard_rejects_blanket_star_import() -> None:
     source = "from app.services.admin_operations import *\n"
 
-    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+    assert (
         "legacy_app.py: star import is forbidden after legacy Python binding retirement"
-    ]
+        in legacy_guard.validate_retired_legacy_python_bindings(source)
+    )
 
 
 def test_legacy_growth_guard_rejects_module_level_getattr() -> None:
@@ -482,15 +545,6 @@ def _openapi_ownership_sources() -> tuple[str, str, str, str, str]:
     return (
         textwrap.dedent("""
             from app.application_metadata import build_application_metadata
-            from app.bootstrap.openapi import (
-                _OPENAPI_ALLOWED_EXACT,
-                _OPENAPI_ALLOWED_PREFIXES,
-                _build_canonical_openapi,
-                _collect_schema_refs,
-                _install_openapi_builder,
-                _is_openapi_public_path,
-                _prune_unreferenced_schema_components,
-            )
             metadata = build_application_metadata(runtime_env="production")
             """),
         "from settings import get_runtime_env_name\n",
@@ -1050,10 +1104,6 @@ def test_metadata_openapi_ownership_guard_rejects_lookup_before_safe_reassignmen
             "canonical application metadata factory import is required",
         ),
         (
-            "missing_openapi_reexport",
-            "canonical OpenAPI compatibility re-export must preserve identity",
-        ),
-        (
             "legacy_openapi_mutation",
             "OpenAPI callable/cache mutation is forbidden",
         ),
@@ -1069,8 +1119,6 @@ def test_metadata_openapi_ownership_guard_rejects_missing_legacy_contracts(
             "from app.application_metadata import build_application_metadata\n",
             "",
         )
-    elif mutation_kind == "missing_openapi_reexport":
-        sources[0] = sources[0].replace("    _install_openapi_builder,\n", "")
     else:
         sources[0] += "\nsetattr(app, 'openapi', replacement)\n"
 
