@@ -100,6 +100,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_generate_who_targets_response",
         "_fallback_targets_response",
         "analyze_nutrient_gaps_response",
+        "_OPENAPI_ALLOWED_PREFIXES",
+        "_OPENAPI_ALLOWED_EXACT",
+        "_is_openapi_public_path",
+        "_collect_schema_refs",
+        "_prune_unreferenced_schema_components",
+        "_build_canonical_openapi",
+        "_install_openapi_builder",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
@@ -10280,6 +10287,7 @@ def _assigned_names(tree: ast.Module) -> set[str]:
                     node.module == "app.bootstrap.openapi"
                     and alias.name in CANONICAL_OPENAPI_SYMBOLS
                     and bound_name == alias.name
+                    and alias.name not in RETIRED_LEGACY_PYTHON_BINDINGS
                 ):
                     continue
                 names.add(bound_name)
@@ -10901,20 +10909,14 @@ def validate_application_metadata_openapi_ownership(
     for name in sorted(local_openapi_defs):
         errors.append(f"{LEGACY_APP}: OpenAPI implementation must be canonical: {name}")
 
-    exact_aliases: set[str] = set()
     foreign_import_rebindings: set[str] = set()
     metadata_factory_imported = False
     for statement in legacy_tree.body:
         if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
             "/", "."
         ).removesuffix(".py"):
-            for alias in statement.names:
-                if alias.name in CANONICAL_OPENAPI_SYMBOLS and alias.asname in {
-                    None,
-                    alias.name,
-                }:
-                    exact_aliases.add(alias.name)
-        elif isinstance(statement, ast.ImportFrom):
+            continue
+        if isinstance(statement, ast.ImportFrom):
             for alias in statement.names:
                 bound_name = alias.asname or alias.name
                 if bound_name in CANONICAL_OPENAPI_SYMBOLS:
@@ -10934,10 +10936,6 @@ def validate_application_metadata_openapi_ownership(
             )
         ):
             metadata_factory_imported = True
-    for name in sorted(CANONICAL_OPENAPI_SYMBOLS - exact_aliases):
-        errors.append(
-            f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
-        )
     explicit_globals = {
         name
         for node in ast.walk(legacy_tree)

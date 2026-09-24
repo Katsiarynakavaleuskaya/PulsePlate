@@ -27,13 +27,13 @@ test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
 `legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
 facade. The eight former paid/BMI registration mirrors are absent from `app`,
-`app.main`, and `legacy_app.py`. Seven bounded Python-binding retirements remove
-only the exact 61 `legacy_app.py` Python bindings enumerated below; they do not
+`app.main`, and `legacy_app.py`. Eight bounded Python-binding retirements remove
+only the exact 68 `legacy_app.py` Python bindings enumerated below; they do not
 remove or redirect any HTTP path, change auth, alter OpenAPI, or change FastAPI
 object identity. Repository census found no tracked supported production
 consumer of the second ten-name, third eleven-name, fourth eight-name, fifth
-twelve-name, sixth seven-name, or seventh three-name cohort; it does not prove
-that no external or dynamic Python consumer exists.
+twelve-name, sixth seven-name, seventh three-name, or eighth seven-name cohort;
+it does not prove that no external or dynamic Python consumer exists.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -61,6 +61,18 @@ validation/install/policy seams at `app/bootstrap/openapi.py:285`,
 additive route registration, then applies policy and installs the builder at
 `app/main.py:1208-1209`. This order prevents an early partial schema while preserving
 an equal cached schema object on a no-op bootstrap.
+The seven former legacy Python re-exports `_OPENAPI_ALLOWED_PREFIXES`,
+`_OPENAPI_ALLOWED_EXACT`, `_is_openapi_public_path`, `_collect_schema_refs`,
+`_prune_unreferenced_schema_components`, `_build_canonical_openapi`, and
+`_install_openapi_builder` are retired from `legacy_app.py`. Their exact
+canonical objects remain in `app/bootstrap/openapi.py:51-79`,
+`app/bootstrap/openapi.py:228`, and `app/bootstrap/openapi.py:375`.
+The two policy collections and five callables are available through that
+module; the installer alias remains identical to
+`install_canonical_openapi_builder`. This retirement changes Python imports
+of those legacy names only. The HTTP route table, public schema, builder/cache
+policy, and FastAPI app identity remain unchanged. Unknown external or
+computed importers must migrate to `app.bootstrap.openapi`.
 
 Admin scheduler access is canonically exposed by
 `app/services/scheduler_access.py` as a lazy typed delegator. The core scheduler
@@ -80,8 +92,8 @@ implementations remain callable in `app/services/admin_operations.py:27` and
 `app/services/bmi_compat.py:138`; HTTP ownership remains in
 `app/routers/admin_operations.py:34` and `app/routers/bmi_compat.py:21`.
 The `BMIRequest` / `BMIRequestV1` schema compatibility exports and BMI
-visualization exports remain explicit in `legacy_app.py:44` and
-`legacy_app.py:121`. Unknown external or reflective callers remain residual
+visualization exports remain explicit in `legacy_app.py:28` and
+`legacy_app.py:55`. Unknown external or reflective callers remain residual
 compatibility risk; this lane makes no telemetry or consumer-census claim for
 them and grants no authority to retire HTTP aliases. Runtime-absence tests prove
 only the imported module state produced by the current checked source and test
