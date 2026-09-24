@@ -594,6 +594,19 @@ def test_main_never_echoes_unknown_remote_error(
     assert captured.err.strip() == "REMOTE_OUTPUT_UNTRUSTED"
 
 
+def test_main_transport_failure_emits_only_coded_error(
+    local_run: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail(argv: list[str]) -> bytes:
+        raise RuntimeError("SSH_TRANSPORT_FAILED")
+
+    monkeypatch.setattr(diagnostic, "_ssh_observe", fail)
+    assert diagnostic.main(["--environment", "staging", "--format", "json"]) == 3
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "SSH_TRANSPORT_FAILED\n"
+
+
 def test_t09_http_liveness_and_readiness_are_separate() -> None:
     source = diagnostic.HOST_PROBE
     assert 'http("/health")' in source
