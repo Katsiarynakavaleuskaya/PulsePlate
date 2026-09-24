@@ -37,6 +37,17 @@ reads bounded bytes, calls L1 `process_input_bytes(...)` exactly once, and
 parses only those returned canonical bytes. L2 adds no JSON parser, schema,
 validator, replay implementation, membership inference, or relation engine.
 
+For a coordinator-approved L1 artifact, pass the same single repo-relative path
+through `local_session_bootstrap.sh` or its standalone Codex recipe renderer
+with `--pr-phase post_open_review`, a concrete `--goal` and `--task-class`, and
+without `--invariant-change-class`. The helper runs analyze preflight and prints
+the shell-quoted `task_bootstrap.py` command; it does not read the artifact,
+create the packet, execute role agents, or enroll an L2-EVAL episode. Execute
+the printed command explicitly from the owning worktree, then follow the
+packet's validated dispatch manifest. The artifact path is a separate input,
+never a repeatable `--path` scope entry. Without this argument, the existing
+input-free v1 recipe remains unchanged.
+
 ## Trigger and projection
 
 The only trigger is `explicit_family_cardinality_gte_2`: a normalized L1 family
