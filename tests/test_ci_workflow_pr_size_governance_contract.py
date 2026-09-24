@@ -18,6 +18,7 @@ from scripts.ci import ci_risk_profile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTIONLINT_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "actionlint.yml"
+ACTIONLINT_CONFIG_PATH = REPO_ROOT / ".github" / "actionlint.yaml"
 BUILD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "build.yml"
 CD_TEST_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd-test.yml"
 CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
@@ -2114,6 +2115,25 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         assert "Apple Swift version 6.4" in executable_xcode_lines
         assert "parse_ios_ver(r) == (27, 0)" in job_steps[3]["run"]
         assert job["runs-on"] == "xcode-27"
+
+
+def test_xcode27_actionlint_preview_label_has_exact_four_job_uses() -> None:
+    config = yaml.safe_load(ACTIONLINT_CONFIG_PATH.read_text(encoding="utf-8"))
+    assert config["self-hosted-runner"]["labels"] == ["pulseplate-prod", "xcode-27"]
+
+    expected = {
+        (CI_WORKFLOW_PATH, "ios-tests"),
+        (CI_WORKFLOW_PATH, "ios-ui-smoke"),
+        (IOS_APPSTORE_ASSETS_WORKFLOW_PATH, "validate-assets"),
+        (IOS_APPSTORE_ASSETS_WORKFLOW_PATH, "upload-assets"),
+    }
+    observed = {
+        (path, job_id)
+        for path in _active_workflow_paths()
+        for job_id, job in _load_workflow(path)["jobs"].items()
+        if job.get("runs-on") == "xcode-27"
+    }
+    assert observed == expected
 
 
 def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> None:
