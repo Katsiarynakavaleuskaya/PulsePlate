@@ -13422,7 +13422,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links: [merged PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405); [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md); [merged TELO-OPS-3](#ledger-p1-telo-ops-3-user-impact-handoff).
   - DoD:
     - Carry one coordinator-approved exact L1 artifact path through the local-session helper and standalone recipe renderer to the existing `post_open_review` bootstrap; validate it through the canonical L1 reader while preserving explicit-only membership/cardinality, packet identity and six-role order.
-    - With no supplied path, preserve ordinary v1 post-open behavior with no L2 claim. Duplicate, missing, option-like, whitespace-edge, line-separator, unsafe, changed or invalid input fails closed; the helper does not let a second argument `--help` bypass validation.
+    - With no supplied path, preserve ordinary v1 post-open behavior with no L2 claim. The helper and standalone renderer reject duplicate, missing, option-like, whitespace-edge and Unicode line-separator display inputs; the helper does not let a later `--help` bypass validation. The unchanged canonical `task_bootstrap.py` reader separately rejects unsafe, changed or invalid artifacts.
     - Cover present, absent, invalid, replay and one-pass behavior with deterministic tests that execute both printed commands in disposable repositories and compare packet and manifest with direct canonical invocation. Do not infer families, create L1 automatically or enroll an episode.
     - Grant no L3, review, implementation or merge authority.
 
