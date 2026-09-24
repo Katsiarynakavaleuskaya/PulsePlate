@@ -423,12 +423,43 @@ def _teleology_prompt_lines(treatment: RailTreatment) -> list[str]:
         "Teleology goal-to-outcome review: instructions only, not a completed assessment.",
         "Procedure: docs/orchestration/workflow.md#goal-to-outcome-review.",
         grouping + " Grouping must preserve every original requirement and DoD item.",
+        "User-impact rubric: in that procedure review the person and scenario, "
+        "expected action/result, source of truth, user control, and observed evidence "
+        "plus required human acceptance. Apply to relevant backend consent, access, "
+        "storage and deletion changes too; for a mechanical change explain preserved "
+        "user semantics without dropping original requirements.",
         "Coordinator: record the goal owner, before/after outcome, accepted criteria "
-        "reference/version, constraints, planned evidence and rollback in the existing "
-        "Task Analysis or lane runbook; pass that same reference to ordinary QA.",
+        "reference/version, constraints, user impact, which owner decisions and visual "
+        "checkpoints apply, any needed professional review, "
+        "planned evidence and rollback in the existing Task Analysis or lane "
+        "runbook before implementation; pass that same reference to ordinary QA.",
         "QA: in the existing Work Review, map each criterion to achieved, partial, "
-        "unknown or not_achieved, with observed evidence or an explicit evidence gap. "
+        "unknown or not_achieved; name the reviewer, exact reviewed material and "
+        "criteria version, with observed evidence or an explicit evidence gap. "
         "DoD and the final response must reference that review.",
+        "Material change or new counterexample: identify affected criteria and stale "
+        "evidence; mark stale conclusions unknown and perform a targeted recheck "
+        "before completion, even when the accepted goal is unchanged.",
+        "Human decision rule: every required visual, legal or other owner decision "
+        "must be explicitly affirmative for the exact shown state and material "
+        "version. Missing, ambiguous or stale required decisions are unknown; "
+        "explicit rejection is not_achieved; reasoned N/A applies only when no "
+        "decision is required. Needed professional review does not replace owner "
+        "affirmation or other criterion evidence.",
+        "Human visual checkpoints: for a new substantial visual choice requiring "
+        "acceptance, obtain two distinct affirmative version-bound owner decisions "
+        "in order: accept the openable proposal before implementation, then accept "
+        "the actual shown implementation before completion. Final-only approval "
+        "cannot fill the proposal checkpoint. Proven skipped order is "
+        "not_achieved; mere missing record does not prove a skip. "
+        "A minor existing-visual change may require final acceptance alone with "
+        "reasoned proposal N/A. "
+        "Silence, screenshot paths, hashes, agent verdicts and CI are not approval. "
+        "Needed professional review requires recorded completion and outcome for "
+        "current material before achieved: missing or stale is unknown; adverse "
+        "review prevents achieved and requires ordinary not_achieved assessment "
+        "and correction. It cannot replace owner affirmation; an agent cannot "
+        "certify compliance.",
         "Overall completion: every original requirement and DoD item must be "
         "explicitly covered by an individually achieved criterion with observed evidence. "
         "Name each covered source item; no materiality filter may exclude required scope. "

@@ -98,6 +98,7 @@ unconditionally guaranteed by Markdown alone.
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
 | Packet-bound evidence-rail treatment selection | Yes | Yes | No | Low | Deterministic after validated bootstrap; selection-only and non-authoritative |
+| Teleology user-impact instruction delivery | Yes | Yes | No | Medium | Static guidance after validated `full`/`compact`; coordinator and QA still execute the procedure, and the owner decides required acceptance |
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
 | Creative research lane | Yes | Yes | Likely yes for raw-session auto-start | Medium | Deterministic once invoked via explicit report/research triggers; not generic wellness wording |
 | Figma execution lane | Partial | Yes (packet gating only) | Likely yes for raw-session auto-start | High | Packet-gated and blocker-aware; `read_only` by default until valid metadata or explicit creation mode exists |
@@ -133,6 +134,13 @@ Current approved wording:
   bootstrap**. It selects planning depth and the applicable legacy sidecar rail
   set; it does not execute a rail or create review, CI, routing, enrollment,
   merge, release, promotion, asset-mutation, or outcome authority.
+- Teleology has three separate claims: validated `full`/`compact` delivers the
+  static [workflow procedure](workflow.md#goal-to-outcome-review) through the
+  prompt; coordinator and ordinary QA must actually perform and record its
+  stages; required visual, legal or other owner decisions remain explicit human
+  acts. Prompt delivery, template presence, CI and a Work Review label do not
+  prove that execution or acceptance occurred. A legacy/pending call gains no
+  Teleology treatment from task prose.
 - Bug-hunter post-open pass is **deterministic once invoked** via
   `pr_phase=post_open_review`, not yet globally event-triggered.
 - Creative research is **deterministic once invoked** only for explicit
