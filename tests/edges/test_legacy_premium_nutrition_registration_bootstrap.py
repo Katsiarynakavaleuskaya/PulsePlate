@@ -30,7 +30,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
-from tests.helpers.module_resolve import resolve_legacy_app
+from tests.helpers.module_resolve import resolve_module
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
 _EXPECTED_ROUTE_KEYS = {
@@ -205,8 +205,7 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
 
 
 def _who_targets_response() -> WHOTargetsResponse:
-    legacy_module = resolve_legacy_app()
-    return legacy_module.WHOTargetsResponse(
+    return resolve_module("app.schemas.premium_contracts").WHOTargetsResponse(
         kcal_daily=1900,
         macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238, "fiber_g": 28},
         water_ml=2200,
@@ -214,15 +213,14 @@ def _who_targets_response() -> WHOTargetsResponse:
         activity_weekly={"minutes": 150},
         calculation_date="2026-07-06",
         warnings=[],
-        ui_labels=legacy_module.build_who_targets_ui_labels("en"),
+        ui_labels=resolve_module("app.schemas.premium_contracts").build_who_targets_ui_labels("en"),
     )
 
 
 def test_legacy_premium_plate_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    legacy_module = resolve_legacy_app()
-    req = legacy_module.PlateRequest(
+    req = resolve_module("app.schemas.premium_contracts").PlateRequest(
         sex="female",
         age=34,
         height_cm=168,
@@ -230,7 +228,7 @@ def test_legacy_premium_plate_wrapper_delegates_to_canonical_service(
         activity="light",
         goal="maintain",
     )
-    expected = legacy_module.PlateResponse(
+    expected = resolve_module("app.schemas.premium_contracts").PlateResponse(
         kcal=1900,
         macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238},
         portions={"vegetables": 0.5, "protein": 0.25, "grains": 0.25},
@@ -289,15 +287,14 @@ def test_retained_plate_rejects_raw_non_finite_measurement_with_exact_422(
 def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    legacy_module = resolve_legacy_app()
-    req = legacy_module.BMRRequest(
+    req = resolve_module("app.schemas.bmr").BMRRequest(
         weight_kg=70,
         height_cm=175,
         age=35,
         sex="male",
         activity="moderate",
     )
-    expected = legacy_module.BMRResponse(
+    expected = resolve_module("app.schemas.bmr").BMRResponse(
         bmr={"mifflin": 1650.0},
         tdee={"mifflin": 2557.5},
         activity_level="moderate",
@@ -332,15 +329,14 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
 def test_public_premium_bmr_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    legacy_module = resolve_legacy_app()
-    req = legacy_module.BMRRequestLegacy(
+    req = resolve_module("app.schemas.bmr").BMRRequestLegacy(
         weight_kg=70,
         height_cm=175,
         age=35,
         sex="male",
         activity="moderate",
     )
-    expected = legacy_module.BMRResponse(
+    expected = resolve_module("app.schemas.bmr").BMRResponse(
         bmr={"mifflin": 1650.0},
         tdee={"mifflin": 2557.5},
         activity_level="moderate",
@@ -375,8 +371,7 @@ def test_public_premium_bmr_wrapper_delegates_to_canonical_service(
 def test_legacy_premium_targets_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    legacy_module = resolve_legacy_app()
-    req = legacy_module.WHOTargetsRequest(
+    req = resolve_module("app.schemas.premium_contracts").WHOTargetsRequest(
         sex="female",
         age=34,
         height_cm=168,
@@ -442,10 +437,9 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_canonical_service(
 def test_legacy_premium_gaps_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    legacy_module = resolve_legacy_app()
-    req = legacy_module.NutrientGapsRequest(
+    req = resolve_module("app.schemas.premium_contracts").NutrientGapsRequest(
         consumed_nutrients={"iron_mg": 10.0},
-        user_profile=legacy_module.WHOTargetsRequest(
+        user_profile=resolve_module("app.schemas.premium_contracts").WHOTargetsRequest(
             sex="female",
             age=34,
             height_cm=168,
@@ -453,7 +447,7 @@ def test_legacy_premium_gaps_wrapper_delegates_to_canonical_service(
             activity="light",
         ),
     )
-    expected = legacy_module.NutrientGapsResponse(
+    expected = resolve_module("app.schemas.premium_contracts").NutrientGapsResponse(
         gaps={"iron_mg": {"status": "low", "delta": -8.0}},
         food_recommendations=["lentils"],
         adherence_score=0.85,
