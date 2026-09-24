@@ -759,11 +759,11 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (complete, current role-context delivery)
   - Target PR: [#2385](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2385)
     on `codex/orchestration-exact-context-bundle-reuse`
-  - Status: Implementation and same-PR validation closure are recorded in PR
-    #2385. Closure takes effect when PR #2385 merges; until then current-head CI,
-    review closeout, and merge remain pending. The historical ORCH-CACHE-1 lane
-    name is retained for traceability, but no context cache is included after
-    the accepted benchmark decision.
+  - Status: Closed. PR #2385 squash-merged as
+    `08e267473458156362bcc166c3d577e8f460c9e7`; the exact role-context
+    materializer is baseline. The historical ORCH-CACHE-1 lane name is retained
+    for traceability. Persistence remains removed after the accepted negative
+    benchmark decision; this closeout grants no cache authority.
   - Area: orchestration / role dispatch / context loading
   - Reason (EN): The dispatch manifest carries a 500-character prompt excerpt
     and source paths, while actual role execution requires the complete raw role
@@ -809,6 +809,51 @@ If it is not recorded here — it does not exist.
   - Rollback (EN): Revert the materializer, opt-in bridge envelope, tests, and
     synchronized dispatch guidance. Default manifest behavior remains the
     compatibility baseline.
+
+<a id="ledger-p1-noos-1a-evidence-relations"></a>
+- [ ] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
+  - Owner: backend-engineer / agent-coordinator
+  - Priority: P1
+  - Target PR: `codex/evidence-relation-causal-overclaim-audit-v1` (number pending)
+  - Status: Implementation in progress. Structural acceptance and closeout
+    remain subject to current-head CI, review disposition and separate merge
+    authorization.
+  - Area: offline eval / evidence contracts
+  - Reason (EN): Existing evidence assets and provenance do not distinguish
+    claim-to-evidence links from asserted world relations or audit the
+    structural prerequisites for a causal wording.
+  - Links: `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
+    `core/evidence/relations.py`, `scripts/evals/evidence_relation_audit.py`
+  - DoD: Immutable typed records and explicit revisions; finite typed asset
+    inventory; strict bounded JSONL validation; deterministic per-record
+    structural report and private no-replace publication; frozen symbolic
+    matrix with zero structural control errors; no runtime/API/DB/provider,
+    semantic-cache, Graph serving or authority integration; focused guards,
+    narrow local gates and current-head CI including diff coverage at least 97%.
+  - Out of scope (EN): Scientific proof, reviewer authentication, open-world
+    contradiction completeness, FitChef response changes and observed product
+    outcomes.
+  - Rollback (EN): Revert the implementation PR; no migration or product data
+    are changed.
+
+<a id="ledger-p1-noos-1b-fitchef-answer-evaluation"></a>
+- [ ] P1: NOOS-1B FitChef answer-content evaluation
+  - Owner: product AI / evaluation owner
+  - Priority: P1
+  - Target PR: `PR-TBD` (separately admitted after NOOS-1A)
+  - Status: Deferred; no automatic start or runtime activation.
+  - Area: FitChef eval / product outcomes
+  - Reason (EN): The NOOS-1A structural matrix cannot measure whether actual
+    FitChef responses make supported claims or improve trust, retention,
+    quality or cost. That needs separately reviewed item-level answer evidence.
+  - Links: `docs/evals/EVIDENCE_RELATION_CAUSAL_AUDIT_V1.md`,
+    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-noos-1a-evidence-relations`
+  - DoD: Freeze a separately approved answer-level corpus and independent
+    expected judgments; measure false acceptance/rejection and user-relevant
+    quality on actual FitChef outputs; preserve wellness-only and runtime
+    authority boundaries; gate any product change through its own PR.
+  - Out of scope (EN): Automatic promotion from NOOS-1A reports, unreviewed
+    provider calls and semantic-cache serving.
 
 <a id="ledger-p1-canonical-task-packet-identity-verifier"></a>
 - [ ] P1: Add one producer-owned canonical task-packet identity verifier
