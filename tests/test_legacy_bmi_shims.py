@@ -88,6 +88,13 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_generate_who_targets_response",
     "_fallback_targets_response",
     "analyze_nutrient_gaps_response",
+    "_OPENAPI_ALLOWED_PREFIXES",
+    "_OPENAPI_ALLOWED_EXACT",
+    "_is_openapi_public_path",
+    "_collect_schema_refs",
+    "_prune_unreferenced_schema_components",
+    "_build_canonical_openapi",
+    "_install_openapi_builder",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -124,6 +131,16 @@ RETIRED_INSIGHT_BINDINGS = (
     "_execute_insight_request",
     "insight_v1",
     "insight",
+)
+
+RETIRED_OPENAPI_BINDINGS = (
+    "_OPENAPI_ALLOWED_PREFIXES",
+    "_OPENAPI_ALLOWED_EXACT",
+    "_is_openapi_public_path",
+    "_collect_schema_refs",
+    "_prune_unreferenced_schema_components",
+    "_build_canonical_openapi",
+    "_install_openapi_builder",
 )
 
 _NETWORK_DISABLED_PREAMBLE = textwrap.dedent("""
@@ -212,6 +229,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     """Verify retired-name absence while preserving canonical objects and retained schemas."""
     import app as app_facade
     import app.schemas.bmi_compat as bmi_schemas
+    import app.bootstrap.openapi as canonical_openapi
     import app.schemas.insight as insight_schemas
     import app.schemas.premium_contracts as premium_contracts
     import app.services.admin_operations as admin_operations
@@ -288,6 +306,15 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "_generate_who_targets_response": targets_service.generate_who_targets_response,
         "_fallback_targets_response": targets_service.fallback_targets_response,
         "analyze_nutrient_gaps_response": targets_service.analyze_nutrient_gaps_response,
+        "_OPENAPI_ALLOWED_PREFIXES": canonical_openapi._OPENAPI_ALLOWED_PREFIXES,
+        "_OPENAPI_ALLOWED_EXACT": canonical_openapi._OPENAPI_ALLOWED_EXACT,
+        "_is_openapi_public_path": canonical_openapi._is_openapi_public_path,
+        "_collect_schema_refs": canonical_openapi._collect_schema_refs,
+        "_prune_unreferenced_schema_components": (
+            canonical_openapi._prune_unreferenced_schema_components
+        ),
+        "_build_canonical_openapi": canonical_openapi._build_canonical_openapi,
+        "_install_openapi_builder": canonical_openapi._install_openapi_builder,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -297,11 +324,30 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "MAX_DAILY_KCAL": nutrition_utils.MAX_DAILY_KCAL,
         "MICRO_ALIAS_MAP": nutrition_utils.MICRO_ALIAS_MAP,
         "MIN_DAILY_KCAL": nutrition_utils.MIN_DAILY_KCAL,
+        "_OPENAPI_ALLOWED_PREFIXES": canonical_openapi._OPENAPI_ALLOWED_PREFIXES,
+        "_OPENAPI_ALLOWED_EXACT": canonical_openapi._OPENAPI_ALLOWED_EXACT,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 61
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 68
+    assert RETIRED_OPENAPI_BINDINGS == tuple(
+        name for name in canonical_migrations if name in RETIRED_OPENAPI_BINDINGS
+    )
+    assert isinstance(canonical_openapi._OPENAPI_ALLOWED_PREFIXES, tuple)
+    assert canonical_openapi._OPENAPI_ALLOWED_PREFIXES == (
+        "/api/v1/bmi/",
+        "/api/v1/billing/",
+        "/api/v1/insight/",
+        "/api/v1/pro/",
+        "/api/v1/vip/",
+    )
+    assert isinstance(canonical_openapi._OPENAPI_ALLOWED_EXACT, frozenset)
+    assert canonical_openapi._OPENAPI_ALLOWED_EXACT == frozenset({"/api/v1/bmi", "/api/v1/insight"})
+    assert (
+        canonical_openapi._install_openapi_builder
+        is canonical_openapi.install_canonical_openapi_builder
+    )
     assert isinstance(nutrition_utils.MANDATORY_MICRO_DEFAULTS, dict)
     assert isinstance(nutrition_utils.MICRO_ALIAS_MAP, dict)
     assert isinstance(nutrition_utils.MIN_DAILY_KCAL, int)
@@ -380,6 +426,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         import json
         import legacy_app
         import app as app_facade
+        import app.bootstrap.openapi as canonical_openapi
         import app.services.pro_nutrition_plate as plate_service
         import app.services.pro_nutrition_targets as targets_service
         import core.nutrition_utils as nutrition_utils
@@ -387,6 +434,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         retired = {retired_bindings!r}
         plate_helpers = {RETIRED_PLATE_HELPER_BINDINGS!r}
         nutrition_utilities = {RETIRED_NUTRITION_UTILITY_BINDINGS!r}
+        openapi_helpers = {RETIRED_OPENAPI_BINDINGS!r}
         targets_gaps_service = (
             "generate_who_targets_response",
             "fallback_targets_response",
@@ -425,6 +473,14 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
                 pass
             else:
                 raise AssertionError(f"legacy attribute remains: {{binding_name}}")
+        assert isinstance(canonical_openapi._OPENAPI_ALLOWED_PREFIXES, tuple)
+        assert isinstance(canonical_openapi._OPENAPI_ALLOWED_EXACT, frozenset)
+        assert (
+            canonical_openapi._install_openapi_builder
+            is canonical_openapi.install_canonical_openapi_builder
+        )
+        for binding_name in openapi_helpers[2:]:
+            assert callable(getattr(canonical_openapi, binding_name))
         """)
     scenario += import_failure_checks
     scenario += textwrap.dedent("""
@@ -434,6 +490,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
                 "absent": list(retired),
                 "canonical_plate_helpers": list(plate_helpers),
                 "canonical_nutrition_utilities": list(nutrition_utilities),
+                "canonical_openapi_helpers": list(openapi_helpers),
                 "canonical_targets_gaps_service": list(targets_gaps_service),
                 "package_macro_identity_preserved": True,
             })
@@ -444,6 +501,7 @@ def test_retired_legacy_python_bindings_fail_closed_in_a_fresh_process() -> None
         "absent": list(retired_bindings),
         "canonical_plate_helpers": list(RETIRED_PLATE_HELPER_BINDINGS),
         "canonical_nutrition_utilities": list(RETIRED_NUTRITION_UTILITY_BINDINGS),
+        "canonical_openapi_helpers": list(RETIRED_OPENAPI_BINDINGS),
         "canonical_targets_gaps_service": [
             "generate_who_targets_response",
             "fallback_targets_response",
