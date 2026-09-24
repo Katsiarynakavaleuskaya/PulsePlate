@@ -3,23 +3,205 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
+from typing import cast
 
 import pytest
 
 from core.evidence.assets import create_evidence_asset_ref
-from core.evidence.fingerprints import fingerprint_payload
+from core.evidence.fingerprints import JsonValue, fingerprint_payload
 from core.evidence.relations import audit_snapshot, parse_snapshot
 
 SOURCE = "sha256:" + "0" * 64
 WHEN = "2026-01-01T00:00:00+00:00"
+
+
+@dataclass(frozen=True)
+class StructuralControl:
+    name: str
+    relation: str
+    status: str
+    methods: tuple[str, ...]
+    reviews: tuple[str, ...]
+    contradiction: bool
+    outcome: str
+    causal_pass: bool
+    missing: tuple[str, ...]
+    reasons: tuple[str, ...]
+    adverse: tuple[str, ...]
+
+
+def _control(
+    name: str,
+    relation: str,
+    status: str,
+    outcome: str,
+    *,
+    methods: tuple[str, ...] = (),
+    reviews: tuple[str, ...] = (),
+    contradiction: bool = False,
+    causal_pass: bool = False,
+    missing: tuple[str, ...] = (),
+    reasons: tuple[str, ...] = (),
+    adverse: tuple[str, ...] = (),
+) -> StructuralControl:
+    return StructuralControl(
+        name,
+        relation,
+        status,
+        methods,
+        reviews,
+        contradiction,
+        outcome,
+        causal_pass,
+        missing,
+        reasons,
+        adverse,
+    )
+
+
+NEGATIVE = "structural_requirements_not_satisfied"
+QUALIFIED_ASSOCIATION = "association_qualified"
+QUALIFIED_CONTRIBUTION = "contribution_qualified"
 EXPECTED_MATRIX = (
-    ("observed_after", "not_claimed", (), (), False),
-    ("associated_with", "not_claimed", ("method",), (), False),
-    ("contributed_to", "candidate", ("method",), (), False),
-    ("caused_by", "candidate", ("method",), ("review",), False),
-    ("caused_by", "adjudicated", (), ("review",), False),
-    ("caused_by", "adjudicated", ("method",), (), False),
-    ("caused_by", "adjudicated", ("method",), ("review",), True),
+    _control("temporal_only", "observed_after", "not_claimed", "temporal_only"),
+    _control(
+        "temporal_status_mismatch",
+        "observed_after",
+        "candidate",
+        NEGATIVE,
+        reasons=("temporal_status_mismatch",),
+    ),
+    _control(
+        "association_with_method",
+        "associated_with",
+        "not_claimed",
+        QUALIFIED_ASSOCIATION,
+        methods=("method",),
+    ),
+    _control(
+        "association_without_method",
+        "associated_with",
+        "not_claimed",
+        NEGATIVE,
+        missing=("method_ref",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "association_with_conflict",
+        "associated_with",
+        "not_claimed",
+        QUALIFIED_ASSOCIATION,
+        methods=("method",),
+        contradiction=True,
+        reasons=("unresolved_contradiction",),
+        adverse=("L1",),
+    ),
+    _control(
+        "contribution_candidate_with_method",
+        "contributed_to",
+        "candidate",
+        QUALIFIED_CONTRIBUTION,
+        methods=("method",),
+    ),
+    _control(
+        "contribution_adjudicated_with_method",
+        "contributed_to",
+        "adjudicated",
+        QUALIFIED_CONTRIBUTION,
+        methods=("method",),
+    ),
+    _control(
+        "contribution_not_claimed_with_method",
+        "contributed_to",
+        "not_claimed",
+        NEGATIVE,
+        methods=("method",),
+        missing=("candidate_or_adjudicated",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "contribution_candidate_without_method",
+        "contributed_to",
+        "candidate",
+        NEGATIVE,
+        missing=("method_ref",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "contribution_adjudicated_without_method",
+        "contributed_to",
+        "adjudicated",
+        NEGATIVE,
+        missing=("method_ref",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "contribution_not_claimed_without_method",
+        "contributed_to",
+        "not_claimed",
+        NEGATIVE,
+        missing=("method_ref", "candidate_or_adjudicated"),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "contribution_with_conflict",
+        "contributed_to",
+        "candidate",
+        QUALIFIED_CONTRIBUTION,
+        methods=("method",),
+        contradiction=True,
+        reasons=("unresolved_contradiction",),
+        adverse=("L1",),
+    ),
+    _control(
+        "cause_candidate",
+        "caused_by",
+        "candidate",
+        NEGATIVE,
+        methods=("method",),
+        reviews=("review",),
+        missing=("adjudicated",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "cause_missing_method",
+        "caused_by",
+        "adjudicated",
+        NEGATIVE,
+        reviews=("review",),
+        missing=("method_ref",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "cause_missing_review",
+        "caused_by",
+        "adjudicated",
+        NEGATIVE,
+        methods=("method",),
+        missing=("independent_review_ref",),
+        reasons=("missing_requirement",),
+    ),
+    _control(
+        "cause_structural_pass",
+        "caused_by",
+        "adjudicated",
+        "structural_requirements_satisfied_for_supplied_scope",
+        methods=("method",),
+        reviews=("review",),
+        causal_pass=True,
+    ),
+    _control(
+        "cause_with_conflict",
+        "caused_by",
+        "adjudicated",
+        NEGATIVE,
+        methods=("method",),
+        reviews=("review",),
+        contradiction=True,
+        reasons=("unresolved_contradiction",),
+        adverse=("L1",),
+    ),
 )
 
 
@@ -49,7 +231,7 @@ def _asset(use_kind: str) -> dict[str, object]:
 
 def _seal(row: dict[str, object]) -> dict[str, object]:
     row["record_fingerprint"] = fingerprint_payload(
-        {key: value for key, value in row.items() if key != "record_fingerprint"}
+        cast(JsonValue, {key: value for key, value in row.items() if key != "record_fingerprint"})
     )
     return row
 
@@ -114,17 +296,28 @@ def snapshot(
     return rows
 
 
-@pytest.mark.parametrize("relation,status,methods,reviews,expected", EXPECTED_MATRIX)
-def test_frozen_structural_matrix(
-    relation: str, status: str, methods: tuple[str, ...], reviews: tuple[str, ...], expected: bool
-) -> None:
+@pytest.mark.parametrize("case", EXPECTED_MATRIX, ids=lambda case: case.name)
+def test_frozen_structural_matrix(case: StructuralControl) -> None:
     report = audit_snapshot(
         parse_snapshot(
-            snapshot(relation=relation, epistemic_status=status, methods=methods, reviews=reviews)
+            snapshot(
+                relation=case.relation,
+                epistemic_status=case.status,
+                methods=case.methods,
+                reviews=case.reviews,
+                contradiction=case.contradiction,
+            )
         )
     )
-    assert report.assessments[0].causal_structural_pass is expected
-    assert report.assessments[0].authority_granted is False
+    assessment = report.assessments[0]
+    assert assessment.relation == case.relation
+    assert assessment.outcome == case.outcome
+    assert assessment.causal_structural_pass is case.causal_pass
+    assert assessment.missing_requirements == case.missing
+    assert assessment.reason_codes == case.reasons
+    assert assessment.unresolved_link_refs == case.adverse
+    assert assessment.authority_granted is False
+    assert assessment.answer_change_allowed is False
 
 
 @pytest.mark.parametrize("adverse_relation", ["contradicted_by", "invalidated_by"])
@@ -146,7 +339,11 @@ def test_represented_contradiction_blocks_cause_and_cannot_be_omitted(
 
 def test_provenance_and_replication_alone_do_not_admit_candidate_cause() -> None:
     rows = snapshot(epistemic_status="candidate")
-    evidence = next(row["asset"]["asset_id"] for row in rows if row.get("use_kind") == "evidence")
+    evidence_row = next(row for row in rows if row.get("use_kind") == "evidence")
+    asset = evidence_row["asset"]
+    assert isinstance(asset, dict)
+    evidence = asset["asset_id"]
+    assert isinstance(evidence, str)
     for relation, identifier in (("supported_by", "L1"), ("replicated_by", "L2")):
         rows.insert(
             -1,

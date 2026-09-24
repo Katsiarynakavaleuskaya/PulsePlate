@@ -18,7 +18,7 @@ from core.evidence.fingerprints import (
     build_idempotency_key,
     fingerprint_payload,
 )
-from core.evidence.policies import ALLOWED_ASSET_TYPES, ALLOWED_RAILS
+from core.evidence.policies import ALLOWED_ASSET_TYPES, ALLOWED_RAILS, validate_non_empty_token
 
 EpistemicRelation = Literal[
     "supported_by", "contradicted_by", "derived_from", "replicated_by", "invalidated_by"
@@ -108,6 +108,18 @@ def _fingerprint(value: object) -> str:
     if type(value) is not str or _FINGERPRINT.fullmatch(value) is None:
         raise ValueError("fingerprint_format")
     return value
+
+
+def _canonical_asset_token(name: str, value: object) -> str:
+    """Apply the existing asset-token contract after exact raw-type admission."""
+    admitted = _token(value)
+    try:
+        canonical = validate_non_empty_token(name, admitted)
+    except ValueError as exc:
+        raise ValueError("schema_value") from exc
+    if canonical != admitted:
+        raise ValueError("schema_value")
+    return admitted
 
 
 def _choice(value: object, choices: frozenset[str]) -> str:
@@ -249,8 +261,8 @@ def _asset(row: dict[str, object]) -> InventoryAssetV1:
     if upstream != tuple(sorted(upstream)):
         raise ValueError("reference_order")
     fingerprint = _fingerprint(raw["fingerprint"])
-    version = _token(raw["version"])
-    policy = _token(raw["policy_version"])
+    version = _canonical_asset_token("version", raw["version"])
+    policy = _canonical_asset_token("policy_version", raw["policy_version"])
     asset_id = _token(raw["asset_id"])
     idem = _token(raw["idempotency_key"])
     if asset_id in upstream:

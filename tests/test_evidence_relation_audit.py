@@ -9,10 +9,16 @@ from pathlib import Path
 import socket
 import stat
 import subprocess
+from typing import cast
 
 import pytest
 
-from core.evidence.fingerprints import fingerprint_payload
+from core.evidence.fingerprints import (
+    JsonValue,
+    build_asset_id,
+    build_idempotency_key,
+    fingerprint_payload,
+)
 from core.evidence.relations import audit_snapshot, parse_snapshot
 from scripts.evals import evidence_relation_audit as cli
 
@@ -21,7 +27,7 @@ FIXTURE = Path(__file__).parent / "fixtures/evidence_relation_audit_v1.jsonl"
 
 def _seal(row: dict[str, object]) -> None:
     row["record_fingerprint"] = fingerprint_payload(
-        {key: value for key, value in row.items() if key != "record_fingerprint"}
+        cast(JsonValue, {key: value for key, value in row.items() if key != "record_fingerprint"})
     )
 
 
@@ -111,6 +117,19 @@ def test_bad_jsonl_cannot_publish(tmp_path: Path, bad: bytes) -> None:
     assert not target.exists()
 
 
+def test_decoder_integer_limit_error_is_content_free_and_cannot_publish(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "huge-integer.jsonl"
+    target = tmp_path / "out.json"
+    source.write_bytes(b'{"value":' + b"9" * 5000 + b"}\n")
+    assert cli.main(["report", "--input", str(source), "--output", str(target)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "evidence_relation_audit: jsonl_format\n"
+    assert not target.exists()
+
+
 def test_reference_type_duplicate_and_raw_value_rejection() -> None:
     rows = _basic_rows()
     with pytest.raises(ValueError, match="duplicate_id"):
@@ -146,6 +165,26 @@ def test_reference_type_duplicate_and_raw_value_rejection() -> None:
     _seal(broken[-1])
     with pytest.raises(ValueError, match="reference_limit"):
         parse_snapshot(broken)
+
+
+@pytest.mark.parametrize("field,value", [("version", "v:1"), ("policy_version", "noos1a:v1")])
+def test_asset_tokens_reject_colons_even_with_recomputed_identity(field: str, value: str) -> None:
+    rows = _basic_rows()
+    asset = rows[0]["asset"]
+    assert isinstance(asset, dict)
+    asset[field] = value
+    identity = {
+        "asset_type": asset["asset_type"],
+        "rail": asset["rail"],
+        "version": asset["version"],
+        "policy_version": asset["policy_version"],
+        "fingerprint": asset["fingerprint"],
+        "upstream_ids": tuple(asset["upstream_ids"]),
+    }
+    asset["asset_id"] = build_asset_id(**identity)
+    asset["idempotency_key"] = build_idempotency_key(**identity)
+    with pytest.raises(ValueError, match="^schema_value$"):
+        parse_snapshot(rows)
 
 
 def test_revision_cycles_and_cross_type_refs_rejected() -> None:

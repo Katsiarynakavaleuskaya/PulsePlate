@@ -28,6 +28,10 @@ MAX_DEPTH = 32
 _DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
+class _JsonlPolicyError(ValueError):
+    """Known parser-policy rejection with a fixed, content-free category."""
+
+
 def _components(path: Path) -> tuple[str, ...]:
     parts = path.parts
     if not parts or any(part in ("", ".", "..") for part in parts if part != path.anchor):
@@ -101,18 +105,18 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError("duplicate_json_key")
+            raise _JsonlPolicyError("duplicate_json_key")
         result[key] = value
     return result
 
 
 def _reject_constant(_: str) -> None:
-    raise ValueError("json_constant")
+    raise _JsonlPolicyError("json_constant")
 
 
 def _check_depth(value: object, depth: int = 0) -> None:
     if depth > MAX_DEPTH:
-        raise ValueError("json_depth")
+        raise _JsonlPolicyError("json_depth")
     if type(value) is dict:
         for child in cast(dict[str, object], value).values():
             _check_depth(child, depth + 1)
@@ -142,7 +146,9 @@ def read_jsonl(path: Path) -> list[object]:
                 parse_constant=_reject_constant,
             )
             _check_depth(value)
-        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        except _JsonlPolicyError:
+            raise
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
             raise ValueError("jsonl_format") from exc
         rows.append(value)
     return rows
