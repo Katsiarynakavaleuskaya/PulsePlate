@@ -159,6 +159,7 @@ def _recipe_bootstrap_command(
     paths: list[str],
     requested_agents: list[str],
     invariant_change_classes: list[str],
+    review_invariant_family_relations_input: str | None,
     design_arguments: list[str],
 ) -> str:
     """Render the exact pre-bootstrap recipe inputs as one shell-safe command."""
@@ -172,6 +173,13 @@ def _recipe_bootstrap_command(
         "--pr-phase",
         pr_phase,
     ]
+    if review_invariant_family_relations_input is not None:
+        tokens.extend(
+            (
+                "--review-invariant-family-relations-input",
+                review_invariant_family_relations_input,
+            )
+        )
     for path in paths:
         tokens.append(f"--path={path}")
     for change_class in _unique(invariant_change_classes):
@@ -702,11 +710,39 @@ def render_recipe_prompt(
     paths: list[str],
     requested_agents: list[str],
     invariant_change_classes: list[str] | None = None,
+    review_invariant_family_relations_input: str | None = None,
     additive_rails: list[str] | None = None,
     design_arguments: list[str] | None = None,
     preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
+
+    if review_invariant_family_relations_input is not None:
+        if (
+            not isinstance(review_invariant_family_relations_input, str)
+            or not review_invariant_family_relations_input.strip()
+            or review_invariant_family_relations_input.startswith("-")
+            or any(
+                ord(character) < 32 or ord(character) == 127
+                for character in review_invariant_family_relations_input
+            )
+        ):
+            raise PromptError(
+                "--review-invariant-family-relations-input requires one non-empty path value"
+            )
+        if pr_phase != "post_open_review":
+            raise PromptError(
+                "--review-invariant-family-relations-input requires --pr-phase post_open_review"
+            )
+        if not goal.strip() or not task_class.strip():
+            raise PromptError(
+                "--review-invariant-family-relations-input requires concrete --goal and --task-class"
+            )
+        if invariant_change_classes:
+            raise PromptError(
+                "--review-invariant-family-relations-input is incompatible with "
+                "--invariant-change-class"
+            )
 
     agents = _unique(["agent-coordinator", *requested_agents])
     if preflight_ran:
@@ -726,6 +762,7 @@ def render_recipe_prompt(
         paths=paths,
         requested_agents=requested_agents,
         invariant_change_classes=invariant_change_classes or [],
+        review_invariant_family_relations_input=review_invariant_family_relations_input,
         design_arguments=design_arguments or [],
     )
     applicability_command = (
@@ -803,6 +840,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     recipe_parser.add_argument("--worktree", default="")
     recipe_parser.add_argument("--path", action="append", default=[])
     recipe_parser.add_argument(
+        "--review-invariant-family-relations-input", action="append", default=[]
+    )
+    recipe_parser.add_argument(
         "--invariant-change-class",
         action="append",
         choices=INVARIANT_CHANGE_CLASSES,
@@ -858,6 +898,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
+        if len(args.review_invariant_family_relations_input) > 1:
+            raise PromptError("--review-invariant-family-relations-input may be supplied only once")
         print(
             render_recipe_prompt(
                 goal=args.goal,
@@ -868,6 +910,11 @@ def main(argv: list[str] | None = None) -> int:
                 paths=args.path,
                 requested_agents=args.requested_agent,
                 invariant_change_classes=args.invariant_change_class,
+                review_invariant_family_relations_input=(
+                    args.review_invariant_family_relations_input[0]
+                    if args.review_invariant_family_relations_input
+                    else None
+                ),
                 additive_rails=args.evidence_sidecar_rail,
                 design_arguments=_recipe_design_arguments(args),
                 preflight_ran=args.preflight_ran,

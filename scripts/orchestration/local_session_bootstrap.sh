@@ -20,6 +20,8 @@ Options:
   --path <path>              Repeatable; passed to preflight analyze and printed for bootstrap.
   --invariant-change-class <class>
                              Repeatable; parser, validator, guard, or authority.
+  --review-invariant-family-relations-input <repo-relative-json-path>
+                             Optional explicit L1 artifact for post_open_review only.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none.
   --requested-agent <slug>   Repeatable; printed for bootstrap.
   -h, --help                 Show this help.
@@ -141,6 +143,8 @@ BOOTSTRAP_OPTION_SEEN=0
 REQUESTED_ARGS=()
 PATH_ARGS=()
 INVARIANT_CLASS_ARGS=()
+REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT=""
+REVIEW_INPUT_SEEN=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -176,6 +180,21 @@ while [[ $# -gt 0 ]]; do
             BOOTSTRAP_OPTION_SEEN=1
             shift 2
             ;;
+        --review-invariant-family-relations-input)
+            if [[ "${REVIEW_INPUT_SEEN}" -eq 1 ]]; then
+                die_usage "--review-invariant-family-relations-input may be supplied only once"
+            fi
+            if [[ $# -lt 2 ]]; then
+                die_usage "--review-invariant-family-relations-input requires one non-empty path value"
+            fi
+            if [[ -z "${2//[[:space:]]/}" || "$2" == -* || "$2" =~ [[:cntrl:]] ]]; then
+                die_usage "--review-invariant-family-relations-input requires one non-empty path value"
+            fi
+            REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT="$2"
+            REVIEW_INPUT_SEEN=1
+            BOOTSTRAP_OPTION_SEEN=1
+            shift 2
+            ;;
         --pr-phase)
             if [[ $# -lt 2 ]]; then die_usage "--pr-phase requires a value"; fi
             PR_PHASE="$2"
@@ -202,6 +221,17 @@ esac
 if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 && ( -z "${GOAL}" || -z "${TASK_CLASS}" ) ]]; then
     die_usage "--goal and --task-class are required when bootstrap options are supplied"
 fi
+if [[ "${REVIEW_INPUT_SEEN}" -eq 1 ]]; then
+    if [[ "${PR_PHASE}" != "post_open_review" ]]; then
+        die_usage "--review-invariant-family-relations-input requires --pr-phase post_open_review"
+    fi
+    if [[ -z "${GOAL//[[:space:]]/}" || -z "${TASK_CLASS//[[:space:]]/}" ]]; then
+        die_usage "--review-invariant-family-relations-input requires concrete --goal and --task-class"
+    fi
+    if ((${#INVARIANT_CLASS_ARGS[@]})); then
+        die_usage "--review-invariant-family-relations-input is incompatible with --invariant-change-class"
+    fi
+fi
 
 # analyze: allows a dirty tree; appropriate for cold-start / task analysis.
 # For --mode execute|merge, run scripts/orchestration/check_preflight.py directly.
@@ -220,6 +250,9 @@ if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 ]]; then
     printf "    --goal %q \\\\\n" "${GOAL}"
     printf "    --task-class %q \\\\\n" "${TASK_CLASS}"
     printf "    --pr-phase %q" "${PR_PHASE}"
+    if [[ "${REVIEW_INPUT_SEEN}" -eq 1 ]]; then
+        printf " \\\\\n    %q %q" --review-invariant-family-relations-input "${REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT}"
+    fi
     for ((i = 0; i < ${#PATH_ARGS[@]}; i += 2)); do
         printf " \\\\\n    %q %q" "${PATH_ARGS[i]}" "${PATH_ARGS[i + 1]}"
     done
@@ -239,6 +272,7 @@ else
     echo "Common options:"
     echo "  --path <path>              (repeatable; scope for scoped AGENTS / routing)"
     echo "  --invariant-change-class parser|validator|guard|authority (repeatable)"
+    echo "  --review-invariant-family-relations-input <repo-relative-json-path> (post_open_review only)"
     echo "  --pr-phase post_open_review|pre_open|merge_ready|none"
     echo "  --requested-agent <slug>   (repeatable)"
 fi
@@ -262,6 +296,9 @@ prompt_cmd=(
     --task-class "${TASK_CLASS}"
     --pr-phase "${PR_PHASE}"
 )
+if [[ "${REVIEW_INPUT_SEEN}" -eq 1 ]]; then
+    prompt_cmd+=(--review-invariant-family-relations-input "${REVIEW_INVARIANT_FAMILY_RELATIONS_INPUT}")
+fi
 if ((${#PATH_ARGS[@]})); then
     prompt_cmd+=("${PATH_ARGS[@]}")
 fi

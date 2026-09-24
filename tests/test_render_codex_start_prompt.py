@@ -820,6 +820,82 @@ def test_recipe_bootstrap_preserves_option_like_paths() -> None:
     assert args.goal == "Preserve literal path values"
 
 
+def test_recipe_bootstrap_preserves_explicit_l1_as_separate_shell_quoted_argument() -> None:
+    l1_path = (
+        "artifacts/orchestration/review_invariant_family_relations/L1 $(touch injected) 'x'.json"
+    )
+    prompt = render_recipe_prompt(
+        goal="Review explicit membership",
+        task_class="Orchestration",
+        pr_phase="post_open_review",
+        paths=["scripts/orchestration/local_session_bootstrap.sh"],
+        requested_agents=[],
+        review_invariant_family_relations_input=l1_path,
+    )
+    command = next(
+        line.removeprefix("Next required repo command: ")
+        for line in prompt.splitlines()
+        if line.startswith("Next required repo command: ")
+    )
+    tokens = shlex.split(command)
+    assert tokens.count("--review-invariant-family-relations-input") == 1
+    args = task_bootstrap._parse_args(tokens[2:])
+    assert args.review_invariant_family_relations_input == l1_path
+    assert args.path == ["scripts/orchestration/local_session_bootstrap.sh"]
+    assert "touch injected" not in prompt.split("Next required repo command: ", 1)[0]
+
+
+@pytest.mark.parametrize(
+    ("path", "phase", "goal", "task_class", "classes", "message"),
+    [
+        ("", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("  ", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("--path", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("bad\nline", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("bad\tline", "post_open_review", "G", "T", [], "requires one non-empty path"),
+        ("input.json", "pre_open", "G", "T", [], "requires --pr-phase post_open_review"),
+        ("input.json", "post_open_review", " ", "T", [], "requires concrete"),
+        ("input.json", "post_open_review", "G", " ", [], "requires concrete"),
+        ("input.json", "post_open_review", "G", "T", ["guard"], "incompatible with"),
+    ],
+)
+def test_recipe_direct_call_rejects_ambiguous_explicit_l1(
+    path: str, phase: str, goal: str, task_class: str, classes: list[str], message: str
+) -> None:
+    with pytest.raises(codex_prompt.PromptError, match=message):
+        render_recipe_prompt(
+            goal=goal,
+            task_class=task_class,
+            pr_phase=phase,
+            paths=[],
+            requested_agents=[],
+            invariant_change_classes=classes,
+            review_invariant_family_relations_input=path,
+        )
+
+
+def test_recipe_cli_rejects_duplicate_explicit_l1(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = main(
+        [
+            "recipe",
+            "--goal",
+            "G",
+            "--task-class",
+            "T",
+            "--pr-phase",
+            "post_open_review",
+            "--review-invariant-family-relations-input",
+            "one.json",
+            "--review-invariant-family-relations-input",
+            "two.json",
+        ]
+    )
+    assert result == 1
+    assert "may be supplied only once" in capsys.readouterr().err
+
+
 def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
     """Dry-run callers must not inherit the analyze-preflight helper wording."""
 
