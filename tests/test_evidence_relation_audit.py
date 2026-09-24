@@ -240,6 +240,64 @@ def test_unsafe_inputs_and_outputs_preserve_files(tmp_path: Path) -> None:
         cli.read_jsonl(fifo)
 
 
+def test_same_size_rewrite_with_restored_mtime_during_read_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "source.jsonl"
+    source.write_bytes(FIXTURE.read_bytes())
+    target = tmp_path / "report.json"
+    initial = source.stat()
+    original = source.read_bytes()
+    changed = bytearray(original)
+    changed[0] = ord("[")
+    triggered = False
+    real_read = os.read
+
+    def rewrite_at_first_eof(fd: int, amount: int) -> bytes:
+        nonlocal triggered
+        part = real_read(fd, amount)
+        if not part and not triggered:
+            triggered = True
+            with source.open("r+b") as stream:
+                stream.write(changed)
+            os.utime(source, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+        return part
+
+    monkeypatch.setattr(cli.os, "read", rewrite_at_first_eof)
+    assert cli.main(["report", "--input", str(source), "--output", str(target)]) == 2
+    assert triggered
+    assert len(source.read_bytes()) == len(original)
+    assert source.stat().st_mtime_ns == initial.st_mtime_ns
+    assert capsys.readouterr().err == "evidence_relation_audit: input_changed\n"
+    assert not target.exists()
+
+
+def test_hardlink_added_during_read_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "source.jsonl"
+    source.write_bytes(FIXTURE.read_bytes())
+    alias = tmp_path / "late-hardlink.jsonl"
+    target = tmp_path / "report.json"
+    triggered = False
+    real_read = os.read
+
+    def link_at_first_eof(fd: int, amount: int) -> bytes:
+        nonlocal triggered
+        part = real_read(fd, amount)
+        if not part and not triggered:
+            triggered = True
+            os.link(source, alias)
+        return part
+
+    monkeypatch.setattr(cli.os, "read", link_at_first_eof)
+    assert cli.main(["report", "--input", str(source), "--output", str(target)]) == 2
+    assert triggered
+    assert source.stat().st_nlink == 2
+    assert capsys.readouterr().err == "evidence_relation_audit: input_changed\n"
+    assert not target.exists()
+
+
 def test_post_link_sync_failure_keeps_complete_report(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

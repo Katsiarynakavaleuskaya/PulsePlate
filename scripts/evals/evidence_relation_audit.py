@@ -87,12 +87,61 @@ def _read_input(path: Path) -> bytes:
                 chunks.append(part)
             after = os.fstat(fd)
             named = os.stat(name, dir_fd=parent, follow_symlinks=False)
-            before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-            after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-            named_identity = (named.st_dev, named.st_ino, named.st_size, named.st_mtime_ns)
+            before_identity = (
+                before.st_dev,
+                before.st_ino,
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_nlink,
+            )
+            after_identity = (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_nlink,
+            )
+            named_identity = (
+                named.st_dev,
+                named.st_ino,
+                named.st_size,
+                named.st_mtime_ns,
+                named.st_nlink,
+            )
             if before_identity != after_identity or after_identity != named_identity:
                 raise ValueError("input_changed")
-            return b"".join(chunks)
+            first_read = b"".join(chunks)
+            os.lseek(fd, 0, os.SEEK_SET)
+            compared = 0
+            while True:
+                part = os.read(fd, min(65536, MAX_BYTES + 1 - compared))
+                if not part:
+                    break
+                next_offset = compared + len(part)
+                if next_offset > MAX_BYTES or first_read[compared:next_offset] != part:
+                    raise ValueError("input_changed")
+                compared = next_offset
+            if compared != len(first_read):
+                raise ValueError("input_changed")
+            final = os.fstat(fd)
+            final_named = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            final_identity = (
+                final.st_dev,
+                final.st_ino,
+                final.st_size,
+                final.st_mtime_ns,
+                final.st_nlink,
+            )
+            final_named_identity = (
+                final_named.st_dev,
+                final_named.st_ino,
+                final_named.st_size,
+                final_named.st_mtime_ns,
+                final_named.st_nlink,
+            )
+            if after_identity != final_identity or final_identity != final_named_identity:
+                raise ValueError("input_changed")
+            return first_read
         except OSError as exc:
             raise ValueError("unsafe_input") from exc
         finally:
