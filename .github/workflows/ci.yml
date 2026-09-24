@@ -989,6 +989,11 @@ jobs:
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
                   tests/test_app_db_fallback_97.py \
+                  tests/test_core_db_async_optional.py \
+                  tests/test_core_db_comprehensive.py \
+                  tests/test_core_db_missing_coverage.py \
+                  tests/test_db_engine_reuse_diff_coverage.py \
+                  tests/test_db_missing_lines_coverage.py \
                   tests/test_app_lifespan_additional.py \
                   tests/test_canonical_application_lifespan.py \
                   tests/test_creative_research_eval_contract.py \
@@ -1425,6 +1430,11 @@ jobs:
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
                   tests/test_app_db_fallback_97.py \
+                  tests/test_core_db_async_optional.py \
+                  tests/test_core_db_comprehensive.py \
+                  tests/test_core_db_missing_coverage.py \
+                  tests/test_db_engine_reuse_diff_coverage.py \
+                  tests/test_db_missing_lines_coverage.py \
                   tests/test_app_lifespan_additional.py \
                   tests/test_canonical_application_lifespan.py \
                   tests/test_creative_research_eval_contract.py \

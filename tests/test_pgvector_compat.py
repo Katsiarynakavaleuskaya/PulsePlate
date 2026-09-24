@@ -1678,6 +1678,37 @@ def pgvector_database() -> Iterator[_CompatDatabase]:
         admin_engine.dispose()
 
 
+def test_core_db_engine_identity_with_native_postgres(
+    pgvector_database: _CompatDatabase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise the canonical getter with the harness-owned PostgreSQL role."""
+    from core import db as core_db
+
+    database = pgvector_database
+    baseline_database_url = os.environ.get("DATABASE_URL")
+    owner_url = database.owner_engine.url
+    core_db.reset_db_for_tests()
+    try:
+        with monkeypatch.context() as database_env:
+            database_env.setenv("DATABASE_URL", owner_url.render_as_string(hide_password=False))
+            first = core_db._get_raw_engine()
+            assert core_db._get_raw_engine() is first
+            with core_db.get_session_factory()() as session:
+                assert session.bind is first
+                assert session.scalar(text("SELECT current_user")) == database.owner_role
+
+            changed_url = owner_url.update_query_dict({"application_name": "ops02_native"})
+            database_env.setenv("DATABASE_URL", changed_url.render_as_string(hide_password=False))
+            second = core_db._get_raw_engine()
+            assert second is not first
+            with core_db.get_session_factory()() as session:
+                assert session.bind is second
+                assert session.scalar(text("SELECT current_user")) == database.owner_role
+    finally:
+        core_db.reset_db_for_tests()
+        core_db.init_db(baseline_database_url)
+
+
 def _visible_sources(session: Session, table: Table) -> list[str]:
     statement = select(table.c.source).order_by(table.c.id)
     return list(session.scalars(statement))
