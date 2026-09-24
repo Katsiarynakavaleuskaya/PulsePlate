@@ -2634,7 +2634,7 @@ Do not remove this exclusion without a product decision and a separate PR
 
 - Swift syntax-only checks (pre-commit hooks) are insufficient for enforcement.
 - All iOS unit tests (including guard tests like `ThinClientGuardsTests`) must run in CI.
-- CI job runs on `macos-15` runner with Xcode 26.x (matches the current iOS SDK lane).
+- iOS build jobs run on the `xcode-27` runner with exact Xcode 27.0 (matches the current iOS SDK lane).
 - Tests must pass before PR merge.
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
@@ -2653,7 +2653,7 @@ Do not remove this exclusion without a product decision and a separate PR
 - **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
 - **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.
-- **Xcode version pinning (hard rule):** CI must pin Xcode major/minor version compatible with selected simulator runtimes using the deterministic priority Xcode 26.2 → 26.1 → 26.0, followed only by a verified Xcode 26.x fallback at `/Applications/Xcode.app`. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
+- **Xcode version pinning (hard rule):** CI requires Xcode 27.0, iOS 27.0 SDK and simulator runtime. It may use the exact Xcode 27.0 installation aliases, followed only by an exact Xcode 27.0 fallback at `/Applications/Xcode.app`; a different version or missing runtime fails closed. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
 - **"Latest" policy clarification:**
   - ❌ **Forbidden:** `OS=latest` in CI destination strings
   - ✅ **Allowed:** "Latest Xcode installed" selection via deterministic priority list (pin/priority), not "whatever is newest"

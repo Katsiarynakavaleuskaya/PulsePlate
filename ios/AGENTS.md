@@ -153,21 +153,23 @@
 - `pull_request` events
 - `push` to `feat/*`, `fix/*`, `main` branches
 
-**Runner:** macOS 15 (GitHub Actions)
+**Runner:** `xcode-27` (GitHub Actions preview image; record image identity/version)
 
 **Xcode selection:**
 
-- Preferred: Xcode 26.2 (`/Applications/Xcode_26.2.app`)
-- Fallback: Xcode 26.1 (`/Applications/Xcode_26.1.app`)
-- Fallback: Xcode 26.0 (`/Applications/Xcode_26.0.app`)
-- Final fallback: `/Applications/Xcode.app`, but only if `xcodebuild -version` resolves to Xcode 26.x
-- CI fails if no suitable Xcode 26.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
+- Preferred exact alias: Xcode 27.0 (`/Applications/Xcode_27.0.0.app`)
+- Alternate exact alias: `/Applications/Xcode_27.0.app`
+- Final fallback: `/Applications/Xcode.app`, only if `xcodebuild -version` resolves to Xcode 27.0
+- CI fails if Xcode, Swift 6.4, iOS 27.0 SDK, or simulator runtime is absent (see `.github/workflows/ci.yml` `select-xcode` step).
+- `PulsePlate`, `PulsePlateTests`, and `PulsePlateUITests` enable Swift
+  `SWIFT_TREAT_WARNINGS_AS_ERRORS` in Debug and Release. This does not classify
+  Xcode build-tool messages such as AppIntents metadata extraction.
 
 **Simulator (CI):**
 
 - **Auto-selected** from available simulators at runtime (no hard-coded device)
-- **Runtime policy:** prefer iOS 26.x → fallback to the highest available iOS runtime (if needed)
-- **Device preference:** `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+- **Runtime policy:** require the exact available iOS 27.0 simulator; no older-runtime fallback
+- **Device preference:** `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`
   - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
 - **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
 - **Hard rule:** CI must **never** use `OS=latest`. There is a guard that fails the job if `latest` appears in the destination spec.
@@ -237,8 +239,8 @@
 **Destination policy (CI):**
 
 - CI **auto-selects** destination from available simulators dynamically
-- Prefers **iOS 26.x runtime** and falls back to the highest available iOS runtime
-- Preferred devices: `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+- Requires **iOS 27.0 runtime**; missing runtime fails the job
+- Preferred devices: `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17`
 - **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
 - Never uses `OS=latest` for named devices (to avoid nondeterministic runtime resolution)
 
@@ -257,7 +259,8 @@
 
 **Recommended before pushing an iOS PR:**
 
-- Run `make ios-test` locally (xcodebuild test)
+- Run `make ios-test IOS_DESTINATION="platform=iOS Simulator,id=<iOS-27.0-UDID>"` locally
+  on an available iOS 27.0 simulator (xcodebuild test)
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
@@ -280,8 +283,8 @@
 
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
 - **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
-  - Prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` from available simulators
-  - Prefers iOS 26.x runtime (fallback to the highest available iOS runtime)
+  - Prefers `iPhone 18 Pro Max` → `iPhone 18 Pro` → `iPhone 17e` → `iPhone 17` from available iOS 27.0 simulators
+  - Requires iOS 27.0 runtime (no older-runtime fallback)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - By default both use `-only-testing:PulsePlateTests` with
@@ -297,7 +300,7 @@
 
 **Device fallback (hard rule):**
 
-- Preferred devices: `iPhone 16e → iPhone 16 → iPhone 16 Pro → iPhone 15 → iPhone 14`
+- Preferred devices: `iPhone 18 Pro Max → iPhone 18 Pro → iPhone 17e → iPhone 17`
 - If none found: pick **any available iPhone** (sorted by name, then UDID)
 - If no iPhone: pick **any available iOS simulator** (iPad acceptable)
 - CI **must not fail** solely due to missing preferred simulators

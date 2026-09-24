@@ -6,9 +6,9 @@
 
 В логах шага "Select Xcode" должна быть строка:
 ```text
-Selected DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+Selected DEVELOPER_DIR: /Applications/Xcode_27.0.0.app/Contents/Developer
 ```
-(или другой `Xcode_26*.app`, если `26.2` недоступен на runner)
+(или `Xcode_27.0.app` / `Xcode.app`, только если фактическая версия ровно 27.0)
 
 ### 2. Xcode Version
 
@@ -16,7 +16,7 @@ Selected DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
 ```bash
 xcodebuild -version
 ```
-Должен показать `Xcode 26.x`, не 16.x.
+Должен показать ровно `Xcode 27.0`; запишите фактический `Build version` (локальный baseline: `27A266a`). В том же evidence проверьте Swift 6.4, SDK `iphoneos`/`iphonesimulator` 27.0 и `ImageOS`/`ImageVersion` runner.
 
 ### 3. Available Destinations
 
@@ -27,7 +27,7 @@ xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate
 
 **Ожидаемый результат:**
 - ✅ Должен показать список eligible iOS Simulator destinations
-- ❌ НЕ должно быть "Ineligible destinations" или ошибок про отсутствующий iOS 26 runtime при выбранном Xcode 26
+- ❌ НЕ должно быть "Ineligible destinations" или отсутствующего iOS 27.0 runtime при выбранном Xcode 27.0
 
 ### 4. Test Execution
 
@@ -37,7 +37,8 @@ xcodebuild test -destination platform=iOS Simulator,id=<UDID> ...
 
 **Ожидаемый результат:**
 - ✅ Должен стартовать (не падать на destination resolution)
-- ✅ Может падать на реальных тестах/сборке — это нормально (новый уровень ошибок)
+- ✅ Три собственных Swift targets должны собираться с `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` в Debug и Release
+- ℹ️ Сообщение `appintentsmetadataprocessor` атрибутируется отдельно; Swift gate не доказывает отсутствие всех сообщений Xcode
 
 ## Что присылать для диагностики
 
@@ -67,8 +68,8 @@ xcodebuild test -destination platform=iOS Simulator,id=<UDID> ...
 - Локально нет warning про Copy Bundle Resources
 
 ✅ **Xcode pinning:**
-- CI шаг "Select Xcode" выбирает 26.2 → 26.1 → 26.0 → `Xcode.app` по приоритету
-- После выбора CI явно валидирует, что `xcodebuild -version` возвращает Xcode 26.x
+- CI шаг "Select Xcode" выбирает точные alias 27.0.0 → 27.0 → `Xcode.app` по приоритету
+- После выбора CI валидирует ровно Xcode 27.0, Swift 6.4 и iOS SDK 27.0; выбор симулятора требует iOS 27.0 и UDID-only destination
 - `DEVELOPER_DIR` экспортируется через `GITHUB_ENV`
 
 ✅ **AGENTS.md:**
