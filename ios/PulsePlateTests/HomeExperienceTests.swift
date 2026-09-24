@@ -808,7 +808,19 @@ private final class HomeDestinationFactoryProbe: @unchecked Sendable {
     private(set) var supportServiceFactoryCount = 0
     private(set) var weeklyServiceFactoryCount = 0
     private(set) var shoppingServiceFactoryCount = 0
-    private(set) var clientEventIDCount = 0
+    nonisolated private let clientEventIDLock = NSLock()
+    nonisolated(unsafe) private var clientEventIDCountStorage = 0
+
+    var clientEventIDCount: Int {
+        clientEventIDLock.withLock { clientEventIDCountStorage }
+    }
+
+    nonisolated private func nextClientEventID() -> UUID {
+        clientEventIDLock.withLock {
+            clientEventIDCountStorage += 1
+        }
+        return UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    }
 
     var dependencies: HomeDestinationDependencies {
         HomeDestinationDependencies(
@@ -833,8 +845,8 @@ private final class HomeDestinationFactoryProbe: @unchecked Sendable {
                 return HomeNoCallShoppingService()
             },
             makeClientEventID: { [weak self] in
-                self?.clientEventIDCount += 1
-                return UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+                self?.nextClientEventID()
+                    ?? UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
             }
         )
     }

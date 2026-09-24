@@ -2069,9 +2069,8 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
     for path in ios_filters:
         assert f"`{path}`" in agents_text
 
-    assert "Xcode 26.x (matches the current iOS SDK lane)" in agents_text
-    assert "Xcode 26.2 → 26.1 → 26.0" in agents_text
-    assert "verified Xcode 26.x fallback at `/Applications/Xcode.app`" in agents_text
+    assert "Xcode 27.0 (matches the current iOS SDK lane)" in agents_text
+    assert "exact Xcode 27.0 fallback at `/Applications/Xcode.app`" in agents_text
     assert "Xcode 16.x (matches project format)" not in agents_text
     assert "Xcode 16.4 → 16.3 → 16.2" not in agents_text
 
@@ -2091,10 +2090,14 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
         )
         priority_positions = [
             executable_xcode_lines.index(f'"/Applications/Xcode_{version}.app/Contents/Developer"')
-            for version in ("26.2", "26.1", "26.0")
+            for version in ("27.0.0", "27.0")
         ]
         assert priority_positions == sorted(priority_positions)
-        assert 'if [ "$XCODE_MAJOR" != "26" ]; then' in executable_xcode_lines
+        assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in executable_xcode_lines
+        assert 'if [ "$sdk_version" != "27.0" ]; then' in executable_xcode_lines
+        assert "Apple Swift version 6.4" in executable_xcode_lines
+        assert "parse_ios_ver(r) == (27, 0)" in job_steps[3]["run"]
+        assert job["runs-on"] == "xcode-27"
 
 
 def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> None:
@@ -3897,7 +3900,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     assert isinstance(ios_tests, dict)
     assert set(ios_tests) == {"name", "runs-on", "timeout-minutes", "if", "needs", "steps"}
     assert ios_tests["name"] == "iOS unit tests (xcodebuild)"
-    assert ios_tests["runs-on"] == "macos-15"
+    assert ios_tests["runs-on"] == "xcode-27"
     assert ios_tests["needs"] == ["changes"]
     assert ios_tests["if"] == IOS_TESTS_JOB_IF
     assert "continue-on-error" not in ios_tests
@@ -3911,7 +3914,7 @@ def _assert_ios_release_build_contract(workflow: dict[str, object]) -> None:
     step_names = [step.get("name") for step in steps]
     assert step_names == [
         "Checkout",
-        "Select Xcode (require 26.x for iOS 26 SDK readiness)",
+        "Select Xcode (require exact 27.0 and iOS 27 SDK)",
         "Cache SwiftPM packages (SourcePackages only, not Build)",
         "Select iOS simulator destination (stable)",
         IOS_APPSTORE_VERIFY_STEP_NAME,

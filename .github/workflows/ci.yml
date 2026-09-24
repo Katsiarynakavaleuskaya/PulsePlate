@@ -2003,7 +2003,7 @@ jobs:
   # iOS unit tests (enforces guard tests and thin client invariants)
   ios-tests:
     name: iOS unit tests (xcodebuild)
-    runs-on: macos-15
+    runs-on: xcode-27
     # Explicit caps total 40m (boot 5m + Debug 10m + unit 15m + Release 10m).
     # The 60m fallback leaves nominal 20m setup/diagnostic headroom, not a guarantee or SLA;
     # IOS_TESTS_JOB_TIMEOUT_MINUTES may override it.
@@ -2018,22 +2018,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
+      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer explicit Xcode 26.x installs first.
-          # Keep /Applications/Xcode.app as a final fallback, but verify the major version.
+          # Prefer exact Xcode 27.0 aliases; verify the fallback version.
           CANDIDATES=(
-            "/Applications/Xcode_26.2.app/Contents/Developer"
-            "/Applications/Xcode_26.2.0.app/Contents/Developer"
-            "/Applications/Xcode_26.1.app/Contents/Developer"
-            "/Applications/Xcode_26.1.0.app/Contents/Developer"
-            "/Applications/Xcode_26.0.app/Contents/Developer"
-            "/Applications/Xcode_26.app/Contents/Developer"
-            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode_27.0.0.app/Contents/Developer"
+            "/Applications/Xcode_27.0.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -2046,7 +2040,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 26.x found in /Applications."
+            echo "::error::No Xcode 27.0 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -2067,19 +2061,34 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 26.1"
+          # First line must be "Xcode 27.0".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          XCODE_MAJOR="${XCODE_VERSION%%.*}"
-          if [ "$XCODE_MAJOR" != "26" ]; then
-            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.0" ]; then
+            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
+          : "${ImageOS:?Runner ImageOS identity unavailable}"
+          : "${ImageVersion:?Runner ImageVersion identity unavailable}"
+          echo "Runner image: $ImageOS $ImageVersion"
           xcodebuild -version
-          swift --version
+          SWIFT_VERSION_OUTPUT="$(swift --version)"
+          echo "$SWIFT_VERSION_OUTPUT"
+          if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            exit 1
+          fi
+          for sdk in iphoneos iphonesimulator; do
+            sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
+            echo "$sdk SDK: $sdk_version"
+            if [ "$sdk_version" != "27.0" ]; then
+              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+              exit 1
+            fi
+          done
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -2099,7 +2108,7 @@ jobs:
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
           # Allow override for testing fallback logic (e.g., PREFERRED_DEVICES="iPhone 99,iPhone 98")
-          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
+          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17' }}
         run: |
           set -euo pipefail
 
@@ -2115,8 +2124,7 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
-          # Fall back to the highest available iOS runtime instead of using OS=latest.
+          # Require exact iOS 27.0; never silently select an older runtime.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -2130,9 +2138,11 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
-          runtime_pool = ios26 if ios26 else ios_runtimes
-          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios27 = [r for r in ios_runtimes if parse_ios_ver(r) == (27, 0)]
+          if len(ios27) != 1:
+              print(f"::error::Expected exactly one iOS 27.0 runtime, found {ios27!r}", file=sys.stderr)
+              sys.exit(1)
+          runtime = ios27[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:
@@ -2517,7 +2527,7 @@ jobs:
   # iOS UI smoke (minimal, separate signal from unit tests)
   ios-ui-smoke:
     name: iOS UI smoke (xcodebuild)
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 25
     if: |
       needs.changes.outputs.ios == 'true' && (
@@ -2529,20 +2539,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Select Xcode (require 26.x for iOS 26 SDK readiness)
+      - name: Select Xcode (require exact 27.0 and iOS 27 SDK)
         id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
           CANDIDATES=(
-            "/Applications/Xcode_26.2.app/Contents/Developer"
-            "/Applications/Xcode_26.2.0.app/Contents/Developer"
-            "/Applications/Xcode_26.1.app/Contents/Developer"
-            "/Applications/Xcode_26.1.0.app/Contents/Developer"
-            "/Applications/Xcode_26.0.app/Contents/Developer"
-            "/Applications/Xcode_26.app/Contents/Developer"
-            "/Applications/Xcode_26.0.0.app/Contents/Developer"
+            "/Applications/Xcode_27.0.0.app/Contents/Developer"
+            "/Applications/Xcode_27.0.app/Contents/Developer"
             "/Applications/Xcode.app/Contents/Developer"
           )
 
@@ -2555,7 +2560,7 @@ jobs:
           done
 
           if [ -z "$SELECTED" ]; then
-            echo "::error::No suitable Xcode 26.x found in /Applications."
+            echo "::error::No Xcode 27.0 installation found in /Applications."
             echo "::error::Available Xcode apps:"
             for app in /Applications/Xcode*.app; do
               [ -e "$app" ] && echo " - $app"
@@ -2569,19 +2574,34 @@ jobs:
 
           # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
           XCODEBUILD_VERSION="$(xcodebuild -version)"
-          # First line is like: "Xcode 26.1"
+          # First line must be "Xcode 27.0".
           XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
           XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
-          XCODE_MAJOR="${XCODE_VERSION%%.*}"
-          if [ "$XCODE_MAJOR" != "26" ]; then
-            echo "::error::Selected Xcode must be 26.x for iOS 26 SDK readiness. Got $XCODE_VERSION"
+          if [ "$XCODE_VERSION" != "27.0" ]; then
+            echo "::error::Selected Xcode must be exactly 27.0. Got $XCODE_VERSION"
             exit 1
           fi
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
+          : "${ImageOS:?Runner ImageOS identity unavailable}"
+          : "${ImageVersion:?Runner ImageVersion identity unavailable}"
+          echo "Runner image: $ImageOS $ImageVersion"
           xcodebuild -version
-          swift --version
+          SWIFT_VERSION_OUTPUT="$(swift --version)"
+          echo "$SWIFT_VERSION_OUTPUT"
+          if [[ "$SWIFT_VERSION_OUTPUT" != *"Apple Swift version 6.4"* ]]; then
+            echo "::error::Expected Apple Swift 6.4 under Xcode 27.0"
+            exit 1
+          fi
+          for sdk in iphoneos iphonesimulator; do
+            sdk_version="$(xcrun --sdk "$sdk" --show-sdk-version)"
+            echo "$sdk SDK: $sdk_version"
+            if [ "$sdk_version" != "27.0" ]; then
+              echo "::error::Expected $sdk SDK 27.0, got $sdk_version"
+              exit 1
+            fi
+          done
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -2600,7 +2620,7 @@ jobs:
         id: select-destination
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
-          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
+          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17' }}
         run: |
           set -euo pipefail
 
@@ -2616,8 +2636,7 @@ jobs:
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
-          # Prefer stable iOS 26.x to match Xcode 26 / iOS 26 SDK readiness.
-          # Fall back to the highest available iOS runtime instead of using OS=latest.
+          # Require exact iOS 27.0; never silently select an older runtime.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -2631,9 +2650,11 @@ jobs:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
-          ios26 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-26-\d+\b", r)]
-          runtime_pool = ios26 if ios26 else ios_runtimes
-          runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+          ios27 = [r for r in ios_runtimes if parse_ios_ver(r) == (27, 0)]
+          if len(ios27) != 1:
+              print(f"::error::Expected exactly one iOS 27.0 runtime, found {ios27!r}", file=sys.stderr)
+              sys.exit(1)
+          runtime = ios27[0]
 
           major, minor = parse_ios_ver(runtime)
           if major < 0 or minor < 0:
@@ -2647,7 +2668,7 @@ jobs:
               print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
               sys.exit(1)
 
-          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14")
+          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 18 Pro Max,iPhone 18 Pro,iPhone 17e,iPhone 17")
           pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
           available_names = [d["name"] for d in available_devices]
 

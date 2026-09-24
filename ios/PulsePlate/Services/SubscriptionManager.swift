@@ -217,7 +217,7 @@ final class SubscriptionManager: ObservableObject {
         do {
             let apiKey = try requiredAPIKey()
             try await storeKitManager.sync()
-            guard let transaction = await storeKitManager.latestVerifiedEntitlementTransaction() else {
+            guard await storeKitManager.latestVerifiedEntitlementTransaction() != nil else {
                 throw SubscriptionManagerError.restoreTransactionMissing
             }
             let receiptData = try await storeKitManager.currentReceiptData()

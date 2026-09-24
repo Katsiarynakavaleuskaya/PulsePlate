@@ -207,30 +207,20 @@ class AnimationTests: XCTestCase {
   }
 
   func testScaleTransition() {
-    // Given
-    let isActive = true
     let scale = 1.1
-
-    // When - Create a view with scale transition
-    let view = Text("Test")
-      .scaleEffect(isActive ? scale : 1.0)
-      .animation(.easeInOut(duration: 0.3), value: isActive)
-
-    // Then - Verify the view can be created with scale effect
-    XCTAssertNotNil(view)
+    for (isActive, expectedScale) in [(false, 1.0), (true, scale)] {
+      let transition = ScaleTransition(isActive: isActive, scale: scale)
+      XCTAssertEqual(transition.effectiveScale, expectedScale)
+      XCTAssertNotNil(Text("Test").modifier(transition))
+    }
   }
 
   func testFadeTransition() {
-    // Given
-    let isActive = true
     let delay = 0.1
-
-    // When - Create a view with fade transition
-    let view = Text("Test")
-      .opacity(isActive ? 1.0 : 0.0)
-      .animation(.easeInOut(duration: 0.3).delay(delay), value: isActive)
-
-    // Then - Verify the view can be created with opacity animation
-    XCTAssertNotNil(view)
+    for (isActive, expectedOpacity) in [(false, 0.0), (true, 1.0)] {
+      let transition = FadeTransition(isActive: isActive, delay: delay)
+      XCTAssertEqual(transition.effectiveOpacity, expectedOpacity)
+      XCTAssertNotNil(Text("Test").modifier(transition))
+    }
   }
 }

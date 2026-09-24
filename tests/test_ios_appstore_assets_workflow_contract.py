@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,37 @@ def _workflow_text() -> str:
 
 def _fastfile_text() -> str:
     return FASTFILE_PATH.read_text(encoding="utf-8")
+
+
+def _resolve_snapshot_devices_with_inventory(
+    tmp_path: Path, devices: dict[str, list[dict[str, object]]]
+) -> subprocess.CompletedProcess[str]:
+    """Execute the Fastfile's actual device resolver against a simctl JSON fixture."""
+
+    inventory_path = tmp_path / "simctl-devices.json"
+    inventory_path.write_text(json.dumps({"devices": devices}), encoding="utf-8")
+    ruby = r"""
+require "json"
+module UI
+  def self.message(_message); end
+  def self.user_error!(message); abort(message); end
+end
+def sh(command)
+  raise "unexpected simctl command" unless command == "xcrun simctl list devices available -j"
+  File.read(ARGV.fetch(1))
+end
+source = File.read(ARGV.fetch(0))
+start_at = source.index("IOS_SNAPSHOT_RUNTIME_ID =") or abort("missing runtime and device candidates")
+end_at = source.index("def snapshot_bundle_identifier", start_at) or abort("missing resolver end")
+eval(source[start_at...end_at], TOPLEVEL_BINDING)
+puts JSON.generate(resolved_snapshot_devices)
+"""
+    return subprocess.run(
+        ["ruby", "-e", ruby, str(FASTFILE_PATH), str(inventory_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def test_workflow_dispatch_inputs_match_release_ops_contract() -> None:
@@ -136,6 +169,60 @@ def test_pull_request_path_cannot_execute_privileged_uploads() -> None:
     assert upload_app_privacy_if == (
         "github.event_name == 'workflow_dispatch' && inputs.upload_app_privacy"
     )
+
+
+def test_screenshot_jobs_require_exact_xcode27_sdk_and_runtime() -> None:
+    for job_name in ("validate-assets", "upload-assets"):
+        job = _job(job_name)
+        assert job["runs-on"] == "xcode-27"
+        select = _step_by_name(job_name, "Select Xcode")
+        run = select["run"]
+        assert isinstance(run, str)
+        assert "/Applications/Xcode_27.0.0.app/Contents/Developer" in run
+        assert 'if [ "$XCODE_VERSION" != "27.0" ]; then' in run
+        assert 'if [ "$sdk_version" != "27.0" ]; then' in run
+        assert "Apple Swift version 6.4" in run
+        assert "com.apple.CoreSimulator.SimRuntime.iOS-27-0" in run
+        assert "Runner image:" in run
+        assert "Xcode_26" not in run
+
+    fastfile = _fastfile_text()
+    assert '"iPhone 18 Pro Max"' in fastfile
+    assert 'ios_version: "27.0"' in fastfile
+
+
+def test_snapshot_device_resolver_ignores_newer_name_on_old_runtime(tmp_path: Path) -> None:
+    result = _resolve_snapshot_devices_with_inventory(
+        tmp_path,
+        {
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
+                {"name": "iPhone 18 Pro Max", "udid": "older-only", "isAvailable": True},
+            ],
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+                {"name": "iPhone 17 Pro Max", "udid": "current-phone", "isAvailable": True},
+                {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},
+            ],
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ["iPhone 17 Pro Max", "iPad Pro 13-inch (M5)"]
+
+
+def test_snapshot_device_resolver_fails_without_ios27_candidate(tmp_path: Path) -> None:
+    result = _resolve_snapshot_devices_with_inventory(
+        tmp_path,
+        {
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
+                {"name": "iPhone 18 Pro Max", "udid": "older-only", "isAvailable": True},
+            ],
+            "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+                {"name": "iPhone 18 Pro Max", "udid": "unavailable", "isAvailable": False},
+                {"name": "iPad Pro 13-inch (M5)", "udid": "current-ipad", "isAvailable": True},
+            ],
+        },
+    )
+    assert result.returncode != 0
+    assert "No available iOS 27.0 simulator found for iPhone" in result.stderr
 
 
 def test_fastlane_upload_lanes_stay_fail_closed() -> None:

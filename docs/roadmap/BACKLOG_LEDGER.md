@@ -358,10 +358,10 @@ If it is not recorded here — it does not exist.
   - Owner: agent-coordinator (continuation tracking; implementation owners assigned at each admission)
   - Priority: P1 (ordered client architecture and release-integrity follow-ups)
   - Target PR: CAB-04 [PR #2408](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2408)
-    (`codex/ios-explicit-actor-boundaries`);
-    CAB-05–CAB-09 remain separate future carriers.
-  - Status: CAB-03 is merged in PR #2381; CAB-04 implementation is active on its own branch
-    and remains unchecked until its separate merge. Later reservations remain open.
+    (`codex/ios-explicit-actor-boundaries`); CAB-05 is the active separate Xcode 27.0
+    and own-target warning carrier; CAB-06–CAB-09 remain reserved.
+  - Status: CAB-03 merged in PR #2381 and CAB-04 merged in PR #2408. CAB-05 is
+    active; its checkbox remains open until its own exact-head merge evidence.
   - Reason (EN): Keep the accepted continuation visible without mixing production Swift,
     warning-policy, device-matrix, Web or Mac work into the bounded AppIcon/Release carrier.
   - Links:
@@ -369,11 +369,13 @@ If it is not recorded here — it does not exist.
     - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
     - `ios/AGENTS.md`
   - Open reservations:
-    - [ ] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
+    - [x] CAB-04: make the 28 reproducible Xcode 27 actor-isolation/Sendable warning
       boundaries explicit in the iOS client without changing behavior; use the separate
       CAB-04 PR and current-head evidence before closing this item.
-    - [ ] CAB-05: warning cleanup / warnings-as-errors, including the unrelated AppIntents
-      metadata-extraction warning; no warning-free claim is made by CAB-03.
+    - [ ] CAB-05: align owned iOS builds to exact Xcode 27.0/iOS 27.0; remove
+      app/test Swift warnings and enforce warnings-as-errors for three own targets
+      in Debug and Release. Attribute the separate AppIntents metadata-extraction
+      processor message without claiming all Xcode output is warning-free.
     - [ ] CAB-06: iPhone/iPad CI matrix and TARGETED_DEVICE_FAMILY cleanup.
     - [ ] CAB-07: reserved slot; no concrete scope was specified in the retained CAB-03 handoff.
     - [ ] CAB-08: Web bundle work; exact scope and DoD require its own admission.
@@ -390,8 +392,9 @@ If it is not recorded here — it does not exist.
 - [ ] P2: CLIENT-ARCH-1 / CAB-04 additional iOS regression assertions
   - Owner: qa-engineer-agent / frontend-engineer
   - Priority: P2 (focused iOS regression coverage)
-  - Target PR: pending focused iOS test-only follow-up after CAB-04
-  - Status: Open; this item grants no production behavior change or merge-readiness authority.
+  - Target PR: pending focused material iOS test carrier after CAB-04
+  - Status: CAB-04 merged in PR #2408; these additional assertions remain open.
+    CAB-05 warning cleanup does not itself close them or authorize a docs-only follow-up.
   - Reason (EN): Three exact regression assertions were omitted to keep the accepted single
     cross-cutting CAB-04 carrier within 20 files. Its existing behavior checks and full 316-test
     local run passed, but those results do not prove these specific cases.

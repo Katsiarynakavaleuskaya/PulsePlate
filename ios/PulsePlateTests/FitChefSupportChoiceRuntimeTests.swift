@@ -751,7 +751,7 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
             }
         }
         viewModel?.cancel()
-        weak var weakViewModel = viewModel
+        weak let weakViewModel = viewModel
         viewModel = nil
 
         XCTAssertNil(weakViewModel)
@@ -1402,7 +1402,7 @@ final class FitChefSupportFlowViewModelTests: XCTestCase {
         viewModel?.select(.dailyStructure)
         viewModel?.confirm()
         await fulfillment(of: [started], timeout: 2)
-        weak var weakViewModel = viewModel
+        weak let weakViewModel = viewModel
 
         viewModel = nil
         let releasedBeforeCleanup = await waitForCondition {
@@ -2245,7 +2245,7 @@ final class FitChefSupportPresentationContractTests: XCTestCase {
 
 }
 
-private let fixedUUIDString = "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF"
+nonisolated private let fixedUUIDString = "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF"
 
 private func fixedAttempt() -> FitChefSupportOutcomeAttempt {
     FitChefSupportOutcomeAttempt(
@@ -2813,7 +2813,7 @@ private final class FitChefRetryClaimService: FitChefSupportServicing, @unchecke
 }
 
 // Test-only credential sequence. Mutable state is protected by NSLock.
-private final class CredentialSequence: @unchecked Sendable {
+nonisolated private final class CredentialSequence: @unchecked Sendable {
     private let lock = NSLock()
     private let values: [String]
     private var index = 0
@@ -2842,7 +2842,7 @@ private final class CredentialSequence: @unchecked Sendable {
 }
 
 // Test-only UUID sequence. Mutable state is protected by NSLock.
-private final class UUIDSequence: @unchecked Sendable {
+nonisolated private final class UUIDSequence: @unchecked Sendable {
     private let lock = NSLock()
     private let values: [UUID]
     private var index = 0

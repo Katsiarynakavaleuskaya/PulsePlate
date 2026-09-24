@@ -108,10 +108,10 @@ final class IOSREL2V5AssetParityTests: XCTestCase {
         for asset in Self.assets {
             if let catalog = asset.catalog {
                 for style in [UIUserInterfaceStyle.light, .dark] {
-                    let traits = UITraitCollection(traitsFrom: [
-                        UITraitCollection(displayScale: CGFloat(scale)),
-                        UITraitCollection(userInterfaceStyle: style),
-                    ])
+                    let traits = UITraitCollection(mutations: {
+                        $0.displayScale = CGFloat(scale)
+                        $0.userInterfaceStyle = style
+                    })
                     let image = try XCTUnwrap(
                         UIImage(named: catalog.key, in: .main, compatibleWith: traits),
                         "Missing V5 catalog key: \(catalog.key)"
