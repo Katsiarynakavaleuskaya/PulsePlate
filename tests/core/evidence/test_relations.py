@@ -9,7 +9,12 @@ from typing import cast
 import pytest
 
 from core.evidence.assets import create_evidence_asset_ref
-from core.evidence.fingerprints import JsonValue, fingerprint_payload
+from core.evidence.fingerprints import (
+    JsonValue,
+    build_asset_id,
+    build_idempotency_key,
+    fingerprint_payload,
+)
 from core.evidence.relations import audit_snapshot, parse_snapshot
 
 SOURCE = "sha256:" + "0" * 64
@@ -393,4 +398,150 @@ def test_tampering_and_bad_revisions_fail_closed() -> None:
     rows[-1]["revision_of_ref"] = "W1"
     _seal(rows[-1])
     with pytest.raises(ValueError, match="revision"):
+        parse_snapshot(rows)
+
+
+@pytest.mark.parametrize(
+    "field,value,category",
+    (
+        ("unexpected_field", "extra", "schema_fields"),
+        ("subject_ref", "C 1", "schema_value"),
+        ("source_fingerprint", "SHA256:" + "0" * 64, "fingerprint_format"),
+        ("method_refs", "not-an-array", "schema_value"),
+        ("produced_at", 123, "time_format"),
+        ("produced_at", "not-a-date", "time_format"),
+        ("object_ref", "C1", "self_relation"),
+    ),
+)
+def test_world_record_rejects_malformed_fields_before_assessment(
+    field: str, value: object, category: str
+) -> None:
+    rows = snapshot()
+    rows[-1][field] = value
+    _seal(rows[-1])
+    with pytest.raises(ValueError, match=f"^{category}$"):
+        parse_snapshot(rows)
+
+
+def test_duplicate_references_and_unsorted_asset_upstreams_fail_closed() -> None:
+    rows = snapshot()
+    method_refs = rows[-1]["method_refs"]
+    assert isinstance(method_refs, list)
+    rows[-1]["method_refs"] = [method_refs[0], method_refs[0]]
+    _seal(rows[-1])
+    with pytest.raises(ValueError, match="^duplicate_reference$"):
+        parse_snapshot(rows)
+
+    rows = snapshot()
+    asset = rows[0]["asset"]
+    assert isinstance(asset, dict)
+    asset["upstream_ids"] = ["z", "a"]
+    with pytest.raises(ValueError, match="^reference_order$"):
+        parse_snapshot(rows)
+
+    rows = snapshot()
+    asset = rows[0]["asset"]
+    assert isinstance(asset, dict)
+    asset["upstream_ids"] = [asset["asset_id"]]
+    with pytest.raises(ValueError, match="^reference_cycle$"):
+        parse_snapshot(rows)
+
+
+def test_snapshot_rejects_empty_nonobject_and_unknown_kind() -> None:
+    with pytest.raises(ValueError, match="^snapshot_size$"):
+        parse_snapshot([])
+    rows = snapshot()
+    with pytest.raises(ValueError, match="^schema_fields$"):
+        parse_snapshot([*rows, 7])
+    rows[-1]["kind"] = "unknown"
+    with pytest.raises(ValueError, match="^schema_kind$"):
+        parse_snapshot(rows)
+
+
+def test_unresolved_upstream_and_dangling_epistemic_link_fail_closed() -> None:
+    rows = snapshot()
+    asset = rows[0]["asset"]
+    assert isinstance(asset, dict)
+    asset["upstream_ids"] = ["absent-upstream"]
+    identity = {
+        "asset_type": asset["asset_type"],
+        "rail": asset["rail"],
+        "version": asset["version"],
+        "policy_version": asset["policy_version"],
+        "fingerprint": asset["fingerprint"],
+        "upstream_ids": tuple(asset["upstream_ids"]),
+    }
+    asset["asset_id"] = build_asset_id(**identity)
+    asset["idempotency_key"] = build_idempotency_key(**identity)
+    with pytest.raises(ValueError, match="^reference_type$"):
+        parse_snapshot(rows)
+
+    rows = snapshot()
+    rows[-1]["epistemic_link_refs"] = ["L-missing"]
+    _seal(rows[-1])
+    with pytest.raises(ValueError, match="^reference_type$"):
+        parse_snapshot(rows)
+
+
+@pytest.mark.parametrize("field,value", (("version", "v:1"), ("policy_version", "noos1a:v1")))
+def test_ci_selected_asset_identity_respects_canonical_tokens(field: str, value: str) -> None:
+    rows = snapshot()
+    asset = rows[0]["asset"]
+    assert isinstance(asset, dict)
+    asset[field] = value
+    identity = {
+        "asset_type": asset["asset_type"],
+        "rail": asset["rail"],
+        "version": asset["version"],
+        "policy_version": asset["policy_version"],
+        "fingerprint": asset["fingerprint"],
+        "upstream_ids": tuple(asset["upstream_ids"]),
+    }
+    asset["asset_id"] = build_asset_id(**identity)
+    asset["idempotency_key"] = build_idempotency_key(**identity)
+    with pytest.raises(ValueError, match="^schema_value$"):
+        parse_snapshot(rows)
+
+
+def test_ci_selected_report_materialization_keeps_counts_and_false_authority() -> None:
+    report = audit_snapshot(parse_snapshot(snapshot())).to_dict()
+    assert report["counts"] == {
+        "assets": 4,
+        "epistemic_links": 0,
+        "world_assertions": 1,
+        "causal_structural_pass": 1,
+        "negative_assessments": 0,
+    }
+    assert report["authority_granted"] is False
+    assert report["answer_change_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    "field,value,category",
+    (
+        ("epistemic_status", "settled", "schema_value"),
+        ("produced_at", "2026-01-01T00:00:00", "time_format"),
+        ("method_refs", ["missing-asset"], "reference_type"),
+        ("revision_of_ref", "missing-world", "revision_reference"),
+    ),
+)
+def test_ci_selected_invalid_status_time_and_references(
+    field: str, value: object, category: str
+) -> None:
+    rows = snapshot()
+    rows[-1][field] = value
+    _seal(rows[-1])
+    with pytest.raises(ValueError, match=f"^{category}$"):
+        parse_snapshot(rows)
+
+
+def test_ci_selected_duplicate_identity_and_reference_budget() -> None:
+    rows = snapshot()
+    with pytest.raises(ValueError, match="^duplicate_id$"):
+        parse_snapshot([*rows, deepcopy(rows[-1])])
+
+    rows = snapshot()
+    rows[-1]["epistemic_link_refs"] = [f"L{i}" for i in range(511)]
+    _seal(rows[-1])
+    with pytest.raises(ValueError, match="^reference_limit$"):
         parse_snapshot(rows)
