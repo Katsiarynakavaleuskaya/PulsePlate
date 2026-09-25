@@ -56,8 +56,7 @@ DEPENDENCY_SENSITIVE_PATH_PREFIXES = (
     "scripts/ci/check_private_python_proxy_health.py",
     "scripts/ci/check_python_dependency_surfaces.py",
     ".github/actions/python-setup/",
-    ".github/workflows/ci.yml",
-    ".github/workflows/python-dependency-submission.yml",
+    ".github/workflows/",
 )
 PRIVATE_INDEX_SCOPE_DEPENDENCY = "dependency-sensitive"
 PRIVATE_INDEX_SCOPE_NON_DEPENDENCY = "explicit-non-dependency"
