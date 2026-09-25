@@ -11015,14 +11015,28 @@ def validate_application_metadata_openapi_ownership(
     main_import_module_aliases: set[str] = set()
     main_string_bindings: dict[str, str] = {}
 
-    def record_main_legacy_openapi_lookups(expression: ast.AST) -> None:
+    def record_main_legacy_openapi_lookups(
+        expression: ast.AST,
+        *,
+        module_aliases: Mapping[str, str] | None = None,
+        static_string_bindings: Mapping[str, str] | None = None,
+    ) -> None:
+        active_module_aliases = (
+            main_module_aliases if module_aliases is None else module_aliases
+        )
+        active_string_bindings = (
+            main_string_bindings
+            if static_string_bindings is None
+            else static_string_bindings
+        )
+
         def is_legacy_module(node: ast.AST) -> bool:
             return (
                 _static_module_reference(
                     node,
-                    module_aliases=main_module_aliases,
+                    module_aliases=active_module_aliases,
                     import_module_aliases=main_import_module_aliases,
-                    static_string_bindings=main_string_bindings,
+                    static_string_bindings=active_string_bindings,
                 )
                 == "legacy_app"
             )
@@ -11044,7 +11058,7 @@ def validate_application_metadata_openapi_ownership(
                 and len(walk_node.args) >= 2
                 and is_legacy_module(walk_node.args[0])
             ):
-                attribute_name = _static_string(walk_node.args[1], main_string_bindings)
+                attribute_name = _static_string(walk_node.args[1], active_string_bindings)
                 if attribute_name is not None and "openapi" in attribute_name.casefold():
                     errors.append(
                         f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
@@ -11095,6 +11109,30 @@ def validate_application_metadata_openapi_ownership(
                     main_string_bindings.pop(target_name, None)
                 else:
                     main_string_bindings[target_name] = static_string
+
+    # Function and method bodies execute after module initialization, so names in
+    # those deferred scopes must also be checked against the final module bindings.
+    # Exclude Python-local names to preserve ordinary lexical shadowing.
+    for deferred_scope in ast.walk(main_tree):
+        if not isinstance(deferred_scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        local_names = _function_local_binding_names(deferred_scope)
+        deferred_module_aliases = {
+            name: reference
+            for name, reference in main_module_aliases.items()
+            if name not in local_names
+        }
+        deferred_string_bindings = {
+            name: value
+            for name, value in main_string_bindings.items()
+            if name not in local_names
+        }
+        for statement in deferred_scope.body:
+            record_main_legacy_openapi_lookups(
+                statement,
+                module_aliases=deferred_module_aliases,
+                static_string_bindings=deferred_string_bindings,
+            )
 
     if _function_references_legacy_openapi_symbol(main_tree):
         errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
