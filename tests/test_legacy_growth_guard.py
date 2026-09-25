@@ -4037,6 +4037,27 @@ def test_legacy_growth_guard_invalidates_escaped_mapping_by_identity() -> None:
     ]
 
 
+@pytest.mark.parametrize("class_binding", ["route_map = routes", "route_map: dict = routes"])
+def test_legacy_growth_guard_invalidates_mapping_escaped_to_class_namespace(
+    class_binding: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        routes = {{"route": None}}
+
+        class Holder:
+            {class_binding}
+
+        Holder.route_map["route"] = app.get
+        register = {{"route": app.get, **routes}}["route"]
+        register("/api/v1/class-alias-mutation")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/class-alias-mutation"
+    ]
+
+
 def test_legacy_growth_guard_snapshots_mapping_unpack_before_rebinding() -> None:
     source = textwrap.dedent("""
         base = {"route": app.get}
