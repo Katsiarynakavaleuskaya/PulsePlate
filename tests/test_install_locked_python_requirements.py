@@ -3614,9 +3614,11 @@ def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_
     assert stage_calls["count"] == 0
 
 
-def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_health_timeout(
+@pytest.mark.parametrize("health_detail", ["The read operation timed out", "HTTP 521"])
+def test_install_from_proxy_with_emergency_fallback_rejects_failed_health_probe(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    health_detail: str,
 ) -> None:
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
@@ -3641,6 +3643,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_healt
         encoding="utf-8",
     )
     observed_find_links: list[Path | None] = []
+    stage_calls = {"count": 0}
 
     def fail_then_succeed(**kwargs: object) -> None:
         find_links_dir = kwargs["find_links_dir"]
@@ -3655,33 +3658,30 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_healt
         raise RuntimeError(
             "Approved Python package proxy health check failed before emergency fallback: "
             "aiosqlite: https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/: "
-            "The read operation timed out"
+            f"{health_detail}"
         )
 
-    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
-        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
-        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
-        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
-        for destination in staged:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(b"wheel-bytes")
-        return staged
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "aiosqlite-0.22.1-py3-none-any.whl"]
 
     monkeypatch.setattr(installer, "install_from_proxy", fail_then_succeed)
     monkeypatch.setattr(installer, "_require_private_index_project_health", fail_package_health)
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
-    installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
-        requirement_files=[requirements],
-        constraints_file=None,
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
-        emergency_wheel_manifest=manifest,
-    )
+    with pytest.raises(RuntimeError, match=re.escape(health_detail)):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
 
-    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+    assert observed_find_links == [None]
+    assert stage_calls["count"] == 0
 
 
 def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
