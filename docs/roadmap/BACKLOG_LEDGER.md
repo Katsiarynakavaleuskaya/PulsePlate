@@ -814,7 +814,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: NOOS-1A typed evidence relations and offline causal overclaim audit
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1
-  - Target PR: `codex/evidence-relation-causal-overclaim-audit-v1` (number pending)
+  - Target PR: [#2417](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2417)
+    on `codex/evidence-relation-causal-overclaim-audit-v1`
   - Status: Implementation in progress. Structural acceptance and closeout
     remain subject to current-head CI, review disposition and separate merge
     authorization.
