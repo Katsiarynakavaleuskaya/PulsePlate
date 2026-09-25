@@ -122,6 +122,53 @@ The later mandatory post-open pass and exact-material closeout follow root
 scan, approval or no-findings evidence. No full local verification budget or
 unscheduled role-chain repeat follows from this skill.
 
+## Operational Creative handoff
+
+When the validated packet applicability projection recommends Creative and the
+coordinator admits bounded alternatives, use the same native transport and
+packet binding. This is a host procedure, not a provider call in repository
+Python. A direct fix, disabled treatment, or higher-assurance preemption does
+not enter this procedure.
+
+1. Retain the complete accepted requirements source, criteria version, current
+   packet bytes, base/head, exact allowed paths, test budget, and validated Euler
+   reference. Build one `creative_workflow_request.v1` under the owned ignored
+   artifact directory. Run `experiment_runner_pr_creative_context.py
+   workflow-prepare --packet <packet> --request <request> --output-dir <dir>`.
+   A missing or changed source blocks preparation.
+2. Spawn the assigned native agent with the full canonical role and packet
+   context. Ask for exactly one `creative_workflow_native_result.v1` JSON object:
+   three concrete distinct variants plus an unchanged baseline, with criterion
+   IDs, exact paths, assumptions, observations, counterexamples, tests, risks,
+   Euler relation IDs, request fingerprint and packet ID. Await the actual
+   returned output. Send its bytes to `workflow-ingest --workflow
+   <workflow.prepared.json> --native-result-stdin` through host stdin. The user
+   does not transcribe or create `model_intake.json`. On malformed/incomplete
+   output the returned stage records only `INVALID_NATIVE_RESULT`; no validated
+   intake or completion claim follows.
+3. Coordinator inspects content, goal coverage, Euler relation and
+   counterexample evidence. Capture its separate structured review and run
+   `workflow-review`. Only then capture one exact-file, packet-eligible writer
+   handoff and run `workflow-admit`. These stage artifacts record the host's
+   decisions; their JSON, hashes and role labels do not authenticate a human,
+   execute the writer, or grant repository/merge authority by themselves.
+4. Dispatch the selected writer under the normal packet's separate
+   implementation handoff. Compare the actual Git diff paths, elapsed candidate
+   time and executed focused-test count with the selected exact files and
+   request budget; record an overrun as a failed/pending outcome. Review the
+   actual patch and test results against each accepted criterion in Work
+   Review. Export a sanitized owned capsule using `workflow-export`, then let
+   the host upload, read the same document ID, download the archive, compare its
+   SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Until
+   this round trip passes, record `storage_pending` and retain local evidence.
+
+Reopen an existing stage only against its unchanged source and input; identical
+replay is a no-write reuse, while divergent replay or changed packet,
+requirements or Euler bytes fails. Material changes stale dependent review;
+recheck affected criteria without automatically restarting every role or
+generating a new proposal. The legacy creative-context v1 intake and PR-2
+sandbox remain separate, with their existing product and workflow target bans.
+
 ## Canonical references
 
 - `scripts/orchestration/role_dispatch_bridge.py` — existing manifest entrypoint

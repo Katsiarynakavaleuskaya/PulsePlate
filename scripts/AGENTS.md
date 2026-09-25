@@ -552,6 +552,17 @@ Euler import, execution or store access is permitted.
   producer-owned verifier is tracked in
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-canonical-task-packet-identity-verifier`.
   Every applicability authority field remains literal `false`.
+- A coordinator may set `--creative-applicability alternatives|direct_fix|not_applicable|disabled`
+  through `start_pr_lane.sh` or manual bootstrap. The starter forwards the same
+  closed value in both its dry-run recipe and actual bootstrap. The structured
+  value is packet-identity-bearing; the sole
+  applicability selector recommends operational Creative only for admitted
+  alternatives after higher-assurance preemption. The recommendation is not
+  native execution or writer authority. The host follows the operational
+  sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
+  the additive `creative_workflow.v1` CLI validates returned intake, separate
+  review, exact-file writer handoff and sanitized capsule. Legacy v1/adaptive-v2
+  hypothesis and PR-2 patch-sandbox authority remains unchanged.
 - Contract and readiness boundaries:
   `docs/orchestration/PR_EVIDENCE_SIDECAR_V1.md` and
   `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`.
