@@ -1173,6 +1173,40 @@ def test_metadata_openapi_ownership_guard_rejects_lookup_before_safe_reassignmen
 
 
 @pytest.mark.parametrize(
+    ("deferred_lookup", "expected_errors"),
+    [
+        (
+            "def lookup():\n    return getattr(legacy, installer_attr)\n",
+            ["app/main.py: OpenAPI symbol must not be accessed through legacy"],
+        ),
+        (
+            "class Lookup:\n    def value(self):\n"
+            "        return legacy._install_openapi_builder\n",
+            [
+                "app/main.py: OpenAPI symbol must not be accessed through legacy",
+                "app/main.py: OpenAPI symbol must not be accessed through legacy: "
+                "_install_openapi_builder",
+            ],
+        ),
+    ],
+    ids=["function-getattr", "class-method-attribute"],
+)
+def test_metadata_openapi_ownership_guard_rejects_deferred_lookup_before_bindings(
+    deferred_lookup: str,
+    expected_errors: list[str],
+) -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[3] += deferred_lookup + textwrap.dedent("""
+        import legacy_app as legacy
+        installer_attr = "_install_openapi_builder"
+        """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == expected_errors
+
+
+@pytest.mark.parametrize(
     ("mutation_kind", "expected_fragment"),
     [
         (
