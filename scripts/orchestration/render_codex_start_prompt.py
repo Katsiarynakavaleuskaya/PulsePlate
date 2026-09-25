@@ -160,6 +160,7 @@ def _recipe_bootstrap_command(
     requested_agents: list[str],
     invariant_change_classes: list[str],
     review_invariant_family_relations_input: str | None,
+    creative_applicability: str | None,
     design_arguments: list[str],
 ) -> str:
     """Render the exact pre-bootstrap recipe inputs as one shell-safe command."""
@@ -180,6 +181,8 @@ def _recipe_bootstrap_command(
                 review_invariant_family_relations_input,
             )
         )
+    if creative_applicability is not None:
+        tokens.extend(("--creative-applicability", creative_applicability))
     for path in paths:
         tokens.append(f"--path={path}")
     for change_class in _unique(invariant_change_classes):
@@ -581,6 +584,13 @@ def _applicability_prompt_lines(value: EvidenceRailApplicability) -> list[str]:
             lines.extend(_teleology_prompt_lines(treatment))
         if rail == "euler":
             lines.extend(_euler_prompt_lines(treatment))
+        if rail == "creative" and treatment == RailTreatment.RECOMMEND:
+            lines.append(
+                "Creative is recommended for declared alternatives. Coordinator decides within "
+                "accepted scope; use pulseplate-orchestration-dispatch for an actual native "
+                "agent return, then pipe its structured result to creative workflow-ingest. "
+                "A manifest is preparation, never an agent result or writer admission."
+            )
     lines.append(
         "Applicable PR evidence sidecar rails: " + ", ".join(value.applicable_sidecar_rails)
     )
@@ -711,6 +721,7 @@ def render_recipe_prompt(
     requested_agents: list[str],
     invariant_change_classes: list[str] | None = None,
     review_invariant_family_relations_input: str | None = None,
+    creative_applicability: str | None = None,
     additive_rails: list[str] | None = None,
     design_arguments: list[str] | None = None,
     preflight_ran: bool = True,
@@ -745,6 +756,18 @@ def render_recipe_prompt(
                 "--review-invariant-family-relations-input is incompatible with "
                 "--invariant-change-class"
             )
+        if creative_applicability is not None:
+            raise PromptError(
+                "--creative-applicability cannot be combined with repeated-family L2 review"
+            )
+    if creative_applicability not in {
+        None,
+        "alternatives",
+        "direct_fix",
+        "not_applicable",
+        "disabled",
+    }:
+        raise PromptError("--creative-applicability has an unsupported value")
 
     agents = _unique(["agent-coordinator", *requested_agents])
     if preflight_ran:
@@ -765,6 +788,7 @@ def render_recipe_prompt(
         requested_agents=requested_agents,
         invariant_change_classes=invariant_change_classes or [],
         review_invariant_family_relations_input=review_invariant_family_relations_input,
+        creative_applicability=creative_applicability,
         design_arguments=design_arguments or [],
     )
     applicability_command = (
@@ -783,6 +807,7 @@ def render_recipe_prompt(
             f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
+            f"Creative applicability: {_prompt_text(creative_applicability, '<pending coordinator choice>')}",
             "Invariant change classes: "
             f"{_prompt_list(_unique(invariant_change_classes or []), '<none>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
@@ -851,6 +876,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
     )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
+    recipe_parser.add_argument(
+        "--creative-applicability",
+        choices=("alternatives", "direct_fix", "not_applicable", "disabled"),
+    )
     recipe_parser.add_argument("--design-source", default=None)
     recipe_parser.add_argument("--source-url", default=None)
     recipe_parser.add_argument("--file-key-or-workspace", default=None)
@@ -917,6 +946,7 @@ def main(argv: list[str] | None = None) -> int:
                     if args.review_invariant_family_relations_input
                     else None
                 ),
+                creative_applicability=args.creative_applicability,
                 additive_rails=args.evidence_sidecar_rail,
                 design_arguments=_recipe_design_arguments(args),
                 preflight_ran=args.preflight_ran,

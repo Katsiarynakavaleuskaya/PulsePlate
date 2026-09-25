@@ -67,9 +67,13 @@ def _base_packet(
 
 def _write_packet(packet_root: Path, packet: dict[str, Any], *, salt: str) -> str:
     packet = copy.deepcopy(packet)
-    identity = hashlib.sha256(
-        (salt + json.dumps(packet, sort_keys=True, default=str)).encode("utf-8")
-    ).hexdigest()[:12]
+    identity = (
+        packet["task_packet_id"]
+        if "creative_applicability" in packet
+        else hashlib.sha256(
+            (salt + json.dumps(packet, sort_keys=True, default=str)).encode("utf-8")
+        ).hexdigest()[:12]
+    )
     packet["task_packet_id"] = identity
     path = packet_root / f"{identity}.json"
     path.write_text(
@@ -849,3 +853,81 @@ def test_public_treatment_enum_has_no_enrollment_or_runner_na_values() -> None:
         "recommend",
         "not_applicable",
     }
+
+
+@pytest.mark.parametrize(
+    ("creative_choice", "expected_treatment", "expected_reason"),
+    [
+        ("alternatives", "recommend", "bounded_alternatives_declared"),
+        ("direct_fix", "not_applicable", "direct_fix_declared"),
+        ("disabled", "not_applicable", "creative_disabled"),
+        ("not_applicable", "not_applicable", "creative_scope_not_selected"),
+    ],
+)
+def test_structured_creative_choice_uses_sole_selector(
+    packet_root: Path,
+    tmp_path: Path,
+    creative_choice: str,
+    expected_treatment: str,
+    expected_reason: str,
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability=creative_choice,
+    )
+    result = build_evidence_rail_applicability(_snapshot(packet_root, packet, salt=creative_choice))
+    assert _treatments(result)["creative"] == {
+        "treatment": expected_treatment,
+        "reasons": [expected_reason],
+    }
+
+
+def test_higher_assurance_preempts_declared_creative_alternatives(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["scripts/orchestration/evidence_rail_applicability.py"],
+        invariant_change_classes=["guard"],
+        creative_applicability="alternatives",
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="preempt-alternatives")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+
+
+def test_root_scope_is_already_higher_assurance_for_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(tmp_path, candidate_paths=["."], creative_applicability="alternatives")
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="root-preempted")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+
+
+def test_creative_packet_field_tamper_is_rejected_by_identity_check(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    packet_path = _write_packet(packet_root, packet, salt="original")
+    snapshot = read_task_packet_snapshot(packet_path)
+    assert (
+        _treatments(build_evidence_rail_applicability(snapshot))["creative"]["treatment"]
+        == "recommend"
+    )
+
+    absolute_path = tmp_path / packet_path
+    tampered = json.loads(absolute_path.read_text(encoding="utf-8"))
+    tampered["creative_applicability"] = "disabled"
+    absolute_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(EvidenceRailApplicabilityError):
+        read_task_packet_snapshot(packet_path)

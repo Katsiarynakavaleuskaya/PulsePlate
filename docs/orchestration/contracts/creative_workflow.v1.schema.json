@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/contracts/creative_workflow.v1.schema.json",
+  "title": "Creative operational workflow stage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "upstream_assets", "fingerprint", "idempotency_key", "stage", "request", "native_result", "review", "handoff", "intake_error"],
+  "properties": {
+    "schema_version": {"const": "creative_workflow.v1"},
+    "artifact_type": {"const": "creative_workflow_stage"},
+    "policy_version": {"const": "creative_workflow.policy.v1"},
+    "upstream_assets": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/sha256"}},
+    "fingerprint": {"$ref": "#/$defs/sha256"},
+    "idempotency_key": {"type": "string", "pattern": "^creative-workflow-stage\\.v1:[a-f0-9]{64}$"},
+    "stage": {"enum": ["prepared", "returned", "validated", "reviewed", "admitted"]},
+    "request": {"$ref": "#/$defs/request"},
+    "native_result": {"type": ["object", "null"]},
+    "review": {"type": ["object", "null"]},
+    "handoff": {"type": ["object", "null"]},
+    "intake_error": {"enum": [null, "INVALID_NATIVE_RESULT"]}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "path": {"type": "string", "minLength": 1, "maxLength": 240},
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "repository", "base_sha", "head_sha", "task_packet_id", "task_packet_fingerprint", "criteria_ref", "criteria_sha256", "criteria_version", "requirements_ref", "requirements_sha256", "original_dod", "criteria", "allowed_paths", "euler", "budget", "test_commands"],
+      "properties": {
+        "schema_version": {"const": "creative_workflow_request.v1"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+        "base_sha": {"$ref": "#/$defs/sha"},
+        "head_sha": {"$ref": "#/$defs/sha"},
+        "task_packet_id": {"type": "string", "pattern": "^[a-f0-9]{12}$"},
+        "task_packet_fingerprint": {"$ref": "#/$defs/sha256"},
+        "criteria_ref": {"$ref": "#/$defs/path"},
+        "criteria_sha256": {"$ref": "#/$defs/sha256"},
+        "criteria_version": {"type": "string", "minLength": 1, "maxLength": 96},
+        "requirements_ref": {"$ref": "#/$defs/path"},
+        "requirements_sha256": {"$ref": "#/$defs/sha256"},
+        "original_dod": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 600}},
+        "criteria": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "object", "additionalProperties": false, "required": ["id", "description", "source_items"], "properties": {"id": {"type": "string", "pattern": "^C[1-9][0-9]{0,2}$"}, "description": {"type": "string", "minLength": 1, "maxLength": 600}, "source_items": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}},
+        "allowed_paths": {"type": "array", "minItems": 1, "maxItems": 30, "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+        "euler": {"type": "object", "additionalProperties": false, "required": ["artifact_ref", "artifact_sha256", "relations"], "properties": {"artifact_ref": {"$ref": "#/$defs/path"}, "artifact_sha256": {"$ref": "#/$defs/sha256"}, "relations": {"type": "array", "maxItems": 100, "items": {"type": "object", "additionalProperties": false, "required": ["id", "description", "finding_ids"], "properties": {"id": {"type": "string"}, "description": {"type": "string"}, "finding_ids": {"type": "array", "maxItems": 100, "items": {"type": "string"}}}}}}},
+        "budget": {"type": "object", "additionalProperties": false, "required": ["seconds", "max_files", "max_test_commands", "max_infra_retries"], "properties": {"seconds": {"type": "integer", "minimum": 1, "maximum": 300}, "max_files": {"type": "integer", "minimum": 1, "maximum": 3}, "max_test_commands": {"type": "integer", "minimum": 1, "maximum": 2}, "max_infra_retries": {"type": "integer", "minimum": 0, "maximum": 1}}},
+        "test_commands": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"type": "string", "minLength": 1, "maxLength": 240}}
+      }
+    }
+  }
+}

@@ -5,6 +5,86 @@
 **Status:** v1 local artifact contract. No workflow, provider, product runtime,
 branch, PR, comment, thread, fixed-mapping, or merge authority.
 
+## Operational Creative v1 (separate contract)
+
+`creative_workflow.v1` adds a host-operated task workflow without changing the
+v1 hypothesis intake or adaptive v2 schemas. It uses the existing packet-bound
+applicability selector. A coordinator-declared `alternatives` signal may
+recommend Creative for an ordinary task; direct fixes and disabled tasks do
+not. Invariant and security review preempt it. The current task that changes
+the selector itself must complete ordinary pre-fix roles and cannot self-enrol.
+
+The operational request is `creative_workflow_request.v1`. It names the exact
+repository, base/head, packet id and byte fingerprint, accepted criteria source
+and version, complete original DoD source and item list, Euler artifact and
+relations, sorted allowed paths, focused checks and the bounded candidate
+budget. The request covers each original DoD item by at least one criterion.
+Every allowed path must exactly occur in the validated task packet's path set
+and name one file, not a directory or the `.` root sentinel. A broader
+operational request cannot reuse ordinary routing to target product or
+privileged files outside that packet.
+Preparation, intake, review and writer admission compare its repository,
+`base_sha` and `head_sha` with the local Git origin and `origin/main`/`HEAD`
+commit refs through a resolved absolute Git binary. A mismatch leaves the
+dependent stage stale. The host still checks the current remote and CI state;
+the local ref check is not proof that GitHub main is healthy or up to date. It
+also does not bind uncommitted working-tree bytes; the coordinator must review
+the actual material diff and recheck affected conclusions if it changes.
+Hashes establish content continuity only; the coordinator checks whether the
+items faithfully represent the owner's accepted goal. The host retains the
+complete original source, not just a short criteria summary.
+
+The host runs the existing native dispatch with full role context and captures
+one actual returned `creative_workflow_native_result.v1` object. It passes that
+object directly to `workflow-ingest --native-result-stdin`; the user need not
+create `model_intake.json`. Exactly three variants and a separate unchanged
+baseline are required. Each variant names criterion IDs, concrete change,
+exact paths, assumptions, expected observation, counterexample, tests, risks
+and Euler relation IDs. Lexical distinctness is checked, while substantive
+diversity and goal fitness remain coordinator review questions. The legacy
+`originality`, `groundedness`, `hallucination_risk` and `promotion_decision`
+fields have no operational selection authority.
+
+Separate immutable, private local stages record `prepared`, `returned`,
+`validated`, `reviewed` and `admitted`. A malformed native result may leave a
+`returned` artifact with `INVALID_NATIVE_RESULT`; it cannot create a validated
+stage. Each stage declares its asset type, policy version, one upstream asset,
+content fingerprint and idempotency key; the next stage checks that exact
+predecessor. The packet selector recomputes the Creative marker's derived
+packet ID from its recorded base ID, rejecting a changed marker with the old
+ID. These checks provide local content continuity, not authentication against
+a same-UID actor able to rewrite all sources. `workflow-review` requires every criterion and Euler relation assessed
+as supported or satisfied before selection. `workflow-admit` records a
+separate coordinator handoff to one eligible writer on the selected exact
+files. Writer eligibility and the one-based occurrence order are re-read from
+the canonical runtime role-dispatch bridge at admission and stage reload;
+missing, failed or incomplete manifest evidence blocks the handoff. These
+records are local evidence of the host procedure, not
+authenticated human approval, agent execution, repository permission or
+merge-readiness proof. A platform proposal goes to its ordinary platform
+writer under the governing packet. PR-2 patch allowlists remain unchanged.
+
+The CLI's operational commands are `workflow-prepare`, `workflow-ingest`,
+`workflow-review`, `workflow-admit`, `workflow-export` and
+`workflow-verify-archive` in
+`scripts/orchestration/experiment_runner_pr_creative_context.py`. The machine
+contract is `docs/orchestration/contracts/creative_workflow.v1.schema.json`
+plus the stricter Python validators. Input and stage replay is bounded; exact
+identical stages are reused without rewriting, divergent stages fail. Changed
+packet, criteria, requirements or Euler source bytes stale downstream stages.
+Material edits require targeted review against the accepted criteria.
+
+An export packages only the named stage files, sanitized patch, focused test
+evidence and Work Review, with a SHA-256 manifest. Symlinks, hardlinks,
+traversal, unexpected filenames, size excess and token-shaped content fail.
+The authorized host uploads the package, reads the updated Google Doc by the
+same ID, downloads the package, compares its SHA-256 and runs safe restore in
+a fresh owned directory. Failure remains `storage_pending` and bars cleanup.
+Drive credentials stay with the host. The archive is a sanitized projection;
+it never rewrites fingerprint-bound source receipts. This workflow does not
+add a provider SDK, provider request, workflow dispatch or product runtime
+change.
+
 **Purpose:** Give eligible orchestration / Experiment Runner PR lanes active
 creative-hypothesis authority without granting code mutation. The classic
 Experiment Runner oracle remains the verifier. This layer builds sanitized

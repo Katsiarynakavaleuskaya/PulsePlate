@@ -261,6 +261,12 @@ the store to finish a checklist. The retention boundary remains tracked in the
 [existing Euler handoff item](../roadmap/BACKLOG_LEDGER.md#ledger-p1-euler-supervision-renderer-handoff).
 This ordering adds no archive, transfer, root-override or reconstruction mechanism.
 
+The CREATIVE-OPS-1 capsule exporter belongs only to the separate operational
+Creative task workflow. Its Drive round trip preserves that task's selected
+patch and Work Review; it does not enroll, archive, transfer, verify or delete
+Euler episode stores or this PR evidence sidecar. Their existing retention and
+cleanup boundaries still apply independently.
+
 Applicable sidecar rails keep `unknown` plus `null` without the required genuine
 reference; a prepared sidecar, selected treatment or checkpoint fingerprint
 cannot be promoted into verified analysis or a successful outcome. Reference

@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+import hashlib
+import io
 import json
 from pathlib import Path
 import re
 from typing import Any
+import uuid
 
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import experiment_runner_pr_creative_context as cli
+from scripts.orchestration import evidence_rail_applicability as rail_applicability
+from scripts.orchestration import task_bootstrap as bootstrap
 from scripts.orchestration.experiment_runner_pr_creative_context_contract import (
     AGENT_ROUTING_TYPE,
     APPROVAL_TYPE,
@@ -45,6 +50,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     build_creative_hypothesis_packet,
     build_creative_hypothesis_packet_from_model_intake,
     build_creative_protocol_context_map,
+    build_creative_workflow_stage,
     build_experiment_runner_pr_oracle_attachment,
     default_creative_context_authority,
     default_coordinator_dispatch_authority,
@@ -56,6 +62,12 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     validate_creative_hypothesis_coordinator_dispatch,
     validate_creative_hypothesis_operator_model_intake,
     validate_creative_hypothesis_packet,
+    validate_creative_workflow_request,
+    validate_creative_workflow_native_result,
+    validate_creative_workflow_review,
+    validate_creative_workflow_handoff,
+    validate_creative_workflow_stage,
+    workflow_fingerprint,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1576,3 +1588,589 @@ def test_approval_schema_encodes_decision_state_machine() -> None:
     assert defer_guard["then"]["properties"]["next_step"]["const"] == "defer"
     assert defer_guard["then"]["properties"]["approved_target_surfaces"]["maxItems"] == 0
     assert "app/" in schema["$defs"]["approvable_pr1_target_path"]["allOf"][2]["not"]["pattern"]
+
+
+def _operational_request() -> dict[str, Any]:
+    return {
+        "schema_version": "creative_workflow_request.v1",
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+        "task_packet_id": "a" * 12,
+        "task_packet_fingerprint": SHA256,
+        "criteria_ref": "artifacts/orchestration/creative_ops_1/task_analysis.md",
+        "criteria_sha256": SHA256,
+        "criteria_version": "CREATIVE-OPS-1.criteria.v1",
+        "requirements_ref": "artifacts/orchestration/creative_ops_1/accepted_plan.md",
+        "requirements_sha256": SHA256,
+        "original_dod": ["Preserve every original requirement", "Observe a real patch"],
+        "criteria": [
+            {
+                "id": "C1",
+                "description": "Preserve requirements",
+                "source_items": ["Preserve every original requirement"],
+            },
+            {
+                "id": "C2",
+                "description": "Observe a patch",
+                "source_items": ["Observe a real patch"],
+            },
+        ],
+        "allowed_paths": ["scripts/orchestration/example.py", "tests/test_example.py"],
+        "euler": {
+            "artifact_ref": "artifacts/orchestration/creative_ops_1/euler.json",
+            "artifact_sha256": SHA256,
+            "relations": [
+                {
+                    "id": "relation_a",
+                    "description": "Candidate preserves the relation",
+                    "finding_ids": [],
+                }
+            ],
+        },
+        "budget": {"seconds": 300, "max_files": 3, "max_test_commands": 2, "max_infra_retries": 1},
+        "test_commands": ["pytest -q tests/test_example.py"],
+    }
+
+
+def _operational_native(request: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "creative_workflow_native_result.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "task_packet_id": request["task_packet_id"],
+        "status": "ok",
+        "variants": [
+            {
+                "id": f"variant_{index}",
+                "criteria": ["C1", "C2"],
+                "change": f"Use formatter approach {index}",
+                "paths": ["scripts/orchestration/example.py"],
+                "assumptions": ["Existing validated inputs remain available"],
+                "expected_observation": "A readable capsule is produced",
+                "counterexample": "A stale source is rejected",
+                "tests": ["Run the focused formatter test"],
+                "risks": ["A malformed source blocks rendering"],
+                "euler_relation_ids": ["relation_a"],
+            }
+            for index in (1, 2, 3)
+        ],
+        "unchanged_baseline": {
+            "expected_observation": "Manual transfer remains",
+            "risk": "Manual errors persist",
+        },
+    }
+
+
+def _operational_review(request: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "creative_workflow_review.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "reviewer_role": "agent-coordinator",
+        "rationale": "The first approach preserves every criterion with a direct test",
+        "criteria_coverage": [
+            {"id": "C1", "status": "supported", "evidence": "Source is retained"},
+            {"id": "C2", "status": "supported", "evidence": "Focused patch test passes"},
+        ],
+        "euler_assessment": [
+            {
+                "id": "relation_a",
+                "status": "satisfied",
+                "evidence": "The counterexample is rejected",
+            }
+        ],
+    }
+
+
+def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> None:
+    request = validate_creative_workflow_request(_operational_request())
+    schema = json.loads(
+        (REPO_ROOT / "docs/orchestration/contracts/creative_workflow.v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert set(schema["$defs"]["request"]["required"]) == set(request)
+    assert (
+        schema["$defs"]["request"]["properties"]["budget"]["properties"]["max_files"]["maximum"]
+        == 3
+    )
+    result = validate_creative_workflow_native_result(_operational_native(request), request)
+    review = validate_creative_workflow_review(_operational_review(request), request, result)
+    handoff = {
+        "schema_version": "creative_workflow_handoff.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "coordinator_role": "agent-coordinator",
+        "writer_role": "security-auditor",
+        "manifest_order": 5,
+        "files": ["scripts/orchestration/example.py"],
+    }
+    assert (
+        validate_creative_workflow_handoff(
+            handoff,
+            request,
+            result,
+            review,
+            ["security-auditor"],
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "cursor-specialist-agent",
+                "security-auditor",
+            ],
+        )
+        == handoff
+    )
+    stage = {
+        "schema_version": "creative_workflow.v1",
+        "stage": "admitted",
+        "request": request,
+        "native_result": result,
+        "review": review,
+        "handoff": handoff,
+        "intake_error": None,
+    }
+    stage = build_creative_workflow_stage(stage, upstream_fingerprint=SHA256)
+    assert validate_creative_workflow_stage(stage) == stage
+    assert stage["upstream_assets"] == [SHA256]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "base_sha",
+        "head_sha",
+        "criteria_version",
+        "criteria_sha256",
+        "task_packet_fingerprint",
+        "requirements_sha256",
+    ],
+)
+def test_operational_native_rejects_stale_request_identity(field: str) -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    request[field] = "c" * 40 if field in {"base_sha", "head_sha"} else "different"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError):
+        validate_creative_workflow_native_result(result, request)
+
+
+def test_operational_review_blocks_missing_dod_and_violated_euler() -> None:
+    request = _operational_request()
+    request["criteria"][1]["source_items"] = ["Preserve every original requirement"]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="DoD coverage"):
+        validate_creative_workflow_request(request)
+    request = _operational_request()
+    result = _operational_native(request)
+    review = _operational_review(request)
+    review["euler_assessment"][0]["status"] = "violated"
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="Euler relation"):
+        validate_creative_workflow_review(review, request, result)
+
+
+def test_operational_native_and_handoff_reject_out_of_scope() -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    result["variants"][0]["paths"] = ["app/services/unsafe.py"]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="allowed paths"):
+        validate_creative_workflow_native_result(result, request)
+    result = _operational_native(request)
+    review = _operational_review(request)
+    handoff = {
+        "schema_version": "creative_workflow_handoff.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "coordinator_role": "agent-coordinator",
+        "writer_role": "security-auditor",
+        "manifest_order": 5,
+        "files": ["tests/test_example.py"],
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="file scope"):
+        validate_creative_workflow_handoff(
+            handoff,
+            request,
+            result,
+            review,
+            ["security-auditor"],
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "cursor-specialist-agent",
+                "security-auditor",
+            ],
+        )
+
+
+def test_operational_handoff_rejects_missing_canonical_occurrence_order() -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    review = _operational_review(request)
+    handoff = {
+        "schema_version": "creative_workflow_handoff.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "coordinator_role": "agent-coordinator",
+        "writer_role": "qa-engineer-agent",
+        "manifest_order": 999,
+        "files": ["scripts/orchestration/example.py"],
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="occurrence"):
+        validate_creative_workflow_handoff(
+            handoff, request, result, review, ["qa-engineer-agent"], dispatch_order=None
+        )
+
+
+def test_operational_writer_occurrence_comes_from_canonical_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = bootstrap.build_task_packet(
+        goal=f"Compare formatter approaches {uuid.uuid4().hex}",
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    packet_path = (
+        REPO_ROOT / "artifacts/orchestration/task_packets" / f"{packet['task_packet_id']}.json"
+    )
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    try:
+        role_order, eligible = cli._canonical_manifest_writer_occurrences(
+            {
+                "task_packet_id": packet["task_packet_id"],
+                "task_packet_fingerprint": "sha256:"
+                + hashlib.sha256(packet_path.read_bytes()).hexdigest(),
+            }
+        )
+        assert "qa-engineer-agent" in eligible
+        assert role_order.index("qa-engineer-agent") + 1 < 999
+        with monkeypatch.context() as patch:
+            patch.setattr(cli.qoder_dispatch_bridge, "main", lambda _argv: 1)
+            with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="unavailable"):
+                cli._canonical_manifest_writer_occurrences(
+                    {
+                        "task_packet_id": packet["task_packet_id"],
+                        "task_packet_fingerprint": "sha256:"
+                        + hashlib.sha256(packet_path.read_bytes()).hexdigest(),
+                    }
+                )
+    finally:
+        packet_path.unlink(missing_ok=True)
+
+
+def test_operational_cli_native_stages_and_archive_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rail_applicability, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "CREATIVE_CONTEXT_ROOT",
+        tmp_path / "artifacts/orchestration/experiments/creative_context",
+    )
+    source_dir = tmp_path / "artifacts/orchestration/creative_ops_1"
+    source_dir.mkdir(parents=True)
+    for name, content in (
+        ("task_analysis.md", "Accepted criteria v1"),
+        ("accepted_plan.md", "Complete accepted owner plan"),
+        ("euler.json", '{"relations": ["relation_a"]}'),
+    ):
+        (source_dir / name).write_text(content, encoding="utf-8")
+    packet = bootstrap.build_task_packet(
+        goal="Compare a local formatter",
+        task_class="Implementation",
+        candidate_paths=["tests/test_example.py", "tests/test_other_example.py"],
+        creative_applicability="alternatives",
+    )
+    packet_root = tmp_path / "artifacts/orchestration/task_packets"
+    packet_root.mkdir(parents=True)
+    packet_path = packet_root / f"{packet['task_packet_id']}.json"
+    packet_path.write_text(json.dumps(packet, sort_keys=True), encoding="utf-8")
+    request = _operational_request()
+    request["task_packet_id"] = packet["task_packet_id"]
+    request["task_packet_fingerprint"] = (
+        "sha256:" + hashlib.sha256(packet_path.read_bytes()).hexdigest()
+    )
+    for field, name in (
+        ("criteria_sha256", "task_analysis.md"),
+        ("requirements_sha256", "accepted_plan.md"),
+    ):
+        request[field] = "sha256:" + hashlib.sha256((source_dir / name).read_bytes()).hexdigest()
+    request["euler"]["artifact_sha256"] = (
+        "sha256:" + hashlib.sha256((source_dir / "euler.json").read_bytes()).hexdigest()
+    )
+    monkeypatch.setattr(
+        cli,
+        "_git_identity",
+        lambda: (request["repository"], request["base_sha"], request["head_sha"]),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_canonical_manifest_writer_occurrences",
+        lambda _request: (["qa-engineer-agent"], ["qa-engineer-agent"]),
+    )
+    for field, wrong in (
+        ("repository", "Other/PulsePlate"),
+        ("base_sha", "c" * 40),
+        ("head_sha", "d" * 40),
+    ):
+        stale = deepcopy(request)
+        stale[field] = wrong
+        with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="Git material"):
+            cli._workflow_sources(stale)
+    request_path = source_dir / "request.json"
+    unauthorized = deepcopy(request)
+    unauthorized["allowed_paths"] = ["app/services/payments_activation.py"]
+    request_path.write_text(json.dumps(unauthorized), encoding="utf-8")
+    output_dir = cli.CREATIVE_CONTEXT_ROOT / "live-case"
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                packet_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    descendant = deepcopy(request)
+    descendant["allowed_paths"] = ["tests/test_example.py/child.py"]
+    request_path.write_text(json.dumps(descendant), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                packet_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    broad_packet = bootstrap.build_task_packet(
+        goal="Compare a product formatter",
+        task_class="Implementation",
+        candidate_paths=["app"],
+        creative_applicability="alternatives",
+    )
+    broad_path = packet_root / f"{broad_packet['task_packet_id']}.json"
+    broad_path.write_text(json.dumps(broad_packet), encoding="utf-8")
+    broad_snapshot = rail_applicability.read_task_packet_snapshot(
+        broad_path.relative_to(tmp_path).as_posix()
+    )
+    broad_treatment = dict(
+        (name, treatment)
+        for name, treatment, _reasons in rail_applicability.build_evidence_rail_applicability(
+            broad_snapshot
+        ).treatments
+    )
+    assert broad_treatment["creative"] == rail_applicability.RailTreatment.RECOMMEND
+    broad_request = deepcopy(request)
+    broad_request["task_packet_id"] = broad_packet["task_packet_id"]
+    broad_request["task_packet_fingerprint"] = (
+        "sha256:" + hashlib.sha256(broad_path.read_bytes()).hexdigest()
+    )
+    broad_request["allowed_paths"] = ["app/services/payments_activation.py"]
+    request_path.write_text(json.dumps(broad_request), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                broad_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+    request["allowed_paths"] = ["tests/test_example.py", "tests/test_other_example.py"]
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                packet_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    prepared = output_dir / "workflow.prepared.json"
+    assert prepared.exists()
+    native = _operational_native(request)
+    for variant in native["variants"]:
+        variant["paths"] = ["tests/test_example.py"]
+    monkeypatch.setattr(cli.sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(native).encode())))
+    assert cli.main(["workflow-ingest", "--workflow", str(prepared), "--native-result-stdin"]) == 0
+    assert (output_dir / "workflow.returned.json").exists()
+    validated = output_dir / "workflow.validated.json"
+    review_path = source_dir / "review.json"
+    review_path.write_text(json.dumps(_operational_review(request)), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-review",
+                "--workflow",
+                str(validated),
+                "--review",
+                review_path.relative_to(tmp_path).as_posix(),
+            ]
+        )
+        == 0
+    )
+    handoff_path = source_dir / "handoff.json"
+    handoff = {
+        "schema_version": "creative_workflow_handoff.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "coordinator_role": "agent-coordinator",
+        "writer_role": "qa-engineer-agent",
+        "manifest_order": 1,
+        "files": ["tests/test_example.py"],
+    }
+    handoff_path.write_text(json.dumps(dict(handoff, manifest_order=999)), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-admit",
+                "--workflow",
+                str(output_dir / "workflow.reviewed.json"),
+                "--handoff",
+                handoff_path.relative_to(tmp_path).as_posix(),
+            ]
+        )
+        == 1
+    )
+    handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "workflow-admit",
+                "--workflow",
+                str(output_dir / "workflow.reviewed.json"),
+                "--handoff",
+                handoff_path.relative_to(tmp_path).as_posix(),
+            ]
+        )
+        == 0
+    )
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                packet_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    for name, content in (
+        ("patch.diff", "A sanitized candidate patch summary"),
+        ("test_evidence.json", '{"focused_tests":"passed"}'),
+        ("work_review.md", "Observed C1 and C2 after local checks"),
+    ):
+        (output_dir / name).write_text(content, encoding="utf-8")
+    names = [
+        *cli.WORKFLOW_STAGE_FILES.values(),
+        "patch.diff",
+        "test_evidence.json",
+        "work_review.md",
+    ]
+    export_args = ["workflow-export", "--workflow", str(output_dir / "workflow.admitted.json")]
+    for name in names:
+        export_args.extend(["--include", name])
+    assert cli.main(export_args) == 0
+    archive = output_dir / "creative_workflow_capsule.zip"
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(archive),
+                "--sha256",
+                hashlib.sha256(archive.read_bytes()).hexdigest(),
+                "--restore-dir",
+                str(cli.CREATIVE_CONTEXT_ROOT / "restored"),
+            ]
+        )
+        == 0
+    )
+    assert (
+        cli.CREATIVE_CONTEXT_ROOT / "restored/work_review.md"
+    ).read_text() == "Observed C1 and C2 after local checks"
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(archive),
+                "--sha256",
+                "0" * 64,
+                "--restore-dir",
+                str(cli.CREATIVE_CONTEXT_ROOT / "another-restore"),
+            ]
+        )
+        == 1
+    )
+    (source_dir / "euler.json").write_text('{"relations": []}', encoding="utf-8")
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="digest changed"):
+        cli._load_workflow_stage(str(output_dir / "workflow.admitted.json"), "admitted")
+
+
+def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _operational_request()
+    prepared = {
+        "schema_version": "creative_workflow.v1",
+        "stage": "prepared",
+        "request": request,
+        "native_result": None,
+        "review": None,
+        "handoff": None,
+        "intake_error": None,
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="native result"):
+        build_creative_workflow_stage(
+            dict(prepared, stage="validated"), upstream_fingerprint=SHA256
+        )
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="malformed"):
+        cli._workflow_json_bytes(b'{"a":1,"a":2}')
+    monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
+    output = tmp_path / "artifacts/orchestration/experiments/creative_context/attempt"
+    output.mkdir(parents=True)
+    for name in cli.WORKFLOW_STAGE_FILES.values():
+        (output / name).write_text("{}", encoding="utf-8")
+    for name in ("patch.diff", "test_evidence.json", "work_review.md"):
+        (output / name).write_text("safe", encoding="utf-8")
+    include = [
+        *cli.WORKFLOW_STAGE_FILES.values(),
+        "patch.diff",
+        "test_evidence.json",
+        "work_review.md",
+    ]
+    (output / "patch.diff").unlink()
+    (output / "patch.diff").symlink_to(tmp_path / "secret")
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="symlink"):
+        cli._workflow_archive_inputs(output, include)
+    with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="unapproved"):
+        cli._workflow_archive_inputs(output, [*include, "../secret"])
