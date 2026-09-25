@@ -2117,7 +2117,7 @@ def test_evaluate_rejects_rerun_without_replacing_result(
     assert result_file.read_bytes() == original_result
 
 
-def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
+def test_evaluate_requires_trusted_dispatch_without_result_or_cli_leak(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -2126,17 +2126,6 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
     _patch_modules_to_repo(monkeypatch, repo)
     run_id = "eval-capability-signal"
     run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-    canary = "/Users/example/ghp_capability_canary"
-
-    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        raise experiment_runner.RunnerCapabilitySignal(canary)
-
-    monkeypatch.setattr(
-        creative_code_patch_builder,
-        "_import_runner_api",
-        lambda: (experiment_runner.RunnerCapabilitySignal, raise_capability_signal),
-    )
-
     with pytest.raises(
         CreativeCodePatchBuilderError,
         match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
@@ -2144,7 +2133,6 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
         creative_code_patch_builder.evaluate(run_id=run_id)
 
     assert exc_info.value.__cause__ is None
-    assert canary not in str(exc_info.value)
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
     assert state.get("candidate_patch_evaluated") is not True
@@ -2155,14 +2143,13 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
     assert captured.err == (
         "FAIL: Experiment Runner capability unavailable; trusted dispatch is required.\n"
     )
-    assert canary not in captured.err
     assert "Traceback" not in captured.err
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
     assert state.get("candidate_patch_evaluated") is not True
 
 
-def test_evaluate_import_failure_preserves_dispatch_handoff(
+def test_evaluate_preserves_dispatch_handoff(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2170,15 +2157,6 @@ def test_evaluate_import_failure_preserves_dispatch_handoff(
     _patch_modules_to_repo(monkeypatch, repo)
     run_id = "eval-runner-import-unavailable"
     run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-
-    def fail_runner_import() -> tuple[Any, Any]:
-        raise ImportError
-
-    monkeypatch.setattr(
-        creative_code_patch_builder,
-        "_import_runner_api",
-        fail_runner_import,
-    )
 
     with pytest.raises(
         CreativeCodePatchBuilderError,

@@ -121,8 +121,10 @@ python -m scripts.orchestration.creative_code_patch_generation finalize-dispatch
 
 `generate-candidate` must revalidate the gate immediately before execution,
 call only `creative_code_patch_builder.generate(run_id=...)`, recheck current
-base/tree, call only `creative_code_patch_builder.evaluate(run_id=...)`, then
-write a sanitized `generation_receipt.json` that links:
+base/tree, and call `creative_code_patch_builder.evaluate(run_id=...)`. Direct
+evaluation always fails closed after writing the bound experiment packet; the
+operator must use the trusted dispatcher and `finalize-dispatched-result` before
+a sanitized `generation_receipt.json` can be written. The receipt links:
 
 - `generation_gate.json`;
 - existing local `candidate.patch`;
@@ -151,7 +153,7 @@ merge authority. The legacy unforecasted behavior is unchanged when no exact
 shadow slot exists. See
 `CREATIVE_CODE_LIFECYCLE_BAYESIAN_SHADOW_CONTRACT.md`.
 
-On hosts where direct candidate evaluation raises the bounded Runner capability
+Because direct candidate evaluation always raises the bounded Runner capability
 signal after generation, `finalize-dispatched-result` is the only supported
 resume seam. The operator runs the existing trusted Experiment Runner dispatcher
 against the already-generated `experiment_packet.json` and `candidate.patch`,
@@ -279,8 +281,11 @@ PR-2 rejects:
 ## Runner Integration
 
 `evaluate` builds a normal candidate-mode experiment packet with
-`experiment_bootstrap.build_experiment_packet(...)` and calls
-`experiment_runner.evaluate_candidate(packet, candidate_patch_path)` directly.
+`experiment_bootstrap.build_experiment_packet(...)`, then fails closed with the
+trusted-dispatch handoff. It must never execute candidate code through the local
+runner because cwd and environment filtering do not provide filesystem or network
+confinement. Candidate execution is supported only through
+`experiment_runner_dispatch.py` and the `finalize-dispatched-result` resume seam.
 It must not call `experiment_pipeline.py`, oracle-only runner mode, notification
 wrappers, promotion wrappers, GitHub/Slack actions, or review-thread tooling.
 
