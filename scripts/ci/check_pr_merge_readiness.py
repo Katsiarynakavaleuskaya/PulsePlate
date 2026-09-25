@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+MATERIAL_REPO_ROOT = REPO_ROOT
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -33,7 +34,6 @@ from scripts.orchestration.review_mapping_artifact import (
     has_no_actionable_marker,
     parse_canonical_fingerprint_records,
     parse_fixed_mapping_entries,
-    read_mapping_artifact,
     review_seal_version,
     validate_mapping_artifact_text,
 )
@@ -425,6 +425,13 @@ def _event_head_sha(event_path: Path) -> str:
     return head
 
 
+def _read_mapping_artifact_from_material(pr_number: int) -> str:
+    path = MATERIAL_REPO_ROOT / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing canonical review mapping artifact: {path}")
+    return path.read_text(encoding="utf-8")
+
+
 def _local_head_sha() -> str:
     git = shutil.which("git")
     if not git:
@@ -613,7 +620,7 @@ def _validate_v1_seal(
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise ReviewEvidenceError("review seal repository/PR identity mismatch")
     manifest = compute_material_manifest(
-        REPO_ROOT,
+        MATERIAL_REPO_ROOT,
         base_ref_oid=snapshot.base_sha,
         head_ref_oid=snapshot.head_sha,
         pr_number=pr_number,
@@ -634,7 +641,7 @@ def _validate_v1_seal(
     code_review = seal["code_review"]
     if is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(
-            REPO_ROOT,
+            MATERIAL_REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
             head_ref_oid=material_head.sha,
             pr_number=pr_number,
@@ -722,7 +729,7 @@ def _validate_v1_seal(
         }:
             raise ReviewEvidenceError("Codex review commit is not a real commit in the live PR")
         reviewed_manifest = compute_material_manifest(
-            REPO_ROOT,
+            MATERIAL_REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
             head_ref_oid=review_commit.sha,
             pr_number=pr_number,
@@ -831,7 +838,7 @@ def _duplicate_reply_coverage(
         threads=threads,
         fingerprint_records=records,
         material_digest=str(seal["material"]["digest"]),
-        repo_root=REPO_ROOT,
+        repo_root=MATERIAL_REPO_ROOT,
         snapshot=snapshot,
         repository=repository,
         token=token,
@@ -865,6 +872,14 @@ def main() -> int:
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
     parser.add_argument(
+        "--material-repo-root",
+        default=str(REPO_ROOT),
+        help=(
+            "Repository checkout containing PR-head material to inspect. "
+            "The policy script still executes from its own trusted checkout."
+        ),
+    )
+    parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
         default=0,
@@ -876,6 +891,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.outage_security_wait_seconds < 0:
         parser.error("--outage-security-wait-seconds must be non-negative")
+    global MATERIAL_REPO_ROOT
+    MATERIAL_REPO_ROOT = Path(args.material_repo_root).resolve()
+    if not (MATERIAL_REPO_ROOT / ".git").exists():
+        parser.error("--material-repo-root must point to a git checkout")
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
@@ -932,8 +951,10 @@ def main() -> int:
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: event head does not match the live PR head"
             )
-        if _local_head_sha() != snapshot.head_sha:
-            raise CommitIdentityError("local checkout HEAD does not match the live PR head")
+        if _local_head_sha() == snapshot.head_sha:
+            raise CommitIdentityError(
+                "trusted policy checkout must not execute from the mutable PR head"
+            )
         review_threads = fetch_review_threads(repo, pr_number, token=token)
     except (CommitIdentityError, OSError, ValueError) as exc:
         print(f"ERROR: cannot establish immutable live PR snapshot: {exc}")
@@ -956,7 +977,7 @@ def main() -> int:
 
     # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
     try:
-        artifact_text = read_mapping_artifact(pr_number)
+        artifact_text = _read_mapping_artifact_from_material(pr_number)
         artifact_errors = validate_mapping_artifact_text(artifact_text)
         if artifact_errors:
             raise ValueError("; ".join(artifact_errors))

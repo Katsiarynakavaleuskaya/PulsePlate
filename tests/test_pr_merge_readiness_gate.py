@@ -917,11 +917,11 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     monkeypatch.setattr(
         merge_gate,
         "_local_head_sha",
-        lambda: live_snapshot["value"].head_sha,
+        lambda: live_snapshot["value"].base_sha,
     )
     monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
-    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(merge_gate, "_read_mapping_artifact_from_material", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
     assert merge_gate.main() == 0
@@ -1336,7 +1336,7 @@ def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
     monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: governance_head)
     monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
-    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(merge_gate, "_read_mapping_artifact_from_material", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
     assert merge_gate.main() == 0
@@ -1419,16 +1419,55 @@ def test_merge_readiness_main_blocks_missing_mapping(
         lambda *_a, **_k: (42, "owner/repo", False, "docs/review/PR_42_FIXED_MAPPING.md"),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
-    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: snapshot.base_sha)
     monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
-    monkeypatch.setattr(merge_gate, "read_mapping_artifact", missing_mapping)
+    monkeypatch.setattr(merge_gate, "_read_mapping_artifact_from_material", missing_mapping)
 
     assert merge_gate.main() == 1
     assert "canonical review artifact is invalid" in capsys.readouterr().out
 
 
-def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:
+def test_merge_readiness_main_rejects_policy_checkout_from_pr_head(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head_sha = "a" * 40
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="b" * 40,
+        head_sha=head_sha,
+        commits=(PrCommitEvidence(head_sha, None),),
+    )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda *_a, **_k: (42, "owner/repo", False, "docs/review/PR_42_FIXED_MAPPING.md"),
+    )
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+
+    assert merge_gate.main() == 1
+    assert (
+        "trusted policy checkout must not execute from the mutable PR head"
+        in capsys.readouterr().out
+    )
+
+
+def test_merge_readiness_checkout_uses_trusted_base_policy_and_fetches_pr_head_material() -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["merge_readiness_gate"]
@@ -1449,9 +1488,16 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "statuses": "read",
     }
     steps = job["steps"]
-    checkout = next(step for step in steps if step.get("name") == "Checkout")
+    checkout = next(step for step in steps if step.get("name") == "Checkout trusted base policy")
     assert checkout["with"] == {
         "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ github.event.pull_request.base.ref }}",
+    }
+    pr_material = next(step for step in steps if step.get("name") == "Checkout pull request material")
+    assert pr_material["with"] == {
+        "fetch-depth": 0,
+        "path": "pr-material",
         "persist-credentials": False,
         "ref": "${{ github.event.pull_request.head.sha }}",
     }
@@ -1460,6 +1506,7 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     )
     run = enforcement["run"]
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
+    assert '--material-repo-root "$GITHUB_WORKSPACE/pr-material"' in run
     assert "--outage-security-wait-seconds 300" in run
     assert "--defer-outage-security-checks" not in run
 

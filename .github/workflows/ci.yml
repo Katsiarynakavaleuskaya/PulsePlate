@@ -424,10 +424,18 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
-      - name: Checkout
+      - name: Checkout trusted base policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout pull request material
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-material
           fetch-depth: 0
           persist-credentials: false
 
@@ -445,6 +453,7 @@ jobs:
           # Outage receipts fail closed until exact-current-head security jobs settle.
           python scripts/ci/check_pr_merge_readiness.py \
             --event-path "$GITHUB_EVENT_PATH" \
+            --material-repo-root "$GITHUB_WORKSPACE/pr-material" \
             --outage-security-wait-seconds 300
 
   private_python_proxy_health:
