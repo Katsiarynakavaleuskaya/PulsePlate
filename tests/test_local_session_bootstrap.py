@@ -419,6 +419,8 @@ def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
 def test_explicit_l1_printed_command_matches_direct_bootstrap_in_disposable_repo(
     tmp_path: Path, repeated: bool
 ) -> None:
+    """Check helper artifact absence and printed-command parity with canonical bootstrap."""
+
     repo = _disposable_repo(tmp_path)
     artifact = repo / L1_ROOT / "L1 $(touch injected) 'quoted'.json"
     artifact.parent.mkdir(parents=True)
