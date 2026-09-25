@@ -667,6 +667,29 @@ def _brace_expansion_head_evidence_digest(
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _load_json_at_git_ref(*, git_ref: str, path: str) -> dict:
+    """Load one immutable JSON artifact directly from the repository object graph."""
+
+    document = json.loads(_git_stdout("show", f"{git_ref}:{path}").decode("utf-8"))
+    assert isinstance(document, dict), f"{git_ref}:{path}: expected a JSON object"
+    return document
+
+
+def _load_recorded_brace_expansion_head_evidence_documents() -> tuple[dict, dict]:
+    """Load the package surfaces committed at the recorded remediation head."""
+
+    return (
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package.json",
+        ),
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package-lock.json",
+        ),
+    )
+
+
 def _version_is_affected(*, version: Version, advisory: str) -> bool:
     ranges = BRACE_EXPANSION_CURRENT_ADVISORY_RANGES[advisory]
     return any(version in affected_range for affected_range in ranges)
@@ -1111,6 +1134,16 @@ def _assert_brace_expansion_owner_evidence(document: str) -> None:
     assert digest_matches == [
         BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
     ], "owner targeted-evidence digest marker drift"
+    recorded_package_json, recorded_package_lock = (
+        _load_recorded_brace_expansion_head_evidence_documents()
+    )
+    assert (
+        _brace_expansion_head_evidence_digest(
+            package_json=recorded_package_json,
+            package_lock=recorded_package_lock,
+        )
+        == BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
+    ), "recorded remediation-head artifacts do not match the owner evidence digest"
 
 
 def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
