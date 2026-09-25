@@ -431,6 +431,15 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -649,9 +658,19 @@ jobs:
           fi
   lint:
     needs: [private_python_proxy_health]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with: {fetch-depth: 0, persist-credentials: false}
@@ -683,6 +702,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Enforce pgvector compatibility proof result
         if: github.event_name == 'pull_request'
         env:
@@ -751,13 +779,22 @@ jobs:
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
     needs: [changes, private_python_proxy_health]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
+    if: always() && (github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       APP_ENV: test
       ENVIRONMENT: test
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -794,7 +831,7 @@ jobs:
 
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, pr_scope_guard, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -807,6 +844,15 @@ jobs:
         python-version: ['3.13']
 
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -1139,7 +1185,7 @@ jobs:
   pgvector_compat:
     name: pgvector-compat
     needs: [changes, private_python_proxy_health]
-    if: github.event_name == 'pull_request' && needs.changes.outputs.pgvector_compat == 'true'
+    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.pgvector_compat == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -1166,6 +1212,15 @@ jobs:
       PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@127.0.0.1:5432/pgvector_compat  # pragma: allowlist secret
       PGVECTOR_COMPAT_REQUIRED: "1"
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1226,7 +1281,7 @@ jobs:
 
   # Fast testing for feature branches (single Python version)
   test-feature:
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -1241,6 +1296,15 @@ jobs:
         python-version: ['3.13']
 
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -1597,7 +1661,7 @@ jobs:
   # Comprehensive testing for main branch
   test-main:
     needs: [changes, private_python_proxy_health]
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')
+    if: always() && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
     permissions:
@@ -1621,6 +1685,15 @@ jobs:
             timeout-minutes: 90
 
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1870,7 +1943,7 @@ jobs:
 
   diff-coverage:
     name: diff-coverage
-    if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
+    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
     needs: [changes, pr_scope_guard, private_python_proxy_health, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -1878,6 +1951,15 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Enforce private Python proxy health result
+        env:
+          PRIVATE_PROXY_HEALTH_RESULT: ${{ needs.private_python_proxy_health.result }}
+        run: |
+          if [[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]; then
+            echo "::error::private-python-proxy-health did not succeed ($PRIVATE_PROXY_HEALTH_RESULT)"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

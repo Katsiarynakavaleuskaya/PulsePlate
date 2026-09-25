@@ -247,3 +247,32 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         job = jobs[job_name]
         assert isinstance(job, dict)
         assert HEALTH_JOB in as_needs_set(job), f"{job_name} must need {HEALTH_JOB}"
+
+
+def test_private_proxy_dependents_fail_explicitly_when_health_gate_fails() -> None:
+    workflow = load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    dependent_jobs = {
+        job_name: job
+        for job_name, job in jobs.items()
+        if isinstance(job, dict) and HEALTH_JOB in as_needs_set(job)
+    }
+    assert dependent_jobs
+
+    for job_name, job in dependent_jobs.items():
+        condition = str(job.get("if", ""))
+        assert "always()" in condition, f"{job_name} must run after a failed dependency"
+
+        steps = job.get("steps", [])
+        assert isinstance(steps, list) and steps
+        result_gate = steps[0]
+        assert isinstance(result_gate, dict)
+        assert result_gate.get("name") == "Enforce private Python proxy health result"
+        assert result_gate.get("env") == {
+            "PRIVATE_PROXY_HEALTH_RESULT": "${{ needs.private_python_proxy_health.result }}"
+        }
+        result_gate_run = str(result_gate.get("run", ""))
+        assert '[[ "$PRIVATE_PROXY_HEALTH_RESULT" != "success" ]]' in result_gate_run
+        assert "exit 1" in result_gate_run
