@@ -13429,11 +13429,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
 
 <a id="ledger-p1-euler-l1-l2-explicit-handoff"></a>
-- [ ] P1: Forward an explicitly supplied L1 invariant-family artifact into post-open L2 routing
+- [x] P1: Forward an explicitly supplied L1 invariant-family artifact into post-open L2 routing
   - Owner: agent-coordinator / cursor-specialist-agent / security-auditor
   - Priority: P1
   - Target PR: [PR #2413](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2413) (`codex/euler-explicit-l1-post-open-handoff`)
-  - Status: Open non-draft. Merged PR #2405 used one manual explicit L1 handoff; PR #2413 carries the bounded helper/recipe fix. Current-head CI and reviews remain pending or failing; there is no merge-readiness or effectiveness claim. This item does not change the OPS-02 DB runtime outcome.
+  - Status: CLOSED as implementation delivery by merged PR #2413 on 2026-09-24T22:13:00Z at `62addc0ee636aeadc772adf0ef950e46eb10cb02`. Post-merge main CI run `36066162606` failed the standalone Euler CLI guard in all three Python matrices. Remediation PR #2420 material-head CI run `36073476844` passed `test-pr (3.13)`, `lint`, `security`, `coverage-pr`, and `diff-coverage`; Phase2 and merge-readiness failed because the canonical mapping artifact was not yet published. Final current-head closeout and later main CI remain unproven. Closure does not claim measured effectiveness, real L2 execution or enrollment, L3 authorization, or any change to the OPS-02 DB runtime outcome.
   - Reason (EN): The ordinary post-open packet does not carry an existing L1 artifact unless the caller supplies `--review-invariant-family-relations-input`, so the OPS-02 thematic pass required a manual packet handoff through a separate helper/recipe gap.
   - Links: [merged PR #2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405); [L2 contract](../orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md); [merged TELO-OPS-3](#ledger-p1-telo-ops-3-user-impact-handoff).
   - DoD:
