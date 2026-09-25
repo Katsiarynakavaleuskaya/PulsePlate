@@ -95,6 +95,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = {
     "_prune_unreferenced_schema_components",
     "_build_canonical_openapi",
     "_install_openapi_builder",
+    "BMRRequest",
+    "BMRRequestLegacy",
+    "BMRResponse",
+    "NutrientGapsRequest",
+    "NutrientGapsResponse",
+    "PlateRequest",
+    "PlateResponse",
+    "VisualShape",
+    "WHOTargetsRequest",
+    "WHOTargetsResponse",
+    "Activity",
+    "DietFlag",
+    "Goal",
+    "Sex",
+    "build_who_targets_ui_labels",
 }
 
 RETIRED_PLATE_HELPER_BINDINGS = (
@@ -229,6 +244,7 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     """Verify retired-name absence while preserving canonical objects and retained schemas."""
     import app as app_facade
     import app.schemas.bmi_compat as bmi_schemas
+    import app.schemas.bmr as bmr_schemas
     import app.bootstrap.openapi as canonical_openapi
     import app.schemas.insight as insight_schemas
     import app.schemas.premium_contracts as premium_contracts
@@ -315,6 +331,21 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         ),
         "_build_canonical_openapi": canonical_openapi._build_canonical_openapi,
         "_install_openapi_builder": canonical_openapi._install_openapi_builder,
+        "BMRRequest": bmr_schemas.BMRRequest,
+        "BMRRequestLegacy": bmr_schemas.BMRRequestLegacy,
+        "BMRResponse": bmr_schemas.BMRResponse,
+        "NutrientGapsRequest": premium_contracts.NutrientGapsRequest,
+        "NutrientGapsResponse": premium_contracts.NutrientGapsResponse,
+        "PlateRequest": premium_contracts.PlateRequest,
+        "PlateResponse": premium_contracts.PlateResponse,
+        "VisualShape": premium_contracts.VisualShape,
+        "WHOTargetsRequest": premium_contracts.WHOTargetsRequest,
+        "WHOTargetsResponse": premium_contracts.WHOTargetsResponse,
+        "Activity": premium_contracts.Activity,
+        "DietFlag": premium_contracts.DietFlag,
+        "Goal": premium_contracts.Goal,
+        "Sex": premium_contracts.Sex,
+        "build_who_targets_ui_labels": premium_contracts.build_who_targets_ui_labels,
     }
     canonical_constants = {
         "DB_TO_ALIAS_NUTRIENT_MAP": plate_service.DB_TO_ALIAS_NUTRIENT_MAP,
@@ -326,11 +357,15 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
         "MIN_DAILY_KCAL": nutrition_utils.MIN_DAILY_KCAL,
         "_OPENAPI_ALLOWED_PREFIXES": canonical_openapi._OPENAPI_ALLOWED_PREFIXES,
         "_OPENAPI_ALLOWED_EXACT": canonical_openapi._OPENAPI_ALLOWED_EXACT,
+        "Activity": premium_contracts.Activity,
+        "DietFlag": premium_contracts.DietFlag,
+        "Goal": premium_contracts.Goal,
+        "Sex": premium_contracts.Sex,
     }
 
     assert canonical_migrations.keys() == RETIRED_LEGACY_PYTHON_BINDINGS
     assert RETIRED_LEGACY_PYTHON_BINDINGS == legacy_guard.RETIRED_LEGACY_PYTHON_BINDINGS
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 68
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 83
     assert RETIRED_OPENAPI_BINDINGS == tuple(
         name for name in canonical_migrations if name in RETIRED_OPENAPI_BINDINGS
     )
@@ -366,10 +401,6 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     assert app_facade._macros_to_kcal is plate_service._macros_to_kcal
     assert legacy_app.BMIRequest is bmi_schemas.BMIRequest
     assert legacy_app.BMIRequestV1 is bmi_schemas.BMIRequestV1
-    assert legacy_app.Activity is premium_contracts.Activity
-    assert legacy_app.DietFlag is premium_contracts.DietFlag
-    assert legacy_app.Goal is premium_contracts.Goal
-    assert legacy_app.Sex is premium_contracts.Sex
     assert {
         binding_name
         for binding_name, canonical_migration in canonical_migrations.items()
@@ -378,36 +409,85 @@ def test_retired_legacy_python_bindings_are_absent_with_canonical_owners_present
     for binding_name, canonical_migration in canonical_migrations.items():
         if binding_name in canonical_constants:
             assert canonical_migration == canonical_constants[binding_name]
-            assert not callable(canonical_migration)
+            if binding_name not in {"Activity", "DietFlag", "Goal", "Sex"}:
+                assert not callable(canonical_migration)
         elif canonical_migration is not None:
             assert callable(canonical_migration)
         with pytest.raises(AttributeError):
             getattr(legacy_app, binding_name)
 
 
-def test_retained_premium_schema_bindings_remain_importable_in_fresh_process() -> None:
+def test_canonical_nutrition_contracts_remain_importable_in_fresh_process() -> None:
     scenario = textwrap.dedent("""
         import json
+        from typing import Literal, get_args, get_origin
+        from pydantic import ValidationError
+        import app.schemas.bmr as bmr_schemas
         import app.schemas.premium_contracts as premium_contracts
-        import legacy_app
-        from legacy_app import Activity, DietFlag, Goal, Sex
 
-        retained = {
-            "Activity": Activity,
-            "DietFlag": DietFlag,
-            "Goal": Goal,
-            "Sex": Sex,
+        canonical_models = (
+            bmr_schemas.BMRRequest,
+            bmr_schemas.BMRRequestLegacy,
+            bmr_schemas.BMRResponse,
+            premium_contracts.NutrientGapsRequest,
+            premium_contracts.NutrientGapsResponse,
+            premium_contracts.PlateRequest,
+            premium_contracts.PlateResponse,
+            premium_contracts.VisualShape,
+            premium_contracts.WHOTargetsRequest,
+            premium_contracts.WHOTargetsResponse,
+        )
+        assert len(canonical_models) == len(set(canonical_models)) == 10
+        assert bmr_schemas.BMRRequest is not bmr_schemas.BMRRequestLegacy
+        for request_model in (bmr_schemas.BMRRequest, bmr_schemas.BMRRequestLegacy):
+            invalid_age = {
+                "weight_kg": 70, "height_cm": 175, "age": True,
+                "sex": "male", "activity": "moderate",
+            }
+            try:
+                request_model.model_validate(invalid_age)
+            except ValidationError:
+                pass
+            else:
+                raise AssertionError("BMR boolean age accepted")
+        allowed_literals = {
+            "Sex": {"female", "male"},
+            "Activity": {"sedentary", "light", "moderate", "active", "very_active"},
+            "Goal": {"loss", "maintain", "gain"},
+            "DietFlag": {
+                "VEG", "GF", "DAIRY_FREE", "LOW_COST", "HIGH_PROTEIN",
+                "LOW_CARB", "MEDITERRANEAN", "VEGAN", "KETO", "PALEO"
+            },
         }
-        for binding_name, imported_object in retained.items():
-            canonical_object = getattr(premium_contracts, binding_name)
-            assert getattr(legacy_app, binding_name) is canonical_object
-            assert imported_object is canonical_object
-
-        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({"retained": sorted(retained)}))
+        for name, expected_values in allowed_literals.items():
+            alias = getattr(premium_contracts, name)
+            assert get_origin(alias) is Literal
+            assert set(get_args(alias)) == expected_values
+        labels = {
+            lang: premium_contracts.build_who_targets_ui_labels(lang).kcal_daily
+            for lang in ("en", "ru", "es")
+        }
+        assert labels == {
+            "en": "Daily calories", "ru": "Ккал в день", "es": "Calorías diarias"
+        }
+        assert premium_contracts.build_who_targets_ui_labels("unknown").kcal_daily == (
+            labels["en"]
+        )
+        print("LEGACY_RETIREMENT_RESULT=" + json.dumps({
+            "canonical_models": len(canonical_models),
+            "languages": labels,
+            "bmr_request_classes_distinct": True,
+        }))
         """)
 
     assert _run_legacy_retirement_probe(scenario) == {
-        "retained": ["Activity", "DietFlag", "Goal", "Sex"]
+        "canonical_models": 10,
+        "languages": {
+            "en": "Daily calories",
+            "ru": "Ккал в день",
+            "es": "Calorías diarias",
+        },
+        "bmr_request_classes_distinct": True,
     }
 
 

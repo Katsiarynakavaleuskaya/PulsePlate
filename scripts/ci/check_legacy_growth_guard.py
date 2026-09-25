@@ -107,6 +107,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = frozenset(
         "_prune_unreferenced_schema_components",
         "_build_canonical_openapi",
         "_install_openapi_builder",
+        "BMRRequest",
+        "BMRRequestLegacy",
+        "BMRResponse",
+        "NutrientGapsRequest",
+        "NutrientGapsResponse",
+        "PlateRequest",
+        "PlateResponse",
+        "VisualShape",
+        "WHOTargetsRequest",
+        "WHOTargetsResponse",
+        "Activity",
+        "DietFlag",
+        "Goal",
+        "Sex",
+        "build_who_targets_ui_labels",
     }
 )
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(

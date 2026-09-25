@@ -790,7 +790,7 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min() -> None:
         def validate_consistency() -> bool:
             return True
 
-    req = legacy_app.PlateRequest(
+    req = resolve_module("app.schemas.premium_contracts").PlateRequest(
         sex="male",
         age=30,
         height_cm=175.0,
@@ -884,7 +884,7 @@ def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyP
         build_nutrition_targets=None,
         aggregate_day_micronutrients=_empty_micros,
     )
-    request = legacy_app.PlateRequest(
+    request = resolve_module("app.schemas.premium_contracts").PlateRequest(
         sex="male",
         age=30,
         height_cm=175.0,

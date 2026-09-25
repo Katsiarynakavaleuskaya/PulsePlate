@@ -459,8 +459,13 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `_iter_exception_chain`, `_is_missing_nh3_error`,
   `_raise_missing_nh3_http_error`, and `calculate_heuristic_macros`.
   Import these objects from `app/services/pro_nutrition_plate.py`; the nutrient
-  map remains a constant. Existing schema exports and the separate package
-  `app._macros_to_kcal` exact service alias remain unchanged. Repository
+  map remains a constant. The separate package `app._macros_to_kcal` exact
+  service alias remains unchanged. The ten BMR/PRO nutrition model re-exports,
+  four `Literal` aliases (`Activity`, `DietFlag`, `Goal`, `Sex`), and
+  `build_who_targets_ui_labels` are also retired from `legacy_app.py`; direct
+  callers use `app.schemas.bmr` or `app.schemas.premium_contracts`. Both BMR
+  request classes remain distinct canonical models, while retained HTTP
+  aliases use the same response models and OpenAPI contracts. Repository
   source/runtime absence is not proof that unknown external Python importers
   do not exist.
   The seven nutrition utility projections are also retired from
