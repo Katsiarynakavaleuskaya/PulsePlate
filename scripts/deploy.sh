@@ -50,6 +50,7 @@ BACKUP_DIR="${BACKUP_DIR:-/mnt/pulseplate-staging-data/backups}"
 BACKUP_HELPER="${BACKUP_HELPER:-${PROJECT_DIR}/scripts/ops/postgres_backup.sh}"
 STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-deploy-v1}"
 PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
+PROMETHEUS_RULES="${PROJECT_DIR}/prometheus/alias-alerts.yml"
 PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
 POSTGRES_IMAGE_MANIFEST="${POSTGRES_IMAGE_MANIFEST:-${PROJECT_DIR}/postgres-pgvector/image-manifest.json}"
 METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
@@ -103,6 +104,7 @@ for required_path in \
   "$COMPOSE_FILE" \
   "$CADDYFILE" \
   "$PROMETHEUS_CONFIG" \
+  "$PROMETHEUS_RULES" \
   "$PROMETHEUS_IMAGE_MANIFEST" \
   "$POSTGRES_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
@@ -984,9 +986,15 @@ echo "Validating the exact Prometheus configuration before product mutation"
 "$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
   --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges:true \
   --mount "type=bind,source=$PROMETHEUS_CONFIG,target=/etc/prometheus/prometheus.yml,readonly" \
+  --mount "type=bind,source=$PROMETHEUS_RULES,target=/etc/prometheus/alias-alerts.yml,readonly" \
   --mount "type=bind,source=$METRICS_SECRET_FILE,target=/run/secrets/pulseplate_metrics_scrape_key,readonly" \
   --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
-  check config --syntax-only /etc/prometheus/prometheus.yml
+  check config /etc/prometheus/prometheus.yml
+"$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+  --user 65532:65532 --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,source=$PROMETHEUS_RULES,target=/etc/prometheus/alias-alerts.yml,readonly" \
+  --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
+  check rules /etc/prometheus/alias-alerts.yml
 
 echo "Invoking the canonical application production invariant before product mutation"
 "${COMPOSE[@]}" run --rm --no-deps app python -c \

@@ -79,6 +79,11 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 
 - Canonical image and scrape contracts live only in
   `deploy/prometheus/image-manifest.json` and `deploy/prometheus/prometheus.yml`.
+  Exact alias/target alert expressions live in `deploy/prometheus/alias-alerts.yml`.
+  Mount the rule file read-only in all three Compose contours and carry it through
+  both deploy paths and CD file admission. Before product mutation, run full
+  pinned-image `promtool check config` and `promtool check rules`; CI also runs
+  `promtool test rules` with `deploy/prometheus/alias-alerts.test.yml`.
   All three Compose contours must keep one equivalent `prometheus` service:
   exact linux/amd64 manifest digest, user `65532:65532`, `cap_drop: ALL`,
   `no-new-privileges`, named `prometheus_data`, and the sole retention carrier
