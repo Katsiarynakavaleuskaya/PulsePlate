@@ -115,6 +115,28 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
+def _promote_with_prebuilt_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Keep downstream promotion tests focused past the fresh auth boundary."""
+
+    promotion_id = cast(str, kwargs["promotion_id"])
+    promotion_dir = creative_code_pr_promotion.resolve_promotion_dir(promotion_id, create=False)
+    with monkeypatch.context() as context:
+        context.setattr(
+            creative_code_pr_promotion,
+            "validate",
+            lambda **_: creative_code_pr_promotion._load_validation(promotion_dir),
+        )
+        context.setattr(
+            creative_code_pr_promotion,
+            "approve",
+            lambda **_: creative_code_pr_promotion._load_approval(promotion_dir),
+        )
+        return cast(dict[str, Any], creative_code_pr_promotion.promote(**kwargs))
+
+
 def build_creative_code_pr_promotion_validation(**kwargs: Any) -> dict[str, Any]:
     """Build direct-evaluation validation evidence for synthetic contract fixtures."""
 
@@ -669,6 +691,39 @@ def _write_ready_promotion_artifacts(
     _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
     _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
     return plan, validation, approval, promotion_dir
+
+
+def test_promote_does_not_trust_prebuilt_authorization_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    promotion_id = "promotion-pr3-forged-authorization"
+    _write_ready_promotion_artifacts(
+        monkeypatch,
+        tmp_path,
+        promotion_id=promotion_id,
+    )
+    git = FakeGit()
+    github = FakeGitHub()
+
+    def reject_fresh_validation(**_: Any) -> dict[str, Any]:
+        raise CreativeCodePRPromotionError("fresh validation failed")
+
+    monkeypatch.setattr(
+        creative_code_pr_promotion,
+        "validate",
+        reject_fresh_validation,
+    )
+
+    with pytest.raises(CreativeCodePRPromotionError, match="fresh validation failed"):
+        creative_code_pr_promotion.promote(
+            promotion_id=promotion_id,
+            git=git,
+            github=github,
+        )
+
+    assert not any(call[:1] == ["push_upload_branch"] for call in git.calls)
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
 
 
 def test_pr3_schemas_are_closed() -> None:
@@ -2477,7 +2532,8 @@ def test_promotion_readback_requires_non_draft(
 
     git = FakeGit()
     github = FakeGitHub()
-    receipt = creative_code_pr_promotion.promote(
+    receipt = _promote_with_prebuilt_authorization(
+        monkeypatch,
         promotion_id="promotion-pr3-promote",
         git=git,
         github=github,
@@ -2534,7 +2590,8 @@ def test_promote_rejects_non_human_git_identity_before_mutation(
     git = FakeGit(identity=("PulsePlate Experiment Runner", "pulseplate@pm.me"))
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="human git identity"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-runner-identity",
             git=git,
             github=github,
@@ -2588,7 +2645,8 @@ def test_promote_identity_verification_failure_writes_no_receipt_or_remote_mutat
     git = FakeGit(verify_identity_failure=True)
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="identity mismatch"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-identity-verify",
             git=git,
             github=github,
@@ -2647,7 +2705,8 @@ def test_promote_rejects_stale_receipt_replay(
 
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="receipt approval_id"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-stale-receipt",
             git=FakeGit(),
             github=github,
@@ -2682,7 +2741,8 @@ def test_promote_existing_receipt_requires_live_pr_readback(
 
     github = FakeGitHub()
     github.head_branch = plan["target_head_branch"]
-    receipt = creative_code_pr_promotion.promote(
+    receipt = _promote_with_prebuilt_authorization(
+        monkeypatch,
         promotion_id="promotion-pr3-existing-receipt-live",
         git=FakeGit(),
         github=github,
@@ -2734,7 +2794,8 @@ def test_promote_rejects_existing_receipt_when_live_pr_readback_is_stale(
         CreativeCodePRPromotionError,
         match="existing promotion receipt failed live PR readback verification",
     ):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-existing-receipt-closed",
             git=FakeGit(),
             github=github,
@@ -2788,7 +2849,8 @@ def test_promote_rejects_stale_patch_file_before_mutation(
     git = FakeGit()
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="candidate.patch changed"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-stale-patch",
             git=git,
             github=github,
@@ -2842,7 +2904,8 @@ def test_promote_rejects_branch_that_appears_before_ref_create(
     git = FakeGit(remote_exists_sequence=[False, True])
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="appeared before ref create"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-branch-race",
             git=git,
             github=github,
@@ -2896,7 +2959,8 @@ def test_promote_create_ref_failure_cleans_temporary_upload_ref(
     git = FakeGit()
     github = FailingCreateRefGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="target ref already exists"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-create-ref-failure",
             git=git,
             github=github,
@@ -2958,7 +3022,8 @@ def test_promote_cleans_ambiguous_temp_upload_push(
         creative_code_pr_promotion.TemporaryUploadBranchAmbiguousError,
         match="cleanup required",
     ):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-ambiguous-upload",
             git=git,
             github=github,
@@ -3017,7 +3082,8 @@ def test_promote_cleans_temp_upload_after_push_timeout(
     git = TimeoutUploadGit()
     github = FakeGitHub()
     with pytest.raises(subprocess.TimeoutExpired):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-timeout-upload",
             git=git,
             github=github,
@@ -3066,7 +3132,8 @@ def test_promote_rejects_approval_artifact_cross_mismatch(
 
     github = FakeGitHub()
     with pytest.raises(CreativeCodePRPromotionError, match="approval target branch"):
-        creative_code_pr_promotion.promote(
+        _promote_with_prebuilt_authorization(
+            monkeypatch,
             promotion_id="promotion-pr3-stale-approval",
             git=FakeGit(),
             github=github,
