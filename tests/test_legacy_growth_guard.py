@@ -79,6 +79,21 @@ RETIRED_LEGACY_PYTHON_BINDINGS = (
     "_prune_unreferenced_schema_components",
     "_build_canonical_openapi",
     "_install_openapi_builder",
+    "BMRRequest",
+    "BMRRequestLegacy",
+    "BMRResponse",
+    "NutrientGapsRequest",
+    "NutrientGapsResponse",
+    "PlateRequest",
+    "PlateResponse",
+    "VisualShape",
+    "WHOTargetsRequest",
+    "WHOTargetsResponse",
+    "Activity",
+    "DietFlag",
+    "Goal",
+    "Sex",
+    "build_who_targets_ui_labels",
 )
 
 RETIRED_PRO_NUTRITION_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[10:20]
@@ -88,6 +103,7 @@ RETIRED_PLATE_HELPER_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[39:51]
 RETIRED_NUTRITION_UTILITY_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[51:58]
 RETIRED_TARGETS_GAPS_SERVICE_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[58:61]
 RETIRED_OPENAPI_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[61:68]
+RETIRED_NUTRITION_CONTRACT_BINDINGS = RETIRED_LEGACY_PYTHON_BINDINGS[68:83]
 
 
 def test_retired_insight_binding_tail_is_exact_and_disjoint() -> None:
@@ -164,9 +180,69 @@ def test_retired_openapi_tail_is_exact_and_disjoint() -> None:
         "_build_canonical_openapi",
         "_install_openapi_builder",
     )
-    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 68
-    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 68
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS[:68]) == 68
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS[:68])) == 68
     assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:61]).isdisjoint(RETIRED_OPENAPI_BINDINGS)
+
+
+def test_retired_nutrition_contract_tail_is_exact_and_disjoint() -> None:
+    assert RETIRED_NUTRITION_CONTRACT_BINDINGS == (
+        "BMRRequest",
+        "BMRRequestLegacy",
+        "BMRResponse",
+        "NutrientGapsRequest",
+        "NutrientGapsResponse",
+        "PlateRequest",
+        "PlateResponse",
+        "VisualShape",
+        "WHOTargetsRequest",
+        "WHOTargetsResponse",
+        "Activity",
+        "DietFlag",
+        "Goal",
+        "Sex",
+        "build_who_targets_ui_labels",
+    )
+    assert len(RETIRED_LEGACY_PYTHON_BINDINGS) == 83
+    assert len(set(RETIRED_LEGACY_PYTHON_BINDINGS)) == 83
+    assert set(RETIRED_LEGACY_PYTHON_BINDINGS[:68]).isdisjoint(RETIRED_NUTRITION_CONTRACT_BINDINGS)
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_NUTRITION_CONTRACT_BINDINGS)
+@pytest.mark.parametrize(
+    "source_template",
+    [
+        "{name} = canonical\n",
+        "from app.schemas.premium_contracts import canonical as {name}\n",
+        "def {name}():\n    return None\n",
+        "class {name}:\n    pass\n",
+        "del {name}\n",
+        "def mutate():\n    global {name}\n",
+    ],
+    ids=["assignment", "import-alias", "function", "class", "delete", "global"],
+)
+def test_retired_nutrition_contract_binding_carrier(
+    binding_name: str, source_template: str
+) -> None:
+    assert legacy_guard.validate_retired_legacy_python_bindings(
+        source_template.format(name=binding_name)
+    ) == [f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"]
+
+
+@pytest.mark.parametrize("binding_name", RETIRED_NUTRITION_CONTRACT_BINDINGS)
+def test_retired_nutrition_contract_guard_rejects_exact_canonical_reimport(
+    binding_name: str,
+) -> None:
+    canonical_module = (
+        "app.schemas.bmr"
+        if binding_name in {"BMRRequest", "BMRRequestLegacy", "BMRResponse"}
+        else "app.schemas.premium_contracts"
+    )
+    source = f"from {canonical_module} import {binding_name}\n"
+
+    assert legacy_guard.validate_retired_legacy_python_bindings(source) == [
+        f"legacy_app.py: retired Python compatibility binding is forbidden: {binding_name}"
+    ]
 
 
 @pytest.mark.parametrize("binding_name", RETIRED_OPENAPI_BINDINGS)
