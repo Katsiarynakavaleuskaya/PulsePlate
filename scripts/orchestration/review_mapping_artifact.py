@@ -307,7 +307,7 @@ def _is_mapping_entries_preamble(lines: list[str]) -> bool:
     return (
         not _block_has_sha_mapping(lines)
         and any(line == "Commit: see mapping entries below" for line in lines)
-        and any(line.startswith("Disposition: FIXED") for line in lines)
+        and any(line == "Disposition: FIXED" for line in lines)
         and any(line.startswith("Evidence:") for line in lines)
     )
 
