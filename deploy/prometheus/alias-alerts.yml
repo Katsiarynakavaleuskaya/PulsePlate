@@ -1,0 +1,72 @@
+groups:
+  - name: pulseplate-alias-telemetry
+    rules:
+      - alert: PulsePlateMetricsTargetMissing
+        expr: absent(up{job="pulseplate-api",instance="app:8000"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Exact PulsePlate metrics target is missing
+      - alert: PulsePlateMetricsTargetDown
+        expr: up{job="pulseplate-api",instance="app:8000"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Exact PulsePlate metrics target is down
+      - alert: PulsePlateAliasBmrSeedMissing
+        expr: |
+          absent(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/bmr",status="200"})
+            and on(job,instance) (up{job="pulseplate-api",instance="app:8000"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          alias: bmr
+        annotations:
+          summary: Seeded BMR alias series is missing
+      - alert: PulsePlateAliasTargetsSeedMissing
+        expr: |
+          absent(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/targets",status="200"})
+            and on(job,instance) (up{job="pulseplate-api",instance="app:8000"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          alias: targets
+        annotations:
+          summary: Seeded targets alias series is missing
+      - alert: PulsePlateAliasPlateSeedMissing
+        expr: |
+          absent(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/plate",status="200"})
+            and on(job,instance) (up{job="pulseplate-api",instance="app:8000"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          alias: plate
+        annotations:
+          summary: Seeded plate alias series is missing
+      - alert: PulsePlateAliasGapsSeedMissing
+        expr: |
+          absent(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/gaps",status="200"})
+            and on(job,instance) (up{job="pulseplate-api",instance="app:8000"} == 1)
+        for: 5m
+        labels:
+          severity: warning
+          alias: gaps
+        annotations:
+          summary: Seeded gaps alias series is missing
+      - alert: PulsePlateAliasRecentPost
+        expr: |
+          sum by (route) (
+            increase(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route=~"/api/v1/premium/(bmr|targets|plate|gaps)"}[15m])
+          ) > 0
+          or
+          sum by (route) (
+            (max_over_time(http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route=~"/api/v1/premium/(bmr|targets|plate|gaps)"}[15m]) > 0)
+            unless
+            (http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route=~"/api/v1/premium/(bmr|targets|plate|gaps)"} offset 15m)
+          ) > 0
+        labels:
+          severity: info
+        annotations:
+          summary: Recent alias counter increase or newly observed positive series

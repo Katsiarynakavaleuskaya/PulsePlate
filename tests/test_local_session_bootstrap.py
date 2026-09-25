@@ -419,6 +419,8 @@ def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
 def test_explicit_l1_printed_command_matches_direct_bootstrap_in_disposable_repo(
     tmp_path: Path, repeated: bool
 ) -> None:
+    """Check helper artifact absence and printed-command parity with canonical bootstrap."""
+
     repo = _disposable_repo(tmp_path)
     artifact = repo / L1_ROOT / "L1 $(touch injected) 'quoted'.json"
     artifact.parent.mkdir(parents=True)
@@ -451,7 +453,9 @@ def test_explicit_l1_printed_command_matches_direct_bootstrap_in_disposable_repo
     assert "did not create a task packet" in helper.stdout
     assert "did not run authoritative task_bootstrap.py" in helper.stdout
     assert not (repo / "artifacts/orchestration/task_packets").exists()
-    assert not (repo / "artifacts/orchestration/invariant_family_review_episodes").exists()
+    assert {entry.name for entry in (repo / "artifacts/orchestration").iterdir()} == {
+        artifact.parent.name
+    }
 
     printed = _run_command(repo, _printed_command(helper.stdout))
     assert printed.returncode == 0, printed.stdout + printed.stderr

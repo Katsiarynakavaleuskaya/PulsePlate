@@ -1,0 +1,202 @@
+rule_files:
+  - alias-alerts.yml
+evaluation_interval: 30s
+tests:
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="wrong:8000"}'
+        values: '1+0x8'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: PulsePlateMetricsTargetMissing
+        exp_alerts:
+          - exp_labels:
+              job: pulseplate-api
+              instance: app:8000
+              severity: warning
+            exp_annotations:
+              summary: Exact PulsePlate metrics target is missing
+      - eval_time: 3m
+        alertname: PulsePlateMetricsTargetDown
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '0+0x8'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: PulsePlateMetricsTargetDown
+        exp_alerts:
+          - exp_labels:
+              job: pulseplate-api
+              instance: app:8000
+              severity: warning
+            exp_annotations:
+              summary: Exact PulsePlate metrics target is down
+      - eval_time: 6m
+        alertname: PulsePlateAliasBmrSeedMissing
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x14'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: PulsePlateAliasBmrSeedMissing
+        exp_alerts:
+          - exp_labels: {job: pulseplate-api, instance: "app:8000", method: POST, route: /api/v1/premium/bmr, status: "200", severity: warning, alias: bmr}
+            exp_annotations: {summary: Seeded BMR alias series is missing}
+      - eval_time: 6m
+        alertname: PulsePlateAliasTargetsSeedMissing
+        exp_alerts:
+          - exp_labels: {job: pulseplate-api, instance: "app:8000", method: POST, route: /api/v1/premium/targets, status: "200", severity: warning, alias: targets}
+            exp_annotations: {summary: Seeded targets alias series is missing}
+      - eval_time: 6m
+        alertname: PulsePlateAliasPlateSeedMissing
+        exp_alerts:
+          - exp_labels: {job: pulseplate-api, instance: "app:8000", method: POST, route: /api/v1/premium/plate, status: "200", severity: warning, alias: plate}
+            exp_annotations: {summary: Seeded plate alias series is missing}
+      - eval_time: 6m
+        alertname: PulsePlateAliasGapsSeedMissing
+        exp_alerts:
+          - exp_labels: {job: pulseplate-api, instance: "app:8000", method: POST, route: /api/v1/premium/gaps, status: "200", severity: warning, alias: gaps}
+            exp_annotations: {summary: Seeded gaps alias series is missing}
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x14'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/targets",status="200"}'
+        values: '0+0x14'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/plate",status="200"}'
+        values: '0+0x14'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/gaps",status="200"}'
+        values: '0+0x14'
+      - series: 'http_requests_total{job="pulseplate-api",instance="wrong:8000",method="POST",route="/api/v1/premium/bmr",status="200"}'
+        values: '0+0x14'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: PulsePlateAliasBmrSeedMissing
+        exp_alerts:
+          - exp_labels:
+              job: pulseplate-api
+              instance: app:8000
+              method: POST
+              route: /api/v1/premium/bmr
+              status: "200"
+              severity: warning
+              alias: bmr
+            exp_annotations:
+              summary: Seeded BMR alias series is missing
+      - eval_time: 6m
+        alertname: PulsePlateAliasTargetsSeedMissing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x70'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/bmr",status="200"}'
+        values: '0+0x70'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/targets",status="200"}'
+        values: '0 1+0x69'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/plate",status="200"}'
+        values: '0+0x70'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/gaps",status="200"}'
+        values: '0+0x70'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/bmr",status="404"}'
+        values: '0 1+0x69'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/bmr",status="500"}'
+        values: '0 1+0x69'
+      - series: 'http_requests_total{job="pulseplate-api",instance="wrong:8000",method="POST",route="/api/v1/premium/gaps",status="500"}'
+        values: '0+1x70'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/bmr
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+          - exp_labels:
+              route: /api/v1/premium/targets
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 20m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PulsePlateAliasBmrSeedMissing
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x50'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/gaps",status="503"}'
+        values: '1+0x50'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/gaps
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 20m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x50'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/targets",status="429"}'
+        values: '5 0+0x49'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/targets
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 14m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/targets
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
+      - eval_time: 20m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+
+  - interval: 30s
+    input_series:
+      - series: 'up{job="pulseplate-api",instance="app:8000"}'
+        values: '1+0x40'
+      - series: 'http_requests_total{job="pulseplate-api",instance="app:8000",method="POST",route="/api/v1/premium/plate",status="500"}'
+        values: '5+0x37 0 1+0x1'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PulsePlateAliasRecentPost
+        exp_alerts:
+          - exp_labels:
+              route: /api/v1/premium/plate
+              severity: info
+            exp_annotations:
+              summary: Recent alias counter increase or newly observed positive series
