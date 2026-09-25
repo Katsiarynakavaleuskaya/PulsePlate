@@ -1285,6 +1285,20 @@ def test_api_key_ownership_guard_rejects_bounded_module_bindings(
     ]
 
 
+@pytest.mark.parametrize("symbol", ["get_api_key", "_get_api_key_dynamic"])
+def test_api_key_ownership_guard_rejects_exception_type_walrus(symbol: str) -> None:
+    legacy_source = (
+        "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
+        "class ReplacementError(Exception):\n    pass\n"
+        "try:\n    raise ReplacementError()\n"
+        f"except ({symbol} := ReplacementError):\n    pass\n"
+    )
+
+    assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == [
+        f"legacy_app.py: canonical API-key compatibility re-export must not be rebound: {symbol}"
+    ]
+
+
 def test_api_key_ownership_guard_allows_nested_local_binding() -> None:
     legacy_source = (
         "from app.routers.api_key import (\n"
