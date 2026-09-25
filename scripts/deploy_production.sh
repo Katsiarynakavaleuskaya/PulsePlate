@@ -234,6 +234,7 @@ esac
 COMPOSE_CONTRACT_DIR="${COMPOSE_CONTRACT_PATH%/*}"
 COMPOSE_RELATIVE_IDENTITY="${COMPOSE_CONTRACT_PATH#"$DEPLOY_DIR"/}"
 PROMETHEUS_CONFIG="$COMPOSE_CONTRACT_DIR/prometheus/prometheus.yml"
+PROMETHEUS_RULES="$COMPOSE_CONTRACT_DIR/prometheus/alias-alerts.yml"
 PROMETHEUS_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/prometheus/image-manifest.json"
 POSTGRES_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/postgres-pgvector/image-manifest.json"
 BACKUP_DIR="${BACKUP_DIR:-$DEPLOY_DIR/backups}"
@@ -433,6 +434,7 @@ validate_metrics_secret_metadata() {
 
 validate_prometheus_contract_files() {
   validate_regular_non_symlink_file "$PROMETHEUS_CONFIG" "Prometheus configuration"
+  validate_regular_non_symlink_file "$PROMETHEUS_RULES" "Prometheus rules"
   validate_regular_non_symlink_file "$PROMETHEUS_IMAGE_MANIFEST" "Prometheus image manifest"
 }
 
@@ -856,13 +858,14 @@ contract_destination_transaction() {
   local operation="$1"
   local source_compose="${2:-}"
   local source_prometheus_config="${3:-}"
-  local source_prometheus_manifest="${4:-}"
-  local source_postgres_manifest="${5:-}"
-  local source_frontend="${6:-}"
-  local source_caddyfile="${7:-}"
-  local source_diagnose="${8:-}"
-  local source_redeploy="${9:-}"
-  local source_backup_helper="${10:-}"
+  local source_prometheus_rules="${4:-}"
+  local source_prometheus_manifest="${5:-}"
+  local source_postgres_manifest="${6:-}"
+  local source_frontend="${7:-}"
+  local source_caddyfile="${8:-}"
+  local source_diagnose="${9:-}"
+  local source_redeploy="${10:-}"
+  local source_backup_helper="${11:-}"
 
   "$PYTHON_BIN" - \
     "$operation" \
@@ -871,6 +874,8 @@ contract_destination_transaction() {
     "$COMPOSE_RELATIVE_IDENTITY" \
     "$source_prometheus_config" \
     "deploy/prometheus/prometheus.yml" \
+    "$source_prometheus_rules" \
+    "deploy/prometheus/alias-alerts.yml" \
     "$source_prometheus_manifest" \
     "deploy/prometheus/image-manifest.json" \
     "$source_postgres_manifest" \
@@ -900,20 +905,22 @@ source_compose = sys.argv[3]
 compose_target = sys.argv[4]
 source_config = sys.argv[5]
 config_target = sys.argv[6]
-source_manifest = sys.argv[7]
-manifest_target = sys.argv[8]
-source_postgres_manifest = sys.argv[9]
-postgres_manifest_target = sys.argv[10]
-source_frontend = sys.argv[11]
-frontend_target = sys.argv[12]
-source_caddy = sys.argv[13]
-caddy_target = sys.argv[14]
-source_diagnose = sys.argv[15]
-diagnose_target = sys.argv[16]
-source_redeploy = sys.argv[17]
-redeploy_target = sys.argv[18]
-source_backup_helper = sys.argv[19]
-backup_helper_target = sys.argv[20]
+source_rules = sys.argv[7]
+rules_target = sys.argv[8]
+source_manifest = sys.argv[9]
+manifest_target = sys.argv[10]
+source_postgres_manifest = sys.argv[11]
+postgres_manifest_target = sys.argv[12]
+source_frontend = sys.argv[13]
+frontend_target = sys.argv[14]
+source_caddy = sys.argv[15]
+caddy_target = sys.argv[16]
+source_diagnose = sys.argv[17]
+diagnose_target = sys.argv[18]
+source_redeploy = sys.argv[19]
+redeploy_target = sys.argv[20]
+source_backup_helper = sys.argv[21]
+backup_helper_target = sys.argv[22]
 
 if operation not in {
     "validate-contracts",
@@ -933,6 +940,8 @@ if compose_target not in allowed_compose_targets:
     raise SystemExit("selected Compose destination is not canonical")
 if config_target != "deploy/prometheus/prometheus.yml":
     raise SystemExit("Prometheus configuration destination is not canonical")
+if rules_target != "deploy/prometheus/alias-alerts.yml":
+    raise SystemExit("Prometheus rules destination is not canonical")
 if manifest_target != "deploy/prometheus/image-manifest.json":
     raise SystemExit("Prometheus image manifest destination is not canonical")
 if postgres_manifest_target != "deploy/postgres-pgvector/image-manifest.json":
@@ -1223,6 +1232,7 @@ try:
     targets = [
         compose_target,
         config_target,
+        rules_target,
         manifest_target,
         postgres_manifest_target,
         frontend_target,
@@ -1283,6 +1293,7 @@ try:
     parent_by_target: dict[str, int | None] = {
         compose_target: deploy_contract_fd,
         config_target: prometheus_fd,
+        rules_target: prometheus_fd,
         manifest_target: prometheus_fd,
         postgres_manifest_target: postgres_pgvector_fd,
         caddy_target: deploy_contract_fd,
@@ -1293,6 +1304,7 @@ try:
     for target in (
         compose_target,
         config_target,
+        rules_target,
         manifest_target,
         postgres_manifest_target,
         caddy_target,
@@ -1344,6 +1356,7 @@ try:
         sources = {
             compose_target: source_compose,
             config_target: source_config,
+            rules_target: source_rules,
             manifest_target: source_manifest,
             postgres_manifest_target: source_postgres_manifest,
             backup_helper_target: source_backup_helper,
@@ -1351,6 +1364,7 @@ try:
         modes = {
             compose_target: 0o644,
             config_target: 0o644,
+            rules_target: 0o644,
             manifest_target: 0o644,
             postgres_manifest_target: 0o644,
             backup_helper_target: 0o755,
@@ -1359,6 +1373,7 @@ try:
         try:
             for target in (
                 config_target,
+                rules_target,
                 manifest_target,
                 postgres_manifest_target,
                 compose_target,
@@ -1608,18 +1623,20 @@ PY
 }
 
 validate_contract_destinations_safely() {
-  contract_destination_transaction validate-contracts "" "" "" ""
+  contract_destination_transaction validate-contracts "" "" "" "" ""
 }
 
 publish_contract_files_safely() {
   local source_compose="$1"
   local source_prometheus_config="$2"
-  local source_prometheus_manifest="$3"
-  local source_postgres_manifest="$4"
-  local source_backup_helper="$5"
+  local source_prometheus_rules="$3"
+  local source_prometheus_manifest="$4"
+  local source_postgres_manifest="$5"
+  local source_backup_helper="$6"
   contract_destination_transaction publish-contracts \
     "$source_compose" \
     "$source_prometheus_config" \
+    "$source_prometheus_rules" \
     "$source_prometheus_manifest" \
     "$source_postgres_manifest" \
     "" "" "" "" \
@@ -1633,7 +1650,7 @@ validate_full_bundle_safely() {
   local source_redeploy="$4"
   local source_backup_helper="$5"
   contract_destination_transaction validate-full \
-    "" "" "" "" \
+    "" "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1647,7 +1664,7 @@ publish_full_bundle_safely() {
   local source_diagnose="$3"
   local source_redeploy="$4"
   contract_destination_transaction publish-full \
-    "" "" "" "" \
+    "" "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1711,6 +1728,7 @@ required_files = {
     "deploy/postgres-pgvector/image-manifest.json",
     "deploy/prometheus/image-manifest.json",
     "deploy/prometheus/prometheus.yml",
+    "deploy/prometheus/alias-alerts.yml",
     "scripts/diagnose_web.sh",
     "scripts/ops/postgres_backup.sh",
     "scripts/redeploy_caddy.sh",
@@ -1944,6 +1962,7 @@ sync_shell_bundle() {
   local source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   local source_compose=""
   local source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
+  local source_prometheus_rules="$SHELL_BUNDLE_DIR/deploy/prometheus/alias-alerts.yml"
   local source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
   local source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
@@ -1975,6 +1994,8 @@ sync_shell_bundle() {
 
   validate_regular_non_symlink_file "$source_prometheus_config" \
     "Incoming Prometheus configuration"
+  validate_regular_non_symlink_file "$source_prometheus_rules" \
+    "Incoming Prometheus rules"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
   validate_regular_non_symlink_file "$source_postgres_manifest" \
@@ -1999,6 +2020,7 @@ sync_shell_bundle() {
     publish_contract_files_safely \
       "$source_compose" \
       "$source_prometheus_config" \
+      "$source_prometheus_rules" \
       "$source_prometheus_manifest" \
       "$source_postgres_manifest" \
       "$source_backup_helper"
@@ -2483,6 +2505,7 @@ validate_shell_bundle_contract() {
   local source_caddyfile=""
   local source_compose=""
   local source_prometheus_config=""
+  local source_prometheus_rules=""
   local source_prometheus_manifest=""
   local source_postgres_manifest=""
   local compose_relative_path=""
@@ -2507,6 +2530,7 @@ validate_shell_bundle_contract() {
   source_frontend="$SHELL_BUNDLE_DIR/frontend"
   source_caddyfile="$SHELL_BUNDLE_DIR/deploy/Caddyfile.production"
   source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
+  source_prometheus_rules="$SHELL_BUNDLE_DIR/deploy/prometheus/alias-alerts.yml"
   source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
   source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   required_backup_helper="$SHELL_BUNDLE_DIR/scripts/ops/postgres_backup.sh"
@@ -2554,6 +2578,8 @@ validate_shell_bundle_contract() {
 
   validate_regular_non_symlink_file "$source_prometheus_config" \
     "Incoming Prometheus configuration"
+  validate_regular_non_symlink_file "$source_prometheus_rules" \
+    "Incoming Prometheus rules"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
   validate_regular_non_symlink_file "$source_postgres_manifest" \
@@ -2679,7 +2705,9 @@ unset GHCR_TOKEN GHCR_USER ORIGINAL_GHCR_TOKEN ORIGINAL_GHCR_USER
 
 echo "Validating the exact Prometheus configuration before product mutation..."
 dc run --rm --no-deps --entrypoint /bin/promtool prometheus \
-  check config --syntax-only /etc/prometheus/prometheus.yml
+  check config /etc/prometheus/prometheus.yml
+dc run --rm --no-deps --entrypoint /bin/promtool prometheus \
+  check rules /etc/prometheus/alias-alerts.yml
 
 echo "Invoking the canonical application production invariant before product mutation..."
 dc run --rm --no-deps app python -c \
