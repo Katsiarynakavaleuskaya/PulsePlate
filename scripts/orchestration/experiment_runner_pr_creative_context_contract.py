@@ -875,11 +875,12 @@ def _normalize_agent_slug_list(
 
 
 def _is_product_runtime_or_workflow_target(path: str) -> bool:
+    canonical_path = path.casefold()
     return (
-        path in PRODUCT_RUNTIME_ROOTS
-        or path.startswith(PRODUCT_RUNTIME_PREFIXES)
-        or path == WORKFLOW_ROOT
-        or path.startswith(WORKFLOW_PREFIX)
+        canonical_path in PRODUCT_RUNTIME_ROOTS
+        or canonical_path.startswith(PRODUCT_RUNTIME_PREFIXES)
+        or canonical_path == WORKFLOW_ROOT
+        or canonical_path.startswith(WORKFLOW_PREFIX)
     )
 
 

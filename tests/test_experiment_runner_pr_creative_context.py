@@ -623,7 +623,12 @@ def test_model_intake_rejects_nonconcrete_repo_root_with_valid_target() -> None:
 
 @pytest.mark.parametrize(
     "forbidden_oracle",
-    ["app/main.py", ".github/workflows/ci.yml"],
+    [
+        "app/main.py",
+        "App/main.py",
+        ".github/workflows/ci.yml",
+        ".GitHub/workflows/ci.yml",
+    ],
 )
 def test_model_intake_rejects_product_runtime_or_workflow_tests_or_oracles(
     forbidden_oracle: str,
@@ -644,7 +649,12 @@ def test_model_intake_rejects_product_runtime_or_workflow_tests_or_oracles(
 
 @pytest.mark.parametrize(
     "forbidden_target",
-    ["core/nutrition.py", ".github/workflows/security.yml"],
+    [
+        "core/nutrition.py",
+        "CoRe/nutrition.py",
+        ".github/workflows/security.yml",
+        ".GitHub/WorkFlows/security.yml",
+    ],
 )
 def test_model_intake_rejects_cross_domain_analogy_runtime_targets(
     forbidden_target: str,
@@ -1421,8 +1431,14 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
     assert "hypothesis_count" not in schema["required"]
     assert "hypothesis_id" not in hypothesis["properties"]
     assert "hypothesis_id" not in hypothesis["required"]
-    assert "^(app|core|frontend|ios|providers|alembic)(/|$)" in repo_path_not_pattern
-    assert "^\\.github/workflows(/|$)" in repo_path_not_pattern
+    for forbidden_path in (
+        "app/main.py",
+        "App/main.py",
+        "FRONTEND/src/main.tsx",
+        ".github/workflows/ci.yml",
+        ".GitHub/WorkFlows/ci.yml",
+    ):
+        assert re.search(repo_path_not_pattern, forbidden_path)
     assert "^\\.$" in repo_path_not_pattern
     assert hypothesis["properties"]["target_surfaces"]["items"]["$ref"] == (
         "#/$defs/concrete_target_path"
