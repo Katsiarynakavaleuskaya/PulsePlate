@@ -39,6 +39,7 @@ try:
     from scripts.orchestration.experiment_slack_kpp_renderer import (
         KPPRenderError,
         KPPSlackBlockMessage,
+        SECURITY_SENSITIVE_OUTCOMES,
         render_kpp_block_message,
         route_kpp_outcome_from_result,
     )
@@ -64,6 +65,9 @@ SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD
 SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
 SLACK_BOT_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SLACK_BOT_" + "".join(("TO", "KEN"))
 SLACK_CHANNEL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_SLACK_CHANNEL_ALLOWLIST"
+SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV = (
+    "EXPERIMENT_NOTIFICATION_SLACK_SECURITY_CHANNEL_ALLOWLIST"
+)
 SLACK_TIMEOUT_ENV = "EXPERIMENT_NOTIFICATION_SLACK_TIMEOUT_SECONDS"
 SLACK_MIN_INTERVAL_ENV = "EXPERIMENT_NOTIFICATION_SLACK_MIN_INTERVAL_SECONDS"
 SLACK_API_HOST = "slack.com"
@@ -1062,10 +1066,10 @@ def _normalize_slack_channel(raw_channel: str) -> str:
     return channel
 
 
-def _slack_channel_allowlist() -> set[str]:
-    """Return normalized Slack channels allowed for explicit delivery."""
+def _slack_channel_allowlist(env_name: str = SLACK_CHANNEL_ALLOWLIST_ENV) -> set[str]:
+    """Return normalized Slack channels from the selected delivery allowlist."""
 
-    raw_allowlist = os.environ.get(SLACK_CHANNEL_ALLOWLIST_ENV, "")
+    raw_allowlist = os.environ.get(env_name, "")
     allowlist: set[str] = set()
     for candidate in raw_allowlist.split(","):
         candidate = candidate.strip()
@@ -1087,6 +1091,21 @@ def _require_allowed_slack_channel(raw_channel: str | None) -> str:
     if channel not in _slack_channel_allowlist():
         raise ExperimentSlackDeliveryError("Slack channel is not an allowed channel.")
     return channel
+
+
+def _require_security_slack_channel(
+    channel: str, result: dict[str, Any], promotion: dict[str, Any] | None
+) -> None:
+    """Restrict security-sensitive KPP outcomes to security channels."""
+
+    outcome = route_kpp_outcome_from_result(result, promotion)
+    if (
+        outcome in SECURITY_SENSITIVE_OUTCOMES
+        and channel not in _slack_channel_allowlist(SLACK_SECURITY_CHANNEL_ALLOWLIST_ENV)
+    ):
+        raise ExperimentSlackDeliveryError(
+            "Security-sensitive Slack notification requires an allowed security channel."
+        )
 
 
 def _slack_config() -> dict[str, str | int]:
@@ -1471,6 +1490,8 @@ def main(argv: list[str] | None = None) -> int:
                 promotion_path, label="promotion"
             )
             promotion = _validate_promotion_decision(promotion_payload)
+        if args.slack and slack_channel is not None:
+            _require_security_slack_channel(slack_channel, result, promotion)
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         markdown = render_notification_markdown(packet, result, promotion)
     except ValueError:
