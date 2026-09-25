@@ -182,9 +182,9 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Complete staging host visibility and tested failure notifications
   - Owner: @katsiaryna_kavaleuskaya with DevOps and security-auditor
   - Priority: P1 (operational detection and diagnosis)
-  - Target PR: separately scoped observability follow-up after PR #2393; no automatic start
-  - Status: Gap recorded after the owner's 2026-09-13 monitoring-architecture question; implementation and notification destinations remain unselected.
-  - Reason for deferral (EN): Current Compose Prometheus config scrapes the application only. It does not configure host exporters, alert rules or notification routing. These gaps may delay diagnosis but are not evidence that missing Kubernetes components caused the observed attestation failures. PR #2393 retains its accepted publication, TLS, encrypted storage, backup/restore and scrape/persistence criteria.
+  - Target PR: OBS2A-PR1 exact alias/target rules; separately reviewed OBS2A-PR2 email routing and OBS2A-PR3 daily checkpoint; later host visibility remains separate.
+  - Status: OBS2A-PR1 repository implementation in progress; no current-head merge, host activation, delivered email, scheduled checkpoint, or production `T₀` claim.
+  - Reason for deferral (EN): The private Prometheus scrape exists, but host exporters, notification routing, and independent whole-Droplet visibility remain open. OBS2A-PR1 adds only bounded alias/target diagnostic rules and their file-delivery contract. It does not close the broader host alerting DoD or imply that missing Kubernetes components caused attestation failures.
   - Links: `deploy/prometheus/prometheus.yml`; `deploy/docker-compose.staging.yaml`; `docs/deploy/OPERATIONAL_SIGNALS.md`; `docs/deploy/STAGING.md`; [PR #2393](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2393)
   - DoD: Select a bounded Compose-compatible design for host CPU/RAM/disk visibility, service/database availability, backup age/failure and scrape failures; define actionable thresholds and operator-approved notification destinations; prove alert delivery with synthetic failures; include an independently hosted availability observation for whole-Droplet loss and a documented log inspection/retention path. Preserve internal-only metrics endpoints, secret-file handling and the production/staging evidence boundary. Kubernetes, Grafana, exporters, new services or paid monitoring require the subsequent reviewed scope and are not authorized by this entry.
 
