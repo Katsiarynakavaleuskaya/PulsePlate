@@ -297,6 +297,33 @@ def test_private_python_index_url_shape_fails_dependency_sensitive_execute_path(
     assert "unexpected_index_path" in output
 
 
+@pytest.mark.parametrize(
+    "workflow_path",
+    [
+        ".github/workflows/build.yml",
+        ".github/workflows/nightly.yml",
+    ],
+)
+def test_private_python_index_url_shape_fails_for_dependency_workflow(
+    workflow_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert (
+        preflight.check_private_python_index_url_shape("execute", [workflow_path])
+        is False
+    )
+
+    output = capsys.readouterr().out
+    assert "FAIL:" in output
+    assert "unexpected_index_path" in output
+
+
 def test_private_python_index_url_shape_fails_dependency_sensitive_directory_scope(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
