@@ -6816,7 +6816,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 dynamic_unknown_string=True,
             )
         if value_mapping is not None and any(
-            _assignment_target_escapes_value(target) for target in node.targets
+            _assignment_target_escapes_value(target)
+            or (self.scope.scope_kind == "class" and isinstance(target, ast.Name))
+            for target in node.targets
         ):
             self._invalidate_mapping(value_mapping)
 
@@ -6839,7 +6841,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             node.value,
             dynamic_unknown_string=True,
         )
-        if value_mapping is not None and _assignment_target_escapes_value(node.target):
+        if value_mapping is not None and (
+            _assignment_target_escapes_value(node.target)
+            or (self.scope.scope_kind == "class" and isinstance(node.target, ast.Name))
+        ):
             self._invalidate_mapping(value_mapping)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
