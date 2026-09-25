@@ -154,7 +154,7 @@ module RubyzipFastlaneFixtures
           when 'public_suffix_constraint'
             manifest, lock = manifest.gsub('"< 8"', '"< 9"'), lock.gsub('public_suffix (< 8)', 'public_suffix (< 9)')
           when 'public_suffix_requirement_mismatch'
-            lock = lock.gsub('public_suffix (< 8)', 'public_suffix (< 7)')
+            lock = lock.gsub('public_suffix (< 8)', 'public_suffix (< 9)')
           when 'public_suffix_duplicate_manifest'
             manifest += "gem \"public_suffix\", \"< 8\"\n"
           when 'public_suffix_duplicate_spec'
