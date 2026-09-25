@@ -44,6 +44,14 @@ APPROVED_TRUSTED_HOST_EXPRESSION = (
 )
 APPROVED_PR_PROXY_ENV_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
 APPROVED_PR_TRUSTED_HOST_EXPRESSION = "${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+APPROVED_DEVPI_CI_USER_EXPRESSION = (
+    "${{ github.event_name != 'pull_request' && "
+    "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+)
+APPROVED_DEVPI_CI_PASSWORD_EXPRESSION = (
+    "${{ github.event_name != 'pull_request' && "
+    "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
+)
 PR_TRIGGERED_PROXY_WORKFLOWS = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -710,7 +718,7 @@ def test_python_setup_action_netrc_lifecycle_rejects_unsafe_auth_inputs(
         assert not netrc_path.exists()
 
 
-def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests() -> None:
+def test_ci_python_setup_steps_receive_devpi_secrets_on_main_push_only() -> None:
     workflow = _load_workflow(".github/workflows/ci.yml")
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -727,12 +735,8 @@ def test_ci_python_setup_steps_receive_devpi_secrets_only_outside_pull_requests(
     for step in setup_steps:
         env = step.get("env")
         assert isinstance(env, dict), f"Missing protected devpi env on {step}"
-        assert env["DEVPI_CI_USER"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-        )
-        assert env["DEVPI_CI_PASSWORD"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-        )
+        assert env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+        assert env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
 
 
 def test_ci_security_job_keeps_devpi_setup_and_uses_pip_audit() -> None:
@@ -748,12 +752,8 @@ def test_ci_security_job_keeps_devpi_setup_and_uses_pip_audit() -> None:
     assert setup_step["with"]["requirements-profile"] == "ci-lite"
     assert setup_step["with"]["install-mode"] == "direct-proxy"
     setup_env = setup_step["env"]
-    assert setup_env["DEVPI_CI_USER"] == (
-        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-    )
-    assert setup_env["DEVPI_CI_PASSWORD"] == (
-        "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-    )
+    assert setup_env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+    assert setup_env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
 
     audit_step = _workflow_step_by_name(
         ".github/workflows/ci.yml",
@@ -1014,6 +1014,34 @@ def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> N
 
     assert APPROVED_PROXY_ENV_EXPRESSION in workflow_text
     assert APPROVED_TRUSTED_HOST_EXPRESSION in workflow_text
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    (
+        ".github/workflows/ci.yml",
+        ".github/workflows/frontend-ci.yml",
+        ".github/workflows/build.yml",
+    ),
+)
+def test_devpi_ci_secrets_are_not_exposed_to_feature_branch_pushes(workflow_path: str) -> None:
+    workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
+    vulnerable_user_expression = "github.event_name != 'pull_request' && secrets.DEVPI_CI_USER"
+    vulnerable_password_expression = (
+        "github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD"
+    )
+
+    assert vulnerable_user_expression not in workflow_text
+    assert vulnerable_password_expression not in workflow_text
+
+    workflow = _load_workflow(workflow_path)
+    user_envs = list(_iter_step_env_values(workflow, "DEVPI_CI_USER"))
+    password_envs = list(_iter_step_env_values(workflow, "DEVPI_CI_PASSWORD"))
+
+    assert user_envs, f"Expected DEVPI_CI_USER env in {workflow_path}"
+    assert password_envs, f"Expected DEVPI_CI_PASSWORD env in {workflow_path}"
+    assert set(user_envs) == {APPROVED_DEVPI_CI_USER_EXPRESSION}
+    assert set(password_envs) == {APPROVED_DEVPI_CI_PASSWORD_EXPRESSION}
 
 
 def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
@@ -1971,12 +1999,8 @@ def test_build_workflow_passes_netrc_secret_file_to_private_index_docker_builds(
         )
 
         auth_env = auth_step["env"]
-        assert auth_env["DEVPI_CI_USER"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}"
-        )
-        assert auth_env["DEVPI_CI_PASSWORD"] == (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
-        )
+        assert auth_env["DEVPI_CI_USER"] == APPROVED_DEVPI_CI_USER_EXPRESSION
+        assert auth_env["DEVPI_CI_PASSWORD"] == APPROVED_DEVPI_CI_PASSWORD_EXPRESSION
         assert auth_env["PULSEPLATE_PYTHON_INDEX_URL"] == "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
 
         auth_script = auth_step["run"]

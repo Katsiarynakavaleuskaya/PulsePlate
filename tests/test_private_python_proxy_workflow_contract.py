@@ -247,3 +247,43 @@ def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:
         job = jobs[job_name]
         assert isinstance(job, dict)
         assert HEALTH_JOB in as_needs_set(job), f"{job_name} must need {HEALTH_JOB}"
+
+
+def test_python_setup_jobs_receive_devpi_credentials_on_main_push_only() -> None:
+    workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
+    assert (
+        "github.event_name != 'pull_request' && secrets.DEVPI_CI_USER"
+        not in workflow_text
+    )
+    assert (
+        "github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD"
+        not in workflow_text
+    )
+
+    workflow = load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    expected_user = (
+        "${{ github.event_name != 'pull_request' && "
+        "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}"
+    )
+    expected_password = (
+        "${{ github.event_name != 'pull_request' && "
+        "github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
+    )
+
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict) or not job_uses_python_setup(job):
+            continue
+        matching_steps = [
+            step
+            for step in job.get("steps", [])
+            if isinstance(step, dict) and step.get("uses") == "./.github/actions/python-setup"
+        ]
+        assert matching_steps, f"{job_name} must call python-setup"
+        for step in matching_steps:
+            env = step.get("env")
+            assert isinstance(env, dict), f"{job_name} python-setup step must declare env"
+            assert env.get("DEVPI_CI_USER") == expected_user
+            assert env.get("DEVPI_CI_PASSWORD") == expected_password

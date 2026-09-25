@@ -4701,9 +4701,9 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     setup_python_step = next(step for step in steps if step["name"] == "Setup Python environment")
     assert setup_python_step["env"] == {
-        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}",
         "DEVPI_CI_PASSWORD": (
-            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+            "${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}"
         ),
     }
 
