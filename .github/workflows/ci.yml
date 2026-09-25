@@ -425,7 +425,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      actions: read
       checks: read
       contents: read
       pull-requests: read
