@@ -1589,7 +1589,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--schema", type=Path, default=DEFAULT_SCHEMA)
     parser.add_argument("--roadmap", type=Path, default=DEFAULT_ROADMAP)
     parser.add_argument("--gate-report", type=Path, default=DEFAULT_GATE_REPORT)
-    parser.add_argument("--files", nargs="*", default=[], help="Optional PR-touched paths.")
+    parser.add_argument(
+        "--files",
+        nargs=argparse.REMAINDER,
+        default=[],
+        help="Optional PR-touched paths (must be the final option).",
+    )
     args = parser.parse_args(argv)
 
     if not args.check:
