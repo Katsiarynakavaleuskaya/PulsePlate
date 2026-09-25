@@ -695,8 +695,10 @@ def test_targets_and_gaps_runtime_owners_do_not_resolve_through_legacy_facades()
 
 
 def test_legacy_targets_gaps_schemas_and_shared_helpers_are_exact_aliases() -> None:
-    assert legacy_app.NutrientGapsRequest is NutrientGapsRequest
-    assert legacy_app.NutrientGapsResponse is NutrientGapsResponse
+    assert "NutrientGapsRequest" not in vars(legacy_app)
+    assert "NutrientGapsResponse" not in vars(legacy_app)
+    assert NutrientGapsRequest.__module__ == "app.schemas.premium_contracts"
+    assert NutrientGapsResponse.__module__ == "app.schemas.premium_contracts"
     assert service.clamp_daily_kcal is clamp_daily_kcal
     assert service.alias_micros is alias_micros
     assert service.ensure_priority_micros is ensure_priority_micros

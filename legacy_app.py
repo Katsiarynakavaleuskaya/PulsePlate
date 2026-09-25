@@ -20,26 +20,7 @@ from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibil
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
 )
-from app.schemas.bmr import (  # noqa: F401 - compatibility re-exports
-    BMRRequest,
-    BMRRequestLegacy,
-    BMRResponse,
-)
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
-from app.schemas.premium_contracts import (
-    Activity,
-    DietFlag,
-    Goal,
-    NutrientGapsRequest,
-    NutrientGapsResponse,
-    PlateRequest,
-    PlateResponse,
-    Sex,
-    VisualShape,
-    WHOTargetsRequest,
-    WHOTargetsResponse,
-    build_who_targets_ui_labels,
-)
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 
 # LegacyWeekPlanRequest is a compat re-export contract asserted by
@@ -83,15 +64,11 @@ _BMI_SCHEMA_COMPAT_REEXPORTS = (
 )
 
 _LEGACY_IMPORT_COMPAT_REEXPORTS = (
-    Activity,
     DataClass,
-    DietFlag,
     get_retention_manager,
     get_session,
-    Goal,
     Language,
     normalize_lang,
-    Sex,
     _short_git_sha,
     _is_truthy,
 )
