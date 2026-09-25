@@ -9307,6 +9307,8 @@ def validate_api_key_dependency_ownership(
                         rebound_names.add(bound_name)
 
             def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+                if node.type is not None:
+                    self.visit(node.type)
                 if node.name is not None:
                     rebound_names.add(node.name)
                 for statement in node.body:
