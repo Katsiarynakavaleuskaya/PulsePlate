@@ -92,6 +92,7 @@ def _read_input(path: Path) -> bytes:
                 before.st_ino,
                 before.st_size,
                 before.st_mtime_ns,
+                before.st_ctime_ns,
                 before.st_nlink,
             )
             after_identity = (
@@ -99,6 +100,7 @@ def _read_input(path: Path) -> bytes:
                 after.st_ino,
                 after.st_size,
                 after.st_mtime_ns,
+                after.st_ctime_ns,
                 after.st_nlink,
             )
             named_identity = (
@@ -106,6 +108,7 @@ def _read_input(path: Path) -> bytes:
                 named.st_ino,
                 named.st_size,
                 named.st_mtime_ns,
+                named.st_ctime_ns,
                 named.st_nlink,
             )
             if before_identity != after_identity or after_identity != named_identity:
@@ -130,6 +133,7 @@ def _read_input(path: Path) -> bytes:
                 final.st_ino,
                 final.st_size,
                 final.st_mtime_ns,
+                final.st_ctime_ns,
                 final.st_nlink,
             )
             final_named_identity = (
@@ -137,6 +141,7 @@ def _read_input(path: Path) -> bytes:
                 final_named.st_ino,
                 final_named.st_size,
                 final_named.st_mtime_ns,
+                final_named.st_ctime_ns,
                 final_named.st_nlink,
             )
             if after_identity != final_identity or final_identity != final_named_identity:

@@ -272,6 +272,40 @@ def test_same_size_rewrite_with_restored_mtime_during_read_is_rejected(
     assert not target.exists()
 
 
+def test_rewrite_after_second_read_with_restored_mtime_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "source.jsonl"
+    source.write_bytes(FIXTURE.read_bytes())
+    target = tmp_path / "report.json"
+    original = source.read_bytes()
+    initial = source.stat()
+    changed = bytearray(original)
+    changed[0] = ord("[")
+    eof_count = 0
+    real_read = os.read
+
+    def rewrite_after_second_eof(fd: int, amount: int) -> bytes:
+        nonlocal eof_count
+        part = real_read(fd, amount)
+        if not part:
+            eof_count += 1
+            if eof_count == 2:
+                with source.open("r+b") as stream:
+                    stream.write(changed)
+                os.utime(source, ns=(initial.st_atime_ns, initial.st_mtime_ns))
+        return part
+
+    monkeypatch.setattr(cli.os, "read", rewrite_after_second_eof)
+    assert cli.main(["report", "--input", str(source), "--output", str(target)]) == 2
+    assert eof_count == 2
+    assert source.read_bytes() == bytes(changed)
+    assert source.stat().st_mtime_ns == initial.st_mtime_ns
+    assert source.stat().st_ctime_ns != initial.st_ctime_ns
+    assert capsys.readouterr().err == "evidence_relation_audit: input_changed\n"
+    assert not target.exists()
+
+
 def test_hardlink_added_during_read_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
