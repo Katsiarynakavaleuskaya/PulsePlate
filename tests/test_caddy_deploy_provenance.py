@@ -26,6 +26,10 @@ CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
 TRIVY_VERSION = "v0.74.0"
+PROMETHEUS_RULES_HASH_CHECK = (
+    """[ "$(sha256sum ./prometheus/alias-alerts.yml | cut -d' ' -f1)" """
+    '= "$PROMETHEUS_RULES_SHA256" ]'
+)
 
 GO_BUILDER = (
     "golang:1.26.6-alpine3.23@"
@@ -707,10 +711,14 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert isinstance(preflight_env, dict)
     assert isinstance(preflight_with, dict)
     assert preflight_env["STAGING_DOMAIN"] == "${{ secrets.STAGING_DOMAIN }}"
+    assert preflight_env["PROMETHEUS_RULES_SHA256"] == (
+        "${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}"
+    )
     assert preflight_with["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
-        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -732,7 +740,8 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert deploy_with["envs"] == (
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
-        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -790,7 +799,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert "GHCR_TOKEN" not in str(with_block)
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
-        "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
+        "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -805,6 +814,7 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         "deploy.sh",
         "docker-compose.staging.yaml",
         "prometheus/prometheus.yml",
+        "prometheus/alias-alerts.yml",
         "prometheus/image-manifest.json",
         "postgres-pgvector/image-manifest.json",
         "Caddyfile",
@@ -823,6 +833,8 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         digest = f"sha256sum ./{filename}"
         assert script.index(no_link) < script.index(regular) < script.index(digest)
         assert script.index(digest) < script.index("sudo -n ")
+    assert PROMETHEUS_RULES_HASH_CHECK in script
+    assert script.index(PROMETHEUS_RULES_HASH_CHECK) < script.index("sudo -n ")
     assert "/bin/bash /srv/pulseplate-staging/deploy.sh" in script
     assert '--preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"' in script
 
@@ -915,6 +927,9 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert env["PROMETHEUS_CONFIG_SHA256"] == (
         "${{ steps.staging-contract.outputs.prometheus_config_sha256 }}"
     )
+    assert env["PROMETHEUS_RULES_SHA256"] == (
+        "${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}"
+    )
     assert env["PROMETHEUS_IMAGE_MANIFEST_SHA256"] == (
         "${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}"
     )
@@ -923,6 +938,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     )
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
+        "PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -937,6 +953,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
+        ("prometheus/alias-alerts.yml", "PROMETHEUS_RULES_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
@@ -957,6 +974,8 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         assert hash_check in script
         assert expected_hash in script
         assert script.index(hash_check) < script.index(deploy_call)
+    assert PROMETHEUS_RULES_HASH_CHECK in script
+    assert script.index(PROMETHEUS_RULES_HASH_CHECK) < script.index(deploy_call)
 
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
