@@ -54,8 +54,8 @@ jobs:
       - name: Prepare private Python index Docker authentication
         shell: bash
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
         run: |
           set -euo pipefail
@@ -467,8 +467,8 @@ jobs:
       - name: Prepare private Python index Docker authentication
         shell: bash
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
           PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
         run: |
           set -euo pipefail

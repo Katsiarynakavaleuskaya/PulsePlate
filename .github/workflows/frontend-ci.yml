@@ -178,8 +178,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         env:
-          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}
-          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}
+          DEVPI_CI_USER: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_USER || '' }}
+          DEVPI_CI_PASSWORD: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.DEVPI_CI_PASSWORD || '' }}
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           requirements-profile: ci-lite
