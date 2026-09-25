@@ -34,6 +34,10 @@ health job command contract.
 - HTTP 200 is not enough. Representative pages must include exact versions from
   the pinned requirements files, including the CI-lite, test-only, and dev-tool
   pins used by `ci-test`, lint, and pre-commit jobs.
+- Every job that depends directly on the health gate must use `always()` and
+  begin by checking `needs.private_python_proxy_health.result`. A failed or
+  cancelled health check therefore produces an explicit downstream failure
+  instead of a skipped required check.
 - The representative health gate scopes exact-pin conflict detection to probed
   projects via `parse_exact_pins_for_projects(...)`. This lets the CI gate
   include `requirements-dev.txt` without failing on unrelated cross-profile
