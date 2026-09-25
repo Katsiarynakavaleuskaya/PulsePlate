@@ -25,7 +25,16 @@ CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
 CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
 CANONICAL_MAIN = "app/main.py"
 APP_FACADE = "app/__init__.py"
-CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
+CANONICAL_API_KEY_SYMBOLS = frozenset(
+    {
+        "api_key_header",
+        "get_api_key",
+        "_get_api_key_dynamic",
+        "validate_app_api_key",
+        "require_app_api_key",
+    }
+)
+LEGACY_API_KEY_REEXPORTS = frozenset({"get_api_key", "_get_api_key_dynamic"})
 CANONICAL_OPENAPI_SYMBOLS = frozenset(
     {
         "_OPENAPI_ALLOWED_PREFIXES",
@@ -9203,10 +9212,40 @@ def _collect_lexical_binding_snapshots(
 def validate_api_key_dependency_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
+    *,
+    require_canonical_owner: bool = True,
 ) -> list[str]:
     """Keep client API-key dependency ownership canonical and identity-preserving."""
 
     errors: list[str] = []
+    if require_canonical_owner:
+        canonical_source = app_sources.get(CANONICAL_API_KEY)
+        if canonical_source is None:
+            errors.append(f"{CANONICAL_API_KEY}: canonical API-key owner source is missing")
+        else:
+            canonical_tree, canonical_errors = _parse_source(
+                canonical_source,
+                filename=CANONICAL_API_KEY,
+            )
+            errors.extend(canonical_errors)
+            if canonical_tree is not None:
+                canonical_bindings: set[str] = set()
+                for statement in canonical_tree.body:
+                    if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        canonical_bindings.add(statement.name)
+                    elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                        targets = (
+                            statement.targets
+                            if isinstance(statement, ast.Assign)
+                            else [statement.target]
+                        )
+                        canonical_bindings.update(
+                            target.id for target in targets if isinstance(target, ast.Name)
+                        )
+                for name in sorted(CANONICAL_API_KEY_SYMBOLS - canonical_bindings):
+                    errors.append(
+                        f"{CANONICAL_API_KEY}: canonical API-key owner symbol is missing: {name}"
+                    )
     legacy_tree, parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
     errors.extend(parse_errors)
     if legacy_tree is not None:
@@ -9260,12 +9299,12 @@ def validate_api_key_dependency_ownership(
             ):
                 continue
             for alias in statement.names:
-                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname in {
+                if alias.name in LEGACY_API_KEY_REEXPORTS and alias.asname in {
                     None,
                     alias.name,
                 }:
                     exact_aliases.add(alias.name)
-        for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
+        for name in sorted(LEGACY_API_KEY_REEXPORTS - exact_aliases):
             errors.append(
                 f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
                 f"identity: {name}"
@@ -9299,7 +9338,7 @@ def validate_api_key_dependency_ownership(
                     bound_name = alias.asname or alias.name
                     if (
                         node.module == "app.routers.api_key"
-                        and alias.name in CANONICAL_API_KEY_SYMBOLS
+                        and alias.name in LEGACY_API_KEY_REEXPORTS
                         and bound_name == alias.name
                     ):
                         continue
@@ -9315,7 +9354,7 @@ def validate_api_key_dependency_ownership(
         binding_visitor = _TopLevelBindingVisitor()
         for statement in legacy_tree.body:
             binding_visitor.visit(statement)
-        for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
+        for name in sorted(rebound_names & LEGACY_API_KEY_REEXPORTS):
             errors.append(
                 f"{LEGACY_APP}: canonical API-key compatibility re-export must not be "
                 f"rebound: {name}"
@@ -11206,7 +11245,13 @@ def validate_repo(repo_root: Path) -> list[str]:
             )
         )
     if legacy_source is not None:
-        extend_analysis(lambda: validate_api_key_dependency_ownership(legacy_source, app_sources))
+        extend_analysis(
+            lambda: validate_api_key_dependency_ownership(
+                legacy_source,
+                app_sources,
+                require_canonical_owner=True,
+            )
+        )
     if all(
         source is not None
         for source in (
