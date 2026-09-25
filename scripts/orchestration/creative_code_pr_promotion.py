@@ -1584,21 +1584,18 @@ def promote(
     promotion_id: str,
     git: GitTransport | None = None,
     github: GitHubTransport | None = None,
+    gate_runner: GateRunner | None = None,
+    stdin: ApprovalInput | None = None,
+    stdout: Any | None = None,
 ) -> dict[str, Any]:
     git = git or GitTransport()
     github = github or GitHubTransport()
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
     receipt_path = resolve_promotion_file(promotion_dir, RECEIPT_FILE, for_write=True)
     plan_artifact = _load_plan(promotion_dir)
-    validation_artifact = _load_validation(promotion_dir)
-    approval_artifact = _load_approval(promotion_dir)
-    plan_fp = promotion_plan_fingerprint(plan_artifact)
-    _require_approval_matches_plan_and_validation(
-        approval_artifact=approval_artifact,
-        plan_artifact=plan_artifact,
-        validation_artifact=validation_artifact,
-    )
     if receipt_path.exists():
+        validation_artifact = _load_validation(promotion_dir)
+        approval_artifact = _load_approval(promotion_dir)
         receipt = cast(
             dict[str, Any],
             validate_creative_code_pr_promotion_receipt(read_json_object(receipt_path)),
@@ -1611,8 +1608,30 @@ def promote(
         )
         _require_existing_receipt_live_pr(receipt=receipt, github=github)
         return receipt
-    if approval_artifact["approved_by_login"] != github.current_login():
-        raise CreativeCodePRPromotionError("current gh actor does not match approval.")
+
+    # Disk artifacts are deterministic audit records, not authorization
+    # capabilities. Re-run every gate and collect the human confirmation in
+    # this process immediately before permitting remote mutation. This also
+    # overwrites any caller-synthesized validation or approval artifacts.
+    validation_artifact = validate(
+        promotion_id=promotion_id,
+        git=git,
+        gate_runner=gate_runner,
+    )
+    approval_artifact = approve(
+        promotion_id=promotion_id,
+        approved_by_login=github.current_login(),
+        github=github,
+        stdin=stdin,
+        stdout=stdout,
+    )
+    plan_artifact = _load_plan(promotion_dir)
+    plan_fp = promotion_plan_fingerprint(plan_artifact)
+    _require_approval_matches_plan_and_validation(
+        approval_artifact=approval_artifact,
+        plan_artifact=plan_artifact,
+        validation_artifact=validation_artifact,
+    )
     if git.rev_parse_origin_main() != plan_artifact["base_commit_sha"]:
         raise CreativeCodePRPromotionError("origin/main drifted after approval.")
     branch = plan_artifact["target_head_branch"]
