@@ -942,10 +942,8 @@ def _run_container_canary(
                 runtime_subnets = _discover_apple_runtime_subnets(cli)
                 host_address = _discover_apple_host_bind_address(runtime_subnets)
                 apple_network = _create_apple_network(cli)
-                gateway = None
             else:
-                host_address = None
-                gateway = _discover_gateway(cli, backend, apple_network)
+                host_address = _discover_gateway(cli, backend, apple_network)
             volume = _create_result_volume(cli, backend)
             runtime_ref = image.runtime_ref(backend)
             if not _initialize_result_volume(
@@ -963,10 +961,7 @@ def _run_container_canary(
                 results["host_listener_ready"] = listener_ready
                 outer_name = f"pp-er-outer-{uuid.uuid4().hex[:12]}"
                 inner_name = f"pp-er-inner-{uuid.uuid4().hex[:12]}"
-                canary_address = listener_address if backend == "apple-container" else gateway
-                if canary_address is None:
-                    raise DispatchError("network_gateway_unavailable")
-                code = _canary_code(canary_address, port)
+                code = _canary_code(listener_address, port)
                 try:
                     outer = _run(
                         _container_run_argv(
@@ -1069,7 +1064,7 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
             return _failed_probe(backend, "runtime_cli_missing", image_digest=image.digest)
         results = _base_probe_results(backend)
         results["runtime_available"] = True
-        with _host_listener() as (_host_address, port, ready):
+        with _host_listener("127.0.0.1") as (listener_address, port, ready):
             results["host_listener_ready"] = ready
             completed = _run(
                 [
@@ -1078,7 +1073,7 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
                     "--map-root-user",
                     sys.executable,
                     "-c",
-                    _canary_code("127.0.0.1", port),
+                    _canary_code(listener_address, port),
                 ],
                 cwd=REPO_ROOT,
             )
