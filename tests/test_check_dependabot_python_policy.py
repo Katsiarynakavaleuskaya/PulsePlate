@@ -1345,6 +1345,21 @@ def test_git_index_discovery_ignores_outer_git_environment(
     assert policy.validate_repo(repo) == []
 
 
+def test_git_index_discovery_disables_repo_configured_fsmonitor(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    marker = tmp_path / "fsmonitor-ran"
+    helper = tmp_path / "fsmonitor.sh"
+    helper.write_text(
+        f'#!/bin/sh\ntouch "{marker}"\nexit 0\n',
+        encoding="utf-8",
+    )
+    helper.chmod(0o755)
+    _run_fixture_git(repo, "config", "core.fsmonitor", str(helper))
+
+    assert policy.validate_repo(repo) == []
+    assert not marker.exists()
+
+
 def test_malformed_git_index_payload_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

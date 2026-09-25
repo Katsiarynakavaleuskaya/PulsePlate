@@ -31,6 +31,14 @@ DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT = "requirements"
 DEPENDABOT_REQUIREMENT_DIRECTIVE_PREFIXES = ("-r ", "-c ", "-e ", "--")
 GIT_BINARY = shutil.which("git")
 GIT_SOURCE_SET_TIMEOUT_SECONDS = 10
+SAFE_GIT_CONFIG_ARGS = (
+    "-c",
+    "diff.external=",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    f"core.hooksPath={os.devnull}",
+)
 
 
 @dataclass(frozen=True)
@@ -448,14 +456,17 @@ def _record_candidate(
 
 
 def _run_git_bytes(repo_root: Path, *args: str) -> bytes:
-    """Run one fixed Git query with an absolute executable and bytes output."""
+    """Run one fixed Git query without executable checkout configuration."""
 
     if GIT_BINARY is None:
         raise DependabotRequirementDiscoveryError(".")
     git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env["GIT_CONFIG_GLOBAL"] = os.devnull
+    git_env["GIT_CONFIG_NOSYSTEM"] = "1"
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
     try:
         result = subprocess.run(  # nosec B603: resolved Git binary with fixed read-only argv (remove-by: 2026-10-31, ref: PR-2181)
-            [GIT_BINARY, "-C", os.fspath(repo_root), *args],
+            [GIT_BINARY, *SAFE_GIT_CONFIG_ARGS, "-C", os.fspath(repo_root), *args],
             cwd=repo_root,
             check=True,
             capture_output=True,
