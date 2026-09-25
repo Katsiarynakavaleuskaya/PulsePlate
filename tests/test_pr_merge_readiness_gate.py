@@ -3024,7 +3024,7 @@ def test_merge_readiness_main_blocks_missing_mapping(
     assert "canonical review artifact is invalid" in capsys.readouterr().out
 
 
-def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:
+def test_merge_readiness_checkout_uses_exact_pr_head_and_least_privilege() -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["merge_readiness_gate"]
@@ -3038,7 +3038,6 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
     assert job["timeout-minutes"] == 15
     assert job["permissions"] == {
-        "actions": "read",
         "checks": "read",
         "contents": "read",
         "pull-requests": "read",
