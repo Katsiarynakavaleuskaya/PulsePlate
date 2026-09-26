@@ -820,7 +820,7 @@ def _decision_rows(
             "direct_fix": "direct_fix_declared",
             "disabled": "creative_disabled",
             "not_applicable": "creative_scope_not_selected",
-        }.get(signals.creative_applicability, "design_lane_applicable")
+        }.get(signals.creative_applicability or "", "design_lane_applicable")
         rows = (
             ("teleology", RailTreatment.FULL, ("design_lane_applicable",)),
             ("euler", RailTreatment.FINITE_REVIEW, ("design_lane_applicable",)),
@@ -873,7 +873,7 @@ def _decision_rows(
         creative_reason = {
             "direct_fix": "direct_fix_declared",
             "disabled": "creative_disabled",
-        }.get(signals.creative_applicability, "creative_scope_not_selected")
+        }.get(signals.creative_applicability or "", "creative_scope_not_selected")
         rows = (
             ("teleology", RailTreatment.FULL, ("conservative_default",)),
             ("euler", RailTreatment.FINITE_REVIEW, ("conservative_default",)),

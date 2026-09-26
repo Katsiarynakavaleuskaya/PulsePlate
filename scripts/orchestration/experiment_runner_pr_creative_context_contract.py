@@ -16,7 +16,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration.creative_pilot_workspace_contract import (
@@ -3031,7 +3031,7 @@ CREATIVE_WORKFLOW_STAGE_TYPE = "creative_workflow_stage"
 CREATIVE_WORKFLOW_POLICY_VERSION = "creative_workflow.policy.v1"
 
 
-def _workflow_fail(message: str) -> None:
+def _workflow_fail(message: str) -> NoReturn:
     raise ExperimentRunnerCreativeContextContractError(f"creative workflow: {message}")
 
 

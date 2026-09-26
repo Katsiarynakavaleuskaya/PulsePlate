@@ -533,9 +533,10 @@ def _git_identity() -> tuple[str, str, str]:
             completed = run_git(["--no-replace-objects", *arguments], cwd=REPO_ROOT, check=False)
         except (CreativeCodePatchWorkspaceError, OSError) as exc:
             raise ExperimentRunnerCreativeContextCliError("Git identity is unavailable") from exc
-        if completed.returncode != 0 or len(completed.stdout) > 512:
+        output = completed.stdout
+        if completed.returncode != 0 or not isinstance(output, str) or len(output) > 512:
             raise ExperimentRunnerCreativeContextCliError("Git identity is unavailable")
-        return completed.stdout.strip()
+        return output.strip()
 
     remote = query("remote", "get-url", "origin")
     matched = re.fullmatch(
@@ -686,7 +687,7 @@ def _load_workflow_stage(
 ) -> dict[str, Any]:
     path = _workflow_stage_path(raw_path, expected)
     relative = path.relative_to(REPO_ROOT).as_posix()
-    data = validate_creative_workflow_stage(
+    data: dict[str, Any] = validate_creative_workflow_stage(
         _workflow_json_bytes(_safe_workflow_file(relative, maximum=MAX_WORKFLOW_JSON_BYTES))
     )
     if data["stage"] != expected:
