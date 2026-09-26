@@ -69,6 +69,20 @@ freshness and revision equality do not authenticate a provider or verify live co
 Conflicting claims remain unresolved across production alternatives. Report success does
 not authorize commands, deployment, resource selection, or readiness claims.
 
+## One-shot staging runtime diagnostic
+
+For the separately authorized OPS-03A observation, run
+`python scripts/ops/staging_runtime_diagnostics.py --environment staging --format json`
+with `SSH_HOST_STAGING` set to the authenticated staging address. The CLI uses
+the dedicated `pulseplate-ops` key and trusted host record in `docs/deploy/STAGING.md`.
+It checks the installed staging receipt, exact non-one-off app/PostgreSQL
+containers, separate liveness/readiness responses, and a file-backed TLS
+read-only DB session. `complete` means the bounded observation completed;
+`degraded` is a measured HTTP/DB failure; `partial` records unavailable
+statistics. Exit 2 is invalid local input; exit 3 is transport, selection,
+receipt, identity or output trust failure. Neither status authorizes repair,
+deployment, alert-delivery claims or a broader host-health conclusion.
+
 ## Step 3 extension (optional): Playwright browser E2E
 
 After MVP command sets are stable, operator can run controlled browser E2E via Playwright workflows for web journeys.
