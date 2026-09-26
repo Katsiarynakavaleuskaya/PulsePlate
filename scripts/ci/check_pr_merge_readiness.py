@@ -802,22 +802,54 @@ def _event_head_sha(event_path: Path) -> str:
     return head
 
 
-def _local_head_sha() -> str:
+def _local_head_sha(repo_root: Path | None = None) -> str:
     git = shutil.which("git")
     if not git:
         raise ValueError("git not found in PATH")
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update(
+        GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
+    )
     completed = subprocess.run(  # nosec B603: absolute git with fixed rev-parse argv only (remove-by: 2026-09-30, ref: PR-governance-material-seal)
         [git, "rev-parse", "HEAD"],
-        cwd=REPO_ROOT,
+        cwd=REPO_ROOT if repo_root is None else repo_root,
         capture_output=True,
         text=True,
         timeout=30,
         check=False,
+        env=git_env,
     )
     head = completed.stdout.strip()
     if completed.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("local checkout HEAD is unavailable")
     return head
+
+
+def _read_material_mapping_artifact(
+    pr_number: int, *, material_repo_root: Path, head_sha: str, split_checkout: bool
+) -> str:
+    """Read the exact PR-head mapping blob when policy and material are separate."""
+    if not split_checkout:
+        return read_mapping_artifact(pr_number)
+    git = shutil.which("git")
+    if not git:
+        raise ValueError("git not found in PATH")
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update(
+        GIT_NO_REPLACE_OBJECTS="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1"
+    )
+    artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    completed = subprocess.run(  # nosec B603: absolute git reads one fixed PR-head blob (remove-by: 2026-10-31, ref: PR-consol-ci-1)
+        [git, "cat-file", "blob", f"{head_sha}:{artifact_path}"],
+        cwd=material_repo_root,
+        capture_output=True,
+        check=False,
+        timeout=30,
+        env=git_env,
+    )
+    if completed.returncode != 0:
+        raise FileNotFoundError(f"Missing canonical review mapping blob: {artifact_path}")
+    return completed.stdout.decode("utf-8")
 
 
 def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
@@ -1194,7 +1226,9 @@ def _validate_v1_seal(
     outage_security_wait_seconds: int = 0,
     enforce_outage_security_checks: bool = True,
     require_committed_closeout: bool = True,
+    material_repo_root: Path | None = None,
 ) -> dict[str, Any]:
+    material_repo_root = REPO_ROOT if material_repo_root is None else material_repo_root
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
         raise ReviewEvidenceError("embedded review seal must be a string-keyed object")
@@ -1206,7 +1240,7 @@ def _validate_v1_seal(
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise ReviewEvidenceError("review seal repository/PR identity mismatch")
     manifest = compute_material_manifest(
-        REPO_ROOT,
+        material_repo_root,
         base_ref_oid=snapshot.base_sha,
         head_ref_oid=snapshot.head_sha,
         pr_number=pr_number,
@@ -1215,6 +1249,7 @@ def _validate_v1_seal(
         seal,
         material_paths=(entry.path for entry in manifest.entries),
         material_diff_summary=manifest.diff_summary,
+        repo_root=material_repo_root,
     )
     material = seal["material"]
     if (
@@ -1244,7 +1279,7 @@ def _validate_v1_seal(
         raise ReviewEvidenceError("provider-neutral review no-claim receipt is stale")
     if require_committed_closeout:
         validate_mapping_only_closeout_successor(
-            REPO_ROOT,
+            material_repo_root,
             material_head_sha=material_head.sha,
             live_head_sha=snapshot.head_sha,
             pr_number=pr_number,
@@ -1322,7 +1357,9 @@ def _duplicate_reply_coverage(
     repository: str,
     pr_number: int,
     token: str,
+    material_repo_root: Path | None = None,
 ) -> set[str]:
+    material_repo_root = REPO_ROOT if material_repo_root is None else material_repo_root
     records = parse_canonical_fingerprint_records(artifact_text, pr_number=pr_number)
     candidate_urls = {
         item.url
@@ -1336,7 +1373,7 @@ def _duplicate_reply_coverage(
         mapping_entries=parse_fixed_mapping_entries(extract_fixed_mapping_section(artifact_text)),
         material_digest=str(seal["material"]["digest"]),
         material_head_sha=str(seal["material"]["material_head_sha"]),
-        repo_root=REPO_ROOT,
+        repo_root=material_repo_root,
         snapshot=snapshot,
         repository=repository,
         token=token,
@@ -1370,6 +1407,11 @@ def main() -> int:
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
     parser.add_argument(
+        "--material-repo-root",
+        type=Path,
+        help="Separate PR-head Git checkout to inspect while this checkout provides policy code.",
+    )
+    parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
         default=_MAX_OUTAGE_SECURITY_WAIT_SECONDS,
@@ -1398,8 +1440,20 @@ def main() -> int:
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
     if args.pre_closeout and args.event_path:
         parser.error("--pre-closeout is local-only; use --pr-number and --repo.")
+    if args.pre_closeout and args.material_repo_root is not None:
+        parser.error("--material-repo-root is incompatible with local pre-closeout")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
+    split_checkout = args.material_repo_root is not None
+    if split_checkout:
+        try:
+            material_repo_root = args.material_repo_root.resolve(strict=True)
+        except OSError as exc:
+            parser.error(f"--material-repo-root is unavailable: {exc}")
+        if material_repo_root == REPO_ROOT or not (material_repo_root / ".git").exists():
+            parser.error("--material-repo-root must be a distinct Git checkout")
+    else:
+        material_repo_root = REPO_ROOT
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
@@ -1474,7 +1528,12 @@ def main() -> int:
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: event head does not match the live PR head"
             )
-        if _local_head_sha() != snapshot.head_sha:
+        if split_checkout:
+            if _local_head_sha() != snapshot.base_sha:
+                raise CommitIdentityError("policy checkout HEAD does not match the live PR base")
+            if _local_head_sha(material_repo_root) != snapshot.head_sha:
+                raise CommitIdentityError("material checkout HEAD does not match the live PR head")
+        elif _local_head_sha() != snapshot.head_sha:
             raise CommitIdentityError("local checkout HEAD does not match the live PR head")
         review_threads = fetch_review_threads(repo, pr_number, token=token)
     except (CommitIdentityError, OSError, ValueError) as exc:
@@ -1498,7 +1557,12 @@ def main() -> int:
 
     # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
     try:
-        artifact_text = read_mapping_artifact(pr_number)
+        artifact_text = _read_material_mapping_artifact(
+            pr_number,
+            material_repo_root=material_repo_root,
+            head_sha=snapshot.head_sha,
+            split_checkout=split_checkout,
+        )
         artifact_errors = validate_mapping_artifact_text(artifact_text)
         if artifact_errors:
             raise ValueError("; ".join(artifact_errors))
@@ -1533,6 +1597,7 @@ def main() -> int:
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
                     enforce_outage_security_checks=not args.pre_closeout,
                     require_committed_closeout=not args.pre_closeout,
+                    material_repo_root=material_repo_root,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -1562,6 +1627,7 @@ def main() -> int:
                 repository=repo,
                 pr_number=pr_number,
                 token=token,
+                material_repo_root=material_repo_root,
             )
         except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Duplicate reply validation failed: {exc}")
@@ -1635,6 +1701,7 @@ def main() -> int:
                 outage_security_wait_seconds=0,
                 enforce_outage_security_checks=True,
                 require_committed_closeout=True,
+                material_repo_root=material_repo_root,
             )
         except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
             errors.append(f"Post-wait material review seal validation failed: {exc}")
@@ -1673,6 +1740,21 @@ def main() -> int:
                     "SNAPSHOT_CHANGED: canonical mapping artifact changed during "
                     "pre-closeout validation"
                 )
+        if split_checkout:
+            if _local_head_sha() != snapshot.base_sha:
+                raise CommitIdentityError("SNAPSHOT_CHANGED: policy checkout HEAD changed")
+            if _local_head_sha(material_repo_root) != snapshot.head_sha:
+                raise CommitIdentityError("SNAPSHOT_CHANGED: material checkout HEAD changed")
+            if (
+                _read_material_mapping_artifact(
+                    pr_number,
+                    material_repo_root=material_repo_root,
+                    head_sha=snapshot.head_sha,
+                    split_checkout=True,
+                )
+                != artifact_text
+            ):
+                raise CommitIdentityError("SNAPSHOT_CHANGED: material mapping blob changed")
         assert_snapshot_unchanged(snapshot, token=token)
     except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
         errors.append(str(exc))

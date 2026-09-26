@@ -617,13 +617,15 @@ def _brace_expansion_head_evidence_projection(
     *,
     package_json: dict[str, object],
     package_lock: dict[str, object],
+    enforce_current_safety: bool = True,
 ) -> dict[str, object]:
     """Project only the validated, bounded head evidence for this dependency class."""
 
-    _assert_brace_expansion_security_class(
-        package_json=package_json,
-        package_lock=package_lock,
-    )
+    if enforce_current_safety:
+        _assert_brace_expansion_security_class(
+            package_json=package_json,
+            package_lock=package_lock,
+        )
     overrides = package_json.get("overrides")
     assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
     manifest_occurrences = _find_override_key_paths(
@@ -653,10 +655,12 @@ def _brace_expansion_head_evidence_digest(
     *,
     package_json: dict[str, object],
     package_lock: dict[str, object],
+    enforce_current_safety: bool = True,
 ) -> str:
     projection = _brace_expansion_head_evidence_projection(
         package_json=package_json,
         package_lock=package_lock,
+        enforce_current_safety=enforce_current_safety,
     )
     canonical = json.dumps(
         projection,
@@ -665,6 +669,29 @@ def _brace_expansion_head_evidence_digest(
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def _load_json_at_git_ref(*, git_ref: str, path: str) -> dict:
+    """Load one immutable JSON artifact directly from the repository object graph."""
+
+    document = json.loads(_git_stdout("show", f"{git_ref}:{path}").decode("utf-8"))
+    assert isinstance(document, dict), f"{git_ref}:{path}: expected a JSON object"
+    return document
+
+
+def _load_recorded_brace_expansion_head_evidence_documents() -> tuple[dict, dict]:
+    """Load the package surfaces committed at the recorded remediation head."""
+
+    return (
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package.json",
+        ),
+        _load_json_at_git_ref(
+            git_ref=BRACE_EXPANSION_RECORDED_HEAD,
+            path="frontend/package-lock.json",
+        ),
+    )
 
 
 def _version_is_affected(*, version: Version, advisory: str) -> bool:
@@ -1111,6 +1138,17 @@ def _assert_brace_expansion_owner_evidence(document: str) -> None:
     assert digest_matches == [
         BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
     ], "owner targeted-evidence digest marker drift"
+    recorded_package_json, recorded_package_lock = (
+        _load_recorded_brace_expansion_head_evidence_documents()
+    )
+    assert (
+        _brace_expansion_head_evidence_digest(
+            package_json=recorded_package_json,
+            package_lock=recorded_package_lock,
+            enforce_current_safety=False,
+        )
+        == BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
+    ), "recorded remediation-head artifacts do not match the owner evidence digest"
 
 
 def _is_governed_npm_surface(relative: PurePosixPath) -> bool:

@@ -3675,6 +3675,7 @@ def _applicable_scoped_agents(
     material_paths: Iterable[str],
     *,
     material_head_sha: str,
+    repo_root: Path | None = None,
 ) -> list[str]:
     """Return every AGENTS.md ancestor present in the exact material-head tree."""
 
@@ -3688,7 +3689,7 @@ def _applicable_scoped_agents(
 
     head_sha = _require_sha(material_head_sha, label="material_head_sha")
     raw = _run_git(
-        _REPO_ROOT,
+        _REPO_ROOT if repo_root is None else repo_root,
         [
             "ls-tree",
             "-r",
@@ -3722,6 +3723,7 @@ def _validate_self_review_report_payload(
     material_digest: str,
     material_paths: Iterable[str] | None = None,
     material_diff_summary: MaterialDiffSummary | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     expected_material_paths = None if material_paths is None else tuple(material_paths)
     if not isinstance(report, dict):
@@ -3990,16 +3992,23 @@ def _validate_self_review_report_payload(
         raise ReviewEvidenceError(
             "pulseplate-pr-review report does not cover the exact material path set"
         )
-    if expected_material_paths is not None and sorted(scoped_agents) != (
-        _applicable_scoped_agents(
-            expected_material_paths,
-            material_head_sha=material_head_sha,
-        )
-    ):
-        raise ReviewEvidenceError(
-            "pulseplate-pr-review scoped AGENTS.md coverage does not match "
-            "the exact material paths"
-        )
+    if expected_material_paths is not None:
+        if repo_root is None:
+            applicable_scoped_agents = _applicable_scoped_agents(
+                expected_material_paths,
+                material_head_sha=material_head_sha,
+            )
+        else:
+            applicable_scoped_agents = _applicable_scoped_agents(
+                expected_material_paths,
+                material_head_sha=material_head_sha,
+                repo_root=repo_root,
+            )
+        if sorted(scoped_agents) != applicable_scoped_agents:
+            raise ReviewEvidenceError(
+                "pulseplate-pr-review scoped AGENTS.md coverage does not match "
+                "the exact material paths"
+            )
     return report
 
 
@@ -4327,6 +4336,7 @@ def _validate_repo_native_self_review_receipt(
     material_digest: str,
     material_paths: Iterable[str] | None = None,
     material_diff_summary: MaterialDiffSummary | None = None,
+    repo_root: Path | None = None,
 ) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("self_review must be an object")
@@ -4368,6 +4378,7 @@ def _validate_repo_native_self_review_receipt(
         material_digest=material_digest,
         material_paths=material_paths,
         material_diff_summary=material_diff_summary,
+        repo_root=repo_root,
     )
     if (
         receipt["findings_count"] != report["findings_count"]
@@ -4754,6 +4765,7 @@ def validate_review_seal(
     *,
     material_paths: Iterable[str] | None = None,
     material_diff_summary: MaterialDiffSummary | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Validate the closed v1 embedded seal schema and return it unchanged."""
 
@@ -4829,6 +4841,7 @@ def validate_review_seal(
             material_digest=material_digest,
             material_paths=material_paths,
             material_diff_summary=material_diff_summary,
+            repo_root=repo_root,
         )
     elif "self_review" in seal:
         raise ReviewEvidenceError(

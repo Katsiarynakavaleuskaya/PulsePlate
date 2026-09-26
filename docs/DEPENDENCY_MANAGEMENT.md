@@ -238,10 +238,10 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   security sign-off, exact package/version/filename metadata, pinned `sha256`,
   expiry, package-scoped mirror evidence, and a removal plan.
 - The installer may use an exact manifest wheel after pip reports both an exact
-  resolver miss and either a package-scoped retry/timeout against that approved
-  simple project path or a package-scoped approved-proxy health-probe timeout.
-  Plain resolver misses without package-scoped proxy evidence remain
-  proxy-health gated; generic proxy outages remain fail-closed.
+  resolver miss and a package-scoped retry/timeout against that approved simple
+  project path. Plain resolver misses without package-scoped pip evidence remain
+  proxy-health gated; every failed health probe, including a timeout or HTTP 5xx,
+  remains fail-closed.
 - Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 

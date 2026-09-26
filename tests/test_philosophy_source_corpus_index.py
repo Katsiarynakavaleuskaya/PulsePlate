@@ -1020,6 +1020,28 @@ def test_philosophy_source_corpus_index_rejects_runtime_touched_paths() -> None:
     ]
 
 
+def test_philosophy_source_corpus_index_treats_option_like_paths_as_files(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = corpus.main(["--check", "--files", "--help", "app/pr5_runtime.py"])
+
+    assert result == 1
+    assert (
+        "app/pr5_runtime.py: PR-5 is docs/governance/test-only; " "forbidden runtime path app/**"
+    ) in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("late_option", ["--check", "--index", "--schema=other.json"])
+def test_philosophy_source_corpus_index_rejects_configuration_after_files(
+    late_option: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        corpus.main(["--check", "--files", late_option])
+
+    assert exc.value.code == 2
+    assert "configuration options must precede terminal --files" in capsys.readouterr().err
+
+
 def test_philosophy_source_corpus_index_accepts_pr5_governance_paths() -> None:
     errors = validate_touched_paths(
         [
