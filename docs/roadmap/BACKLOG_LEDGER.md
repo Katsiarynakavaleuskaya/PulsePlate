@@ -57,6 +57,16 @@ If it is not recorded here — it does not exist.
   - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.
   - DoD: Exact staging SSH/receipt and unique container identity, separate `/health` and `/ready` results, verify-full file-backed read-only DB observations with unknown visibility, sanitized versioned JSON and deterministic failure codes; focused/CI coverage and review gates; after authorized merge, preserve an owner-only verified archive and same-ID sanitized Drive readback. No deployment or alert-delivery claim.
 
+<a id="ledger-p1-production-postgres-image-id-admission"></a>
+- [ ] P1: Admit the frozen PostgreSQL platform image ID in self-hosted production deploy
+  - Owner: dev-operator / security-auditor / agent-coordinator
+  - Priority: P1 (deployment image identity)
+  - Target PR: TBD dedicated self-hosted production PostgreSQL image-ID admission PR
+  - Status: Open; no production deploy or activation is authorized by the staging repair.
+  - Reason for deferral: `scripts/deploy_production.sh:2185` has the same config-digest-only current-image guard observed to reject the frozen platform manifest ID on staging. The OPS-03B repair is scoped to staging; production needs its own admitted execution path and proof before changing its deploy guard.
+  - Links: `scripts/deploy_production.sh`, `deploy/postgres-pgvector/image-manifest.json`, `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`.
+  - DoD: Prove native `docker image inspect` by the existing container image ID on a disposable self-hosted production harness; accept only the exact configured PostgreSQL ref with the frozen config or platform ID, binding the platform form to one duplicate-free inspect record, matching `Id`, canonical `RepoDigests`, linux/amd64 and closed runtime metadata. Retain the frozen legacy predecessor and prove malformed, foreign, ambiguous and unavailable identity failures occur before writer stop, backup, migration or PostgreSQL replacement. Complete focused and current-head PR gates; obtain separate approval for any production deploy.
+
 <a id="ledger-p1-ops03-alert-delivery"></a>
 - [ ] P1: OPS-03 host/DB/service observability with human alert delivery
   - Owner: dev-operator / agent-coordinator

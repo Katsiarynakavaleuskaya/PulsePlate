@@ -39,6 +39,7 @@ POSTGRES_RUNTIME_REF = (
 POSTGRES_PLATFORM_MANIFEST_DIGEST = (
     "sha256:06c914735c70f82424a2a9b1e57790590a21d0fbfe250504ff79a1cca2559380"
 )
+POSTGRES_CONFIG_DIGEST = "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
 FAKE_PROMETHEUS_COMPOSE_JSON = json.dumps(
     {
         "services": {
@@ -76,6 +77,7 @@ FAKE_PROMETHEUS_IMAGE_INSPECT_JSON = json.dumps(
 FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
     [
         {
+            "Id": POSTGRES_PLATFORM_MANIFEST_DIGEST,
             "Os": "linux",
             "Architecture": "amd64",
             "RepoDigests": [
@@ -101,6 +103,10 @@ FAKE_POSTGRES_IMAGE_INSPECT_JSON = json.dumps(
             },
         }
     ],
+    separators=(",", ":"),
+)
+FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON = json.dumps(
+    [{**json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)[0], "Id": POSTGRES_CONFIG_DIGEST}],
     separators=(",", ":"),
 )
 FAKE_POSTGRES_CONTAINER_INSPECT_JSON = json.dumps(
@@ -404,9 +410,7 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert manifest["tag"] == "postgres-15.19-pgvector0.8.6-alpine3.23"
     assert manifest["platform"] == "linux/amd64"
     assert manifest["platform_manifest_digest"] == POSTGRES_PLATFORM_MANIFEST_DIGEST
-    assert manifest["config_digest"] == (
-        "sha256:c822c68e22d0358e66cee17e06f7b3ece5d1538cb8b607c1376b59620866ceff"
-    )
+    assert manifest["config_digest"] == POSTGRES_CONFIG_DIGEST
     assert manifest["runtime_ref"] == POSTGRES_RUNTIME_REF
     assert manifest["source_date_epoch"] == "1785349734"
     assert manifest["postgres_version"] == "15.19"
@@ -460,9 +464,11 @@ def test_postgres_pgvector_manifest_binds_reproducible_image_and_scan_contract()
     assert POSTGRES_RUNTIME_REF == (
         f"{manifest['repository']}:{manifest['tag']}@{manifest['platform_manifest_digest']}"
     )
-    for relative_path in ("scripts/deploy.sh", "scripts/deploy_production.sh"):
-        script = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert f'if [ "$image_id" != "{manifest["config_digest"]}" ]; then' in script
+    staging_script = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8")
+    production_script = (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8")
+    assert f'if [ "$image_id" = "{manifest["config_digest"]}" ] || \\' in staging_script
+    assert 'platform_image_id="${POSTGRES_RUNTIME_REF##*@}"' in staging_script
+    assert f'if [ "$image_id" != "{manifest["config_digest"]}" ]; then' in production_script
 
 
 @pytest.mark.parametrize("compose_path", (STAGING_COMPOSE_PATH, SELF_HOSTED_COMPOSE_PATH))
@@ -3979,6 +3985,37 @@ PY_COMPOSE_MODEL
       printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
     fi
     ;;
+  image\\ inspect\\ {POSTGRES_CONFIG_DIGEST})
+    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE:-}}" ]; then
+      printf '%s\\n' "$*" >> "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE"
+    fi
+    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR:-}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR" >&2
+    fi
+    if [ "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS}}"
+    fi
+    if [ -n "${{STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON+x}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"
+    else
+      printf '%s\\n' '{FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
+  image\\ inspect\\ {POSTGRES_PLATFORM_MANIFEST_DIGEST})
+    if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR:-}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR" >&2
+    fi
+    if [ "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS:-0}}" -ne 0 ]; then
+      exit "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS}}"
+    fi
+    if [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE:-}}" ]; then
+      cat "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE"
+    elif [ -n "${{STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON+x}}" ]; then
+      printf '%s\\n' "$STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON"
+    else
+      printf '%s\\n' '{FAKE_POSTGRES_IMAGE_INSPECT_JSON}'
+    fi
+    ;;
   image\\ inspect\\ *)
     if [ \"${{STUB_IMAGE_INSPECT_STATUS:-0}}\" -ne 0 ]; then
       exit \"${{STUB_IMAGE_INSPECT_STATUS}}\"
@@ -4528,6 +4565,8 @@ def _postgres_image_inspect_variant(variant: str) -> str:
     payload = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
     record = payload[0]
     config = record["Config"]
+    if variant == "duplicate-key":
+        return json.dumps(payload).replace('"Os":', '"Os":"linux","Os":', 1)
     if variant == "wrong-platform":
         record["Architecture"] = "arm64"
     elif variant == "wrong-user":
@@ -4540,6 +4579,8 @@ def _postgres_image_inspect_variant(variant: str) -> str:
         config["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
     elif variant == "wrong-repository-digest":
         record["RepoDigests"] = [f"example.invalid/pulseplate@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"]
+    elif variant == "malformed-repository-digests":
+        record["RepoDigests"].append(None)
     else:
         raise AssertionError(f"unsupported pulled PostgreSQL variant: {variant}")
     return json.dumps(payload)
@@ -4557,6 +4598,8 @@ POSTGRES_IMAGE_INSPECT_REJECTIONS = (
             "wrong-environment",
             "wrong-label",
             "wrong-repository-digest",
+            "malformed-repository-digests",
+            "duplicate-key",
         )
     ),
 )
@@ -8480,6 +8523,203 @@ def test_staging_existing_postgres_requires_closed_image_and_pgdata_identity(
         assert all(" stop worker caddy app" not in line for line in log_lines)
     assert all(not line.startswith("backup ") for line in log_lines)
     assert all(" up -d --pull never postgres" not in line for line in log_lines)
+
+
+def _current_postgres_container_inspect(image_id: str) -> str:
+    inspected = json.loads(FAKE_POSTGRES_CONTAINER_INSPECT_JSON)
+    inspected[0]["Config"]["Image"] = POSTGRES_RUNTIME_REF
+    inspected[0]["Image"] = image_id
+    return json.dumps(inspected)
+
+
+def _current_postgres_image_inspect_variant(
+    variant: str, image_id: str = POSTGRES_PLATFORM_MANIFEST_DIGEST
+) -> str:
+    source = (
+        FAKE_POSTGRES_CONFIG_IMAGE_INSPECT_JSON
+        if image_id == POSTGRES_CONFIG_DIGEST
+        else FAKE_POSTGRES_IMAGE_INSPECT_JSON
+    )
+    payload = json.loads(source)
+    record = payload[0]
+    if variant == "malformed":
+        return '{"Config.Env":"native-secret-value"'
+    if variant == "zero-records":
+        return "[]"
+    if variant == "multiple-records":
+        return json.dumps([record, record])
+    if variant == "duplicate-key":
+        return json.dumps(payload).replace('"Id":', '"Id":"native-secret-value","Id":', 1)
+    if variant == "wrong-id":
+        record["Id"] = "sha256:" + "e" * 64
+    elif variant == "missing-id":
+        del record["Id"]
+    elif variant == "wrong-repository-digest":
+        record["RepoDigests"] = [f"other.invalid/image@{POSTGRES_PLATFORM_MANIFEST_DIGEST}"]
+    elif variant == "malformed-repository-digests":
+        record["RepoDigests"].append(None)
+    elif variant == "wrong-platform":
+        record["Architecture"] = "arm64"
+    elif variant == "missing-config":
+        del record["Config"]
+    elif variant == "wrong-user":
+        record["Config"]["User"] = "0"
+    elif variant == "wrong-entrypoint":
+        record["Config"]["Entrypoint"] = ["/bin/sh"]
+    elif variant == "wrong-environment":
+        record["Config"]["Env"] = ["PG_MAJOR=15", "PG_MINOR=19"]
+    elif variant == "wrong-label":
+        record["Config"]["Labels"]["com.pulseplate.pgvector.version"] = "0.8.5"
+    else:
+        raise AssertionError(f"unsupported current PostgreSQL image variant: {variant}")
+    return json.dumps(payload)
+
+
+@pytest.mark.parametrize("image_id", (POSTGRES_CONFIG_DIGEST, POSTGRES_PLATFORM_MANIFEST_DIGEST))
+def test_staging_existing_current_postgres_accepts_only_frozen_id_forms(
+    tmp_path: Path, image_id: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(image_id)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    by_id_calls = [line for line in log_lines if line == f"docker image inspect {image_id}"]
+    assert len(by_id_calls) == 1
+    assert any(" stop worker caddy app" in line for line in log_lines)
+    assert any(line.startswith("backup ") for line in log_lines)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    (
+        "foreign-configured-image",
+        "foreign-image-id",
+        "inspect-failure",
+        "native-stderr",
+        "malformed",
+        "oversized",
+        "zero-records",
+        "multiple-records",
+        "duplicate-key",
+        "wrong-id",
+        "missing-id",
+        "wrong-repository-digest",
+        "malformed-repository-digests",
+        "wrong-platform",
+        "missing-config",
+        "wrong-user",
+        "wrong-entrypoint",
+        "wrong-environment",
+        "wrong-label",
+    ),
+)
+def test_staging_existing_current_postgres_rejects_untrusted_id_before_quiescence(
+    tmp_path: Path, variant: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    image_id = (
+        "sha256:" + "e" * 64 if variant == "foreign-image-id" else POSTGRES_PLATFORM_MANIFEST_DIGEST
+    )
+    container_inspect = json.loads(_current_postgres_container_inspect(image_id))
+    if variant == "foreign-configured-image":
+        container_inspect[0]["Config"]["Image"] = "other.invalid/postgres:latest"
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = json.dumps(container_inspect)
+    if variant in ("inspect-failure", "native-stderr"):
+        env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STATUS"] = "64"
+        env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_STDERR"] = "native-secret-value"
+    elif variant == "oversized":
+        oversized_payload = json.loads(FAKE_POSTGRES_IMAGE_INSPECT_JSON)
+        oversized_payload[0]["Config"]["Env"].append("PAD=" + "x" * 1_048_576)
+        oversized_file = tmp_path / "oversized-image-inspect.json"
+        oversized_file.write_text(json.dumps(oversized_payload), encoding="utf-8")
+        assert oversized_file.stat().st_size > 1_048_576
+        env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_FILE"] = str(oversized_file)
+    elif variant not in ("foreign-configured-image", "foreign-image-id"):
+        env["STUB_POSTGRES_EXISTING_PLATFORM_IMAGE_INSPECT_JSON"] = (
+            _current_postgres_image_inspect_variant(variant)
+        )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "native-secret-value" not in completed.stdout + completed.stderr
+    if variant == "foreign-configured-image":
+        assert "configured image is outside the closed transition set" in completed.stderr
+    elif variant == "foreign-image-id":
+        assert "image ID does not match the frozen candidate" in completed.stderr
+    else:
+        assert "image metadata is not the frozen candidate" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all("alembic upgrade head" not in line for line in log_lines)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ("inspect-failure", "wrong-id", "wrong-repository-digest", "wrong-platform", "duplicate-key"),
+)
+def test_staging_existing_current_config_id_requires_own_inspect_before_quiescence(
+    tmp_path: Path, variant: str
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    inspect_trace = tmp_path / "config-image-inspect.trace"
+    env["STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_TRACE"] = str(inspect_trace)
+    env["STUB_POSTGRES_CONTAINER_INSPECT_JSON"] = _current_postgres_container_inspect(
+        POSTGRES_CONFIG_DIGEST
+    )
+    if variant == "inspect-failure":
+        env["STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STATUS"] = "64"
+        env["STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_STDERR"] = "native-secret-value"
+    else:
+        env["STUB_POSTGRES_EXISTING_CONFIG_IMAGE_INSPECT_JSON"] = (
+            _current_postgres_image_inspect_variant(variant, POSTGRES_CONFIG_DIGEST)
+        )
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "image metadata is not the frozen candidate" in completed.stderr
+    assert "native-secret-value" not in completed.stdout + completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert inspect_trace.read_text(encoding="utf-8").splitlines() == [
+        f"image inspect {POSTGRES_CONFIG_DIGEST}"
+    ]
+    assert all(" stop worker caddy app" not in line for line in log_lines)
+    assert all(not line.startswith("backup ") for line in log_lines)
+    assert all(" up -d --pull never postgres" not in line for line in log_lines)
+    assert all("alembic upgrade head" not in line for line in log_lines)
 
 
 def test_staging_rejects_unlistable_backup_before_postgres_switch(tmp_path: Path) -> None:
