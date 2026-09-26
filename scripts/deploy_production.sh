@@ -236,6 +236,9 @@ COMPOSE_RELATIVE_IDENTITY="${COMPOSE_CONTRACT_PATH#"$DEPLOY_DIR"/}"
 PROMETHEUS_CONFIG="$COMPOSE_CONTRACT_DIR/prometheus/prometheus.yml"
 PROMETHEUS_RULES="$COMPOSE_CONTRACT_DIR/prometheus/alias-alerts.yml"
 PROMETHEUS_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/prometheus/image-manifest.json"
+ALERTMANAGER_CONFIG="$COMPOSE_CONTRACT_DIR/alertmanager/alertmanager.yml"
+ALERTMANAGER_TRIVY_IGNORE="$COMPOSE_CONTRACT_DIR/alertmanager/trivy-ignore.yaml"
+ALERTMANAGER_SMTP_KEY="$COMPOSE_CONTRACT_DIR/secrets/alertmanager_smtp_key"
 POSTGRES_IMAGE_MANIFEST="$COMPOSE_CONTRACT_DIR/postgres-pgvector/image-manifest.json"
 BACKUP_DIR="${BACKUP_DIR:-$DEPLOY_DIR/backups}"
 BACKUP_HELPER="${BACKUP_HELPER:-$DEPLOY_DIR/scripts/ops/postgres_backup.sh}"
@@ -253,6 +256,7 @@ fi
 readonly COMPOSE_CONTRACT_PATH COMPOSE_CONTRACT_DIR
 readonly COMPOSE_RELATIVE_IDENTITY
 readonly PROMETHEUS_CONFIG PROMETHEUS_IMAGE_MANIFEST POSTGRES_IMAGE_MANIFEST
+readonly ALERTMANAGER_CONFIG ALERTMANAGER_TRIVY_IGNORE ALERTMANAGER_SMTP_KEY
 readonly BACKUP_DIR BACKUP_HELPER
 readonly METRICS_SECRET_DIR METRICS_SECRET_FILE PRODUCTION_DB_TOPOLOGY
 
@@ -436,6 +440,39 @@ validate_prometheus_contract_files() {
   validate_regular_non_symlink_file "$PROMETHEUS_CONFIG" "Prometheus configuration"
   validate_regular_non_symlink_file "$PROMETHEUS_RULES" "Prometheus rules"
   validate_regular_non_symlink_file "$PROMETHEUS_IMAGE_MANIFEST" "Prometheus image manifest"
+}
+
+validate_alertmanager_contract_files() {
+  validate_regular_non_symlink_file "$ALERTMANAGER_CONFIG" "Alertmanager configuration"
+  validate_regular_non_symlink_file "$ALERTMANAGER_TRIVY_IGNORE" "Alertmanager Trivy exception"
+}
+
+validate_alertmanager_secret_if_selected() {
+  if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
+from pathlib import Path
+import re
+import sys
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if re.search(r"(?m)^\s*COMPOSE_PROFILES\s*=", text):
+    raise SystemExit("COMPOSE_PROFILES must be selected by the operator, not the env file")
+PY
+  then
+    :
+  else
+    return 1
+  fi
+  case ",${COMPOSE_PROFILES:-}," in
+    *,alerting,*) ;;
+    *) return 0 ;;
+  esac
+  if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
+    echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
+    return 1
+  fi
+  if [ "$(read_owner_mode "$ALERTMANAGER_SMTP_KEY")" != "${EUID}:444" ]; then
+    echo "❌ Alertmanager SMTP key must be owned by the Compose account with mode 0444" >&2
+    return 1
+  fi
 }
 
 validate_postgres_contract_files() {
@@ -708,6 +745,160 @@ if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linu
 ' "$runtime_ref"
 }
 
+validate_alertmanager_contract() {
+  local compose_path="$1"
+  local prometheus_config="$2"
+  local rules="$3"
+  local alert_config="$4"
+  local ignore="$5"
+  "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f "$compose_path" --profile alerting config --format json | "$PYTHON_BIN" -c '
+import json
+from pathlib import Path
+import re
+import sys
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+compose, prometheus_config, rules, alert_config, ignore = map(Path, sys.argv[1:6])
+expected_environment = sys.argv[6]
+image = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=unique)
+except (ValueError, TypeError) as exc:
+    raise SystemExit("Alertmanager rendered Compose is malformed") from exc
+services = payload.get("services", {})
+prometheus = services.get("prometheus", {})
+alertmanager = services.get("alertmanager", {})
+app = services.get("app", {})
+networks = payload.get("networks", {})
+if not all(isinstance(part, dict) for part in (services, prometheus, alertmanager, app, networks)):
+    raise SystemExit("Alertmanager Compose topology is malformed")
+raw = compose.read_text(encoding="utf-8")
+marker = "- PULSEPLATE_ENVIRONMENT=" + expected_environment
+if (len(re.findall(r"(?m)^\s*(?:-\s*)?PULSEPLATE_ENVIRONMENT\s*(?::|=)", raw)) != 1
+        or raw.count(marker) != 1):
+    raise SystemExit("Prometheus environment must be one literal contour value")
+if raw.count(image) != 1:
+    raise SystemExit("Raw Alertmanager image must use the admitted platform digest")
+if prometheus.get("environment", {}).get("PULSEPLATE_ENVIRONMENT") != expected_environment:
+    raise SystemExit("Rendered Prometheus environment is wrong")
+prom = prometheus_config.read_text(encoding="utf-8")
+rule_text = rules.read_text(encoding="utf-8")
+if prom.count("environment: ${PULSEPLATE_ENVIRONMENT}") != 1:
+    raise SystemExit("Prometheus external environment is missing or duplicated")
+if len(re.findall(r"(?m)^\s*metric_relabel_configs:\s*$", prom)) != 1 or not re.search(
+    r"(?m)^\s*- action: labeldrop\s*\n\s*regex: \^environment\$\s*$", prom
+):
+    raise SystemExit("Prometheus input environment label is not dropped")
+if re.search(r"(?m)^\s*(?:relabel_configs|alert_relabel_configs|labels):\s*", prom):
+    raise SystemExit("Prometheus environment could be shadowed")
+if re.search(r"(?m)^\s*environment\s*:", rule_text):
+    raise SystemExit("Rule labels cannot shadow environment")
+if alertmanager.get("image") != image or alertmanager.get("platform") != "linux/amd64":
+    raise SystemExit("Alertmanager image identity differs from the admitted platform digest")
+if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not in (None, []):
+    raise SystemExit("Alertmanager must be private and profile selected")
+if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
+    raise SystemExit("Alertmanager networks are not canonical")
+if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
+    raise SystemExit("Prometheus networks are not canonical")
+expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}
+if set(app.get("networks", {})) != expected_app_networks:
+    raise SystemExit("Product app networks changed or gained SMTP egress")
+if networks.get("alerting", {}).get("internal") is not True:
+    raise SystemExit("Alerting network must be internal")
+commands = alertmanager.get("command", [])
+if commands != ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="] or alertmanager.get("entrypoint"):
+    raise SystemExit("Alertmanager command or disabled cluster listener changed")
+if alertmanager.get("environment") or alertmanager.get("env_file") or alertmanager.get("extra_hosts"):
+    raise SystemExit("Alertmanager gained an unreviewed environment or host mapping")
+if alertmanager.get("read_only") is not True or alertmanager.get("user") != "65534:65534":
+    raise SystemExit("Alertmanager runtime isolation changed")
+if alertmanager.get("cap_drop") != ["ALL"] or alertmanager.get("security_opt") != ["no-new-privileges:true"]:
+    raise SystemExit("Alertmanager capabilities or privilege policy changed")
+if alertmanager.get("tmpfs") != ["/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid"]:
+    raise SystemExit("Alertmanager temporary storage contract changed")
+if alertmanager.get("healthcheck", {}).get("test") != ["CMD", "/bin/wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]:
+    raise SystemExit("Alertmanager readiness command is not the bounded native probe")
+if alertmanager.get("depends_on") or alertmanager.get("privileged") or alertmanager.get("network_mode"):
+    raise SystemExit("Alertmanager gained a dependency or privileged network")
+mounts = alertmanager.get("volumes", [])
+if len(mounts) != 1 or mounts[0].get("type") != "bind" or mounts[0].get("source") != str(alert_config) or mounts[0].get("target") != "/etc/alertmanager/alertmanager.yml" or mounts[0].get("read_only") is not True:
+    raise SystemExit("Alertmanager configuration mount changed")
+expected_secret = [{"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}]
+if alertmanager.get("secrets") != expected_secret:
+    raise SystemExit("Alertmanager SMTP secret mount changed")
+for service_name, service in services.items():
+    if service_name != "alertmanager" and any(secret.get("source") == "alertmanager_smtp_key" for secret in service.get("secrets", [])):
+        raise SystemExit("SMTP secret leaked to another service")
+secret_record = payload.get("secrets", {}).get("alertmanager_smtp_key", {})
+if secret_record.get("file") != str(compose.parent / "secrets/alertmanager_smtp_key"):
+    raise SystemExit("Alertmanager SMTP secret source changed")
+alert_text = alert_config.read_text(encoding="utf-8")
+for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
+                 "smtp_auth_username: resend",
+                 "smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+                 "smtp_require_tls: true", "smtp_force_implicit_tls: true",
+                 "group_wait: 30s", "group_interval: 5m", "repeat_interval: 24h",
+                 "send_resolved: false"):
+    if alert_text.count(required) != 1:
+        raise SystemExit("Alertmanager SMTP or route contract changed")
+# Finite exact-line recognizer for the reviewed SMTP route and sole recipient.
+expected_alertmanager_lines = (
+    "global:",
+    "  smtp_smarthost: smtp.resend.com:2465",
+    "  smtp_from: alerts@alerts.pulseplate.app",
+    "  smtp_auth_username: resend",
+    "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+    "  smtp_require_tls: true",
+    "  smtp_force_implicit_tls: true",
+    "",
+    "route:",
+    "  receiver: pulseplate-email",
+    "  group_by: [alertname, environment, alias]",
+    "  group_wait: 30s",
+    "  group_interval: 5m",
+    "  repeat_interval: 24h",
+    "",
+    "receivers:",
+    "  - name: pulseplate-email",
+    "    email_configs:",
+    "      - to: pulseplate@pm.me",
+    "        send_resolved: false",
+    "        force_implicit_tls: true",
+    "        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
+)
+if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  receiver: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^receivers:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  - name: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^    email_configs:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^      - to: pulseplate@pm[.]me\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^\s*(?:-\s*)?to\s*:", alert_text)) != 1
+    or re.search(r"(?m)^\s*smtp_auth_password\s*:", alert_text)
+    or tuple(alert_text.splitlines()) != expected_alertmanager_lines
+    or not alert_text.endswith(chr(10))):
+    raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
+ignore_text = ignore.read_text(encoding="utf-8")
+if (len(re.findall(r"(?m)^\s*-\s+", ignore_text)) != 2
+    or ignore_text.count("vulnerabilities:") != 1
+    or ignore_text.count("expired_at:") != 1
+    or len(re.findall(r"(?m)^\s*- id:\s*", ignore_text)) != 1) or not re.search(
+    r"(?m)^\s*- id: CVE-2026-84445\s*$", ignore_text
+) or len(re.findall(r"(?m)^\s*- pkg:", ignore_text)) != 1 or not re.search(
+    r"(?m)^\s*- pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1\s*$", ignore_text
+) or not re.search(r"(?m)^\s*expired_at: 2026-10-24\s*$", ignore_text):
+    raise SystemExit("Alertmanager Trivy exception is not exact")
+' "$compose_path" "$prometheus_config" "$rules" \
+  "$alert_config" "$ignore" production
+}
+
 validate_prometheus_contract_identity() {
   local manifest_path="$1"
   local compose_path="$2"
@@ -787,6 +978,7 @@ allowed = {
     f"docker.io/prom/prometheus@{sys.argv[1]}",
 }
 
+
 if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
     raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
 if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
@@ -795,6 +987,25 @@ if not allowed.intersection(repo_digests):
     raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
 ' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
 }
+
+validate_pulled_alertmanager_image() {
+  "$DOCKER_BIN" image inspect 'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' | \
+    "$PYTHON_BIN" -c '
+import json
+import sys
+rows = json.load(sys.stdin)
+expected = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+if type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict:
+    raise SystemExit("Alertmanager image inspect must contain one image")
+row = rows[0]
+if row.get("Os") != "linux" or row.get("Architecture") != "amd64":
+    raise SystemExit("Alertmanager image platform is not linux/amd64")
+digests = row.get("RepoDigests")
+if type(digests) is not list or not ({expected, "docker.io/" + expected} & set(digests)):
+    raise SystemExit("Alertmanager image is not bound to the admitted platform digest")
+'
+}
+
 
 validate_pulled_postgres_image() {
   local runtime_ref="$1"
@@ -860,12 +1071,14 @@ contract_destination_transaction() {
   local source_prometheus_config="${3:-}"
   local source_prometheus_rules="${4:-}"
   local source_prometheus_manifest="${5:-}"
-  local source_postgres_manifest="${6:-}"
-  local source_frontend="${7:-}"
-  local source_caddyfile="${8:-}"
-  local source_diagnose="${9:-}"
-  local source_redeploy="${10:-}"
-  local source_backup_helper="${11:-}"
+  local source_alertmanager_config="${6:-}"
+  local source_alertmanager_ignore="${7:-}"
+  local source_postgres_manifest="${8:-}"
+  local source_frontend="${9:-}"
+  local source_caddyfile="${10:-}"
+  local source_diagnose="${11:-}"
+  local source_redeploy="${12:-}"
+  local source_backup_helper="${13:-}"
 
   "$PYTHON_BIN" - \
     "$operation" \
@@ -878,6 +1091,10 @@ contract_destination_transaction() {
     "deploy/prometheus/alias-alerts.yml" \
     "$source_prometheus_manifest" \
     "deploy/prometheus/image-manifest.json" \
+    "$source_alertmanager_config" \
+    "deploy/alertmanager/alertmanager.yml" \
+    "$source_alertmanager_ignore" \
+    "deploy/alertmanager/trivy-ignore.yaml" \
     "$source_postgres_manifest" \
     "deploy/postgres-pgvector/image-manifest.json" \
     "$source_frontend" \
@@ -909,18 +1126,22 @@ source_rules = sys.argv[7]
 rules_target = sys.argv[8]
 source_manifest = sys.argv[9]
 manifest_target = sys.argv[10]
-source_postgres_manifest = sys.argv[11]
-postgres_manifest_target = sys.argv[12]
-source_frontend = sys.argv[13]
-frontend_target = sys.argv[14]
-source_caddy = sys.argv[15]
-caddy_target = sys.argv[16]
-source_diagnose = sys.argv[17]
-diagnose_target = sys.argv[18]
-source_redeploy = sys.argv[19]
-redeploy_target = sys.argv[20]
-source_backup_helper = sys.argv[21]
-backup_helper_target = sys.argv[22]
+source_alertmanager_config = sys.argv[11]
+alertmanager_config_target = sys.argv[12]
+source_alertmanager_ignore = sys.argv[13]
+alertmanager_ignore_target = sys.argv[14]
+source_postgres_manifest = sys.argv[15]
+postgres_manifest_target = sys.argv[16]
+source_frontend = sys.argv[17]
+frontend_target = sys.argv[18]
+source_caddy = sys.argv[19]
+caddy_target = sys.argv[20]
+source_diagnose = sys.argv[21]
+diagnose_target = sys.argv[22]
+source_redeploy = sys.argv[23]
+redeploy_target = sys.argv[24]
+source_backup_helper = sys.argv[25]
+backup_helper_target = sys.argv[26]
 
 if operation not in {
     "validate-contracts",
@@ -944,6 +1165,10 @@ if rules_target != "deploy/prometheus/alias-alerts.yml":
     raise SystemExit("Prometheus rules destination is not canonical")
 if manifest_target != "deploy/prometheus/image-manifest.json":
     raise SystemExit("Prometheus image manifest destination is not canonical")
+if alertmanager_config_target != "deploy/alertmanager/alertmanager.yml":
+    raise SystemExit("Alertmanager configuration destination is not canonical")
+if alertmanager_ignore_target != "deploy/alertmanager/trivy-ignore.yaml":
+    raise SystemExit("Alertmanager Trivy exception destination is not canonical")
 if postgres_manifest_target != "deploy/postgres-pgvector/image-manifest.json":
     raise SystemExit("PostgreSQL image manifest destination is not canonical")
 if frontend_target != "frontend":
@@ -1234,6 +1459,8 @@ try:
         config_target,
         rules_target,
         manifest_target,
+        alertmanager_config_target,
+        alertmanager_ignore_target,
         postgres_manifest_target,
         frontend_target,
         caddy_target,
@@ -1260,6 +1487,15 @@ try:
     )
     if prometheus_fd is not None:
         directory_fds.append(prometheus_fd)
+
+    alertmanager_fd = ensure_directory(
+        deploy_contract_fd,
+        "alertmanager",
+        create=operation == "publish-contracts",
+        label="Alertmanager contract directory",
+    )
+    if alertmanager_fd is not None:
+        directory_fds.append(alertmanager_fd)
 
     postgres_pgvector_fd = ensure_directory(
         deploy_contract_fd,
@@ -1295,6 +1531,8 @@ try:
         config_target: prometheus_fd,
         rules_target: prometheus_fd,
         manifest_target: prometheus_fd,
+        alertmanager_config_target: alertmanager_fd,
+        alertmanager_ignore_target: alertmanager_fd,
         postgres_manifest_target: postgres_pgvector_fd,
         caddy_target: deploy_contract_fd,
         diagnose_target: scripts_fd,
@@ -1306,6 +1544,8 @@ try:
         config_target,
         rules_target,
         manifest_target,
+        alertmanager_config_target,
+        alertmanager_ignore_target,
         postgres_manifest_target,
         caddy_target,
         diagnose_target,
@@ -1349,6 +1589,8 @@ try:
     if operation == "publish-contracts":
         if prometheus_fd is None:
             raise SystemExit("Prometheus contract directory was not created")
+        if alertmanager_fd is None:
+            raise SystemExit("Alertmanager contract directory was not created")
         if postgres_pgvector_fd is None:
             raise SystemExit("PostgreSQL image contract directory was not created")
         if scripts_ops_fd is None:
@@ -1358,6 +1600,8 @@ try:
             config_target: source_config,
             rules_target: source_rules,
             manifest_target: source_manifest,
+            alertmanager_config_target: source_alertmanager_config,
+            alertmanager_ignore_target: source_alertmanager_ignore,
             postgres_manifest_target: source_postgres_manifest,
             backup_helper_target: source_backup_helper,
         }
@@ -1366,6 +1610,8 @@ try:
             config_target: 0o644,
             rules_target: 0o644,
             manifest_target: 0o644,
+            alertmanager_config_target: 0o644,
+            alertmanager_ignore_target: 0o644,
             postgres_manifest_target: 0o644,
             backup_helper_target: 0o755,
         }
@@ -1375,6 +1621,8 @@ try:
                 config_target,
                 rules_target,
                 manifest_target,
+                alertmanager_config_target,
+                alertmanager_ignore_target,
                 postgres_manifest_target,
                 compose_target,
                 backup_helper_target,
@@ -1631,13 +1879,17 @@ publish_contract_files_safely() {
   local source_prometheus_config="$2"
   local source_prometheus_rules="$3"
   local source_prometheus_manifest="$4"
-  local source_postgres_manifest="$5"
-  local source_backup_helper="$6"
+  local source_alertmanager_config="$5"
+  local source_alertmanager_ignore="$6"
+  local source_postgres_manifest="$7"
+  local source_backup_helper="$8"
   contract_destination_transaction publish-contracts \
     "$source_compose" \
     "$source_prometheus_config" \
     "$source_prometheus_rules" \
     "$source_prometheus_manifest" \
+    "$source_alertmanager_config" \
+    "$source_alertmanager_ignore" \
     "$source_postgres_manifest" \
     "" "" "" "" \
     "$source_backup_helper"
@@ -1650,7 +1902,7 @@ validate_full_bundle_safely() {
   local source_redeploy="$4"
   local source_backup_helper="$5"
   contract_destination_transaction validate-full \
-    "" "" "" "" "" \
+    "" "" "" "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1664,7 +1916,7 @@ publish_full_bundle_safely() {
   local source_diagnose="$3"
   local source_redeploy="$4"
   contract_destination_transaction publish-full \
-    "" "" "" "" "" \
+    "" "" "" "" "" "" "" \
     "$source_frontend" \
     "$source_caddyfile" \
     "$source_diagnose" \
@@ -1729,6 +1981,8 @@ required_files = {
     "deploy/prometheus/image-manifest.json",
     "deploy/prometheus/prometheus.yml",
     "deploy/prometheus/alias-alerts.yml",
+    "deploy/alertmanager/alertmanager.yml",
+    "deploy/alertmanager/trivy-ignore.yaml",
     "scripts/diagnose_web.sh",
     "scripts/ops/postgres_backup.sh",
     "scripts/redeploy_caddy.sh",
@@ -1738,6 +1992,7 @@ allowed_directories = {
     "deploy",
     "deploy/postgres-pgvector",
     "deploy/prometheus",
+    "deploy/alertmanager",
     "scripts",
     "scripts/ops",
 }
@@ -1964,6 +2219,8 @@ sync_shell_bundle() {
   local source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
   local source_prometheus_rules="$SHELL_BUNDLE_DIR/deploy/prometheus/alias-alerts.yml"
   local source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
+  local source_alertmanager_config="$SHELL_BUNDLE_DIR/deploy/alertmanager/alertmanager.yml"
+  local source_alertmanager_ignore="$SHELL_BUNDLE_DIR/deploy/alertmanager/trivy-ignore.yaml"
   local source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   local source_diagnose="$SHELL_BUNDLE_DIR/scripts/diagnose_web.sh"
   local source_redeploy="$SHELL_BUNDLE_DIR/scripts/redeploy_caddy.sh"
@@ -1998,6 +2255,10 @@ sync_shell_bundle() {
     "Incoming Prometheus rules"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
+  validate_regular_non_symlink_file "$source_alertmanager_config" \
+    "Incoming Alertmanager configuration"
+  validate_regular_non_symlink_file "$source_alertmanager_ignore" \
+    "Incoming Alertmanager Trivy exception"
   validate_regular_non_symlink_file "$source_postgres_manifest" \
     "Incoming PostgreSQL image manifest"
 
@@ -2022,6 +2283,8 @@ sync_shell_bundle() {
       "$source_prometheus_config" \
       "$source_prometheus_rules" \
       "$source_prometheus_manifest" \
+      "$source_alertmanager_config" \
+      "$source_alertmanager_ignore" \
       "$source_postgres_manifest" \
       "$source_backup_helper"
     echo "Synced production Compose, Prometheus, PostgreSQL image, and reviewed backup-helper contracts before worker operations"
@@ -2507,6 +2770,8 @@ validate_shell_bundle_contract() {
   local source_prometheus_config=""
   local source_prometheus_rules=""
   local source_prometheus_manifest=""
+  local source_alertmanager_config=""
+  local source_alertmanager_ignore=""
   local source_postgres_manifest=""
   local compose_relative_path=""
   local required_redeploy=""
@@ -2532,6 +2797,8 @@ validate_shell_bundle_contract() {
   source_prometheus_config="$SHELL_BUNDLE_DIR/deploy/prometheus/prometheus.yml"
   source_prometheus_rules="$SHELL_BUNDLE_DIR/deploy/prometheus/alias-alerts.yml"
   source_prometheus_manifest="$SHELL_BUNDLE_DIR/deploy/prometheus/image-manifest.json"
+  source_alertmanager_config="$SHELL_BUNDLE_DIR/deploy/alertmanager/alertmanager.yml"
+  source_alertmanager_ignore="$SHELL_BUNDLE_DIR/deploy/alertmanager/trivy-ignore.yaml"
   source_postgres_manifest="$SHELL_BUNDLE_DIR/deploy/postgres-pgvector/image-manifest.json"
   required_backup_helper="$SHELL_BUNDLE_DIR/scripts/ops/postgres_backup.sh"
 
@@ -2582,6 +2849,10 @@ validate_shell_bundle_contract() {
     "Incoming Prometheus rules"
   validate_regular_non_symlink_file "$source_prometheus_manifest" \
     "Incoming Prometheus image manifest"
+  validate_regular_non_symlink_file "$source_alertmanager_config" \
+    "Incoming Alertmanager configuration"
+  validate_regular_non_symlink_file "$source_alertmanager_ignore" \
+    "Incoming Alertmanager Trivy exception"
   validate_regular_non_symlink_file "$source_postgres_manifest" \
     "Incoming PostgreSQL image manifest"
 
@@ -2603,6 +2874,8 @@ validate_shell_bundle_contract() {
   fi
 
   validate_prometheus_contract_identity "$source_prometheus_manifest" "$source_compose"
+  validate_alertmanager_contract "$source_compose" "$source_prometheus_config" \
+    "$source_prometheus_rules" "$source_alertmanager_config" "$source_alertmanager_ignore"
   if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
     validate_postgres_contract_identity "$source_postgres_manifest" "$source_compose"
   fi
@@ -2617,15 +2890,19 @@ validate_shell_bundle_contract() {
 run_preflight() {
   echo "Validating production secret and database contracts..."
   validate_metrics_secret_metadata
+  validate_alertmanager_secret_if_selected
   validate_contract_destinations_safely
   validate_shell_bundle_archive
   if [ -n "$SHELL_BUNDLE_DIR" ]; then
     validate_shell_bundle_contract
   elif [ -z "$SHELL_BUNDLE_ARCHIVE" ]; then
     validate_prometheus_contract_files
+    validate_alertmanager_contract_files
     validate_prometheus_contract_identity \
       "$PROMETHEUS_IMAGE_MANIFEST" \
       "$COMPOSE_CONTRACT_PATH"
+    validate_alertmanager_contract "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_CONFIG" \
+      "$PROMETHEUS_RULES" "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE"
     if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
       validate_postgres_contract_files
       validate_postgres_contract_identity \
@@ -2657,12 +2934,16 @@ if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   validate_published_backup_helper_binding
 fi
 validate_prometheus_contract_files
+validate_alertmanager_contract_files
 dc config --quiet
 PROMETHEUS_RUNTIME_REF="$(read_prometheus_runtime_ref "$PROMETHEUS_IMAGE_MANIFEST")"
 readonly PROMETHEUS_RUNTIME_REF
 PROMETHEUS_PLATFORM_MANIFEST_DIGEST="${PROMETHEUS_RUNTIME_REF##*@}"
 readonly PROMETHEUS_PLATFORM_MANIFEST_DIGEST
 validate_prometheus_compose_identity "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_RUNTIME_REF"
+validate_alertmanager_contract "$COMPOSE_CONTRACT_PATH" "$PROMETHEUS_CONFIG" \
+  "$PROMETHEUS_RULES" "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE"
+validate_alertmanager_secret_if_selected
 POSTGRES_RUNTIME_REF=""
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   validate_postgres_contract_files
@@ -2681,6 +2962,7 @@ dc pull worker
 
 echo "Pulling exact production Prometheus image..."
 dc pull prometheus
+dc --profile alerting pull alertmanager
 
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   echo "Pulling exact self-hosted PostgreSQL image..."
@@ -2689,6 +2971,7 @@ fi
 
 echo "Validating the pulled Prometheus platform manifest before product mutation..."
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
+validate_pulled_alertmanager_image
 
 if [ "$PRODUCTION_DB_TOPOLOGY" = "self-hosted" ]; then
   echo "Validating the pulled PostgreSQL platform manifest before product mutation..."
@@ -2708,6 +2991,13 @@ dc run --rm --no-deps --entrypoint /bin/promtool prometheus \
   check config /etc/prometheus/prometheus.yml
 dc run --rm --no-deps --entrypoint /bin/promtool prometheus \
   check rules /etc/prometheus/alias-alerts.yml
+
+"$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+  --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
+  --entrypoint /bin/amtool \
+  'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
+  check-config /etc/alertmanager/alertmanager.yml
 
 echo "Invoking the canonical application production invariant before product mutation..."
 dc run --rm --no-deps app python -c \
@@ -2834,7 +3124,7 @@ fi
 sync_shell_bundle
 
 echo "Starting app before exposing traffic..."
-dc up -d --remove-orphans app
+COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}alerting" dc up -d --remove-orphans app
 wait_for_app_ready 30
 
 if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
@@ -2847,7 +3137,7 @@ fi
 
 echo "Starting caddy after successful migrations..."
 dc build caddy
-dc up -d --remove-orphans caddy
+COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}alerting" dc up -d --remove-orphans caddy
 
 # Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)
 # This checks locally via 127.0.0.1 but uses the domain for Host/SNI headers (TLS works correctly)

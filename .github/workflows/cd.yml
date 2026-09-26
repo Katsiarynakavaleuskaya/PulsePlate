@@ -717,6 +717,7 @@ jobs:
           docker run --rm \
             --platform linux/amd64 \
             --user 65532:65532 \
+            -e PULSEPLATE_ENVIRONMENT=staging \
             --network none \
             --read-only \
             --cap-drop ALL \
@@ -841,6 +842,206 @@ jobs:
             --ignorefile "$TRIVY_IGNORE_FILE" \
             --cache-dir /tmp/trivy-cache-prometheus-image-security \
             "$PROMETHEUS_RUNTIME_REF"
+
+      - name: Admit exact Alertmanager image, config, and narrow CVE exception
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+          TRIVY_BIN: ${{ steps.prometheus_trivy.outputs.path }}
+        run: |
+          set -euo pipefail
+          alert_ref='prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3'
+          ignore='deploy/alertmanager/trivy-ignore.yaml'
+          test -f "$ignore"
+          test ! -L "$ignore"
+          docker buildx imagetools inspect --raw prom/alertmanager:v0.34.1 | python3 -c '
+          import json, sys
+          index=json.load(sys.stdin)
+          matches=[item.get("digest") for item in index.get("manifests", [])
+                   if item.get("platform", {}).get("os")=="linux"
+                   and item.get("platform", {}).get("architecture")=="amd64"]
+          if matches != ["sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"]:
+              raise SystemExit("Official Alertmanager v0.34.1 linux/amd64 digest changed")
+          '
+          docker pull --platform linux/amd64 "$alert_ref"
+          docker image inspect "$alert_ref" | python3 -c '
+          import json, sys
+          rows=json.load(sys.stdin)
+          expected="prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+          assert len(rows)==1 and rows[0]["Os"]=="linux" and rows[0]["Architecture"]=="amd64"
+          assert expected in rows[0]["RepoDigests"] or "docker.io/"+expected in rows[0]["RepoDigests"]
+          '
+          docker run --rm --pull never --platform linux/amd64 --network none \
+            --read-only --entrypoint /bin/alertmanager "$alert_ref" --version \
+            | grep -F 'version 0.34.1'
+          scan="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-scan.XXXXXX")"
+          wrong="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-wrong.XXXXXX")"
+          expired="$(mktemp "${RUNNER_TEMP}/pulseplate-alertmanager-expired.XXXXXX")"
+          trap 'rm -f -- "$scan" "$wrong" "$expired"' EXIT
+          docker run --rm --pull never --platform linux/amd64 --network none \
+            --read-only --user 65534:65534 --cap-drop ALL \
+            --security-opt no-new-privileges:true --entrypoint /bin/amtool \
+            --mount "type=bind,source=${GITHUB_WORKSPACE}/deploy/alertmanager/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly" \
+            "$alert_ref" check-config /etc/alertmanager/alertmanager.yml
+          "$TRIVY_BIN" image --scanners vuln,secret --format json \
+            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 0 \
+            --timeout 15m --output "$scan" "$alert_ref"
+          python3 - "$scan" <<'PY'
+          import json, sys
+          data=json.load(open(sys.argv[1], encoding="utf-8"))
+          found=[(r.get("Target"), v.get("VulnerabilityID"), (v.get("PkgIdentifier") or {}).get("PURL"))
+                 for r in data.get("Results", []) for v in (r.get("Vulnerabilities") or [])]
+          expected={(target, "CVE-2026-84445", "pkg:golang/google.golang.org/grpc@v1.83.1")
+                    for target in ("bin/alertmanager", "bin/amtool")}
+          if set(found) != expected or len(found) != len(expected):
+              raise SystemExit("Unsuppressed Alertmanager finding inventory changed")
+          PY
+          "$TRIVY_BIN" image --scanners vuln,secret --format table \
+            --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
+            --timeout 15m --ignorefile "$ignore" "$alert_ref"
+          sed 's|pkg:golang/google.golang.org/grpc@v1.83.1|pkg:golang/google.golang.org/grpc@v1.83.0|' "$ignore" > "$wrong"
+          sed 's/expired_at: 2026-10-24/expired_at: 2026-01-01/' "$ignore" > "$expired"
+          for negative in "$wrong" "$expired"; do
+            if "$TRIVY_BIN" image --scanners vuln,secret --format table \
+              --pkg-types os,library --severity CRITICAL,HIGH --exit-code 1 \
+              --timeout 15m --ignorefile "$negative" "$alert_ref"; then
+              echo 'Alertmanager negative CVE control unexpectedly passed' >&2
+              exit 1
+            fi
+          done
+
+      - name: Prove staging environment label reaches Alertmanager despite forged metric label
+        env:
+          PROMETHEUS_RUNTIME_REF: ${{ steps.prometheus-image.outputs.runtime_ref }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          import json
+          import os
+          import re
+          import shutil
+          import subprocess
+          import time
+
+          docker = shutil.which("docker")
+          if docker is None:
+              raise SystemExit("Docker CLI is unavailable")
+          run_id = os.environ["GITHUB_RUN_ID"]
+          attempt = os.environ["GITHUB_RUN_ATTEMPT"]
+          if not re.fullmatch(r"[0-9]+", run_id) or not re.fullmatch(r"[0-9]+", attempt):
+              raise SystemExit("Invalid bounded OBS2A CI resource identity")
+          name = f"pulseplate-obs2a-ci-{run_id}-{attempt}"
+          app, manager, prometheus = (f"{name}-{suffix}" for suffix in ("app", "am", "prom"))
+          alert_ref = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+          prom_ref = os.environ["PROMETHEUS_RUNTIME_REF"]
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          created: list[str] = []
+          network_created = False
+
+          def call(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+              return subprocess.run([docker, *arguments], text=True, capture_output=True, check=False)
+
+          def require(arguments: list[str]) -> str:
+              result = call(arguments)
+              if result.returncode:
+                  raise RuntimeError(f"Owned OBS2A Docker command failed: {arguments[:3]}: {result.stderr[-800:]}")
+              return result.stdout
+
+          with TemporaryDirectory(prefix="pulseplate-obs2a-label-proof-") as directory:
+              temporary = Path(directory)
+              (temporary / "www").mkdir()
+              (temporary / "www/metrics").write_text(
+                  '# TYPE http_requests_total counter\n'
+                  'http_requests_total{method="POST",route="/api/v1/premium/bmr",status="200",environment="production"} 1\n',
+                  encoding="utf-8",
+              )
+              original = (root / "deploy/prometheus/prometheus.yml").read_text(encoding="utf-8")
+              changes = (
+                  ("scrape_interval: 30s", "scrape_interval: 2s"),
+                  ("scrape_timeout: 10s", "scrape_timeout: 1s"),
+                  ("evaluation_interval: 30s", "evaluation_interval: 2s"),
+                  ("    metrics_path: /metrics\n", "    metrics_path: /metrics\n    fallback_scrape_protocol: PrometheusText0.0.4\n"),
+              )
+              config = original
+              for before, after in changes:
+                  if config.count(before) != 1:
+                      raise SystemExit("Synthetic Prometheus timing or exporter seam changed")
+                  config = config.replace(before, after, 1)
+              (temporary / "prometheus.yml").write_text(config, encoding="utf-8")
+              (temporary / "alertmanager.yml").write_text(
+                  "route:\n  receiver: sink\n  group_wait: 0s\nreceivers:\n  - name: sink\n",
+                  encoding="utf-8",
+              )
+              (temporary / "key").write_text("synthetic-only", encoding="ascii")
+              (temporary / "key").chmod(0o444)
+              primary_failure: BaseException | None = None
+              try:
+                  require(["network", "create", "--internal", name])
+                  network_created = True
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", app,
+                           "--network", name, "--network-alias", "app", "--read-only", "--user", "65534:65534",
+                           "--mount", f"type=bind,source={temporary}/www,target=/www,readonly",
+                           "--entrypoint", "/bin/httpd", alert_ref, "-f", "-p", "8000", "-h", "/www"])
+                  created.append(app)
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", manager,
+                           "--network", name, "--network-alias", "alertmanager", "--read-only", "--user", "65534:65534",
+                           "--tmpfs", "/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid",
+                           "--mount", f"type=bind,source={temporary}/alertmanager.yml,target=/etc/alertmanager/alertmanager.yml,readonly",
+                           alert_ref, "--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager",
+                           "--cluster.listen-address="])
+                  created.append(manager)
+                  require(["run", "-d", "--pull", "never", "--platform", "linux/amd64", "--name", prometheus,
+                           "--network", name, "--network-alias", "prometheus", "--read-only", "--user", "65532:65532",
+                           "--tmpfs", "/prometheus:size=64m,mode=0700,uid=65532,gid=65532,noexec,nosuid",
+                           "--mount", f"type=bind,source={temporary}/prometheus.yml,target=/etc/prometheus/prometheus.yml,readonly",
+                           "--mount", f"type=bind,source={root}/deploy/prometheus/alias-alerts.yml,target=/etc/prometheus/alias-alerts.yml,readonly",
+                           "--mount", f"type=bind,source={temporary}/key,target=/run/secrets/pulseplate_metrics_scrape_key,readonly",
+                           "-e", "PULSEPLATE_ENVIRONMENT=staging", prom_ref,
+                           "--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus",
+                           "--web.listen-address=:9090"])
+                  created.append(prometheus)
+                  deadline = time.monotonic() + 90
+                  while time.monotonic() < deadline:
+                      for container in created:
+                          state = call(["inspect", "--format", "{{.State.Running}}", container])
+                          if state.returncode or state.stdout.strip() != "true":
+                              raise RuntimeError(f"Owned OBS2A container exited: {container}: {call(['logs', '--tail', '20', container]).stderr[-800:]}")
+                      response = call(["exec", manager, "/bin/wget", "-q", "-T", "5", "-O", "-",
+                                       "http://127.0.0.1:9093/api/v2/alerts"])
+                      if response.returncode == 0:
+                          matches = [item for item in json.loads(response.stdout)
+                                     if item.get("labels", {}).get("alertname") == "PulsePlateAliasRecentPost"]
+                          if matches:
+                              labels = matches[0]["labels"]
+                              if labels.get("environment") != "staging" or labels.get("route") != "/api/v1/premium/bmr":
+                                  raise RuntimeError("Forged metric environment reached Alertmanager")
+                              metric = require(["exec", manager, "/bin/wget", "-q", "-T", "5", "-O", "-",
+                                                "http://prometheus:9090/api/v1/query?query=http_requests_total"])
+                              series = json.loads(metric)["data"]["result"]
+                              if not any(item["metric"].get("route") == "/api/v1/premium/bmr"
+                                         and "environment" not in item["metric"] for item in series):
+                                  raise RuntimeError("Forged input label was not dropped before ingestion")
+                              print("PASS: forged production metric label dropped; staging alert label reached Alertmanager")
+                              break
+                      time.sleep(1)
+                  else:
+                      raise RuntimeError("Bounded native Alertmanager label proof timed out")
+              except BaseException as error:
+                  primary_failure = error
+                  raise
+              finally:
+                  cleanup_errors = []
+                  for container in reversed(created):
+                      if call(["stop", container]).returncode or call(["rm", container]).returncode:
+                          cleanup_errors.append(container)
+                  if network_created and call(["network", "rm", name]).returncode:
+                      cleanup_errors.append(name)
+                  if cleanup_errors:
+                      if primary_failure is None:
+                          raise RuntimeError(f"Owned OBS2A cleanup failed: {cleanup_errors}")
+                      print(f"Owned OBS2A cleanup also failed: {cleanup_errors}", file=__import__("sys").stderr)
+          PY
 
       - name: Prove synthetic non-root header and named-volume runtime
         env:
@@ -3191,6 +3392,8 @@ jobs:
             echo "prometheus_config_sha256=$(sha256sum deploy/prometheus/prometheus.yml | cut -d' ' -f1)"
             echo "prometheus_rules_sha256=$(sha256sum deploy/prometheus/alias-alerts.yml | cut -d' ' -f1)"
             echo "prometheus_image_manifest_sha256=$(sha256sum deploy/prometheus/image-manifest.json | cut -d' ' -f1)"
+            echo "alertmanager_config_sha256=$(sha256sum deploy/alertmanager/alertmanager.yml | cut -d' ' -f1)"
+            echo "alertmanager_trivy_ignore_sha256=$(sha256sum deploy/alertmanager/trivy-ignore.yaml | cut -d' ' -f1)"
             echo "postgres_image_manifest_sha256=$(sha256sum deploy/postgres-pgvector/image-manifest.json | cut -d' ' -f1)"
             echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
             echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
@@ -3222,6 +3425,8 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
+          ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
@@ -3238,7 +3443,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3264,6 +3469,12 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./alertmanager/alertmanager.yml ]
+            [ -f ./alertmanager/alertmanager.yml ]
+            [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
+            [ ! -L ./alertmanager/trivy-ignore.yaml ]
+            [ -f ./alertmanager/trivy-ignore.yaml ]
+            [ "$(sha256sum ./alertmanager/trivy-ignore.yaml | cut -d' ' -f1)" = "$ALERTMANAGER_TRIVY_IGNORE_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
             [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
@@ -3321,6 +3532,8 @@ jobs:
           PROMETHEUS_CONFIG_SHA256: ${{ steps.staging-contract.outputs.prometheus_config_sha256 }}
           PROMETHEUS_RULES_SHA256: ${{ steps.staging-contract.outputs.prometheus_rules_sha256 }}
           PROMETHEUS_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.prometheus_image_manifest_sha256 }}
+          ALERTMANAGER_CONFIG_SHA256: ${{ steps.staging-contract.outputs.alertmanager_config_sha256 }}
+          ALERTMANAGER_TRIVY_IGNORE_SHA256: ${{ steps.staging-contract.outputs.alertmanager_trivy_ignore_sha256 }}
           POSTGRES_IMAGE_MANIFEST_SHA256: ${{ steps.staging-contract.outputs.postgres_image_manifest_sha256 }}
           STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
           BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
@@ -3337,7 +3550,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,STAGING_STORAGE_SYSTEMD_SHA256,STAGING_BACKUP_SYSTEMD_SHA256,STAGING_BACKUP_TIMER_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
@@ -3363,6 +3576,12 @@ jobs:
             [ ! -L ./prometheus/image-manifest.json ]
             [ -f ./prometheus/image-manifest.json ]
             [ "$(sha256sum ./prometheus/image-manifest.json | cut -d' ' -f1)" = "$PROMETHEUS_IMAGE_MANIFEST_SHA256" ]
+            [ ! -L ./alertmanager/alertmanager.yml ]
+            [ -f ./alertmanager/alertmanager.yml ]
+            [ "$(sha256sum ./alertmanager/alertmanager.yml | cut -d' ' -f1)" = "$ALERTMANAGER_CONFIG_SHA256" ]
+            [ ! -L ./alertmanager/trivy-ignore.yaml ]
+            [ -f ./alertmanager/trivy-ignore.yaml ]
+            [ "$(sha256sum ./alertmanager/trivy-ignore.yaml | cut -d' ' -f1)" = "$ALERTMANAGER_TRIVY_IGNORE_SHA256" ]
             [ ! -L ./postgres-pgvector/image-manifest.json ]
             [ -f ./postgres-pgvector/image-manifest.json ]
             [ "$(sha256sum ./postgres-pgvector/image-manifest.json | cut -d' ' -f1)" = "$POSTGRES_IMAGE_MANIFEST_SHA256" ]
@@ -4145,7 +4364,9 @@ jobs:
             scripts/redeploy_caddy.sh \
             scripts/ops/postgres_backup.sh \
             deploy/postgres-pgvector/image-manifest.json \
-            deploy/prometheus/alias-alerts.yml
+            deploy/prometheus/alias-alerts.yml \
+            deploy/alertmanager/alertmanager.yml \
+            deploy/alertmanager/trivy-ignore.yaml
 
           scp -i "$key_path" \
             "$archive_path" \

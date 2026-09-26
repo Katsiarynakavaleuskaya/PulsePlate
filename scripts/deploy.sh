@@ -52,6 +52,9 @@ STAGING_DEPLOY_MARKER="${STAGING_DEPLOY_MARKER:-${PROJECT_DIR}/.attested-digest-
 PROMETHEUS_CONFIG="${PROMETHEUS_CONFIG:-${PROJECT_DIR}/prometheus/prometheus.yml}"
 PROMETHEUS_RULES="${PROJECT_DIR}/prometheus/alias-alerts.yml"
 PROMETHEUS_IMAGE_MANIFEST="${PROMETHEUS_IMAGE_MANIFEST:-${PROJECT_DIR}/prometheus/image-manifest.json}"
+ALERTMANAGER_CONFIG="${PROJECT_DIR}/alertmanager/alertmanager.yml"
+ALERTMANAGER_TRIVY_IGNORE="${PROJECT_DIR}/alertmanager/trivy-ignore.yaml"
+ALERTMANAGER_SMTP_KEY="${PROJECT_DIR}/secrets/alertmanager_smtp_key"
 POSTGRES_IMAGE_MANIFEST="${POSTGRES_IMAGE_MANIFEST:-${PROJECT_DIR}/postgres-pgvector/image-manifest.json}"
 METRICS_SECRET_DIR="${METRICS_SECRET_DIR:-${PROJECT_DIR}/secrets}"
 METRICS_SECRET_FILE="${METRICS_SECRET_FILE:-${METRICS_SECRET_DIR}/pulseplate_metrics_scrape_key}"
@@ -106,6 +109,8 @@ for required_path in \
   "$PROMETHEUS_CONFIG" \
   "$PROMETHEUS_RULES" \
   "$PROMETHEUS_IMAGE_MANIFEST" \
+  "$ALERTMANAGER_CONFIG" \
+  "$ALERTMANAGER_TRIVY_IGNORE" \
   "$POSTGRES_IMAGE_MANIFEST"; do
   if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
     echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
@@ -255,6 +260,183 @@ if type(prometheus) is not dict:
 if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linux/amd64":
     raise SystemExit("Rendered Compose Prometheus identity does not match the manifest")
 ' "$runtime_ref"
+}
+
+validate_alertmanager_contract() {
+  "${COMPOSE[@]}" --profile alerting config --format json | "$PYTHON_BIN" -c '
+import json
+from pathlib import Path
+import re
+import sys
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate rendered Compose key")
+        result[key] = value
+    return result
+
+compose, prometheus_config, rules, alert_config, ignore = map(Path, sys.argv[1:6])
+expected_environment = sys.argv[6]
+image = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+try:
+    payload = json.load(sys.stdin, object_pairs_hook=unique)
+except (ValueError, TypeError) as exc:
+    raise SystemExit("Alertmanager rendered Compose is malformed") from exc
+services = payload.get("services", {})
+prometheus = services.get("prometheus", {})
+alertmanager = services.get("alertmanager", {})
+app = services.get("app", {})
+networks = payload.get("networks", {})
+if not all(isinstance(part, dict) for part in (services, prometheus, alertmanager, app, networks)):
+    raise SystemExit("Alertmanager Compose topology is malformed")
+raw = compose.read_text(encoding="utf-8")
+marker = "- PULSEPLATE_ENVIRONMENT=" + expected_environment
+if (len(re.findall(r"(?m)^\s*(?:-\s*)?PULSEPLATE_ENVIRONMENT\s*(?::|=)", raw)) != 1
+        or raw.count(marker) != 1):
+    raise SystemExit("Prometheus environment must be one literal contour value")
+if raw.count(image) != 1:
+    raise SystemExit("Raw Alertmanager image must use the admitted platform digest")
+if prometheus.get("environment", {}).get("PULSEPLATE_ENVIRONMENT") != expected_environment:
+    raise SystemExit("Rendered Prometheus environment is wrong")
+prom = prometheus_config.read_text(encoding="utf-8")
+rule_text = rules.read_text(encoding="utf-8")
+if prom.count("environment: ${PULSEPLATE_ENVIRONMENT}") != 1:
+    raise SystemExit("Prometheus external environment is missing or duplicated")
+if len(re.findall(r"(?m)^\s*metric_relabel_configs:\s*$", prom)) != 1 or not re.search(
+    r"(?m)^\s*- action: labeldrop\s*\n\s*regex: \^environment\$\s*$", prom
+):
+    raise SystemExit("Prometheus input environment label is not dropped")
+if re.search(r"(?m)^\s*(?:relabel_configs|alert_relabel_configs|labels):\s*", prom):
+    raise SystemExit("Prometheus environment could be shadowed")
+if re.search(r"(?m)^\s*environment\s*:", rule_text):
+    raise SystemExit("Rule labels cannot shadow environment")
+if alertmanager.get("image") != image or alertmanager.get("platform") != "linux/amd64":
+    raise SystemExit("Alertmanager image identity differs from the admitted platform digest")
+if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not in (None, []):
+    raise SystemExit("Alertmanager must be private and profile selected")
+if set(alertmanager.get("networks", {})) != {"alerting", "smtp-egress"}:
+    raise SystemExit("Alertmanager networks are not canonical")
+if set(prometheus.get("networks", {})) != {"observability", "alerting"}:
+    raise SystemExit("Prometheus networks are not canonical")
+expected_app_networks = {"web", "observability", "database"} if expected_environment == "staging" else {"web", "observability"}
+if set(app.get("networks", {})) != expected_app_networks:
+    raise SystemExit("Product app networks changed or gained SMTP egress")
+if networks.get("alerting", {}).get("internal") is not True:
+    raise SystemExit("Alerting network must be internal")
+commands = alertmanager.get("command", [])
+if commands != ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="] or alertmanager.get("entrypoint"):
+    raise SystemExit("Alertmanager command or disabled cluster listener changed")
+if alertmanager.get("environment") or alertmanager.get("env_file") or alertmanager.get("extra_hosts"):
+    raise SystemExit("Alertmanager gained an unreviewed environment or host mapping")
+if alertmanager.get("read_only") is not True or alertmanager.get("user") != "65534:65534":
+    raise SystemExit("Alertmanager runtime isolation changed")
+if alertmanager.get("cap_drop") != ["ALL"] or alertmanager.get("security_opt") != ["no-new-privileges:true"]:
+    raise SystemExit("Alertmanager capabilities or privilege policy changed")
+if alertmanager.get("tmpfs") != ["/alertmanager:size=16m,mode=0700,uid=65534,gid=65534,noexec,nosuid"]:
+    raise SystemExit("Alertmanager temporary storage contract changed")
+if alertmanager.get("healthcheck", {}).get("test") != ["CMD", "/bin/wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:9093/-/ready"]:
+    raise SystemExit("Alertmanager readiness command is not the bounded native probe")
+if alertmanager.get("depends_on") or alertmanager.get("privileged") or alertmanager.get("network_mode"):
+    raise SystemExit("Alertmanager gained a dependency or privileged network")
+mounts = alertmanager.get("volumes", [])
+if len(mounts) != 1 or mounts[0].get("type") != "bind" or mounts[0].get("source") != str(alert_config) or mounts[0].get("target") != "/etc/alertmanager/alertmanager.yml" or mounts[0].get("read_only") is not True:
+    raise SystemExit("Alertmanager configuration mount changed")
+expected_secret = [{"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}]
+if alertmanager.get("secrets") != expected_secret:
+    raise SystemExit("Alertmanager SMTP secret mount changed")
+for service_name, service in services.items():
+    if service_name != "alertmanager" and any(secret.get("source") == "alertmanager_smtp_key" for secret in service.get("secrets", [])):
+        raise SystemExit("SMTP secret leaked to another service")
+secret_record = payload.get("secrets", {}).get("alertmanager_smtp_key", {})
+if secret_record.get("file") != str(compose.parent / "secrets/alertmanager_smtp_key"):
+    raise SystemExit("Alertmanager SMTP secret source changed")
+alert_text = alert_config.read_text(encoding="utf-8")
+for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
+                 "smtp_auth_username: resend",
+                 "smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+                 "smtp_require_tls: true", "smtp_force_implicit_tls: true",
+                 "group_wait: 30s", "group_interval: 5m", "repeat_interval: 24h",
+                 "send_resolved: false"):
+    if alert_text.count(required) != 1:
+        raise SystemExit("Alertmanager SMTP or route contract changed")
+# Finite exact-line recognizer for the reviewed SMTP route and sole recipient.
+expected_alertmanager_lines = (
+    "global:",
+    "  smtp_smarthost: smtp.resend.com:2465",
+    "  smtp_from: alerts@alerts.pulseplate.app",
+    "  smtp_auth_username: resend",
+    "  smtp_auth_password_file: /run/secrets/alertmanager_smtp_key",
+    "  smtp_require_tls: true",
+    "  smtp_force_implicit_tls: true",
+    "",
+    "route:",
+    "  receiver: pulseplate-email",
+    "  group_by: [alertname, environment, alias]",
+    "  group_wait: 30s",
+    "  group_interval: 5m",
+    "  repeat_interval: 24h",
+    "",
+    "receivers:",
+    "  - name: pulseplate-email",
+    "    email_configs:",
+    "      - to: pulseplate@pm.me",
+    "        send_resolved: false",
+    "        force_implicit_tls: true",
+    "        text: PulsePlate alert {{ .CommonLabels.alertname }} ({{ .CommonLabels.environment }}).",
+)
+if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  receiver: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^receivers:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^  - name: pulseplate-email\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^    email_configs:\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^      - to: pulseplate@pm[.]me\s*$", alert_text)) != 1
+    or len(re.findall(r"(?m)^\s*(?:-\s*)?to\s*:", alert_text)) != 1
+    or re.search(r"(?m)^\s*smtp_auth_password\s*:", alert_text)
+    or tuple(alert_text.splitlines()) != expected_alertmanager_lines
+    or not alert_text.endswith(chr(10))):
+    raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
+ignore_text = ignore.read_text(encoding="utf-8")
+if (len(re.findall(r"(?m)^\s*-\s+", ignore_text)) != 2
+    or ignore_text.count("vulnerabilities:") != 1
+    or ignore_text.count("expired_at:") != 1
+    or len(re.findall(r"(?m)^\s*- id:\s*", ignore_text)) != 1) or not re.search(
+    r"(?m)^\s*- id: CVE-2026-84445\s*$", ignore_text
+) or len(re.findall(r"(?m)^\s*- pkg:", ignore_text)) != 1 or not re.search(
+    r"(?m)^\s*- pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1\s*$", ignore_text
+) or not re.search(r"(?m)^\s*expired_at: 2026-10-24\s*$", ignore_text):
+    raise SystemExit("Alertmanager Trivy exception is not exact")
+' "$COMPOSE_FILE" "$PROMETHEUS_CONFIG" "$PROMETHEUS_RULES" \
+  "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE" staging
+}
+
+validate_alertmanager_secret_if_selected() {
+  if "$PYTHON_BIN" - "$ENV_FILE" <<'PY'
+from pathlib import Path
+import re
+import sys
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+if re.search(r"(?m)^\s*COMPOSE_PROFILES\s*=", text):
+    raise SystemExit("COMPOSE_PROFILES must be selected by the operator, not the env file")
+PY
+  then
+    :
+  else
+    return 1
+  fi
+  case ",${COMPOSE_PROFILES:-}," in
+    *,alerting,*) ;;
+    *) return 0 ;;
+  esac
+  if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
+    echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
+    return 1
+  fi
+  if [ "$($STAT_BIN -c '%u:%a' "$ALERTMANAGER_SMTP_KEY")" != "${EUID}:444" ]; then
+    echo "❌ Alertmanager SMTP key must be owned by the Compose account with mode 0444" >&2
+    return 1
+  fi
 }
 
 validate_postgres_image_manifest() {
@@ -785,6 +967,7 @@ allowed = {
     f"prom/prometheus@{sys.argv[1]}",
     f"docker.io/prom/prometheus@{sys.argv[1]}",
 }
+
 if record.get("Os") != "linux" or record.get("Architecture") != "amd64":
     raise SystemExit("Pulled Prometheus image platform is not linux/amd64")
 if type(repo_digests) is not list or any(type(item) is not str for item in repo_digests):
@@ -793,6 +976,25 @@ if not allowed.intersection(repo_digests):
     raise SystemExit("Pulled Prometheus image is not bound to the canonical platform digest")
 ' "$PROMETHEUS_PLATFORM_MANIFEST_DIGEST"
 }
+
+validate_pulled_alertmanager_image() {
+  "$DOCKER_BIN" image inspect 'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' | \
+    "$PYTHON_BIN" -c '
+import json
+import sys
+rows = json.load(sys.stdin)
+expected = "prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3"
+if type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict:
+    raise SystemExit("Alertmanager image inspect must contain one image")
+row = rows[0]
+if row.get("Os") != "linux" or row.get("Architecture") != "amd64":
+    raise SystemExit("Alertmanager image platform is not linux/amd64")
+digests = row.get("RepoDigests")
+if type(digests) is not list or not ({expected, "docker.io/" + expected} & set(digests)):
+    raise SystemExit("Alertmanager image is not bound to the admitted platform digest")
+'
+}
+
 
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
@@ -878,6 +1080,8 @@ esac
 
 "${COMPOSE[@]}" config --quiet
 validate_prometheus_compose_identity "$PROMETHEUS_RUNTIME_REF"
+validate_alertmanager_contract
+validate_alertmanager_secret_if_selected
 validate_postgres_compose_identity "$POSTGRES_RUNTIME_REF"
 validate_staging_database_binding
 admitted_backup_dir="$("$PYTHON_BIN" "$PROJECT_DIR/scripts/ops/check_staging_security.py" --project-dir "$PROJECT_DIR" --storage-only --print-backup-dir)"
@@ -948,8 +1152,10 @@ echo "[2/5] Pull exact backend, Caddy, PostgreSQL, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy postgres prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
+"${COMPOSE[@]}" --profile alerting pull alertmanager
 echo "Validating the pulled Prometheus platform manifest before product mutation"
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
+validate_pulled_alertmanager_image
 echo "Validating the pulled PostgreSQL platform manifest before product mutation"
 validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
 echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation"
@@ -995,6 +1201,13 @@ echo "Validating the exact Prometheus configuration before product mutation"
   --mount "type=bind,source=$PROMETHEUS_RULES,target=/etc/prometheus/alias-alerts.yml,readonly" \
   --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
   check rules /etc/prometheus/alias-alerts.yml
+
+"$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+  --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+  --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
+  --entrypoint /bin/amtool \
+  'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
+  check-config /etc/alertmanager/alertmanager.yml
 
 echo "Invoking the canonical application production invariant before product mutation"
 "${COMPOSE[@]}" run --rm --no-deps app python -c \

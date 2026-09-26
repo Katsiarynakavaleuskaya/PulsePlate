@@ -26,6 +26,39 @@ CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
 TRIVY_VERSION = "v0.74.0"
+ALERTMANAGER_CONFIG = REPO_ROOT / "deploy" / "alertmanager" / "alertmanager.yml"
+ALERTMANAGER_IGNORE = REPO_ROOT / "deploy" / "alertmanager" / "trivy-ignore.yaml"
+
+
+def test_alertmanager_cd_contract_carries_exact_files_and_keeps_scans_separate() -> None:
+    workflow = CD_WORKFLOW.read_text(encoding="utf-8")
+    for name, output in (
+        ("alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
+        ("trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
+    ):
+        path = f"alertmanager/{name}"
+        assert f"sha256sum deploy/{path}" in workflow
+        assert workflow.count(f"[ ! -L ./{path} ]") == 2
+        assert workflow.count(f'"${output}" ]') == 2
+        assert f"deploy/{path}" in workflow
+    assert "Admit exact Alertmanager image, config, and narrow CVE exception" in workflow
+    assert '--ignorefile "$TRIVY_IGNORE_FILE"' in workflow  # Prometheus stays separate.
+    assert '--ignorefile "$ignore"' in workflow  # Alertmanager only.
+    assert "-e PULSEPLATE_ENVIRONMENT=staging" in workflow
+    assert "CVE-2026-84445" in ALERTMANAGER_IGNORE.read_text(encoding="utf-8")
+    assert "group_interval: 5m" in ALERTMANAGER_CONFIG.read_text(encoding="utf-8")
+    for required in (
+        "Prove staging environment label reaches Alertmanager despite forged metric label",
+        'environment="production"',
+        "PULSEPLATE_ENVIRONMENT=staging",
+        "http://127.0.0.1:9093/api/v2/alerts",
+        'labels.get("environment") != "staging"',
+        '"environment" not in item["metric"]',
+        '"network", "create", "--internal"',
+    ):
+        assert required in workflow
+
+
 PROMETHEUS_RULES_HASH_CHECK = (
     """[ "$(sha256sum ./prometheus/alias-alerts.yml | cut -d' ' -f1)" """
     '= "$PROMETHEUS_RULES_SHA256" ]'
@@ -572,11 +605,12 @@ def test_staging_compose_requires_two_digest_references_and_preserves_caddy_stat
     assert compose["networks"]["observability"] == {"internal": True}
     assert app["networks"] == ["web", "observability", "database"]
     assert app["secrets"] == ["pulseplate_metrics_scrape_key", "postgres_ca", "postgres_pgpass"]
-    assert prometheus["networks"] == ["observability"]
+    assert prometheus["networks"] == ["observability", "alerting"]
     assert prometheus["secrets"] == ["pulseplate_metrics_scrape_key"]
     assert "ports" not in prometheus
     assert compose["secrets"] == {
         "pulseplate_metrics_scrape_key": {"file": "./secrets/pulseplate_metrics_scrape_key"},
+        "alertmanager_smtp_key": {"file": "./secrets/alertmanager_smtp_key"},
         "postgres_ca": {"file": "./secrets/postgres_ca"},
         "postgres_server_crt": {"file": "./secrets/postgres_server_crt"},
         "postgres_server_key": {"file": "./secrets/postgres_server_key"},
@@ -719,6 +753,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -742,6 +777,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
         "PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
         "PROMETHEUS_IMAGE_MANIFEST_SHA256,"
+        "ALERTMANAGER_CONFIG_SHA256,ALERTMANAGER_TRIVY_IGNORE_SHA256,"
         "POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
@@ -800,7 +836,8 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert with_block["envs"] == (
         "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
         "STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
         "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
@@ -816,6 +853,8 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
         "prometheus/prometheus.yml",
         "prometheus/alias-alerts.yml",
         "prometheus/image-manifest.json",
+        "alertmanager/alertmanager.yml",
+        "alertmanager/trivy-ignore.yaml",
         "postgres-pgvector/image-manifest.json",
         "Caddyfile",
         "scripts/ops/postgres_backup.sh",
@@ -939,7 +978,8 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert with_block["envs"].endswith(
         "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,PROMETHEUS_CONFIG_SHA256,"
         "PROMETHEUS_RULES_SHA256,"
-        "PROMETHEUS_IMAGE_MANIFEST_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
+        "PROMETHEUS_IMAGE_MANIFEST_SHA256,ALERTMANAGER_CONFIG_SHA256,"
+        "ALERTMANAGER_TRIVY_IGNORE_SHA256,POSTGRES_IMAGE_MANIFEST_SHA256,"
         "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256,RESTORE_HELPER_SHA256,"
         "STAGING_SECURITY_HELPER_SHA256,PGVECTOR_ATTESTATION_HELPER_SHA256,"
         "NATIVE_ATTESTATION_HELPER_SHA256,POSTGRES_HBA_SHA256,"
@@ -955,6 +995,8 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         ("prometheus/prometheus.yml", "PROMETHEUS_CONFIG_SHA256"),
         ("prometheus/alias-alerts.yml", "PROMETHEUS_RULES_SHA256"),
         ("prometheus/image-manifest.json", "PROMETHEUS_IMAGE_MANIFEST_SHA256"),
+        ("alertmanager/alertmanager.yml", "ALERTMANAGER_CONFIG_SHA256"),
+        ("alertmanager/trivy-ignore.yaml", "ALERTMANAGER_TRIVY_IGNORE_SHA256"),
         ("postgres-pgvector/image-manifest.json", "POSTGRES_IMAGE_MANIFEST_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
         ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),
