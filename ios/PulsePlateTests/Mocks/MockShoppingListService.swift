@@ -7,8 +7,8 @@ import Foundation
 final class MockShoppingListService: ShoppingListServicing, @unchecked Sendable {
     var result: Result<ShoppingListDTO, Error>
 
-    init(result: Result<ShoppingListDTO, Error> = .success(ShoppingListFixtures.dtoSimple())) {
-        self.result = result
+    init(result: Result<ShoppingListDTO, Error>? = nil) {
+        self.result = result ?? .success(ShoppingListFixtures.dtoSimple())
     }
 
     func fetchShoppingList(request: ShoppingListRequest) async throws -> ShoppingListDTO {

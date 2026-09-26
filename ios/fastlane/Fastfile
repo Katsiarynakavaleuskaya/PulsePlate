@@ -1,16 +1,16 @@
 require "shellwords"
+require "json"
 
 default_platform(:ios)
 
 APP_STORE_LOCALES = %w[ru-RU en-US es-ES].freeze
 IOS_APPSTORE_ASSETS_RUNBOOK = "docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md".freeze
+IOS_SNAPSHOT_RUNTIME_ID = "com.apple.CoreSimulator.SimRuntime.iOS-27-0".freeze
 IPHONE_DEVICE_CANDIDATES = [
-  # Prefer stable iOS 26.x simulator runtimes on CI for SDK 26 readiness.
-  "iPhone 16 Pro Max",
-  "iPhone 16 Pro",
+  # Capture on the iOS 27.0 simulator for the current 6.9-inch App Store flow.
+  "iPhone 18 Pro Max",
   "iPhone 17 Pro Max",
-  "iPhone 17 Pro",
-  "iPhone 15 Pro Max",
+  "iPhone 16 Pro Max",
 ].freeze
 IPAD_DEVICE_CANDIDATES = [
   "iPad Pro 13-inch (M4)",
@@ -18,14 +18,29 @@ IPAD_DEVICE_CANDIDATES = [
   "iPad Pro (12.9-inch) (6th generation)",
 ].freeze
 
-def available_simulator_inventory
-  @available_simulator_inventory ||= sh("xcrun simctl list devices available")
+def available_snapshot_devices
+  @available_snapshot_devices ||= begin
+    inventory = JSON.parse(sh("xcrun simctl list devices available -j"))
+    devices = inventory.fetch("devices").fetch(IOS_SNAPSHOT_RUNTIME_ID) do
+      UI.user_error!("Required iOS 27.0 simulator runtime is unavailable")
+    end
+    devices.select do |device|
+      device["isAvailable"] == true &&
+        device["name"].is_a?(String) &&
+        device["udid"].is_a?(String) && !device["udid"].empty?
+    end
+  end
 end
 
 def resolve_snapshot_device(candidates:, label:)
-  candidates.find do |candidate|
-    available_simulator_inventory.include?(candidate)
-  end || UI.user_error!("No available simulator found for #{label}. Tried: #{candidates.join(', ')}")
+  candidates.each do |candidate|
+    device = available_snapshot_devices.find { |entry| entry["name"] == candidate }
+    next unless device
+
+    UI.message("Resolved #{label}: #{candidate} (#{IOS_SNAPSHOT_RUNTIME_ID}, UDID #{device['udid']})")
+    return candidate
+  end
+  UI.user_error!("No available iOS 27.0 simulator found for #{label}. Tried: #{candidates.join(', ')}")
 end
 
 def resolved_snapshot_devices
@@ -118,6 +133,7 @@ platform :ios do
       test_without_building: false,
       only_testing: ["PulsePlateUITests/AppStoreScreenshotTests"],
       devices: resolved_snapshot_devices,
+      ios_version: "27.0",
       languages: snapshot_languages,
       app_identifier: snapshot_bundle_identifier,
       output_directory: "./fastlane/screenshots",

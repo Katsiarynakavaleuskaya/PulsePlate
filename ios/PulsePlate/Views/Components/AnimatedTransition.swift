@@ -17,9 +17,11 @@ struct ScaleTransition: ViewModifier {
   let isActive: Bool
   let scale: Double
 
+  var effectiveScale: Double { isActive ? scale : 1.0 }
+
   func body(content: Content) -> some View {
     content
-      .scaleEffect(isActive ? scale : 1.0)
+      .scaleEffect(effectiveScale)
       .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isActive)
   }
 }
@@ -28,9 +30,11 @@ struct FadeTransition: ViewModifier {
   let isActive: Bool
   let delay: Double
 
+  var effectiveOpacity: Double { isActive ? 1.0 : 0.0 }
+
   func body(content: Content) -> some View {
     content
-      .opacity(isActive ? 1 : 0)
+      .opacity(effectiveOpacity)
       .animation(.easeInOut(duration: 0.3).delay(delay), value: isActive)
   }
 }
@@ -93,7 +97,7 @@ struct AnimatedProgressRing: View {
         animatedProgress = progress
       }
     }
-    .onChange(of: progress) { newValue in
+    .onChange(of: progress, initial: false) { _, newValue in
       withAnimation(.easeInOut(duration: 0.8)) {
         animatedProgress = newValue
       }
@@ -120,7 +124,7 @@ struct PulsingView: ViewModifier {
           animate = true
         }
       }
-      .onChange(of: isActive) { newValue in
+      .onChange(of: isActive, initial: false) { _, newValue in
         if newValue {
           animate = true
         } else {
