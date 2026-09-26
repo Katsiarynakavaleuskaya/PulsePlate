@@ -3296,7 +3296,9 @@ def validate_creative_workflow_native_result(
         if change.casefold() in changes:
             _workflow_fail("variant changes are duplicated")
         changes.add(change.casefold())
-        if not set(_workflow_texts(row["criteria"], "variant criteria")).issubset(criterion_ids):
+        if not set(_workflow_texts(row["criteria"], "variant criteria", maximum=100)).issubset(
+            criterion_ids
+        ):
             _workflow_fail("variant uses unknown criterion")
         paths = _workflow_texts(row["paths"], "variant paths")
         for path in paths:

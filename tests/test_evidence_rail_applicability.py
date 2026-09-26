@@ -156,6 +156,7 @@ def test_actual_packet_shape_selects_exact_high_assurance_projection(
         security_review=True,
         design_lane=False,
         docs_only=False,
+        pr_phase="pre_open",
     )
     assert result.rule_id == "higher_assurance"
     assert result.applicable_sidecar_rails == ("euler", "experiment_runner", "teleology")
@@ -213,7 +214,7 @@ def test_high_assurance_signal_combinations(
     assert _treatments(result)["creative"]["reasons"] == ["creative_scope_not_selected"]
 
 
-def test_design_packet_recommends_creative_but_never_sidecar(
+def test_design_packet_without_alternatives_skips_creative_but_never_sidecar(
     packet_root: Path, tmp_path: Path
 ) -> None:
     packet = _base_packet(
@@ -230,10 +231,54 @@ def test_design_packet_recommends_creative_but_never_sidecar(
 
     assert result.rule_id == "design"
     assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_scope_not_selected"],
+    }
+    assert "creative" not in result.applicable_sidecar_rails
+
+
+def test_design_packet_with_alternatives_recommends_creative(
+    packet_root: Path, tmp_path: Path
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        goal="Implement approved Figma screen with alternatives",
+        task_class="Design",
+        candidate_paths=["docs/design/example.md"],
+        design_source="code_native_brief",
+        target_surface="web-home",
+        task_mode="implement",
+        code_native_design_brief_path="docs/design/example.md",
+        creative_applicability="alternatives",
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt="design-alternatives")
+    )
+    assert result.rule_id == "design"
+    assert _treatments(result)["creative"] == {
         "treatment": "recommend",
         "reasons": ["design_lane_applicable"],
     }
-    assert "creative" not in result.applicable_sidecar_rails
+
+
+@pytest.mark.parametrize("phase", ["post_open_review", "merge_ready"])
+def test_later_pr_phases_do_not_recommend_creative_without_writer(
+    packet_root: Path, tmp_path: Path, phase: str
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+        pr_phase=phase,
+    )
+    assert packet["role_agent_dispatch_contract"]["runtime_implementation_owners"] == []
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt=f"creative-{phase}")
+    )
+    assert _treatments(result)["creative"] == {
+        "treatment": "not_applicable",
+        "reasons": ["creative_writer_unavailable_in_phase"],
+    }
 
 
 def test_public_design_packet_projection_is_frozen_and_packet_local(

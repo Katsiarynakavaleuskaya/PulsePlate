@@ -1742,6 +1742,30 @@ def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> No
     assert stage["upstream_assets"] == [SHA256]
 
 
+def test_operational_variants_can_cover_all_accepted_criteria_above_thirty() -> None:
+    request = _operational_request()
+    request["original_dod"] = [f"Required item {index}" for index in range(1, 32)]
+    request["criteria"] = [
+        {
+            "id": f"C{index}",
+            "description": f"Verify required item {index}",
+            "source_items": [f"Required item {index}"],
+        }
+        for index in range(1, 32)
+    ]
+    validate_creative_workflow_request(request)
+    result = _operational_native(request)
+    for variant in result["variants"]:
+        variant["criteria"] = [row["id"] for row in request["criteria"]]
+    assert validate_creative_workflow_native_result(result, request) == result
+    review = _operational_review(request)
+    review["criteria_coverage"] = [
+        {"id": row["id"], "status": "supported", "evidence": "Observed criterion check"}
+        for row in request["criteria"]
+    ]
+    assert validate_creative_workflow_review(review, request, result) == review
+
+
 @pytest.mark.parametrize(
     "field",
     [
