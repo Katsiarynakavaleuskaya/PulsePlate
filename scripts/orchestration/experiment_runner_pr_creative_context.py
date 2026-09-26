@@ -624,7 +624,7 @@ class _BoundedManifestCapture(io.StringIO):
 
 def _canonical_manifest_writer_occurrences(
     request: Mapping[str, Any],
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[tuple[int, str]]]:
     """Use the canonical role-dispatch bridge for exact runtime occurrences."""
 
     snapshot = read_task_packet_snapshot(
@@ -664,7 +664,7 @@ def _canonical_manifest_writer_occurrences(
     ):
         raise ExperimentRunnerCreativeContextCliError("canonical writer manifest is incomplete")
     role_order: list[str] = []
-    eligible: list[str] = []
+    eligible: list[tuple[int, str]] = []
     for position, row in enumerate(rows, start=1):
         if (
             not isinstance(row, dict)
@@ -675,8 +675,8 @@ def _canonical_manifest_writer_occurrences(
         role = row["role_slug"]
         role_order.append(role)
         if row.get("implementation_owner_override") is True and row.get("readonly") is False:
-            eligible.append(role)
-    if not eligible or not set(eligible).issubset(owners):
+            eligible.append((position, role))
+    if not eligible or not {role for _position, role in eligible}.issubset(owners):
         raise ExperimentRunnerCreativeContextCliError("canonical writer eligibility is invalid")
     return role_order, eligible
 

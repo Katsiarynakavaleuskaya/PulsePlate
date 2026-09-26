@@ -1648,7 +1648,7 @@ def _operational_native(request: dict[str, Any]) -> dict[str, Any]:
                 "assumptions": ["Existing validated inputs remain available"],
                 "expected_observation": "A readable capsule is produced",
                 "counterexample": "A stale source is rejected",
-                "tests": ["Run the focused formatter test"],
+                "tests": ["pytest -q tests/test_example.py"],
                 "risks": ["A malformed source blocks rendering"],
                 "euler_relation_ids": ["relation_a"],
             }
@@ -1711,7 +1711,7 @@ def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> No
             request,
             result,
             review,
-            ["security-auditor"],
+            [(5, "security-auditor")],
             [
                 "agent-coordinator",
                 "logic-agent",
@@ -1791,7 +1791,7 @@ def test_operational_native_and_handoff_reject_out_of_scope() -> None:
             request,
             result,
             review,
-            ["security-auditor"],
+            [(5, "security-auditor")],
             [
                 "agent-coordinator",
                 "logic-agent",
@@ -1817,8 +1817,49 @@ def test_operational_handoff_rejects_missing_canonical_occurrence_order() -> Non
     }
     with pytest.raises(ExperimentRunnerCreativeContextContractError, match="occurrence"):
         validate_creative_workflow_handoff(
-            handoff, request, result, review, ["qa-engineer-agent"], dispatch_order=None
+            handoff, request, result, review, [(1, "qa-engineer-agent")], dispatch_order=None
         )
+
+
+def test_operational_handoff_rejects_readonly_repeated_slug_occurrence() -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    review = _operational_review(request)
+    role_order = [
+        "security-auditor",
+        "logic-agent",
+        "philosophy-agent",
+        "cursor-specialist-agent",
+        "security-auditor",
+    ]
+    handoff = {
+        "schema_version": "creative_workflow_handoff.v1",
+        "request_fingerprint": workflow_fingerprint(request),
+        "selected_variant_id": "variant_1",
+        "coordinator_role": "agent-coordinator",
+        "writer_role": "security-auditor",
+        "manifest_order": 1,
+        "files": ["scripts/orchestration/example.py"],
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="occurrence"):
+        validate_creative_workflow_handoff(
+            handoff, request, result, review, [(5, "security-auditor")], role_order
+        )
+    handoff["manifest_order"] = 5
+    assert (
+        validate_creative_workflow_handoff(
+            handoff, request, result, review, [(5, "security-auditor")], role_order
+        )
+        == handoff
+    )
+
+
+def test_operational_native_rejects_unapproved_test_command() -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    result["variants"][0]["tests"] = ["pytest -q tests/test_unreviewed.py"]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="test command"):
+        validate_creative_workflow_native_result(result, request)
 
 
 def test_operational_writer_occurrence_comes_from_canonical_bridge(
@@ -1843,7 +1884,7 @@ def test_operational_writer_occurrence_comes_from_canonical_bridge(
                 + hashlib.sha256(packet_path.read_bytes()).hexdigest(),
             }
         )
-        assert "qa-engineer-agent" in eligible
+        assert any(role == "qa-engineer-agent" for _order, role in eligible)
         assert role_order.index("qa-engineer-agent") + 1 < 999
         with monkeypatch.context() as patch:
             patch.setattr(cli.qoder_dispatch_bridge, "main", lambda _argv: 1)
@@ -1908,7 +1949,7 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     monkeypatch.setattr(
         cli,
         "_canonical_manifest_writer_occurrences",
-        lambda _request: (["qa-engineer-agent"], ["qa-engineer-agent"]),
+        lambda _request: (["qa-engineer-agent"], [(1, "qa-engineer-agent")]),
     )
     for field, wrong in (
         ("repository", "Other/PulsePlate"),

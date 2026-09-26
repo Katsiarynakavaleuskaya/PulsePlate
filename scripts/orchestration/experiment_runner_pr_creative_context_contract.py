@@ -3281,6 +3281,8 @@ def validate_creative_workflow_native_result(
             _workflow_texts(row[key], f"variant {key}")
         if len(row["tests"]) > request["budget"]["max_test_commands"]:
             _workflow_fail("variant exceeds focused test command budget")
+        if not set(row["tests"]).issubset(request["test_commands"]):
+            _workflow_fail("variant test command is outside the admitted request")
         for key in ("expected_observation", "counterexample"):
             _workflow_text(row[key], f"variant {key}")
         relation_ids = row["euler_relation_ids"]
@@ -3365,7 +3367,7 @@ def validate_creative_workflow_handoff(
     request: Mapping[str, Any],
     result: Mapping[str, Any],
     review: Mapping[str, Any],
-    eligible_roles: Sequence[str],
+    eligible_occurrences: Sequence[tuple[int, str]],
     dispatch_order: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     handoff = _workflow_object(
@@ -3391,9 +3393,9 @@ def validate_creative_workflow_handoff(
     ):
         _workflow_fail("writer handoff does not match reviewed selection")
     if (
-        handoff["writer_role"] not in eligible_roles
-        or type(handoff["manifest_order"]) is not int
+        type(handoff["manifest_order"]) is not int
         or handoff["manifest_order"] < 1
+        or (handoff["manifest_order"], handoff["writer_role"]) not in eligible_occurrences
     ):
         _workflow_fail("writer occurrence is not eligible")
     if (

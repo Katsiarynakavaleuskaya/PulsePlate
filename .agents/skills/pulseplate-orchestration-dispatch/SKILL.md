@@ -145,7 +145,9 @@ not enter this procedure.
    <workflow.prepared.json> --native-result-stdin` through host stdin. The user
    does not transcribe or create `model_intake.json`. On malformed/incomplete
    output the returned stage records only `INVALID_NATIVE_RESULT`; no validated
-   intake or completion claim follows.
+   intake or completion claim follows. Variant `tests` may name only exact
+   commands from the coordinator-approved `request.test_commands`; model text
+   cannot introduce another executable check.
 3. Coordinator inspects content, goal coverage, Euler relation and
    counterexample evidence. Capture its separate structured review and run
    `workflow-review`. Only then capture one exact-file, packet-eligible writer
@@ -153,9 +155,11 @@ not enter this procedure.
    decisions; their JSON, hashes and role labels do not authenticate a human,
    execute the writer, or grant repository/merge authority by themselves.
 4. Dispatch the selected writer under the normal packet's separate
-   implementation handoff. Compare the actual Git diff paths, elapsed candidate
-   time and executed focused-test count with the selected exact files and
-   request budget; record an overrun as a failed/pending outcome. Review the
+   implementation handoff. Execute only the reviewed
+   `request.test_commands`, never prose or commands outside that list. Compare
+   the actual Git diff paths, elapsed candidate time and executed focused-test
+   count with the selected exact files and request budget; record an overrun
+   as a failed/pending outcome. Review the
    actual patch and test results against each accepted criterion in Work
    Review. Export a sanitized owned capsule using `workflow-export`, then let
    the host upload, read the same document ID, download the archive, compare its

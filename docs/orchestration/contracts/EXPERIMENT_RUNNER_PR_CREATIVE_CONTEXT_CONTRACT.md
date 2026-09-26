@@ -43,7 +43,10 @@ exact paths, assumptions, expected observation, counterexample, tests, risks
 and Euler relation IDs. Lexical distinctness is checked, while substantive
 diversity and goal fitness remain coordinator review questions. The legacy
 `originality`, `groundedness`, `hallucination_risk` and `promotion_decision`
-fields have no operational selection authority.
+fields have no operational selection authority. Variant `tests` must be exact
+members of the coordinator-approved `request.test_commands`; the host executes
+only that admitted command list after reviewing the selected variant. The
+variant cannot introduce another executable command.
 
 Separate immutable, private local stages record `prepared`, `returned`,
 `validated`, `reviewed` and `admitted`. A malformed native result may leave a
