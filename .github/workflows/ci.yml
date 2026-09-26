@@ -1073,27 +1073,29 @@ jobs:
               -o junit_family=legacy
           done
 
-      - name: Measure OPS context CLI coverage
+      - name: Measure OPS CLI coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
         run: |
           set -euo pipefail
           python -m coverage run --rcfile=/dev/null --branch \
-            --include='scripts/ops/ops_context_report.py' \
+            --include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py' \
             --data-file=.coverage.ops-context -m pytest -q -p no:xdist \
-            tests/test_ops_context_report.py
+            tests/test_ops_context_report.py tests/test_staging_runtime_diagnostics.py
           python -m coverage xml --rcfile=/dev/null \
             --data-file=.coverage.ops-context -o coverage-ops-context.xml
           python - <<'PY'
           from xml.etree import ElementTree
 
           classes = ElementTree.parse("coverage-ops-context.xml").findall(".//class")
-          if (
-              len(classes) != 1
-              or classes[0].get("filename") != "scripts/ops/ops_context_report.py"
-              or not classes[0].findall("./lines/line")
-          ):
-              raise SystemExit("OPS context coverage must contain its nonempty source line inventory")
+          expected = {
+              "scripts/ops/ops_context_report.py",
+              "scripts/ops/staging_runtime_diagnostics.py",
+          }
+          if len(classes) != len(expected) or {c.get("filename") for c in classes} != expected:
+              raise SystemExit("OPS coverage has missing or unexpected source files")
+          if any(not c.findall("./lines/line") for c in classes):
+              raise SystemExit("OPS coverage must contain nonempty source line inventories")
           PY
 
       - name: Finalize coverage artifacts
