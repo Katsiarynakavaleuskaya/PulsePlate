@@ -4839,16 +4839,18 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
 
 
 def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
-    """Tooling omission cannot leave this CLI's canonical diff gate unmeasured."""
+    """Both OPS CLIs must feed the canonical diff gate."""
     workflow = _load_ci_workflow()
-    measure = _job_step_by_name(
-        workflow, job_id="test-pr", step_name="Measure OPS context CLI coverage"
-    )
+    measure = _job_step_by_name(workflow, job_id="test-pr", step_name="Measure OPS CLI coverage")
     run = str(measure["run"])
     assert "--rcfile=/dev/null --branch" in run
-    assert "--include='scripts/ops/ops_context_report.py'" in run
+    assert (
+        "--include='scripts/ops/ops_context_report.py,scripts/ops/staging_runtime_diagnostics.py'"
+        in run
+    )
     assert "--data-file=.coverage.ops-context -m pytest -q -p no:xdist" in run
     assert "tests/test_ops_context_report.py" in run
+    assert "tests/test_staging_runtime_diagnostics.py" in run
     assert "--data-file=.coverage.ops-context -o coverage-ops-context.xml" in run
     assert "--append" not in run
     assert "continue-on-error" not in measure and "if" not in measure
@@ -4888,7 +4890,18 @@ def test_ops_context_coverage_is_separate_and_required_by_diff_gate() -> None:
 
 
 @pytest.mark.parametrize(
-    "case", ["valid", "zero_hit", "missing", "malformed", "empty", "no_class", "wrong", "duplicate"]
+    "case",
+    [
+        "valid",
+        "zero_hit",
+        "missing",
+        "malformed",
+        "empty",
+        "no_class",
+        "wrong",
+        "duplicate",
+        "missing_staging",
+    ],
 )
 def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, case: str) -> None:
     """Execute the workflow's actual producer check with controlled XML documents."""
@@ -4896,9 +4909,7 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
     import sys
 
     workflow = _load_ci_workflow()
-    measure = _job_step_by_name(
-        workflow, job_id="test-pr", step_name="Measure OPS context CLI coverage"
-    )
+    measure = _job_step_by_name(workflow, job_id="test-pr", step_name="Measure OPS CLI coverage")
     run = str(measure["run"])
     marker = "python - <<'PY'\n"
     assert run.count(marker) == 1
@@ -4907,9 +4918,12 @@ def test_ops_context_workflow_rejects_missing_line_inventory(tmp_path: Path, cas
     hits = "0" if case == "zero_hit" else "1"
     lines = "" if case == "empty" else f'<line number="1" hits="{hits}"/>'
     cls = f'<class filename="{filename}"><lines>{lines}</lines></class>'
+    staging = f'<class filename="scripts/ops/staging_runtime_diagnostics.py"><lines>{lines}</lines></class>'
     raw = "<coverage><packages><package><classes>" + ("" if case == "no_class" else cls)
     if case == "duplicate":
         raw += cls
+    if case != "missing_staging":
+        raw += staging
     raw += "</classes></package></packages></coverage>"
     if case == "malformed":
         raw = "<coverage"
