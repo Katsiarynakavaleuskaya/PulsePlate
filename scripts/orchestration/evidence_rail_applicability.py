@@ -602,15 +602,18 @@ def _validate_packet_projection(packet: Any, *, filename_id: str) -> None:
     pr_phase = packet.get("pr_phase")
     if pr_phase not in PR_PHASES:
         _error()
-    if packet.get("creative_applicability") not in {
-        None,
-        "alternatives",
-        "direct_fix",
-        "not_applicable",
-        "disabled",
-    }:
-        _error()
     creative_choice = packet.get("creative_applicability")
+    if creative_choice is not None and (
+        not isinstance(creative_choice, str)
+        or creative_choice
+        not in {
+            "alternatives",
+            "direct_fix",
+            "not_applicable",
+            "disabled",
+        }
+    ):
+        _error()
     creative_base_id = packet.get("creative_applicability_base_packet_id")
     if creative_choice is None:
         if creative_base_id is not None:

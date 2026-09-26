@@ -47,6 +47,14 @@ fields have no operational selection authority. Variant `tests` must be exact
 members of the coordinator-approved `request.test_commands`; the host executes
 only that admitted command list after reviewing the selected variant. The
 variant cannot introduce another executable command.
+The v1 request admits only bounded, non-shell test forms: `pytest -q` with one
+canonical `tests/*.py` target and optional test node/`--maxfail=1`, the fixed
+`make test-fast|validate-changed|ios-test` targets, or `npm --prefix frontend
+test -- --run` with one `src/*.(test|spec).(js|jsx|ts|tsx)` target. Shell
+operators, traversal and arbitrary executable names are rejected before native
+dispatch. The host resolves the selected executable and runs its parsed argv
+without a shell; adding another platform test form needs a reviewed contract
+change. These syntax limits do not turn a coordinator choice into outcome proof.
 
 Separate immutable, private local stages record `prepared`, `returned`,
 `validated`, `reviewed` and `admitted`. A malformed native result may leave a

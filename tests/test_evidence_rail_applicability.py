@@ -899,6 +899,24 @@ def test_higher_assurance_preempts_declared_creative_alternatives(
     assert _treatments(result)["creative"]["treatment"] == "not_applicable"
 
 
+@pytest.mark.parametrize("phase", ["post_open_review", "merge_ready"])
+def test_declared_invariant_preempts_creative_after_opening_phase(
+    packet_root: Path, tmp_path: Path, phase: str
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["scripts/orchestration/evidence_rail_applicability.py"],
+        invariant_change_classes=["guard"],
+        creative_applicability="alternatives",
+        pr_phase=phase,
+    )
+    result = build_evidence_rail_applicability(
+        _snapshot(packet_root, packet, salt=f"invariant-{phase}")
+    )
+    assert result.rule_id == "higher_assurance"
+    assert _treatments(result)["creative"]["treatment"] == "not_applicable"
+
+
 def test_root_scope_is_already_higher_assurance_for_creative(
     packet_root: Path, tmp_path: Path
 ) -> None:
@@ -931,3 +949,21 @@ def test_creative_packet_field_tamper_is_rejected_by_identity_check(
     absolute_path.write_text(json.dumps(tampered), encoding="utf-8")
     with pytest.raises(EvidenceRailApplicabilityError):
         read_task_packet_snapshot(packet_path)
+
+
+@pytest.mark.parametrize("bad_choice", [[], {}])
+def test_unhashable_creative_applicability_fails_with_stable_category(
+    packet_root: Path, tmp_path: Path, bad_choice: Any
+) -> None:
+    packet = _base_packet(
+        tmp_path,
+        candidate_paths=["tests/test_example.py"],
+        creative_applicability="alternatives",
+    )
+    path = _write_packet(packet_root, packet, salt="malformed-choice")
+    absolute_path = tmp_path / path
+    malformed = json.loads(absolute_path.read_text(encoding="utf-8"))
+    malformed["creative_applicability"] = bad_choice
+    absolute_path.write_text(json.dumps(malformed), encoding="utf-8")
+    with pytest.raises(EvidenceRailApplicabilityError, match="INVALID_INPUT"):
+        read_task_packet_snapshot(path)

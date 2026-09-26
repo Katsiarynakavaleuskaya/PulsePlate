@@ -9,6 +9,7 @@ import io
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any
 import uuid
 
@@ -1694,6 +1695,11 @@ def test_operational_workflow_binds_full_dod_euler_review_and_one_writer() -> No
         schema["$defs"]["request"]["properties"]["budget"]["properties"]["max_files"]["maximum"]
         == 3
     )
+    request_properties = schema["$defs"]["request"]["properties"]
+    assert request_properties["euler"]["properties"]["relations"]["minItems"] == 1
+    command_schema = request_properties["test_commands"]["items"]
+    assert re.fullmatch(command_schema["pattern"], request["test_commands"][0])
+    assert not re.search(command_schema["not"]["pattern"], request["test_commands"][0])
     result = validate_creative_workflow_native_result(_operational_native(request), request)
     review = validate_creative_workflow_review(_operational_review(request), request, result)
     handoff = {
@@ -1860,6 +1866,97 @@ def test_operational_native_rejects_unapproved_test_command() -> None:
     result["variants"][0]["tests"] = ["pytest -q tests/test_unreviewed.py"]
     with pytest.raises(ExperimentRunnerCreativeContextContractError, match="test command"):
         validate_creative_workflow_native_result(result, request)
+
+
+def test_operational_request_rejects_empty_euler_relations() -> None:
+    request = _operational_request()
+    request["euler"]["relations"] = []
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="Euler relations"):
+        validate_creative_workflow_request(request)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rm -rf tests",
+        "pytest -q tests/test_example.py; rm -rf tests",
+        "pytest -q tests/test_example.py | cat",
+        "pytest -q tests/../test_example.py",
+        "pytest -q -p arbitrary tests/test_example.py",
+        "make clean",
+        "npm --prefix frontend run deploy",
+    ],
+)
+def test_operational_request_rejects_unsafe_test_command(command: str) -> None:
+    request = _operational_request()
+    request["test_commands"] = [command]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="test command"):
+        validate_creative_workflow_request(request)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest -q tests/test_example.py",
+        "pytest -q tests/test_example.py::test_case --maxfail=1",
+        "make test-fast",
+        "make validate-changed",
+        "make ios-test",
+        "npm --prefix frontend test -- --run src/api/client.test.ts",
+    ],
+)
+def test_operational_request_accepts_bounded_test_commands(command: str) -> None:
+    request = _operational_request()
+    request["test_commands"] = [command]
+    assert validate_creative_workflow_request(request) == request
+
+
+@pytest.mark.parametrize("bad_id", [[], {}])
+def test_operational_native_rejects_unhashable_euler_id(bad_id: Any) -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    result["variants"][0]["euler_relation_ids"] = [bad_id]
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="Euler relation"):
+        validate_creative_workflow_native_result(result, request)
+
+
+@pytest.mark.parametrize("field", ["criteria_coverage", "euler_assessment"])
+def test_operational_review_rejects_unhashable_ids(field: str) -> None:
+    request = _operational_request()
+    result = _operational_native(request)
+    review = _operational_review(request)
+    review[field][0]["id"] = []
+    with pytest.raises(ExperimentRunnerCreativeContextContractError):
+        validate_creative_workflow_review(review, request, result)
+
+
+@pytest.mark.parametrize(
+    "remote",
+    [
+        "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git",
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate.git",
+        "ssh://git@github.com/Katsiarynakavaleuskaya/PulsePlate.git",
+    ],
+)
+def test_operational_git_identity_accepts_canonical_origin_urls(
+    remote: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outputs = {
+        ("remote", "get-url", "origin"): remote,
+        ("rev-parse", "--verify", "origin/main^{commit}"): BASE_SHA,
+        ("rev-parse", "--verify", "HEAD^{commit}"): HEAD_SHA,
+    }
+
+    def fake_run_git(
+        args: list[str], *, cwd: Path, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == cli.REPO_ROOT
+        assert check is False
+        assert args[0] == "--no-replace-objects"
+        return subprocess.CompletedProcess(args, 0, outputs[tuple(args[1:])], "")
+
+    monkeypatch.setattr(cli, "run_git", fake_run_git)
+    assert cli._git_identity() == ("Katsiarynakavaleuskaya/PulsePlate", BASE_SHA, HEAD_SHA)
 
 
 def test_operational_writer_occurrence_comes_from_canonical_bridge(
@@ -2053,6 +2150,43 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     )
     prepared = output_dir / "workflow.prepared.json"
     assert prepared.exists()
+    invalid_dir = cli.CREATIVE_CONTEXT_ROOT / "invalid-native-case"
+    assert (
+        cli.main(
+            [
+                "workflow-prepare",
+                "--packet",
+                packet_path.relative_to(tmp_path).as_posix(),
+                "--request",
+                request_path.relative_to(tmp_path).as_posix(),
+                "--output-dir",
+                str(invalid_dir),
+            ]
+        )
+        == 0
+    )
+    invalid_native = _operational_native(request)
+    for variant in invalid_native["variants"]:
+        variant["paths"] = ["tests/test_example.py"]
+    invalid_native["variants"][0]["euler_relation_ids"] = [[]]
+    monkeypatch.setattr(
+        cli.sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(invalid_native).encode()))
+    )
+    assert (
+        cli.main(
+            [
+                "workflow-ingest",
+                "--workflow",
+                str(invalid_dir / "workflow.prepared.json"),
+                "--native-result-stdin",
+            ]
+        )
+        == 1
+    )
+    assert json.loads((invalid_dir / "workflow.returned.json").read_text())["intake_error"] == (
+        "INVALID_NATIVE_RESULT"
+    )
+    assert not (invalid_dir / "workflow.validated.json").exists()
     native = _operational_native(request)
     for variant in native["variants"]:
         variant["paths"] = ["tests/test_example.py"]
@@ -2158,6 +2292,51 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     assert (
         cli.CREATIVE_CONTEXT_ROOT / "restored/work_review.md"
     ).read_text() == "Observed C1 and C2 after local checks"
+    original_archive = archive.read_bytes()
+    original_safe_read = cli._safe_workflow_file
+
+    def replace_archive_after_verified_read(raw_path: str, *, maximum: int) -> bytes:
+        data = original_safe_read(raw_path, maximum=maximum)
+        if raw_path.endswith("/creative_workflow_capsule.zip"):
+            archive.write_bytes(b"changed after the verified read")
+        return data
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cli, "_safe_workflow_file", replace_archive_after_verified_read)
+        try:
+            assert (
+                cli.main(
+                    [
+                        "workflow-verify-archive",
+                        "--archive",
+                        str(archive),
+                        "--sha256",
+                        hashlib.sha256(original_archive).hexdigest(),
+                        "--restore-dir",
+                        "race-restored",
+                    ]
+                )
+                == 0
+            )
+        finally:
+            archive.write_bytes(original_archive)
+    restored_review = cli.CREATIVE_CONTEXT_ROOT / "restored/work_review.md"
+    before_duplicate = restored_review.read_bytes()
+    assert (
+        cli.main(
+            [
+                "workflow-verify-archive",
+                "--archive",
+                str(archive),
+                "--sha256",
+                hashlib.sha256(original_archive).hexdigest(),
+                "--restore-dir",
+                "restored",
+            ]
+        )
+        == 1
+    )
+    assert restored_review.read_bytes() == before_duplicate
     assert (
         cli.main(
             [

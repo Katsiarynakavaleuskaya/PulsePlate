@@ -3026,6 +3026,15 @@ CREATIVE_WORKFLOW_REVIEW_VERSION = "creative_workflow_review.v1"
 CREATIVE_WORKFLOW_HANDOFF_VERSION = "creative_workflow_handoff.v1"
 _WORKFLOW_SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 _WORKFLOW_CRITERION_RE = re.compile(r"^C[1-9][0-9]{0,2}$")
+_WORKFLOW_PYTEST_COMMAND_RE = re.compile(
+    r"^pytest -q (tests/[A-Za-z0-9_./-]+\.py)(?:::[A-Za-z_][A-Za-z0-9_]*)*" r"(?: --maxfail=1)?$"
+)
+_WORKFLOW_FRONTEND_COMMAND_RE = re.compile(
+    r"^npm --prefix frontend test -- --run (src/[A-Za-z0-9_./-]+\.(?:test|spec)\.(?:js|jsx|ts|tsx))$"
+)
+_WORKFLOW_MAKE_TEST_COMMANDS = frozenset(
+    {"make test-fast", "make validate-changed", "make ios-test"}
+)
 _WORKFLOW_STAGES = ("prepared", "returned", "validated", "reviewed", "admitted")
 CREATIVE_WORKFLOW_STAGE_TYPE = "creative_workflow_stage"
 CREATIVE_WORKFLOW_POLICY_VERSION = "creative_workflow.policy.v1"
@@ -3079,6 +3088,23 @@ def _workflow_path(value: Any, label: str) -> str:
     ):
         _workflow_fail(f"{label} must be a canonical repo-relative path")
     return path
+
+
+def _workflow_test_command(value: Any) -> str:
+    command = _workflow_text(value, "test command", maximum=240)
+    if re.search(r"[;&|<>$`\\\r\n\t]", command):
+        _workflow_fail("test command contains shell syntax")
+    if command in _WORKFLOW_MAKE_TEST_COMMANDS:
+        return command
+    python_target = _WORKFLOW_PYTEST_COMMAND_RE.fullmatch(command)
+    if python_target is not None:
+        _workflow_path(python_target.group(1), "test command target")
+        return command
+    frontend_target = _WORKFLOW_FRONTEND_COMMAND_RE.fullmatch(command)
+    if frontend_target is not None:
+        _workflow_path("frontend/" + frontend_target.group(1), "test command target")
+        return command
+    _workflow_fail("test command is not an approved focused test target")
 
 
 def _workflow_digest(value: Any, label: str) -> str:
@@ -3177,7 +3203,7 @@ def validate_creative_workflow_request(payload: Mapping[str, Any]) -> dict[str, 
     _workflow_path(euler["artifact_ref"], "Euler artifact ref")
     _workflow_digest(euler["artifact_sha256"], "Euler artifact digest")
     relations = euler["relations"]
-    if not isinstance(relations, list) or len(relations) > 100:
+    if not isinstance(relations, list) or not relations or len(relations) > 100:
         _workflow_fail("Euler relations are invalid")
     relation_ids: list[str] = []
     for row in relations:
@@ -3209,7 +3235,7 @@ def validate_creative_workflow_request(payload: Mapping[str, Any]) -> dict[str, 
     if not isinstance(tests, list) or not tests or len(tests) > budget["max_test_commands"]:
         _workflow_fail("test command count exceeds budget")
     for command in tests:
-        _workflow_text(command, "test command", maximum=240)
+        _workflow_test_command(command)
     return request
 
 
@@ -3288,9 +3314,12 @@ def validate_creative_workflow_native_result(
         relation_ids = row["euler_relation_ids"]
         if not isinstance(relation_ids, list) or len(relation_ids) > 100:
             _workflow_fail("variant Euler relations are invalid")
-        if any(item not in euler_ids for item in relation_ids) or len(set(relation_ids)) != len(
-            relation_ids
-        ):
+        checked_relation_ids = [
+            _workflow_text(item, "variant Euler relation id", maximum=96) for item in relation_ids
+        ]
+        if any(item not in euler_ids for item in checked_relation_ids) or len(
+            set(checked_relation_ids)
+        ) != len(checked_relation_ids):
             _workflow_fail("variant Euler relation is unknown or duplicated")
     baseline = _workflow_object(
         result["unchanged_baseline"], {"expected_observation", "risk"}, "unchanged baseline"
@@ -3330,14 +3359,15 @@ def validate_creative_workflow_review(
         _workflow_fail("selected variant is unknown")
     coverage = review["criteria_coverage"]
     required_ids = {row["id"] for row in request["criteria"]}
-    if (
-        not isinstance(coverage, list)
-        or {row.get("id") for row in coverage if isinstance(row, dict)} != required_ids
-        or len(coverage) != len(required_ids)
-    ):
+    if not isinstance(coverage, list) or len(coverage) != len(required_ids):
         _workflow_fail("review omitted an accepted criterion")
-    for row in coverage:
-        row = _workflow_object(row, {"id", "status", "evidence"}, "criterion review")
+    coverage_rows = [
+        _workflow_object(row, {"id", "status", "evidence"}, "criterion review") for row in coverage
+    ]
+    coverage_ids = [_workflow_text(row["id"], "criterion review id") for row in coverage_rows]
+    if set(coverage_ids) != required_ids:
+        _workflow_fail("review omitted an accepted criterion")
+    for row in coverage_rows:
         if row["status"] != "supported":
             _workflow_fail("selected variant has unsupported criterion")
         _workflow_text(row["evidence"], "criterion review evidence")
@@ -3345,17 +3375,17 @@ def validate_creative_workflow_review(
         _workflow_fail("selected variant omits an accepted criterion")
     euler = review["euler_assessment"]
     relation_ids = {row["id"] for row in request["euler"]["relations"]}
-    if (
-        not relation_ids
-        or not isinstance(euler, list)
-        or {row.get("id") for row in euler if isinstance(row, dict)} != relation_ids
-        or len(euler) != len(relation_ids)
-    ):
+    if not relation_ids or not isinstance(euler, list) or len(euler) != len(relation_ids):
+        _workflow_fail("Euler assessment is absent or incomplete")
+    euler_rows = [
+        _workflow_object(row, {"id", "status", "evidence"}, "Euler assessment") for row in euler
+    ]
+    euler_ids = [_workflow_text(row["id"], "Euler assessment id") for row in euler_rows]
+    if set(euler_ids) != relation_ids:
         _workflow_fail("Euler assessment is absent or incomplete")
     if not relation_ids.issubset(selected["euler_relation_ids"]):
         _workflow_fail("selected variant omits an Euler relation")
-    for row in euler:
-        row = _workflow_object(row, {"id", "status", "evidence"}, "Euler assessment")
+    for row in euler_rows:
         if row["status"] != "satisfied":
             _workflow_fail("unresolved Euler relation blocks selection")
         _workflow_text(row["evidence"], "Euler evidence")

@@ -540,7 +540,7 @@ def _git_identity() -> tuple[str, str, str]:
 
     remote = query("remote", "get-url", "origin")
     matched = re.fullmatch(
-        r"(?:git@github\.com:|https://github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?",
+        r"(?:git@github\.com:|https://github\.com/|ssh://git@github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?",
         remote,
     )
     if matched is None:
@@ -937,7 +937,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
     if hashlib.sha256(raw).hexdigest() != args.sha256:
         raise ExperimentRunnerCreativeContextCliError("downloaded capsule hash mismatch")
     try:
-        with zipfile.ZipFile(archive_path, "r") as archive:
+        with zipfile.ZipFile(io.BytesIO(raw), "r") as archive:
             infos = archive.infolist()
             names = [info.filename for info in infos]
             if (
@@ -999,19 +999,30 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 raise ExperimentRunnerCreativeContextCliError("restored intake was invalid")
     except (zipfile.BadZipFile, RuntimeError, KeyError) as exc:
         raise ExperimentRunnerCreativeContextCliError("capsule could not be restored") from exc
-    restore_dir = (
-        _resolve_output_dir(Path(args.restore_dir), create=False)
-        if Path(args.restore_dir).exists()
-        else None
-    )
-    if restore_dir is not None:
-        raise ExperimentRunnerCreativeContextCliError("restore directory already exists")
-    restore_dir = _resolve_output_dir(Path(args.restore_dir), create=True)
-    for name, data in extracted.items():
-        target = restore_dir / name
-        with target.open("xb") as handle:
-            os.fchmod(handle.fileno(), 0o600)
-            handle.write(data)
+    requested_restore = Path(args.restore_dir)
+    if requested_restore.name in {"", ".", ".."} or ".." in requested_restore.parts:
+        raise ExperimentRunnerCreativeContextCliError("restore directory must name a safe leaf")
+    parent = _resolve_output_dir(requested_restore.parent, create=True)
+    restore_dir = parent / requested_restore.name
+    _reject_symlink_components(restore_dir, label="restore directory")
+    try:
+        restore_dir.mkdir(mode=0o700)
+    except FileExistsError as exc:
+        raise ExperimentRunnerCreativeContextCliError("restore directory already exists") from exc
+    except OSError as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "restore directory cannot be created"
+        ) from exc
+    try:
+        for name, data in extracted.items():
+            target = restore_dir / name
+            with target.open("xb") as handle:
+                os.fchmod(handle.fileno(), 0o600)
+                handle.write(data)
+    except OSError as exc:
+        raise ExperimentRunnerCreativeContextCliError(
+            "restored capsule could not be written"
+        ) from exc
     print(f"PASS: downloaded capsule hash and restore verified at {_display_path(restore_dir)}")
     return 0
 

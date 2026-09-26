@@ -156,7 +156,11 @@ not enter this procedure.
    execute the writer, or grant repository/merge authority by themselves.
 4. Dispatch the selected writer under the normal packet's separate
    implementation handoff. Execute only the reviewed
-   `request.test_commands`, never prose or commands outside that list. Compare
+   `request.test_commands`, never prose or commands outside that list. The
+   request validator accepts only bounded test-target forms; parse the exact
+   chosen command into argv, resolve its executable to a trusted absolute path,
+   and run it with `shell=False` from the owned checkout. Never interpolate it
+   into a shell command or accept model-authored environment expansion. Compare
    the actual Git diff paths, elapsed candidate time and executed focused-test
    count with the selected exact files and request budget; record an overrun
    as a failed/pending outcome. Review the
