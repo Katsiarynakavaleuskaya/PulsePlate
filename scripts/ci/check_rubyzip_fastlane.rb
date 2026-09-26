@@ -22,7 +22,7 @@ module RubyzipFastlaneGuard
     'GHSA-3q5q-f79q-7hr2-withdrawn-duplicate-of-CVE-2017-5946' => '1.2.1'
   }.freeze
   RETAINED_REQUIREMENTS = {
-    'CFPropertyList' => '= 3.0.8', 'public_suffix' => '< 7',
+    'CFPropertyList' => '= 3.0.8', 'public_suffix' => '< 8',
     'jwt' => '>= 3.2.0', 'json' => '>= 2.19.9', 'excon' => '>= 1.5.0'
   }.freeze
   MAX_BYTES = 2 * 1024 * 1024
