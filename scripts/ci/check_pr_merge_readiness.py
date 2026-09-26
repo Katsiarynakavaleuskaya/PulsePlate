@@ -830,7 +830,10 @@ def _read_material_mapping_artifact(
 ) -> str:
     """Read the exact PR-head mapping blob when policy and material are separate."""
     if not split_checkout:
-        return read_mapping_artifact(pr_number)
+        artifact_text = read_mapping_artifact(pr_number)
+        if not isinstance(artifact_text, str):
+            raise ValueError("canonical review mapping artifact reader returned invalid text")
+        return artifact_text
     git = shutil.which("git")
     if not git:
         raise ValueError("git not found in PATH")
