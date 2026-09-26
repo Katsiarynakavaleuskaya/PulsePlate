@@ -825,6 +825,49 @@ def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
     assert ".write_text(" not in writer_source
 
 
+def test_evidence_relation_audit_stays_offline_and_uses_private_no_replace_writer() -> None:
+    module_path = REPO_ROOT / "scripts/evals/evidence_relation_audit.py"
+    core_path = REPO_ROOT / "core/evidence/relations.py"
+    source = module_path.read_text(encoding="utf-8")
+    core_source = core_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    core_tree = ast.parse(core_source)
+    forbidden_roots = {
+        "socket",
+        "subprocess",
+        "requests",
+        "httpx",
+        "urllib",
+        "providers",
+        "app",
+        "sqlalchemy",
+        "redis",
+    }
+    for module_tree in (tree, core_tree):
+        imports = (
+            node.module.split(".")[0]
+            for node in ast.walk(module_tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        names = (
+            alias.name.split(".")[0]
+            for node in ast.walk(module_tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        )
+        assert not forbidden_roots.intersection((*imports, *names))
+    writer = _function_source(module_path, "write_report")
+    assert "os.O_NOFOLLOW" in writer
+    assert "os.O_EXCL" in writer
+    assert "0o600" in writer
+    assert "os.link(stage, name" in writer
+    assert "os.fsync(fd)" in writer
+    assert "os.fsync(parent)" in writer
+    assert "os.replace" not in source
+    assert "os.rename" not in source
+    assert ".write_text(" not in writer
+
+
 def _thaw_invariant_episode_policy(value: object) -> object:
     if isinstance(value, Mapping):
         return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
