@@ -2165,6 +2165,23 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         )
         == 0
     )
+    deeply_nested_native = b"[" * 10_000 + b"0" + b"]" * 10_000
+    monkeypatch.setattr(cli.sys, "stdin", io.TextIOWrapper(io.BytesIO(deeply_nested_native)))
+    assert (
+        cli.main(
+            [
+                "workflow-ingest",
+                "--workflow",
+                str(invalid_dir / "workflow.prepared.json"),
+                "--native-result-stdin",
+            ]
+        )
+        == 1
+    )
+    assert json.loads((invalid_dir / "workflow.returned.json").read_text())["intake_error"] == (
+        "INVALID_NATIVE_RESULT"
+    )
+    assert not (invalid_dir / "workflow.validated.json").exists()
     invalid_native = _operational_native(request)
     for variant in invalid_native["variants"]:
         variant["paths"] = ["tests/test_example.py"]
@@ -2354,6 +2371,21 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     (source_dir / "euler.json").write_text('{"relations": []}', encoding="utf-8")
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="digest changed"):
         cli._load_workflow_stage(str(output_dir / "workflow.admitted.json"), "admitted")
+
+
+@pytest.mark.parametrize("bad_error", [[], {}])
+def test_operational_returned_stage_rejects_non_scalar_error(bad_error: Any) -> None:
+    returned = {
+        "schema_version": "creative_workflow.v1",
+        "stage": "returned",
+        "request": _operational_request(),
+        "native_result": None,
+        "review": None,
+        "handoff": None,
+        "intake_error": bad_error,
+    }
+    with pytest.raises(ExperimentRunnerCreativeContextContractError, match="error category"):
+        build_creative_workflow_stage(returned, upstream_fingerprint=SHA256)
 
 
 def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(

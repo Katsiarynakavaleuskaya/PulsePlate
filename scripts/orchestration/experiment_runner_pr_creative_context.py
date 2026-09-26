@@ -464,7 +464,7 @@ def _workflow_json_bytes(raw: bytes, *, maximum: int = MAX_WORKFLOW_JSON_BYTES) 
             object_pairs_hook=_reject_workflow_duplicate_keys,
             parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("nonfinite JSON")),
         )
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError, RecursionError) as exc:
         raise ExperimentRunnerCreativeContextCliError("workflow JSON is malformed") from exc
     if not isinstance(value, dict):
         raise ExperimentRunnerCreativeContextCliError("workflow JSON must be an object")

@@ -3497,7 +3497,10 @@ def validate_creative_workflow_stage(payload: Mapping[str, Any]) -> dict[str, An
     elif stage["stage"] == "returned":
         if any(stage[key] is not None for key in ("native_result", "review", "handoff")):
             _workflow_fail("returned stage contains unvalidated evidence")
-        if stage["intake_error"] not in {None, "INVALID_NATIVE_RESULT"}:
+        intake_error = stage["intake_error"]
+        if intake_error is not None and (
+            not isinstance(intake_error, str) or intake_error != "INVALID_NATIVE_RESULT"
+        ):
             _workflow_fail("returned stage error category is invalid")
     else:
         if stage["intake_error"] is not None:
