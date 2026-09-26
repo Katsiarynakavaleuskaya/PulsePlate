@@ -762,8 +762,10 @@ def test_cli_fails_cleanly_when_flag_value_is_missing(
     "changed_file,docs_only",
     (
         ("scripts/ops/ops_context_report.py", False),
+        ("scripts/ops/staging_runtime_diagnostics.py", False),
         ("docs/deploy/OPS_CONTEXT_SOURCES.json", True),
         ("tests/test_ops_context_report.py", False),
+        ("tests/test_staging_runtime_diagnostics.py", False),
     ),
 )
 @pytest.mark.parametrize("companion_docs", [False, True])
@@ -792,6 +794,7 @@ def test_ops_context_inputs_independently_route_backend_coverage(
     (
         "scripts/ops/unrelated_report.py",
         "scripts/ops/ops_context_report.py.bak",
+        "scripts/ops/staging_runtime_diagnostics.py.bak",
         "docs/deploy/OPS_CONTEXT_SOURCES.example.json",
         "docs/deploy/unrelated.md",
     ),

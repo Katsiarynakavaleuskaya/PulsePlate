@@ -534,6 +534,52 @@ only the offline reference/report surface. OPS-02 DB lifecycle regression repair
 OPS-03 minimal host/DB/service observability with tested human alert delivery, and OPS-04
 measured storage/FinOps preserving recovery requirements remain separate backlog-governed lanes.
 
+## One-shot staging runtime diagnostic (OPS-03A)
+
+After the owning PR is merged and staging access is authenticated, run one
+bounded read-only check from the operator machine:
+
+```bash
+SSH_HOST_STAGING=<authenticated-staging-address> \
+  python scripts/ops/staging_runtime_diagnostics.py --environment staging --format json
+```
+
+The CLI uses the dedicated `pulseplate-ops` key and known-hosts record named
+in `docs/deploy/STAGING.md`. The fixed SSH probe calls the installed full
+`check_staging_security.py` on the selected all-profile Compose render, then
+requires one running, non-one-off `app` and `postgres` under exact staging
+Compose labels. It binds their configured images and compares container ID,
+image ID, the native `docker compose config --hash` result for each selected
+service, and start time before and after the observation. A changed or
+ambiguous hash fails closed. From the selected app container it requests
+`/health` and `/ready` separately with redirects and ambient proxies disabled
+and opens a short-lived PostgreSQL read-only session with the existing CA and
+passfile under `sslmode=verify-full`. Ambient libpq overrides fail closed before
+connection. Only fixed queries observe database/role,
+server version, recovery, own-session TLS and aggregate activity when visible.
+Limited role visibility is `unknown`, never a fabricated zero.
+
+The JSON schema is `pulseplate.staging-runtime-diagnostics.v1`: UTC
+`observation_window.started_at` is captured immediately before SSH and
+`observation_window.completed_at` immediately after its response. `observed_at`
+equals completion; it does not imply every HTTP/DB fact was sampled at that
+instant. The report also records `environment=staging`, bounded `scope`, a SHA-256 object
+fingerprint, `status`, separate `http` and `database` facts, `unknowns` and
+coded `errors`. `complete` means a complete observation, not service health;
+`degraded` means an observed HTTP or DB failure; `partial` means visibility was
+limited. Valid measured degradation exits 0. Invalid CLI input exits 2.
+Transport, receipt, object selection, DB/role/TLS identity mismatch, malformed
+native output or container generation drift exits 3 without a JSON success
+report. No raw Compose environment, DSN, password, SQL, client address or
+native stderr is published.
+
+Store detailed sanitized evidence only in a separately permission-checked
+owner-only archive. The shared INFRA plan/capsule and Execution Tracker may
+carry sanitized outcome status and links, not the diagnostic archive: their
+current sharing grants writer access to anyone with the link. A staging
+observation does not establish alert delivery, production readiness, release
+authority or completion of broader OPS-03/OPS-04 work.
+
 ## DB engine lifecycle (OPS-02)
 
 `core.db` identifies a configured connection by its complete parsed SQLAlchemy URL,

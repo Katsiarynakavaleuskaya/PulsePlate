@@ -37,15 +37,45 @@ If it is not recorded here — it does not exist.
   - DoD: Prove both environments/all four services, safe bounded readers, closed observation validation, exact freshness boundaries, cross-alternative conflicts, sanitized errors, no external operational calls and actual role-pack source bytes. Complete current-head repository/PR gates and retain separate MERGED_REPO, MAIN_VERIFIED, HOST_ACTIVATED and ALERT_DELIVERY_TESTED receipts only when observed. Follow-up lanes remain open until their own approved acceptance evidence exists.
 
 <a id="ledger-p1-ops02-db-lifecycle"></a>
-- [ ] P1: OPS-02 DB engine identity and session lifecycle
+- [x] P1: OPS-02 DB engine identity and session lifecycle
   - Owner: backend-engineer / agent-coordinator
   - Priority: P1
   - Target PR: [#2405](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2405) (`codex/ops02-db-engine-lifecycle`)
-  - Status: PR #2405 open; post-open lifecycle remediation in progress. Current-head CI, review closeout, merge and post-merge verification are pending.
+  - Status: PR #2405 merged on 2026-09-24 at `b140f0e07f788c0acacb141bb8e4073884e1774e` (authenticated PR receipt). This closes the repository DB lifecycle implementation item; current-main health, staging runtime diagnostics and alert delivery require their own evidence.
   - Carryover (EN): PR #2397 delivered the OPS-01 offline inventory. OPS-02 repairs only repository DB engine identity and session lifecycle; OPS-03 observability, OPS-04 storage/FinOps, host activation and alert delivery remain separate.
   - Reason (EN): The current getter compares a password-masked engine URL with an unmasked configuration and lifecycle paths can expose an engine/factory mismatch or retire an async engine synchronously.
   - Links: `core/db.py`, `core/db_fallback.py`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
   - DoD: Same fully parsed URL reuses an engine; candidate failure preserves the prior pair; supported new session acquisitions bind to the selected engine; replacement disposes owned sync or awaited async resources. Prove focused SQLite, native PostgreSQL and current-head PR gates without asserting closure of previously issued sessions.
+
+<a id="ledger-p1-ops03a-staging-runtime-diagnostics"></a>
+- [ ] P1: OPS-03A one-shot private staging runtime diagnostics
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: [#2415](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2415) (`codex/ops03a-staging-runtime-diagnostics`)
+  - Status: Implementation in progress; live staging observation, PR closeout and merge remain unproven.
+  - Reason for deferral: OPS-01 was offline and OPS-02 repaired repository DB lifecycle. Neither proved the current private staging host, app readiness or authenticated PostgreSQL path. This bounded diagnostic needs its own current-head gates and one authorized read-only post-merge host observation.
+  - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, `docs/deploy/STAGING.md`, `scripts/ops/staging_runtime_diagnostics.py`.
+  - DoD: Exact staging SSH/receipt and unique container identity, separate `/health` and `/ready` results, verify-full file-backed read-only DB observations with unknown visibility, sanitized versioned JSON and deterministic failure codes; focused/CI coverage and review gates; after authorized merge, preserve an owner-only verified archive and same-ID sanitized Drive readback. No deployment or alert-delivery claim.
+
+<a id="ledger-p1-ops03-alert-delivery"></a>
+- [ ] P1: OPS-03 host/DB/service observability with human alert delivery
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: TBD dedicated OPS-03 continuation
+  - Status: Open; OPS-03A one-shot observation does not close this item.
+  - Reason for deferral: Alerting, exporter/rule changes and a tested human delivery path are outside the OPS-03A read-only diagnostic scope.
+  - Links: `docs/deploy/OPERATIONAL_SIGNALS.md`, [OPS-03A](#ledger-p1-ops03a-staging-runtime-diagnostics).
+  - DoD: Admit a bounded monitored signal set and prove alert delivery to a human with current-head gates, owner-approved costs and rollback, without treating one diagnostic snapshot as ongoing coverage.
+
+<a id="ledger-p1-ops04-storage-finops"></a>
+- [ ] P1: OPS-04 measured storage and FinOps continuation
+  - Owner: dev-operator / agent-coordinator
+  - Priority: P1
+  - Target PR: TBD dedicated OPS-04 lane
+  - Status: Open.
+  - Reason for deferral: Storage usage, costs and recovery constraints require measured current-host evidence and separately admitted decisions; OPS-03A does not alter resources.
+  - Links: `docs/deploy/STAGING.md`, `docs/deploy/OPERATIONAL_SIGNALS.md`.
+  - DoD: Record exact storage/resource identity, measured utilization and costs, preserve backup/restore and data continuity, and obtain separate approval before any resource mutation.
 
 <a id="ledger-p1-main-idna-installer-regression"></a>
 - [ ] P1: Retire the installer test's historical idna pin assertion
