@@ -557,7 +557,10 @@ Euler import, execution or store access is permitted.
   closed value in both its dry-run recipe and actual bootstrap. The structured
   value is packet-identity-bearing; the sole
   applicability selector recommends operational Creative only for admitted
-  alternatives after higher-assurance preemption. The recommendation is not
+  alternatives in `none` or `pre_open` phases after higher-assurance preemption.
+  An execution-ready design packet without that explicit choice and a
+  `post_open_review`/`merge_ready` packet without a runtime writer receive no
+  Creative recommendation. The recommendation is not
   native execution or writer authority. The host follows the operational
   sequence in `.agents/skills/pulseplate-orchestration-dispatch/SKILL.md`, and
   the additive `creative_workflow.v1` CLI validates returned intake, separate

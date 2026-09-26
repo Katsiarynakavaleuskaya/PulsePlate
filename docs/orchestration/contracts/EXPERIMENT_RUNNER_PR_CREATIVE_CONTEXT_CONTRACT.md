@@ -38,7 +38,9 @@ The host runs the existing native dispatch with full role context and captures
 one actual returned `creative_workflow_native_result.v1` object. It passes that
 object directly to `workflow-ingest --native-result-stdin`; the user need not
 create `model_intake.json`. Exactly three variants and a separate unchanged
-baseline are required. Each variant names criterion IDs, concrete change,
+baseline are required. Each variant names criterion IDs (up to the request's
+100-criterion bound); the selected variant must cover all accepted criteria.
+Variants also name a concrete change,
 exact paths, assumptions, expected observation, counterexample, tests, risks
 and Euler relation IDs. Lexical distinctness is checked, while substantive
 diversity and goal fitness remain coordinator review questions. The legacy
