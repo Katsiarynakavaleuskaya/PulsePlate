@@ -684,6 +684,21 @@ def _canonical_manifest_writer_occurrences(
     return role_order, eligible
 
 
+def _require_inherited_workflow_evidence(
+    stage: Mapping[str, Any], predecessor: Mapping[str, Any] | None
+) -> None:
+    if predecessor is None:
+        return
+    inherited_fields = {
+        "returned": ("request", "native_result", "review", "handoff"),
+        "validated": ("request", "review", "handoff", "intake_error"),
+        "reviewed": ("request", "native_result", "handoff", "intake_error"),
+        "admitted": ("request", "native_result", "review", "intake_error"),
+    }
+    if any(stage[key] != predecessor[key] for key in inherited_fields[stage["stage"]]):
+        raise ExperimentRunnerCreativeContextCliError("workflow inherited evidence changed")
+
+
 def _load_workflow_stage(
     raw_path: str, expected: str, *, require_current_git: bool = True
 ) -> dict[str, Any]:
@@ -711,6 +726,7 @@ def _load_workflow_stage(
     )
     if data["upstream_assets"] != [expected_upstream]:
         raise ExperimentRunnerCreativeContextCliError("workflow stage predecessor changed")
+    _require_inherited_workflow_evidence(data, previous)
     if expected == "validated" and previous is not None and previous["intake_error"] is not None:
         raise ExperimentRunnerCreativeContextCliError("invalid returned intake blocks validation")
     if expected == "admitted":
@@ -845,6 +861,22 @@ def _workflow_admit(args: argparse.Namespace) -> int:
     return 0
 
 
+_ROUTE_LITERAL_CONTEXT_RE = re.compile(
+    r"(?:@(?:router|app)\.(?:get|post|put|patch|delete|options|head|api_route|websocket)"
+    r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
+    re.IGNORECASE,
+)
+
+
+def _contains_local_path_outside_route_context(value: str) -> bool:
+    for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
+        line_start = value.rfind("\n", 0, match.start()) + 1
+        if _ROUTE_LITERAL_CONTEXT_RE.search(value[line_start : match.start()]):
+            continue
+        return True
+    return False
+
+
 def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, bytes]:
     required = {
         *WORKFLOW_STAGE_FILES.values(),
@@ -873,7 +905,7 @@ def _workflow_archive_inputs(directory: Path, include: list[str]) -> dict[str, b
         if (
             SECRET_RE.search(readable)
             or SECRET_VALUE_RE.search(readable)
-            or LOCAL_ABSOLUTE_PATH_RE.search(readable)
+            or _contains_local_path_outside_route_context(readable)
             or re.search(
                 r"/(?:Users|private/var|var/folders|tmp|etc|root)/|file://|"
                 r"(?:https?://[^\s?#]+\?[^\s]+)",
@@ -1001,6 +1033,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
                 )
                 if stage["upstream_assets"] != [expected]:
                     raise ExperimentRunnerCreativeContextCliError("restored stage lineage mismatch")
+                _require_inherited_workflow_evidence(stage, predecessor)
                 predecessor = stage
             if restored_stages["workflow.returned.json"]["intake_error"] is not None:
                 raise ExperimentRunnerCreativeContextCliError("restored intake was invalid")

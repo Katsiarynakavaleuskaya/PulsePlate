@@ -2273,6 +2273,24 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         )
         == 0
     )
+    reviewed_path = output_dir / "workflow.reviewed.json"
+    reviewed_original = reviewed_path.read_bytes()
+    reviewed_forged = json.loads(reviewed_original)
+    reviewed_forged["native_result"]["variants"][0][
+        "change"
+    ] = "An unreviewed replacement with the same variant ID"
+    reviewed_forged["review"]["native_result_fingerprint"] = workflow_fingerprint(
+        reviewed_forged["native_result"]
+    )
+    reviewed_forged = build_creative_workflow_stage(
+        reviewed_forged, upstream_fingerprint=reviewed_forged["upstream_assets"][0]
+    )
+    reviewed_path.write_text(json.dumps(reviewed_forged), encoding="utf-8")
+    try:
+        with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="inherited"):
+            cli._load_workflow_stage(str(reviewed_path), "reviewed")
+    finally:
+        reviewed_path.write_bytes(reviewed_original)
     handoff_path = source_dir / "handoff.json"
     handoff = {
         "schema_version": "creative_workflow_handoff.v1",
@@ -2538,6 +2556,13 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
     with pytest.raises(cli.ExperimentRunnerCreativeContextCliError, match="symlink"):
         cli._workflow_archive_inputs(output, include)
     (output / "patch.diff").unlink()
+    for name, content in (
+        ("patch.diff", '@router.get("/api/v1/items")'),
+        ("work_review.md", "GET /api/v1/items remains public routing evidence"),
+    ):
+        (output / name).write_text(content, encoding="utf-8")
+        assert cli._workflow_archive_inputs(output, include)[name] == content.encode("utf-8")
+        (output / name).write_text("safe", encoding="utf-8")
     for name, content in (
         ("patch.diff", "diff --git a/a.py b/a.py\n+log('/home/alice/PulsePlate')"),
         ("test_evidence.json", '{"cwd":"/workspace/PulsePlate"}'),
