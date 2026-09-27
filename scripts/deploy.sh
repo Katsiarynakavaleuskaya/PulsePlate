@@ -263,7 +263,8 @@ if prometheus.get("image") != sys.argv[1] or prometheus.get("platform") != "linu
 }
 
 validate_alertmanager_contract() {
-  "${COMPOSE[@]}" --profile alerting config --format json | "$PYTHON_BIN" -c '
+  "${COMPOSE[@]}" --profile '*' config --format json | "$PYTHON_BIN" -c '
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -300,18 +301,17 @@ if raw.count(image) != 1:
     raise SystemExit("Raw Alertmanager image must use the admitted platform digest")
 if prometheus.get("environment", {}).get("PULSEPLATE_ENVIRONMENT") != expected_environment:
     raise SystemExit("Rendered Prometheus environment is wrong")
-prom = prometheus_config.read_text(encoding="utf-8")
-rule_text = rules.read_text(encoding="utf-8")
-if prom.count("environment: ${PULSEPLATE_ENVIRONMENT}") != 1:
-    raise SystemExit("Prometheus external environment is missing or duplicated")
-if len(re.findall(r"(?m)^\s*metric_relabel_configs:\s*$", prom)) != 1 or not re.search(
-    r"(?m)^\s*- action: labeldrop\s*\n\s*regex: \^environment\$\s*$", prom
+# Public canonical admission fingerprints; update only after reviewing source file changes.
+if hashlib.sha256(prometheus_config.read_bytes()).hexdigest() != (
+    "77c5d05a" "45798582" "decb02b0" "55e5a15e"
+    "93f7ce73" "471ee079" "39e818b4" "a0757960"
 ):
-    raise SystemExit("Prometheus input environment label is not dropped")
-if re.search(r"(?m)^\s*(?:relabel_configs|alert_relabel_configs|labels):\s*", prom):
-    raise SystemExit("Prometheus environment could be shadowed")
-if re.search(r"(?m)^\s*environment\s*:", rule_text):
-    raise SystemExit("Rule labels cannot shadow environment")
+    raise SystemExit("Prometheus configuration differs from the admitted complete file")
+if hashlib.sha256(rules.read_bytes()).hexdigest() != (
+    "82ae2fb2" "c68b7d58" "0b71fe81" "b507de64"
+    "d5e4037d" "8b62da63" "1449b88f" "f4fd8e74"
+):
+    raise SystemExit("Prometheus rules differ from the admitted complete file")
 if alertmanager.get("image") != image or alertmanager.get("platform") != "linux/amd64":
     raise SystemExit("Alertmanager image identity differs from the admitted platform digest")
 if alertmanager.get("profiles") != ["alerting"] or alertmanager.get("ports") not in (None, []):
@@ -325,6 +325,11 @@ if set(app.get("networks", {})) != expected_app_networks:
     raise SystemExit("Product app networks changed or gained SMTP egress")
 if networks.get("alerting", {}).get("internal") is not True:
     raise SystemExit("Alerting network must be internal")
+smtp_egress = networks.get("smtp-egress")
+if (type(smtp_egress) is not dict or smtp_egress.get("driver") != "bridge"
+        or smtp_egress.get("internal") not in (None, False)
+        or smtp_egress.get("external") not in (None, False)):
+    raise SystemExit("SMTP egress must be a non-internal, non-external bridge")
 commands = alertmanager.get("command", [])
 if commands != ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="] or alertmanager.get("entrypoint"):
     raise SystemExit("Alertmanager command or disabled cluster listener changed")
@@ -346,11 +351,36 @@ if len(mounts) != 1 or mounts[0].get("type") != "bind" or mounts[0].get("source"
 expected_secret = [{"source": "alertmanager_smtp_key", "target": "/run/secrets/alertmanager_smtp_key"}]
 if alertmanager.get("secrets") != expected_secret:
     raise SystemExit("Alertmanager SMTP secret mount changed")
+secret_records = payload.get("secrets", {})
+if type(secret_records) is not dict:
+    raise SystemExit("Rendered Compose secrets are malformed")
+smtp_key_path = str(compose.parent / "secrets/alertmanager_smtp_key")
 for service_name, service in services.items():
-    if service_name != "alertmanager" and any(secret.get("source") == "alertmanager_smtp_key" for secret in service.get("secrets", [])):
-        raise SystemExit("SMTP secret leaked to another service")
-secret_record = payload.get("secrets", {}).get("alertmanager_smtp_key", {})
-if secret_record.get("file") != str(compose.parent / "secrets/alertmanager_smtp_key"):
+    if type(service) is not dict:
+        raise SystemExit("Rendered Compose service is malformed")
+    if service_name != "alertmanager":
+        if "network_mode" in service:
+            raise SystemExit("Another service may not share Alertmanager network namespace")
+        if "smtp-egress" in service.get("networks", {}):
+            raise SystemExit("SMTP egress leaked to another service")
+        for mount in service.get("volumes", []):
+            if type(mount) is not dict:
+                raise SystemExit("Rendered Compose service volume is malformed")
+            if (mount.get("type") == "bind"
+                    and (mount.get("source") == smtp_key_path
+                         or mount.get("target") == "/run/secrets/alertmanager_smtp_key")):
+                raise SystemExit("SMTP key bind mount leaked to another service")
+        for secret in service.get("secrets", []):
+            if type(secret) is not dict:
+                raise SystemExit("Rendered Compose service secret is malformed")
+            source = secret.get("source")
+            source_record = secret_records.get(source, {})
+            if (source == "alertmanager_smtp_key"
+                    or secret.get("target") == "/run/secrets/alertmanager_smtp_key"
+                    or (type(source_record) is dict and source_record.get("file") == smtp_key_path)):
+                raise SystemExit("SMTP secret leaked to another service")
+secret_record = secret_records.get("alertmanager_smtp_key", {})
+if type(secret_record) is not dict or secret_record.get("file") != smtp_key_path:
     raise SystemExit("Alertmanager SMTP secret source changed")
 alert_text = alert_config.read_text(encoding="utf-8")
 for required in ("smtp.resend.com:2465", "alerts@alerts.pulseplate.app", "pulseplate@pm.me",
@@ -397,18 +427,30 @@ if (len(re.findall(r"(?m)^route:\s*$", alert_text)) != 1
     or tuple(alert_text.splitlines()) != expected_alertmanager_lines
     or not alert_text.endswith(chr(10))):
     raise SystemExit("Alertmanager route and sole recipient are not the exact reviewed config")
-ignore_text = ignore.read_text(encoding="utf-8")
-if (len(re.findall(r"(?m)^\s*-\s+", ignore_text)) != 2
-    or ignore_text.count("vulnerabilities:") != 1
-    or ignore_text.count("expired_at:") != 1
-    or len(re.findall(r"(?m)^\s*- id:\s*", ignore_text)) != 1) or not re.search(
-    r"(?m)^\s*- id: CVE-2026-84445\s*$", ignore_text
-) or len(re.findall(r"(?m)^\s*- pkg:", ignore_text)) != 1 or not re.search(
-    r"(?m)^\s*- pkg:golang/google[.]golang[.]org/grpc@v1[.]83[.]1\s*$", ignore_text
-) or not re.search(r"(?m)^\s*expired_at: 2026-10-24\s*$", ignore_text):
-    raise SystemExit("Alertmanager Trivy exception is not exact")
+if hashlib.sha256(ignore.read_bytes()).hexdigest() != (
+    "7d6d70d6" "fcc07612" "1b82a7b5" "75a4c384"
+    "87aca24d" "11d037db" "42740b28" "9ab17e40"
+):
+    raise SystemExit("Alertmanager Trivy exception differs from the admitted complete file")
 ' "$COMPOSE_FILE" "$PROMETHEUS_CONFIG" "$PROMETHEUS_RULES" \
   "$ALERTMANAGER_CONFIG" "$ALERTMANAGER_TRIVY_IGNORE" staging
+}
+
+alertmanager_selected() {
+  local remaining="${COMPOSE_PROFILES:-}"
+  local token
+  while :; do
+    token="${remaining%%,*}"
+    token="${token#"${token%%[![:space:]]*}"}"
+    token="${token%"${token##*[![:space:]]}"}"
+    if [ "$token" = alerting ]; then
+      return 0
+    fi
+    case "$remaining" in
+      *,*) remaining="${remaining#*,}" ;;
+      *) return 1 ;;
+    esac
+  done
 }
 
 validate_alertmanager_secret_if_selected() {
@@ -425,10 +467,14 @@ PY
   else
     return 1
   fi
-  case ",${COMPOSE_PROFILES:-}," in
-    *,alerting,*) ;;
-    *) return 0 ;;
-  esac
+  if ! alertmanager_selected; then
+    return 0
+  fi
+  "$PYTHON_BIN" - <<'PY'
+from datetime import date, datetime, timezone
+if datetime.now(timezone.utc).date() > date.fromisoformat("2026-10-24"):
+    raise SystemExit("Selected Alertmanager Trivy exception has expired")
+PY
   if [ -L "$ALERTMANAGER_SMTP_KEY" ] || [ ! -f "$ALERTMANAGER_SMTP_KEY" ]; then
     echo "❌ Selected Alertmanager requires a regular non-symlink SMTP key" >&2
     return 1
@@ -437,6 +483,14 @@ PY
     echo "❌ Alertmanager SMTP key must be owned by the Compose account with mode 0444" >&2
     return 1
   fi
+  "$PYTHON_BIN" - "$ALERTMANAGER_SMTP_KEY" <<'PY'
+import os
+import stat
+import sys
+metadata = os.lstat(sys.argv[1])
+if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
+    raise SystemExit("Selected Alertmanager requires a nonempty regular SMTP key")
+PY
 }
 
 validate_postgres_image_manifest() {
@@ -1152,10 +1206,14 @@ echo "[2/5] Pull exact backend, Caddy, PostgreSQL, and Prometheus digests"
 "${COMPOSE[@]}" pull app caddy postgres prometheus
 echo "Pull scheduler worker from the exact backend digest"
 "${COMPOSE[@]}" pull worker
-"${COMPOSE[@]}" --profile alerting pull alertmanager
+if alertmanager_selected; then
+  "${COMPOSE[@]}" --profile alerting pull alertmanager
+fi
 echo "Validating the pulled Prometheus platform manifest before product mutation"
 validate_pulled_prometheus_image "$PROMETHEUS_RUNTIME_REF"
-validate_pulled_alertmanager_image
+if alertmanager_selected; then
+  validate_pulled_alertmanager_image
+fi
 echo "Validating the pulled PostgreSQL platform manifest before product mutation"
 validate_pulled_postgres_image "$POSTGRES_RUNTIME_REF"
 echo "Validating the pulled PostgreSQL empty UID 70 mountpoint before product mutation"
@@ -1202,12 +1260,14 @@ echo "Validating the exact Prometheus configuration before product mutation"
   --entrypoint /bin/promtool "$PROMETHEUS_RUNTIME_REF" \
   check rules /etc/prometheus/alias-alerts.yml
 
-"$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
-  --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
-  --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
-  --entrypoint /bin/amtool \
-  'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
-  check-config /etc/alertmanager/alertmanager.yml
+if alertmanager_selected; then
+  "$DOCKER_BIN" run --rm --pull never --platform linux/amd64 --network none --read-only \
+    --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges:true \
+    --mount "type=bind,source=$ALERTMANAGER_CONFIG,target=/etc/alertmanager/alertmanager.yml,readonly" \
+    --entrypoint /bin/amtool \
+    'prom/alertmanager@sha256:84967b9b7ba45e38a9278d3e594305f43d4993c310df3905b51138b816c365f3' \
+    check-config /etc/alertmanager/alertmanager.yml
+fi
 
 echo "Invoking the canonical application production invariant before product mutation"
 "${COMPOSE[@]}" run --rm --no-deps app python -c \
