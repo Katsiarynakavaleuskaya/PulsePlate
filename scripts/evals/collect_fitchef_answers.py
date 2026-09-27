@@ -12,6 +12,7 @@ import argparse
 import asyncio
 from collections import Counter
 from contextlib import ExitStack
+import copy
 import hashlib
 import logging
 import math
@@ -24,15 +25,26 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
+from sqlalchemy import select
 
 from app.middleware.api_tiers import SubscriptionTier, get_subscription_tier
 from app.routers import fitchef_structured
-from app.schemas.fitchef import FitChefDistortionSimulatorTaskEnvelope
+from app.schemas.fitchef import (
+    FitChefDistortionSimulatorInput,
+    FitChefDistortionSimulatorTaskEnvelope,
+)
 from app.security.agent_input_guard import require_safe_ai_agent_input, scan_ai_agent_input
-from app.security.llm_monthly_quota import require_llm_monthly_limit
+from app.middleware.api_tiers import TEST_KEY_PRO
+from app.security.llm_monthly_quota import (
+    VipLlmMonthlyUsage,
+    llm_key_fingerprint,
+    month_start_date_utc,
+    require_llm_monthly_limit,
+)
 from app.services import fitchef_runtime
 from core.insight import fitchef_companion
+from core.db import session_scope
 from core.rag import vector_rag
 from core.rag.contracts import RAGChunk, RAGContext
 from providers.perplexity import PerplexityProvider
@@ -44,10 +56,11 @@ from scripts.evals.fitchef_claim_assurance_eval import (
     SPLITS,
     _canonical,
     _rubric_hash,
+    read_private_jsonl,
     case_fingerprint,
     validate_cases,
 )
-from scripts.orchestration.check_preflight import _run as run_resolved_git
+from scripts.orchestration.creative_code_patch_workspace import run_git
 from scripts.evals import fitchef_claim_assurance_eval
 
 _MANIFEST_KEYS = frozenset(
@@ -82,7 +95,7 @@ class AttemptLedger:
         self.attempts = 0
         self.exhausted = False
         self.transport_rejection = False
-        self.reported_overrun_usd: float | None = None
+        self.reported_overrun_usd: int | float | None = None
         if not directory.is_dir() or directory.is_symlink():
             raise ValueError("unsafe_budget_directory")
         info = directory.stat()
@@ -154,12 +167,23 @@ def validate_manifest(rows: list[object], *, require_full: bool = True) -> list[
         }:
             raise ValueError("manifest_context")
         for key in ("situation", "automatic_thought", "emotion"):
-            if type(context[key]) is not str or not context[key] or len(context[key]) > 2000:
+            if (
+                type(context[key]) is not str
+                or not context[key].strip()
+                or len(context[key]) > 2000
+            ):
                 raise ValueError("manifest_context")
         if context["goal"] is not None and (
-            type(context["goal"]) is not str or not context["goal"] or len(context["goal"]) > 2000
+            type(context["goal"]) is not str
+            or not context["goal"].strip()
+            or len(context["goal"]) > 2000
         ):
             raise ValueError("manifest_context")
+        if any(
+            value is not None and not scan_ai_agent_input(value).is_safe
+            for value in context.values()
+        ):
+            raise ValueError("unsafe_context_instruction")
         sources = case["sources"]
         if type(sources) is not list or len(sources) > 5:
             raise ValueError("manifest_sources")
@@ -171,22 +195,25 @@ def validate_manifest(rows: list[object], *, require_full: bool = True) -> list[
                     raise ValueError("manifest_source")
             if (
                 type(source["score"]) not in (int, float)
-                or not math.isfinite(source["score"])
                 or not 0 <= source["score"] <= 1
+                or not math.isfinite(source["score"])
             ):
                 raise ValueError("manifest_score")
             if not scan_ai_agent_input(source["content"]).is_safe:
                 raise ValueError("unsafe_source_instruction")
-        result.append(case)
+        _preflight_request_size(case)
+        result.append(copy.deepcopy(case))
     if require_full:
         split = Counter(case["split"] for case in result)
         family = Counter(case["family"] for case in result)
         language = Counter(case["language"] for case in result)
         holdout = Counter(case["family"] for case in result if case["split"] == "holdout")
+        holdout_languages = {case["language"] for case in result if case["split"] == "holdout"}
         if (
             split != {"development": 16, "holdout": 8}
             or any(family[name] != 4 for name in FAMILIES)
             or any(language[name] != 8 for name in LANGUAGES)
+            or holdout_languages != set(LANGUAGES)
             or holdout
             != {
                 "causal_overclaim": 2,
@@ -199,6 +226,77 @@ def validate_manifest(rows: list[object], *, require_full: bool = True) -> list[
         ):
             raise ValueError("manifest_distribution")
     return result
+
+
+def _preflight_request_size(scenario: dict[str, Any]) -> None:
+    """Serialize the admitted prompt through the actual SDK without a send."""
+    context = scenario["context"]
+    occurrences: list[fitchef_runtime.FitChefSourceOccurrenceV1] = []
+    for source in scenario["sources"]:
+        content = (
+            fitchef_runtime.redact_pii_from_text(
+                fitchef_runtime.sanitize_rag_markdown(source["content"])
+            )
+            or ""
+        )
+        if content.strip():
+            occurrences.append(
+                fitchef_runtime.FitChefSourceOccurrenceV1(
+                    ordinal=len(occurrences),
+                    chunk_id=source["chunk_id"],
+                    file=source["file"],
+                    content=content,
+                    preview=fitchef_runtime.sanitize_chunk_preview(content) or "",
+                    score=source["score"],
+                )
+            )
+    snapshot = fitchef_runtime.freeze_fitchef_source_snapshot(tuple(occurrences))
+    prompt = fitchef_companion.build_distortion_simulator_prompt(
+        context["situation"],
+        context["automatic_thought"],
+        context["emotion"],
+        context["goal"],
+        fitchef_runtime.build_fitchef_source_prompt_context(snapshot),
+    )
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        if len(request.content) > _MAX_HTTP_BODY_BYTES:
+            raise ValueError("request_body_limit")
+        return httpx.Response(
+            200,
+            json={
+                "id": "preflight",
+                "object": "chat.completion",
+                "created": 0,
+                "model": _MODEL,
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": ""},
+                    }
+                ],
+            },
+        )
+
+    previous_logging_disable = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        with httpx.Client(transport=httpx.MockTransport(transport)) as client:
+            with OpenAI(
+                base_url=_EXPECTED_ENDPOINT,
+                api_key=TEST_KEY_PRO,
+                http_client=client,
+                max_retries=0,
+            ) as sdk:
+                sdk.chat.completions.create(
+                    model=_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1024,
+                    extra_body={"web_search_options": {"disable_search": True}},
+                )
+    finally:
+        logging.disable(previous_logging_disable)
 
 
 def validate_pricing_evidence(rows: list[object]) -> None:
@@ -222,10 +320,12 @@ def validate_pricing_evidence(rows: list[object]) -> None:
     if (
         row["schema_version"] != "fitchef_pricing_evidence.v1"
         or row["model"] != _MODEL
+        or type(row["max_request_bytes"]) is not int
         or row["max_request_bytes"] != _MAX_HTTP_BODY_BYTES
+        or type(row["max_tokens"]) is not int
         or row["max_tokens"] != 1024
-        or not math.isfinite(max_cost)
         or not 0 <= max_cost <= _RESERVE_USD
+        or not math.isfinite(max_cost)
         or type(row["source_url"]) is not str
         or not row["source_url"].startswith("https://docs.perplexity.ai/")
         or type(row["verified_at"]) is not str
@@ -235,16 +335,17 @@ def validate_pricing_evidence(rows: list[object]) -> None:
 
 
 def _code_sha() -> str:
-    code, status_output = run_resolved_git(
-        ["git", "status", "--porcelain", "--untracked-files=all"], cwd=Path.cwd()
+    observed = run_git(
+        ["status", "--porcelain", "--untracked-files=all"], cwd=Path.cwd(), check=False
     )
-    if code != 0:
+    if observed.returncode != 0:
         raise ValueError("git_status_unavailable")
-    if status_output:
+    if observed.stdout.strip():
         raise ValueError("uncommitted_code_state")
-    code, sha = run_resolved_git(["git", "rev-parse", "HEAD"], cwd=Path.cwd())
-    if code != 0:
+    observed = run_git(["rev-parse", "HEAD"], cwd=Path.cwd(), check=False)
+    if observed.returncode != 0:
         raise ValueError("git_head_unavailable")
+    sha = observed.stdout.strip()
     if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("code_sha")
     return sha
@@ -313,10 +414,63 @@ def validate_live_environment(fitchef_key: str) -> None:
     if not audit_log:
         raise ValueError("private_audit_path_required")
     _private_parent(Path(audit_log))
+    with session_scope() as session:
+        used = session.scalar(
+            select(VipLlmMonthlyUsage.used_requests).where(
+                VipLlmMonthlyUsage.key_fingerprint == llm_key_fingerprint(fitchef_key, tier="PRO"),
+                VipLlmMonthlyUsage.month_start_date == month_start_date_utc(),
+            )
+        )
+    if used is not None and (type(used) is not int or used < 0):
+        raise ValueError("invalid_synthetic_quota_usage")
+    if require_llm_monthly_limit("PRO") - (used if used is not None else 0) < 24:
+        raise ValueError("insufficient_synthetic_quota")
     if not fitchef_structured._is_fitchef_structured_enabled():
         raise ValueError("fitchef_feature_disabled")
     if fitchef_structured._require_fitchef_structured_mode() != "auto-safe":
         raise ValueError("fitchef_mode_not_auto_safe")
+
+
+def _validate_output_directory(directory: Path) -> None:
+    """Private output must be outside Git or fully ignored before any send."""
+    parent, _ = _parent_fd(directory / "collection-status.json")
+    try:
+        info = os.fstat(parent)
+        if info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise ValueError("unsafe_output_directory")
+    finally:
+        os.close(parent)
+    observed = run_git(["rev-parse", "--show-toplevel"], cwd=Path.cwd(), check=False)
+    if observed.returncode != 0:
+        raise ValueError("git_root_unavailable")
+    root = observed.stdout.strip()
+    try:
+        relative = directory.absolute().relative_to(Path(root))
+    except ValueError:
+        return
+    names = (
+        [f"attempt-{index:04d}.json" for index in range(1, _ATTEMPT_LIMIT + 1)]
+        + [f"case-{index:02d}.jsonl" for index in range(1, 25)]
+        + ["cases.jsonl", "collection-status.json"]
+    )
+    paths = [str(relative / name) for name in names]
+    observed = run_git(
+        [
+            "check-ignore",
+            "--no-index",
+            "-z",
+            "--stdin",
+        ],
+        cwd=Path(root),
+        check=False,
+        input_text="".join(path + "\0" for path in paths),
+    )
+    if observed.returncode == 1 or (
+        observed.returncode == 0 and set(observed.stdout.rstrip("\0").split("\0")) != set(paths)
+    ):
+        raise ValueError("nonignored_output_directory")
+    if observed.returncode != 0:
+        raise ValueError("output_ignore_unavailable")
 
 
 def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimulatorTaskEnvelope:
@@ -329,19 +483,19 @@ def _admitted_task(context: dict[str, Any], key: str) -> FitChefDistortionSimula
         agent_id="fitchef-agent",
         mode=mode,
         task_type="distortion_simulator",
-        input={
-            "safe_situation": require_safe_ai_agent_input(context["situation"]),
-            "safe_automatic_thought": require_safe_ai_agent_input(context["automatic_thought"]),
-            "safe_emotion": require_safe_ai_agent_input(context["emotion"]),
-            "safe_goal": (
+        input=FitChefDistortionSimulatorInput(
+            safe_situation=require_safe_ai_agent_input(context["situation"]),
+            safe_automatic_thought=require_safe_ai_agent_input(context["automatic_thought"]),
+            safe_emotion=require_safe_ai_agent_input(context["emotion"]),
+            safe_goal=(
                 require_safe_ai_agent_input(context["goal"])
                 if context["goal"] is not None and context["goal"].strip()
                 else None
             ),
-            "api_key": key,
-            "endpoint": "/api/v1/pro/fitchef/explain",
-            "method": "POST",
-        },
+            api_key=key,
+            endpoint="/api/v1/pro/fitchef/explain",
+            method="POST",
+        ),
     )
 
 
@@ -364,7 +518,7 @@ async def _collect_one(
     retrieval_completed = False
     usage: dict[str, Any] | None = None
     provider_content: str | None = None
-    actual_cost: float | None = None
+    actual_cost: int | float | None = None
     starting_attempts = ledger.attempts
     real_create = provider.client.chat.completions.create
     real_generate = provider.generate
@@ -398,11 +552,11 @@ async def _collect_one(
                     if (
                         not isinstance(amount, (int, float))
                         or isinstance(amount, bool)
-                        or not math.isfinite(amount)
-                        or not 0 <= amount <= 5
+                        or amount < 0
+                        or (type(amount) is float and not math.isfinite(amount))
                     ):
                         raise ValueError("invalid_provider_cost")
-                    actual_cost = float(amount)
+                    actual_cost = amount
                     if actual_cost > _RESERVE_USD:
                         ledger.reported_overrun_usd = actual_cost
                         raise ValueError("reported_cost_overrun")
@@ -528,6 +682,7 @@ async def _collect_one(
         "answer": answer,
         "context": context,
         "sources": occurrences,
+        "source_snapshot_fingerprint": frozen_snapshot.source_snapshot_fingerprint,
         "raw_response": provider_content if provider_content is not None else raw_response,
         "result": public_result,
         "run": {
@@ -556,6 +711,13 @@ async def collect(
     fitchef_key: str,
     perplexity_key: str,
 ) -> None:
+    manifest = validate_manifest(cast(list[object], manifest))
+    if not fitchef_key or not perplexity_key:
+        raise ValueError("missing_provider_or_fitchef_key")
+    validate_live_environment(fitchef_key)
+    if os.getenv("LLM_PROVIDER") not in (None, "perplexity"):
+        raise ValueError("provider_selection_conflict")
+    _validate_output_directory(output_dir)
     ledger = AttemptLedger(output_dir)
     if any(output_dir.iterdir()):
         raise ValueError("output_directory_not_empty")
@@ -647,7 +809,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        manifest = validate_manifest(read_jsonl(args.manifest))
+        manifest = validate_manifest(read_private_jsonl(args.manifest))
         rubric_sha256 = _rubric_hash(args.rubric)
         validate_pricing_evidence(read_jsonl(args.pricing_evidence))
         fitchef_key = os.getenv("NOOS_EVAL_FITCHEF_API_KEY", "")

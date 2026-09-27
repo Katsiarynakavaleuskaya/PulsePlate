@@ -888,7 +888,25 @@ def test_fitchef_claim_eval_reuses_bounded_reader_and_private_no_replace_writer(
         for alias in node.names
     )
     assert not imports.intersection(
-        {"socket", "subprocess", "requests", "httpx", "urllib", "providers", "app"}
+        {"socket", "subprocess", "requests", "httpx", "urllib", "providers"}
+    )
+    app_imports = [
+        node
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "app"
+    ]
+    assert len(app_imports) == 1
+    assert app_imports[0].module == "app.services.fitchef_claim_evidence_assurance"
+    assert {alias.name for alias in app_imports[0].names} == {
+        "FitChefSourceOccurrenceV1",
+        "build_fitchef_source_items",
+        "freeze_fitchef_source_snapshot",
+    }
+    assert all(
+        alias.name.split(".")[0] != "app"
+        for node in ast.walk(evaluator_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
     )
     for source in (evaluator_source, collector_source):
         assert "from scripts.evals.evidence_relation_audit import" in source

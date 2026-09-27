@@ -12,6 +12,7 @@ from collections import Counter
 from collections.abc import Sequence
 import copy
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -20,12 +21,19 @@ import stat
 import sys
 from typing import Any, cast
 
+from app.services.fitchef_claim_evidence_assurance import (
+    FitChefSourceOccurrenceV1,
+    build_fitchef_source_items,
+    freeze_fitchef_source_snapshot,
+)
 from core.evidence.relations import audit_snapshot, parse_snapshot
 from core.judgment import CLAIM_TYPES, EVIDENCE_MODES, SUPPORT_STATUSES
+from core.insight.fitchef_companion import _extract_json_payload, _normalize_structured_string
 from scripts.evals.evidence_relation_audit import _parent_fd, _read_input, read_jsonl, write_report
 
-CASE_SCHEMA = "fitchef_claim_case.v1"
-PACKET_SCHEMA = "fitchef_claim_candidate_packet.v1"
+LEGACY_CASE_SCHEMA = "fitchef_claim_case.v1"
+CASE_SCHEMA = "fitchef_claim_case.v2"
+PACKET_SCHEMA = "fitchef_claim_candidate_packet.v2"
 ANNOTATION_SCHEMA = "fitchef_claim_annotation.v1"
 ACCEPTANCE_SCHEMA = "fitchef_claim_reference_acceptance.v1"
 REPORT_SCHEMA = "fitchef_claim_evaluation.v1"
@@ -62,6 +70,8 @@ _CASE_KEYS = frozenset(
         "material_fingerprint",
     )
 )
+_CASE_V2_KEYS = _CASE_KEYS | {"source_snapshot_fingerprint"}
+_OPAQUE_ID_DOMAIN = b"fitchef_claim_candidate_packet.v2\0"
 _PACKET_KEYS = frozenset(
     (
         "schema_version",
@@ -157,9 +167,11 @@ def _validate_context(value: object) -> dict[str, Any]:
         "context",
     )
     for key in ("situation", "automatic_thought", "emotion"):
-        _string(context[key], key)
+        if not _string(context[key], key).strip():
+            raise ValueError("context_whitespace")
     if context["goal"] is not None:
-        _string(context["goal"], "goal")
+        if not _string(context["goal"], "goal").strip():
+            raise ValueError("context_whitespace")
     return context
 
 
@@ -178,7 +190,7 @@ def _validate_sources(value: object) -> list[dict[str, Any]]:
         for key in ("chunk_id", "file", "content", "preview"):
             _string(source[key], key, allow_empty=key == "preview")
         score = source["score"]
-        if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
+        if type(score) not in (int, float) or not 0 <= score <= 1 or not math.isfinite(score):
             raise ValueError("source_score")
         result.append(source)
     return result
@@ -231,10 +243,12 @@ def _validate_run(value: object, provenance: str) -> dict[str, Any]:
         raise ValueError("provider_code_hashes")
     if type(run["parameters"]) is not dict:
         raise ValueError("parameters_shape")
-    if provenance == "provider_run" and run["parameters"] != {
-        "max_tokens": 1024,
-        "web_search_options": {"disable_search": True},
-    }:
+    if provenance == "provider_run" and _canonical(run["parameters"]) != _canonical(
+        {
+            "max_tokens": 1024,
+            "web_search_options": {"disable_search": True},
+        }
+    ):
         raise ValueError("provider_parameters")
     if type(run["attempts"]) is not int or not 0 <= run["attempts"] <= 32:
         raise ValueError("attempts_range")
@@ -268,8 +282,16 @@ def _validate_run(value: object, provenance: str) -> dict[str, Any]:
         )
     ):
         raise ValueError("provider_cost_status")
-    if provenance == "provider_run" and round(reserved, 2) != round(run["attempts"] * 0.15, 2):
+    if provenance == "provider_run" and reserved != round(run["attempts"] * 0.15, 2):
         raise ValueError("reserve_mismatch")
+    if provenance != "provider_run" and (
+        run["attempts"] != 0
+        or reserved != 0
+        or cost is not None
+        or usage is not None
+        or run["cost_status"] != "not_applicable"
+    ):
+        raise ValueError("nonprovider_accounting")
     return run
 
 
@@ -286,9 +308,14 @@ def validate_cases(rows: list[object], rubric_sha256: str) -> list[dict[str, Any
     ids: set[str] = set()
     canonical_ids: set[str] = set()
     for row in rows:
-        case = _object(row, _CASE_KEYS, "case")
-        if case["schema_version"] != CASE_SCHEMA:
+        if type(row) is not dict or row.get("schema_version") not in (
+            LEGACY_CASE_SCHEMA,
+            CASE_SCHEMA,
+        ):
             raise ValueError("case_version")
+        case = _object(
+            row, _CASE_V2_KEYS if row["schema_version"] == CASE_SCHEMA else _CASE_KEYS, "case"
+        )
         case_id = _string(case["case_id"], "case_id")
         _string(case["canonical_id"], "canonical_id")
         if case_id in ids or case["canonical_id"] in canonical_ids:
@@ -307,12 +334,34 @@ def validate_cases(rows: list[object], rubric_sha256: str) -> list[dict[str, Any
         _string(case["answer"], "answer")
         _string(case["raw_response"], "raw_response", allow_empty=True)
         _validate_context(case["context"])
-        _validate_sources(case["sources"])
+        sources = _validate_sources(case["sources"])
+        snapshot = freeze_fitchef_source_snapshot(
+            tuple(FitChefSourceOccurrenceV1(**source) for source in sources)
+        )
+        if case["schema_version"] == CASE_SCHEMA and (
+            snapshot.source_snapshot_fingerprint is None
+            or case["source_snapshot_fingerprint"] != snapshot.source_snapshot_fingerprint
+        ):
+            raise ValueError("captured_source_fingerprint_mismatch")
         _validate_run(case["run"], case["input_provenance"])
         if type(case["result"]) is not dict:
             raise ValueError("result_shape")
         if case["result"].get("balanced_reframe") != case["answer"]:
             raise ValueError("final_answer_mismatch")
+        if case["input_provenance"] == "provider_run":
+            expected_sources = [
+                item.model_dump(mode="json") for item in build_fitchef_source_items(snapshot)
+            ]
+            if case["result"].get("sources") != expected_sources:
+                raise ValueError("result_source_projection_mismatch")
+            if case["field_origin"] == "provider":
+                try:
+                    payload = _extract_json_payload(case["raw_response"])
+                    provider_answer = _normalize_structured_string(payload.get("balanced_reframe"))
+                except ValueError as exc:
+                    raise ValueError("provider_field_origin_mismatch") from exc
+                if provider_answer != case["answer"]:
+                    raise ValueError("provider_field_origin_mismatch")
         if case["material_fingerprint"] != case_fingerprint(case, rubric_sha256):
             raise ValueError("stale_case_fingerprint")
         cases.append(copy.deepcopy(case))
@@ -323,18 +372,38 @@ def validate_cases(rows: list[object], rubric_sha256: str) -> list[dict[str, Any
         raise ValueError("aggregate_attempt_limit")
     if sum(case["run"]["reserved_usd"] for case in cases) > 4.8 + 1e-9:
         raise ValueError("aggregate_reserve_limit")
+    provider_identities = {
+        _canonical(
+            {
+                key: case["run"][key]
+                for key in ("id", "code_sha", "code_hashes", "model", "parameters")
+            }
+        )
+        for case in cases
+        if case["input_provenance"] == "provider_run"
+    }
+    if len(provider_identities) > 1:
+        raise ValueError("mixed_provider_run_identity")
     return cases
 
 
-def _opaque_id(case: dict[str, Any]) -> str:
-    return _sha(_canonical((case["case_id"], case["material_fingerprint"])))[:24]
+def _opaque_id(case: dict[str, Any], blind_key: bytes) -> str:
+    if type(blind_key) is not bytes or len(blind_key) != 32:
+        raise ValueError("blind_key_length")
+    return hmac.new(
+        blind_key,
+        _OPAQUE_ID_DOMAIN + _canonical((case["case_id"], case["material_fingerprint"])),
+        hashlib.sha256,
+    ).hexdigest()
 
 
-def prepare_packet(cases: list[dict[str, Any]], rubric_sha256: str) -> list[dict[str, Any]]:
+def prepare_packet(
+    cases: list[dict[str, Any]], rubric_sha256: str, blind_key: bytes
+) -> list[dict[str, Any]]:
     return [
         {
             "schema_version": PACKET_SCHEMA,
-            "opaque_id": _opaque_id(case),
+            "opaque_id": _opaque_id(case, blind_key),
             "material_fingerprint": case["material_fingerprint"],
             "answer": case["answer"],
             "context": case["context"],
@@ -349,8 +418,10 @@ def prepare_packet(cases: list[dict[str, Any]], rubric_sha256: str) -> list[dict
     ]
 
 
-def validate_packet(rows: list[object], cases: list[dict[str, Any]], rubric_sha256: str) -> None:
-    expected = prepare_packet(cases, rubric_sha256)
+def validate_packet(
+    rows: list[object], cases: list[dict[str, Any]], rubric_sha256: str, blind_key: bytes
+) -> None:
+    expected = prepare_packet(cases, rubric_sha256, blind_key)
     if len(rows) != len(expected):
         raise ValueError("packet_count")
     for row, wanted in zip(rows, expected):
@@ -432,8 +503,9 @@ def validate_annotations(
     cases: list[dict[str, Any]],
     *,
     reference: bool,
+    blind_key: bytes,
 ) -> dict[str, dict[str, Any]]:
-    by_id = {_opaque_id(case): case for case in cases}
+    by_id = {_opaque_id(case, blind_key): case for case in cases}
     result: dict[str, dict[str, Any]] = {}
     for row in rows:
         annotation = _object(row, _ANNOTATION_KEYS, "annotation")
@@ -476,7 +548,7 @@ def validate_annotations(
 
 
 def validate_acceptance(path: Path, reference_sha256: str) -> None:
-    rows = read_jsonl(path)
+    rows = read_private_jsonl(path)
     if len(rows) != 1:
         raise ValueError("acceptance_shape")
     receipt = _object(
@@ -504,6 +576,65 @@ def _input_identity(path: Path) -> tuple[int, int]:
         os.close(parent)
 
 
+def _private_input_identity(path: Path) -> tuple[int, ...]:
+    """Require current owner plus a private file or private containing directory."""
+    parent, name = _parent_fd(path)
+    try:
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        parent_info = os.fstat(parent)
+        private_parent = parent_info.st_uid == os.getuid() and not parent_info.st_mode & 0o077
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or info.st_uid != os.getuid()
+            or (info.st_mode & 0o077 and not private_parent)
+        ):
+            raise ValueError("unsafe_private_input")
+        return (
+            info.st_dev,
+            info.st_ino,
+            info.st_mode,
+            info.st_uid,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+            info.st_nlink,
+            parent_info.st_dev,
+            parent_info.st_ino,
+            parent_info.st_mode,
+            parent_info.st_uid,
+            parent_info.st_mtime_ns,
+            parent_info.st_ctime_ns,
+        )
+    except OSError as exc:
+        raise ValueError("unsafe_private_input") from exc
+    finally:
+        os.close(parent)
+
+
+def read_private_jsonl(path: Path) -> list[object]:
+    before = _private_input_identity(path)
+    rows = read_jsonl(path)
+    if before != _private_input_identity(path):
+        raise ValueError("private_input_changed")
+    return rows
+
+
+def _read_private_input(path: Path) -> bytes:
+    before = _private_input_identity(path)
+    data = _read_input(path)
+    if before != _private_input_identity(path):
+        raise ValueError("private_input_changed")
+    return data
+
+
+def load_blind_key(path: Path) -> bytes:
+    key = _read_private_input(path)
+    if len(key) != 32:
+        raise ValueError("blind_key_length")
+    return key
+
+
 def _ratio(numerator: int, denominator: int) -> dict[str, int | float | str]:
     return {
         "numerator": numerator,
@@ -516,6 +647,7 @@ def _metrics(
     cases: list[dict[str, Any]],
     candidates: dict[str, dict[str, Any]],
     references: dict[str, dict[str, Any]],
+    blind_key: bytes,
 ) -> dict[str, Any]:
     matrix = {ref: {candidate: 0 for candidate in SUPPORT_STATUSES} for ref in SUPPORT_STATUSES}
     reference_claims = matched = unmatched_candidate = abstained_cases = missing_cases = 0
@@ -532,7 +664,7 @@ def _metrics(
     language_mismatch_cases: list[str] = []
     false_accept = false_reject = severe_false_accept = negative_matched = positive_matched = 0
     for case in cases:
-        opaque = _opaque_id(case)
+        opaque = _opaque_id(case, blind_key)
         ref_claims = references[opaque]["claims"]
         ref_quality = references[opaque]["answer_quality"]
         language_counts[ref_quality["language_fit"]] += 1
@@ -571,6 +703,9 @@ def _metrics(
         }
         ref_ids = {(item["start"], item["end"], item["quote"]) for item in ref_claims}
         unmatched_candidate += len(candidate_claims.keys() - ref_ids)
+        abstained_claims += sum(
+            item["support_status"] == "abstain" for item in candidate_claims.values()
+        )
         for ref in ref_claims:
             key = (ref["start"], ref["end"], ref["quote"])
             cand = candidate_claims.get(key)
@@ -578,7 +713,6 @@ def _metrics(
                 reference_omissions += 1
                 continue
             if cand["support_status"] == "abstain":
-                abstained_claims += 1
                 continue
             matched += 1
             ref_status, cand_status = ref["support_status"], cand["support_status"]
@@ -632,6 +766,7 @@ def build_report(
     candidates: dict[str, dict[str, Any]],
     references: dict[str, dict[str, Any]],
     *,
+    blind_key: bytes,
     structural: object | None = None,
     rubric_sha256: str | None = None,
     accepted_reference_sha256: str | None = None,
@@ -642,7 +777,7 @@ def build_report(
     for field in ("split", "family", "language", "input_provenance", "field_origin"):
         slices[field] = {
             label: _metrics(
-                [case for case in cases if case[field] == label], candidates, references
+                [case for case in cases if case[field] == label], candidates, references, blind_key
             )
             for label in sorted({case[field] for case in cases})
         }
@@ -653,7 +788,16 @@ def build_report(
     report = {
         "schema_version": REPORT_SCHEMA,
         "cases": len(cases),
-        "metrics": _metrics(cases, candidates, references),
+        "metrics": _metrics(cases, candidates, references, blind_key),
+        "capture_integrity": {
+            "historical_fingerprint_not_recorded_cases": sum(
+                case["schema_version"] == LEGACY_CASE_SCHEMA for case in cases
+            ),
+            "recorded_fingerprint_consistent_cases": sum(
+                case["schema_version"] == CASE_SCHEMA for case in cases
+            ),
+            "authenticated_capture": False,
+        },
         "slices": slices,
         "spend": {
             "reserved_usd": round(sum(case["run"]["reserved_usd"] for case in cases), 2),
@@ -678,7 +822,7 @@ def build_report(
 
 def _load(args: argparse.Namespace) -> tuple[list[dict[str, Any]], str]:
     rubric_sha256 = _rubric_hash(args.rubric)
-    cases = validate_cases(read_jsonl(args.cases), rubric_sha256)
+    cases = validate_cases(read_private_jsonl(args.cases), rubric_sha256)
     return cases, rubric_sha256
 
 
@@ -688,11 +832,13 @@ def main(argv: list[str] | None = None) -> int:
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--cases", type=Path, required=True)
     prepare.add_argument("--rubric", type=Path, required=True)
+    prepare.add_argument("--blind-key", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
     for command in ("validate", "report"):
         sub = commands.add_parser(command)
         sub.add_argument("--cases", type=Path, required=True)
         sub.add_argument("--rubric", type=Path, required=True)
+        sub.add_argument("--blind-key", type=Path, required=True)
         sub.add_argument("--packet", type=Path, required=True)
         sub.add_argument("--candidate", type=Path, required=True)
         sub.add_argument("--reference", type=Path, required=True)
@@ -702,24 +848,29 @@ def main(argv: list[str] | None = None) -> int:
             sub.add_argument("--relation-snapshot", type=Path)
     args = parser.parse_args(argv)
     try:
+        blind_key = load_blind_key(args.blind_key)
         cases, rubric_sha256 = _load(args)
         if args.command == "prepare":
-            write_report(args.output, _jsonl(prepare_packet(cases, rubric_sha256)))
+            write_report(args.output, _jsonl(prepare_packet(cases, rubric_sha256, blind_key)))
             return 0
-        validate_packet(read_jsonl(args.packet), cases, rubric_sha256)
+        validate_packet(read_private_jsonl(args.packet), cases, rubric_sha256, blind_key)
         if _input_identity(args.reference) == _input_identity(args.candidate):
             raise ValueError("candidate_is_reference")
-        reference_bytes = _read_input(args.reference)
-        reference = validate_annotations(read_jsonl(args.reference), cases, reference=True)
-        if _read_input(args.reference) != reference_bytes:
+        reference_bytes = _read_private_input(args.reference)
+        reference = validate_annotations(
+            read_private_jsonl(args.reference), cases, reference=True, blind_key=blind_key
+        )
+        if _read_private_input(args.reference) != reference_bytes:
             raise ValueError("reference_changed_during_read")
-        acceptance_bytes = _read_input(args.reference_acceptance)
+        acceptance_bytes = _read_private_input(args.reference_acceptance)
         validate_acceptance(args.reference_acceptance, _sha(reference_bytes))
-        if _read_input(args.reference_acceptance) != acceptance_bytes:
+        if _read_private_input(args.reference_acceptance) != acceptance_bytes:
             raise ValueError("acceptance_changed_during_read")
-        candidate_bytes = _read_input(args.candidate)
-        candidate = validate_annotations(read_jsonl(args.candidate), cases, reference=False)
-        if _read_input(args.candidate) != candidate_bytes:
+        candidate_bytes = _read_private_input(args.candidate)
+        candidate = validate_annotations(
+            read_private_jsonl(args.candidate), cases, reference=False, blind_key=blind_key
+        )
+        if _read_private_input(args.candidate) != candidate_bytes:
             raise ValueError("candidate_changed_during_read")
         if args.command == "report":
             structural = None
@@ -739,6 +890,7 @@ def main(argv: list[str] | None = None) -> int:
                         cases,
                         candidate,
                         reference,
+                        blind_key=blind_key,
                         structural=structural,
                         rubric_sha256=rubric_sha256,
                         accepted_reference_sha256=_sha(reference_bytes),
