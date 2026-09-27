@@ -77,8 +77,11 @@ computed importers must migrate to `app.bootstrap.openapi`.
 
 PR #2412 merged on 2026-09-24T20:13:33Z as
 `156bed4034c8de9daded0e5a91014e700563f1d7`, retiring the seven OpenAPI
-helper projections and extending the exact-name guard from 61 to 68. The next
-bounded child retires only the fifteen BMR/PRO nutrition contract projections:
+helper projections and extending the exact-name guard from 61 to 68.
+[PR #2419](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2419)
+merged on 2026-09-25T04:43:11Z as
+`dc24f2f6e4a90d1736c4bf9d2c36d6b8c0609e17`, retiring only the fifteen
+BMR/PRO nutrition contract projections:
 `BMRRequest`, `BMRRequestLegacy`, `BMRResponse`, `NutrientGapsRequest`,
 `NutrientGapsResponse`, `PlateRequest`, `PlateResponse`, `VisualShape`,
 `WHOTargetsRequest`, `WHOTargetsResponse`, `Activity`, `DietFlag`, `Goal`, `Sex`,
@@ -90,8 +93,8 @@ and `build_who_targets_ui_labels`. The three BMR models remain at
 `app/schemas/premium_contracts.py:143`, `app/schemas/premium_contracts.py:216`,
 and `app/schemas/premium_contracts.py:243`; and the labels helper at
 `app/schemas/premium_contracts.py:203`. `BMRRequest` and `BMRRequestLegacy`
-remain distinct models with the same validation contract. This child removes
-only Python import paths, extends the finite guard from 68 to 83, and leaves
+remain distinct models with the same validation contract. That PR removed
+only Python import paths, extended the finite guard from 68 to 83, and left
 retained HTTP routes, response models, OpenAPI, and the FastAPI app identity
 unchanged. Unknown external or reflective Python importers remain a residual
 compatibility risk.
@@ -462,7 +465,12 @@ merged on 2026-09-23 at 14:32:10 UTC as
 [PR #2407](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2407)
 (`codex/retire-legacy-targets-gaps-service-exports`) retired only the three
 targets/gaps service projections above, extending the exact-name set from 58 to
-61 without changing its recognizer. The parent Legacy epic remains open.
+61 without changing its recognizer. PR #2412 then merged the seven OpenAPI
+helper projections above as `156bed4034c8de9daded0e5a91014e700563f1d7`,
+and PR #2419 merged the fifteen BMR/PRO nutrition projections as
+`dc24f2f6e4a90d1736c4bf9d2c36d6b8c0609e17`. Current PR #2449 proposes
+the four-name log-retention retirement and census above; its merge and
+post-merge proof remain unclaimed. The parent Legacy epic remains open.
 All retained Insight HTTP routes, all four versioned nutrition aliases, and
 both root aliases remain callable. Versioned-alias retirement, root-alias
 auth/sunset, retained Insight HTTP-alias retirement, and final legacy deletion
