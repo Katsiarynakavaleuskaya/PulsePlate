@@ -156,17 +156,32 @@ not enter this procedure.
    decisions; their JSON, hashes and role labels do not authenticate a human,
    execute the writer, or grant repository/merge authority by themselves.
 4. Dispatch the selected writer under the normal packet's separate
-   implementation handoff. Execute only the reviewed
-   `request.test_commands`, never prose or commands outside that list. The
-   request validator accepts only bounded test-target forms; parse the exact
-   chosen command into argv, resolve its executable to a trusted absolute path,
-   and run it with `shell=False` from the owned checkout. Never interpolate it
-   into a shell command or accept model-authored environment expansion. Compare
-   the actual Git diff paths, elapsed candidate time and executed focused-test
-   count with the selected exact files and request budget; record an overrun
-   as a failed/pending outcome. Review the
-   actual patch and test results against each accepted criterion in Work
-   Review. Export a sanitized owned capsule using `workflow-export`, then let
+   implementation handoff to produce a patch in an owned isolated checkout.
+   Do not execute tests or import generated code in the host checkout yet.
+   First inspect the complete patch, compare exact changed paths and elapsed
+   time with the admitted files and budget, and reject unsafe or out-of-scope
+   changes. A reviewed patch is still untrusted executable code.
+5. Use the existing strict Experiment Runner dispatcher to execute only the
+   reviewed `request.test_commands` against that exact scratch diff inside a
+   capability-probed, zero-network container. On macOS use the runbook's
+   explicit Apple Container backend and immutable image; no direct local
+   `experiment_runner.py` fallback, host test invocation, shell interpolation,
+   model-authored environment expansion, or Drive credentials. Build the
+   existing oracle-only packet with the exact candidate paths and commands;
+   keep `network_budget=0`, 300 seconds, at most three changed files, two
+   targeted test commands and one infrastructure retry. Newly added files may
+   be marked intent-to-add only in the owned scratch checkout so its diff is
+   visible to the runner. The runner result is procedural test evidence, not
+   promotion or merge authority. If a command or required fixture cannot be
+   admitted by the strict backend, or capability/provenance is unavailable,
+   do not run the generated code on the host. Record tests `pending` and let
+   the ordinary platform owner handle its separate governed verification. A
+   fixture-bearing projection is separate evidence and never replaces the
+   selected patch's original hash or its exact-material test claim.
+6. Compare the observed sandbox command results and actual patch with each
+   accepted criterion in Work Review. A pending or over-budget test result
+   cannot support completion. Export a sanitized owned capsule using
+   `workflow-export`, then let
    the host upload, read the same document ID, download the archive, compare its
    SHA-256 and run `workflow-verify-archive` into a fresh owned directory. Keep
    the bound packet available because restore rechecks the canonical writer

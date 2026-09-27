@@ -47,21 +47,30 @@ diversity and goal fitness remain coordinator review questions. The legacy
 `originality`, `groundedness`, `hallucination_risk` and `promotion_decision`
 fields have no operational selection authority. Variant `tests` must be exact
 members of the coordinator-approved `request.test_commands`; the host executes
-only that admitted command list after reviewing the selected variant. The
-variant cannot introduce another executable command.
+only that admitted command list after reviewing the selected variant and the
+actual writer patch. The variant cannot introduce another executable command.
 The v1 request admits only bounded, non-shell test forms: `pytest -q` with one
 canonical `tests/*.py` target and optional test node/`--maxfail=1`, the fixed
 `make test-fast|validate-changed|ios-test` targets, or `npm --prefix frontend
 test -- --run` with one `src/*.(test|spec).(js|jsx|ts|tsx)` target. Shell
 operators, traversal and arbitrary executable names are rejected before native
-dispatch. The host resolves the selected executable and runs its parsed argv
-without a shell; adding another platform test form needs a reviewed contract
-change. These syntax limits do not turn a coordinator choice into outcome proof.
+dispatch. The host runs supported commands only through the existing strict,
+zero-network Experiment Runner in an owned scratch checkout after patch review;
+`shell=False` alone is not containment. It never executes generated code with
+host credentials. A current backend that cannot admit an approved npm/Xcode
+command or its required fixture leaves tests `pending`; ordinary platform-owner
+verification is separate and cannot be fabricated as candidate test evidence.
+No PR-2 candidate-patch allowlist is widened. A derived tracked-fixture
+projection is labeled separately from the original selected patch and hash.
+Adding another platform test form needs a reviewed contract change. Syntax
+limits do not turn a coordinator choice into outcome proof.
 
 Separate immutable, private local stages record `prepared`, `returned`,
 `validated`, `reviewed` and `admitted`. A malformed native result may leave a
 `returned` artifact with `INVALID_NATIVE_RESULT`; it cannot create a validated
-stage. Each stage declares its asset type, policy version, one upstream asset,
+stage. Request, native-result and review prose reject local paths through the
+same route-aware detector used at export before their stage is persisted.
+Each stage declares its asset type, policy version, one upstream asset,
 content fingerprint and idempotency key; the next stage checks that exact
 predecessor and compares fields that must be inherited unchanged. A reviewed
 stage cannot substitute a different native result while naming the real
