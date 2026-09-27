@@ -1858,6 +1858,15 @@ def test_operational_stage_inputs_reject_local_paths_before_persistence() -> Non
         with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
             validate_creative_workflow_request(request)
 
+    for private_share in (
+        r"\\server\share\PulsePlate\file.py",
+        "//server/share/PulsePlate/file.py",
+    ):
+        request = _operational_request()
+        request["criteria"][0]["description"] = "Read " + private_share
+        with pytest.raises(ExperimentRunnerCreativeContextContractError, match="private"):
+            validate_creative_workflow_request(request)
+
     request = _operational_request()
     native = _operational_native(request)
     native["variants"][0]["change"] = "GET /workspace/build/file.py"
@@ -2441,6 +2450,21 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     assert cli.main(export_args) == 1
     evidence["manifest_order"] = handoff["manifest_order"]
     evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    gitlink_patch = patch_text.replace("new file mode 100644", "new file mode 160000")
+    patch_path.write_text(gitlink_patch, encoding="utf-8")
+    evidence["patch_sha256"] = "sha256:" + hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    assert cli.main(export_args) == 1
+    patch_path.write_text(patch_text, encoding="utf-8")
+    evidence["patch_sha256"] = "sha256:" + hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    (output_dir / "work_review.md").write_text("  \n", encoding="utf-8")
+    assert cli.main(export_args) == 1
+    (output_dir / "work_review.md").write_text("Observed C1 only", encoding="utf-8")
+    assert cli.main(export_args) == 1
+    (output_dir / "work_review.md").write_text(
+        "Observed C1 and C2 after local checks", encoding="utf-8"
+    )
     assert cli.main(export_args) == 0
     archive = output_dir / "creative_workflow_capsule.zip"
     assert (
@@ -2501,6 +2525,7 @@ def test_operational_cli_native_stages_and_archive_round_trip(
     for case, member_name, replacement in (
         ("unrelated-patch", "patch.diff", unrelated_patch.encode("utf-8")),
         ("stale-test-command", "test_evidence.json", json.dumps(stale_evidence).encode("utf-8")),
+        ("empty-review", "work_review.md", b"   \n"),
     ):
         tampered_members = dict(original_members)
         tampered_members[member_name] = replacement
@@ -2555,6 +2580,31 @@ def test_operational_cli_native_stages_and_archive_round_trip(
         == 1
     )
     assert not (cli.CREATIVE_CONTEXT_ROOT / "unsupported-restore").exists()
+    for label, compression in (
+        ("bzip2", zipfile.ZIP_BZIP2),
+        ("lzma", zipfile.ZIP_LZMA),
+    ):
+        compressed_dir = cli.CREATIVE_CONTEXT_ROOT / ("unsupported-" + label)
+        compressed_dir.mkdir()
+        compressed_archive = compressed_dir / "creative_workflow_capsule.zip"
+        with zipfile.ZipFile(compressed_archive, "w", compression=compression) as target:
+            for name, data in original_members.items():
+                target.writestr(name, data)
+        assert (
+            cli.main(
+                [
+                    "workflow-verify-archive",
+                    "--archive",
+                    str(compressed_archive),
+                    "--sha256",
+                    hashlib.sha256(compressed_archive.read_bytes()).hexdigest(),
+                    "--restore-dir",
+                    "unsupported-" + label + "-restore",
+                ]
+            )
+            == 1
+        )
+        assert not (cli.CREATIVE_CONTEXT_ROOT / ("unsupported-" + label + "-restore")).exists()
     deflated_dir = cli.CREATIVE_CONTEXT_ROOT / "corrupt-deflate"
     deflated_dir.mkdir()
     deflated_archive = deflated_dir / "creative_workflow_capsule.zip"
@@ -2765,6 +2815,8 @@ def test_operational_stage_and_archive_reject_false_completion_and_unsafe_files(
         ("work_review.md", "Observed /opt/local/PulsePlate and /mnt/build/PulsePlate"),
         ("work_review.md", "Observed /srv/alice/PulsePlate"),
         ("work_review.md", "GET /srv/alice/PulsePlate remains a local path"),
+        ("work_review.md", r"Observed \\server\share\PulsePlate\file.py"),
+        ("test_evidence.json", '{"source":"//server/share/PulsePlate/file.py"}'),
         ("test_evidence.json", '{"credential":"DATABASE_PASSWORD=not-a-real-secret"}'),
         ("work_review.md", "Synthetic key ID: " + "AKIA" + "A" * 16),
         ("work_review.md", "DATABASE_PASSWORD" + "=" + '"synthetic-not-a-secret"'),

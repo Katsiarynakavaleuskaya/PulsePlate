@@ -233,6 +233,10 @@ _ROUTE_LITERAL_CONTEXT_RE = re.compile(
     r"\(\s*['\"]|\b(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WEBSOCKET)\s+)$",
     re.IGNORECASE,
 )
+_UNC_PATH_RE = re.compile(
+    r"\\\\[A-Za-z0-9._-]+\\[A-Za-z0-9._-]+|(?<!:)//[A-Za-z0-9._-]+/[A-Za-z0-9._-]+",
+    re.IGNORECASE,
+)
 _LOCAL_FILESYSTEM_ROOTS = frozenset(
     {
         "dev",
@@ -255,6 +259,8 @@ _LOCAL_FILESYSTEM_ROOTS = frozenset(
 
 
 def contains_local_path_outside_route_context(value: str) -> bool:
+    if _UNC_PATH_RE.search(value):
+        return True
     for match in LOCAL_ABSOLUTE_PATH_RE.finditer(value):
         matched_path = match.group()
         if (

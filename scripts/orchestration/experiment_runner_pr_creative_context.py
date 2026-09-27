@@ -925,12 +925,16 @@ def _workflow_patch_paths(patch: bytes) -> list[str]:
     """Use Git's read-only patch parser to enumerate every changed file."""
     text = patch.decode("utf-8")
     headers = re.findall(r"^diff --git ", text, re.MULTILINE)
+    for line in text.splitlines():
+        if line.startswith(("new file mode ", "deleted file mode ")) and not line.endswith(
+            " 100644"
+        ):
+            raise ExperimentRunnerCreativeContextCliError("capsule patch file mode is unsafe")
     if (
         not text.startswith("diff --git ")
         or not headers
         or re.search(
-            r"^(?:GIT binary patch|Binary files |rename |copy |old mode |new mode |"
-            r"new file mode 120000|deleted file mode 120000)",
+            r"^(?:GIT binary patch|Binary files |rename |copy |old mode |new mode |Submodule )",
             text,
             re.MULTILINE,
         )
@@ -1038,6 +1042,12 @@ def _require_bound_patch_test_evidence(
         commands.append(command)
     if len(commands) != len(set(commands)) or set(commands) != set(selected["tests"]):
         raise ExperimentRunnerCreativeContextCliError("capsule test command set is incomplete")
+    work_review = files["work_review.md"].decode("utf-8").strip()
+    if len(work_review) < 20 or any(
+        re.search(r"\b" + re.escape(row["id"]) + r"\b", work_review) is None
+        for row in request["criteria"]
+    ):
+        raise ExperimentRunnerCreativeContextCliError("capsule Work Review omits criteria")
 
 
 def _workflow_export(args: argparse.Namespace) -> int:
@@ -1116,6 +1126,7 @@ def _workflow_verify_archive(args: argparse.Namespace) -> int:
             for info in infos:
                 if (
                     info.is_dir()
+                    or info.compress_type != zipfile.ZIP_STORED
                     or info.file_size > MAX_WORKFLOW_ARCHIVE_BYTES
                     or ((info.external_attr >> 16) & 0o170000) not in {0, stat.S_IFREG}
                 ):
